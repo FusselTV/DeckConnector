@@ -31,9 +31,11 @@ tools/dbtools/       reference server, benchmarks, signing, font generator, seri
 
 Exactly one source writes to the device at a time. `db_ui` decides:
 
-1. The menu or an update in progress: the device UI.
-2. Network Dock mode: the dock host once it opened the device port, otherwise the device UI.
-3. Native mode: the active server, otherwise the device UI.
+1. While the menu is open or an update runs, the device UI draws.
+2. In Network Dock mode, the dock host draws once it opened the device port.
+3. In native mode, the active server draws.
+
+In every other case the device UI draws.
 
 The device UI then shows what is missing, for example "Kein Netz" or "Suche Server".
 

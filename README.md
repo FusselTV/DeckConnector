@@ -11,7 +11,7 @@ Network Dock, so Bitfocus Companion and the Stream Deck app use it without any e
 
 ## What it does
 
-- From server to the end of the USB transfer: 0.5 ms for one key, 1.7 ms for a 9 KB full screen image (LAN,
+- One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
   Stream Deck +).
 - LAN and WLAN at the same time. LAN wins; if a server cannot be reached over LAN, the next try goes over WLAN.
 - Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
@@ -50,9 +50,9 @@ The first start creates a password for the web UI. The device shows it under Men
    the device.
 2. Open `http://<address>/` and log in as `admin`.
 3. Choose the mode.
-   - **Native**: enter one or two server URLs (`ws://host:port/deckbridge`). Leave them empty to find servers that
-     announce `_deckbridge._tcp` over mDNS.
-   - **Network Dock**: the board shows up in Companion under Surfaces, Discover. Click Add Connection.
+   - In native mode, enter one or two server URLs (`ws://host:port/deckbridge`). Leave them empty to find servers
+     that announce `_deckbridge._tcp` over mDNS.
+   - In Network Dock mode, the board shows up in Companion under Surfaces, Discover. Click Add Connection.
 
 The menu on the device opens when you hold the first and the last encoder for two seconds.
 

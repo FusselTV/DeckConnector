@@ -8,7 +8,7 @@ bridge knows the USB protocol of the device and shows the newest image for each 
 - The bridge is the client. It opens `ws://<server>/deckbridge` with the subprotocol `deckbridge.v1`.
 - The bridge keeps a connection to every configured server, at most two. The first server in the list that is
   connected is **active**. The other one is **standby**.
-- Only the active server may send images. Images from a standby server are answered with `REJECTED_ROLE`.
+- Only the active server may send images. The bridge answers images from a standby server with `REJECTED_ROLE`.
 - Input goes to the active server only.
 - When the active server is lost, the standby server becomes active and gets a `role` message. It must then
   draw every area again, because the bridge does not cache old images. The active server gets `role` again
