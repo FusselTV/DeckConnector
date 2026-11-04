@@ -208,9 +208,8 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
     cJSON_ArrayForEach(v, arr)
     {
         if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof(cfg->servers[0]) ||
-            (v->valuestring[0] && strncmp(v->valuestring, "ws://", 5) &&
-             strncmp(v->valuestring, "wss://", 6))) {
-            snprintf(err, err_cap, "servers: ws:// or wss:// URL expected");
+            (v->valuestring[0] && strncmp(v->valuestring, "ws://", 5) != 0)) {
+            snprintf(err, err_cap, "servers: ws:// URL expected");
             return false;
         }
         strcpy(cfg->servers[i++], v->valuestring);

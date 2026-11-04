@@ -30,3 +30,7 @@ CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
 
 # The co-processor (ESP32-C6) gives the P4 its WLAN
 CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6=y
+
+# Per task stack watermarks in /api/status
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+

@@ -73,27 +73,44 @@ static void write_status(db_json_t *j)
     db_json_int(j, "inputs", st.inputs);
 }
 
-static size_t status_json(char *buf, size_t cap, bool as_message)
+static size_t link_status(char *buf, size_t cap)
 {
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
-    if (as_message) {
-        db_json_str(&j, "t", "status");
-    }
+    db_json_str(&j, "t", "status");
     write_status(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);
 }
 
-static size_t link_status(char *buf, size_t cap)
+/* Smallest free stack each task ever had, to size the stacks from measurements. */
+static void write_tasks(db_json_t *j)
 {
-    return status_json(buf, cap, true);
+    UBaseType_t n = uxTaskGetNumberOfTasks();
+    TaskStatus_t *tasks = malloc(n * sizeof(*tasks));
+    if (!tasks) {
+        return;
+    }
+    n = uxTaskGetSystemState(tasks, n, NULL);
+    db_json_obj_open(j, "stack_free");
+    for (UBaseType_t i = 0; i < n; i++) {
+        db_json_int(j, tasks[i].pcTaskName, tasks[i].usStackHighWaterMark);
+    }
+    db_json_obj_close(j);
+    free(tasks);
 }
 
 static size_t web_status(char *buf, size_t cap)
 {
-    return status_json(buf, cap, false);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    write_status(&j);
+    db_json_int(&j, "heap_min", (int64_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+    write_tasks(&j);
+    db_json_obj_close(&j);
+    return db_json_end(&j);
 }
 
 static void on_ota_progress(const char *target, const char *state, int pct, const char *error)

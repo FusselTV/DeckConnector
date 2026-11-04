@@ -1,5 +1,6 @@
 #include "db_link.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -15,23 +16,23 @@
 #include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
-#include "esp_websocket_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "lwip/sockets.h"
 #include "mdns.h"
+#include "ws.h"
 
-#define TX_INLINE      32
-#define TX_QUEUE       64
-#define TEXT_MAX       2048
-#define IMAGE_MAX      (1024 * 1024)
-#define STATUS_PERIOD  10000
-#define DISCOVER_EVERY 5000
-#define WS_BUFFER      16384
-#define OP_TEXT        0x1
-#define OP_BINARY      0x2
-#define ALL_LINKS      (-1)
+#define TX_INLINE       32
+#define TX_QUEUE        64
+#define TEXT_MAX        2048
+#define IMAGE_MAX       (1024 * 1024)
+#define STATUS_PERIOD   10000
+#define DISCOVER_EVERY  5000
+#define RETRY_MS        2000
+#define CONNECT_TIMEOUT 3000
+#define PING_AFTER_MS   5000
+#define SILENT_LIMIT_MS 15000
+#define ALL_LINKS       (-1)
 
 static const char *TAG = "link";
 
@@ -45,15 +46,11 @@ typedef struct {
 
 typedef struct {
     int index;
-    esp_websocket_client_handle_t ws;
+    ws_t ws;
     char url[96];
     volatile bool connected;
-    uint8_t rx_op;
-    size_t rx_len;
-    size_t rx_got;
-    uint64_t rx_start;
-    uint8_t hdr[DB_TIME_LEN];
-    uint8_t *img;
+    int64_t last_rx_ms;
+    int64_t last_ping_ms;
     char text[TEXT_MAX];
 } link_t;
 
@@ -65,6 +62,11 @@ static struct {
     char headers[96];
     uint32_t tx_dropped;
 } s = {.active = -1};
+
+static int64_t now_ms(void)
+{
+    return esp_timer_get_time() / 1000;
+}
 
 /* ---------- sending ---------- */
 
@@ -82,7 +84,7 @@ static void send_text(int link, const char *json, size_t len)
     if (len == 0) {
         return;
     }
-    tx_t m = {.link = (int8_t)link, .op = OP_TEXT, .len = (uint16_t)len, .heap = malloc(len)};
+    tx_t m = {.link = (int8_t)link, .op = WS_OP_TEXT, .len = (uint16_t)len, .heap = malloc(len)};
     if (!m.heap) {
         return;
     }
@@ -93,27 +95,16 @@ static void send_text(int link, const char *json, size_t len)
     }
 }
 
-static void tx_one(link_t *l, const tx_t *m)
-{
-    const char *p = m->heap ? m->heap : (const char *)m->data;
-    if (!l->connected) {
-        return;
-    }
-    if (m->op == OP_TEXT) {
-        esp_websocket_client_send_text(l->ws, p, m->len, pdMS_TO_TICKS(2000));
-    } else {
-        esp_websocket_client_send_bin(l->ws, p, m->len, pdMS_TO_TICKS(2000));
-    }
-}
-
+/* Sending happens in one task, so acks from the deck writer never wait on the network. */
 static void tx_task(void *arg)
 {
     tx_t m;
     for (;;) {
         xQueueReceive(s.tx, &m, portMAX_DELAY);
         for (int i = 0; i < DB_MAX_SERVERS; i++) {
-            if (m.link == ALL_LINKS || m.link == i) {
-                tx_one(&s.links[i], &m);
+            link_t *l = &s.links[i];
+            if ((m.link == ALL_LINKS || m.link == i) && l->connected) {
+                ws_send(&l->ws, m.op, m.heap ? (const void *)m.heap : m.data, m.len);
             }
         }
         free(m.heap);
@@ -129,14 +120,14 @@ void db_link_broadcast(const char *json)
 
 static void send_device(int link)
 {
-    static db_device_info_t info; /* only used from the deck event task and link tasks, never at once */
+    db_device_info_t *info = malloc(sizeof(*info));
     char *buf = malloc(4096);
-    if (!buf) {
-        return;
+    if (info && buf) {
+        bool present = db_deck_info(info);
+        send_text(link, buf, db_proto_device_json(present ? info : NULL, buf, 4096));
     }
-    bool present = db_deck_info(&info);
-    send_text(link, buf, db_proto_device_json(present ? &info : NULL, buf, 4096));
     free(buf);
+    free(info);
 }
 
 static void send_role(int link)
@@ -176,11 +167,9 @@ static void send_hello(int link)
 static void send_status(void)
 {
     char *buf = malloc(1024);
-    if (!buf || !s.hooks.status_json) {
-        free(buf);
-        return;
+    if (buf && s.hooks.status_json) {
+        send_text(ALL_LINKS, buf, s.hooks.status_json(buf, 1024));
     }
-    send_text(ALL_LINKS, buf, s.hooks.status_json(buf, 1024));
     free(buf);
 }
 
@@ -241,139 +230,154 @@ static void handle_command(link_t *l, const char *text)
     cJSON_Delete(root);
 }
 
-static void finish_binary(link_t *l)
+/* The image goes straight from the socket into one PSRAM buffer that the deck takes over. */
+static int read_image(link_t *l, uint64_t len)
 {
-    uint64_t now = (uint64_t)esp_timer_get_time();
-    if (l->hdr[0] == DB_MSG_IMAGE && l->img) {
-        db_image_hdr_t h;
-        if (db_proto_parse_image_hdr(l->hdr, DB_IMAGE_HDR_LEN, &h) == DB_OK) {
-            db_deck_submit((db_source_t)(DB_SOURCE_LINK0 + l->index), h.display, h.rect, h.seq, l->img,
-                           l->rx_len - DB_IMAGE_HDR_LEN, now);
-        } else {
-            heap_caps_free(l->img);
-        }
-        l->img = NULL;
-    } else if (l->hdr[0] == DB_MSG_TIME) {
+    uint8_t hdr[DB_IMAGE_HDR_LEN];
+    hdr[0] = DB_MSG_IMAGE;
+    int err = ws_read(&l->ws, hdr + 1, sizeof(hdr) - 1);
+    db_image_hdr_t h;
+    if (err || len <= sizeof(hdr) || len > IMAGE_MAX || db_proto_parse_image_hdr(hdr, sizeof(hdr), &h) != DB_OK) {
+        return err ? err : ws_skip(&l->ws, len - sizeof(hdr));
+    }
+    size_t n = (size_t)len - sizeof(hdr);
+    uint8_t *img = heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
+    if (!img) {
+        return ws_skip(&l->ws, n);
+    }
+    err = ws_read(&l->ws, img, n);
+    if (err) {
+        heap_caps_free(img);
+        return err;
+    }
+    db_deck_submit((db_source_t)(DB_SOURCE_LINK0 + l->index), h.display, h.rect, h.seq, img, n,
+                   (uint64_t)esp_timer_get_time());
+    return 0;
+}
+
+static int read_binary(link_t *l, uint64_t len)
+{
+    if (len == 0) {
+        return 0;
+    }
+    uint8_t type;
+    int err = ws_read(&l->ws, &type, 1);
+    if (err) {
+        return err;
+    }
+    if (type == DB_MSG_IMAGE) {
+        return read_image(l, len);
+    }
+    if (type == DB_MSG_TIME && len == DB_TIME_LEN) {
+        uint8_t msg[DB_TIME_LEN] = {type};
         uint64_t server;
-        if (db_proto_parse_time(l->hdr, DB_TIME_LEN, &server) == DB_OK) {
+        err = ws_read(&l->ws, msg + 1, sizeof(msg) - 1);
+        if (!err && db_proto_parse_time(msg, sizeof(msg), &server) == DB_OK) {
             uint8_t out[DB_TIME_REPLY_LEN];
-            db_proto_write_time_reply(out, server, now);
-            send_inline(l->index, OP_BINARY, out, sizeof(out));
+            db_proto_write_time_reply(out, server, (uint64_t)esp_timer_get_time());
+            send_inline(l->index, WS_OP_BINARY, out, sizeof(out));
         }
+        return err;
+    }
+    return ws_skip(&l->ws, len - 1);
+}
+
+static int read_text(link_t *l, uint64_t len)
+{
+    if (len >= TEXT_MAX) {
+        return ws_skip(&l->ws, len);
+    }
+    int err = ws_read(&l->ws, l->text, (size_t)len);
+    if (!err) {
+        l->text[len] = '\0';
+        handle_command(l, l->text);
+    }
+    return err;
+}
+
+/* One frame. Returns 0 to go on, or why the session ended. Fragmented messages are not used and are dropped. */
+static int read_frame(link_t *l)
+{
+    uint8_t op;
+    bool fin;
+    uint64_t len;
+    int err = ws_read_header(&l->ws, &op, &fin, &len);
+    if (err) {
+        return err;
+    }
+    l->last_rx_ms = now_ms();
+    if (!fin || op == WS_OP_CONT) {
+        return ws_skip(&l->ws, len);
+    }
+    switch (op) {
+    case WS_OP_BINARY:
+        return read_binary(l, len);
+    case WS_OP_TEXT:
+        return read_text(l, len);
+    case WS_OP_PING: {
+        uint8_t payload[125];
+        if (len > sizeof(payload)) {
+            return -EPROTO;
+        }
+        err = ws_read(&l->ws, payload, (size_t)len);
+        return err ? err : ws_send(&l->ws, WS_OP_PONG, payload, (size_t)len);
+    }
+    case WS_OP_CLOSE:
+        ws_skip(&l->ws, len);
+        ws_send(&l->ws, WS_OP_CLOSE, NULL, 0);
+        return -ECONNRESET;
+    default:
+        return ws_skip(&l->ws, len);
     }
 }
 
-/* The header goes to `hdr`; image bytes go straight into one PSRAM buffer, so they are copied only once. */
-static void feed_binary(link_t *l, const uint8_t *p, size_t n)
+static void session(link_t *l)
 {
-    while (n > 0) {
-        uint8_t type = l->rx_got > 0 ? l->hdr[0] : p[0];
-        size_t hdr_len = type == DB_MSG_IMAGE ? DB_IMAGE_HDR_LEN : sizeof(l->hdr);
-        if (l->rx_got < hdr_len) {
-            size_t take = hdr_len - l->rx_got < n ? hdr_len - l->rx_got : n;
-            memcpy(l->hdr + l->rx_got, p, take);
-            l->rx_got += take;
-            p += take;
-            n -= take;
-            if (type == DB_MSG_IMAGE && l->rx_got == DB_IMAGE_HDR_LEN && l->rx_len > DB_IMAGE_HDR_LEN) {
-                l->img = heap_caps_malloc(l->rx_len - DB_IMAGE_HDR_LEN, MALLOC_CAP_SPIRAM);
+    l->last_rx_ms = l->last_ping_ms = now_ms();
+    for (;;) {
+        int err = read_frame(l);
+        int64_t now = now_ms();
+        if (err == -EAGAIN || err == 0) {
+            if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
+                ESP_LOGW(TAG, "server %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
+                return;
+            }
+            if (now - l->last_ping_ms > PING_AFTER_MS) {
+                l->last_ping_ms = now;
+                ws_send(&l->ws, WS_OP_PING, NULL, 0);
             }
             continue;
         }
-        if (l->img) {
-            memcpy(l->img + (l->rx_got - DB_IMAGE_HDR_LEN), p, n);
-        }
-        l->rx_got += n;
-        n = 0;
+        ESP_LOGW(TAG, "server %d lost: %s", l->index, strerror(-err));
+        return;
     }
 }
 
-static void on_data(link_t *l, const esp_websocket_event_data_t *e)
-{
-    if ((e->op_code == OP_TEXT || e->op_code == OP_BINARY) && e->payload_offset == 0) {
-        heap_caps_free(l->img);
-        l->img = NULL;
-        l->rx_op = e->op_code;
-        l->rx_len = (size_t)e->payload_len;
-        l->rx_got = 0;
-        memset(l->hdr, 0, sizeof(l->hdr));
-    } else if (e->op_code != 0 && e->op_code != OP_TEXT && e->op_code != OP_BINARY) {
-        return; /* ping, pong, close */
-    }
-    if (l->rx_len > IMAGE_MAX) {
-        return;
-    }
-    if (l->rx_op == OP_BINARY) {
-        feed_binary(l, (const uint8_t *)e->data_ptr, (size_t)e->data_len);
-        if (l->rx_got >= l->rx_len) {
-            finish_binary(l);
-        }
-    } else if (l->rx_op == OP_TEXT && l->rx_len < TEXT_MAX) {
-        memcpy(l->text + e->payload_offset, e->data_ptr, (size_t)e->data_len);
-        if ((size_t)(e->payload_offset + e->data_len) >= l->rx_len) {
-            l->text[l->rx_len] = '\0';
-            handle_command(l, l->text);
-        }
-    }
-}
-
-/*
- * esp_transport_ws writes every frame as header plus payload. With Nagle on, the payload waits for the ACK of
- * the header, and Linux delays that ACK by 40 ms. The client has no API for its socket, so find it by peer.
- */
-static void disable_nagle(const char *url)
-{
-    char host[64];
-    unsigned port = 80;
-    if (sscanf(url, "ws://%63[^:/]:%u", host, &port) < 1) {
-        return;
-    }
-    struct in_addr want;
-    if (!inet_aton(host, &want)) {
-        return;
-    }
-    for (int fd = LWIP_SOCKET_OFFSET; fd < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; fd++) {
-        struct sockaddr_in peer;
-        socklen_t len = sizeof(peer);
-        if (getpeername(fd, (struct sockaddr *)&peer, &len) == 0 && peer.sin_addr.s_addr == want.s_addr &&
-            ntohs(peer.sin_port) == port) {
-            int one = 1;
-            setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-            return;
-        }
-    }
-    ESP_LOGW(TAG, "socket for %s not found, latency will be high", url);
-}
-
-static void on_ws_event(void *arg, esp_event_base_t base, int32_t id, void *data)
+static void link_task(void *arg)
 {
     link_t *l = arg;
-    switch (id) {
-    case WEBSOCKET_EVENT_CONNECTED:
+    for (;;) {
+        if (!l->url[0]) {
+            vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
+            continue;
+        }
+        int err = ws_connect(&l->ws, l->url, "deckbridge.v1", s.headers[0] ? s.headers : NULL, CONNECT_TIMEOUT);
+        if (err) {
+            vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
+            continue;
+        }
         ESP_LOGI(TAG, "server %d connected: %s", l->index, l->url);
-        disable_nagle(l->url);
         l->connected = true;
         if (!recompute_active()) {
             send_role(l->index);
         }
         send_hello(l->index);
         send_device(l->index);
-        break;
-    case WEBSOCKET_EVENT_DISCONNECTED:
-    case WEBSOCKET_EVENT_CLOSED:
-        if (l->connected) {
-            ESP_LOGW(TAG, "server %d lost", l->index);
-        }
+        session(l);
         l->connected = false;
-        heap_caps_free(l->img);
-        l->img = NULL;
+        ws_close(&l->ws);
         recompute_active();
-        break;
-    case WEBSOCKET_EVENT_DATA:
-        on_data(l, data);
-        break;
-    default:
-        break;
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
@@ -384,7 +388,7 @@ static void on_ack(db_ack_result_t result, uint8_t display, uint32_t seq, uint64
 {
     uint8_t out[DB_ACK_LEN];
     db_proto_write_ack(out, result, display, seq, t_recv, t_start, t_done);
-    send_inline((int)(intptr_t)arg, OP_BINARY, out, sizeof(out));
+    send_inline((int)(intptr_t)arg, WS_OP_BINARY, out, sizeof(out));
 }
 
 static void on_input(const db_input_t *ev, void *arg)
@@ -393,7 +397,7 @@ static void on_input(const db_input_t *ev, void *arg)
     if (a >= 0 && db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + a)) {
         uint8_t out[DB_INPUT_LEN];
         db_proto_write_input(out, ev);
-        send_inline(a, OP_BINARY, out, sizeof(out));
+        send_inline(a, WS_OP_BINARY, out, sizeof(out));
     }
 }
 
@@ -402,29 +406,7 @@ static void on_device(const db_device_info_t *info, void *arg)
     send_device(ALL_LINKS);
 }
 
-/* ---------- lifecycle ---------- */
-
-static void start_client(link_t *l)
-{
-    esp_websocket_client_config_t cfg = {
-        .uri = l->url,
-        .subprotocol = "deckbridge.v1",
-        .headers = s.headers[0] ? s.headers : NULL,
-        .buffer_size = WS_BUFFER,
-        .task_stack = 6144,
-        .task_prio = 6,
-        .ping_interval_sec = 5,
-        .pingpong_timeout_sec = 15,
-        .reconnect_timeout_ms = 2000,
-        /* Without this the client stops for good when a server closes cleanly, e.g. on a server restart. */
-        .enable_close_reconnect = true,
-        .network_timeout_ms = 5000,
-        .user_context = l,
-    };
-    l->ws = esp_websocket_client_init(&cfg);
-    esp_websocket_register_events(l->ws, WEBSOCKET_EVENT_ANY, on_ws_event, l);
-    esp_websocket_client_start(l->ws);
-}
+/* ---------- discovery and status ---------- */
 
 static bool any_configured(void)
 {
@@ -444,17 +426,13 @@ static void discover(void)
         return;
     }
     int i = 0;
-    for (mdns_result_t *r = results; r && i < DB_MAX_SERVERS; r = r->next) {
+    for (mdns_result_t *r = results; r && i < DB_MAX_SERVERS; r = r->next, i++) {
         link_t *l = &s.links[i];
-        if (!r->addr || l->ws) {
-            i++;
-            continue;
+        if (r->addr && !l->connected) {
+            snprintf(l->url, sizeof(l->url), "ws://" IPSTR ":%u/deckbridge", IP2STR(&r->addr->addr.u_addr.ip4),
+                     r->port);
+            ESP_LOGI(TAG, "found server %s (%s)", l->url, r->instance_name ? r->instance_name : "?");
         }
-        snprintf(l->url, sizeof(l->url), "ws://" IPSTR ":%u/deckbridge", IP2STR(&r->addr->addr.u_addr.ip4),
-                 r->port);
-        ESP_LOGI(TAG, "found server %s (%s)", l->url, r->instance_name ? r->instance_name : "?");
-        start_client(l);
-        i++;
     }
     mdns_query_results_free(results);
 }
@@ -467,8 +445,8 @@ static void supervisor_task(void *arg)
         if (!any_configured() && s.active < 0) {
             discover();
         }
-        if (esp_timer_get_time() / 1000 >= next_status) {
-            next_status = esp_timer_get_time() / 1000 + STATUS_PERIOD;
+        if (now_ms() >= next_status) {
+            next_status = now_ms() + STATUS_PERIOD;
             send_status();
         }
     }
@@ -482,17 +460,18 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
     if (c->token[0]) {
         snprintf(s.headers, sizeof(s.headers), "Authorization: Bearer %s\r\n", c->token);
     }
+    db_deck_listener_t dl = {.input = on_input, .device_changed = on_device};
+    db_deck_add_listener(&dl);
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         link_t *l = &s.links[i];
         l->index = i;
+        ws_init(&l->ws);
+        strlcpy(l->url, c->servers[i], sizeof(l->url));
         db_deck_set_ack_handler((db_source_t)(DB_SOURCE_LINK0 + i), on_ack, (void *)(intptr_t)i);
-        if (c->servers[i][0]) {
-            strlcpy(l->url, c->servers[i], sizeof(l->url));
-            start_client(l);
-        }
+        char name[12];
+        snprintf(name, sizeof(name), "link%d", i);
+        xTaskCreatePinnedToCore(link_task, name, 6144, l, 6, NULL, 0);
     }
-    db_deck_listener_t dl = {.input = on_input, .device_changed = on_device};
-    db_deck_add_listener(&dl);
     xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
     xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0);
     return ESP_OK;
