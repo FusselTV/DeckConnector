@@ -22,6 +22,9 @@ esp_err_t db_net_start(void);
 void db_net_status(db_net_status_t *out);
 bool db_net_online(void);
 
+/* lwIP name of the WLAN interface while it has an address, for SO_BINDTODEVICE. False otherwise. */
+bool db_net_wlan_ifname(char name[6]);
+
 /* Called from the event task whenever an address or link changes. */
 void db_net_on_change(void (*cb)(void *arg), void *arg);
 

@@ -29,11 +29,16 @@ typedef struct {
 } ws_t;
 
 void ws_init(ws_t *ws);
-/* `extra_headers` is a list of "Name: value\r\n" lines or NULL. Returns 0 or a negative errno. */
-int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers, int timeout_ms);
+/*
+ * `extra_headers` is a list of "Name: value\r\n" lines or NULL. `ifname` forces the interface (lwIP name),
+ * NULL uses the routing table. Returns 0 or a negative errno.
+ */
+int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers,
+               const char *ifname, int timeout_ms);
 void ws_close(ws_t *ws);
 
-/* Next frame header. Returns 0, -EAGAIN when nothing arrived within the socket timeout, or a negative errno. */
+/* Next frame header. Returns 0, -EAGAIN when nothing arrived within the socket timeout, or a negative errno.
+ */
 int ws_read_header(ws_t *ws, uint8_t *op, bool *fin, uint64_t *len);
 /* Read exactly `len` payload bytes. */
 int ws_read(ws_t *ws, void *buf, size_t len);

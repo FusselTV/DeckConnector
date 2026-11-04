@@ -1,8 +1,8 @@
 """Benchmarks and the interactive input demo, as a deckbridge server on port 8765.
 
-    bench react                 latency for one key, a strip quarter, the strip and the full screen
-    bench video --fps 30        full screen video; --flow sends only when the last frame was acknowledged
-    bench demo                  draws every input; key 8 switches between full, partial and minimal updates
+bench react                 latency for one key, a strip quarter, the strip and the full screen
+bench video --fps 30        full screen video; --flow sends only when the last frame was acknowledged
+bench demo                  draws every input; key 8 switches between full, partial and minimal updates
 """
 
 import argparse
@@ -36,8 +36,12 @@ def pct(values, p):
 async def react(bridge, args):
     offset = await bridge.clock_offset()
     font = ImageFont.truetype(BOLD, 48)
-    for name, rect in (("key", (13, 12, 120, 120)), ("quarter", (200, 380, 200, 100)),
-                       ("strip", (0, 380, 800, 100)), ("full", (0, 0, 800, 480))):
+    for name, rect in (
+        ("key", (13, 12, 120, 120)),
+        ("quarter", (200, 380, 200, 100)),
+        ("strip", (0, 380, 800, 100)),
+        ("full", (0, 0, 800, 480)),
+    ):
         times = []
         for i in range(args.n):
             img = Image.new("RGB", rect[2:], (30, 40, 60))
@@ -47,13 +51,27 @@ async def react(bridge, args):
             ack = await bridge.send_image(rect, data)
             times.append((ack.t_done - offset - sent) / 1000)
             await asyncio.sleep(0.03)
-        print(f"{name:8s} {len(data) / 1024:5.1f} KB  send to USB done: median {statistics.median(times):.2f} ms, "
-              f"p95 {pct(times, 0.95):.2f}, max {max(times):.2f}")
+        print(
+            f"{name:8s} {len(data) / 1024:5.1f} KB  send to USB done: median {statistics.median(times):.2f} ms, "
+            f"p95 {pct(times, 0.95):.2f}, max {max(times):.2f}"
+        )
 
 
 def frames(fps: float):
-    cmd = ["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc2=s=800x480:r={fps}", "-f", "rawvideo",
-           "-pix_fmt", "rgb24", "-"]
+    cmd = [
+        "ffmpeg",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        f"testsrc2=s=800x480:r={fps}",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-",
+    ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     while True:
         raw = proc.stdout.read(800 * 480 * 3)
@@ -84,11 +102,13 @@ async def video(bridge, args):
     shown = [(s, a) for s, a in acks if a.result == AckResult.SHOWN]
     lat = [(a.t_done - offset - s) / 1000 for s, a in shown]
     span = (shown[-1][1].t_done - shown[0][1].t_done) / 1e6 if len(shown) > 1 else 1
-    print(f"video {'flow' if args.flow else 'blast'} {args.fps} fps q{args.q}: sent {len(sizes)}, "
-          f"{statistics.mean(sizes) / 1024:.1f} KB each, skipped by server {skipped}, "
-          f"superseded {sum(a.result == AckResult.SUPERSEDED for _, a in acks)}, "
-          f"on the device {(len(shown) - 1) / span:.1f} fps, latency median {statistics.median(lat):.1f} ms, "
-          f"p95 {pct(lat, 0.95):.1f} ms")
+    print(
+        f"video {'flow' if args.flow else 'blast'} {args.fps} fps q{args.q}: sent {len(sizes)}, "
+        f"{statistics.mean(sizes) / 1024:.1f} KB each, skipped by server {skipped}, "
+        f"superseded {sum(a.result == AckResult.SUPERSEDED for _, a in acks)}, "
+        f"on the device {(len(shown) - 1) / span:.1f} fps, latency median {statistics.median(lat):.1f} ms, "
+        f"p95 {pct(lat, 0.95):.1f} ms"
+    )
 
 
 class Demo:
@@ -102,8 +122,11 @@ class Demo:
         self.bridge, self.q = bridge, q
         self.enc, self.enc_down, self.keys = [0] * 4, [False] * 4, [False] * 8
         self.mode, self.action, self.lat = 0, "Bereit: drehen oder drücken", []
-        self.big, self.mid, self.small = (ImageFont.truetype(BOLD, 40), ImageFont.truetype(BOLD, 24),
-                                          ImageFont.truetype(REGULAR, 18))
+        self.big, self.mid, self.small = (
+            ImageFont.truetype(BOLD, 40),
+            ImageFont.truetype(BOLD, 24),
+            ImageFont.truetype(REGULAR, 18),
+        )
 
     def colors(self):
         rgb = colorsys.hsv_to_rgb((self.enc[0] % 100) / 100, 0.7, 0.45)
@@ -124,7 +147,9 @@ class Demo:
         if not self.lat:
             return "Latenz: noch keine Messung"
         last = self.lat[-30:]
-        return f"Eingabe bis USB fertig {self.lat[-1]:.1f} ms (Median {statistics.median(last):.1f}, max {max(last):.1f})"
+        return (
+            f"Eingabe bis USB fertig {self.lat[-1]:.1f} ms (Median {statistics.median(last):.1f}, max {max(last):.1f})"
+        )
 
     def quarter_img(self, i):
         _, dim = self.colors()
@@ -132,8 +157,10 @@ class Demo:
         d = ImageDraw.Draw(img)
         d.text((100, 28), f"R{i + 1}: {self.enc[i]}", font=self.mid, fill="white", anchor="mm")
         d.text((100, 60), f"{self.lat[-1]:.1f} ms" if self.lat else "-", font=self.small, fill="white", anchor="mm")
-        d.rectangle((10, 80, 10 + int(180 * (self.enc[i] % 100) / 100), 94),
-                    fill=(255, 200, 0) if self.enc_down[i] else (0, 150, 230))
+        d.rectangle(
+            (10, 80, 10 + int(180 * (self.enc[i] % 100) / 100), 94),
+            fill=(255, 200, 0) if self.enc_down[i] else (0, 150, 230),
+        )
         return img
 
     def full_img(self):
@@ -146,8 +173,10 @@ class Demo:
         d.text((400, 400), self.action, font=self.mid, fill="white", anchor="mm")
         d.text((400, 430), self.lat_text(), font=self.small, fill="white", anchor="mm")
         for i in range(4):
-            d.rectangle((i * 200 + 10, 448, i * 200 + 10 + int(180 * (self.enc[i] % 100) / 100), 474),
-                        fill=(255, 200, 0) if self.enc_down[i] else (0, 150, 230))
+            d.rectangle(
+                (i * 200 + 10, 448, i * 200 + 10 + int(180 * (self.enc[i] % 100) / 100), 474),
+                fill=(255, 200, 0) if self.enc_down[i] else (0, 150, 230),
+            )
             d.text((i * 200 + 100, 461), f"R{i + 1}: {self.enc[i]}", font=self.small, fill="white", anchor="mm")
         return img
 

@@ -9,6 +9,7 @@
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 #include "mbedtls/base64.h"
+#include "net/if.h"
 #include "psa/crypto.h"
 
 #define SEND_MAX     4096
@@ -43,7 +44,7 @@ static int parse_url(const char *url, char *host, size_t host_cap, unsigned *por
     return 0;
 }
 
-static int open_socket(const char *host, unsigned port, int timeout_ms)
+static int open_socket(const char *host, unsigned port, const char *ifname, int timeout_ms)
 {
     char port_s[8];
     snprintf(port_s, sizeof(port_s), "%u", port);
@@ -58,6 +59,11 @@ static int open_socket(const char *host, unsigned port, int timeout_ms)
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     int one = 1;
     setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+    if (ifname) {
+        struct ifreq ifr = {0};
+        strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
+        setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr));
+    }
     int err = connect(s, res->ai_addr, res->ai_addrlen) == 0 ? 0 : -errno;
     freeaddrinfo(res);
     if (err) {
@@ -75,8 +81,8 @@ static bool accept_matches(const char *key, const char *response)
     uint8_t digest[20];
     size_t n = 0;
     if (psa_crypto_init() != PSA_SUCCESS ||
-        psa_hash_compute(PSA_ALG_SHA_1, (const uint8_t *)concat, strlen(concat), digest, sizeof(digest), &n) !=
-            PSA_SUCCESS) {
+        psa_hash_compute(PSA_ALG_SHA_1, (const uint8_t *)concat, strlen(concat), digest, sizeof(digest),
+                         &n) != PSA_SUCCESS) {
         return false;
     }
     unsigned char want[32];
@@ -104,10 +110,11 @@ static int handshake(int s, const char *host, unsigned port, const char *path, c
     mbedtls_base64_encode((unsigned char *)key, sizeof(key) - 1, &kn, nonce, sizeof(nonce));
     key[kn] = '\0';
     char req[512];
-    int n = snprintf(req, sizeof(req),
-                     "GET %s HTTP/1.1\r\nHost: %s:%u\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-                     "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: %s\r\n%s\r\n",
-                     path, host, port, key, subprotocol, extra ? extra : "");
+    int n =
+        snprintf(req, sizeof(req),
+                 "GET %s HTTP/1.1\r\nHost: %s:%u\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                 "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: %s\r\n%s\r\n",
+                 path, host, port, key, subprotocol, extra ? extra : "");
     if (n >= (int)sizeof(req) || send(s, req, (size_t)n, 0) != n) {
         return -EIO;
     }
@@ -130,7 +137,8 @@ static int handshake(int s, const char *host, unsigned port, const char *path, c
     return 0;
 }
 
-int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers, int timeout_ms)
+int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers,
+               const char *ifname, int timeout_ms)
 {
     char host[64];
     unsigned port;
@@ -139,7 +147,7 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     if (err) {
         return err;
     }
-    int s = open_socket(host, port, timeout_ms);
+    int s = open_socket(host, port, ifname, timeout_ms);
     if (s < 0) {
         return s;
     }

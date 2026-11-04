@@ -3,7 +3,6 @@
 import asyncio
 import functools
 import http.server
-import subprocess
 import threading
 from pathlib import Path
 
@@ -24,10 +23,9 @@ def files(tmp_path_factory):
     """Serve signed images over HTTP like a server would."""
     root = tmp_path_factory.mktemp("fw")
     key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
-    version = subprocess.run(
-        ["git", "describe", "--tags", "--always", "--dirty"], cwd=ROOT, capture_output=True, text=True, check=True
-    ).stdout.strip()
     p4 = (ROOT / "firmware/build/deckbridge.bin").read_bytes()
+    # esp_app_desc_t follows the 24 byte image header and an 8 byte segment header; version is at +16.
+    version = p4[48:80].split(b"\0")[0].decode()
     (root / "p4.dbfw").write_bytes(dbfw.build("p4", p4, version, key))
     if C6_IMAGE.exists():
         (root / "c6.dbfw").write_bytes(dbfw.build("c6", C6_IMAGE.read_bytes(), "c6", key))

@@ -9,6 +9,7 @@
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_json.h"
+#include "db_net.h"
 #include "db_proto.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -31,7 +32,7 @@
 #define RETRY_MS        2000
 #define CONNECT_TIMEOUT 3000
 #define PING_AFTER_MS   5000
-#define SILENT_LIMIT_MS 15000
+#define SILENT_LIMIT_MS 10000
 #define ALL_LINKS       (-1)
 
 static const char *TAG = "link";
@@ -237,7 +238,8 @@ static int read_image(link_t *l, uint64_t len)
     hdr[0] = DB_MSG_IMAGE;
     int err = ws_read(&l->ws, hdr + 1, sizeof(hdr) - 1);
     db_image_hdr_t h;
-    if (err || len <= sizeof(hdr) || len > IMAGE_MAX || db_proto_parse_image_hdr(hdr, sizeof(hdr), &h) != DB_OK) {
+    if (err || len <= sizeof(hdr) || len > IMAGE_MAX ||
+        db_proto_parse_image_hdr(hdr, sizeof(hdr), &h) != DB_OK) {
         return err ? err : ws_skip(&l->ws, len - sizeof(hdr));
     }
     size_t n = (size_t)len - sizeof(hdr);
@@ -295,7 +297,8 @@ static int read_text(link_t *l, uint64_t len)
     return err;
 }
 
-/* One frame. Returns 0 to go on, or why the session ended. Fragmented messages are not used and are dropped. */
+/* One frame. Returns 0 to go on, or why the session ended. Fragmented messages are not used and are dropped.
+ */
 static int read_frame(link_t *l)
 {
     uint8_t op;
@@ -353,20 +356,36 @@ static void session(link_t *l)
     }
 }
 
+/*
+ * A LAN can keep its link and still drop everything (a switch port that stops forwarding). Routing would keep
+ * using it, so after a failed attempt the next one goes out over the WLAN interface on purpose, and back.
+ */
 static void link_task(void *arg)
 {
     link_t *l = arg;
+    bool via_wlan = false;
+    int64_t next_log = 0;
     for (;;) {
         if (!l->url[0]) {
             vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
             continue;
         }
-        int err = ws_connect(&l->ws, l->url, "deckbridge.v1", s.headers[0] ? s.headers : NULL, CONNECT_TIMEOUT);
+        char ifname[6];
+        bool wlan = via_wlan && db_net_wlan_ifname(ifname);
+        int err = ws_connect(&l->ws, l->url, "deckbridge.v1", s.headers[0] ? s.headers : NULL,
+                             wlan ? ifname : NULL, CONNECT_TIMEOUT);
         if (err) {
-            vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
+            if (now_ms() >= next_log) {
+                next_log = now_ms() + 30000;
+                ESP_LOGW(TAG, "server %d over %s: %s", l->index, wlan ? "WLAN" : "the default route",
+                         strerror(-err));
+            }
+            via_wlan = !via_wlan;
+            vTaskDelay(pdMS_TO_TICKS(wlan ? RETRY_MS : 200));
             continue;
         }
-        ESP_LOGI(TAG, "server %d connected: %s", l->index, l->url);
+        ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, wlan ? "WLAN" : "the default route",
+                 l->url);
         l->connected = true;
         if (!recompute_active()) {
             send_role(l->index);
@@ -429,8 +448,8 @@ static void discover(void)
     for (mdns_result_t *r = results; r && i < DB_MAX_SERVERS; r = r->next, i++) {
         link_t *l = &s.links[i];
         if (r->addr && !l->connected) {
-            snprintf(l->url, sizeof(l->url), "ws://" IPSTR ":%u/deckbridge", IP2STR(&r->addr->addr.u_addr.ip4),
-                     r->port);
+            snprintf(l->url, sizeof(l->url), "ws://" IPSTR ":%u/deckbridge",
+                     IP2STR(&r->addr->addr.u_addr.ip4), r->port);
             ESP_LOGI(TAG, "found server %s (%s)", l->url, r->instance_name ? r->instance_name : "?");
         }
     }
