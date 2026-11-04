@@ -19,6 +19,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "lwip/sockets.h"
 #include "mdns.h"
 
 #define TX_INLINE      32
@@ -316,12 +317,41 @@ static void on_data(link_t *l, const esp_websocket_event_data_t *e)
     }
 }
 
+/*
+ * esp_transport_ws writes every frame as header plus payload. With Nagle on, the payload waits for the ACK of
+ * the header, and Linux delays that ACK by 40 ms. The client has no API for its socket, so find it by peer.
+ */
+static void disable_nagle(const char *url)
+{
+    char host[64];
+    unsigned port = 80;
+    if (sscanf(url, "ws://%63[^:/]:%u", host, &port) < 1) {
+        return;
+    }
+    struct in_addr want;
+    if (!inet_aton(host, &want)) {
+        return;
+    }
+    for (int fd = LWIP_SOCKET_OFFSET; fd < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; fd++) {
+        struct sockaddr_in peer;
+        socklen_t len = sizeof(peer);
+        if (getpeername(fd, (struct sockaddr *)&peer, &len) == 0 && peer.sin_addr.s_addr == want.s_addr &&
+            ntohs(peer.sin_port) == port) {
+            int one = 1;
+            setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+            return;
+        }
+    }
+    ESP_LOGW(TAG, "socket for %s not found, latency will be high", url);
+}
+
 static void on_ws_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     link_t *l = arg;
     switch (id) {
     case WEBSOCKET_EVENT_CONNECTED:
         ESP_LOGI(TAG, "server %d connected: %s", l->index, l->url);
+        disable_nagle(l->url);
         l->connected = true;
         if (!recompute_active()) {
             send_role(l->index);
@@ -386,6 +416,8 @@ static void start_client(link_t *l)
         .ping_interval_sec = 5,
         .pingpong_timeout_sec = 15,
         .reconnect_timeout_ms = 2000,
+        /* Without this the client stops for good when a server closes cleanly, e.g. on a server restart. */
+        .enable_close_reconnect = true,
         .network_timeout_ms = 5000,
         .user_context = l,
     };
