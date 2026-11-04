@@ -1,0 +1,3 @@
+idf_component_register(SRCS db_deck.c usb_port.c INCLUDE_DIRS include
+                       REQUIRES db_core esp_common
+                       PRIV_REQUIRES esp_timer)

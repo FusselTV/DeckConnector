@@ -1,0 +1,9 @@
+menu "Deckbridge board"
+    choice DB_BOARD
+        prompt "Board"
+        default DB_BOARD_WAVESHARE_P4_POE_ETH
+        config DB_BOARD_WAVESHARE_P4_POE_ETH
+            bool "Waveshare ESP32-P4-WIFI6-POE-ETH"
+            depends on IDF_TARGET_ESP32P4
+    endchoice
+endmenu

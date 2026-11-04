@@ -41,7 +41,7 @@ image replaces it. The older one is acknowledged as `SUPERSEDED`.
 |---|---|---|
 | `0x81` | ACK | `u8 result, u8 display, u8 reserved, u32 seq, u64 t_recv, u64 t_start, u64 t_done` |
 | `0x82` | TIME | `u8[7] reserved, u64 server_time_us, u64 bridge_time_us` |
-| `0x83` | INPUT | `u8 kind, u8 index, u8 display, i16 value, u16 x, u16 y, u16 x2, u16 y2, u8[3] reserved, u64 t` |
+| `0x83` | INPUT | `u8 kind, u8 index, u8 display, i16 value, u16 x, u16 y, u16 x2, u16 y2, u8[10] reserved, u64 t` |
 
 Times are microseconds on the bridge clock. `t_recv` is when the image was complete, `t_start` and `t_done`
 frame the USB transfer. INPUT `t` is when the USB report arrived.
