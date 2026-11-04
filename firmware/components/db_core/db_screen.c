@@ -18,6 +18,7 @@ static void drop(db_screen_t *s, int i)
     s->count--;
 }
 
+/* NOLINTNEXTLINE(readability-non-const-parameter): the shot owns `data` and frees it */
 void db_screen_put(db_screen_t *s, uint8_t display, db_rect_t rect, uint8_t *data, size_t len)
 {
     for (int i = s->count - 1; i >= 0; i--) {
