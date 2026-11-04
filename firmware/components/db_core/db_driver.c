@@ -1,6 +1,6 @@
 #include "db_driver.h"
 
-extern const db_driver_t db_driver_elgato_gen2;
+#include "drivers/drivers.h"
 
 const db_driver_t *const db_drivers[] = {
     &db_driver_elgato_gen2,

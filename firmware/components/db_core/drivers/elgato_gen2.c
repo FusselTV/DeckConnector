@@ -5,7 +5,7 @@
  */
 #include <string.h>
 
-#include "db_driver.h"
+#include "drivers.h"
 
 #define ELGATO_VID   0x0fd9
 #define REPORT_LEN   1024
@@ -259,7 +259,8 @@ static size_t parse_touch(const model_t *m, const uint8_t *r, size_t len, uint64
     if (len < 14) {
         return 0;
     }
-    db_input_t ev = {.t_us = t,
+    db_input_t ev = {.kind = DB_INPUT_TOUCH_TAP,
+                     .t_us = t,
                      .x = (uint16_t)(db_get_u16(r + 6) + m->strip.x),
                      .y = (uint16_t)(db_get_u16(r + 8) + m->strip.y)};
     switch (r[4]) {

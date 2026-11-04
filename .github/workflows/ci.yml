@@ -1,0 +1,42 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get install -y ninja-build
+      - run: cmake -S host_test -B build-host -G Ninja && cmake --build build-host
+      - run: ctest --test-dir build-host --output-on-failure
+
+  firmware:
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v6.0.2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          . "$IDF_PATH/export.sh"
+          cd firmware && idf.py build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deckbridge
+          path: firmware/build/deckbridge.bin
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: cd tools && uv run ruff check . && uv run ruff format --check .
+      - run: pipx run clang-format==19.1.7 --dry-run --Werror $(git ls-files 'firmware/components/db_*/*.c' 'firmware/components/db_*/*.h' 'firmware/components/db_*/include/*.h' 'firmware/main/*.c' 'firmware/components/db_core/drivers/*.c' 'host_test/*.c' | grep -v font_data.c)
+      - run: sudo apt-get install -y ninja-build && cmake -S host_test -B build-host -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - run: pipx run clang-tidy==19.1.0 -p build-host firmware/components/db_core/*.c firmware/components/db_core/drivers/*.c
