@@ -24,9 +24,11 @@ def files(tmp_path_factory):
     """Serve signed images over HTTP like a server would."""
     root = tmp_path_factory.mktemp("fw")
     key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
-    version = subprocess.run(["git", "describe", "--tags", "--always", "--dirty"], cwd=ROOT, capture_output=True,
-                             text=True, check=True).stdout.strip()
-    (root / "p4.dbfw").write_bytes(dbfw.build("p4", (ROOT / "firmware/build/deckbridge.bin").read_bytes(), version, key))
+    version = subprocess.run(
+        ["git", "describe", "--tags", "--always", "--dirty"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    p4 = (ROOT / "firmware/build/deckbridge.bin").read_bytes()
+    (root / "p4.dbfw").write_bytes(dbfw.build("p4", p4, version, key))
     if C6_IMAGE.exists():
         (root / "c6.dbfw").write_bytes(dbfw.build("c6", C6_IMAGE.read_bytes(), "c6", key))
     handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=root)
@@ -36,8 +38,7 @@ def files(tmp_path_factory):
     httpd.shutdown()
 
 
-async def push(servers, bridges, url: str, target: str) -> list[dict]:
-    first, _ = servers
+async def push(bridges, url: str, target: str) -> list[dict]:
     active, _ = bridges
     await active.send_json({"t": "ota", "target": target, "url": url})
     for _ in range(600):
@@ -52,7 +53,7 @@ async def push(servers, bridges, url: str, target: str) -> list[dict]:
 
 async def test_p4_update_from_url(servers, bridges, files):
     base, version = files
-    states = await push(servers, bridges, f"{base}/p4.dbfw", "p4")
+    states = await push(bridges, f"{base}/p4.dbfw", "p4")
     assert states[-1]["state"] == "done", states
     assert [s["state"] for s in states].count("download") >= 5
     first, _ = servers

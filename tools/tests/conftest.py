@@ -48,8 +48,26 @@ def wait_for_bridge(timeout: float = 60) -> dict:
 
 def camera_frame() -> Image.Image:
     raw = subprocess.run(
-        ["ffmpeg", "-loglevel", "error", "-rtsp_transport", "tcp", "-i", CAMERA, "-frames:v", "1", "-f", "image2",
-         "-vcodec", "png", "-"], capture_output=True, timeout=20, check=True).stdout
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-rtsp_transport",
+            "tcp",
+            "-i",
+            CAMERA,
+            "-frames:v",
+            "1",
+            "-f",
+            "image2",
+            "-vcodec",
+            "png",
+            "-",
+        ],
+        capture_output=True,
+        timeout=20,
+        check=True,
+    ).stdout
     return Image.open(io.BytesIO(raw)).convert("RGB")
 
 

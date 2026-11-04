@@ -105,8 +105,8 @@ async def test_brightness_command(bridges):
 
 
 async def test_failover_and_return(servers, bridges):
-    first, second = servers
-    a, b = bridges
+    first, _ = servers
+    _, b = bridges
     b.role_changed.clear()
     t0 = time.monotonic()
     await first.stop()

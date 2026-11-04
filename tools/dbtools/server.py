@@ -158,13 +158,24 @@ class Server:
             del self.bridges[bridge.id]
 
     async def start(self) -> "Server":
-        self._server = await serve(self._handler, "0.0.0.0", self.port, subprotocols=["deckbridge.v1"],
-                                   max_size=2**22, ping_interval=5, ping_timeout=15)
+        self._server = await serve(
+            self._handler,
+            "0.0.0.0",
+            self.port,
+            subprotocols=["deckbridge.v1"],
+            max_size=2**22,
+            ping_interval=5,
+            ping_timeout=15,
+        )
         if self.announce:
             self._zc = AsyncZeroconf(ip_version=IPVersion.V4Only)
-            info = AsyncServiceInfo("_deckbridge._tcp.local.", f"{self.name}._deckbridge._tcp.local.",
-                                    addresses=[socket.inet_aton(local_ip())], port=self.port,
-                                    properties={"path": "/deckbridge"})
+            info = AsyncServiceInfo(
+                "_deckbridge._tcp.local.",
+                f"{self.name}._deckbridge._tcp.local.",
+                addresses=[socket.inet_aton(local_ip())],
+                port=self.port,
+                properties={"path": "/deckbridge"},
+            )
             await self._zc.async_register_service(info)
         return self
 
