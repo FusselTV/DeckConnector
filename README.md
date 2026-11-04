@@ -13,9 +13,11 @@ Network Dock, so Bitfocus Companion and the Stream Deck app use it without any e
 
 - One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
   Stream Deck +).
-- LAN and WLAN at the same time. LAN wins; if a server cannot be reached over LAN, the next try goes over WLAN.
+- LAN and WLAN at the same time. Connections go over LAN. If a server cannot be reached there, the next try
+  goes over WLAN, and the connection stays there until it ends. A dead LAN is noticed within 6 s. Dock mode is
+  announced on WLAN only while the LAN has no address.
 - Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
-  once when the connection closes and within 10 s when the server just goes silent.
+  once when the connection closes and within 6 s when the server just goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
 - Signed updates for the firmware and the WLAN chip, with automatic rollback if new bridge firmware does not
   come up.

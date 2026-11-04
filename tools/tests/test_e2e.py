@@ -166,4 +166,4 @@ async def test_stalled_frame_ends_the_session(servers):
     back = await first.wait_bridge(40)
     took = time.monotonic() - t0
     print(f"reconnected after a stalled frame in {took:.1f} s")
-    assert back is not active and took < 13
+    assert back is not active and took < 10

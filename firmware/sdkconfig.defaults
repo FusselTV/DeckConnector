@@ -34,3 +34,5 @@ CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6=y
 # Per task stack watermarks in /api/status
 CONFIG_FREERTOS_USE_TRACE_FACILITY=y
 
+# db_net decides when WLAN answers mDNS
+CONFIG_MDNS_PREDEF_NETIF_STA=n

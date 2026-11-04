@@ -23,8 +23,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
-markers = ["ota: restarts the bridge, slow"]
-addopts = "-m 'not ota'"
+markers = ["ota: restarts the bridge, slow", "unifi: changes the switch config"]
+addopts = "-m 'not ota and not unifi'"
 
 [build-system]
 requires = ["hatchling"]

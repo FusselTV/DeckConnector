@@ -30,8 +30,19 @@ static struct {
     void (*on_change)(void);
 } s;
 
+/* Hosts keep the first mDNS answer per name, so with both up in one subnet they could pick WLAN. */
+static void mdns_follow(void)
+{
+    if (s.wlan) {
+        bool announce = s.st.wlan_up && !s.st.lan_up;
+        mdns_netif_action(s.wlan, announce ? MDNS_EVENT_ENABLE_IP4 | MDNS_EVENT_ANNOUNCE_IP4
+                                           : MDNS_EVENT_DISABLE_IP4);
+    }
+}
+
 static void changed(void)
 {
+    mdns_follow();
     if (s.on_change) {
         s.on_change();
     }
@@ -183,6 +194,10 @@ static void start_mdns(void)
     }
     mdns_hostname_set(db_config()->name);
     mdns_instance_name_set(db_config()->name);
+    if (s.wlan) {
+        mdns_register_netif(s.wlan);
+        mdns_follow();
+    }
 }
 
 esp_err_t db_net_start(void)
@@ -216,9 +231,10 @@ void db_net_status(db_net_status_t *out)
     out->rssi = (out->wlan_up && esp_wifi_sta_get_ap_info(&ap) == ESP_OK) ? ap.rssi : 0;
 }
 
-bool db_net_wlan_ifname(char name[6])
+bool db_net_ifname(bool wlan, char name[6])
 {
-    return s.st.wlan_up && esp_netif_get_netif_impl_name(s.wlan, name) == ESP_OK;
+    bool up = wlan ? s.st.wlan_up : s.st.lan_up;
+    return up && esp_netif_get_netif_impl_name(wlan ? s.wlan : s.lan, name) == ESP_OK;
 }
 
 bool db_net_online(void)

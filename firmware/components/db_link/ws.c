@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "esp_random.h"
+#include "fcntl.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 #include "mbedtls/base64.h"
@@ -46,6 +47,31 @@ static int parse_url(const char *url, char *host, size_t host_cap, unsigned *por
     return 0;
 }
 
+/* lwIP's blocking connect() ignores socket timeouts and retries SYNs for about 18 s on a dead link. */
+static int connect_within(int s, const struct sockaddr *addr, socklen_t len, int timeout_ms)
+{
+    int flags = fcntl(s, F_GETFL, 0);
+    fcntl(s, F_SETFL, flags | O_NONBLOCK);
+    int err = 0;
+    if (connect(s, addr, len) != 0) {
+        if (errno != EINPROGRESS) {
+            return -errno;
+        }
+        fd_set w;
+        FD_ZERO(&w);
+        FD_SET(s, &w);
+        struct timeval tv = {.tv_sec = timeout_ms / 1000, .tv_usec = (timeout_ms % 1000) * 1000};
+        if (select(s + 1, NULL, &w, NULL, &tv) <= 0) {
+            return -ETIMEDOUT;
+        }
+        socklen_t el = sizeof(err);
+        getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &el);
+        err = -err;
+    }
+    fcntl(s, F_SETFL, flags);
+    return err;
+}
+
 static int open_socket(const char *host, unsigned port, const char *ifname, int timeout_ms)
 {
     char port_s[8];
@@ -66,7 +92,7 @@ static int open_socket(const char *host, unsigned port, const char *ifname, int 
         strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
         setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr));
     }
-    int err = connect(s, res->ai_addr, res->ai_addrlen) == 0 ? 0 : -errno;
+    int err = connect_within(s, res->ai_addr, res->ai_addrlen, timeout_ms);
     freeaddrinfo(res);
     if (err) {
         close(s);
@@ -179,7 +205,7 @@ void ws_close(ws_t *ws)
 }
 
 /* Each recv() waits at most 1 s (SO_RCVTIMEO); a frame that stalls halfway gives up after STALL_LIMIT_S. */
-#define STALL_LIMIT_S 10
+#define STALL_LIMIT_S 6
 
 static int read_exact(int s, uint8_t *buf, size_t len, bool allow_idle)
 {

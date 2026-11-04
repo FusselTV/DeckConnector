@@ -32,8 +32,8 @@
 #define DISCOVER_EVERY  5000
 #define RETRY_MS        2000
 #define CONNECT_TIMEOUT 3000
-#define PING_AFTER_MS   5000
-#define SILENT_LIMIT_MS 10000
+#define PING_AFTER_MS   2000
+#define SILENT_LIMIT_MS 6000
 #define ALL_LINKS       (-1)
 
 static const char *TAG = "link";
@@ -364,8 +364,9 @@ static void session(link_t *l)
 }
 
 /*
- * A LAN can keep its link and still drop everything (a switch port that stops forwarding). Routing would keep
- * using it, so after a failed attempt the next one goes out over the WLAN interface on purpose, and back.
+ * Every connection is bound to one interface. Routing cannot be trusted to pick: with LAN and WLAN in the
+ * same subnet lwIP takes the first matching interface, and a LAN can keep its link while it drops everything
+ * (a switch port that stops forwarding). So LAN first, and after a failed attempt WLAN, and back.
  */
 static void link_task(void *arg)
 {
@@ -380,21 +381,26 @@ static void link_task(void *arg)
         char ifname[6];
         char url[sizeof(l->url)];
         strlcpy(url, l->url, sizeof(url)); /* discover() may rewrite l->url meanwhile */
-        bool wlan = via_wlan && db_net_wlan_ifname(ifname);
+        bool wlan = via_wlan;
+        bool bound = db_net_ifname(wlan, ifname);
+        if (!bound) {
+            wlan = !wlan;
+            bound = db_net_ifname(wlan, ifname);
+        }
+        const char *over = bound ? (wlan ? "WLAN" : "LAN") : "the default route";
         int err = ws_connect(&l->ws, url, "deckbridge.v1", s.headers[0] ? s.headers : NULL,
-                             wlan ? ifname : NULL, CONNECT_TIMEOUT);
+                             bound ? ifname : NULL, CONNECT_TIMEOUT);
         if (err) {
             if (now_ms() >= next_log) {
                 next_log = now_ms() + 30000;
-                ESP_LOGW(TAG, "server %d over %s: %s", l->index, wlan ? "WLAN" : "the default route",
-                         strerror(-err));
+                ESP_LOGW(TAG, "server %d over %s: %s", l->index, over, strerror(-err));
             }
-            via_wlan = !via_wlan;
+            via_wlan = !wlan;
             vTaskDelay(pdMS_TO_TICKS(wlan ? RETRY_MS : 200));
             continue;
         }
-        ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, wlan ? "WLAN" : "the default route",
-                 l->url);
+        via_wlan = false; /* next time start with LAN again */
+        ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, over, l->url);
         l->connected = true;
         if (!recompute_active()) {
             send_role(l->index);

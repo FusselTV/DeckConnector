@@ -13,7 +13,7 @@ bridge knows the USB protocol of the device and shows the newest image for each 
 - When the active server is lost, the standby server becomes active and gets a `role` message. It must then
   draw every area again, because the bridge does not cache old images. The active server gets `role` again
   when the menu or an update on the device drew over its picture.
-- The bridge sends a ping every 5 s. A server that sends nothing for 10 s counts as lost.
+- The bridge sends a ping every 2 s. A server that sends nothing for 6 s counts as lost.
 
 Text frames carry JSON control messages. Binary frames carry images, acknowledgements, input and time sync.
 All binary integers are little endian.
