@@ -87,7 +87,7 @@ _Static_assert(sizeof(state_t) <= sizeof(((db_dev_t *)0)->state), "driver state 
 
 static state_t *st(db_dev_t *dev)
 {
-    return (state_t *)(void *)dev->state;
+    return (state_t *)dev->state;
 }
 
 static const model_t *find_model(uint16_t pid)

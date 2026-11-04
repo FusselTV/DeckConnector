@@ -25,7 +25,7 @@ typedef struct {
     const db_driver_t *driver;
     const db_hid_io_t *io;
     db_device_info_t info;
-    uint8_t state[64]; /* driver private, e.g. last key states for edge detection */
+    _Alignas(8) uint8_t state[64]; /* driver private, e.g. last key states for edge detection */
 } db_dev_t;
 
 struct db_driver {
