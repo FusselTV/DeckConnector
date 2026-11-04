@@ -151,6 +151,9 @@ static void init_nvs(void)
 
 void app_main(void)
 {
+#ifdef DB_TEST_CRASH
+    abort();
+#endif
     db_log_start();
     init_nvs();
     ESP_ERROR_CHECK(db_config_load());
