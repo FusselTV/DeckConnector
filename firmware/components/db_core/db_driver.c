@@ -2,7 +2,7 @@
 
 #include "drivers/drivers.h"
 
-const db_driver_t *const db_drivers[] = {
+static const db_driver_t *const db_drivers[] = {
     &db_driver_elgato_gen2,
     NULL,
 };

@@ -13,8 +13,6 @@ typedef struct {
 } ui_glyph_t;
 
 typedef struct {
-    uint8_t ascent;
-    uint8_t descent;
     uint16_t count;
     const ui_glyph_t *glyphs;
     const uint8_t *bits;

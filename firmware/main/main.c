@@ -141,11 +141,6 @@ static void on_ota_requested(const char *target, const char *url)
     }
 }
 
-static bool healthy(void)
-{
-    return db_net_online();
-}
-
 /* A bridge without any network opens the setup WLAN by itself. */
 static void setup_ap_task(void *arg)
 {
@@ -193,8 +188,7 @@ void app_main(void)
     } else {
         ESP_ERROR_CHECK(db_dock_start(db_ui_set_dock_client));
     }
-    db_web_hooks_t web = {.status_json = web_status};
-    ESP_ERROR_CHECK(db_web_start(&web));
-    db_ota_confirm_when(healthy);
+    ESP_ERROR_CHECK(db_web_start(web_status));
+    db_ota_confirm_when(db_net_online);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);
 }

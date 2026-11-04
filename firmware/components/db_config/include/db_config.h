@@ -43,6 +43,9 @@ void db_config_copy(db_config_t *out);
 esp_err_t db_config_save(const db_config_t *cfg);
 esp_err_t db_config_reset(void);
 
+/* `len - 1` characters without look-alikes (no l, 1, o, 0), NUL terminated. */
+void db_config_random_password(char *out, size_t len);
+
 /*
  * JSON for the web UI and servers. Secrets are left out unless `with_secrets`.
  * db_config_from_json() applies only the keys that are present.

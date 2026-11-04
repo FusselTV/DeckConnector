@@ -90,16 +90,12 @@ static void draw_glyph(ui_canvas_t *c, const ui_glyph_t *g, const uint8_t *bits,
     }
 }
 
-void ui_text(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, ui_align_t align, uint32_t color,
-             const char *s)
+void ui_text(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *s)
 {
     uint8_t rgb[3];
     to_bytes(color, rgb);
-    int x = clip.x + 4;
-    if (align == UI_CENTER) {
-        int w = ui_text_width(f, s);
-        x = clip.x + (w < clip.w ? (clip.w - w) / 2 : 0);
-    }
+    int w = ui_text_width(f, s);
+    int x = clip.x + (w < clip.w ? (clip.w - w) / 2 : 0);
     while (*s) {
         const ui_glyph_t *g = glyph(f, next_codepoint(&s));
         if (g) {

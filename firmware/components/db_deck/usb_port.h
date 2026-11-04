@@ -7,10 +7,9 @@
 
 /* USB host side of one HID device. Callbacks run in the USB client task and must not block. */
 typedef struct {
-    void (*attached)(uint8_t address, void *arg);
-    void (*detached)(void *arg);
-    void (*input)(const uint8_t *report, size_t len, uint64_t t_us, void *arg);
-    void *arg;
+    void (*attached)(uint8_t address);
+    void (*detached)(void);
+    void (*input)(const uint8_t *report, size_t len, uint64_t t_us);
 } usb_port_cb_t;
 
 esp_err_t usb_port_start(const usb_port_cb_t *cb);

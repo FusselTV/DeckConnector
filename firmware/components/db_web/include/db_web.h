@@ -10,8 +10,5 @@
  * themselves.
  */
 
-typedef struct {
-    size_t (*status_json)(char *buf, size_t cap); /* full JSON object */
-} db_web_hooks_t;
-
-esp_err_t db_web_start(const db_web_hooks_t *hooks);
+/* `status_json` writes the body of /api/status. */
+esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap));

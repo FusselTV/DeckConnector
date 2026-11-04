@@ -130,7 +130,7 @@ static void notify_device(const db_device_info_t *info)
 {
     for (int i = 0; i < s.listener_count; i++) {
         if (s.listeners[i].device_changed) {
-            s.listeners[i].device_changed(info, s.listeners[i].arg);
+            s.listeners[i].device_changed(info);
         }
     }
 }
@@ -183,7 +183,7 @@ static void handle_input(const ev_t *ev)
     s.stats.inputs++;
     for (int i = 0; i < s.listener_count; i++) {
         if (s.listeners[i].raw_input) {
-            s.listeners[i].raw_input(ev->report, ev->len, s.listeners[i].arg);
+            s.listeners[i].raw_input(ev->report, ev->len);
         }
     }
     db_input_t out[EVENTS_PER_RPT];
@@ -191,7 +191,7 @@ static void handle_input(const ev_t *ev)
     for (size_t e = 0; e < n; e++) {
         for (int i = 0; i < s.listener_count; i++) {
             if (s.listeners[i].input) {
-                s.listeners[i].input(&out[e], s.listeners[i].arg);
+                s.listeners[i].input(&out[e]);
             }
         }
     }
@@ -218,19 +218,19 @@ static void event_task(void *arg)
     }
 }
 
-static void on_attached(uint8_t address, void *arg)
+static void on_attached(uint8_t address)
 {
     ev_t ev = {.kind = EV_ATTACHED, .address = address};
     xQueueSend(s.events, &ev, 0);
 }
 
-static void on_detached(void *arg)
+static void on_detached(void)
 {
     ev_t ev = {.kind = EV_DETACHED};
     xQueueSend(s.events, &ev, 0);
 }
 
-static void on_input(const uint8_t *report, size_t len, uint64_t t_us, void *arg)
+static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
 {
     ev_t ev = {.kind = EV_INPUT, .t_us = t_us, .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
     memcpy(ev.report, report, ev.len);
@@ -289,82 +289,67 @@ bool db_deck_info(db_device_info_t *out)
     return present;
 }
 
-static esp_err_t with_device(db_err_t (*fn)(void *), void *arg, bool dock_only)
+static bool usable(bool dock_only)
 {
-    if (!s.present) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    if (dock_only && s.writer != DB_SOURCE_DOCK) {
-        return ESP_ERR_INVALID_STATE;
-    }
-    xSemaphoreTake(s.io_lock, portMAX_DELAY);
-    db_err_t err = fn(arg);
-    xSemaphoreGive(s.io_lock);
-    return err == DB_OK ? ESP_OK : ESP_FAIL;
+    return s.present && (!dock_only || s.writer == DB_SOURCE_DOCK);
 }
 
-static db_err_t do_brightness(void *arg)
+static esp_err_t to_esp(db_err_t err)
 {
-    return s.dev.driver->set_brightness(&s.dev, *(uint8_t *)arg);
+    return err == DB_OK ? ESP_OK : ESP_FAIL;
 }
 
 esp_err_t db_deck_set_brightness(uint8_t pct)
 {
-    return with_device(do_brightness, &pct, false);
-}
-
-typedef struct {
-    const uint8_t *in;
-    uint8_t *out;
-    size_t len;
-    size_t *out_len;
-} raw_args_t;
-
-static db_err_t do_raw_write(void *arg)
-{
-    raw_args_t *a = arg;
-    const db_hid_io_t *io = usb_port_io();
-    uint8_t report[1024] = {0};
-    size_t n = a->len < io->out_report_size ? a->len : io->out_report_size;
-    memcpy(report, a->in, n);
-    return io->write(io->ctx, report, io->out_report_size);
-}
-
-static db_err_t do_raw_get(void *arg)
-{
-    raw_args_t *a = arg;
-    return usb_port_io()->get_feature(NULL, a->out, a->len, a->out_len);
-}
-
-static db_err_t do_raw_set(void *arg)
-{
-    raw_args_t *a = arg;
-    return usb_port_io()->set_feature(NULL, a->in, a->len);
+    if (!usable(false)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s.io_lock, portMAX_DELAY);
+    db_err_t err = s.dev.driver->set_brightness(&s.dev, pct);
+    xSemaphoreGive(s.io_lock);
+    return to_esp(err);
 }
 
 esp_err_t db_deck_raw_write(const uint8_t *report, size_t len)
 {
-    raw_args_t a = {.in = report, .len = len};
-    return with_device(do_raw_write, &a, true);
+    if (!usable(true)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    const db_hid_io_t *io = usb_port_io();
+    uint8_t padded[1024] = {0}; /* hosts may send short reports; the endpoint wants full ones */
+    memcpy(padded, report, len < io->out_report_size ? len : io->out_report_size);
+    xSemaphoreTake(s.io_lock, portMAX_DELAY);
+    db_err_t err = io->write(padded, io->out_report_size);
+    xSemaphoreGive(s.io_lock);
+    return to_esp(err);
 }
 
 esp_err_t db_deck_raw_get_feature(uint8_t *buf, size_t len, size_t *out_len)
 {
-    raw_args_t a = {.out = buf, .len = len, .out_len = out_len};
-    return with_device(do_raw_get, &a, false);
+    if (!usable(false)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s.io_lock, portMAX_DELAY);
+    db_err_t err = usb_port_io()->get_feature(buf, len, out_len);
+    xSemaphoreGive(s.io_lock);
+    return to_esp(err);
 }
 
 esp_err_t db_deck_raw_set_feature(const uint8_t *buf, size_t len)
 {
-    raw_args_t a = {.in = buf, .len = len};
-    return with_device(do_raw_set, &a, true);
+    if (!usable(true)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s.io_lock, portMAX_DELAY);
+    db_err_t err = usb_port_io()->set_feature(buf, len);
+    xSemaphoreGive(s.io_lock);
+    return to_esp(err);
 }
 
 void db_deck_stats(db_deck_stats_t *out)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
     *out = s.stats;
-    out->pending_bytes = s.pending.bytes;
     out->usb_errors = usb_port_errors();
     xSemaphoreGive(s.lock);
 }

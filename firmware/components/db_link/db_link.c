@@ -61,7 +61,6 @@ static struct {
     volatile int active;
     QueueHandle_t tx;
     char headers[96];
-    uint32_t tx_dropped;
 } s = {.active = -1};
 
 static int64_t now_ms(void)
@@ -75,9 +74,7 @@ static void send_inline(int link, uint8_t op, const void *data, size_t len)
 {
     tx_t m = {.link = (int8_t)link, .op = op, .len = (uint16_t)len};
     memcpy(m.data, data, len);
-    if (xQueueSend(s.tx, &m, 0) != pdTRUE) {
-        s.tx_dropped++;
-    }
+    xQueueSend(s.tx, &m, 0); /* a full queue drops the message; the server times out or retries */
 }
 
 static void send_text(int link, const char *json, size_t len)
@@ -92,7 +89,6 @@ static void send_text(int link, const char *json, size_t len)
     memcpy(m.heap, json, len);
     if (xQueueSend(s.tx, &m, pdMS_TO_TICKS(100)) != pdTRUE) {
         free(m.heap);
-        s.tx_dropped++;
     }
 }
 
@@ -145,7 +141,7 @@ static void send_hello(int link)
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_BASE);
     snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    const char *c6 = s.hooks.c6_version ? s.hooks.c6_version() : NULL;
+    const char *c6 = s.hooks.c6_version();
     db_json_t j;
     db_json_begin(&j, buf, sizeof(buf));
     db_json_obj_open(&j, NULL);
@@ -168,7 +164,7 @@ static void send_hello(int link)
 static void send_status(void)
 {
     char *buf = malloc(1024);
-    if (buf && s.hooks.status_json) {
+    if (buf) {
         send_text(ALL_LINKS, buf, s.hooks.status_json(buf, 1024));
     }
     free(buf);
@@ -196,9 +192,7 @@ static bool recompute_active(void)
             send_role(i);
         }
     }
-    if (s.hooks.active_changed) {
-        s.hooks.active_changed(next);
-    }
+    s.hooks.active_changed(next);
     return true;
 }
 
@@ -218,7 +212,7 @@ static void handle_command(link_t *l, const char *text)
     } else if (strcmp(t->valuestring, "ota") == 0) {
         const cJSON *target = cJSON_GetObjectItemCaseSensitive(root, "target");
         const cJSON *url = cJSON_GetObjectItemCaseSensitive(root, "url");
-        if (cJSON_IsString(target) && cJSON_IsString(url) && s.hooks.ota_requested) {
+        if (cJSON_IsString(target) && cJSON_IsString(url)) {
             s.hooks.ota_requested(target->valuestring, url->valuestring);
         }
     } else if (strcmp(t->valuestring, "reboot") == 0) {
@@ -410,7 +404,7 @@ static void on_ack(db_ack_result_t result, uint8_t display, uint32_t seq, uint64
     send_inline((int)(intptr_t)arg, WS_OP_BINARY, out, sizeof(out));
 }
 
-static void on_input(const db_input_t *ev, void *arg)
+static void on_input(const db_input_t *ev)
 {
     int a = s.active;
     if (a >= 0 && db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + a)) {
@@ -420,7 +414,7 @@ static void on_input(const db_input_t *ev, void *arg)
     }
 }
 
-static void on_device(const db_device_info_t *info, void *arg)
+static void on_device(const db_device_info_t *info)
 {
     send_device(ALL_LINKS);
 }

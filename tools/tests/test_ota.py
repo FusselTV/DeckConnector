@@ -36,52 +36,47 @@ def files(tmp_path_factory):
     httpd.shutdown()
 
 
-async def push(bridges, url: str, target: str) -> list[dict]:
-    active, _ = bridges
-    await active.send_json({"t": "ota", "target": target, "url": url})
-    for _ in range(600):
-        if active.ota and active.ota[-1]["state"] in ("done", "error"):
+async def push(bridge, url: str, target: str, secs: float = 60) -> list[dict]:
+    """Ask for an update and return the progress messages up to done or error."""
+    await bridge.send_json({"t": "ota", "target": target, "url": url})
+    for _ in range(int(secs * 10)):
+        if bridge.ota and bridge.ota[-1]["state"] in ("done", "error"):
             break
         await asyncio.sleep(0.1)
-    states = list(active.ota)
-    active.ota.clear()
-    await asyncio.to_thread(wait_for_bridge, 90)
+    states = list(bridge.ota)
+    bridge.ota.clear()
     return states
 
 
-async def test_p4_update_from_url(servers, bridges, files):
+async def connected(servers):
+    first, _ = servers
+    bridge = next(iter(first.bridges.values()), None) or await first.wait_bridge(90)
+    return first, bridge
+
+
+async def test_p4_update_from_url(servers, files):
     base, version = files
-    states = await push(bridges, f"{base}/p4.dbfw", "p4")
+    first, bridge = await connected(servers)
+    states = await push(bridge, f"{base}/p4.dbfw", "p4")
     assert states[-1]["state"] == "done", states
     assert [s["state"] for s in states].count("download") >= 5
-    first, _ = servers
+    await asyncio.to_thread(wait_for_bridge, 90)
     back = await first.wait_bridge(90)
     assert back.hello["fw"] == version
 
 
 async def test_missing_file_reports_an_error(servers, files):
     base, _ = files
-    first, _ = servers
-    bridge = next(iter(first.bridges.values()))
-    await bridge.send_json({"t": "ota", "target": "p4", "url": f"{base}/missing.dbfw"})
-    for _ in range(100):
-        if bridge.ota:
-            break
-        await asyncio.sleep(0.1)
-    assert bridge.ota and bridge.ota[-1]["state"] == "error"
-    bridge.ota.clear()
+    _, bridge = await connected(servers)
+    states = await push(bridge, f"{base}/missing.dbfw", "p4", secs=10)
+    assert states and states[-1]["state"] == "error"
 
 
 @pytest.mark.skipif(not C6_IMAGE.exists(), reason="no C6 image built")
 async def test_c6_update_from_url(servers, files):
     base, _ = files
-    first, _ = servers
-    bridge = next(iter(first.bridges.values()))
-    await bridge.send_json({"t": "ota", "target": "c6", "url": f"{base}/c6.dbfw"})
-    for _ in range(1200):
-        if bridge.ota and bridge.ota[-1]["state"] in ("done", "error"):
-            break
-        await asyncio.sleep(0.1)
-    assert bridge.ota[-1]["state"] == "done", bridge.ota
+    first, bridge = await connected(servers)
+    states = await push(bridge, f"{base}/c6.dbfw", "c6", secs=120)
+    assert states[-1]["state"] == "done", states
     back = await first.wait_bridge(120)
     assert back.hello["c6"] == "3.0.10"

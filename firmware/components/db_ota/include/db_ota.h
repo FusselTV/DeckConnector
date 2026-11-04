@@ -25,8 +25,6 @@ void db_ota_abort(const char *why);
 /* Download and install a .dbfw file in the background. */
 esp_err_t db_ota_start_url(const char *url);
 
-bool db_ota_busy(void);
-
 /*
  * A new image must confirm itself or the bootloader goes back to the old one. This waits up to two minutes
  * for `healthy()` and then confirms, or rolls back.

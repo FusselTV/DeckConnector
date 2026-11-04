@@ -10,6 +10,7 @@
  * draw; the other one waits as standby.
  */
 
+/* All hooks are required. */
 typedef struct {
     /* Fill the `status` message body after {"t":"status", ... and return its length. */
     size_t (*status_json)(char *buf, size_t cap);

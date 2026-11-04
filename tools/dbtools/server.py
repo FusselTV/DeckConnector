@@ -5,7 +5,6 @@ import contextlib
 import json
 import socket
 import time
-from collections.abc import Callable
 
 import websockets
 from websockets.asyncio.server import ServerConnection, serve
@@ -36,10 +35,7 @@ class Bridge:
         self.ota: list[dict] = []
         self.active = False
         self.inputs: asyncio.Queue[p.Input] = asyncio.Queue()
-        self.acks: list[p.Ack] = []
         self.role_changed = asyncio.Event()
-        self.device_changed = asyncio.Event()
-        self.on_input: Callable[[p.Input], None] | None = None
         self._seq = 0
         self._waiting: dict[int, asyncio.Future] = {}
         self._time: asyncio.Future | None = None
@@ -89,7 +85,6 @@ class Bridge:
             self.active = msg.get("active", False)
         elif kind == "device":
             self.device = msg
-            self.device_changed.set()
         elif kind == "role":
             self.active = msg["active"]
             self.role_changed.set()
@@ -101,14 +96,11 @@ class Bridge:
     def _handle_binary(self, data: bytes) -> None:
         msg = p.parse(data)
         if isinstance(msg, p.Ack):
-            self.acks.append(msg)
             fut = self._waiting.pop(msg.seq, None)
             if fut and not fut.done():
                 fut.set_result(msg)
         elif isinstance(msg, p.Input):
             self.inputs.put_nowait(msg)
-            if self.on_input:
-                self.on_input(msg)
         elif self._time and not self._time.done():
             self._time.set_result(msg)
 

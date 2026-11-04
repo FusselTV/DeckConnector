@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "db_device.h"
 
@@ -21,6 +22,15 @@ typedef struct {
     int progress; /* < 0: no progress bar */
     ui_tile_t tiles[UI_MAX_TILES];
 } ui_screen_t;
+
+static inline void ui_set_tile(ui_screen_t *sc, int i, const char *label, const char *sub, uint32_t color)
+{
+    if (i < UI_MAX_TILES) {
+        snprintf(sc->tiles[i].label, sizeof(sc->tiles[i].label), "%s", label);
+        snprintf(sc->tiles[i].sub, sizeof(sc->tiles[i].sub), "%s", sub ? sub : "");
+        sc->tiles[i].color = color;
+    }
+}
 
 /* `changed` is called whenever the menu wants a redraw or closed itself. */
 void ui_menu_init(void (*changed)(void));

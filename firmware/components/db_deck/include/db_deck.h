@@ -19,10 +19,9 @@ typedef enum {
 
 typedef struct {
     /* `info` is NULL when the device was unplugged. */
-    void (*device_changed)(const db_device_info_t *info, void *arg);
-    void (*input)(const db_input_t *ev, void *arg);
-    void (*raw_input)(const uint8_t *report, size_t len, void *arg);
-    void *arg;
+    void (*device_changed)(const db_device_info_t *info);
+    void (*input)(const db_input_t *ev);
+    void (*raw_input)(const uint8_t *report, size_t len);
 } db_deck_listener_t;
 
 typedef void (*db_deck_ack_cb_t)(db_ack_result_t result, uint8_t display, uint32_t seq, uint64_t t_recv,
@@ -34,7 +33,6 @@ typedef struct {
     uint32_t rejected;
     uint32_t usb_errors;
     uint32_t inputs;
-    size_t pending_bytes;
 } db_deck_stats_t;
 
 esp_err_t db_deck_start(void);

@@ -11,11 +11,10 @@
 #define DB_CORA_REPORT_LEN  512
 #define DB_CORA_DOCK_PORT   5343
 #define DB_CORA_DEVICE_PORT 5344
+#define DB_CORA_FIRMWARE    "1.01.014" /* what we report as dock firmware */
 
 enum {
     DB_CORA_FLAG_VERBATIM = 0x8000, /* payload belongs to the attached device */
-    DB_CORA_FLAG_REQ_ACK = 0x4000,
-    DB_CORA_FLAG_ACK_NAK = 0x0200,
     DB_CORA_FLAG_RESULT = 0x0100,
 };
 
@@ -40,7 +39,6 @@ typedef struct {
     char serial[16]; /* of the dock itself */
     uint8_t mac[6];
     const db_device_info_t *device; /* NULL: nothing attached */
-    uint16_t device_port;
 } db_cora_dock_t;
 
 /*

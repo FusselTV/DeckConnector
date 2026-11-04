@@ -21,7 +21,7 @@ static const char *TAG = "config";
 static db_config_t current;
 static SemaphoreHandle_t lock;
 
-static void random_password(char *out, size_t len)
+void db_config_random_password(char *out, size_t len)
 {
     static const char alphabet[] = "abcdefghjkmnpqrstuvwxyz23456789"; /* no look-alike characters */
     for (size_t i = 0; i + 1 < len; i++) {
@@ -40,7 +40,7 @@ static void defaults(db_config_t *c)
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
     snprintf(c->name, sizeof(c->name), "deckbridge-%02x%02x%02x", mac[3], mac[4], mac[5]);
-    random_password(c->admin_pass, 9);
+    db_config_random_password(c->admin_pass, 9);
 }
 
 esp_err_t db_config_load(void)

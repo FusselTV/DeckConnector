@@ -10,24 +10,21 @@ static int written_n;
 static uint8_t feature_set[32];
 static int flushes;
 
-static db_err_t fake_write(void *ctx, const uint8_t *r, size_t len)
+static db_err_t fake_write(const uint8_t *r, size_t len)
 {
-    (void)ctx;
     TEST_ASSERT_EQUAL_size_t(1024, len);
     memcpy(written[written_n++], r, len);
     return DB_OK;
 }
 
-static db_err_t fake_flush(void *ctx)
+static db_err_t fake_flush(void)
 {
-    (void)ctx;
     flushes++;
     return DB_OK;
 }
 
-static db_err_t fake_get_feature(void *ctx, uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t fake_get_feature(uint8_t *buf, size_t len, size_t *out_len)
 {
-    (void)ctx;
     static const char serial[] = "A00SA0000AA0A0";
     static const char fw[] = "1.01.008";
     memset(buf + 1, 0, len - 1);
@@ -42,9 +39,8 @@ static db_err_t fake_get_feature(void *ctx, uint8_t *buf, size_t len, size_t *ou
     return DB_OK;
 }
 
-static db_err_t fake_set_feature(void *ctx, const uint8_t *buf, size_t len)
+static db_err_t fake_set_feature(const uint8_t *buf, size_t len)
 {
-    (void)ctx;
     memcpy(feature_set, buf, len);
     return DB_OK;
 }

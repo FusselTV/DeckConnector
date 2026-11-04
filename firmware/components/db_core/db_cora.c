@@ -5,7 +5,6 @@
 /* Network Dock protocol as Companion (@elgato-stream-deck/tcp) and the Elgato App expect it. */
 
 static const uint8_t magic[4] = {0x43, 0x93, 0x8a, 0x41};
-static const char dock_firmware[] = "1.01.014";
 
 db_err_t db_cora_parse_hdr(const uint8_t *buf, size_t len, db_cora_hdr_t *out)
 {
@@ -43,7 +42,7 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     db_put_u16(out + 28, dock->device->pid);
     size_t n = strnlen(dock->device->serial, 31);
     memcpy(out + 94, dock->device->serial, n);
-    db_put_u16(out + 126, dock->device_port);
+    db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
 }
 
 void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB_CORA_REPORT_LEN])
@@ -61,7 +60,7 @@ void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB
         db_put_u16(out + 14, 0xffff);
         break;
     case 0x83: /* firmware: 4 checksum bytes, then the text */
-        memcpy(out + 8, dock_firmware, sizeof(dock_firmware) - 1);
+        memcpy(out + 8, DB_CORA_FIRMWARE, sizeof(DB_CORA_FIRMWARE) - 1);
         break;
     case 0x84: {
         size_t n = strnlen(dock->serial, sizeof(dock->serial));

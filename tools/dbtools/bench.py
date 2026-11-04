@@ -206,8 +206,8 @@ class Demo:
             self.action = f"Gewischt von x={ev.x} nach x={ev.x2}"
         return keys, encs
 
-    def regions(self, keys, encs, full):
-        if full or self.mode == 0 or 7 in keys:
+    def regions(self, keys, encs):
+        if self.mode == 0 or 7 in keys:
             return [((0, 0, 800, 480), self.full_img())]
         out = [((self.KEYS_X[k % 4], self.KEYS_Y[k // 4], 120, 120), self.key_img(k)) for k in sorted(keys)]
         if self.mode == 1:
@@ -231,7 +231,7 @@ class Demo:
                 k, e = self.apply(ev)
                 keys |= k
                 encs |= e
-            regs = self.regions(keys, encs, full=False)
+            regs = self.regions(keys, encs)
             futures = [await b.post_image(r, jpeg(img, self.q)) for r, img in regs]
             ack = await asyncio.wait_for(futures[-1], 5)
             if ack.result == AckResult.SHOWN:

@@ -6,7 +6,6 @@
 
 typedef enum {
     DB_OK = 0,
-    DB_ERR_ARG,
     DB_ERR_NOMEM,
     DB_ERR_PROTO,
     DB_ERR_STATE,

@@ -111,7 +111,7 @@ static void read_feature_string(db_dev_t *dev, uint8_t id, size_t skip, char *ou
     uint8_t buf[FEATURE_LEN] = {id};
     size_t n = 0;
     out[0] = '\0';
-    if (dev->io->get_feature(dev->io->ctx, buf, sizeof(buf), &n) != DB_OK || n < 2) {
+    if (dev->io->get_feature(buf, sizeof(buf), &n) != DB_OK || n < 2) {
         return;
     }
     size_t end = (size_t)buf[1] + 2;
@@ -219,14 +219,14 @@ static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect,
         memset(rep, 0, sizeof(rep));
         write_header(rep, t, rect, m->strip, off + n >= len, part, (uint16_t)n);
         memcpy(rep + hdr, data + off, n);
-        db_err_t err = dev->io->write(dev->io->ctx, rep, sizeof(rep));
+        db_err_t err = dev->io->write(rep, sizeof(rep));
         if (err != DB_OK) {
             return err;
         }
         off += n;
         part++;
     }
-    return dev->io->flush(dev->io->ctx);
+    return dev->io->flush();
 }
 
 static size_t emit(db_input_t *out, size_t max, size_t n, db_input_t ev)
@@ -328,7 +328,7 @@ static size_t parse_input(db_dev_t *dev, const uint8_t *r, size_t len, uint64_t 
 static db_err_t set_brightness(db_dev_t *dev, uint8_t pct)
 {
     uint8_t buf[FEATURE_LEN] = {0x03, 0x08, pct > 100 ? 100 : pct};
-    return dev->io->set_feature(dev->io->ctx, buf, sizeof(buf));
+    return dev->io->set_feature(buf, sizeof(buf));
 }
 
 const db_driver_t db_driver_elgato_gen2 = {

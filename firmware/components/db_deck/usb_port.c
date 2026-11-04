@@ -51,7 +51,7 @@ static void out_done(usb_transfer_t *t)
 static void in_done(usb_transfer_t *t)
 {
     if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
-        s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time(), s.cb.arg);
+        s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
     if (s.open && t->status != USB_TRANSFER_STATUS_NO_DEVICE && t->status != USB_TRANSFER_STATUS_CANCELED) {
         usb_host_transfer_submit(t);
@@ -60,10 +60,11 @@ static void in_done(usb_transfer_t *t)
 
 static void ctrl_done(usb_transfer_t *t)
 {
+    (void)t;
     xSemaphoreGive(s.ctrl_done);
 }
 
-static db_err_t io_write(void *ctx, const uint8_t *report, size_t len)
+static db_err_t io_write(const uint8_t *report, size_t len)
 {
     if (!s.open || len > s.mps_out) {
         return DB_ERR_STATE;
@@ -81,7 +82,7 @@ static db_err_t io_write(void *ctx, const uint8_t *report, size_t len)
     return DB_OK;
 }
 
-static db_err_t io_flush(void *ctx)
+static db_err_t io_flush(void)
 {
     for (int i = 0; i < OUT_SLOTS; i++) {
         if (xSemaphoreTake(s.out_free, pdMS_TO_TICKS(500)) != pdTRUE) {
@@ -132,12 +133,12 @@ static db_err_t control(uint8_t type, uint8_t request, uint8_t report_id, uint8_
     return res;
 }
 
-static db_err_t io_get_feature(void *ctx, uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t io_get_feature(uint8_t *buf, size_t len, size_t *out_len)
 {
     return control(0xa1, HID_GET_REPORT, buf[0], buf, len, out_len);
 }
 
-static db_err_t io_set_feature(void *ctx, const uint8_t *buf, size_t len)
+static db_err_t io_set_feature(const uint8_t *buf, size_t len)
 {
     return control(0x21, HID_SET_REPORT, buf[0], (uint8_t *)buf, len, NULL);
 }
@@ -145,10 +146,10 @@ static db_err_t io_set_feature(void *ctx, const uint8_t *buf, size_t len)
 static void client_event(const usb_host_client_event_msg_t *msg, void *arg)
 {
     if (msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV) {
-        s.cb.attached(msg->new_dev.address, s.cb.arg);
+        s.cb.attached(msg->new_dev.address);
     } else if (msg->event == USB_HOST_CLIENT_EVENT_DEV_GONE) {
         s.open = false;
-        s.cb.detached(s.cb.arg);
+        s.cb.detached();
     }
 }
 
@@ -296,7 +297,7 @@ void usb_port_close(void)
         return;
     }
     /* Let every transfer come back before the endpoints go away. */
-    io_flush(NULL);
+    io_flush();
     usb_host_endpoint_halt(s.dev, s.ep_in);
     usb_host_endpoint_flush(s.dev, s.ep_in);
     vTaskDelay(pdMS_TO_TICKS(20));

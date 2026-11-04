@@ -62,11 +62,6 @@ void db_ota_set_progress_cb(db_ota_progress_cb_t cb)
     s.progress = cb;
 }
 
-bool db_ota_busy(void)
-{
-    return s.busy;
-}
-
 esp_err_t db_ota_begin(size_t total)
 {
     if (!s.lock) {

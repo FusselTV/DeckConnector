@@ -67,16 +67,6 @@ static void changed(void)
 
 /* ---------- screens ---------- */
 
-static void set_tile(ui_screen_t *sc, int i, const char *label, const char *sub, uint32_t color)
-{
-    if (i >= UI_MAX_TILES) {
-        return;
-    }
-    snprintf(sc->tiles[i].label, sizeof(sc->tiles[i].label), "%s", label);
-    snprintf(sc->tiles[i].sub, sizeof(sc->tiles[i].sub), "%s", sub ? sub : "");
-    sc->tiles[i].color = color;
-}
-
 static void status_screen(ui_screen_t *sc)
 {
     db_net_status_t n;
@@ -100,21 +90,21 @@ static void status_screen(ui_screen_t *sc)
              n.lan_up ? n.lan_ip : n.wlan_ip);
     char rssi[16];
     snprintf(rssi, sizeof(rssi), "✓ %d dBm", n.rssi);
-    set_tile(sc, 0, "LAN", n.lan_up ? "✓ verbunden" : (n.lan_link ? "✗ kein DHCP" : "✗ kein Kabel"),
-             n.lan_up ? C_OK : C_BAD);
-    set_tile(sc, 1, "WLAN", n.wlan_up ? rssi : (c->wifi_ssid[0] ? "✗ getrennt" : "aus"),
-             n.wlan_up ? C_OK : C_TILE);
+    ui_set_tile(sc, 0, "LAN", n.lan_up ? "✓ verbunden" : (n.lan_link ? "✗ kein DHCP" : "✗ kein Kabel"),
+                n.lan_up ? C_OK : C_BAD);
+    ui_set_tile(sc, 1, "WLAN", n.wlan_up ? rssi : (c->wifi_ssid[0] ? "✗ getrennt" : "aus"),
+                n.wlan_up ? C_OK : C_TILE);
     for (int i = 0; i < 2; i++) {
         char label[12];
         bool up = db_link_connected(i);
         snprintf(label, sizeof(label), "Server %d", i + 1);
-        set_tile(sc, 2 + i, label, up ? (s.active_link == i ? "✓ aktiv" : "✓ bereit") : "✗",
-                 up ? C_OK : C_TILE);
+        ui_set_tile(sc, 2 + i, label, up ? (s.active_link == i ? "✓ aktiv" : "✓ bereit") : "✗",
+                    up ? C_OK : C_TILE);
     }
-    set_tile(sc, 4, "Modus", dock ? "Dock" : "Nativ", C_TILE);
-    set_tile(sc, 5, "Firmware", esp_app_get_description()->version, C_TILE);
-    set_tile(sc, 6, "WLAN-Chip", s.c6[0] ? s.c6 : "-", C_TILE);
-    set_tile(sc, 7, "Menü", "1 + 4 halten", C_TILE);
+    ui_set_tile(sc, 4, "Modus", dock ? "Dock" : "Nativ", C_TILE);
+    ui_set_tile(sc, 5, "Firmware", esp_app_get_description()->version, C_TILE);
+    ui_set_tile(sc, 6, "C6", s.c6[0] ? s.c6 : "-", C_TILE);
+    ui_set_tile(sc, 7, "Menü", "1 + 4 halten", C_TILE);
 }
 
 static void update_screen(ui_screen_t *sc)
@@ -131,8 +121,8 @@ static void draw_tile(const ui_tile_t *t, db_rect_t r)
 {
     ui_fill(&s.canvas, r, t->color ? t->color : C_TILE);
     r = (db_rect_t){(uint16_t)(r.x + 8), r.y, (uint16_t)(r.w - 16), r.h}; /* the key frame hides the edges */
-    ui_text(&s.canvas, &ui_font_medium, r, r.y + r.h / 2 - 4, UI_CENTER, C_TEXT, t->label);
-    ui_text(&s.canvas, &ui_font_small, r, r.y + r.h / 2 + 24, UI_CENTER, C_DIM, t->sub);
+    ui_text(&s.canvas, &ui_font_medium, r, r.y + r.h / 2 - 4, C_TEXT, t->label);
+    ui_text(&s.canvas, &ui_font_small, r, r.y + r.h / 2 + 24, C_DIM, t->sub);
 }
 
 static void draw_banner(const ui_screen_t *sc, db_rect_t r)
@@ -140,8 +130,8 @@ static void draw_banner(const ui_screen_t *sc, db_rect_t r)
     ui_fill(&s.canvas, r, sc->color);
     const ui_font_t *big =
         ui_text_width(&ui_font_large, sc->title) < r.w - 20 ? &ui_font_large : &ui_font_medium;
-    ui_text(&s.canvas, big, r, r.y + r.h / 2 + 4, UI_CENTER, C_TEXT, sc->title);
-    ui_text(&s.canvas, &ui_font_small, r, r.y + r.h - 12, UI_CENTER, C_TEXT, sc->line);
+    ui_text(&s.canvas, big, r, r.y + r.h / 2 + 4, C_TEXT, sc->title);
+    ui_text(&s.canvas, &ui_font_small, r, r.y + r.h - 12, C_TEXT, sc->line);
     if (sc->progress >= 0) {
         db_rect_t bar = {(uint16_t)(r.x + 20), (uint16_t)(r.y + 6),
                          (uint16_t)((r.w - 40) * sc->progress / 100), 8};
@@ -259,7 +249,7 @@ static void check_menu_chord(void)
     }
 }
 
-static void on_input(const db_input_t *ev, void *arg)
+static void on_input(const db_input_t *ev)
 {
     if (ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP) {
         s.enc_down[ev->index & 7] = ev->kind == DB_INPUT_ENCODER_DOWN;
@@ -272,18 +262,13 @@ static void on_input(const db_input_t *ev, void *arg)
     }
 }
 
-static void on_device(const db_device_info_t *info, void *arg)
+static void on_device(const db_device_info_t *info)
 {
     s.present = info != NULL;
     if (info) {
         s.dev = *info;
         db_deck_set_brightness(db_config()->brightness);
     }
-    changed();
-}
-
-static void on_net(void *arg)
-{
     changed();
 }
 
@@ -300,7 +285,7 @@ esp_err_t db_ui_start(void)
     xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0);
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
-    db_net_on_change(on_net, NULL);
+    db_net_on_change(changed);
     ui_menu_init(changed);
     const esp_timer_create_args_t targs = {.callback = chord_timer, .name = "ui_chord"};
     esp_timer_handle_t timer;

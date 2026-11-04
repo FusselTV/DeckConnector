@@ -13,9 +13,7 @@ typedef struct {
         int phy_reset_gpio;
         int phy_addr;
     } eth;
-    bool wifi;           /* native radio or ESP-Hosted co-processor */
-    bool wifi_hosted;    /* WLAN comes from a co-processor that can be updated over the host */
-    bool usb_high_speed; /* full speed hosts work, but full screen images then take about 0.5 s */
+    bool wifi; /* native radio or ESP-Hosted co-processor */
 } db_board_t;
 
 const db_board_t *db_board(void);

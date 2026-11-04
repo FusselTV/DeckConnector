@@ -67,7 +67,6 @@ static void test_attached_device_info(void)
 {
     db_device_info_t dev = {.vid = 0x0fd9, .pid = 0x0084, .serial = "EL00K1A00001"};
     dock.device = &dev;
-    dock.device_port = DB_CORA_DEVICE_PORT;
     uint8_t out[DB_CORA_REPORT_LEN];
     db_cora_dock_report(0x1c, &dock, out);
     TEST_ASSERT_EQUAL_HEX8(0x02, out[4]);

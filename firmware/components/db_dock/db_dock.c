@@ -186,7 +186,7 @@ static void keepalive_task(void *arg)
     }
 }
 
-static void on_raw_input(const uint8_t *report, size_t len, void *arg)
+static void on_raw_input(const uint8_t *report, size_t len)
 {
     if (s.device.sock < 0) {
         return;
@@ -197,7 +197,7 @@ static void on_raw_input(const uint8_t *report, size_t len, void *arg)
 }
 
 /* Tell the host about plug events; it then opens or closes the device port. */
-static void on_device(const db_device_info_t *info, void *arg)
+static void on_device(const db_device_info_t *info)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     if (info) {
@@ -219,9 +219,14 @@ static void announce(void)
     snprintf(id, sizeof(id), "%02X:%02X:%02X:%02X:%02X:%02X", s.info.mac[0], s.info.mac[1], s.info.mac[2],
              s.info.mac[3], s.info.mac[4], s.info.mac[5]);
     mdns_txt_item_t txt[] = {
-        {"dt", "215"},      {"mf", "Elgato"},  {"md", "Stream Deck Network Dock 20GBW9901"},
-        {"pv", "1.0"},      {"id", id},        {"sn", s.info.serial},
-        {"fw", "1.01.014"}, {"hwrev", "0200"},
+        {"dt", "215"},
+        {"mf", "Elgato"},
+        {"md", "Stream Deck Network Dock 20GBW9901"},
+        {"pv", "1.0"},
+        {"id", id},
+        {"sn", s.info.serial},
+        {"fw", DB_CORA_FIRMWARE},
+        {"hwrev", "0200"},
     };
     esp_err_t err =
         mdns_service_add(instance, "_elg", "_tcp", DB_CORA_DOCK_PORT, txt, sizeof(txt) / sizeof(txt[0]));
@@ -237,7 +242,6 @@ esp_err_t db_dock_start(void (*client_changed)(bool connected))
     esp_read_mac(s.info.mac, ESP_MAC_BASE);
     snprintf(s.info.serial, sizeof(s.info.serial), "DB%02X%02X%02X%02X%02X%02X", s.info.mac[0], s.info.mac[1],
              s.info.mac[2], s.info.mac[3], s.info.mac[4], s.info.mac[5]);
-    s.info.device_port = DB_CORA_DEVICE_PORT;
     s.dock = (conn_t){.name = "dock",
                       .port = DB_CORA_DOCK_PORT,
                       .connection_no = 1,
@@ -253,7 +257,7 @@ esp_err_t db_dock_start(void (*client_changed)(bool connected))
     db_deck_add_listener(&l);
     db_device_info_t now;
     if (db_deck_info(&now)) {
-        on_device(&now, NULL);
+        on_device(&now);
     }
     xTaskCreatePinnedToCore(listen_task, "dock_port", 4096, &s.dock, 6, NULL, 0);
     xTaskCreatePinnedToCore(listen_task, "dock_dev", 4096, &s.device, 7, NULL, 0);

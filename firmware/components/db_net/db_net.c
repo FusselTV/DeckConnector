@@ -10,7 +10,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
-#include "esp_random.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -18,7 +17,6 @@
 #include "mdns.h"
 
 #define LAN_ROUTE_PRIO 200 /* above the WLAN station (100): LAN wins when both are up */
-#define MAX_CALLBACKS  4
 
 static const char *TAG = "net";
 
@@ -29,17 +27,13 @@ static struct {
     esp_netif_t *ap;
     db_net_status_t st;
     bool wifi_started;
-    struct {
-        void (*cb)(void *);
-        void *arg;
-    } listeners[MAX_CALLBACKS];
-    int listener_count;
+    void (*on_change)(void);
 } s;
 
 static void changed(void)
 {
-    for (int i = 0; i < s.listener_count; i++) {
-        s.listeners[i].cb(s.listeners[i].arg);
+    if (s.on_change) {
+        s.on_change();
     }
 }
 
@@ -229,13 +223,9 @@ bool db_net_online(void)
     return s.st.lan_up || s.st.wlan_up;
 }
 
-void db_net_on_change(void (*cb)(void *arg), void *arg)
+void db_net_on_change(void (*cb)(void))
 {
-    if (s.listener_count < MAX_CALLBACKS) {
-        s.listeners[s.listener_count].cb = cb;
-        s.listeners[s.listener_count].arg = arg;
-        s.listener_count++;
-    }
+    s.on_change = cb;
 }
 
 esp_err_t db_net_ap_start(void)
@@ -246,13 +236,9 @@ esp_err_t db_net_ap_start(void)
     if (!s.ap) {
         s.ap = esp_netif_create_default_wifi_ap();
     }
-    static const char alphabet[] = "abcdefghjkmnpqrstuvwxyz23456789";
     xSemaphoreTake(s.lock, portMAX_DELAY);
     strlcpy(s.st.ap_ssid, db_config()->name, sizeof(s.st.ap_ssid));
-    for (int i = 0; i < 8; i++) {
-        s.st.ap_pass[i] = alphabet[esp_random() % (sizeof(alphabet) - 1)];
-    }
-    s.st.ap_pass[8] = '\0';
+    db_config_random_password(s.st.ap_pass, 9);
     xSemaphoreGive(s.lock);
     wifi_config_t cfg = {.ap = {.channel = 6, .max_connection = 2, .authmode = WIFI_AUTH_WPA2_PSK}};
     strlcpy((char *)cfg.ap.ssid, s.st.ap_ssid, sizeof(cfg.ap.ssid));

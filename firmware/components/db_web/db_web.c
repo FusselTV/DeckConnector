@@ -26,7 +26,7 @@ static const char *TAG = "web";
 extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
 
-static db_web_hooks_t hooks;
+static size_t (*status_json)(char *buf, size_t cap);
 
 /* ---------- helpers ---------- */
 
@@ -109,7 +109,7 @@ static esp_err_t get_status(httpd_req_t *req)
     if (!buf) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
-    esp_err_t err = send_json(req, buf, hooks.status_json(buf, JSON_MAX));
+    esp_err_t err = send_json(req, buf, status_json(buf, JSON_MAX));
     free(buf);
     return err;
 }
@@ -266,9 +266,9 @@ static void dns_task(void *arg)
     }
 }
 
-esp_err_t db_web_start(const db_web_hooks_t *h)
+esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
 {
-    hooks = *h;
+    status_json = status;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
     cfg.max_uri_handlers = 10;

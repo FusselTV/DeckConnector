@@ -15,7 +15,6 @@ OUT = Path(__file__).resolve().parents[2] / "firmware/components/db_ui/font_data
 
 def render(path: str, size: int):
     font = ImageFont.truetype(path, size)
-    ascent, descent = font.getmetrics()
     glyphs, data = [], bytearray()
     for ch in CHARS:
         left, top, right, bottom = font.getbbox(ch, anchor="ls")
@@ -29,7 +28,7 @@ def render(path: str, size: int):
             nibbles.append(0)
         data += bytes((nibbles[i] << 4) | nibbles[i + 1] for i in range(0, len(nibbles), 2))
         glyphs.append((ord(ch), w, h, left, top, round(font.getlength(ch)), offset))
-    return ascent, descent, glyphs, data
+    return glyphs, data
 
 
 def main() -> None:
@@ -39,7 +38,7 @@ def main() -> None:
         "",
     ]
     for name, path, size in FONTS:
-        ascent, descent, glyphs, data = render(path, size)
+        glyphs, data = render(path, size)
         out.append(f"static const uint8_t {name}_bits[] = {{")
         for i in range(0, len(data), 24):
             out.append("    " + ", ".join(f"0x{b:02x}" for b in data[i : i + 24]) + ",")
@@ -47,9 +46,7 @@ def main() -> None:
         out.append(f"static const ui_glyph_t {name}_glyphs[] = {{")
         out += [f"    {{{c}, {w}, {h}, {x}, {y}, {a}, {o}}}," for c, w, h, x, y, a, o in glyphs]
         out.append("};")
-        out.append(
-            f"const ui_font_t ui_font_{name} = {{{ascent}, {descent}, {len(glyphs)}, {name}_glyphs, {name}_bits}};"
-        )
+        out.append(f"const ui_font_t ui_font_{name} = {{{len(glyphs)}, {name}_glyphs, {name}_bits}};")
         out.append("")
     OUT.write_text("\n".join(out))
     print(f"wrote {OUT}")

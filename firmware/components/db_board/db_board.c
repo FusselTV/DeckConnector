@@ -8,8 +8,6 @@ static const db_board_t board = {
     .name = "waveshare-p4-poe-eth",
     .eth = {.present = true, .mdc_gpio = 31, .mdio_gpio = 52, .phy_reset_gpio = 51, .phy_addr = 1},
     .wifi = true,
-    .wifi_hosted = true,
-    .usb_high_speed = true,
 };
 #else
 #error "No board selected, see menuconfig -> Deckbridge board"

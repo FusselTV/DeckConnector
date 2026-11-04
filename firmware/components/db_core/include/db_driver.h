@@ -9,14 +9,13 @@
  */
 
 typedef struct {
-    void *ctx;
     /* Queue one output report. May return before the transfer finished. */
-    db_err_t (*write)(void *ctx, const uint8_t *report, size_t len);
+    db_err_t (*write)(const uint8_t *report, size_t len);
     /* Wait until every queued output report finished. */
-    db_err_t (*flush)(void *ctx);
+    db_err_t (*flush)(void);
     /* `buf[0]` must hold the report id on entry. */
-    db_err_t (*get_feature)(void *ctx, uint8_t *buf, size_t len, size_t *out_len);
-    db_err_t (*set_feature)(void *ctx, const uint8_t *buf, size_t len);
+    db_err_t (*get_feature)(uint8_t *buf, size_t len, size_t *out_len);
+    db_err_t (*set_feature)(const uint8_t *buf, size_t len);
     size_t out_report_size;
 } db_hid_io_t;
 
@@ -42,8 +41,5 @@ struct db_driver {
                           size_t max);
     db_err_t (*set_brightness)(db_dev_t *dev, uint8_t pct);
 };
-
-/* NULL-terminated list of all built-in drivers. */
-extern const db_driver_t *const db_drivers[];
 
 const db_driver_t *db_driver_find(uint16_t vid, uint16_t pid);
