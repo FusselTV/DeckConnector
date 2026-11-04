@@ -60,6 +60,8 @@ esp_err_t db_config_load(void)
         current.version = CONFIG_VERSION;
     }
     nvs_close(h);
+    /* Serial console only matters with the device in hand; the deck menu shows the same. */
+    ESP_LOGI(TAG, "web login: admin / %s", current.admin_pass);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGI(TAG, "first start, saving defaults");
         return db_config_save(&current);

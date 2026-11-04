@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>deckbridge</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1b1f24;--dim:#5d6670;--line:#d9dde2;--accent:#2563eb;--ok:#15803d;--bad:#b91c1c}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#181c22;--text:#e8ebef;--dim:#9aa4ae;--line:#2a3038;--accent:#60a5fa;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--text)}
+main{max-width:900px;margin:0 auto;padding:16px}h1{font-size:22px;margin:4px 0 16px}h2{font-size:16px;margin:0 0 12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 16px}
+.kv div{color:var(--dim);font-size:13px}.kv b{display:block;font-weight:600;word-break:break-all}
+label{display:block;font-size:13px;color:var(--dim);margin-bottom:4px}
+input,select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text);font:inherit}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button{padding:8px 14px;border:0;border-radius:6px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}
+button.plain{background:transparent;color:var(--text);border:1px solid var(--line)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}#msg{min-height:1.4em}
+pre{max-height:320px;overflow:auto;font-size:12px;background:var(--bg);padding:10px;border-radius:6px;white-space:pre-wrap}
+fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display:block}
+</style>
+</head>
+<body>
+<main>
+<h1 id="title">deckbridge</h1>
+
+<section>
+<h2>Status</h2>
+<div class="grid kv" id="status"></div>
+</section>
+
+<section>
+<h2>Einstellungen</h2>
+<form id="cfg">
+<div class="grid">
+<div><label for="name">Name</label><input id="name" maxlength="31"></div>
+<div><label for="mode">Modus</label><select id="mode"><option value="native">Nativ (deckbridge-Server)</option><option value="dock">Network Dock (Companion, Stream Deck App)</option></select></div>
+<div><label for="brightness">Helligkeit</label><input id="brightness" type="range" min="0" max="100"></div>
+</div>
+<h2 style="margin-top:18px">Server</h2>
+<div class="grid">
+<div><label for="s0">Server 1</label><input id="s0" placeholder="leer: per mDNS suchen" maxlength="95"></div>
+<div><label for="s1">Server 2 (Ausfall)</label><input id="s1" placeholder="ws://host:8765/deckbridge" maxlength="95"></div>
+<div><label for="token">Token</label><input id="token" type="password" placeholder="unverändert" maxlength="47"></div>
+</div>
+<h2 style="margin-top:18px">WLAN</h2>
+<div class="grid">
+<div><label for="ssid">Netz (nur 2,4 GHz)</label><input id="ssid" maxlength="32"></div>
+<div><label for="wpass">Passwort</label><input id="wpass" type="password" placeholder="unverändert" maxlength="64"></div>
+</div>
+<div class="grid" style="margin-top:18px">
+<fieldset id="lan"><h2>LAN</h2></fieldset>
+<fieldset id="wlan"><h2>WLAN-Adresse</h2></fieldset>
+</div>
+<h2 style="margin-top:18px">Web-Zugang</h2>
+<div class="grid"><div><label for="apass">Neues Passwort für admin</label><input id="apass" type="password" placeholder="unverändert" minlength="6" maxlength="23"></div></div>
+<div class="row"><button>Speichern</button><span id="msg"></span></div>
+</form>
+</section>
+
+<section>
+<h2>Update</h2>
+<p style="margin-top:0;color:var(--dim)">Signierte .dbfw-Datei für die Bridge oder den WLAN-Chip. Das Ziel steht in der Datei.</p>
+<div class="row"><input id="fw" type="file" accept=".dbfw" style="max-width:360px"><button id="up" class="plain">Hochladen</button><span id="upmsg"></span></div>
+</section>
+
+<section>
+<h2>Protokoll</h2>
+<div class="row" style="margin-top:0"><button id="logbtn" class="plain">Aktualisieren</button><button id="reboot" class="plain">Neu starten</button></div>
+<pre id="log"></pre>
+</section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const ipFields = ['ip', 'mask', 'gateway', 'dns'];
+const ipNames = {ip: 'Adresse', mask: 'Maske', gateway: 'Gateway', dns: 'DNS'};
+
+function ipForm(box, key) {
+  box.insertAdjacentHTML('beforeend', `<label><input type="checkbox" id="${key}_dhcp" style="width:auto"> DHCP</label>` +
+    ipFields.map((f) => `<div class="static"><label for="${key}_${f}">${ipNames[f]}</label><input id="${key}_${f}"></div>`).join(''));
+  $(key + '_dhcp').onchange = () => box.classList.toggle('fixed', !$(key + '_dhcp').checked);
+}
+ipForm($('lan'), 'lan');
+ipForm($('wlan'), 'wlan');
+
+function kv(label, value, cls) {
+  return `<div>${label}<b class="${cls || ''}">${value ?? '–'}</b></div>`;
+}
+
+async function loadStatus() {
+  const s = await (await fetch('/api/status')).json();
+  $('title').textContent = s.name;
+  const srv = (s.servers || []).map((x, i) => kv('Server ' + (i + 1), x.url ? (x.connected ? (x.active ? 'aktiv' : 'bereit') : 'getrennt') + ' · ' + x.url : '–', x.connected ? 'ok' : '')).join('');
+  $('status').innerHTML = kv('Gerät', s.device ? s.device.model + ' (' + s.device.serial + ')' : 'nicht angeschlossen', s.device ? 'ok' : 'bad') +
+    kv('LAN', s.lan || 'getrennt', s.lan ? 'ok' : '') + kv('WLAN', s.wlan ? s.wlan + ' · ' + s.rssi + ' dBm' : 'getrennt', s.wlan ? 'ok' : '') +
+    srv + kv('Firmware', s.fw) + kv('WLAN-Chip', s.c6) + kv('Laufzeit', Math.round(s.uptime / 60) + ' min') +
+    kv('Speicher frei', Math.round(s.heap / 1024) + ' KB intern, ' + Math.round(s.psram / 1048576) + ' MB PSRAM') +
+    kv('Bilder', s.images + ' gezeigt, ' + s.superseded + ' ersetzt, ' + s.usb_errors + ' USB-Fehler');
+}
+
+async function loadConfig() {
+  const c = await (await fetch('/api/config')).json();
+  $('name').value = c.name; $('mode').value = c.mode; $('brightness').value = c.brightness;
+  $('s0').value = c.servers[0] || ''; $('s1').value = c.servers[1] || ''; $('ssid').value = c.wifi_ssid;
+  for (const key of ['lan', 'wlan']) {
+    $(key + '_dhcp').checked = c[key].dhcp;
+    $(key).classList.toggle('fixed', !c[key].dhcp);
+    for (const f of ipFields) $(key + '_' + f).value = c[key][f];
+  }
+}
+
+$('cfg').onsubmit = async (e) => {
+  e.preventDefault();
+  const ip = (key) => Object.fromEntries([['dhcp', $(key + '_dhcp').checked], ...ipFields.map((f) => [f, $(key + '_' + f).value])]);
+  const body = {name: $('name').value, mode: $('mode').value, brightness: +$('brightness').value,
+    servers: [$('s0').value, $('s1').value].filter(Boolean), wifi_ssid: $('ssid').value, lan: ip('lan'), wlan: ip('wlan')};
+  for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
+  const r = await (await fetch('/api/config', {method: 'PUT', body: JSON.stringify(body)})).json();
+  $('msg').className = r.ok ? 'ok' : 'bad';
+  $('msg').textContent = r.ok ? (r.restart ? 'Gespeichert, die Bridge startet neu.' : 'Gespeichert.') : r.error;
+};
+
+$('up').onclick = async () => {
+  const file = $('fw').files[0];
+  if (!file) return;
+  $('upmsg').className = ''; $('upmsg').textContent = 'Lade hoch …';
+  const r = await (await fetch('/api/ota', {method: 'POST', body: file})).json().catch(() => ({ok: false, error: 'Verbindung verloren'}));
+  $('upmsg').className = r.ok ? 'ok' : 'bad';
+  $('upmsg').textContent = r.ok ? 'Installiert, die Bridge startet neu.' : 'Fehler: ' + r.error;
+};
+
+$('logbtn').onclick = async () => { $('log').textContent = await (await fetch('/api/log')).text(); $('log').scrollTop = 1e9; };
+$('reboot').onclick = () => fetch('/api/reboot', {method: 'POST'});
+
+loadConfig(); loadStatus(); setInterval(loadStatus, 5000);
+</script>
+</body>
+</html>
