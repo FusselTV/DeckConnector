@@ -15,6 +15,8 @@
 
 enum {
     DB_CORA_FLAG_VERBATIM = 0x8000, /* payload belongs to the attached device */
+    DB_CORA_FLAG_REQ_ACK = 0x4000,  /* host wants an acknowledgement */
+    DB_CORA_FLAG_ACK_NAK = 0x0200,  /* the acknowledgement */
     DB_CORA_FLAG_RESULT = 0x0100,
 };
 
@@ -39,12 +41,16 @@ typedef struct {
     char serial[16]; /* of the dock itself */
     uint8_t mac[6];
     const db_device_info_t *device; /* NULL: nothing attached */
+    bool in_use;                    /* a host has the device port open */
 } db_cora_dock_t;
 
 /*
  * Answer to a GET_REPORT [0x03, cmd] on the dock port, DB_CORA_REPORT_LEN bytes.
- * 0x80 identity, 0x83 firmware, 0x84 serial, 0x85 MAC, 0x87 unknown, 0x1c attached device. Others get zeros.
+ * 0x80 identity, 0x81 to 0x83 firmware parts, 0x84 serial, 0x85 MAC, 0x1c attached device, and the
+ * undocumented 0x87, 0x88, 0x8b, 0x8e, 0x8f. Others get zeros.
  */
+/* True for the commands db_cora_dock_report() answers. */
+bool db_cora_is_query(uint8_t cmd);
 void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB_CORA_REPORT_LEN]);
 
 /* The dock's periodic keepalive; hosts drop the connection after 5 s without data. */

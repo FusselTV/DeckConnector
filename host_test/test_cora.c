@@ -52,7 +52,15 @@ static void test_reports_match_protocol(void)
     db_cora_dock_report(0x80, &dock, out);
     assert_prefix("038000000000000000000000d90fffff", out);
     db_cora_dock_report(0x83, &dock, out);
-    assert_prefix("0383000000000000312e30312e303134", out + 0); /* checksum bytes are zero here */
+    assert_prefix("0383000025e49096312e30312e303134", out);
+    db_cora_dock_report(0x8f, &dock, out);
+    assert_prefix("038f000000", out);
+    dock.in_use = true;
+    db_cora_dock_report(0x8f, &dock, out);
+    assert_prefix("038f020002", out); /* in use */
+    dock.in_use = false;
+    TEST_ASSERT_TRUE(db_cora_is_query(0x8b));
+    TEST_ASSERT_FALSE(db_cora_is_query(0x1a)); /* keepalive ack */
     db_cora_dock_report(0x84, &dock, out);
     assert_prefix("0384000e4142303041303030303041414141", out);
     db_cora_dock_report(0x85, &dock, out);

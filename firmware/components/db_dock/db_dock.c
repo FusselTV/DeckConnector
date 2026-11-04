@@ -66,10 +66,13 @@ static void send_dock_report(conn_t *c, uint8_t cmd, uint32_t id)
 
 static void handle_dock(const db_cora_hdr_t *h, const uint8_t *p)
 {
-    if (h->op == DB_CORA_OP_GET_REPORT && h->len >= 2 && p[0] == 0x03) {
+    /* Companion asks with GET_REPORT, the Stream Deck app with a plain write of the same bytes. */
+    if (h->len >= 2 && p[0] == 0x03 && db_cora_is_query(p[1])) {
         send_dock_report(&s.dock, p[1], h->id);
+    } else if (h->len >= 2 && p[0] == 0x03 && p[1] != 0x1a) {
+        ESP_LOGI(TAG, "dock request 03 %02x (op %u, %lu bytes) not handled", p[1], h->op,
+                 (unsigned long)h->len);
     }
-    /* Keepalive acks (03 1a ..) and dock settings need no answer. */
 }
 
 static void handle_device(const db_cora_hdr_t *h, const uint8_t *p)
@@ -82,6 +85,8 @@ static void handle_device(const db_cora_hdr_t *h, const uint8_t *p)
         }
         return;
     }
+    /* The Stream Deck app asks for acknowledgements; Companion does not. */
+    uint16_t ack = (h->flags & DB_CORA_FLAG_REQ_ACK) ? DB_CORA_FLAG_ACK_NAK : 0;
     switch (h->op) {
     case DB_CORA_OP_WRITE:
         db_deck_raw_write(p, h->len);
@@ -90,18 +95,22 @@ static void handle_device(const db_cora_hdr_t *h, const uint8_t *p)
         db_deck_raw_set_feature(p, h->len);
         break;
     case DB_CORA_OP_GET_REPORT: {
+        /* Answer with exactly the length that was asked for, like the dock does. */
+        size_t want = h->len == 0 ? 1 : (h->len < FEATURE_LEN ? h->len : FEATURE_LEN);
         uint8_t buf[FEATURE_LEN] = {h->len ? p[0] : 0};
         size_t n = 0;
-        if (db_deck_raw_get_feature(buf, sizeof(buf), &n) != ESP_OK) {
+        if (db_deck_raw_get_feature(buf, want, &n) != ESP_OK) {
             ESP_LOGW(TAG, "feature report 0x%02x failed", buf[0]);
-            n = 1; /* answer anyway with just the id, so the host does not wait for its timeout */
         }
-        send_frame(&s.device, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT, DB_CORA_OP_GET_REPORT, h->id, buf,
-                   n);
-        break;
+        send_frame(&s.device, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT | ack, DB_CORA_OP_GET_REPORT, h->id,
+                   buf, want);
+        return;
     }
     default:
         break;
+    }
+    if (ack) {
+        send_frame(&s.device, DB_CORA_FLAG_VERBATIM | ack, h->op, h->id, p, h->len < 32 ? h->len : 32);
     }
 }
 
@@ -128,8 +137,16 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     int one = 1;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
     c->sock = sock;
-    if (c->device_port && s.client_changed) {
-        s.client_changed(true);
+    /* Greet with a keepalive at once; the Stream Deck app waits for it before it trusts a port.
+     */
+    uint8_t hello[DB_CORA_REPORT_LEN];
+    db_cora_keepalive(c->connection_no, hello);
+    send_frame(c, 0, 0, 0, hello, sizeof(hello));
+    if (c->device_port) {
+        s.info.in_use = true;
+        if (s.client_changed) {
+            s.client_changed(true);
+        }
     }
     uint8_t hdr_buf[DB_CORA_HDR_LEN];
     db_cora_hdr_t h;
@@ -147,8 +164,11 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     xSemaphoreGive(c->tx);
     close(sock);
     ESP_LOGI(TAG, "%s host left", c->name);
-    if (c->device_port && s.client_changed) {
-        s.client_changed(false);
+    if (c->device_port) {
+        s.info.in_use = false;
+        if (s.client_changed) {
+            s.client_changed(false);
+        }
     }
 }
 

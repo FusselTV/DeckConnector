@@ -22,7 +22,7 @@ PORTS = (8765, 8766)
 
 
 def api(method: str, path: str, body: bytes | None = None, auth: bool = True, timeout: float = 30):
-    req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method)
+    req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-Deckbridge": "1"})
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())
     try:

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "auth.h"
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_log.h"
@@ -15,7 +16,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lwip/sockets.h"
-#include "mbedtls/base64.h"
 
 #define BODY_MAX 2048
 #define CHUNK    4096
@@ -27,26 +27,6 @@ extern const char index_html_start[] asm("_binary_index_html_start");
 extern const char index_html_end[] asm("_binary_index_html_end");
 
 static size_t (*status_json)(char *buf, size_t cap);
-
-static bool authorized(httpd_req_t *req)
-{
-    char given[96] = {0};
-    char plain[64];
-    unsigned char expected[96];
-    size_t n = 0;
-    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) == ESP_OK) {
-        int len = snprintf(plain, sizeof(plain), "admin:%s", db_config()->admin_pass);
-        mbedtls_base64_encode(expected, sizeof(expected) - 1, &n, (const unsigned char *)plain, (size_t)len);
-        expected[n] = '\0';
-        if (strncmp(given, "Basic ", 6) == 0 && strcmp(given + 6, (const char *)expected) == 0) {
-            return true;
-        }
-    }
-    httpd_resp_set_status(req, "401 Unauthorized");
-    httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"deckbridge\"");
-    httpd_resp_sendstr(req, "login required");
-    return false;
-}
 
 static esp_err_t send_json(httpd_req_t *req, const char *json, size_t len)
 {
@@ -86,11 +66,9 @@ static void restart_task(void *arg)
     esp_restart();
 }
 
+/* The page itself is public; it shows the login form until /api/status answers. */
 static esp_err_t page(httpd_req_t *req)
 {
-    if (!authorized(req)) {
-        return ESP_OK;
-    }
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     return httpd_resp_send(req, index_html_start,
                            index_html_end - index_html_start - 1); /* EMBED_TXTFILES adds a NUL */
@@ -98,7 +76,7 @@ static esp_err_t page(httpd_req_t *req)
 
 static esp_err_t get_status(httpd_req_t *req)
 {
-    if (!authorized(req)) {
+    if (!auth_check(req)) {
         return ESP_OK;
     }
     char *buf = malloc(JSON_MAX);
@@ -112,7 +90,7 @@ static esp_err_t get_status(httpd_req_t *req)
 
 static esp_err_t get_config(httpd_req_t *req)
 {
-    if (!authorized(req)) {
+    if (!auth_check(req)) {
         return ESP_OK;
     }
     char buf[JSON_MAX];
@@ -122,7 +100,7 @@ static esp_err_t get_config(httpd_req_t *req)
 /* Brightness changes apply at once; everything else needs a restart to take effect cleanly. */
 static esp_err_t put_config(httpd_req_t *req)
 {
-    if (!authorized(req)) {
+    if (!auth_check(req)) {
         return ESP_OK;
     }
     char body[BODY_MAX];
@@ -157,7 +135,7 @@ static esp_err_t put_config(httpd_req_t *req)
 
 static esp_err_t post_ota(httpd_req_t *req)
 {
-    if (!authorized(req)) {
+    if (!auth_check(req)) {
         return ESP_OK;
     }
     if (db_ota_begin(req->content_len) != ESP_OK) {
@@ -193,7 +171,7 @@ static esp_err_t post_ota(httpd_req_t *req)
 
 static esp_err_t post_reboot(httpd_req_t *req)
 {
-    if (!authorized(req)) {
+    if (!auth_check(req)) {
         return ESP_OK;
     }
     send_json(req, "{\"ok\":true}", 11);
@@ -203,7 +181,7 @@ static esp_err_t post_reboot(httpd_req_t *req)
 
 static esp_err_t get_log(httpd_req_t *req)
 {
-    if (!authorized(req)) {
+    if (!auth_check(req)) {
         return ESP_OK;
     }
     char *buf = heap_caps_malloc(16 * 1024, MALLOC_CAP_SPIRAM);
@@ -280,7 +258,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
     status_json = status;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
-    cfg.max_uri_handlers = 10;
+    cfg.max_uri_handlers = 12;
     cfg.lru_purge_enable = true;
     cfg.recv_wait_timeout = 15;
     httpd_handle_t server;
@@ -296,6 +274,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
         {.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota},
         {.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot},
         {.uri = "/api/log", .method = HTTP_GET, .handler = get_log},
+        {.uri = "/api/login", .method = HTTP_POST, .handler = auth_login},
+        {.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout},
     };
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
         httpd_register_uri_handler(server, &uris[i]);

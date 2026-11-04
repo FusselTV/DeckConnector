@@ -45,11 +45,47 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
 }
 
+/* Fixed answers, byte for byte as the Stream Deck app expects them. It checks 0x81 to 0x8f.
+ */
+static const struct {
+    uint8_t cmd;
+    uint8_t len;
+    uint8_t bytes[16];
+} fixed[] = {
+    {0x81, 16, {0x03, 0x81, 0, 0, 0x65, 0x5b, 0x80, 0x4c, '1', '.', '0', '0', '.', '0', '0', '0'}},
+    {0x82, 16, {0x03, 0x82, 0, 0, 0x62, 0x85, 0x62, 0x35, '1', '.', '0', '1', '.', '0', '1', '3'}},
+    {0x83, 16, {0x03, 0x83, 0, 0, 0x25, 0xe4, 0x90, 0x96, '1', '.', '0', '1', '.', '0', '1', '4'}},
+    {0x87, 6, {0x03, 0x87, 0, 0x02, 0, 0x02}},
+    {0x88, 4, {0x03, 0x88, 0, 0x08}},
+    {0x8b, 10, {0x03, 0x8b, 0x08, 0, 0, 0, 0, 0, 0x43, 0x0e}},
+    {0x8e, 2, {0x03, 0x8e}},
+};
+
+static int find_fixed(uint8_t cmd)
+{
+    for (size_t i = 0; i < sizeof(fixed) / sizeof(fixed[0]); i++) {
+        if (fixed[i].cmd == cmd) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+bool db_cora_is_query(uint8_t cmd)
+{
+    return cmd == 0x80 || cmd == 0x84 || cmd == 0x85 || cmd == 0x8f || cmd == 0x1c || find_fixed(cmd) >= 0;
+}
+
 void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB_CORA_REPORT_LEN])
 {
     memset(out, 0, DB_CORA_REPORT_LEN);
     if (cmd == 0x1c) {
         device2_info(dock, out);
+        return;
+    }
+    int f = find_fixed(cmd);
+    if (f >= 0) {
+        memcpy(out, fixed[f].bytes, fixed[f].len);
         return;
     }
     out[0] = 0x03;
@@ -58,9 +94,6 @@ void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB
     case 0x80: /* identity: vendor and the pseudo product id of the dock */
         db_put_u16(out + 12, 0x0fd9);
         db_put_u16(out + 14, 0xffff);
-        break;
-    case 0x83: /* firmware: 4 checksum bytes, then the text */
-        memcpy(out + 8, DB_CORA_FIRMWARE, sizeof(DB_CORA_FIRMWARE) - 1);
         break;
     case 0x84: {
         size_t n = strnlen(dock->serial, sizeof(dock->serial));
@@ -72,9 +105,9 @@ void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB
         out[2] = 6;
         memcpy(out + 4, dock->mac, 6);
         break;
-    case 0x87: /* undocumented, answered all the same */
-        out[3] = 0x02;
-        out[5] = 0x02;
+    case 0x8f: /* busy state; a dock in use by a host answers 03 8f 02 00 02 */
+        out[2] = dock->in_use ? 0x02 : 0x00;
+        out[4] = dock->in_use ? 0x02 : 0x00;
         break;
     default:
         break;

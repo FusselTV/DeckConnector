@@ -24,7 +24,17 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 </head>
 <body>
 <main>
-<h1 id="title">deckbridge</h1>
+<form id="login" hidden>
+<h1>deckbridge</h1>
+<section>
+<h2>Anmelden</h2>
+<label for="pw">Passwort für admin (steht auf dem Gerät unter Menü, Info)</label>
+<input id="pw" type="password" autocomplete="current-password" autofocus>
+<div class="row"><button>Anmelden</button><span id="loginmsg" class="bad"></span></div>
+</section>
+</form>
+<div id="app" hidden>
+<div class="row" style="justify-content:space-between;margin:4px 0 16px"><h1 id="title" style="margin:0">deckbridge</h1><button id="logout" class="plain">Abmelden</button></div>
 
 <section>
 <h2>Status</h2>
@@ -71,9 +81,12 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 <div class="row" style="margin-top:0"><button id="logbtn" class="plain">Aktualisieren</button><button id="reboot" class="plain">Neu starten</button></div>
 <pre id="log"></pre>
 </section>
+</div>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+/* Every request carries this header; the bridge refuses changes without it, so other sites cannot send them. */
+const api = (path, opts = {}) => fetch(path, {...opts, headers: {'X-Deckbridge': '1', ...(opts.headers || {})}});
 const ipFields = ['ip', 'mask', 'gateway', 'dns'];
 const ipNames = {ip: 'Adresse', mask: 'Maske', gateway: 'Gateway', dns: 'DNS'};
 
@@ -90,7 +103,7 @@ function kv(label, value, cls) {
 }
 
 async function loadStatus() {
-  const s = await (await fetch('/api/status')).json();
+  const s = await (await api('/api/status')).json();
   $('title').textContent = s.name;
   const srv = (s.servers || []).map((x, i) => kv('Server ' + (i + 1), x.url ? (x.connected ? (x.active ? 'aktiv' : 'bereit') : 'getrennt') + ' · ' + x.url : '–', x.connected ? 'ok' : '')).join('');
   $('status').innerHTML = kv('Gerät', s.device ? s.device.model + ' (' + s.device.serial + ')' : 'nicht angeschlossen', s.device ? 'ok' : 'bad') +
@@ -101,7 +114,7 @@ async function loadStatus() {
 }
 
 async function loadConfig() {
-  const c = await (await fetch('/api/config')).json();
+  const c = await (await api('/api/config')).json();
   $('name').value = c.name; $('mode').value = c.mode; $('brightness').value = c.brightness;
   $('s0').value = c.servers[0] || ''; $('s1').value = c.servers[1] || ''; $('ssid').value = c.wifi_ssid;
   for (const key of ['lan', 'wlan']) {
@@ -117,7 +130,7 @@ $('cfg').onsubmit = async (e) => {
   const body = {name: $('name').value, mode: $('mode').value, brightness: +$('brightness').value,
     servers: [$('s0').value, $('s1').value].filter(Boolean), wifi_ssid: $('ssid').value, lan: ip('lan'), wlan: ip('wlan')};
   for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
-  const r = await (await fetch('/api/config', {method: 'PUT', body: JSON.stringify(body)})).json();
+  const r = await (await api('/api/config', {method: 'PUT', body: JSON.stringify(body)})).json();
   $('msg').className = r.ok ? 'ok' : 'bad';
   $('msg').textContent = r.ok ? (r.restart ? 'Gespeichert, die Bridge startet neu.' : 'Gespeichert.') : r.error;
 };
@@ -126,15 +139,38 @@ $('up').onclick = async () => {
   const file = $('fw').files[0];
   if (!file) return;
   $('upmsg').className = ''; $('upmsg').textContent = 'Lade hoch …';
-  const r = await (await fetch('/api/ota', {method: 'POST', body: file})).json().catch(() => ({ok: false, error: 'Verbindung verloren'}));
+  const r = await (await api('/api/ota', {method: 'POST', body: file})).json().catch(() => ({ok: false, error: 'Verbindung verloren'}));
   $('upmsg').className = r.ok ? 'ok' : 'bad';
   $('upmsg').textContent = r.ok ? 'Installiert, die Bridge startet neu.' : 'Fehler: ' + r.error;
 };
 
-$('logbtn').onclick = async () => { $('log').textContent = await (await fetch('/api/log')).text(); $('log').scrollTop = 1e9; };
-$('reboot').onclick = () => fetch('/api/reboot', {method: 'POST'});
+$('logbtn').onclick = async () => { $('log').textContent = await (await api('/api/log')).text(); $('log').scrollTop = 1e9; };
+$('reboot').onclick = () => api('/api/reboot', {method: 'POST'});
 
-loadConfig(); loadStatus(); setInterval(loadStatus, 5000);
+async function start() {
+  const r = await api('/api/status');
+  if (r.status === 401) {
+    $('login').hidden = false;
+    $('app').hidden = true;
+    return;
+  }
+  $('login').hidden = true;
+  $('app').hidden = false;
+  loadConfig();
+  loadStatus();
+  setInterval(loadStatus, 5000);
+}
+
+$('login').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await api('/api/login', {method: 'POST', body: JSON.stringify({password: $('pw').value})});
+  const j = await r.json();
+  if (j.ok) return start();
+  $('loginmsg').textContent = j.error === 'locked' ? `Zu viele Versuche, bitte ${j.retry} s warten.` : 'Falsches Passwort.';
+};
+$('logout').onclick = async () => { await api('/api/logout', {method: 'POST'}); location.reload(); };
+
+start();
 </script>
 </body>
 </html>
