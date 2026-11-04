@@ -14,7 +14,7 @@ FetchContent_MakeAvailable(unity)
 add_subdirectory(../firmware/components/db_core db_core)
 
 enable_testing()
-foreach(t test_regions test_proto test_elgato)
+foreach(t test_regions test_proto test_elgato test_cora)
     add_executable(${t} ${t}.c)
     target_link_libraries(${t} db_core unity)
     add_test(NAME ${t} COMMAND ${t})

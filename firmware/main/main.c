@@ -4,6 +4,7 @@
 
 #include "db_config.h"
 #include "db_deck.h"
+#include "db_dock.h"
 #include "db_json.h"
 #include "db_link.h"
 #include "db_log.h"
@@ -172,6 +173,8 @@ void app_main(void)
                             .active_changed = db_ui_set_active_link};
     if (db_config()->mode == DB_MODE_NATIVE) {
         ESP_ERROR_CHECK(db_link_start(&link));
+    } else {
+        ESP_ERROR_CHECK(db_dock_start(db_ui_set_dock_client));
     }
     db_web_hooks_t web = {.status_json = web_status};
     ESP_ERROR_CHECK(db_web_start(&web));
