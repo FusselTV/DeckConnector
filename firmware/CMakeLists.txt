@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.22)
 
 execute_process(COMMAND git describe --tags --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
                 OUTPUT_VARIABLE PROJECT_VER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+# Re-run the configure step after every commit so the version inside the image stays right.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/../.git/HEAD
+             ${CMAKE_CURRENT_LIST_DIR}/../.git/index)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(deckbridge)
