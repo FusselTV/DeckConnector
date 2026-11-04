@@ -11,8 +11,9 @@ bridge knows the USB protocol of the device and shows the newest image for each 
 - Only the active server may send images. The bridge answers images from a standby server with `REJECTED_ROLE`.
 - Input goes to the active server only.
 - When the active server is lost, the standby server becomes active and gets a `role` message. It must then
-  draw every area again, because the bridge does not cache old images. The active server gets `role` again
-  when the menu or an update on the device drew over its picture.
+  draw every area again. The bridge first shows what this server drew last time, which may be old. The active
+  server gets `role` again when the menu or an update on the device drew over its picture.
+- While the controller setting is `app` or `companion`, every server is standby. See [api.md](api.md).
 - The bridge sends a ping every 2 s. A server that sends nothing for 6 s counts as lost.
 
 Text frames carry JSON control messages. Binary frames carry images, acknowledgements, input and time sync.
@@ -54,7 +55,7 @@ ACK `result`:
 | 0 | `SHOWN`, sent to the device |
 | 1 | `SUPERSEDED`, replaced by a newer image before it was sent |
 | 2 | `REJECTED_RECT`, the rectangle is not a target of this display |
-| 3 | `REJECTED_ROLE`, this server is not active, or the menu or dock mode owns the device |
+| 3 | `REJECTED_ROLE`, this server is not active, or the menu, the Stream Deck app or Companion owns the device |
 | 4 | `NO_DEVICE`, no device is connected, or the USB transfer failed |
 | 5 | `BUSY`, the bridge is out of image memory |
 
@@ -102,13 +103,12 @@ rectangle. `{"t": "device", "present": false}` means the device was unplugged.
 
 ```json
 {"t": "role", "active": true}
-{"t": "status", "name": "deckbridge-a1b2c3", "fw": "v0.1.0", "c6": "3.0.10", "mode": "native", "uptime": 3600, "heap": 123456, "psram": 30000000, "lan": "192.168.1.214",
- "wlan": "192.168.2.237", "rssi": -52, "device": {"model": "Stream Deck +", "serial": "...", "fw": "..."},
- "servers": [{"url": "ws://...", "connected": true, "active": true}], "images": 1234, "superseded": 12,
- "rejected": 0, "usb_errors": 0, "inputs": 56, "inputs_dropped": 0}
+{"t": "status", "name": "deckbridge-a1b2c3", "firmware": "v0.1.0", "controller": "server", "writer": "server1", ...}
 {"t": "ota", "target": "p4", "state": "download", "pct": 40}
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
+
+`status` has the fields of `GET /api/status` ([api.md](api.md)) without `memory`.
 
 OTA `state` is one of `download`, `verify`, `done`, `error`. After `done` the bridge restarts.
 

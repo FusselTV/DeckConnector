@@ -95,10 +95,12 @@ async def servers():
     await second.start()
     wanted = [first.url, second.url]
     cfg = json.loads(api("GET", "/api/config")[1])
-    if cfg["servers"] != wanted or cfg["mode"] != "native":
-        api("PUT", "/api/config", json.dumps({"servers": wanted, "mode": "native"}).encode())
+    if cfg["servers"] != wanted:
+        api("PUT", "/api/config", json.dumps({"servers": wanted}).encode())
         await asyncio.sleep(5)
         await asyncio.to_thread(wait_for_bridge)
+    if cfg["controller"] != "server":
+        api("PUT", "/api/config", json.dumps({"controller": "server"}).encode())
     yield first, second
     await first.stop()
     await second.stop()

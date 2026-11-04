@@ -31,12 +31,14 @@ void db_config_random_password(char *out, size_t len)
     out[len - 1] = '\0';
 }
 
+static void (*on_save)(void);
+
 static void defaults(db_config_t *c)
 {
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_BASE);
     *c = (db_config_t){.version = CONFIG_VERSION,
-                       .mode = DB_MODE_NATIVE,
+                       .controller = DB_CTRL_SERVER,
                        .brightness = 80,
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
@@ -63,6 +65,9 @@ esp_err_t db_config_load(void)
         if (err == ESP_OK) {
             memcpy(&current, blob, len < sizeof(current) ? len : sizeof(current));
             current.version = CONFIG_VERSION;
+            if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
+                current.controller = DB_CTRL_SERVER;
+            }
         }
         free(blob);
     }
@@ -105,7 +110,22 @@ esp_err_t db_config_save(const db_config_t *cfg)
         current = *cfg;
         xSemaphoreGive(lock);
     }
+    if (err == ESP_OK && on_save) {
+        on_save();
+    }
     return err;
+}
+
+void db_config_on_save(void (*cb)(void))
+{
+    on_save = cb;
+}
+
+static const char *const controller_names[DB_CTRL_COUNT] = {"server", "companion", "app"};
+
+const char *db_controller_name(db_controller_t c)
+{
+    return c < DB_CTRL_COUNT ? controller_names[c] : "server";
 }
 
 esp_err_t db_config_reset(void)
@@ -132,7 +152,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "name", cfg->name);
-    db_json_str(&j, "mode", cfg->mode == DB_MODE_DOCK ? "dock" : "native");
+    db_json_str(&j, "controller", db_controller_name(cfg->controller));
     db_json_int(&j, "brightness", cfg->brightness);
     ip_to_json(&j, "lan", &cfg->lan);
     ip_to_json(&j, "wlan", &cfg->wlan);
@@ -226,14 +246,19 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
 
 static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t err_cap)
 {
-    const cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "mode");
-    if (mode) {
-        if (!cJSON_IsString(mode) ||
-            (strcmp(mode->valuestring, "native") && strcmp(mode->valuestring, "dock"))) {
-            snprintf(err, err_cap, "mode: native or dock expected");
+    const cJSON *ctrl = cJSON_GetObjectItemCaseSensitive(root, "controller");
+    if (ctrl) {
+        int found = -1;
+        for (int i = 0; i < DB_CTRL_COUNT && cJSON_IsString(ctrl); i++) {
+            if (strcmp(ctrl->valuestring, controller_names[i]) == 0) {
+                found = i;
+            }
+        }
+        if (found < 0) {
+            snprintf(err, err_cap, "controller: server, app or companion expected");
             return false;
         }
-        cfg->mode = strcmp(mode->valuestring, "dock") == 0 ? DB_MODE_DOCK : DB_MODE_NATIVE;
+        cfg->controller = (db_controller_t)found;
     }
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "brightness");
     if (b) {

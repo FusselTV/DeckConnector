@@ -151,15 +151,14 @@ static void brightness(int delta)
     snprintf(m.note, sizeof(m.note), "Helligkeit %u %%", c.brightness);
 }
 
-static void toggle_mode(void)
+static void next_controller(void)
 {
     db_config_t c;
     db_config_copy(&c);
-    c.mode = c.mode == DB_MODE_DOCK ? DB_MODE_NATIVE : DB_MODE_DOCK;
+    c.controller = (db_controller_t)((c.controller + 1) % DB_CTRL_COUNT);
     if (db_config_save(&c) == ESP_OK) {
-        snprintf(m.note, sizeof(m.note), "%s, starte neu",
-                 c.mode == DB_MODE_DOCK ? "Dock-Modus" : "Nativer Modus");
-        restart_soon();
+        snprintf(m.note, sizeof(m.note), "%s steuert, sobald das Menü zu ist",
+                 ui_controller_label(c.controller));
     }
 }
 
@@ -205,7 +204,7 @@ static bool main_input(const db_input_t *ev)
         }
         break;
     case 3:
-        toggle_mode();
+        next_controller();
         break;
     case 4:
         brightness(-10);
@@ -259,9 +258,9 @@ static void main_screen(ui_screen_t *sc)
     ui_set_tile(sc, 0, "Info", "Adressen, Passwort", C_KEY);
     ui_set_tile(sc, 1, "LAN-IP", c->lan.dhcp ? "DHCP" : c->lan.ip, C_KEY);
     ui_set_tile(sc, 2, "Setup-WLAN", "zum Einrichten", C_KEY);
-    ui_set_tile(sc, 3, "Modus", c->mode == DB_MODE_DOCK ? "Dock → Nativ" : "Nativ → Dock", C_KEY);
-    ui_set_tile(sc, 4, "Heller −", b, C_KEY);
-    ui_set_tile(sc, 5, "Heller +", b, C_KEY);
+    ui_set_tile(sc, 3, "Steuerung", ui_controller_label(c->controller), C_KEY);
+    ui_set_tile(sc, 4, "Dunkler", b, C_KEY);
+    ui_set_tile(sc, 5, "Heller", b, C_KEY);
     ui_set_tile(sc, 6, "Neustart", "5 s: Werkseinst.", C_DANGER);
     ui_set_tile(sc, 7, "Zurück", "", C_SELECTED);
 }

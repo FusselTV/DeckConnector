@@ -60,6 +60,7 @@ static struct {
     db_link_hooks_t hooks;
     link_t links[DB_MAX_SERVERS];
     volatile int active;
+    volatile bool enabled;
     QueueHandle_t tx;
     SemaphoreHandle_t role_lock;
     char headers[96];
@@ -161,9 +162,9 @@ static void send_hello(int link)
 
 static void send_status(void)
 {
-    char *buf = malloc(1024);
+    char *buf = malloc(2048);
     if (buf) {
-        send_text(ALL_LINKS, buf, s.hooks.status_json(buf, 1024));
+        send_text(ALL_LINKS, buf, s.hooks.status_json(buf, 2048));
     }
     free(buf);
 }
@@ -174,7 +175,7 @@ static bool recompute_active(void)
     xSemaphoreTake(s.role_lock,
                    portMAX_DELAY); /* both link tasks call this; hooks must see changes in order */
     int next = -1;
-    for (int i = 0; i < DB_MAX_SERVERS; i++) {
+    for (int i = 0; i < DB_MAX_SERVERS && s.enabled; i++) {
         if (s.links[i].connected) {
             next = i;
             break;
@@ -366,7 +367,8 @@ static void session(link_t *l)
 /*
  * Every connection is bound to one interface. Routing cannot be trusted to pick: with LAN and WLAN in the
  * same subnet lwIP takes the first matching interface, and a LAN can keep its link while it drops everything
- * (a switch port that stops forwarding). So LAN first, and after a failed attempt WLAN, and back.
+ * (a switch port that stops forwarding). So LAN first; after a timeout or an unreachable network WLAN, and
+ * back.
  */
 static void link_task(void *arg)
 {
@@ -395,8 +397,11 @@ static void link_task(void *arg)
                 next_log = now_ms() + 30000;
                 ESP_LOGW(TAG, "server %d over %s: %s", l->index, over, strerror(-err));
             }
-            via_wlan = !wlan;
-            vTaskDelay(pdMS_TO_TICKS(wlan ? RETRY_MS : 200));
+            /* A refused connection proves the path works and only the server is missing, so the next try goes
+             * over LAN. */
+            bool path_ok = err == -ECONNREFUSED || err == -ECONNRESET;
+            via_wlan = path_ok ? false : !wlan;
+            vTaskDelay(pdMS_TO_TICKS(wlan || path_ok ? RETRY_MS : 200));
             continue;
         }
         via_wlan = false; /* next time start with LAN again */
@@ -506,6 +511,12 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
     xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
     xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0);
     return ESP_OK;
+}
+
+void db_link_set_enabled(bool enabled)
+{
+    s.enabled = enabled;
+    recompute_active();
 }
 
 void db_link_resend_role(void)

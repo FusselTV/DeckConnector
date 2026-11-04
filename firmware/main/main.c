@@ -23,39 +23,43 @@
 
 static const char *TAG = "main";
 
-/* Shared body of the server `status` message and /api/status. */
-static void write_status(db_json_t *j)
+static void write_device(db_json_t *j)
+{
+    static db_device_info_t dev; /* too big for the callers' stacks */
+    if (!db_deck_info(&dev)) {
+        db_json_null(j, "device");
+        return;
+    }
+    db_json_obj_open(j, "device");
+    db_json_str(j, "model", dev.model);
+    db_json_str(j, "serial", dev.serial);
+    db_json_str(j, "firmware", dev.firmware);
+    db_json_int(j, "keys", dev.key_count);
+    db_json_int(j, "encoders", dev.encoder_count);
+    db_json_int(j, "width", dev.displays[0].width);
+    db_json_int(j, "height", dev.displays[0].height);
+    db_json_obj_close(j);
+}
+
+static void write_network(db_json_t *j)
 {
     db_net_status_t n;
     db_net_status(&n);
-    db_deck_stats_t st;
-    db_deck_stats(&st);
-    static db_device_info_t dev; /* too big for the callers' stacks */
-    bool present = db_deck_info(&dev);
-    const char *c6 = db_ota_c6_version();
-    db_json_str(j, "name", db_config()->name);
-    db_json_str(j, "fw", esp_app_get_description()->version);
-    if (c6) {
-        db_json_str(j, "c6", c6);
-    } else {
-        db_json_null(j, "c6");
-    }
-    db_json_str(j, "mode", db_config()->mode == DB_MODE_DOCK ? "dock" : "native");
-    db_json_int(j, "uptime", esp_timer_get_time() / 1000000);
-    db_json_int(j, "heap", (int64_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-    db_json_int(j, "psram", (int64_t)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    db_json_str(j, "lan", n.lan_up ? n.lan_ip : "");
-    db_json_str(j, "wlan", n.wlan_up ? n.wlan_ip : "");
-    db_json_int(j, "rssi", n.rssi);
-    if (present) {
-        db_json_obj_open(j, "device");
-        db_json_str(j, "model", dev.model);
-        db_json_str(j, "serial", dev.serial);
-        db_json_str(j, "fw", dev.firmware);
-        db_json_obj_close(j);
-    } else {
-        db_json_null(j, "device");
-    }
+    db_json_obj_open(j, "network");
+    db_json_obj_open(j, "lan");
+    db_json_bool(j, "cable", n.lan_link);
+    db_json_str(j, "ip", n.lan_up ? n.lan_ip : "");
+    db_json_obj_close(j);
+    db_json_obj_open(j, "wlan");
+    db_json_str(j, "ssid", db_config()->wifi_ssid);
+    db_json_str(j, "ip", n.wlan_up ? n.wlan_ip : "");
+    db_json_int(j, "rssi", n.wlan_up ? n.rssi : 0);
+    db_json_obj_close(j);
+    db_json_obj_close(j);
+}
+
+static void write_hosts(db_json_t *j)
+{
     db_json_arr_open(j, "servers");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         db_json_obj_open(j, NULL);
@@ -65,12 +69,47 @@ static void write_status(db_json_t *j)
         db_json_obj_close(j);
     }
     db_json_arr_close(j);
+    db_dock_host_t hosts[DB_DOCK_HOSTS];
+    size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
+    db_json_arr_open(j, "dock_hosts");
+    for (size_t i = 0; i < n; i++) {
+        db_json_obj_open(j, NULL);
+        db_json_str(j, "kind",
+                    hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind));
+        db_json_str(j, "ip", hosts[i].ip);
+        db_json_bool(j, "device", hosts[i].device);
+        db_json_obj_close(j);
+    }
+    db_json_arr_close(j);
+}
+
+/* Shared body of the server `status` message and /api/status. */
+static void write_status(db_json_t *j)
+{
+    db_deck_stats_t st;
+    db_deck_stats(&st);
+    const char *c6 = db_ota_c6_version();
+    db_json_str(j, "name", db_config()->name);
+    db_json_str(j, "firmware", esp_app_get_description()->version);
+    if (c6) {
+        db_json_str(j, "wlan_firmware", c6);
+    } else {
+        db_json_null(j, "wlan_firmware");
+    }
+    db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
+    db_json_str(j, "controller", db_controller_name(db_config()->controller));
+    db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
+    write_device(j);
+    write_network(j);
+    write_hosts(j);
+    db_json_obj_open(j, "counters");
     db_json_int(j, "images", st.images);
     db_json_int(j, "superseded", st.superseded);
     db_json_int(j, "rejected", st.rejected);
     db_json_int(j, "usb_errors", st.usb_errors);
     db_json_int(j, "inputs", st.inputs);
     db_json_int(j, "inputs_dropped", st.inputs_dropped);
+    db_json_obj_close(j);
 }
 
 static size_t link_status(char *buf, size_t cap)
@@ -107,8 +146,12 @@ static size_t web_status(char *buf, size_t cap)
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     write_status(&j);
-    db_json_int(&j, "heap_min", (int64_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+    db_json_obj_open(&j, "memory");
+    db_json_int(&j, "heap_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    db_json_int(&j, "heap_min_free", (int64_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
+    db_json_int(&j, "psram_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     write_tasks(&j);
+    db_json_obj_close(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);
 }
@@ -141,6 +184,20 @@ static void on_ota_requested(const char *target, const char *url)
     }
 }
 
+static void apply_controller(void)
+{
+    static int applied = -1;
+    db_controller_t c = db_config()->controller;
+    if ((int)c == applied) {
+        return;
+    }
+    applied = (int)c;
+    ESP_LOGI(TAG, "controller: %s", db_controller_name(c));
+    db_link_set_enabled(c == DB_CTRL_SERVER);
+    db_dock_set_controller(c);
+    db_ui_refresh();
+}
+
 /* A bridge without any network opens the setup WLAN by itself. */
 static void setup_ap_task(void *arg)
 {
@@ -170,8 +227,8 @@ void app_main(void)
     db_log_start();
     init_nvs();
     ESP_ERROR_CHECK(db_config_load());
-    ESP_LOGI(TAG, "deckbridge %s, %s mode", esp_app_get_description()->version,
-             db_config()->mode == DB_MODE_DOCK ? "dock" : "native");
+    ESP_LOGI(TAG, "deckbridge %s, controller %s", esp_app_get_description()->version,
+             db_controller_name(db_config()->controller));
 
     ESP_ERROR_CHECK(db_ui_start());
     ESP_ERROR_CHECK(db_deck_start());
@@ -183,11 +240,10 @@ void app_main(void)
                             .c6_version = db_ota_c6_version,
                             .ota_requested = on_ota_requested,
                             .active_changed = db_ui_set_active_link};
-    if (db_config()->mode == DB_MODE_NATIVE) {
-        ESP_ERROR_CHECK(db_link_start(&link));
-    } else {
-        ESP_ERROR_CHECK(db_dock_start(db_ui_set_dock_client));
-    }
+    ESP_ERROR_CHECK(db_link_start(&link));
+    ESP_ERROR_CHECK(db_dock_start(db_config()->controller, db_ui_set_dock_clients));
+    db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
+    db_config_on_save(apply_controller);
     ESP_ERROR_CHECK(db_web_start(web_status));
     db_ota_confirm_when(db_net_online);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);

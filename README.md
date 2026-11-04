@@ -1,8 +1,9 @@
 # deckbridge
 
-Firmware for an ESP32-P4 board that drives an Elgato Stream Deck over USB and puts it on the network. A server
-renders the images and gets every key press, encoder turn and touch. The board can also act like an Elgato
-Network Dock, so Bitfocus Companion and the Stream Deck app use it without any extra software.
+Firmware for an ESP32-P4 board that drives an Elgato Stream Deck over USB and puts it on the network. Your own
+server renders the images and gets every key press, encoder turn and touch. The board also acts like an Elgato
+Network Dock, so Bitfocus Companion and the Stream Deck app use it without any extra software. You switch between
+the three at any time, and the deck shows the picked one's picture at once.
 
 <table><tr>
 <td><img src="docs/img/status.jpg" width="380" alt=""></td>
@@ -14,14 +15,16 @@ Network Dock, so Bitfocus Companion and the Stream Deck app use it without any e
 - One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
   Stream Deck +).
 - LAN and WLAN at the same time. Connections go over LAN. If a server cannot be reached there, the next try
-  goes over WLAN, and the connection stays there until it ends. A dead LAN is noticed within 6 s. Dock mode is
-  announced on WLAN only while the LAN has no address.
+  goes over WLAN, and the connection stays there until it ends. The bridge notices a dead LAN within 6 s. It
+  announces the Network Dock on WLAN only while the LAN has no address.
 - Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
   once when the connection closes and within 6 s when the server just goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
 - Signed updates for the firmware and the WLAN chip, with automatic rollback if new bridge firmware does not
   come up.
-- A status screen and a settings menu on the device itself, a web UI, and a setup WLAN for first use.
+- A status screen and a settings menu on the device itself, a web UI with a live view of the deck, and a setup
+  WLAN for first use.
+- A JSON API for all of it, see [docs/api.md](docs/api.md).
 
 ## Hardware
 
@@ -51,12 +54,15 @@ The first start creates a password for the web UI. The device shows it under Men
 1. Plug in LAN, or wait a minute. Without a network the board opens a setup WLAN. Its name and password are on
    the device.
 2. Open `http://<address>/` and log in as `admin`.
-3. Choose the mode.
-   - In native mode, enter one or two server URLs (`ws://host:port/deckbridge`). Leave them empty to find servers
+3. Pick who controls the deck.
+   - Own servers. Enter one or two server URLs (`ws://host:port/deckbridge`). Leave them empty to find servers
      that announce `_deckbridge._tcp` over mDNS.
-   - In Network Dock mode, the board shows up in Companion under Surfaces, Discover. Click Add Connection.
+   - Companion. The board shows up under Surfaces, Discover. Click Add Connection, or add a remote surface of the
+     type Elgato Stream Deck with the address of the board.
+   - Stream Deck app. It finds the board by itself.
 
-The menu on the device opens when you hold the first and the last encoder for two seconds.
+The menu on the device opens when you hold the first and the last encoder for two seconds. It also works while
+a host draws. When it closes, the deck shows the host's picture again at once.
 
 ## Writing a server
 
@@ -84,5 +90,4 @@ cd tools && uv run pytest tests -m ota     # updates, restarts the board
 
 - `ws://` only, no TLS.
 - The ESP32-C6 has no 5 GHz radio.
-- In Network Dock mode the board looks like a dock to the host. The Stream Deck app is not tested yet.
-- In Network Dock mode the host is not told when the menu drew over its picture; it shows again on its next update.
+- Up to three Network Dock hosts at once. Two hosts of the same kind both draw and both get the input.

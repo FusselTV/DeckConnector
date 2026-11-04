@@ -33,7 +33,8 @@ static const char *TAG = "ui";
 static struct {
     TaskHandle_t task;
     int active_link;
-    bool dock_client;
+    bool app_client;
+    bool companion_client;
     int update_pct;
     char update_what[24];
     char c6[16];
@@ -52,8 +53,13 @@ static db_source_t wanted_writer(void)
     if (ui_menu_open() || s.update_pct >= 0) {
         return DB_SOURCE_UI;
     }
-    if (db_config()->mode == DB_MODE_DOCK) {
-        return s.dock_client ? DB_SOURCE_DOCK : DB_SOURCE_UI;
+    switch (db_config()->controller) {
+    case DB_CTRL_APP:
+        return s.app_client ? DB_SOURCE_APP : DB_SOURCE_UI;
+    case DB_CTRL_COMPANION:
+        return s.companion_client ? DB_SOURCE_COMPANION : DB_SOURCE_UI;
+    default:
+        break;
     }
     return s.active_link >= 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link) : DB_SOURCE_UI;
 }
@@ -75,12 +81,12 @@ static void status_screen(ui_screen_t *sc)
     db_net_status_t n;
     db_net_status(&n);
     const db_config_t *c = db_config();
-    bool dock = c->mode == DB_MODE_DOCK;
+    bool dock = c->controller != DB_CTRL_SERVER;
     if (!n.lan_up && !n.wlan_up) {
         snprintf(sc->title, sizeof(sc->title), "Kein Netz");
         sc->color = C_BAD;
     } else if (dock) {
-        snprintf(sc->title, sizeof(sc->title), "Dock-Modus: warte auf Companion");
+        snprintf(sc->title, sizeof(sc->title), "Warte auf %s", ui_controller_label(c->controller));
         sc->color = C_WAIT;
     } else if (db_link_connected(0) || db_link_connected(1)) {
         snprintf(sc->title, sizeof(sc->title), "Verbunden");
@@ -89,8 +95,7 @@ static void status_screen(ui_screen_t *sc)
         snprintf(sc->title, sizeof(sc->title), c->servers[0][0] ? "Server nicht erreichbar" : "Suche Server");
         sc->color = C_WAIT;
     }
-    snprintf(sc->line, sizeof(sc->line), "%s  ·  Menü: Regler 1 und 4 halten",
-             n.lan_up ? n.lan_ip : n.wlan_ip);
+    snprintf(sc->line, sizeof(sc->line), "Web: http://%s", n.lan_up ? n.lan_ip : n.wlan_ip);
     char rssi[16];
     snprintf(rssi, sizeof(rssi), "✓ %d dBm", n.rssi);
     ui_set_tile(sc, 0, "LAN", n.lan_up ? "✓ verbunden" : (n.lan_link ? "✗ kein DHCP" : "✗ kein Kabel"),
@@ -104,10 +109,10 @@ static void status_screen(ui_screen_t *sc)
         ui_set_tile(sc, 2 + i, label, up ? (s.active_link == i ? "✓ aktiv" : "✓ bereit") : "✗",
                     up ? C_OK : C_TILE);
     }
-    ui_set_tile(sc, 4, "Modus", dock ? "Dock" : "Nativ", C_TILE);
+    ui_set_tile(sc, 4, "Steuerung", ui_controller_label(c->controller), C_TILE);
     ui_set_tile(sc, 5, "Firmware", esp_app_get_description()->version, C_TILE);
-    ui_set_tile(sc, 6, "C6", s.c6[0] ? s.c6 : "-", C_TILE);
-    ui_set_tile(sc, 7, "Menü", "1 + 4 halten", C_TILE);
+    ui_set_tile(sc, 6, "WLAN-Chip", s.c6[0] ? s.c6 : "-", C_TILE);
+    ui_set_tile(sc, 7, "Menü", "Regler 1 + 4 halten", C_TILE);
 }
 
 static void update_screen(ui_screen_t *sc)
@@ -303,9 +308,15 @@ void db_ui_set_active_link(int index)
     changed();
 }
 
-void db_ui_set_dock_client(bool connected)
+void db_ui_set_dock_clients(bool app, bool companion)
 {
-    s.dock_client = connected;
+    s.app_client = app;
+    s.companion_client = companion;
+    changed();
+}
+
+void db_ui_refresh(void)
+{
     changed();
 }
 

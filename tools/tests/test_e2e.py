@@ -16,7 +16,7 @@ QUARTER = (200, 380, 200, 100)
 async def test_hello_and_device(bridges):
     active, standby = bridges
     assert active.hello["proto"] == 1
-    assert active.hello["fw"] == status()["fw"]
+    assert active.hello["fw"] == status()["firmware"]
     assert active.active and not standby.active
     dev = active.device
     assert dev["present"] and dev["model"] == "Stream Deck +" and dev["tested"]
@@ -140,7 +140,7 @@ def test_web_api_needs_login():
         ({"admin_pass": "abc"}, "at least 6"),
         ({"servers": ["http://x"]}, "ws://"),
         ({"brightness": 101}, "0 to 100"),
-        ({"mode": "fast"}, "native or dock"),
+        ({"controller": "fast"}, "server, app or companion"),
     ],
 )
 def test_web_api_rejects_bad_config(body, error):
@@ -149,10 +149,15 @@ def test_web_api_rejects_bad_config(body, error):
 
 
 def test_web_api_brightness_applies_without_restart():
-    before = status()["uptime"]
+    before = status()["uptime_s"]
     code, reply = api("PUT", "/api/config", json.dumps({"brightness": 75}).encode())
     assert code == 200 and json.loads(reply)["restart"] is False
-    assert status()["uptime"] >= before
+    assert status()["uptime_s"] >= before
+
+
+def test_web_api_unknown_endpoint_answers_json():
+    code, reply = api("GET", "/api/nope")
+    assert code == 404 and json.loads(reply)["ok"] is False
 
 
 async def test_stalled_frame_ends_the_session(servers):

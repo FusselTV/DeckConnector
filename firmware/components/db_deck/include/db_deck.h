@@ -2,18 +2,21 @@
 
 #include "db_device.h"
 #include "db_proto.h"
+#include "db_screen.h"
 #include "esp_err.h"
 
 /*
  * The deck service owns the USB device. Exactly one source may draw at a time (the writer): the on-device UI,
- * one of the servers, or the dock emulation, which bypasses the image queue and writes raw reports.
+ * one of the servers, or a Network Dock host, which bypasses the image queue and writes raw reports. The
+ * newest picture of every source is kept, so a source that becomes the writer again shows at once.
  */
 
 typedef enum {
     DB_SOURCE_UI = 0,
     DB_SOURCE_LINK0,
     DB_SOURCE_LINK1,
-    DB_SOURCE_DOCK,
+    DB_SOURCE_APP,
+    DB_SOURCE_COMPANION,
     DB_SOURCE_COUNT,
 } db_source_t;
 
@@ -43,6 +46,8 @@ void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
 /* Pending images of the old writer are dropped and acknowledged as REJECTED_ROLE. */
 void db_deck_set_writer(db_source_t source);
 db_source_t db_deck_writer(void);
+/* The name in the JSON. */
+const char *db_deck_source_name(db_source_t source);
 
 /* Copy of the current device description. Returns false when nothing is plugged in. */
 bool db_deck_info(db_device_info_t *out);
@@ -56,9 +61,16 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
 
-/* Raw access for the dock emulation. Writes need the dock to be the writer. */
-esp_err_t db_deck_raw_write(const uint8_t *report, size_t len);
+/* Raw access for the dock emulation. Writes of a source that is not the writer only update its kept picture.
+ */
+esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t len);
 esp_err_t db_deck_raw_get_feature(uint8_t *buf, size_t len, size_t *out_len);
-esp_err_t db_deck_raw_set_feature(const uint8_t *buf, size_t len);
+esp_err_t db_deck_raw_set_feature(db_source_t source, const uint8_t *buf, size_t len);
 
 void db_deck_stats(db_deck_stats_t *out);
+
+/* What the deck shows: the images of the current writer, oldest first, without their data. Drawn in order
+ * they make the picture. */
+size_t db_deck_shots(db_source_t *writer, db_shot_t *out, size_t max);
+/* Copy of one image (JPEG) in PSRAM; free it with heap_caps_free. */
+esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len);

@@ -14,7 +14,9 @@
 esp_err_t db_ui_start(void);
 
 void db_ui_set_active_link(int index);
-void db_ui_set_dock_client(bool connected);
+void db_ui_set_dock_clients(bool app, bool companion);
 /* pct < 0 ends the update screen. */
 void db_ui_set_update(int pct, const char *what);
 void db_ui_set_c6_version(const char *version);
+/* Draw again and pick the writer again, e.g. after the controller changed. */
+void db_ui_refresh(void);

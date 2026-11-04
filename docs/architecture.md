@@ -32,12 +32,14 @@ tools/dbtools/       reference server, benchmarks, signing, font generator, seri
 Exactly one source writes to the device at a time. `db_ui` decides:
 
 1. While the menu is open or an update runs, the device UI draws.
-2. In Network Dock mode, the dock host draws once it opened the device port.
-3. In native mode, the active server draws.
+2. Otherwise the controller from the settings draws. That is the active server, or the Stream Deck app or
+   Companion once it opened the device port.
 
-In every other case the device UI draws.
+In every other case the device UI draws and shows what is missing, for example "Kein Netz" or "Suche Server".
 
-The device UI then shows what is missing, for example "Kein Netz" or "Suche Server".
+`db_deck` keeps the newest image per area for every source (`db_core/db_screen.c`). Dock hosts send raw reports,
+which the driver reads back into images. When a source other than the device UI becomes the writer again, `db_deck`
+draws its kept picture at once, before anything new. `GET /api/screen` serves the writer's kept picture.
 
 ## Data path
 

@@ -1,14 +1,17 @@
 #include "db_web.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "auth.h"
 #include "db_config.h"
 #include "db_deck.h"
+#include "db_json.h"
 #include "db_log.h"
 #include "db_net.h"
 #include "db_ota.h"
+#include "db_screen.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -17,9 +20,11 @@
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 
-#define BODY_MAX 2048
-#define CHUNK    4096
-#define JSON_MAX 2048
+#define BODY_MAX        2048
+#define CHUNK           4096
+#define JSON_MAX        2048
+#define SCREEN_JSON_MAX 8192
+#define STATUS_JSON_MAX 4096
 
 static const char *TAG = "web";
 
@@ -79,11 +84,13 @@ static esp_err_t get_status(httpd_req_t *req)
     if (!auth_check(req)) {
         return ESP_OK;
     }
-    char *buf = malloc(JSON_MAX);
+    char *buf = malloc(STATUS_JSON_MAX);
     if (!buf) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
-    esp_err_t err = send_json(req, buf, status_json(buf, JSON_MAX));
+    size_t len = status_json(buf, STATUS_JSON_MAX);
+    esp_err_t err =
+        len ? send_json(req, buf, len) : send_error(req, "500 Internal Server Error", "status too large");
     free(buf);
     return err;
 }
@@ -97,7 +104,7 @@ static esp_err_t get_config(httpd_req_t *req)
     return send_json(req, buf, db_config_to_json(db_config(), false, buf, sizeof(buf)));
 }
 
-/* Brightness changes apply at once; everything else needs a restart to take effect cleanly. */
+/* Brightness and controller apply at once; everything else needs a restart to take effect cleanly. */
 static esp_err_t put_config(httpd_req_t *req)
 {
     if (!auth_check(req)) {
@@ -118,9 +125,10 @@ static esp_err_t put_config(httpd_req_t *req)
     if (db_config_save(&cfg) != ESP_OK) {
         return send_error(req, "500 Internal Server Error", "saving failed");
     }
-    db_config_t without_brightness = cfg;
-    without_brightness.brightness = old.brightness;
-    bool restart = memcmp(&without_brightness, &old, sizeof(old)) != 0;
+    db_config_t live = cfg;
+    live.brightness = old.brightness;
+    live.controller = old.controller;
+    bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);
     }
@@ -195,11 +203,85 @@ static esp_err_t get_log(httpd_req_t *req)
     return err;
 }
 
+static esp_err_t get_screen(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
+    }
+    db_device_info_t *dev = malloc(sizeof(*dev));
+    db_shot_t *shots = malloc(DB_SCREEN_MAX * sizeof(*shots));
+    char *buf = malloc(SCREEN_JSON_MAX);
+    if (!dev || !shots || !buf) {
+        free(dev);
+        free(shots);
+        free(buf);
+        return send_error(req, "500 Internal Server Error", "memory");
+    }
+    db_source_t writer;
+    size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
+    bool present = db_deck_info(dev);
+    db_json_t j;
+    db_json_begin(&j, buf, SCREEN_JSON_MAX);
+    db_json_obj_open(&j, NULL);
+    db_json_str(&j, "writer", db_deck_source_name(writer));
+    if (present) {
+        db_json_int(&j, "width", dev->displays[0].width);
+        db_json_int(&j, "height", dev->displays[0].height);
+    }
+    db_json_arr_open(&j, "images");
+    for (size_t i = 0; present && i < n; i++) {
+        char url[32];
+        snprintf(url, sizeof(url), "/api/screen/%lu.jpg", (unsigned long)shots[i].id);
+        db_json_obj_open(&j, NULL);
+        db_json_int(&j, "x", shots[i].rect.x);
+        db_json_int(&j, "y", shots[i].rect.y);
+        db_json_int(&j, "w", shots[i].rect.w);
+        db_json_int(&j, "h", shots[i].rect.h);
+        db_json_str(&j, "url", url);
+        db_json_obj_close(&j);
+    }
+    db_json_arr_close(&j);
+    db_json_obj_close(&j);
+    size_t len = db_json_end(&j);
+    esp_err_t err =
+        len ? send_json(req, buf, len) : send_error(req, "500 Internal Server Error", "too many images");
+    free(dev);
+    free(shots);
+    free(buf);
+    return err;
+}
+
+/* An image never changes under its id, so browsers may keep it. */
+static esp_err_t get_screen_image(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
+    }
+    unsigned long id = strtoul(req->uri + strlen("/api/screen/"), NULL, 10);
+    uint8_t *data = NULL;
+    size_t len = 0;
+    esp_err_t found = db_deck_shot_copy((uint32_t)id, &data, &len);
+    if (found == ESP_ERR_NO_MEM) {
+        return send_error(req, "500 Internal Server Error", "memory");
+    }
+    if (found != ESP_OK) {
+        return send_error(req, "404 Not Found", "image no longer shown");
+    }
+    httpd_resp_set_type(req, "image/jpeg");
+    httpd_resp_set_hdr(req, "Cache-Control", "private, max-age=3600, immutable");
+    esp_err_t err = httpd_resp_send(req, (const char *)data, (ssize_t)len);
+    heap_caps_free(data);
+    return err;
+}
+
 /* Phones probe some URL when they join a WLAN; sending them to the page opens it by itself. */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
 {
     db_net_status_t n;
     db_net_status(&n);
+    if (strncmp(req->uri, "/api/", 5) == 0) {
+        return send_error(req, "404 Not Found", "no such endpoint");
+    }
     if (!n.ap_active) {
         httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
         return ESP_FAIL;
@@ -258,7 +340,10 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
     status_json = status;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
-    cfg.max_uri_handlers = 12;
+    cfg.max_uri_handlers = 16;
+    cfg.max_open_sockets =
+        5; /* plus 2 * DB_DOCK_HOSTS dock sockets and the links, under CONFIG_LWIP_MAX_SOCKETS */
+    cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.lru_purge_enable = true;
     cfg.recv_wait_timeout = 15;
     httpd_handle_t server;
@@ -274,6 +359,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
         {.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota},
         {.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot},
         {.uri = "/api/log", .method = HTTP_GET, .handler = get_log},
+        {.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen},
+        {.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image},
         {.uri = "/api/login", .method = HTTP_POST, .handler = auth_login},
         {.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout},
     };

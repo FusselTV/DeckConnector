@@ -4,6 +4,7 @@
 
 #include "db_driver.h"
 #include "db_regions.h"
+#include "db_screen.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -46,7 +47,48 @@ static struct {
         void *arg;
     } ack[DB_SOURCE_COUNT];
     db_deck_stats_t stats;
+    SemaphoreHandle_t shot_lock; /* screens; held while a whole screen is drawn again */
+    db_screen_t screens[DB_SOURCE_COUNT];
+    struct {
+        uint8_t buf[32];
+        size_t len;
+    } feature[DB_SOURCE_COUNT]; /* last feature report (brightness) of a source that was not the writer */
+    bool replay;
 } s;
+
+static void *psram_realloc(void *ptr, size_t size)
+{
+    return heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM);
+}
+
+/* Draw again everything the new writer had on the deck, before anything new it sends. The UI is left out: it
+ * draws a fresh screen whenever it takes over. */
+static void replay(void)
+{
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    db_source_t w = s.writer;
+    bool present = s.present;
+    s.replay = false;
+    xSemaphoreGive(s.lock);
+    if (present && s.feature[w].len) {
+        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        usb_port_io()->set_feature(s.feature[w].buf, s.feature[w].len);
+        xSemaphoreGive(s.io_lock);
+        s.feature[w].len = 0;
+    }
+    const db_screen_t *sc = &s.screens[w];
+    for (int i = 0; present && w != DB_SOURCE_UI && i < sc->count; i++) {
+        const db_shot_t *shot = &sc->shots[i];
+        const db_target_t *t = db_device_find_target(&s.dev.info, shot->display, shot->rect);
+        if (t) {
+            xSemaphoreTake(s.io_lock, portMAX_DELAY);
+            s.dev.driver->write_image(&s.dev, t, shot->rect, shot->data, shot->len);
+            xSemaphoreGive(s.io_lock);
+        }
+    }
+    xSemaphoreGive(s.shot_lock);
+}
 
 static void ack(const db_region_t *r, db_ack_result_t result, uint64_t t_start, uint64_t t_done)
 {
@@ -111,6 +153,9 @@ static void writer_task(void *arg)
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         for (;;) {
+            if (s.replay) {
+                replay();
+            }
             xSemaphoreTake(s.lock, portMAX_DELAY);
             db_region_t *r = s.present ? db_regions_take(&s.pending) : NULL;
             const db_target_t *t = r ? db_device_find_target(&s.dev.info, r->display, r->rect) : NULL;
@@ -125,7 +170,13 @@ static void writer_task(void *arg)
             xSemaphoreGive(s.io_lock);
             s.stats.images++;
             ack(r, err == DB_OK ? DB_ACK_SHOWN : DB_ACK_NO_DEVICE, t0, t1);
-            heap_caps_free(r->data);
+            if (err == DB_OK) {
+                xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+                db_screen_put(&s.screens[r->source], r->display, r->rect, r->data, r->len);
+                xSemaphoreGive(s.shot_lock);
+            } else {
+                heap_caps_free(r->data);
+            }
             heap_caps_free(r);
         }
     }
@@ -180,6 +231,11 @@ static void handle_detach(void)
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
     usb_port_close();
     xSemaphoreGive(s.io_lock);
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    for (int i = 0; i < DB_SOURCE_COUNT; i++) {
+        db_screen_clear(&s.screens[i]);
+    }
+    xSemaphoreGive(s.shot_lock);
     notify_device(NULL);
 }
 
@@ -250,6 +306,10 @@ esp_err_t db_deck_start(void)
     s.lock = xSemaphoreCreateMutex();
     s.io_lock = xSemaphoreCreateMutex();
     s.events = xQueueCreate(64, sizeof(ev_t));
+    s.shot_lock = xSemaphoreCreateMutex();
+    for (int i = 0; i < DB_SOURCE_COUNT; i++) {
+        db_screen_init(&s.screens[i], psram_realloc, heap_caps_free);
+    }
     db_regions_init(&s.pending, PENDING_BUDGET);
     xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, NULL, 8, &s.writer_task, 1);
     xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1);
@@ -276,9 +336,17 @@ void db_deck_set_writer(db_source_t source)
     if (s.writer != source) {
         ESP_LOGI(TAG, "writer %d -> %d", s.writer, source);
         s.writer = source;
+        s.replay = true;
         db_regions_clear(&s.pending, free_region, (void *)&wrong_role);
     }
     xSemaphoreGive(s.lock);
+    xTaskNotifyGive(s.writer_task);
+}
+
+const char *db_deck_source_name(db_source_t source)
+{
+    static const char *const names[DB_SOURCE_COUNT] = {"ui", "server1", "server2", "app", "companion"};
+    return source < DB_SOURCE_COUNT ? names[source] : "";
 }
 
 db_source_t db_deck_writer(void)
@@ -297,11 +365,6 @@ bool db_deck_info(db_device_info_t *out)
     return present;
 }
 
-static bool usable(bool dock_only)
-{
-    return s.present && (!dock_only || s.writer == DB_SOURCE_DOCK);
-}
-
 static esp_err_t to_esp(db_err_t err)
 {
     return err == DB_OK ? ESP_OK : ESP_FAIL;
@@ -309,7 +372,7 @@ static esp_err_t to_esp(db_err_t err)
 
 esp_err_t db_deck_set_brightness(uint8_t pct)
 {
-    if (!usable(false)) {
+    if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
@@ -318,23 +381,35 @@ esp_err_t db_deck_set_brightness(uint8_t pct)
     return to_esp(err);
 }
 
-esp_err_t db_deck_raw_write(const uint8_t *report, size_t len)
+esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t len)
 {
-    if (!usable(true)) {
+    if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
     const db_hid_io_t *io = usb_port_io();
     uint8_t padded[1024] = {0}; /* hosts may send short reports; the endpoint wants full ones */
     memcpy(padded, report, len < io->out_report_size ? len : io->out_report_size);
-    xSemaphoreTake(s.io_lock, portMAX_DELAY);
-    db_err_t err = io->write(padded, io->out_report_size);
-    xSemaphoreGive(s.io_lock);
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    db_chunk_t chunk;
+    if (s.dev.driver->parse_output(&s.dev, padded, io->out_report_size, &chunk)) {
+        if (db_screen_feed(&s.screens[source], &chunk) != DB_OK) {
+            ESP_LOGW(TAG, "%s: image at %u,%u dropped from the kept picture", db_deck_source_name(source),
+                     chunk.rect.x, chunk.rect.y);
+        }
+    }
+    db_err_t err = DB_OK;
+    if (s.writer == source) {
+        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        err = io->write(padded, io->out_report_size);
+        xSemaphoreGive(s.io_lock);
+    }
+    xSemaphoreGive(s.shot_lock);
     return to_esp(err);
 }
 
 esp_err_t db_deck_raw_get_feature(uint8_t *buf, size_t len, size_t *out_len)
 {
-    if (!usable(false)) {
+    if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
@@ -343,15 +418,59 @@ esp_err_t db_deck_raw_get_feature(uint8_t *buf, size_t len, size_t *out_len)
     return to_esp(err);
 }
 
-esp_err_t db_deck_raw_set_feature(const uint8_t *buf, size_t len)
+esp_err_t db_deck_raw_set_feature(db_source_t source, const uint8_t *buf, size_t len)
 {
-    if (!usable(true)) {
+    if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
-    xSemaphoreTake(s.io_lock, portMAX_DELAY);
-    db_err_t err = usb_port_io()->set_feature(buf, len);
-    xSemaphoreGive(s.io_lock);
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    db_err_t err = DB_OK;
+    if (s.writer == source) {
+        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        err = usb_port_io()->set_feature(buf, len);
+        xSemaphoreGive(s.io_lock);
+    } else if (len <= sizeof(s.feature[source].buf)) {
+        memcpy(s.feature[source].buf, buf, len);
+        s.feature[source].len = len;
+    }
+    xSemaphoreGive(s.shot_lock);
     return to_esp(err);
+}
+
+size_t db_deck_shots(db_source_t *writer, db_shot_t *out, size_t max)
+{
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    *writer = s.writer;
+    const db_screen_t *sc = &s.screens[s.writer];
+    size_t n = 0;
+    for (int i = 0; i < sc->count && n < max; i++, n++) {
+        out[n] = sc->shots[i];
+        out[n].data = NULL;
+    }
+    xSemaphoreGive(s.shot_lock);
+    return n;
+}
+
+esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
+{
+    esp_err_t err = ESP_ERR_NOT_FOUND;
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    for (int src = 0; src < DB_SOURCE_COUNT && err == ESP_ERR_NOT_FOUND; src++) {
+        const db_screen_t *sc = &s.screens[src];
+        for (int i = 0; i < sc->count; i++) {
+            if (sc->shots[i].id == id) {
+                *data = heap_caps_malloc(sc->shots[i].len, MALLOC_CAP_SPIRAM);
+                err = *data ? ESP_OK : ESP_ERR_NO_MEM;
+                if (*data) {
+                    memcpy(*data, sc->shots[i].data, sc->shots[i].len);
+                    *len = sc->shots[i].len;
+                }
+                break;
+            }
+        }
+    }
+    xSemaphoreGive(s.shot_lock);
+    return err;
 }
 
 void db_deck_stats(db_deck_stats_t *out)

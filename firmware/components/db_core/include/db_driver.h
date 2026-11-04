@@ -1,6 +1,7 @@
 #pragma once
 
 #include "db_device.h"
+#include "db_screen.h"
 
 /*
  * A driver speaks the USB HID protocol of one device family. It never touches USB directly: the port layer
@@ -40,6 +41,9 @@ struct db_driver {
     size_t (*parse_input)(db_dev_t *dev, const uint8_t *report, size_t len, uint64_t t_us, db_input_t *out,
                           size_t max);
     db_err_t (*set_brightness)(db_dev_t *dev, uint8_t pct);
+    /* Read back an image report the way `write_image` builds it, for reports a dock host sends. False for
+     * other reports. `out->data` points into `report`. */
+    bool (*parse_output)(const db_dev_t *dev, const uint8_t *report, size_t len, db_chunk_t *out);
 };
 
 const db_driver_t *db_driver_find(uint16_t vid, uint16_t pid);

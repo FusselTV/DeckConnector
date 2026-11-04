@@ -17,9 +17,15 @@ input,select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
 button{padding:8px 14px;border:0;border-radius:6px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}
 button.plain{background:transparent;color:var(--text);border:1px solid var(--line)}
-.ok{color:var(--ok)}.bad{color:var(--bad)}#msg{min-height:1.4em}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.dim{color:var(--dim)}#msg{min-height:1.4em}
 pre{max-height:320px;overflow:auto;font-size:12px;background:var(--bg);padding:10px;border-radius:6px;white-space:pre-wrap}
 fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display:block}
+.ctrl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.ctrl button{background:transparent;color:var(--text);border:1px solid var(--line);text-align:left;padding:10px 12px}
+.ctrl button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.ctrl small{display:block;font-size:12px;color:var(--dim)}
+#deck{position:relative;width:100%;background:#000;border-radius:8px;overflow:hidden}#deck img{position:absolute}
+@media (max-width:560px){.ctrl{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -28,13 +34,20 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 <h1>deckbridge</h1>
 <section>
 <h2>Anmelden</h2>
-<label for="pw">Passwort für admin (steht auf dem Gerät unter Menü, Info)</label>
+<label for="pw">Passwort für admin (auf dem Deck unter Menü, Info)</label>
 <input id="pw" type="password" autocomplete="current-password" autofocus>
 <div class="row"><button>Anmelden</button><span id="loginmsg" class="bad"></span></div>
 </section>
 </form>
 <div id="app" hidden>
 <div class="row" style="justify-content:space-between;margin:4px 0 16px"><h1 id="title" style="margin:0">deckbridge</h1><button id="logout" class="plain">Abmelden</button></div>
+
+<section>
+<h2>Gesteuert von</h2>
+<div class="ctrl" id="ctrl"></div>
+<div id="deck"></div>
+<p id="writer" class="dim" style="margin:8px 0 0"></p>
+</section>
 
 <section>
 <h2>Status</h2>
@@ -46,22 +59,21 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 <form id="cfg">
 <div class="grid">
 <div><label for="name">Name</label><input id="name" maxlength="31"></div>
-<div><label for="mode">Modus</label><select id="mode"><option value="native">Nativ (deckbridge-Server)</option><option value="dock">Network Dock (Companion, Stream Deck App)</option></select></div>
 <div><label for="brightness">Helligkeit</label><input id="brightness" type="range" min="0" max="100"></div>
 </div>
-<h2 style="margin-top:18px">Server</h2>
+<h2 style="margin-top:18px">Eigene Server</h2>
 <div class="grid">
-<div><label for="s0">Server 1</label><input id="s0" placeholder="leer: per mDNS suchen" maxlength="95"></div>
-<div><label for="s1">Server 2 (Ausfall)</label><input id="s1" placeholder="ws://host:8765/deckbridge" maxlength="95"></div>
+<div><label for="s0">Server 1</label><input id="s0" placeholder="leer: im Netz suchen" maxlength="95"></div>
+<div><label for="s1">Server 2, übernimmt bei Ausfall</label><input id="s1" placeholder="ws://host:8765/deckbridge" maxlength="95"></div>
 <div><label for="token">Token</label><input id="token" type="password" placeholder="unverändert" maxlength="47"></div>
 </div>
 <h2 style="margin-top:18px">WLAN</h2>
 <div class="grid">
-<div><label for="ssid">Netz (nur 2,4 GHz)</label><input id="ssid" maxlength="32"></div>
+<div><label for="ssid">Netz, nur 2,4 GHz</label><input id="ssid" maxlength="32"></div>
 <div><label for="wpass">Passwort</label><input id="wpass" type="password" placeholder="unverändert" maxlength="64"></div>
 </div>
 <div class="grid" style="margin-top:18px">
-<fieldset id="lan"><h2>LAN</h2></fieldset>
+<fieldset id="lan"><h2>LAN-Adresse</h2></fieldset>
 <fieldset id="wlan"><h2>WLAN-Adresse</h2></fieldset>
 </div>
 <h2 style="margin-top:18px">Web-Zugang</h2>
@@ -72,7 +84,7 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 
 <section>
 <h2>Update</h2>
-<p style="margin-top:0;color:var(--dim)">Signierte .dbfw-Datei für die Bridge oder den WLAN-Chip. Das Ziel steht in der Datei.</p>
+<p style="margin-top:0" class="dim">Signierte .dbfw-Datei für die Bridge oder den WLAN-Chip. Die Datei sagt selbst, wofür sie ist.</p>
 <div class="row"><input id="fw" type="file" accept=".dbfw" style="max-width:360px"><button id="up" class="plain">Hochladen</button><span id="upmsg"></span></div>
 </section>
 
@@ -86,9 +98,21 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 <script>
 const $ = (id) => document.getElementById(id);
 /* Every request carries this header; the bridge refuses changes without it, so other sites cannot send them. */
-const api = (path, opts = {}) => fetch(path, {...opts, headers: {'X-Deckbridge': '1', ...(opts.headers || {})}});
+async function api(path, opts = {}) {
+  const r = await fetch(path, {...opts, headers: {'X-Deckbridge': '1', ...(opts.headers || {})}});
+  if (r.status === 401 && path !== '/api/status' && path !== '/api/login') location.reload(); /* session ended */
+  return r;
+}
+const send = async (path, body) => {
+  const r = await api(path, {method: 'PUT', body: JSON.stringify(body)}).catch(() => null);
+  const j = r ? await r.json().catch(() => ({ok: false, error: 'HTTP ' + r.status})) : {ok: false, error: 'Bridge nicht erreichbar'};
+  if (!j.ok) $('writer').textContent = 'Fehler: ' + j.error;
+  return j;
+};
 const ipFields = ['ip', 'mask', 'gateway', 'dns'];
 const ipNames = {ip: 'Adresse', mask: 'Maske', gateway: 'Gateway', dns: 'DNS'};
+const controllers = {server: 'Eigene Server', app: 'Stream Deck App', companion: 'Companion'};
+const writers = {ui: 'die Bridge selbst (Status oder Menü)', server1: 'Server 1', server2: 'Server 2', app: 'die Stream Deck App', companion: 'Companion'};
 
 function ipForm(box, key) {
   box.insertAdjacentHTML('beforeend', `<label><input type="checkbox" id="${key}_dhcp" style="width:auto"> DHCP</label>` +
@@ -98,24 +122,72 @@ function ipForm(box, key) {
 ipForm($('lan'), 'lan');
 ipForm($('wlan'), 'wlan');
 
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 function kv(label, value, cls) {
-  return `<div>${label}<b class="${cls || ''}">${value ?? '–'}</b></div>`;
+  return `<div>${label}<b class="${cls || ''}">${esc(value ?? '–')}</b></div>`;
+}
+
+function readiness(s, key) {
+  if (key === 'server') {
+    const n = s.servers.filter((x) => x.connected).length;
+    return n ? `${n} verbunden` : 'nicht verbunden';
+  }
+  const h = s.dock_hosts.find((x) => x.kind === key);
+  return h ? (h.device ? 'verbunden, ' + h.ip : 'sieht das Dock, ' + h.ip) : 'nicht verbunden';
+}
+
+function renderControllers(s) {
+  $('ctrl').innerHTML = Object.entries(controllers).map(([key, name]) =>
+    `<button type="button" data-c="${key}" aria-pressed="${s.controller === key}">${name}<small>${readiness(s, key)}</small></button>`).join('');
+  for (const b of $('ctrl').querySelectorAll('button')) {
+    b.onclick = async () => {
+      if ((await send('/api/config', {controller: b.dataset.c})).ok) refresh();
+    };
+  }
+}
+
+let shown = '';
+async function loadScreen() {
+  const r = await api('/api/screen').catch(() => null);
+  if (!r || !r.ok) {
+    $('writer').textContent = 'Die Bridge antwortet nicht.';
+    return;
+  }
+  const sc = await r.json();
+  $('writer').textContent = sc.width ? 'Auf dem Deck zeichnet gerade ' + (writers[sc.writer] || sc.writer) + '.' : 'Kein Stream Deck angeschlossen.';
+  const key = sc.images.map((i) => i.url).join();
+  if (key === shown) return;
+  shown = key;
+  const deck = $('deck');
+  deck.style.aspectRatio = sc.width ? `${sc.width} / ${sc.height}` : '';
+  const pct = (v, total) => (100 * v / total) + '%';
+  deck.innerHTML = sc.images.map((i) => `<img src="${i.url}" alt="" onerror="shown=''" style="left:${pct(i.x, sc.width)};top:${pct(i.y, sc.height)};width:${pct(i.w, sc.width)};height:${pct(i.h, sc.height)}">`).join('');
 }
 
 async function loadStatus() {
-  const s = await (await api('/api/status')).json();
+  const r = await api('/api/status').catch(() => null);
+  if (!r || !r.ok) return;
+  const s = await r.json();
   $('title').textContent = s.name;
-  const srv = (s.servers || []).map((x, i) => kv('Server ' + (i + 1), x.url ? (x.connected ? (x.active ? 'aktiv' : 'bereit') : 'getrennt') + ' · ' + x.url : '–', x.connected ? 'ok' : '')).join('');
-  $('status').innerHTML = kv('Gerät', s.device ? s.device.model + ' (' + s.device.serial + ')' : 'nicht angeschlossen', s.device ? 'ok' : 'bad') +
-    kv('LAN', s.lan || 'getrennt', s.lan ? 'ok' : '') + kv('WLAN', s.wlan ? s.wlan + ' · ' + s.rssi + ' dBm' : 'getrennt', s.wlan ? 'ok' : '') +
-    srv + kv('Firmware', s.fw) + kv('WLAN-Chip', s.c6) + kv('Laufzeit', Math.round(s.uptime / 60) + ' min') +
-    kv('Speicher frei', Math.round(s.heap / 1024) + ' KB intern, ' + Math.round(s.psram / 1048576) + ' MB PSRAM') +
-    kv('Bilder', s.images + ' gezeigt, ' + s.superseded + ' ersetzt, ' + s.usb_errors + ' USB-Fehler');
+  renderControllers(s);
+  const n = s.network;
+  const srv = s.servers.map((x, i) => kv('Server ' + (i + 1), x.url ? (x.connected ? (x.active ? 'aktiv' : 'bereit') : 'getrennt') + ' · ' + x.url : '–', x.connected ? 'ok' : '')).join('');
+  $('status').innerHTML = kv('Gerät', s.device ? `${s.device.model} (${s.device.serial})` : 'nicht angeschlossen', s.device ? 'ok' : 'bad') +
+    kv('LAN', n.lan.ip || (n.lan.cable ? 'keine Adresse' : 'kein Kabel'), n.lan.ip ? 'ok' : '') +
+    kv('WLAN', n.wlan.ip ? `${n.wlan.ip} · ${n.wlan.rssi} dBm` : (n.wlan.ssid ? 'getrennt' : 'aus'), n.wlan.ip ? 'ok' : '') +
+    srv + kv('Firmware', s.firmware) + kv('WLAN-Chip', s.wlan_firmware) + kv('Laufzeit', Math.round(s.uptime_s / 60) + ' min') +
+    kv('Speicher frei', `${Math.round(s.memory.heap_free / 1024)} KB intern, ${Math.round(s.memory.psram_free / 1048576)} MB PSRAM`) +
+    kv('Bilder', `${s.counters.images} gezeigt, ${s.counters.superseded} übersprungen, ${s.counters.usb_errors} USB-Fehler`);
+}
+
+function refresh() {
+  loadStatus();
+  loadScreen();
 }
 
 async function loadConfig() {
   const c = await (await api('/api/config')).json();
-  $('name').value = c.name; $('mode').value = c.mode; $('brightness').value = c.brightness;
+  $('name').value = c.name; $('brightness').value = c.brightness;
   $('s0').value = c.servers[0] || ''; $('s1').value = c.servers[1] || ''; $('ssid').value = c.wifi_ssid;
   for (const key of ['lan', 'wlan']) {
     $(key + '_dhcp').checked = c[key].dhcp;
@@ -124,15 +196,17 @@ async function loadConfig() {
   }
 }
 
+$('brightness').onchange = () => send('/api/config', {brightness: +$('brightness').value});
+
 $('cfg').onsubmit = async (e) => {
   e.preventDefault();
   const ip = (key) => Object.fromEntries([['dhcp', $(key + '_dhcp').checked], ...ipFields.map((f) => [f, $(key + '_' + f).value])]);
-  const body = {name: $('name').value, mode: $('mode').value, brightness: +$('brightness').value,
+  const body = {name: $('name').value, brightness: +$('brightness').value,
     servers: [$('s0').value, $('s1').value].filter(Boolean), wifi_ssid: $('ssid').value, lan: ip('lan'), wlan: ip('wlan')};
   for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
   const r = await (await api('/api/config', {method: 'PUT', body: JSON.stringify(body)})).json();
   $('msg').className = r.ok ? 'ok' : 'bad';
-  $('msg').textContent = r.ok ? (r.restart ? 'Gespeichert, die Bridge startet neu.' : 'Gespeichert.') : r.error;
+  $('msg').textContent = r.ok ? (r.restart ? 'Gespeichert. Die Bridge startet neu.' : 'Gespeichert.') : r.error;
 };
 
 $('up').onclick = async () => {
@@ -141,7 +215,7 @@ $('up').onclick = async () => {
   $('upmsg').className = ''; $('upmsg').textContent = 'Lade hoch …';
   const r = await (await api('/api/ota', {method: 'POST', body: file})).json().catch(() => ({ok: false, error: 'Verbindung verloren'}));
   $('upmsg').className = r.ok ? 'ok' : 'bad';
-  $('upmsg').textContent = r.ok ? 'Installiert, die Bridge startet neu.' : 'Fehler: ' + r.error;
+  $('upmsg').textContent = r.ok ? 'Installiert. Die Bridge startet neu.' : 'Fehler: ' + r.error;
 };
 
 $('logbtn').onclick = async () => { $('log').textContent = await (await api('/api/log')).text(); $('log').scrollTop = 1e9; };
@@ -157,7 +231,8 @@ async function start() {
   $('login').hidden = true;
   $('app').hidden = false;
   loadConfig();
-  loadStatus();
+  refresh();
+  setInterval(loadScreen, 1000);
   setInterval(loadStatus, 5000);
 }
 
@@ -166,7 +241,7 @@ $('login').onsubmit = async (e) => {
   const r = await api('/api/login', {method: 'POST', body: JSON.stringify({password: $('pw').value})});
   const j = await r.json();
   if (j.ok) return start();
-  $('loginmsg').textContent = j.error === 'locked' ? `Zu viele Versuche, bitte ${j.retry} s warten.` : 'Falsches Passwort.';
+  $('loginmsg').textContent = j.error === 'locked' ? `Zu viele Versuche. Bitte ${j.retry} s warten.` : 'Falsches Passwort.';
 };
 $('logout').onclick = async () => { await api('/api/logout', {method: 'POST'}); location.reload(); };
 

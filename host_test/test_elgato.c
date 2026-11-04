@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 #include <unity.h>
 
@@ -131,6 +132,41 @@ static void test_full_and_partial_strip_headers(void)
     TEST_ASSERT_EQUAL_HEX8_ARRAY(sh, written[1], 16);
 }
 
+static void round_trip(db_rect_t rect, size_t size)
+{
+    uint8_t *jpeg = malloc(size);
+    for (size_t i = 0; i < size; i++) {
+        jpeg[i] = (uint8_t)(i * 7);
+    }
+    written_n = 0;
+    const db_target_t *t = db_device_find_target(&dev.info, 0, rect);
+    TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->write_image(&dev, t, rect, jpeg, size));
+    db_screen_t sc;
+    db_screen_init(&sc, realloc, free);
+    for (int i = 0; i < written_n; i++) {
+        db_chunk_t c;
+        TEST_ASSERT_TRUE(dev.driver->parse_output(&dev, written[i], 1024, &c));
+        TEST_ASSERT_EQUAL_INT(DB_OK, db_screen_feed(&sc, &c));
+    }
+    TEST_ASSERT_EQUAL_INT(1, sc.count);
+    TEST_ASSERT_TRUE(db_rect_eq(rect, sc.shots[0].rect));
+    TEST_ASSERT_EQUAL_size_t(size, sc.shots[0].len);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(jpeg, sc.shots[0].data, size);
+    db_screen_clear(&sc);
+    free(sc.pending.data);
+    free(jpeg);
+}
+
+static void test_reads_back_what_it_writes(void)
+{
+    round_trip((db_rect_t){232, 12, 120, 120}, 2100);  /* key 1 */
+    round_trip((db_rect_t){400, 380, 200, 100}, 3000); /* part of the strip */
+    round_trip((db_rect_t){0, 0, 800, 480}, 40000);    /* full screen */
+    db_chunk_t c;
+    uint8_t input[64] = {0x01, 0x00};
+    TEST_ASSERT_FALSE(dev.driver->parse_output(&dev, input, sizeof(input), &c));
+}
+
 static size_t parse(const uint8_t *r, size_t len, db_input_t *out)
 {
     return dev.driver->parse_input(&dev, r, len, 42, out, 8);
@@ -210,6 +246,7 @@ int main(void)
     RUN_TEST(test_describes_stream_deck_plus);
     RUN_TEST(test_splits_key_image_into_reports);
     RUN_TEST(test_full_and_partial_strip_headers);
+    RUN_TEST(test_reads_back_what_it_writes);
     RUN_TEST(test_key_edges);
     RUN_TEST(test_encoder_turn_and_press);
     RUN_TEST(test_touch_in_display_coordinates);

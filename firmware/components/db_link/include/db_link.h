@@ -26,6 +26,8 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks);
 
 /* Tell the active server it may draw again, e.g. after the menu closed. It redraws everything on `role`. */
 void db_link_resend_role(void);
+/* Disabled, the bridge stays connected but every server is on standby. */
+void db_link_set_enabled(bool enabled);
 
 /* Index of the active server, or -1. */
 int db_link_active(void);

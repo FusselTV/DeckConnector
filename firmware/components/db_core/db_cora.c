@@ -29,6 +29,19 @@ void db_cora_write_hdr(uint8_t out[DB_CORA_HDR_LEN], const db_cora_hdr_t *h)
     db_put_u32(out + 12, h->len);
 }
 
+/* Bytes 5 to 25 and the product name of 0x1c. The Stream Deck app reads the layout there.
+ * ponytail: only these models are known; others send zeros, add them per model. */
+static const struct {
+    uint16_t pid;
+    uint8_t layout[21];
+    const char *product;
+} layouts[] = {
+    {0x0084,
+     {0x02, 0x04, 0x00, 0x78, 0x00, 0x78, 0x00, 0x20, 0x03, 0xe0, 0x01,
+      0x04, 0x05, 0x20, 0x00, 0x04, 0x00, 0x20, 0x03, 0x64, 0x00},
+     "Stream Deck Plus"},
+};
+
 static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
 {
     out[0] = 0x01;
@@ -40,6 +53,15 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     }
     db_put_u16(out + 26, dock->device->vid);
     db_put_u16(out + 28, dock->device->pid);
+    if (dock->device->vendor) {
+        strlcpy((char *)out + 30, dock->device->vendor, 32);
+    }
+    for (size_t i = 0; i < sizeof(layouts) / sizeof(layouts[0]); i++) {
+        if (layouts[i].pid == dock->device->pid) {
+            memcpy(out + 5, layouts[i].layout, sizeof(layouts[i].layout));
+            strlcpy((char *)out + 62, layouts[i].product, 32);
+        }
+    }
     size_t n = strnlen(dock->device->serial, 31);
     memcpy(out + 94, dock->device->serial, n);
     db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
@@ -105,9 +127,9 @@ void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB
         out[2] = 6;
         memcpy(out + 4, dock->mac, 6);
         break;
-    case 0x8f: /* busy state; a dock in use by a host answers 03 8f 02 00 02 */
-        out[2] = dock->in_use ? 0x02 : 0x00;
-        out[4] = dock->in_use ? 0x02 : 0x00;
+    case 0x8f: /* 03 8f 02 00 01 with a device attached, 03 8f 02 00 02 without */
+        out[2] = 0x02;
+        out[4] = dock->device ? 0x01 : 0x02;
         break;
     default:
         break;
@@ -120,6 +142,6 @@ void db_cora_keepalive(uint8_t connection, uint8_t out[DB_CORA_REPORT_LEN])
     out[0] = 0x01;
     out[1] = 0x0a;
     out[2] = 0x02;
-    out[4] = 0x02;
+    out[4] = 0x01;
     out[5] = connection;
 }

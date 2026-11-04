@@ -229,6 +229,47 @@ static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect,
     return dev->io->flush();
 }
 
+static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_chunk_t *out)
+{
+    const model_t *m = ((const state_t *)dev->state)->model;
+    if (len < 16 || r[0] != 0x02) {
+        return false;
+    }
+    size_t hdr = 8;
+    *out = (db_chunk_t){.display = 0};
+    if (r[1] == CMD_STRIP_PARTIAL && m->strip.w) {
+        hdr = 16;
+        out->rect =
+            (db_rect_t){(uint16_t)(db_get_u16(r + 2) + m->strip.x),
+                        (uint16_t)(db_get_u16(r + 4) + m->strip.y), db_get_u16(r + 6), db_get_u16(r + 8)};
+        out->last = r[10] != 0;
+        out->part = db_get_u16(r + 11);
+        out->len = db_get_u16(r + 13);
+    } else if (r[1] == CMD_KEY || (r[1] == CMD_FULL && m->full_image)) {
+        const db_display_t *d = &dev->info.displays[0];
+        bool found = false;
+        for (uint8_t i = 0; i < d->target_count && !found; i++) {
+            const db_target_t *t = &d->targets[i];
+            found =
+                r[1] == CMD_FULL ? t->kind == DB_TARGET_FULL : (t->kind == DB_TARGET_KEY && t->index == r[2]);
+            out->rect = t->rect;
+        }
+        if (!found) {
+            return false;
+        }
+        out->last = r[3] != 0;
+        out->len = db_get_u16(r + 4);
+        out->part = db_get_u16(r + 6);
+    } else {
+        return false;
+    }
+    if (out->len > len - hdr) {
+        return false;
+    }
+    out->data = r + hdr;
+    return true;
+}
+
 static size_t emit(db_input_t *out, size_t max, size_t n, db_input_t ev)
 {
     if (n < max) {
@@ -338,4 +379,5 @@ const db_driver_t db_driver_elgato_gen2 = {
     .write_image = write_image,
     .parse_input = parse_input,
     .set_brightness = set_brightness,
+    .parse_output = parse_output,
 };

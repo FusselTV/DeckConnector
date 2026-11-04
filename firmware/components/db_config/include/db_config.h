@@ -8,10 +8,13 @@
 
 #define DB_MAX_SERVERS 2
 
+/* Who draws on the deck and gets its input. Switching needs no restart. */
 typedef enum {
-    DB_MODE_NATIVE = 0, /* deckbridge servers over WebSocket */
-    DB_MODE_DOCK = 1,   /* act like an Elgato Network Dock for Companion and the Stream Deck app */
-} db_mode_t;
+    DB_CTRL_SERVER = 0,    /* deckbridge servers over WebSocket */
+    DB_CTRL_COMPANION = 1, /* Bitfocus Companion, through the Network Dock emulation; was "dock mode" */
+    DB_CTRL_APP = 2,       /* the Elgato Stream Deck app, through the Network Dock emulation */
+    DB_CTRL_COUNT,
+} db_controller_t;
 
 typedef struct {
     bool dhcp;
@@ -25,7 +28,7 @@ typedef struct {
 typedef struct {
     uint32_t version;
     char name[32];
-    db_mode_t mode;
+    db_controller_t controller;
     uint8_t brightness;
     db_ip_config_t lan;
     db_ip_config_t wlan;
@@ -42,6 +45,11 @@ const db_config_t *db_config(void);
 void db_config_copy(db_config_t *out);
 esp_err_t db_config_save(const db_config_t *cfg);
 esp_err_t db_config_reset(void);
+/* Called after every successful save, from the saving task. */
+void db_config_on_save(void (*cb)(void));
+
+/* The name in the JSON. */
+const char *db_controller_name(db_controller_t c);
 
 /* `len - 1` characters without look-alikes (no l, 1, o, 0), NUL terminated. */
 void db_config_random_password(char *out, size_t len);

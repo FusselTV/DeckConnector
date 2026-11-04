@@ -12,7 +12,8 @@ static uint8_t hex_nibble(char c)
 static void assert_prefix(const char *hex, const uint8_t *got)
 {
     size_t n = strlen(hex) / 2;
-    uint8_t want[64];
+    TEST_ASSERT_TRUE(n <= 128);
+    uint8_t want[128];
     for (size_t i = 0; i < n; i++) {
         want[i] = (uint8_t)(hex_nibble(hex[2 * i]) << 4 | hex_nibble(hex[2 * i + 1]));
     }
@@ -54,11 +55,7 @@ static void test_reports_match_protocol(void)
     db_cora_dock_report(0x83, &dock, out);
     assert_prefix("0383000025e49096312e30312e303134", out);
     db_cora_dock_report(0x8f, &dock, out);
-    assert_prefix("038f000000", out);
-    dock.in_use = true;
-    db_cora_dock_report(0x8f, &dock, out);
-    assert_prefix("038f020002", out); /* in use */
-    dock.in_use = false;
+    assert_prefix("038f020002", out); /* nothing attached */
     TEST_ASSERT_TRUE(db_cora_is_query(0x8b));
     TEST_ASSERT_FALSE(db_cora_is_query(0x1a)); /* keepalive ack */
     db_cora_dock_report(0x84, &dock, out);
@@ -68,19 +65,19 @@ static void test_reports_match_protocol(void)
     db_cora_dock_report(0x1c, &dock, out);
     assert_prefix("010b7c0001", out);
     db_cora_keepalive(1, out);
-    assert_prefix("010a020002010000", out);
+    assert_prefix("010a020001010000", out);
 }
 
 static void test_attached_device_info(void)
 {
-    db_device_info_t dev = {.vid = 0x0fd9, .pid = 0x0084, .serial = "EL00K1A00001"};
+    db_device_info_t dev = {.vendor = "Elgato", .vid = 0x0fd9, .pid = 0x0084, .serial = "EL00K1A00001"};
     dock.device = &dev;
     uint8_t out[DB_CORA_REPORT_LEN];
     db_cora_dock_report(0x1c, &dock, out);
-    TEST_ASSERT_EQUAL_HEX8(0x02, out[4]);
-    TEST_ASSERT_EQUAL_HEX16(0x0fd9, db_get_u16(out + 26));
-    TEST_ASSERT_EQUAL_HEX16(0x0084, db_get_u16(out + 28));
-    TEST_ASSERT_EQUAL_STRING("EL00K1A00001", (const char *)out + 94);
+    assert_prefix("010b7c0002020400780078002003e00104052000040020036400d90f8400456c6761746f000000000000000000"
+                  "000000000000000000000000000000000053747265616d204465636b20506c7573000000000000000000000000"
+                  "00000000454c30304b314130303030310000000000000000000000000000000000000000",
+                  out); /* a Stream Deck +, up to the port */
     TEST_ASSERT_EQUAL_UINT16(5344, db_get_u16(out + 126));
 }
 

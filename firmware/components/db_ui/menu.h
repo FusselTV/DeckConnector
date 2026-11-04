@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "db_config.h"
 #include "db_device.h"
 
 #define UI_MAX_TILES 8
@@ -30,6 +31,11 @@ static inline void ui_set_tile(ui_screen_t *sc, int i, const char *label, const 
         snprintf(sc->tiles[i].sub, sizeof(sc->tiles[i].sub), "%s", sub ? sub : "");
         sc->tiles[i].color = color;
     }
+}
+
+static inline const char *ui_controller_label(db_controller_t c)
+{
+    return c == DB_CTRL_APP ? "Stream Deck App" : (c == DB_CTRL_COMPANION ? "Companion" : "Eigene Server");
 }
 
 /* `changed` is called whenever the menu wants a redraw or closed itself. */
