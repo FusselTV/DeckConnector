@@ -1,4 +1,4 @@
-"""A small deckbridge server: accepts bridges, sends images, collects input. Used by the demo and the tests."""
+"""A small deckbridge server: accepts bridges, sends images and collects input."""
 
 import asyncio
 import contextlib
@@ -53,7 +53,7 @@ class Bridge:
         self._seq = (self._seq + 1) & 0xFFFFFFFF
         return self._seq
 
-    async def post_image(self, rect: tuple[int, int, int, int], jpeg: bytes, display: int = 0) -> asyncio.Future:
+    async def post_image(self, rect: tuple, jpeg: bytes, display: int = 0) -> asyncio.Future:
         """Send without waiting. The future resolves with the Ack."""
         seq = self.next_seq()
         fut = asyncio.get_running_loop().create_future()
