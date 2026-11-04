@@ -1,0 +1,30 @@
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-assignment-in-if-condition,
+  cert-*,
+  -cert-err33-c,
+  clang-analyzer-*,
+  misc-*,
+  -misc-include-cleaner,
+  performance-*,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-avoid-unconditional-preprocessor-if,
+  -readability-function-cognitive-complexity,
+  readability-function-size
+WarningsAsErrors: '*'
+CheckOptions:
+  - key: readability-function-size.LineThreshold
+    value: 80
+  - key: readability-function-size.NestingThreshold
+    value: 4
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+HeaderFilterRegex: 'components/db_.*'
