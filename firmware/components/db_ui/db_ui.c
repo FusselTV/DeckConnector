@@ -44,9 +44,8 @@ static struct {
     bool enc_down[8];
     bool key_down[32];
     int64_t chord_since;
+    bool covered;
 } s = {.active_link = -1, .update_pct = -1};
-
-/* ---------- who draws ---------- */
 
 static db_source_t wanted_writer(void)
 {
@@ -61,11 +60,15 @@ static db_source_t wanted_writer(void)
 
 static void changed(void)
 {
+    /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
+    bool covering = (ui_menu_open() || s.update_pct >= 0) && s.active_link >= 0;
     db_deck_set_writer(wanted_writer());
+    if (s.covered && !covering && s.active_link >= 0) {
+        db_link_resend_role();
+    }
+    s.covered = covering;
     xTaskNotifyGive(s.task);
 }
-
-/* ---------- screens ---------- */
 
 static void status_screen(ui_screen_t *sc)
 {
@@ -114,8 +117,6 @@ static void update_screen(ui_screen_t *sc)
     sc->color = C_WAIT;
     sc->progress = s.update_pct;
 }
-
-/* ---------- rendering ---------- */
 
 static void draw_tile(const ui_tile_t *t, db_rect_t r)
 {
@@ -186,16 +187,20 @@ static void render(const ui_screen_t *sc)
     const db_target_t *full = NULL;
     const db_target_t *strip = NULL;
     for (int i = 0; i < d->target_count; i++) {
+        if (d->targets[i].kind == DB_TARGET_FULL) {
+            full = &d->targets[i];
+        } else if (d->targets[i].kind == DB_TARGET_STRIP) {
+            strip = &d->targets[i];
+        }
+    }
+    /* Without a strip the banner goes behind the keys, so the tiles stay readable. */
+    draw_banner(sc, strip ? strip->rect : (db_rect_t){0, 0, d->width, d->height});
+    for (int i = 0; i < d->target_count; i++) {
         const db_target_t *t = &d->targets[i];
-        if (t->kind == DB_TARGET_FULL) {
-            full = t;
-        } else if (t->kind == DB_TARGET_STRIP) {
-            strip = t;
-        } else if (t->index < UI_MAX_TILES) {
+        if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_TILES) {
             draw_tile(&sc->tiles[t->index], t->rect);
         }
     }
-    draw_banner(sc, strip ? strip->rect : (db_rect_t){0, 0, d->width, d->height});
     if (full) {
         submit_rect(full->rect);
         return;
@@ -227,8 +232,6 @@ static void ui_task(void *arg)
         render(&sc);
     }
 }
-
-/* ---------- input ---------- */
 
 static void check_menu_chord(void)
 {

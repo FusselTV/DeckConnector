@@ -33,13 +33,14 @@ typedef struct {
     uint32_t rejected;
     uint32_t usb_errors;
     uint32_t inputs;
+    uint32_t inputs_dropped;
 } db_deck_stats_t;
 
 esp_err_t db_deck_start(void);
 void db_deck_add_listener(const db_deck_listener_t *listener);
 void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg);
 
-/* Pending images of the old writer are dropped and acknowledged as SUPERSEDED. */
+/* Pending images of the old writer are dropped and acknowledged as REJECTED_ROLE. */
 void db_deck_set_writer(db_source_t source);
 db_source_t db_deck_writer(void);
 
@@ -55,7 +56,7 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
 
-/* Raw access for the dock emulation; only allowed while it is the writer. */
+/* Raw access for the dock emulation. Writes need the dock to be the writer. */
 esp_err_t db_deck_raw_write(const uint8_t *report, size_t len);
 esp_err_t db_deck_raw_get_feature(uint8_t *buf, size_t len, size_t *out_len);
 esp_err_t db_deck_raw_set_feature(const uint8_t *buf, size_t len);

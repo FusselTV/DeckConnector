@@ -13,7 +13,7 @@ Hosts that support the dock, such as Bitfocus Companion, find it over mDNS and d
 | Port | Role |
 |---|---|
 | 5343 | The dock. Answers `0x80` identity, `0x83` firmware, `0x84` serial, `0x85` MAC, `0x1c` attached device. |
-| 5344 | The device. Output reports, feature reports and input reports are passed through unchanged. |
+| 5344 | The device. Output, feature and input reports are passed through, padded to full report size. |
 
 Both ports send the dock keepalive every 1.5 s; hosts drop the connection after 5 s without data. A plug or
 unplug of the deck sends a new `0x1c` report on the dock port.

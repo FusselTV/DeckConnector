@@ -8,7 +8,7 @@
  * The on-device UI. It decides who may draw on the device: the menu and updates win, then the dock client or
  * the active server. Whenever nobody else draws, it shows what is missing (network, server, client).
  *
- * Menu: hold the first and the last encoder (or key 1 and the last key) for 2 seconds.
+ * Menu: hold the first and the last encoder for 2 seconds (key 1 and the last key on decks without encoders).
  */
 
 esp_err_t db_ui_start(void);

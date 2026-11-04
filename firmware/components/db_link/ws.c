@@ -1,5 +1,6 @@
 #include "ws.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,6 +22,7 @@ void ws_init(ws_t *ws)
     ws->sock = -1;
     ws->tx = xSemaphoreCreateMutex();
     ws->frame = malloc(SEND_MAX + 8);
+    assert(ws->frame); /* boot time, internal RAM */
 }
 
 static int parse_url(const char *url, char *host, size_t host_cap, unsigned *port, const char **path)
@@ -176,16 +178,24 @@ void ws_close(ws_t *ws)
     xSemaphoreGive(ws->tx);
 }
 
+/* Each recv() waits at most 1 s (SO_RCVTIMEO); a frame that stalls halfway gives up after STALL_LIMIT_S. */
+#define STALL_LIMIT_S 10
+
 static int read_exact(int s, uint8_t *buf, size_t len, bool allow_idle)
 {
     size_t got = 0;
+    int stalls = 0;
     while (got < len) {
         int n = recv(s, buf + got, len - got, 0);
         if (n > 0) {
             got += (size_t)n;
+            stalls = 0;
         } else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             if (allow_idle && got == 0) {
                 return -EAGAIN;
+            }
+            if (++stalls >= STALL_LIMIT_S) {
+                return -ETIMEDOUT;
             }
         } else {
             return n == 0 ? -ECONNRESET : -errno;
@@ -268,6 +278,10 @@ int ws_send(ws_t *ws, uint8_t op, const void *data, size_t len)
         size_t total = h + 4 + len;
         /* One send() per frame keeps header and payload in one TCP segment. */
         err = send(ws->sock, frame, total, 0) == (ssize_t)total ? 0 : -errno;
+        if (err) {
+            /* A partly sent frame breaks the stream; end the session so the reader reconnects. */
+            shutdown(ws->sock, SHUT_RDWR);
+        }
     }
     xSemaphoreGive(ws->tx);
     return err;

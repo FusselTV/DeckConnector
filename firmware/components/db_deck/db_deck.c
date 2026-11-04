@@ -60,12 +60,17 @@ static void ack(const db_region_t *r, db_ack_result_t result, uint64_t t_start, 
     }
 }
 
+/* `arg` carries the result to report, as a pointer to a db_ack_result_t. */
 static void free_region(db_region_t *r, void *arg)
 {
-    ack(r, DB_ACK_SUPERSEDED, 0, 0);
+    ack(r, *(const db_ack_result_t *)arg, 0, 0);
     heap_caps_free(r->data);
     heap_caps_free(r);
 }
+
+static const db_ack_result_t superseded = DB_ACK_SUPERSEDED;
+static const db_ack_result_t no_device = DB_ACK_NO_DEVICE;
+static const db_ack_result_t wrong_role = DB_ACK_REJECTED_ROLE;
 
 void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_t seq, uint8_t *data,
                     size_t len, uint64_t t_recv)
@@ -87,7 +92,7 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
         *r = tmp;
         r->data = data;
         r->len = len;
-        if (db_regions_put(&s.pending, r, free_region, NULL) != DB_OK) {
+        if (db_regions_put(&s.pending, r, free_region, (void *)&superseded) != DB_OK) {
             reject = DB_ACK_BUSY;
         }
     }
@@ -170,7 +175,7 @@ static void handle_detach(void)
     ESP_LOGW(TAG, "device unplugged");
     xSemaphoreTake(s.lock, portMAX_DELAY);
     s.present = false;
-    db_regions_clear(&s.pending, free_region, NULL);
+    db_regions_clear(&s.pending, free_region, (void *)&no_device);
     xSemaphoreGive(s.lock);
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
     usb_port_close();
@@ -221,27 +226,30 @@ static void event_task(void *arg)
 static void on_attached(uint8_t address)
 {
     ev_t ev = {.kind = EV_ATTACHED, .address = address};
-    xQueueSend(s.events, &ev, 0);
+    xQueueSend(s.events, &ev,
+               pdMS_TO_TICKS(100)); /* wait a little: a lost plug event leaves `present` wrong */
 }
 
 static void on_detached(void)
 {
     ev_t ev = {.kind = EV_DETACHED};
-    xQueueSend(s.events, &ev, 0);
+    xQueueSend(s.events, &ev, pdMS_TO_TICKS(100));
 }
 
 static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
 {
     ev_t ev = {.kind = EV_INPUT, .t_us = t_us, .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
     memcpy(ev.report, report, ev.len);
-    xQueueSend(s.events, &ev, 0);
+    if (xQueueSend(s.events, &ev, 0) != pdTRUE) {
+        s.stats.inputs_dropped++;
+    }
 }
 
 esp_err_t db_deck_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
     s.io_lock = xSemaphoreCreateMutex();
-    s.events = xQueueCreate(32, sizeof(ev_t));
+    s.events = xQueueCreate(64, sizeof(ev_t));
     db_regions_init(&s.pending, PENDING_BUDGET);
     xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, NULL, 8, &s.writer_task, 1);
     xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1);
@@ -268,7 +276,7 @@ void db_deck_set_writer(db_source_t source)
     if (s.writer != source) {
         ESP_LOGI(TAG, "writer %d -> %d", s.writer, source);
         s.writer = source;
-        db_regions_clear(&s.pending, free_region, NULL);
+        db_regions_clear(&s.pending, free_region, (void *)&wrong_role);
     }
     xSemaphoreGive(s.lock);
 }

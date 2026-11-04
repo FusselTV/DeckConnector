@@ -28,8 +28,6 @@ extern const char index_html_end[] asm("_binary_index_html_end");
 
 static size_t (*status_json)(char *buf, size_t cap);
 
-/* ---------- helpers ---------- */
-
 static bool authorized(httpd_req_t *req)
 {
     char given[96] = {0};
@@ -87,8 +85,6 @@ static void restart_task(void *arg)
     vTaskDelay(pdMS_TO_TICKS(1000));
     esp_restart();
 }
-
-/* ---------- handlers ---------- */
 
 static esp_err_t page(httpd_req_t *req)
 {
@@ -170,10 +166,11 @@ static esp_err_t post_ota(httpd_req_t *req)
     uint8_t *buf = heap_caps_malloc(CHUNK, MALLOC_CAP_INTERNAL);
     size_t left = req->content_len;
     esp_err_t err = buf ? ESP_OK : ESP_ERR_NO_MEM;
+    int timeouts = 0;
     while (err == ESP_OK && left > 0) {
         int n = httpd_req_recv(req, (char *)buf, left < CHUNK ? left : CHUNK);
-        if (n == HTTPD_SOCK_ERR_TIMEOUT) {
-            continue;
+        if (n == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts < 3) {
+            continue; /* a vanished client must not hold the update lock forever */
         }
         if (n <= 0) {
             err = ESP_FAIL;
@@ -236,14 +233,15 @@ static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
     return httpd_resp_send(req, NULL, 0);
 }
 
-/* ---------- captive DNS ---------- */
-
 /* Answer every A query with the address of the setup AP while it is on. */
 static void dns_task(void *arg)
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(53)};
-    bind(sock, (struct sockaddr *)&addr, sizeof(addr));
+    if (sock < 0 || bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        ESP_LOGE(TAG, "captive DNS not available");
+        vTaskDelete(NULL);
+    }
     uint8_t pkt[512];
     for (;;) {
         struct sockaddr_in from;
@@ -254,6 +252,17 @@ static void dns_task(void *arg)
         if (n < 12 || !st.ap_active) {
             continue;
         }
+        /* Keep only header and question: an EDNS record after the question would hide our answer. */
+        int q = 12;
+        while (q < n && pkt[q] != 0) {
+            q += pkt[q] + 1;
+        }
+        q += 5; /* zero label, type, class */
+        if (q > n) {
+            continue;
+        }
+        n = q;
+        memset(pkt + 8, 0, 4); /* no authority or additional records */
         struct in_addr ip;
         inet_aton(st.ap_ip, &ip);
         pkt[2] = 0x81; /* response, recursion desired */

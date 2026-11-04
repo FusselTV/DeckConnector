@@ -1,6 +1,7 @@
 #include "db_config.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -54,10 +55,16 @@ esp_err_t db_config_load(void)
     }
     size_t len = 0;
     err = nvs_get_blob(h, NVS_KEY, NULL, &len);
-    if (err == ESP_OK && len > 0 && len <= sizeof(current)) {
-        /* Older blobs are shorter; the fields they lack keep their defaults. */
-        err = nvs_get_blob(h, NVS_KEY, &current, &len);
-        current.version = CONFIG_VERSION;
+    if (err == ESP_OK && len > 0) {
+        /* Older blobs are shorter and the new fields keep their defaults. A longer blob comes from newer
+         * firmware before a rollback; its first part is still this layout. */
+        uint8_t *blob = malloc(len);
+        err = blob ? nvs_get_blob(h, NVS_KEY, blob, &len) : ESP_ERR_NO_MEM;
+        if (err == ESP_OK) {
+            memcpy(&current, blob, len < sizeof(current) ? len : sizeof(current));
+            current.version = CONFIG_VERSION;
+        }
+        free(blob);
     }
     nvs_close(h);
     /* Serial console only matters with the device in hand; the deck menu shows the same. */

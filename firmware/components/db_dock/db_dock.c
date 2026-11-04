@@ -92,10 +92,12 @@ static void handle_device(const db_cora_hdr_t *h, const uint8_t *p)
     case DB_CORA_OP_GET_REPORT: {
         uint8_t buf[FEATURE_LEN] = {h->len ? p[0] : 0};
         size_t n = 0;
-        if (db_deck_raw_get_feature(buf, sizeof(buf), &n) == ESP_OK) {
-            send_frame(&s.device, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT, DB_CORA_OP_GET_REPORT, h->id,
-                       buf, n);
+        if (db_deck_raw_get_feature(buf, sizeof(buf), &n) != ESP_OK) {
+            ESP_LOGW(TAG, "feature report 0x%02x failed", buf[0]);
+            n = 1; /* answer anyway with just the id, so the host does not wait for its timeout */
         }
+        send_frame(&s.device, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT, DB_CORA_OP_GET_REPORT, h->id, buf,
+                   n);
         break;
     }
     default:
@@ -120,6 +122,9 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
 {
     struct timeval tv = {.tv_sec = IDLE_TIMEOUT};
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    /* A host that stops reading must not block the deck's input path, which sends from its own task. */
+    struct timeval send_tv = {.tv_sec = 2};
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &send_tv, sizeof(send_tv));
     int one = 1;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
     c->sock = sock;

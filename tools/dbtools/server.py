@@ -115,14 +115,20 @@ class Bridge:
             pass
         finally:
             self.closed.set()
+            for fut in self._waiting.values():
+                if not fut.done():
+                    fut.set_exception(ConnectionError("bridge disconnected"))
 
 
 class Server:
-    def __init__(self, port: int = 8765, name: str = "dbtools", announce: bool = False, token: str = ""):
+    def __init__(
+        self, port: int = 8765, name: str = "dbtools", announce: bool = False, token: str = "", ping: bool = True
+    ):
         self.port = port
         self.name = name
         self.announce = announce
         self.token = token
+        self.ping = ping
         self.bridges: dict[str, Bridge] = {}
         self.connected: asyncio.Queue[Bridge] = asyncio.Queue()
         self._server = None
@@ -156,7 +162,7 @@ class Server:
             self.port,
             subprotocols=["deckbridge.v1"],
             max_size=2**22,
-            ping_interval=5,
+            ping_interval=5 if self.ping else None,
             ping_timeout=15,
         )
         if self.announce:

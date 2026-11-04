@@ -192,7 +192,10 @@ esp_err_t db_net_start(void)
     ESP_RETURN_ON_ERROR(esp_event_loop_create_default(), TAG, "event loop");
     const db_board_t *b = db_board();
     if (b->eth.present) {
-        ESP_RETURN_ON_ERROR(start_eth(b), TAG, "ethernet");
+        esp_err_t err = start_eth(b);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "LAN not available: %s", esp_err_to_name(err));
+        }
     }
     if (b->wifi) {
         esp_err_t err = start_wifi();

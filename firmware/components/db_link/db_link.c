@@ -19,6 +19,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mdns.h"
 #include "ws.h"
@@ -60,6 +61,7 @@ static struct {
     link_t links[DB_MAX_SERVERS];
     volatile int active;
     QueueHandle_t tx;
+    SemaphoreHandle_t role_lock;
     char headers[96];
 } s = {.active = -1};
 
@@ -67,8 +69,6 @@ static int64_t now_ms(void)
 {
     return esp_timer_get_time() / 1000;
 }
-
-/* ---------- sending ---------- */
 
 static void send_inline(int link, uint8_t op, const void *data, size_t len)
 {
@@ -112,8 +112,6 @@ void db_link_broadcast(const char *json)
 {
     send_text(ALL_LINKS, json, strlen(json));
 }
-
-/* ---------- messages to the server ---------- */
 
 static void send_device(int link)
 {
@@ -170,11 +168,11 @@ static void send_status(void)
     free(buf);
 }
 
-/* ---------- roles ---------- */
-
 /* Returns true when the active server changed; every connected server then got a role message. */
 static bool recompute_active(void)
 {
+    xSemaphoreTake(s.role_lock,
+                   portMAX_DELAY); /* both link tasks call this; hooks must see changes in order */
     int next = -1;
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         if (s.links[i].connected) {
@@ -183,6 +181,7 @@ static bool recompute_active(void)
         }
     }
     if (next == s.active) {
+        xSemaphoreGive(s.role_lock);
         return false;
     }
     ESP_LOGI(TAG, "active server %d -> %d", s.active, next);
@@ -193,10 +192,9 @@ static bool recompute_active(void)
         }
     }
     s.hooks.active_changed(next);
+    xSemaphoreGive(s.role_lock);
     return true;
 }
-
-/* ---------- receiving ---------- */
 
 static void handle_command(link_t *l, const char *text)
 {
@@ -207,7 +205,8 @@ static void handle_command(link_t *l, const char *text)
     } else if (strcmp(t->valuestring, "brightness") == 0) {
         const cJSON *pct = cJSON_GetObjectItemCaseSensitive(root, "pct");
         if (cJSON_IsNumber(pct) && l->index == s.active) {
-            db_deck_set_brightness((uint8_t)(pct->valueint < 0 ? 0 : pct->valueint));
+            int v = pct->valueint;
+            db_deck_set_brightness((uint8_t)(v < 0 ? 0 : (v > 100 ? 100 : v)));
         }
     } else if (strcmp(t->valuestring, "ota") == 0) {
         const cJSON *target = cJSON_GetObjectItemCaseSensitive(root, "target");
@@ -229,16 +228,30 @@ static void handle_command(link_t *l, const char *text)
 static int read_image(link_t *l, uint64_t len)
 {
     uint8_t hdr[DB_IMAGE_HDR_LEN];
+    if (len <= sizeof(hdr)) {
+        return ws_skip(&l->ws, len - 1); /* too short to carry a sequence number we could acknowledge */
+    }
     hdr[0] = DB_MSG_IMAGE;
     int err = ws_read(&l->ws, hdr + 1, sizeof(hdr) - 1);
-    db_image_hdr_t h;
-    if (err || len <= sizeof(hdr) || len > IMAGE_MAX ||
-        db_proto_parse_image_hdr(hdr, sizeof(hdr), &h) != DB_OK) {
-        return err ? err : ws_skip(&l->ws, len - sizeof(hdr));
+    if (err) {
+        return err;
     }
+    db_image_hdr_t h;
     size_t n = (size_t)len - sizeof(hdr);
-    uint8_t *img = heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
-    if (!img) {
+    db_ack_result_t refuse = DB_ACK_SHOWN;
+    uint8_t *img = NULL;
+    if (db_proto_parse_image_hdr(hdr, sizeof(hdr), &h) != DB_OK) {
+        h.display = hdr[1];
+        h.seq = db_get_u32(hdr + 10);
+        refuse = DB_ACK_REJECTED_RECT;
+    } else if (len > IMAGE_MAX || !(img = heap_caps_malloc(n, MALLOC_CAP_SPIRAM))) {
+        refuse = DB_ACK_BUSY;
+    }
+    if (refuse != DB_ACK_SHOWN) {
+        /* The server waits for this ack before it sends to the area again. */
+        uint8_t out[DB_ACK_LEN];
+        db_proto_write_ack(out, refuse, h.display, h.seq, 0, 0, 0);
+        send_inline(l->index, WS_OP_BINARY, out, sizeof(out));
         return ws_skip(&l->ws, n);
     }
     err = ws_read(&l->ws, img, n);
@@ -365,8 +378,10 @@ static void link_task(void *arg)
             continue;
         }
         char ifname[6];
+        char url[sizeof(l->url)];
+        strlcpy(url, l->url, sizeof(url)); /* discover() may rewrite l->url meanwhile */
         bool wlan = via_wlan && db_net_wlan_ifname(ifname);
-        int err = ws_connect(&l->ws, l->url, "deckbridge.v1", s.headers[0] ? s.headers : NULL,
+        int err = ws_connect(&l->ws, url, "deckbridge.v1", s.headers[0] ? s.headers : NULL,
                              wlan ? ifname : NULL, CONNECT_TIMEOUT);
         if (err) {
             if (now_ms() >= next_log) {
@@ -394,8 +409,6 @@ static void link_task(void *arg)
     }
 }
 
-/* ---------- deck events ---------- */
-
 static void on_ack(db_ack_result_t result, uint8_t display, uint32_t seq, uint64_t t_recv, uint64_t t_start,
                    uint64_t t_done, void *arg)
 {
@@ -418,8 +431,6 @@ static void on_device(const db_device_info_t *info)
 {
     send_device(ALL_LINKS);
 }
-
-/* ---------- discovery and status ---------- */
 
 static bool any_configured(void)
 {
@@ -469,6 +480,7 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
 {
     s.hooks = *hooks;
     s.tx = xQueueCreate(TX_QUEUE, sizeof(tx_t));
+    s.role_lock = xSemaphoreCreateMutex();
     const db_config_t *c = db_config();
     if (c->token[0]) {
         snprintf(s.headers, sizeof(s.headers), "Authorization: Bearer %s\r\n", c->token);
@@ -488,6 +500,13 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
     xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
     xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0);
     return ESP_OK;
+}
+
+void db_link_resend_role(void)
+{
+    if (s.active >= 0) {
+        send_role(s.active);
+    }
 }
 
 int db_link_active(void)

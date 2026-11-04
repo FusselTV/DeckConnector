@@ -89,7 +89,8 @@ def jpeg(color, size=(800, 480), quality=80) -> bytes:
 @pytest.fixture(scope="session")
 async def servers():
     """Two servers on this machine; the bridge is set to use them, first one preferred."""
-    first, second = Server(PORTS[0], "e2e-1"), Server(PORTS[1], "e2e-2")
+    # No server pings: the tests check that the bridge notices dead links by itself.
+    first, second = Server(PORTS[0], "e2e-1", ping=False), Server(PORTS[1], "e2e-2", ping=False)
     await first.start()
     await second.start()
     wanted = [first.url, second.url]

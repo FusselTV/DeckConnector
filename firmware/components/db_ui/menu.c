@@ -33,7 +33,6 @@ static struct {
     int64_t last_input;
     int64_t restart_down;
     char note[64];
-    /* LAN editor */
     bool lan_dhcp;
     int field;
     uint8_t octets[4][4];
@@ -62,8 +61,6 @@ static void restart_soon(void)
     vTaskDelay(pdMS_TO_TICKS(800));
     esp_restart();
 }
-
-/* ---------- LAN editor ---------- */
 
 static char *field_str(db_ip_config_t *c, int i)
 {
@@ -142,8 +139,6 @@ static bool lan_input(const db_input_t *ev)
     }
     return true;
 }
-
-/* ---------- main page ---------- */
 
 static void brightness(int delta)
 {
@@ -253,8 +248,6 @@ bool ui_menu_input(const db_input_t *ev)
         return false;
     }
 }
-
-/* ---------- screens ---------- */
 
 static void main_screen(ui_screen_t *sc)
 {

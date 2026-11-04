@@ -181,7 +181,7 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
     return DB_OK;
 }
 
-/* Header layout differs per command; see the Elgato docs. Returns the header length. */
+/* The header layout differs per command; see the Elgato docs. */
 static size_t write_header(uint8_t *rep, const db_target_t *t, db_rect_t rect, db_rect_t strip, bool last,
                            uint16_t part, uint16_t n)
 {

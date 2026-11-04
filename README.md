@@ -11,11 +11,14 @@ Network Dock, so Bitfocus Companion and the Stream Deck app use it without any e
 
 ## What it does
 
-- One key from server to glass in 0.5 ms, a full 800x480 screen in 1.7 ms (LAN, Stream Deck +).
+- From server to the end of the USB transfer: 0.5 ms for one key, 1.7 ms for a 9 KB full screen image (LAN,
+  Stream Deck +).
 - LAN and WLAN at the same time. LAN wins; if a server cannot be reached over LAN, the next try goes over WLAN.
-- Two servers. The first one that is up draws, the other waits and takes over in a few milliseconds.
+- Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
+  once when the connection closes and within 10 s when the server just goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
-- Signed updates for the firmware and the WLAN chip, with automatic rollback if a new image does not come up.
+- Signed updates for the firmware and the WLAN chip, with automatic rollback if new bridge firmware does not
+  come up.
 - A status screen and a settings menu on the device itself, a web UI, and a setup WLAN for first use.
 
 ## Hardware
@@ -27,7 +30,7 @@ The board powers the deck from its USB-A port. With PoE the whole setup runs fro
 
 ## Build and flash
 
-Needs ESP-IDF 6.0 and [uv](https://docs.astral.sh/uv/).
+Needs ESP-IDF 6.0.2 and [uv](https://docs.astral.sh/uv/).
 
 ```
 git clone git@github.com:FusselTV/deckbridge.git
@@ -43,7 +46,7 @@ The first start creates a password for the web UI. The device shows it under Men
 
 ## Setup
 
-1. Plug in LAN, or wait a minute: without a network the board opens a setup WLAN. Its name and password are on
+1. Plug in LAN, or wait a minute. Without a network the board opens a setup WLAN. Its name and password are on
    the device.
 2. Open `http://<address>/` and log in as `admin`.
 3. Choose the mode.
@@ -80,4 +83,4 @@ cd tools && uv run pytest tests -m ota     # updates, restarts the board
 - `ws://` only, no TLS.
 - The ESP32-C6 has no 5 GHz radio.
 - In Network Dock mode the board looks like a dock to the host. The Stream Deck app is not tested yet.
-- A host that sends no image after the menu was open shows an old picture until it draws again.
+- In Network Dock mode the host is not told when the menu drew over its picture; it shows again on its next update.

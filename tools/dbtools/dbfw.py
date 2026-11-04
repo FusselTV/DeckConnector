@@ -1,7 +1,7 @@
 """Signed firmware images (.dbfw), see docs/ota.md.
 
 dbfw keygen                       new signing key in ~/.config/deckbridge/ota_key.pem, public key into firmware
-dbfw pack --target p4 IN OUT      sign a firmware binary
+dbfw pack --target p4|c6 --version V IN OUT   sign a firmware binary
 dbfw info FILE                    show the header
 """
 

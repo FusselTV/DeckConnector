@@ -153,3 +153,17 @@ def test_web_api_brightness_applies_without_restart():
     code, reply = api("PUT", "/api/config", json.dumps({"brightness": 75}).encode())
     assert code == 200 and json.loads(reply)["restart"] is False
     assert status()["uptime"] >= before
+
+
+async def test_stalled_frame_ends_the_session(servers):
+    """A frame that stops halfway (dead switch port) must not hang the link: the bridge reconnects."""
+    first, _ = servers
+    active = next(iter(first.bridges.values()), None) or await first.wait_bridge(30)
+    size = 100_000
+    header = bytes([0x82, 127]) + size.to_bytes(8, "big")
+    active.ws.transport.write(header + bytes([0x01]) + bytes(1000))
+    t0 = time.monotonic()
+    back = await first.wait_bridge(40)
+    took = time.monotonic() - t0
+    print(f"reconnected after a stalled frame in {took:.1f} s")
+    assert back is not active and took < 13

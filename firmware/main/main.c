@@ -1,4 +1,3 @@
-/* Composition root: starts the components and connects their hooks. No logic of its own beyond that. */
 #include <stdio.h>
 #include <string.h>
 
@@ -71,6 +70,7 @@ static void write_status(db_json_t *j)
     db_json_int(j, "rejected", st.rejected);
     db_json_int(j, "usb_errors", st.usb_errors);
     db_json_int(j, "inputs", st.inputs);
+    db_json_int(j, "inputs_dropped", st.inputs_dropped);
 }
 
 static size_t link_status(char *buf, size_t cap)

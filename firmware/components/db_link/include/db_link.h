@@ -12,7 +12,7 @@
 
 /* All hooks are required. */
 typedef struct {
-    /* Fill the `status` message body after {"t":"status", ... and return its length. */
+    /* Write the whole `status` message. Returns its length, 0 when it does not fit. */
     size_t (*status_json)(char *buf, size_t cap);
     /* Version of the WLAN co-processor, or NULL. */
     const char *(*c6_version)(void);
@@ -23,6 +23,9 @@ typedef struct {
 } db_link_hooks_t;
 
 esp_err_t db_link_start(const db_link_hooks_t *hooks);
+
+/* Tell the active server it may draw again, e.g. after the menu closed. It redraws everything on `role`. */
+void db_link_resend_role(void);
 
 /* Index of the active server, or -1. */
 int db_link_active(void);

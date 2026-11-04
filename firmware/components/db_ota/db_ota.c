@@ -125,7 +125,7 @@ static bool signature_ok(void)
     return st == PSA_SUCCESS;
 }
 
-/* Header: "DBFW", u8 format, u8 target, u16 reserved, u32 length, char version[32], sha256[32], sig[64]. */
+/* Header layout: docs/ota.md. */
 static esp_err_t start_payload(void)
 {
     if (memcmp(s.header, "DBFW", 4) != 0 || s.header[4] != 1) {
@@ -267,29 +267,31 @@ esp_err_t db_ota_end(void)
     return ESP_OK;
 }
 
-/* ---------- download ---------- */
-
 static void url_task(void *arg)
 {
     char *url = arg;
     esp_http_client_config_t cfg = {.url = url, .timeout_ms = 10000, .buffer_size = 4096};
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
     uint8_t *buf = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL);
-    esp_err_t err = buf ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
+    esp_err_t err = buf && c ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
     int64_t len = err == ESP_OK ? esp_http_client_fetch_headers(c) : -1;
     if (len <= 0 || esp_http_client_get_status_code(c) != 200 || db_ota_begin((size_t)len) != ESP_OK) {
         ESP_LOGE(TAG, "download of %s failed (status %d)", url, esp_http_client_get_status_code(c));
         if (s.progress) {
-            s.progress("?", "error", -1, "download");
+            s.progress("unknown", "error", -1, "download");
         }
     } else {
         int n;
+        int64_t got = 0;
         while (s.busy && (n = esp_http_client_read(c, (char *)buf, 4096)) > 0) {
+            got += n;
             if (db_ota_write(buf, (size_t)n) != ESP_OK) {
                 break;
             }
         }
-        if (s.busy) {
+        if (s.busy && got < len) {
+            db_ota_abort("download interrupted");
+        } else if (s.busy) {
             db_ota_end();
         }
     }
@@ -311,8 +313,6 @@ esp_err_t db_ota_start_url(const char *url)
     ESP_LOGI(TAG, "downloading %s", url);
     return xTaskCreate(url_task, "ota_url", 6144, copy, 5, NULL) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
-
-/* ---------- confirm or roll back ---------- */
 
 static void confirm_task(void *arg)
 {

@@ -43,7 +43,7 @@ typedef struct {
 
 /*
  * Answer to a GET_REPORT [0x03, cmd] on the dock port, DB_CORA_REPORT_LEN bytes.
- * 0x80 identity, 0x83 firmware, 0x84 serial, 0x85 MAC, 0x1c attached device. Unknown commands get zeros.
+ * 0x80 identity, 0x83 firmware, 0x84 serial, 0x85 MAC, 0x87 unknown, 0x1c attached device. Others get zeros.
  */
 void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB_CORA_REPORT_LEN]);
 

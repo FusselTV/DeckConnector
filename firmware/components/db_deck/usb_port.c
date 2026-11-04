@@ -53,8 +53,14 @@ static void in_done(usb_transfer_t *t)
     if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
         s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
-    if (s.open && t->status != USB_TRANSFER_STATUS_NO_DEVICE && t->status != USB_TRANSFER_STATUS_CANCELED) {
-        usb_host_transfer_submit(t);
+    if (t->status != USB_TRANSFER_STATUS_COMPLETED) {
+        s.errors++;
+    }
+    /* Without a pending IN transfer no key or encoder would ever arrive again. */
+    if (s.open && t->status != USB_TRANSFER_STATUS_NO_DEVICE && t->status != USB_TRANSFER_STATUS_CANCELED &&
+        usb_host_transfer_submit(t) != ESP_OK) {
+        s.errors++;
+        ESP_LOGE(TAG, "input transfer could not be queued again, input stops until the device is replugged");
     }
 }
 
@@ -69,7 +75,11 @@ static db_err_t io_write(const uint8_t *report, size_t len)
     if (!s.open || len > s.mps_out) {
         return DB_ERR_STATE;
     }
-    xSemaphoreTake(s.out_free, portMAX_DELAY);
+    /* A device that hangs without unplugging must not block the writer forever. */
+    if (xSemaphoreTake(s.out_free, pdMS_TO_TICKS(500)) != pdTRUE) {
+        s.errors++;
+        return DB_ERR_TIMEOUT;
+    }
     usb_transfer_t *t = s.out[s.next_out];
     s.next_out = (s.next_out + 1) % OUT_SLOTS;
     memcpy(t->data_buffer, report, len);
@@ -117,9 +127,15 @@ static db_err_t control(uint8_t type, uint8_t request, uint8_t report_id, uint8_
     }
     s.ctrl->num_bytes = (int)(sizeof(*setup) + len);
     db_err_t res = DB_ERR_IO;
-    if (usb_host_transfer_submit_control(s.client, s.ctrl) == ESP_OK &&
-        xSemaphoreTake(s.ctrl_done, pdMS_TO_TICKS(CTRL_TIMEOUT_MS)) == pdTRUE &&
-        s.ctrl->status == USB_TRANSFER_STATUS_COMPLETED) {
+    xSemaphoreTake(s.ctrl_done, 0); /* drop a late completion of an earlier, timed out transfer */
+    bool submitted = usb_host_transfer_submit_control(s.client, s.ctrl) == ESP_OK;
+    bool done = submitted && xSemaphoreTake(s.ctrl_done, pdMS_TO_TICKS(CTRL_TIMEOUT_MS)) == pdTRUE;
+    if (submitted && !done) {
+        s.errors++;
+        /* The transfer still owns the buffer; wait for it before anyone reuses s.ctrl. */
+        xSemaphoreTake(s.ctrl_done, pdMS_TO_TICKS(CTRL_TIMEOUT_MS));
+    }
+    if (done && s.ctrl->status == USB_TRANSFER_STATUS_COMPLETED) {
         size_t got = (size_t)s.ctrl->actual_num_bytes - sizeof(*setup);
         if (in) {
             memcpy(data, s.ctrl->data_buffer + sizeof(*setup), got);
@@ -218,8 +234,10 @@ static esp_err_t find_endpoints(const usb_config_desc_t *cd)
                 continue;
             }
             if (ep->bEndpointAddress & 0x80) {
+                if (!s.in && usb_host_transfer_alloc(USB_EP_DESC_GET_MPS(ep), 0, &s.in) != ESP_OK) {
+                    return ESP_ERR_NO_MEM;
+                }
                 s.ep_in = ep->bEndpointAddress;
-                usb_host_transfer_alloc(USB_EP_DESC_GET_MPS(ep), 0, &s.in);
                 s.in->num_bytes = USB_EP_DESC_GET_MPS(ep);
             } else {
                 s.ep_out = ep->bEndpointAddress;
@@ -286,7 +304,9 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     s.io.out_report_size = s.mps_out;
     s.next_out = 0;
     s.open = true;
-    usb_host_transfer_submit(s.in);
+    if (usb_host_transfer_submit(s.in) != ESP_OK) {
+        ESP_LOGE(TAG, "input transfer could not be queued, the device will show images but send no input");
+    }
     return ESP_OK;
 }
 
