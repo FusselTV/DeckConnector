@@ -17,7 +17,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "lwip/etharp.h"
+#include "lwip/priv/tcpip_priv.h"
 #include "lwip/sockets.h"
+#include "lwip/tcpip.h"
 #include "mdns.h"
 
 #define PAYLOAD_MAX  8192
@@ -48,6 +51,8 @@ static struct {
     db_device_info_t attached;
     SemaphoreHandle_t info_lock;
 } s;
+
+static void note_kind(uint32_t ip, db_controller_t kind);
 
 static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
 {
@@ -94,6 +99,7 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     if (c->kind == DB_CTRL_SERVER && query) {
         c->kind = h->op == DB_CORA_OP_GET_REPORT ? DB_CTRL_COMPANION : DB_CTRL_APP;
         ESP_LOGI(TAG, "dock host is %s", db_controller_name(c->kind));
+        note_kind(c->ip, c->kind);
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
                              next event */
     }
@@ -110,6 +116,7 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     if (c->kind == DB_CTRL_SERVER) {
         c->kind = (h->flags & DB_CORA_FLAG_REQ_ACK) ? DB_CTRL_APP : DB_CTRL_COMPANION;
         ESP_LOGI(TAG, "device host is %s", db_controller_name(c->kind));
+        note_kind(c->ip, c->kind);
         db_log_mark(c->kind == DB_CTRL_APP ? DB_MARK_APP : DB_MARK_COMPANION);
         report_clients();
     }
@@ -347,9 +354,10 @@ static void reset_old_peers(void *arg)
 }
 
 /*
- * Which hosts may connect. A known host always may. A new one is let in and remembered while the bridge has
- * no known host yet, during the first minutes after a boot, or while pairing is open; otherwise it is turned
- * away and its address waits as a request, which the deck or the web UI accepts.
+ * The hosts that connected, by MAC address, so a laptop that gets a new address from DHCP stays the same
+ * host. With dock_paired_only off (the default) everyone may connect and the list is an overview. With it on,
+ * a new host gets in and is remembered while none is known, in the first minutes after a boot, or while
+ * pairing is open; otherwise it is turned away and waits as a request that the deck or the web UI answers.
  */
 #define KNOWN_MAX  8
 #define OPEN_US    (5 * 60 * 1000000LL)
@@ -357,23 +365,57 @@ static void reset_old_peers(void *arg)
 
 static struct {
     portMUX_TYPE mux;
-    uint32_t known[KNOWN_MAX];
+    db_dock_peer_t known[KNOWN_MAX];
     int count;
     int64_t open_until;
     uint32_t request;
+    uint8_t request_mac[6];
     int64_t request_at;
 } pair = {.mux = portMUX_INITIALIZER_UNLOCKED, .open_until = OPEN_US};
 
+static const uint8_t no_mac[6];
+
+typedef struct {
+    struct tcpip_api_call_data call;
+    ip4_addr_t ip;
+    uint8_t mac[6];
+} arp_query_t;
+
+static err_t arp_lookup(struct tcpip_api_call_data *call)
+{
+    arp_query_t *q = (arp_query_t *)call;
+    struct netif *n;
+    NETIF_FOREACH(n)
+    {
+        struct eth_addr *eth;
+        const ip4_addr_t *found;
+        if (etharp_find_addr(n, &q->ip, &eth, &found) >= 0) {
+            memcpy(q->mac, eth->addr, 6);
+            return ERR_OK;
+        }
+    }
+    return ERR_VAL;
+}
+
+/* A host that just connected is in the ARP table; one behind a router is not, and is known by address only.
+ */
+static void mac_of(uint32_t ip, uint8_t mac[6])
+{
+    arp_query_t q = {.ip.addr = ip};
+    tcpip_api_call(arp_lookup, &q.call);
+    memcpy(mac, q.mac, 6);
+}
+
 static void save_known(void)
 {
-    uint32_t copy[KNOWN_MAX];
+    db_dock_peer_t copy[KNOWN_MAX];
     taskENTER_CRITICAL(&pair.mux);
     memcpy(copy, pair.known, sizeof(copy));
     int n = pair.count;
     taskEXIT_CRITICAL(&pair.mux);
     nvs_handle_t h;
     if (nvs_open("dock", NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_blob(h, "known", copy, (size_t)n * sizeof(copy[0]));
+        nvs_set_blob(h, "hosts", copy, (size_t)n * sizeof(copy[0]));
         nvs_commit(h);
         nvs_close(h);
     }
@@ -384,47 +426,93 @@ static void load_known(void)
     size_t len = sizeof(pair.known);
     nvs_handle_t h;
     if (nvs_open("dock", NVS_READONLY, &h) == ESP_OK) {
-        if (nvs_get_blob(h, "known", pair.known, &len) == ESP_OK) {
+        if (nvs_get_blob(h, "hosts", pair.known, &len) == ESP_OK) {
             pair.count = (int)(len / sizeof(pair.known[0]));
         }
         nvs_close(h);
     }
 }
 
-/* Under the mux. A full list takes nobody new: an address must not push out a paired host. */
-static void remember(uint32_t ip)
+/* The entry of this host: by MAC when both have one, else by address. -1 when unknown. Under the mux. */
+static int find(uint32_t ip, const uint8_t mac[6])
 {
-    if (pair.count < KNOWN_MAX) {
-        pair.known[pair.count++] = ip;
+    for (int i = 0; i < pair.count; i++) {
+        bool macs = memcmp(mac, no_mac, 6) && memcmp(pair.known[i].mac, no_mac, 6);
+        if (macs ? memcmp(pair.known[i].mac, mac, 6) == 0 : pair.known[i].ip == ip) {
+            return i;
+        }
     }
+    return -1;
+}
+
+/* Under the mux. When full, an open dock drops its oldest entry; a strict one takes nobody new, so an address
+ * cannot push out a paired host. */
+static bool remember(uint32_t ip, const uint8_t mac[6], bool strict)
+{
+    if (pair.count == KNOWN_MAX && strict) {
+        return false;
+    }
+    if (pair.count == KNOWN_MAX) {
+        memmove(pair.known, pair.known + 1, sizeof(pair.known) - sizeof(pair.known[0]));
+        pair.count--;
+    }
+    pair.known[pair.count++] = (db_dock_peer_t){.ip = ip};
+    memcpy(pair.known[pair.count - 1].mac, mac, 6);
+    return true;
 }
 
 static bool admit(uint32_t ip)
 {
+    uint8_t mac[6];
+    mac_of(ip, mac);
+    bool strict = db_config()->dock_paired_only;
     int64_t now = esp_timer_get_time();
-    bool known = false;
-    bool added = false;
+    bool in = false;
+    bool changed = false;
     taskENTER_CRITICAL(&pair.mux);
-    for (int i = 0; i < pair.count; i++) {
-        known |= pair.known[i] == ip;
+    int i = find(ip, mac);
+    if (i >= 0) {
+        in = true;
+        changed = pair.known[i].ip != ip || (memcmp(mac, no_mac, 6) && memcmp(pair.known[i].mac, mac, 6));
+        pair.known[i].ip = ip; /* a new address from DHCP */
+        if (memcmp(mac, no_mac, 6)) {
+            memcpy(pair.known[i].mac, mac, 6);
+        }
+    } else if (!strict || pair.count == 0 || now < pair.open_until) {
+        in = changed = remember(ip, mac, strict);
     }
     bool asking = pair.request && now - pair.request_at < REQUEST_US;
-    if (!known && pair.count < KNOWN_MAX && (pair.count == 0 || now < pair.open_until)) {
-        remember(ip);
-        added = known = true;
-    } else if (!known && (!asking || pair.request == ip)) {
+    if (!in && (!asking || pair.request == ip)) {
         /* one request at a time: another address must not take the place of the one on the deck */
         pair.request = ip;
+        memcpy(pair.request_mac, mac, 6);
         pair.request_at = now;
     }
     taskEXIT_CRITICAL(&pair.mux);
-    if (added) {
+    if (changed) {
         save_known();
     }
-    if (!known && s.hosts_changed) {
+    if (!in && s.hosts_changed) {
         s.hosts_changed(); /* the deck shows the request */
     }
-    return known;
+    return in;
+}
+
+/* What a host told about itself, for the overview. */
+static void note_kind(uint32_t ip, db_controller_t kind)
+{
+    bool changed = false;
+    taskENTER_CRITICAL(&pair.mux);
+    for (int i = 0; i < pair.count; i++) {
+        if (pair.known[i].ip == ip && pair.known[i].kind != kind) {
+            pair.known[i].kind = (uint8_t)kind;
+            changed = true;
+        }
+    }
+    taskEXIT_CRITICAL(&pair.mux);
+    if (changed) {
+        save_known();
+    }
 }
 
 bool db_dock_request(char ip[16])
@@ -443,11 +531,9 @@ void db_dock_answer(bool accept)
     taskENTER_CRITICAL(&pair.mux);
     uint32_t r = pair.request;
     pair.request = 0;
-    if (accept && r) {
-        remember(r);
-    }
+    bool added = accept && r && find(r, pair.request_mac) < 0 && remember(r, pair.request_mac, false);
     taskEXIT_CRITICAL(&pair.mux);
-    if (accept && r) {
+    if (added) {
         save_known();
     }
     if (s.hosts_changed) {
@@ -468,17 +554,24 @@ int db_dock_pairing_left(void)
     return left > 0 ? (int)(left / 1000000) : 0;
 }
 
-size_t db_dock_known(char out[][16], size_t max)
+size_t db_dock_known(db_dock_peer_t *out, size_t max)
 {
-    uint32_t copy[KNOWN_MAX];
     taskENTER_CRITICAL(&pair.mux);
     size_t n = (size_t)pair.count < max ? (size_t)pair.count : max;
-    memcpy(copy, pair.known, sizeof(copy));
+    memcpy(out, pair.known, n * sizeof(out[0]));
     taskEXIT_CRITICAL(&pair.mux);
-    for (size_t i = 0; i < n; i++) {
-        inet_ntoa_r(*(struct in_addr *)&copy[i], out[i], 16);
-    }
     return n;
+}
+
+bool db_dock_peer_connected(const db_dock_peer_t *p)
+{
+    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+        const conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+        if (c->sock >= 0 && c->ip == p->ip) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void db_dock_forget(const char *ip)
@@ -487,7 +580,7 @@ void db_dock_forget(const char *ip)
     taskENTER_CRITICAL(&pair.mux);
     int kept = 0;
     for (int i = 0; i < pair.count; i++) {
-        if (ip && pair.known[i] != addr) {
+        if (ip && pair.known[i].ip != addr) {
             pair.known[kept++] = pair.known[i];
         }
     }

@@ -34,6 +34,14 @@ void db_dock_answer(bool accept);
 /* New hosts get in and are remembered for `seconds`; 0 ends it, also the minutes after a boot. */
 void db_dock_pairing(int seconds);
 int db_dock_pairing_left(void);
-size_t db_dock_known(char out[][16], size_t max);
+typedef struct {
+    uint32_t ip;    /* the last address it came from */
+    uint8_t mac[6]; /* zero when it was not on the same network */
+    uint8_t kind;   /* db_controller_t; DB_CTRL_SERVER until it said what it is */
+} db_dock_peer_t;
+
+/* The hosts that connected (dock_paired_only off) or were paired (on), oldest first. */
+size_t db_dock_known(db_dock_peer_t *out, size_t max);
+bool db_dock_peer_connected(const db_dock_peer_t *p);
 /* NULL forgets every paired host. */
 void db_dock_forget(const char *ip);

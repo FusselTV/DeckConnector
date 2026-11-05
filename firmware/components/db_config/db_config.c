@@ -169,6 +169,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "name", cfg->name);
     db_json_str(&j, "controller", db_controller_name(cfg->controller));
     db_json_str(&j, "host", cfg->host);
+    db_json_bool(&j, "dock_paired_only", cfg->dock_paired_only);
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
     ip_to_json(&j, "lan", &cfg->lan);
@@ -279,13 +280,17 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->controller = (db_controller_t)found;
     }
-    const cJSON *done = cJSON_GetObjectItemCaseSensitive(root, "setup_done");
-    if (done) {
-        if (!cJSON_IsBool(done)) {
-            snprintf(err, err_cap, "setup_done: true or false expected");
+    const char *flags[] = {"setup_done", "dock_paired_only"};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only};
+    for (int i = 0; i < 2; i++) {
+        const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
+        if (v && !cJSON_IsBool(v)) {
+            snprintf(err, err_cap, "%s: true or false expected", flags[i]);
             return false;
         }
-        cfg->setup_done = cJSON_IsTrue(done);
+        if (v) {
+            *fields[i] = cJSON_IsTrue(v);
+        }
     }
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "brightness");
     if (b) {

@@ -25,17 +25,34 @@ def admitted() -> bool:
         s.close()
 
 
+def known() -> list[str]:
+    return [h["ip"] for h in status()["pairing"]["hosts"]]
+
+
+def strict(on: bool) -> None:
+    assert api("PUT", "/api/config", json.dumps({"dock_paired_only": on}).encode())[0] == 200
+
+
+def test_open_by_default_and_hosts_listed_with_mac():
+    p = status()["pairing"]
+    assert p["only_paired"] is False and p["request"] is None
+    assert admitted()
+    me = socket.create_connection((HOST, 80), timeout=3).getsockname()[0]
+    host = next(h for h in status()["pairing"]["hosts"] if h["ip"] == me)
+    assert len(host["mac"]) == 17, "a host on the same network is known by its MAC, so a new DHCP address is no issue"
+
+
 def test_pairing():
     me = socket.create_connection((HOST, 80), timeout=3).getsockname()[0]
-    before = status()["pairing"]["known"]
-    if not [ip for ip in before if ip != me]:
+    if not [ip for ip in known() if ip != me]:
         return  # with nothing paired the dock lets everyone in, by design
+    strict(True)
     dock({"pairing": 0})
     dock({"forget": me})
     try:
         assert not admitted()
         p = status()["pairing"]
-        assert p["request"] == me and me not in p["known"]
+        assert p["request"] == me and me not in known()
         assert status()["writer"] == "ui", "the deck shows the request"
         dock({"accept": False})
         assert status()["pairing"]["request"] is None
@@ -45,8 +62,8 @@ def test_pairing():
         assert status()["pairing"]["request"] == me
         assert api("POST", "/api/input", b'{"key": 1}')[0] == 200
         time.sleep(0.5)
-        assert me in status()["pairing"]["known"]
+        assert me in known()
         assert admitted()
     finally:
-        dock({"forget": me})
         dock({"accept": False})
+        strict(False)

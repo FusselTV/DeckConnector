@@ -40,6 +40,8 @@ typedef struct {
     bool setup_done;           /* the welcome steps on the deck or in the web UI were finished */
     char servers_more[DB_MAX_SERVERS - 2][96];
     char host[96]; /* which one of `controller` draws: a dock host's IP or a server's URL; empty: the first */
+    bool
+        dock_paired_only; /* Companion and app hosts must be paired; off: anyone on the network may connect */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

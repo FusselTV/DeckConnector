@@ -100,9 +100,10 @@ static void write_sources(db_json_t *j, bool live)
     }
     db_json_arr_close(j);
     char ip[16];
-    char known[8][16];
+    db_dock_peer_t known[8];
     size_t n_known = db_dock_known(known, 8);
     db_json_obj_open(j, "pairing");
+    db_json_bool(j, "only_paired", db_config()->dock_paired_only);
     if (db_dock_request(ip)) {
         db_json_str(j, "request", ip);
     } else {
@@ -112,9 +113,22 @@ static void write_sources(db_json_t *j, bool live)
     if (live) { /* counts down every second: not in the web socket's state, which goes out on changes */
         db_json_int(j, "open_s", db_dock_pairing_left());
     }
-    db_json_arr_open(j, "known");
+    db_json_arr_open(j, "hosts");
     for (size_t i = 0; i < n_known; i++) {
-        db_json_str(j, NULL, known[i]);
+        const db_dock_peer_t *p = &known[i];
+        char mac[18] = "";
+        if (p->mac[0] | p->mac[1] | p->mac[2] | p->mac[3] | p->mac[4] | p->mac[5]) {
+            snprintf(mac, sizeof(mac), "%02x:%02x:%02x:%02x:%02x:%02x", p->mac[0], p->mac[1], p->mac[2],
+                     p->mac[3], p->mac[4], p->mac[5]);
+        }
+        inet_ntoa_r(*(struct in_addr *)&p->ip, ip, sizeof(ip));
+        db_json_obj_open(j, NULL);
+        db_json_str(j, "ip", ip);
+        db_json_str(j, "mac", mac);
+        db_json_str(j, "kind",
+                    p->kind == DB_CTRL_SERVER ? "unknown" : db_controller_name((db_controller_t)p->kind));
+        db_json_bool(j, "connected", db_dock_peer_connected(p));
+        db_json_obj_close(j);
     }
     db_json_arr_close(j);
     db_json_obj_close(j);

@@ -147,13 +147,15 @@ between ends the simulated hold, because the deck always reports all keys at onc
 
 ## Pairing
 
-Companion and the Stream Deck app connect without a password, so the bridge only lets in hosts it knows. A new
-host gets in and is remembered while none is known yet, in the first 5 minutes after a boot, and while pairing
-is open. Otherwise it is turned away, and the deck and the web UI ask whether to let it in. Up to 8 hosts are
-remembered by their address.
+Companion and the Stream Deck app connect without a password. The bridge lists every host that connected, by its
+MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
+the settings, only listed hosts get in. A new host is then let in and listed while none is known, in the first 5
+minutes after a boot, and while pairing is open. Otherwise it is turned away, and the deck and the web UI ask
+whether to let it in. Up to 8 hosts are listed.
 
-`pairing` in the status has the waiting `request` or `null`, `open` while new hosts get in, `open_s` how long
-still, and the `known` addresses. `POST /api/dock` takes one of these:
+`pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
+`open_s` how long still, and `hosts` with `ip`, `mac`, `kind` and `connected`. `POST /api/dock` takes one of
+these:
 
 ```json
 {"accept": true}

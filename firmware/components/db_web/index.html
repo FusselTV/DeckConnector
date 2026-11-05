@@ -109,8 +109,10 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div class="card-b stack"><div class="choice" id="ctrl"></div>
 <div id="request" class="src" hidden style="border-color:var(--warn)"></div>
 <div><p class="section-t" style="margin-top:0">Quellen</p><div id="sources" class="srcs"></div></div>
-<div id="pairing" class="row small muted" style="justify-content:space-between"></div>
 <form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><button class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Server hinzufügen</button></form>
+<div><p class="section-t">Rechner</p>
+<label class="row small" style="font-weight:400;margin-bottom:8px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="strict" style="width:auto;height:auto;margin-top:3px;flex:none"> Nur gekoppelte Rechner dürfen das Deck steuern</label>
+<div id="hosts" class="srcs"></div><div id="pairing" class="row small muted" style="justify-content:space-between;margin-top:6px"></div></div>
 <p id="howto" class="small muted"></p></div></div>
 <div class="card"><div class="card-h"><h2>Auf dem Deck</h2><p id="writer" class="muted"></p></div>
 <div class="card-b"><div id="deck"><div id="pics"></div><div id="hits"></div></div><div id="encs"></div>
@@ -231,6 +233,7 @@ async function dock(body) {
 function renderPairing(s) {
   const p = s.pairing;
   if (!p) return;
+  $('strict').checked = p.only_paired;
   $('request').hidden = !p.request;
   if (p.request) {
     $('request').innerHTML = `<div class="grow"><b>Verbindungsanfrage</b><span class="small muted">${esc(p.request)} will das Deck steuern</span></div>
@@ -238,15 +241,20 @@ function renderPairing(s) {
     $('accept').onclick = () => dock({accept: true});
     $('deny').onclick = () => dock({accept: false});
   }
-  const known = p.known.length ? 'Gekoppelt: ' + p.known.map(esc).join(', ') : 'Noch kein Rechner gekoppelt';
-  $('pairing').innerHTML = `<span>${known}${p.open ? ' · <b>Kopplung offen</b>' : ''}</span><span class="row">` +
-    (p.open ? '<button type="button" class="btn ghost sm" id="pairstop">Kopplung beenden</button>'
-            : '<button type="button" class="btn outline sm" id="pairgo">Neuen Rechner koppeln</button>') +
-    (p.known.length ? '<button type="button" class="btn ghost sm" id="forget">Alle vergessen</button>' : '') + '</span>';
+  $('hosts').innerHTML = p.hosts.map((h, i) => `<div class="src"><div class="grow"><b>${kinds[h.kind] || 'Unbekannt'}</b>
+      <span class="small muted">${esc(h.ip)}${h.mac ? ' · ' + esc(h.mac) : ''}</span></div>
+      <span class="badge ${h.connected ? 'ok' : ''}"><span class="dot"></span>${h.connected ? 'verbunden' : 'getrennt'}</span>
+      <button type="button" class="btn ghost sm" data-forget="${i}" aria-label="Rechner entfernen" title="Rechner entfernen"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>`).join('') ||
+    '<p class="small muted">Noch kein Rechner verbunden.</p>';
+  for (const b of $('hosts').querySelectorAll('[data-forget]')) b.onclick = () => dock({forget: p.hosts[+b.dataset.forget].ip});
+  $('pairing').innerHTML = !p.only_paired ? '<span>Jeder Rechner im Netz darf sich verbinden. Die Liste zeigt, wer schon da war.</span>'
+    : `<span>${p.open ? '<b>Kopplung offen:</b> neue Rechner kommen rein' : 'Neue Rechner fragen erst auf dem Deck'}</span>` +
+      (p.open ? '<button type="button" class="btn ghost sm" id="pairstop">Kopplung beenden</button>'
+              : '<button type="button" class="btn outline sm" id="pairgo">Neuen Rechner koppeln</button>');
   if ($('pairgo')) $('pairgo').onclick = () => dock({pairing: 300});
   if ($('pairstop')) $('pairstop').onclick = () => dock({pairing: 0});
-  if ($('forget')) $('forget').onclick = () => { if (confirm('Alle gekoppelten Rechner vergessen? Sie müssen danach neu gekoppelt werden.')) dock({forget: true}); };
 }
+$('strict').onchange = () => put({dock_paired_only: $('strict').checked}, true).then(loadStatus);
 async function setServers(list) {
   if ((await put({servers: list}, true)).ok) await loadConfig();
 }
