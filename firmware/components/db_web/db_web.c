@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "api.h"
 #include "auth.h"
 #include "cJSON.h"
 #include "db_config.h"
@@ -13,13 +14,17 @@
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_screen.h"
+#include "db_ui.h"
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "events.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lwip/sockets.h"
+#include "mdns.h"
 
 #define BODY_MAX        2048
 #define CHUNK           4096
@@ -105,7 +110,28 @@ static esp_err_t get_config(httpd_req_t *req)
     return send_json(req, buf, db_config_to_json(db_config(), false, buf, sizeof(buf)));
 }
 
-/* Brightness and controller apply at once; everything else needs a restart to take effect cleanly. */
+static const char *status_line(int code)
+{
+    switch (code) {
+    case 200:
+        return "200 OK";
+    case 400:
+        return "400 Bad Request";
+    case 409:
+        return "409 Conflict";
+    case 503:
+        return "503 Service Unavailable";
+    default:
+        return "500 Internal Server Error";
+    }
+}
+
+static esp_err_t reply_with(httpd_req_t *req, int code, const char *reply)
+{
+    httpd_resp_set_status(req, status_line(code));
+    return send_json(req, reply, strlen(reply));
+}
+
 static esp_err_t put_config(httpd_req_t *req)
 {
     if (!auth_check(req)) {
@@ -115,32 +141,21 @@ static esp_err_t put_config(httpd_req_t *req)
     if (read_body(req, body, sizeof(body)) < 0) {
         return send_error(req, "413 Payload Too Large", "body too large");
     }
-    db_config_t old;
-    db_config_t cfg;
-    db_config_copy(&old);
-    cfg = old;
-    char err[96];
-    if (db_config_from_json(&cfg, body, err, sizeof(err)) != ESP_OK) {
-        return send_error(req, "400 Bad Request", err);
+    char reply[160];
+    return reply_with(req, api_config(body, reply, sizeof(reply)), reply);
+}
+
+static esp_err_t post_input(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
     }
-    if (db_config_save(&cfg) != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "saving failed");
+    char body[256];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
     }
-    db_config_t live = cfg;
-    live.brightness = old.brightness;
-    live.controller = old.controller;
-    live.setup_done = old.setup_done;
-    bool restart = memcmp(&live, &old, sizeof(old)) != 0;
-    if (cfg.brightness != old.brightness) {
-        db_deck_set_brightness(cfg.brightness);
-    }
-    const char *reply = restart ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true,\"restart\":false}";
-    send_json(req, reply, strlen(reply));
-    if (restart) {
-        ESP_LOGW(TAG, "config changed, restarting");
-        xTaskCreate(restart_task, "web_restart", 2048, NULL, 5, NULL);
-    }
-    return ESP_OK;
+    char reply[160];
+    return reply_with(req, api_input(body, reply, sizeof(reply)), reply);
 }
 
 static esp_err_t post_ota(httpd_req_t *req)
@@ -213,124 +228,6 @@ static void write_rect(db_json_t *j, db_rect_t r)
     db_json_int(j, "w", r.w);
     db_json_int(j, "h", r.h);
     db_json_obj_close(j);
-}
-
-static int json_int(const cJSON *root, const char *key, int fallback)
-{
-    const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, key);
-    return cJSON_IsNumber(v) ? v->valueint : fallback;
-}
-
-static bool in_touch_area(const db_device_info_t *dev, int x, int y)
-{
-    for (uint8_t t = 0; t < dev->touch_count; t++) {
-        db_rect_t r = dev->touch[t].rect;
-        if (x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static const char *parse_touch(const cJSON *root, const char *kind, const db_device_info_t *dev,
-                               db_input_t *ev)
-{
-    db_input_kind_t k = strcmp(kind, "tap") == 0     ? DB_INPUT_TOUCH_TAP
-                        : strcmp(kind, "long") == 0  ? DB_INPUT_TOUCH_LONG
-                        : strcmp(kind, "swipe") == 0 ? DB_INPUT_TOUCH_SWIPE
-                                                     : 0;
-    if (!k) {
-        return "touch: tap, long or swipe expected";
-    }
-    int x = json_int(root, "x", -1);
-    int y = json_int(root, "y", -1);
-    int x2 = json_int(root, "x2", -1);
-    int y2 = json_int(root, "y2", -1);
-    if (!in_touch_area(dev, x, y) || (k == DB_INPUT_TOUCH_SWIPE && !in_touch_area(dev, x2, y2))) {
-        return "x and y (and x2, y2 for a swipe) must lie on the touch strip";
-    }
-    *ev = (db_input_t){.kind = k, .x = (uint16_t)x, .y = (uint16_t)y};
-    if (k == DB_INPUT_TOUCH_SWIPE) {
-        ev->x2 = (uint16_t)x2;
-        ev->y2 = (uint16_t)y2;
-    }
-    return NULL;
-}
-
-/* Fills `ev` (and `then` for a press: down, then up). Returns an error text or NULL. */
-static const char *parse_input(const cJSON *root, const db_device_info_t *dev, db_input_t *ev,
-                               db_input_t *then)
-{
-    const cJSON *touch = cJSON_GetObjectItemCaseSensitive(root, "touch");
-    if (cJSON_IsString(touch)) {
-        return parse_touch(root, touch->valuestring, dev, ev);
-    }
-    const cJSON *action = cJSON_GetObjectItemCaseSensitive(root, "action");
-    const char *a = cJSON_IsString(action) ? action->valuestring : "press";
-    bool key = cJSON_GetObjectItemCaseSensitive(root, "key") != NULL;
-    if (!key && !cJSON_GetObjectItemCaseSensitive(root, "encoder")) {
-        return "key, encoder or touch expected";
-    }
-    int index = json_int(root, key ? "key" : "encoder", -1);
-    if (index < 0 || index >= (key ? dev->key_count : dev->encoder_count)) {
-        return key ? "no such key" : "no such encoder";
-    }
-    db_input_kind_t down = key ? DB_INPUT_KEY_DOWN : DB_INPUT_ENCODER_DOWN;
-    *ev = (db_input_t){.kind = down, .index = (uint8_t)index};
-    if (strcmp(a, "turn") == 0 && !key) {
-        int ticks = json_int(root, "ticks", 0);
-        if (ticks == 0 || ticks < -127 || ticks > 127) {
-            return "ticks: -127 to 127, not 0";
-        }
-        ev->kind = DB_INPUT_ENCODER_TURN;
-        ev->value = (int16_t)ticks;
-    } else if (strcmp(a, "up") == 0) {
-        ev->kind = (db_input_kind_t)(down + 1);
-    } else if (strcmp(a, "press") == 0) {
-        *then = (db_input_t){.kind = (db_input_kind_t)(down + 1), .index = (uint8_t)index};
-    } else if (strcmp(a, "down") != 0) {
-        return key ? "action: press, down or up expected" : "action: press, down, up or turn expected";
-    }
-    return NULL;
-}
-
-static esp_err_t post_input(httpd_req_t *req)
-{
-    if (!auth_check(req)) {
-        return ESP_OK;
-    }
-    char body[256];
-    if (read_body(req, body, sizeof(body)) < 0) {
-        return send_error(req, "413 Payload Too Large", "body too large");
-    }
-    db_device_info_t *dev = malloc(sizeof(*dev));
-    if (!dev) {
-        return send_error(req, "500 Internal Server Error", "memory");
-    }
-    if (!db_deck_info(dev)) {
-        free(dev);
-        return send_error(req, "409 Conflict", "no Stream Deck attached");
-    }
-    cJSON *root = cJSON_Parse(body);
-    db_input_t ev;
-    db_input_t then = {.kind = 0};
-    const char *err = root ? parse_input(root, dev, &ev, &then) : "invalid JSON";
-    cJSON_Delete(root);
-    free(dev);
-    if (err) {
-        return send_error(req, "400 Bad Request", err);
-    }
-    esp_err_t sent = db_deck_simulate(&ev);
-    if (sent == ESP_OK && then.kind) {
-        sent = db_deck_simulate(&then);
-    }
-    if (sent == ESP_ERR_INVALID_STATE) {
-        return send_error(req, "409 Conflict", "no Stream Deck attached");
-    }
-    if (sent != ESP_OK) {
-        return send_error(req, "503 Service Unavailable", "input queue full");
-    }
-    return send_json(req, "{\"ok\":true}", 11);
 }
 
 static esp_err_t get_screen(httpd_req_t *req)
@@ -420,6 +317,63 @@ static esp_err_t get_screen_image(httpd_req_t *req)
     return err;
 }
 
+/* The picture on the deck as one JPEG, for a camera in Home Assistant. */
+static esp_err_t get_screen_jpg(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
+    }
+    uint8_t *jpeg = NULL;
+    size_t len = 0;
+    esp_err_t err = db_ui_snapshot(&jpeg, &len);
+    if (err == ESP_ERR_INVALID_STATE) {
+        return send_error(req, "409 Conflict", "no Stream Deck attached");
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
+    }
+    httpd_resp_set_type(req, "image/jpeg");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    err = httpd_resp_send(req, (const char *)jpeg, (ssize_t)len);
+    heap_caps_free(jpeg);
+    return err;
+}
+
+static esp_err_t post_ota_url(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
+    }
+    char body[256];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *url = cJSON_GetObjectItemCaseSensitive(root, "url");
+    bool ok = cJSON_IsString(url) && strncmp(url->valuestring, "http://", 7) == 0;
+    esp_err_t err = ok ? db_ota_start_url(url->valuestring) : ESP_ERR_INVALID_ARG;
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "url: http://… to a signed .dbfw file expected");
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "409 Conflict", "an update is already running");
+    }
+    /* progress shows on the deck and in the state of /api/ws; the bridge restarts when done */
+    return send_json(req, "{\"ok\":true}", 11);
+}
+
+/* Home Assistant and scripts find the bridge's API by this. */
+static void announce_api(void)
+{
+    const char *fw = esp_app_get_description()->version;
+    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
+    esp_err_t err = mdns_service_add(NULL, "_deckbridge-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
+    }
+}
+
 /* Phones probe some URL when they join a WLAN; sending them to the page opens it by itself. */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
 {
@@ -481,12 +435,12 @@ static void dns_task(void *arg)
     }
 }
 
-esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
+esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(char *buf, size_t cap))
 {
     status_json = status;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
-    cfg.max_uri_handlers = 16;
+    cfg.max_uri_handlers = 20;
     cfg.max_open_sockets =
         5; /* plus 2 * DB_DOCK_HOSTS dock sockets and the links, under CONFIG_LWIP_MAX_SOCKETS */
     cfg.uri_match_fn = httpd_uri_match_wildcard;
@@ -508,6 +462,14 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
         {.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen},
         {.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image},
         {.uri = "/api/input", .method = HTTP_POST, .handler = post_input},
+        {.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg},
+        {.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url},
+        {.uri = "/api/ws",
+         .method = HTTP_GET,
+         .handler = events_handler,
+         .is_websocket = true,
+         .ws_pre_handshake_cb = events_check,
+         .ws_post_handshake_cb = events_open},
         {.uri = "/api/login", .method = HTTP_POST, .handler = auth_login},
         {.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout},
     };
@@ -515,6 +477,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
         httpd_register_uri_handler(server, &uris[i]);
     }
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
+    events_start(server, state);
+    announce_api();
     xTaskCreate(dns_task, "dns", 3072, NULL, 3, NULL);
     ESP_LOGI(TAG, "web UI on port 80");
     return ESP_OK;

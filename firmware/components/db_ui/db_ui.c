@@ -401,6 +401,7 @@ static void tick(void *arg)
 esp_err_t db_ui_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
+    jpeg_port_init();
     xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0);
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
@@ -443,4 +444,59 @@ void db_ui_set_c6_version(const char *version)
 {
     snprintf(s.c6, sizeof(s.c6), "%s", version ? version : "");
     changed();
+}
+
+/* Mirror one rectangle in both directions: decks with flipped displays get their images upside down. */
+static void turn_around(uint8_t *px, uint16_t w, db_rect_t r)
+{
+    for (int y = 0; y < r.h / 2 + (r.h & 1); y++) {
+        int y2 = r.h - 1 - y;
+        for (int x = 0; x < (y == y2 ? r.w / 2 : r.w); x++) {
+            uint8_t *a = px + ((size_t)(r.y + y) * w + r.x + x) * 3;
+            uint8_t *b = px + ((size_t)(r.y + y2) * w + r.x + r.w - 1 - x) * 3;
+            uint8_t t[3];
+            memcpy(t, a, 3);
+            memcpy(a, b, 3);
+            memcpy(b, t, 3);
+        }
+    }
+}
+
+esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len)
+{
+    static db_device_info_t dev; /* too big for the web server's stack */
+    static db_shot_t shots[DB_SCREEN_MAX];
+    static SemaphoreHandle_t busy;
+    if (!busy) {
+        busy = xSemaphoreCreateMutex();
+    }
+    xSemaphoreTake(busy, portMAX_DELAY);
+    esp_err_t err = db_deck_info(&dev) ? ESP_OK : ESP_ERR_INVALID_STATE;
+    const db_display_t *d = &dev.displays[0];
+    uint8_t *px = err == ESP_OK ? jpeg_port_alloc_rgb(d->width, d->height) : NULL;
+    if (err == ESP_OK && !px) {
+        err = ESP_ERR_NO_MEM;
+    }
+    if (err == ESP_OK) {
+        memset(px, 0, (size_t)d->width * d->height * 3);
+        db_source_t writer;
+        size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
+        for (size_t i = 0; i < n; i++) {
+            uint8_t *data = NULL;
+            size_t dlen = 0;
+            if (db_deck_shot_copy(shots[i].id, &data, &dlen) != ESP_OK) {
+                continue; /* replaced meanwhile; the newer one is in the list too */
+            }
+            if (jpeg_port_decode_into(data, dlen, px, d->width, d->height, shots[i].rect.x,
+                                      shots[i].rect.y) == ESP_OK &&
+                d->flip_x && d->flip_y) {
+                turn_around(px, d->width, shots[i].rect);
+            }
+            heap_caps_free(data);
+        }
+        err = jpeg_port_encode(px, d->width, d->height, QUALITY, jpeg, len);
+    }
+    heap_caps_free(px);
+    xSemaphoreGive(busy);
+    return err;
 }

@@ -2,14 +2,24 @@
 
 #include <string.h>
 
+#include "driver/jpeg_decode.h"
 #include "driver/jpeg_encode.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 /* The ESP32-P4 has a hardware JPEG encoder. Other chips would plug a software encoder in here. */
 
 static const char *TAG = "jpeg";
 static jpeg_encoder_handle_t encoder;
+static jpeg_decoder_handle_t decoder;
+static SemaphoreHandle_t lock; /* the UI task encodes keys, the web server makes snapshots */
+
+void jpeg_port_init(void)
+{
+    lock = xSemaphoreCreateMutex();
+}
 
 uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h)
 {
@@ -18,8 +28,8 @@ uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h)
     return jpeg_alloc_encoder_mem(w * h * 3, &mem, &got);
 }
 
-esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
-                           size_t *out_len)
+static esp_err_t encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
+                        size_t *out_len)
 {
     if (!encoder) {
         jpeg_encode_engine_cfg_t cfg = {.timeout_ms = 200};
@@ -61,4 +71,66 @@ esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t q
     memcpy(*out, buf, n);
     *out_len = n;
     return ESP_OK;
+}
+
+esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
+                           size_t *out_len)
+{
+    xSemaphoreTake(lock, portMAX_DELAY);
+    esp_err_t err = encode(rgb, w, h, quality, out, out_len);
+    xSemaphoreGive(lock);
+    return err;
+}
+
+/* The decoder writes whole blocks: 16 px for subsampled directions, 8 otherwise. */
+static uint32_t padded(uint32_t v, bool sub)
+{
+    uint32_t b = sub ? 16 : 8;
+    return (v + b - 1) / b * b;
+}
+
+static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t dw, uint16_t dh, uint16_t x,
+                        uint16_t y)
+{
+    if (!decoder) {
+        jpeg_decode_engine_cfg_t cfg = {.timeout_ms = 200};
+        ESP_RETURN_ON_ERROR(jpeg_new_decoder_engine(&cfg, &decoder), TAG, "decoder");
+    }
+    jpeg_decode_picture_info_t info;
+    ESP_RETURN_ON_ERROR(jpeg_decoder_get_info(jpg, (uint32_t)len, &info), TAG, "info");
+    bool sub_x =
+        info.sample_method == JPEG_DOWN_SAMPLING_YUV420 || info.sample_method == JPEG_DOWN_SAMPLING_YUV422;
+    bool sub_y = info.sample_method == JPEG_DOWN_SAMPLING_YUV420;
+    uint32_t pw = padded(info.width, sub_x);
+    uint32_t ph = padded(info.height, sub_y);
+    jpeg_decode_memory_alloc_cfg_t in_cfg = {.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER};
+    jpeg_decode_memory_alloc_cfg_t out_cfg = {.buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER};
+    size_t in_cap = 0;
+    size_t out_cap = 0;
+    uint8_t *in = jpeg_alloc_decoder_mem(len, &in_cfg, &in_cap);
+    uint8_t *out = jpeg_alloc_decoder_mem(pw * ph * 3, &out_cfg, &out_cap);
+    esp_err_t err = in && out ? ESP_OK : ESP_ERR_NO_MEM;
+    uint32_t n = 0;
+    if (err == ESP_OK) {
+        memcpy(in, jpg, len);
+        jpeg_decode_cfg_t cfg = {.output_format = JPEG_DECODE_OUT_FORMAT_RGB888,
+                                 .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR};
+        err = jpeg_decoder_process(decoder, &cfg, in, (uint32_t)len, out, (uint32_t)out_cap, &n);
+    }
+    for (uint32_t row = 0; err == ESP_OK && row < info.height && y + row < dh; row++) {
+        uint32_t w = x + info.width > dw ? dw - x : info.width;
+        memcpy(dst + ((size_t)(y + row) * dw + x) * 3, out + (size_t)row * pw * 3, w * 3);
+    }
+    heap_caps_free(in);
+    heap_caps_free(out);
+    return err;
+}
+
+esp_err_t jpeg_port_decode_into(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t dw, uint16_t dh,
+                                uint16_t x, uint16_t y)
+{
+    xSemaphoreTake(lock, portMAX_DELAY);
+    esp_err_t err = decode(jpg, len, dst, dw, dh, x, y);
+    xSemaphoreGive(lock);
+    return err;
 }

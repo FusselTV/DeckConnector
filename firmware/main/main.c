@@ -41,7 +41,7 @@ static void write_device(db_json_t *j)
     db_json_obj_close(j);
 }
 
-static void write_network(db_json_t *j)
+static void write_network(db_json_t *j, bool live)
 {
     db_net_status_t n;
     db_net_status(&n);
@@ -53,7 +53,9 @@ static void write_network(db_json_t *j)
     db_json_obj_open(j, "wlan");
     db_json_str(j, "ssid", db_config()->wifi_ssid);
     db_json_str(j, "ip", n.wlan_up ? n.wlan_ip : "");
-    db_json_int(j, "rssi", n.wlan_up ? n.rssi : 0);
+    if (live) {
+        db_json_int(j, "rssi", n.wlan_up ? n.rssi : 0);
+    }
     db_json_obj_close(j);
     db_json_obj_close(j);
 }
@@ -83,8 +85,9 @@ static void write_hosts(db_json_t *j)
     db_json_arr_close(j);
 }
 
-/* Shared body of the server `status` message and /api/status. */
-static void write_status(db_json_t *j)
+/* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
+ * out what changes all the time (uptime, signal, counters), so a change in it is worth telling. */
+static void write_status(db_json_t *j, bool live)
 {
     db_deck_stats_t st;
     db_deck_stats(&st);
@@ -96,12 +99,17 @@ static void write_status(db_json_t *j)
     } else {
         db_json_null(j, "wlan_firmware");
     }
-    db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
+    if (live) {
+        db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
+    }
     db_json_str(j, "controller", db_controller_name(db_config()->controller));
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
     write_device(j);
-    write_network(j);
+    write_network(j, live);
     write_hosts(j);
+    if (!live) {
+        return;
+    }
     db_json_obj_open(j, "counters");
     db_json_int(j, "images", st.images);
     db_json_int(j, "superseded", st.superseded);
@@ -118,7 +126,7 @@ static size_t link_status(char *buf, size_t cap)
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "t", "status");
-    write_status(&j);
+    write_status(&j, true);
     db_json_obj_close(&j);
     return db_json_end(&j);
 }
@@ -145,13 +153,24 @@ static size_t web_status(char *buf, size_t cap)
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
-    write_status(&j);
+    write_status(&j, true);
     db_json_obj_open(&j, "memory");
     db_json_int(&j, "heap_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     db_json_int(&j, "heap_min_free", (int64_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
     db_json_int(&j, "psram_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     write_tasks(&j);
     db_json_obj_close(&j);
+    db_json_obj_close(&j);
+    return db_json_end(&j);
+}
+
+static size_t web_state(char *buf, size_t cap)
+{
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_str(&j, "t", "state");
+    write_status(&j, false);
     db_json_obj_close(&j);
     return db_json_end(&j);
 }
@@ -244,7 +263,7 @@ void app_main(void)
     ESP_ERROR_CHECK(db_dock_start(db_config()->controller, db_ui_set_dock_clients));
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
     db_config_on_save(apply_controller);
-    ESP_ERROR_CHECK(db_web_start(web_status));
+    ESP_ERROR_CHECK(db_web_start(web_status, web_state));
     db_ota_confirm_when(db_net_online);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);
 }

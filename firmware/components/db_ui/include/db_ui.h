@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 
@@ -20,3 +22,5 @@ void db_ui_set_update(int pct, const char *what);
 void db_ui_set_c6_version(const char *version);
 /* Draw again and pick the writer again, e.g. after the controller changed. */
 void db_ui_refresh(void);
+/* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */
+esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len);
