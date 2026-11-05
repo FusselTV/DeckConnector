@@ -9,6 +9,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -415,9 +416,27 @@ static void announce(void)
     }
 }
 
+/* Runs in esp_restart(). Hosts must see the dock go: the connections end with a reset, and mDNS says goodbye,
+ * or the Stream Deck app keeps its cached dock and does not come back after a short restart. */
+static void close_hosts(void)
+{
+    mdns_service_remove_all();
+    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+        conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+        int sock = c->sock;
+        if (sock >= 0) {
+            struct linger now = {.l_onoff = 1, .l_linger = 0};
+            setsockopt(sock, SOL_SOCKET, SO_LINGER, &now, sizeof(now));
+            close(sock);
+        }
+    }
+    vTaskDelay(pdMS_TO_TICKS(150)); /* the resets and the goodbye leave through other tasks */
+}
+
 esp_err_t db_dock_start(void (*hosts_changed)(void))
 {
     s.hosts_changed = hosts_changed;
+    esp_register_shutdown_handler(close_hosts);
     s.info_lock = xSemaphoreCreateMutex();
     esp_read_mac(s.info.mac, ESP_MAC_BASE);
     snprintf(s.info.serial, sizeof(s.info.serial), "DB%02X%02X%02X%02X%02X%02X", s.info.mac[0], s.info.mac[1],

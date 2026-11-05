@@ -171,7 +171,7 @@ static void writer_task(void *arg)
             xSemaphoreGive(s.io_lock);
             s.stats.images++;
             ack(r, err == DB_OK ? DB_ACK_SHOWN : DB_ACK_NO_DEVICE, t0, t1);
-            if (err == DB_OK) {
+            if (err == DB_OK && r->source < DB_SOURCE_DOCK0) { /* a dock host's picture keeps it already */
                 xSemaphoreTake(s.shot_lock, portMAX_DELAY);
                 db_screen_put(&s.screens[r->source], r->display, r->rect, r->data, r->len);
                 xSemaphoreGive(s.shot_lock);
@@ -413,6 +413,9 @@ esp_err_t db_deck_set_brightness(uint8_t pct)
     return to_esp(err);
 }
 
+/* An image report from a dock host is collected until its image is whole, and that goes to the queue like a
+ * server's image: a newer image for the same key replaces one that is not drawn yet. Without that, every page
+ * a host flips through went to the deck in full, and fast flipping fell seconds behind. */
 esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t len)
 {
     if (!s.present) {
@@ -424,10 +427,27 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
     db_chunk_t chunk;
     if (s.dev.driver->parse_output(&s.dev, padded, io->out_report_size, &chunk)) {
-        if (db_screen_feed(&s.screens[source], &chunk) != DB_OK) {
+        db_screen_t *sc = &s.screens[source];
+        db_err_t fed = db_screen_feed(sc, &chunk);
+        if (fed != DB_OK) {
             ESP_LOGW(TAG, "%s: image at %u,%u dropped from the kept picture", db_deck_source_name(source),
                      chunk.rect.x, chunk.rect.y);
         }
+        uint8_t *copy = NULL;
+        db_shot_t whole = {0};
+        if (fed == DB_OK && chunk.last && s.writer == source && sc->count) {
+            whole = sc->shots[sc->count - 1]; /* the image the last piece completed */
+            copy = heap_caps_malloc(whole.len, MALLOC_CAP_SPIRAM);
+            if (copy) {
+                memcpy(copy, whole.data, whole.len);
+            }
+        }
+        xSemaphoreGive(s.shot_lock);
+        if (copy) {
+            db_deck_submit(source, whole.display, whole.rect, 0, copy, whole.len,
+                           (uint64_t)esp_timer_get_time());
+        }
+        return ESP_OK;
     }
     db_err_t err = DB_OK;
     if (s.writer == source) {

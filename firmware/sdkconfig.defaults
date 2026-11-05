@@ -28,6 +28,9 @@ CONFIG_LWIP_MAX_SOCKETS=32
 CONFIG_LWIP_MAX_ACTIVE_TCP=32
 # connections that arrive together wait here for accept; a full box answers with a reset
 CONFIG_LWIP_TCP_ACCEPTMBOX_SIZE=16
+# the address comes seconds sooner: no ARP probe of the offered address, and the last one is asked for first
+CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP=y
+CONFIG_LWIP_DHCP_RESTORE_LAST_IP=y
 CONFIG_ETH_DMA_RX_BUFFER_NUM=40
 CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
 
