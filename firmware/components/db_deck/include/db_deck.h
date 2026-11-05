@@ -11,13 +11,15 @@
  * newest picture of every source is kept, so a source that becomes the writer again shows at once.
  */
 
+#define DB_SOURCE_LINKS 4 /* = DB_MAX_SERVERS */
+#define DB_SOURCE_DOCKS 4 /* = DB_DOCK_HOSTS */
+
+/* The deck's own UI, then one source per server link, then one per Network Dock host. */
 typedef enum {
     DB_SOURCE_UI = 0,
     DB_SOURCE_LINK0,
-    DB_SOURCE_LINK1,
-    DB_SOURCE_APP,
-    DB_SOURCE_COMPANION,
-    DB_SOURCE_COUNT,
+    DB_SOURCE_DOCK0 = DB_SOURCE_LINK0 + DB_SOURCE_LINKS,
+    DB_SOURCE_COUNT = DB_SOURCE_DOCK0 + DB_SOURCE_DOCKS,
 } db_source_t;
 
 typedef struct {
@@ -45,6 +47,8 @@ void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
 
 /* Pending images of the old writer are dropped and acknowledged as REJECTED_ROLE. */
 void db_deck_set_writer(db_source_t source);
+/* Drop the kept picture of a source whose host left. */
+void db_deck_forget(db_source_t source);
 db_source_t db_deck_writer(void);
 /* The name in the JSON. */
 const char *db_deck_source_name(db_source_t source);

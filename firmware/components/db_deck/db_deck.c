@@ -369,8 +369,16 @@ void db_deck_set_writer(db_source_t source)
 
 const char *db_deck_source_name(db_source_t source)
 {
-    static const char *const names[DB_SOURCE_COUNT] = {"ui", "server1", "server2", "app", "companion"};
+    static const char *const names[DB_SOURCE_COUNT] = {"ui",    "server1", "server2", "server3", "server4",
+                                                       "dock1", "dock2",   "dock3",   "dock4"};
     return source < DB_SOURCE_COUNT ? names[source] : "";
+}
+
+void db_deck_forget(db_source_t source)
+{
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    db_screen_clear(&s.screens[source]);
+    xSemaphoreGive(s.shot_lock);
 }
 
 db_source_t db_deck_writer(void)

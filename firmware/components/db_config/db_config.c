@@ -14,7 +14,7 @@
 #include "lwip/ip4_addr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 2 /* 2: setup_done */
+#define CONFIG_VERSION 3 /* 2: setup_done, 3: four servers and host */
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -32,6 +32,16 @@ void db_config_random_password(char *out, size_t len)
 }
 
 static void (*on_save)(void);
+
+char *db_config_server(db_config_t *cfg, int i)
+{
+    return i < 2 ? cfg->servers_first[i] : cfg->servers_more[i - 2];
+}
+
+const char *db_config_server_of(const db_config_t *cfg, int i)
+{
+    return db_config_server((db_config_t *)cfg, i);
+}
 
 static void defaults(db_config_t *c)
 {
@@ -156,6 +166,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "name", cfg->name);
     db_json_str(&j, "controller", db_controller_name(cfg->controller));
+    db_json_str(&j, "host", cfg->host);
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
     ip_to_json(&j, "lan", &cfg->lan);
@@ -164,7 +175,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "wifi_pass_set", cfg->wifi_pass[0] != '\0');
     db_json_arr_open(&j, "servers");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
-        db_json_str(&j, NULL, cfg->servers[i]);
+        db_json_str(&j, NULL, db_config_server_of(cfg, i));
     }
     db_json_arr_close(&j);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
@@ -233,17 +244,19 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
         snprintf(err, err_cap, "servers: list of at most %d URLs expected", DB_MAX_SERVERS);
         return false;
     }
-    memset(cfg->servers, 0, sizeof(cfg->servers));
+    for (int k = 0; k < DB_MAX_SERVERS; k++) {
+        db_config_server(cfg, k)[0] = '\0';
+    }
     int i = 0;
     const cJSON *v;
     cJSON_ArrayForEach(v, arr)
     {
-        if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof(cfg->servers[0]) ||
+        if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof(cfg->servers_first[0]) ||
             (v->valuestring[0] && strncmp(v->valuestring, "ws://", 5) != 0)) {
             snprintf(err, err_cap, "servers: ws:// URL expected");
             return false;
         }
-        strcpy(cfg->servers[i++], v->valuestring);
+        strcpy(db_config_server(cfg, i++), v->valuestring);
     }
     return true;
 }
@@ -295,6 +308,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "wifi_ssid", cfg->wifi_ssid, sizeof(cfg->wifi_ssid), err, err_cap) &&
               take_str(root, "wifi_pass", cfg->wifi_pass, sizeof(cfg->wifi_pass), err, err_cap) &&
               take_str(root, "token", cfg->token, sizeof(cfg->token), err, err_cap) &&
+              take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&

@@ -8,6 +8,7 @@
 :root{--bg:#fff;--fg:#09090b;--card:#fff;--muted:#f4f4f5;--muted-fg:#71717a;--border:#e4e4e7;--primary:#18181b;--primary-fg:#fafafa;--accent:#f4f4f5;--ring:#a1a1aa;--ok:#16a34a;--ok-bg:#dcfce7;--warn:#b45309;--warn-bg:#fef3c7;--bad:#dc2626;--bad-bg:#fee2e2;--radius:10px}
 @media (prefers-color-scheme:dark){:root{--bg:#09090b;--fg:#fafafa;--card:#0c0c0e;--muted:#18181b;--muted-fg:#a1a1aa;--border:#27272a;--primary:#fafafa;--primary-fg:#18181b;--accent:#27272a;--ring:#52525b;--ok:#4ade80;--ok-bg:#052e16;--warn:#fbbf24;--warn-bg:#422006;--bad:#f87171;--bad-bg:#450a0a}}
 *{box-sizing:border-box}body{accent-color:var(--primary)}[hidden]{display:none!important}
+.srcs{display:grid;gap:6px}.src{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-width:0}.src .grow{flex:1;min-width:0;display:flex;flex-direction:column}.src .grow span{overflow-wrap:anywhere}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 main{max-width:960px;margin:0 auto;padding:16px}
 h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em}h2{font-size:16px;font-weight:600;margin:0}
@@ -82,7 +83,10 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 
 <section data-panel="home" class="stack">
 <div class="card"><div class="card-h"><h2>Wer steuert das Deck?</h2><p class="muted">Wechselt sofort. Die anderen bleiben verbunden.</p></div>
-<div class="card-b stack"><div class="choice" id="ctrl"></div><p id="howto" class="small muted"></p></div></div>
+<div class="card-b stack"><div class="choice" id="ctrl"></div>
+<div><p class="section-t" style="margin-top:0">Quellen</p><div id="sources" class="srcs"></div></div>
+<form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><button class="btn outline">Server hinzufügen</button></form>
+<p id="howto" class="small muted"></p></div></div>
 <div class="card"><div class="card-h"><h2>Auf dem Deck</h2><p id="writer" class="muted"></p></div>
 <div class="card-b"><div id="deck"><div id="pics"></div><div id="hits"></div></div><div id="encs"></div>
 <p class="hint">Tasten anklicken oder halten. Auf dem Streifen tippen oder wischen. Das Mausrad dreht die Regler.</p>
@@ -98,8 +102,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div><label for="brightness">Helligkeit <span id="bval" class="muted"></span></label><input id="brightness" type="range" min="0" max="100" style="height:36px;padding:0;border:0;margin:0"></div>
 </div>
 <p class="section-t">Eigene Server</p>
-<div><label for="s0">Server 1</label><input id="s0" placeholder="leer: im Netz suchen" maxlength="95"><p class="hint">ws://host:8765/deckbridge</p></div>
-<div><label for="s1">Server 2, übernimmt bei Ausfall</label><input id="s1" maxlength="95"></div>
+<p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht die Bridge einen im Netz.</p>
 <div class="grid"><div><label for="token">Token</label><input id="token" type="password" placeholder="unverändert" maxlength="47"></div></div>
 <p class="section-t">WLAN</p>
 <div class="grid">
@@ -167,14 +170,43 @@ const controllers = [
   ['app', 'Elgato App', 'Die Stream Deck Software am PC'],
   ['server', 'Eigener Server', 'Für Entwickler'],
 ];
-const writers = {ui: 'die Bridge selbst', server1: 'Server 1', server2: 'Server 2', app: 'die Elgato App', companion: 'Companion'};
+const kinds = {companion: 'Companion', app: 'Elgato App', server: 'Server'};
 let state = null;
 
+const shortHost = (h) => h.replace(/^wss?:\/\//, '').replace(/\/.*$/, '');
+const connected = (s, kind) => s.sources.filter((x) => x.kind === kind && x.connected);
 /* the address of the connected host, or null */
-function hostAt(s, key) {
-  if (key === 'server') return s.servers.find((x) => x.connected)?.url.replace(/^wss?:\/\/|[:/].*$/g, '') ?? null;
-  return s.dock_hosts.find((h) => h.kind === key && h.device)?.ip ?? null;
+const hostAt = (s, key) => (connected(s, key)[0] ? shortHost(connected(s, key)[0].host) : null);
+function writerName(id) {
+  if (id === 'ui') return 'die Bridge selbst';
+  const x = state?.sources.find((y) => y.drawing);
+  return x ? `${kinds[x.kind]} (${shortHost(x.host)})` : id;
 }
+function renderSources(s) {
+  const rank = (x) => (x.drawing ? 0 : x.connected ? 1 : 2);
+  const rows = s.sources.filter((x) => kinds[x.kind]).sort((a, b) => rank(a) - rank(b));
+  $('sources').innerHTML = rows.map((x, i) => {
+    const label = x.drawing ? 'zeichnet' : x.chosen ? 'gewählt' : x.connected ? 'verbunden' : 'getrennt';
+    const mine = x.kind === 'server' && config?.servers.includes(x.host);
+    return `<div class="src"><div class="grow"><b>${kinds[x.kind]}</b><span class="small muted">${esc(shortHost(x.host))}</span></div>
+      <span class="badge ${x.drawing ? 'ok' : x.connected ? '' : 'warn'}"><span class="dot"></span>${label}</span>
+      ${x.connected && !x.drawing ? `<button type="button" class="btn outline sm" data-pick="${i}">Wählen</button>` : ''}
+      ${mine ? `<button type="button" class="btn ghost sm" data-del="${i}" aria-label="Server entfernen" title="Server entfernen">✕</button>` : ''}</div>`;
+  }).join('') || '<p class="small muted">Noch nichts verbunden.</p>';
+  for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => { const x = rows[+b.dataset.pick]; put({controller: x.kind, host: x.host}, true); };
+  for (const b of $('sources').querySelectorAll('[data-del]')) b.onclick = () => setServers(config.servers.filter((u) => u && u !== rows[+b.dataset.del].host));
+}
+async function setServers(list) {
+  if ((await put({servers: list}, true)).ok) await loadConfig();
+}
+$('addsrv').onsubmit = (e) => {
+  e.preventDefault();
+  const url = $('newsrv').value.trim();
+  const list = config.servers.filter(Boolean);
+  if (!url) return;
+  if (list.length >= 4) return toast('Höchstens 4 Server. Erst einen entfernen.', true);
+  setServers([...list, url]).then(() => { $('newsrv').value = ''; });
+};
 function howto(s) {
   const ip = s.network.lan.ip || s.network.wlan.ip;
   if (hostAt(s, s.controller)) return '';
@@ -188,17 +220,18 @@ function renderStatus() {
   $('title').textContent = s.name;
   $('status').innerHTML = kv('Stream Deck', s.device ? `${s.device.model} · ${s.device.serial}` : 'nicht angeschlossen') +
     kv('LAN', n.lan.ip || (n.lan.cable ? 'keine Adresse' : 'kein Kabel')) +
-    kv('WLAN', n.wlan.ip ? `${n.wlan.ip} · ${n.wlan.ssid}` : (n.wlan.ssid ? 'getrennt' : 'aus')) +
-    s.servers.filter((x) => x.url).map((x, i) => kv('Server ' + (i + 1), x.connected ? (x.active ? 'aktiv' : 'bereit') : 'getrennt').replace('</b>', `</b>${esc(x.url)}`)).join('');
+    kv('WLAN', n.wlan.ip ? `${n.wlan.ip} · ${n.wlan.ssid}` : (n.wlan.ssid ? 'getrennt' : 'aus'));
   $('ctrl').innerHTML = controllers.map(([key, name, what]) => {
-    const at = hostAt(s, key);
+    const n = connected(s, key).length;
     const chosen = s.controller === key;
+    const text = n > 1 ? `${n} verbunden` : n ? 'verbunden · ' + esc(hostAt(s, key)) : chosen ? 'wartet' : 'nicht verbunden';
     return `<button type="button" data-c="${key}" aria-pressed="${chosen}"><b>${name}</b><span class="small muted">${what}</span>
-      <span class="badge ${at ? 'ok' : chosen ? 'warn' : ''}" style="margin-top:6px"><span class="dot"></span>${at ? 'verbunden · ' + esc(at) : chosen ? 'wartet' : 'nicht verbunden'}</span></button>`;
+      <span class="badge ${n ? 'ok' : chosen ? 'warn' : ''}" style="margin-top:6px"><span class="dot"></span>${text}</span></button>`;
   }).join('');
+  renderSources(s);
   $('howto').textContent = howto(s);
   if (s.uptime_s !== undefined) renderSystem(s);
-  for (const b of $('ctrl').querySelectorAll('button')) b.onclick = () => put({controller: b.dataset.c}, true);
+  for (const b of $('ctrl').querySelectorAll('button')) b.onclick = () => put({controller: b.dataset.c, host: ''}, true);
 }
 
 /* ---- live deck ---- */
@@ -295,7 +328,7 @@ async function drawScreen() {
   const r = await api('/api/screen', {signal: AbortSignal.timeout(5000)}).catch(() => null);
   if (!r || !r.ok) return;
   const sc = await r.json();
-  $('writer').textContent = sc.width ? 'Gerade zeichnet ' + (writers[sc.writer] || sc.writer) + '.' : 'Kein Stream Deck angeschlossen.';
+  $('writer').textContent = sc.width ? 'Gerade zeichnet ' + writerName(sc.writer) + '.' : 'Kein Stream Deck angeschlossen.';
   const geometry = JSON.stringify([sc.width, sc.keys, sc.touch, sc.encoders]);
   if (geometry !== layout) {
     layout = geometry;
@@ -362,7 +395,8 @@ let config = null;
 async function loadConfig() {
   config = await (await api('/api/config')).json();
   $('name').value = config.name; $('brightness').value = config.brightness; $('bval').textContent = config.brightness + ' %';
-  $('s0').value = config.servers[0] || ''; $('s1').value = config.servers[1] || ''; $('ssid').value = config.wifi_ssid;
+  $('ssid').value = config.wifi_ssid;
+  if (state) renderSources(state);
   for (const key of ['lan', 'wlan']) {
     $(key + '_dhcp').checked = config[key].dhcp;
     $(key).classList.toggle('fixed', !config[key].dhcp);
@@ -375,7 +409,7 @@ $('cfg').onsubmit = async (e) => {
   e.preventDefault();
   const ip = (key) => Object.fromEntries([['dhcp', $(key + '_dhcp').checked], ...ipFields.map((f) => [f, $(key + '_' + f).value])]);
   const body = {name: $('name').value, brightness: +$('brightness').value,
-    servers: [$('s0').value, $('s1').value].filter(Boolean), wifi_ssid: $('ssid').value, lan: ip('lan'), wlan: ip('wlan')};
+    wifi_ssid: $('ssid').value, lan: ip('lan'), wlan: ip('wlan')};
   for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
   await put(body);
 };
@@ -396,7 +430,7 @@ function renderSystem(s) {
     kv('Speicher frei', `${Math.round(m.heap_free / 1024)} KB, mindestens ${Math.round(m.heap_min_free / 1024)} KB`) +
     kv('PSRAM frei', Math.round(m.psram_free / 1048576) + ' MB') +
     kv('Bilder', `${c.images} gezeigt, ${c.superseded} übersprungen`) + kv('Fehler', `${c.usb_errors} USB, ${c.rejected ?? 0} abgelehnt`) +
-    kv('Dock-Hosts', s.dock_hosts.map((h) => `${h.kind} ${h.ip}${h.device ? '' : ' (ohne Deck)'}`).join(', ') || '–');
+    kv('Quellen', s.sources.map((x) => `${kinds[x.kind] || 'unbekannt'} ${shortHost(x.host)}${x.connected ? '' : ' (getrennt)'}`).join(', ') || '–');
 }
 let sysPoll = null;
 async function loadLog() { $('log').textContent = await (await api('/api/log')).text(); $('log').scrollTop = 1e9; }

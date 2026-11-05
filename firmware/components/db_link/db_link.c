@@ -38,6 +38,8 @@
 #define SILENT_LIMIT_MS  6000
 #define ALL_LINKS        (-1)
 
+_Static_assert(DB_MAX_SERVERS == DB_SOURCE_LINKS, "one deck source per server");
+
 static const char *TAG = "link";
 
 typedef struct {
@@ -54,7 +56,7 @@ typedef struct {
     char url[96];
     volatile bool connected;
     volatile bool over_wlan;
-    volatile bool move_to_lan; /* set by the supervisor, acted on by the link's own task */
+    volatile const char *reconnect; /* why the session ends: set by others, acted on by the link's own task */
     int64_t last_rx_ms;
     int64_t last_ping_ms;
     char text[TEXT_MAX];
@@ -178,9 +180,15 @@ static bool recompute_active(void)
 {
     xSemaphoreTake(s.role_lock,
                    portMAX_DELAY); /* both link tasks call this; hooks must see changes in order */
+    /* the chosen server when it is up, else the first one that is */
     int next = -1;
+    const char *host = db_config()->host;
     for (int i = 0; i < DB_MAX_SERVERS && s.enabled; i++) {
-        if (s.links[i].connected) {
+        if (!s.links[i].connected) {
+            continue;
+        }
+        next = next < 0 ? i : next;
+        if (strcmp(s.links[i].url, host) == 0) {
             next = i;
             break;
         }
@@ -352,9 +360,9 @@ static void session(link_t *l)
     for (;;) {
         int err = read_frame(l);
         int64_t now = now_ms();
-        if (l->move_to_lan) {
-            l->move_to_lan = false;
-            ESP_LOGI(TAG, "server %d: LAN is up, moving from WLAN", l->index);
+        if (l->reconnect) {
+            ESP_LOGI(TAG, "server %d: %s", l->index, (const char *)l->reconnect);
+            l->reconnect = NULL;
             return;
         }
         if (err == -EAGAIN || err == 0) {
@@ -462,7 +470,7 @@ static void on_device(const db_device_info_t *info)
 static bool any_configured(void)
 {
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
-        if (db_config()->servers[i][0]) {
+        if (db_config_server_of(db_config(), i)[0]) {
             return true;
         }
     }
@@ -502,7 +510,7 @@ static void back_to_lan(void)
         strlcpy(url, l->url, sizeof(url));
         if (l->connected && l->over_wlan && ws_probe(url, lan, PROBE_TIMEOUT) == 0) {
             l->over_wlan = false;
-            l->move_to_lan = true;
+            l->reconnect = "LAN is up, moving from WLAN";
         }
     }
 }
@@ -538,7 +546,7 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
         link_t *l = &s.links[i];
         l->index = i;
         ws_init(&l->ws);
-        strlcpy(l->url, c->servers[i], sizeof(l->url));
+        strlcpy(l->url, db_config_server_of(c, i), sizeof(l->url));
         db_deck_set_ack_handler((db_source_t)(DB_SOURCE_LINK0 + i), on_ack, (void *)(intptr_t)i);
         char name[12];
         snprintf(name, sizeof(name), "link%d", i);
@@ -547,6 +555,23 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
     xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
     xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0);
     return ESP_OK;
+}
+
+void db_link_reload(void)
+{
+    /* only what the config changed: a server found by mDNS keeps its URL while the config stays empty */
+    static char applied[DB_MAX_SERVERS][sizeof(s.links[0].url)];
+    for (int i = 0; i < DB_MAX_SERVERS; i++) {
+        const char *want = db_config_server_of(db_config(), i);
+        if (strcmp(want, applied[i]) == 0) {
+            continue;
+        }
+        strlcpy(applied[i], want, sizeof(applied[i]));
+        if (strcmp(want, s.links[i].url) != 0) {
+            strlcpy(s.links[i].url, want, sizeof(s.links[i].url));
+            s.links[i].reconnect = "address changed";
+        }
+    }
 }
 
 void db_link_set_enabled(bool enabled)

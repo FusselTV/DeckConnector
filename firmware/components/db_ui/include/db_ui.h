@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "db_deck.h"
 #include "esp_err.h"
 
 /*
@@ -16,10 +17,13 @@
 esp_err_t db_ui_start(void);
 
 void db_ui_set_active_link(int index);
-void db_ui_set_dock_clients(bool app, bool companion);
+/* A Network Dock host came, left or told what it is. */
+void db_ui_hosts_changed(void);
 /* pct < 0 ends the update screen. */
 void db_ui_set_update(int pct, const char *what);
 void db_ui_set_c6_version(const char *version);
+/* The source that draws once no menu or update covers it: the configured host, else the first of its kind. */
+db_source_t db_ui_chosen_source(void);
 /* Draw again and pick the writer again, e.g. after the controller changed. */
 void db_ui_refresh(void);
 /* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */

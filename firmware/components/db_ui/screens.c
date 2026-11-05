@@ -40,6 +40,8 @@ typedef enum {
     K_LAN_CLOSE,
     K_SKIP,
     K_DONE,
+    K_BACK,
+    K_SRC0, /* K_SRC0 + index in ui_model_t.sources; keep it last */
 } key_act_t;
 
 static const char *const field_names[] = {"IP", "Maske", "Gateway", "DNS"};
@@ -130,10 +132,15 @@ static void controller_keys(page_t *p, bool ask)
         int c = controller_order[i];
         int key = at(p, 0, i);
         bool asking = ask && confirming(p->m, key, p->md->now_us);
-        bool up = p->md->host_up[c];
+        int hosts = p->md->hosts[c];
+        bool up = hosts > 0;
+        char count[16];
+        snprintf(count, sizeof(count), "%d verbunden", hosts);
         ui_tile_t *t = put(p, key, (key_act_t)(K_CTRL0 + c));
         button(t, controller_icon(c), asking ? "Wechseln?" : controller_label(c),
-               asking ? fit(p, "nochmal tippen", "nochmal") : (up ? "verbunden" : "getrennt"));
+               asking ? fit(p, "nochmal tippen", "nochmal")
+                      : (hosts > 1 ? fit(p, count, "mehrere") : (up ? "verbunden" : "getrennt")));
+        t->badge = hosts > 1 && !asking ? BADGE_OPEN : BADGE_NONE; /* opens the list of hosts */
         t->active = p->md->controller == c || asking;
         t->color =
             asking ? C_EDIT : (up ? C_ACTIVE : C_WARN); /* chosen but away: amber, not "all good" green */
@@ -190,7 +197,7 @@ static void home_status(page_t *p)
     if (!md->lan_up && !md->wlan_up) {
         status_message(p, ICON_NO_NETWORK, C_DANGER, "Netzwerk", "Kein Netz",
                        "LAN-Kabel stecken. Nach 1 min startet das Setup-WLAN.", "Kein Netz", "LAN-Kabel");
-    } else if (md->host_up[md->controller]) { /* connected, but has not drawn yet */
+    } else if (md->hosts[md->controller]) { /* connected, but has not drawn yet */
         snprintf(sub, sizeof(sub), "%s verbunden", controller_label(md->controller));
         status_message(p, controller_icon(md->controller), C_ACTIVE, controller_label(md->controller), sub,
                        "Zeichnet gleich", controller_label(md->controller), "verbunden");
@@ -409,6 +416,37 @@ static void welcome_net(page_t *p)
     }
 }
 
+/* One key per connected host of the picked kind; at most DB_DOCK_HOSTS or DB_MAX_SERVERS, so no paging. */
+static void sources_page(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    int back = at(p, 0, -1);
+    close_key(put(p, back, K_BACK), ICON_CLOSE, "Zurück", fit(p, "ohne Wechsel", ""));
+    int key = 0;
+    for (int i = 0; i < md->source_count; i++) {
+        const ui_source_t *src = &md->sources[i];
+        if (src->kind != p->m->pick_kind) {
+            continue;
+        }
+        key += key == back;
+        ui_tile_t *t = put(p, key++, (key_act_t)(K_SRC0 + i));
+        bool drawing = src->chosen && md->controller == src->kind;
+        /* a card, so an address breaks into lines instead of being cut: two servers may differ only in the
+         * port */
+        card(t, NULL, drawing ? "zeichnet" : (src->kind == UI_CTRL_SERVER ? "Server" : "Rechner"), src->label,
+             "");
+        t->active = drawing;
+        t->color = C_ACTIVE;
+    }
+    if (p->l->strip) {
+        bool server = p->m->pick_kind == UI_CTRL_SERVER;
+        segment(&p->sc->seg[0], 4, controller_icon(p->m->pick_kind), C_EDIT,
+                controller_label(p->m->pick_kind), server ? "Welcher Server?" : "Welcher Rechner?",
+                server ? "Antippen, und dieser Server zeichnet auf dem Deck."
+                       : "Antippen, und dieser Rechner zeichnet auf dem Deck.");
+    }
+}
+
 static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc,
                   uint8_t *acts)
 {
@@ -430,6 +468,9 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
         break;
     case PAGE_WELCOME_NET:
         welcome_net(&p);
+        break;
+    case PAGE_SOURCES:
+        sources_page(&p);
         break;
     default:
         home(&p);
@@ -465,7 +506,7 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
 
 bool ui_menu_open(const ui_menu_t *m)
 {
-    return m->page == PAGE_MAIN || m->page == PAGE_LAN || m->page == PAGE_SETUP_AP;
+    return m->page == PAGE_MAIN || m->page == PAGE_LAN || m->page == PAGE_SETUP_AP || m->page == PAGE_SOURCES;
 }
 
 static void go(ui_menu_t *m, ui_page_t page, int64_t now)
@@ -610,6 +651,12 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     case K_CTRL1:
     case K_CTRL2: {
         int c = what - K_CTRL0;
+        if (md->hosts[c] > 1) { /* which of them: a page of its own */
+            m->pick_kind = (uint8_t)c;
+            m->pick_back = shown.page;
+            go(m, PAGE_SOURCES, md->now_us);
+            return true;
+        }
         if (shown.page == PAGE_HOME) { /* a stray tap while the chosen host is away must not switch */
             if (md->controller != c && confirmed(m, ev->index, md->now_us)) {
                 *act = (ui_action_t){.what = UI_DO_CONTROLLER, .value = c};
@@ -622,6 +669,9 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     }
     case K_MENU:
         go(m, PAGE_MAIN, md->now_us);
+        return true;
+    case K_BACK:
+        go(m, m->pick_back, md->now_us);
         return true;
     case K_CLOSE:
         go(m, PAGE_HOME, md->now_us);
@@ -671,6 +721,11 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         go(m, PAGE_HOME, md->now_us);
         return true;
     default:
+        if (what >= K_SRC0 && (int)what < K_SRC0 + md->source_count) {
+            *act = (ui_action_t){.what = UI_DO_SOURCE, .value = what - K_SRC0};
+            go(m, m->pick_back == PAGE_WELCOME ? PAGE_WELCOME_NET : PAGE_HOME, md->now_us);
+            return true;
+        }
         return false;
     }
 }

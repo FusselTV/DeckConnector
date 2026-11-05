@@ -34,10 +34,9 @@ typedef struct {
 } conn_t;
 
 static struct {
-    void (*clients_changed)(bool app, bool companion);
+    void (*hosts_changed)(void);
     conn_t docks[DB_DOCK_HOSTS];
     conn_t devices[DB_DOCK_HOSTS];
-    volatile db_controller_t controller;
     db_cora_dock_t info;
     db_device_info_t attached;
     SemaphoreHandle_t info_lock;
@@ -66,21 +65,17 @@ static void send_dock_report(conn_t *c, uint8_t cmd, uint32_t id)
     send_frame(c, 0, 0, id, out, sizeof(out));
 }
 
+_Static_assert(DB_DOCK_HOSTS == DB_SOURCE_DOCKS, "one deck source per dock host");
+
 static db_source_t source_of(const conn_t *c)
 {
-    return c->kind == DB_CTRL_APP ? DB_SOURCE_APP : DB_SOURCE_COMPANION;
+    return (db_source_t)(DB_SOURCE_DOCK0 + (c - s.devices));
 }
 
 static void report_clients(void)
 {
-    bool has[DB_CTRL_COUNT] = {false};
-    for (int i = 0; i < DB_DOCK_HOSTS; i++) {
-        if (s.devices[i].sock >= 0) {
-            has[s.devices[i].kind] = true;
-        }
-    }
-    if (s.clients_changed) {
-        s.clients_changed(has[DB_CTRL_APP], has[DB_CTRL_COMPANION]);
+    if (s.hosts_changed) {
+        s.hosts_changed();
     }
 }
 
@@ -190,8 +185,9 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     close(sock);
     ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(c->kind));
     if (c->device_port) {
-        report_clients();
+        db_deck_forget(source_of(c)); /* the next host in this slot must not show this one's picture */
     }
+    report_clients();
 }
 
 static int listen_on(uint16_t port, int backlog)
@@ -374,22 +370,18 @@ static void on_device(const db_device_info_t *info)
     tell_hosts();
 }
 
-void db_dock_set_controller(db_controller_t controller)
-{
-    s.controller = controller;
-}
-
 size_t db_dock_hosts(db_dock_host_t *out, size_t max)
 {
     size_t n = 0;
     for (int i = 0; i < DB_DOCK_HOSTS && n < max; i++) {
         const conn_t *c = &s.docks[i];
         if (c->sock >= 0) {
-            bool device = false;
+            int source = -1;
             for (int k = 0; k < DB_DOCK_HOSTS; k++) {
-                device |= s.devices[k].sock >= 0 && s.devices[k].ip == c->ip;
+                source =
+                    s.devices[k].sock >= 0 && s.devices[k].ip == c->ip ? source_of(&s.devices[k]) : source;
             }
-            out[n] = (db_dock_host_t){.kind = c->kind, .device = device};
+            out[n] = (db_dock_host_t){.kind = c->kind, .source = source};
             struct in_addr a = {.s_addr = c->ip};
             inet_ntoa_r(a, out[n].ip, sizeof(out[n].ip));
             n++;
@@ -423,10 +415,9 @@ static void announce(void)
     }
 }
 
-esp_err_t db_dock_start(db_controller_t controller, void (*clients_changed)(bool app, bool companion))
+esp_err_t db_dock_start(void (*hosts_changed)(void))
 {
-    s.controller = controller;
-    s.clients_changed = clients_changed;
+    s.hosts_changed = hosts_changed;
     s.info_lock = xSemaphoreCreateMutex();
     esp_read_mac(s.info.mac, ESP_MAC_BASE);
     snprintf(s.info.serial, sizeof(s.info.serial), "DB%02X%02X%02X%02X%02X%02X", s.info.mac[0], s.info.mac[1],

@@ -59,7 +59,7 @@ async def test_switching_keeps_servers_connected(bridges):
         await wait_role(active, False)
         assert not standby.active
         assert (await asyncio.to_thread(status))["controller"] == "companion"
-        assert (await screen())["writer"] in ("ui", "companion")
+        assert (await screen())["writer"] == "ui" or (await screen())["writer"].startswith("dock")
         assert (await active.send_image(FULL, jpeg("red"))).result == AckResult.REJECTED_ROLE
     finally:
         await set_controller("server")
@@ -88,3 +88,30 @@ async def test_menu_opens_from_the_web_and_names_its_chord(bridges):
     close = max((r["x"], i) for i, r in enumerate(sc["keys"]) if r["y"] == top)[1]  # top right closes the menu
     assert (await http("POST", "/api/input", json.dumps({"key": close}).encode()))[0] == 200
     await wait_writer("server")
+
+
+async def put_config(body: dict) -> None:
+    assert (await http("PUT", "/api/config", json.dumps(body).encode()))[0] == 200
+
+
+async def test_picking_one_of_two_servers(servers, bridges):
+    first, second = (list(s.bridges.values())[-1] for s in servers)
+    try:
+        await put_config({"controller": "server", "host": servers[1].url})
+        await wait_role(second, True)
+        await wait_role(first, False)
+        await wait_writer("server2")
+        chosen = [x for x in (await asyncio.to_thread(status))["sources"] if x["chosen"]]
+        assert [x["host"] for x in chosen] == [servers[1].url]
+
+        # the same on the deck: menu, the server key opens the list of both, the first one is a tap away
+        assert (await http("POST", "/api/menu"))[0] == 200
+        await wait_writer("ui")
+        for key in (2, 0):  # Companion, Elgato App, Server, Menü in the top row; then the first listed server
+            assert (await http("POST", "/api/input", json.dumps({"key": key}).encode()))[0] == 200
+            await asyncio.sleep(0.3)
+        await wait_role(first, True)
+        assert json.loads((await http("GET", "/api/config"))[1])["host"] == servers[0].url
+    finally:
+        await put_config({"controller": "server", "host": ""})
+    await wait_role(first, True)

@@ -69,27 +69,32 @@ static void write_network(db_json_t *j, bool live)
     db_json_obj_close(j);
 }
 
-static void write_hosts(db_json_t *j)
+static void write_source(db_json_t *j, const char *kind, const char *host, bool connected, int source)
 {
-    db_json_arr_open(j, "servers");
+    db_json_obj_open(j, NULL);
+    db_json_str(j, "kind", kind);
+    db_json_str(j, "host", host);
+    db_json_bool(j, "connected", connected);
+    db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
+    db_json_bool(j, "drawing", source >= 0 && (db_source_t)source == db_deck_writer());
+    db_json_obj_close(j);
+}
+
+/* Every server that is set or was found, and every Network Dock host. */
+static void write_sources(db_json_t *j)
+{
+    db_json_arr_open(j, "sources");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
-        db_json_obj_open(j, NULL);
-        db_json_str(j, "url", db_link_url(i));
-        db_json_bool(j, "connected", db_link_connected(i));
-        db_json_bool(j, "active", db_link_active() == i);
-        db_json_obj_close(j);
+        if (db_link_url(i)[0]) {
+            write_source(j, "server", db_link_url(i), db_link_connected(i),
+                         db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1);
+        }
     }
-    db_json_arr_close(j);
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
-    db_json_arr_open(j, "dock_hosts");
     for (size_t i = 0; i < n; i++) {
-        db_json_obj_open(j, NULL);
-        db_json_str(j, "kind",
-                    hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind));
-        db_json_str(j, "ip", hosts[i].ip);
-        db_json_bool(j, "device", hosts[i].device);
-        db_json_obj_close(j);
+        const char *kind = hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind);
+        write_source(j, kind, hosts[i].ip, hosts[i].source >= 0, hosts[i].source);
     }
     db_json_arr_close(j);
 }
@@ -115,7 +120,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
     write_device(j);
     write_network(j, live);
-    write_hosts(j);
+    write_sources(j);
     if (!live) {
         return;
     }
@@ -213,15 +218,18 @@ static void on_ota_requested(const char *target, const char *url)
 
 static void apply_controller(void)
 {
-    static int applied = -1;
+    db_link_reload();
+    /* also when only the host changed: another server or dock host of the same kind draws now */
+    static char applied[sizeof(db_config()->host) + 4] = "-";
+    char now[sizeof(applied)];
     db_controller_t c = db_config()->controller;
-    if ((int)c == applied) {
+    snprintf(now, sizeof(now), "%d %s", c, db_config()->host);
+    if (strcmp(now, applied) == 0) {
         return;
     }
-    applied = (int)c;
-    ESP_LOGI(TAG, "controller: %s", db_controller_name(c));
+    strcpy(applied, now);
+    ESP_LOGI(TAG, "controller: %s %s", db_controller_name(c), db_config()->host);
     db_link_set_enabled(c == DB_CTRL_SERVER);
-    db_dock_set_controller(c);
     db_ui_refresh();
 }
 
@@ -268,7 +276,7 @@ void app_main(void)
                             .ota_requested = on_ota_requested,
                             .active_changed = db_ui_set_active_link};
     ESP_ERROR_CHECK(db_link_start(&link));
-    ESP_ERROR_CHECK(db_dock_start(db_config()->controller, db_ui_set_dock_clients));
+    ESP_ERROR_CHECK(db_dock_start(db_ui_hosts_changed));
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
     db_config_on_save(apply_controller);
     ESP_ERROR_CHECK(db_web_start(web_status, web_state));

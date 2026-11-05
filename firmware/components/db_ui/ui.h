@@ -57,10 +57,22 @@ typedef struct {
 
 enum { UI_CTRL_SERVER, UI_CTRL_COMPANION, UI_CTRL_APP, UI_CTRL_COUNT }; /* the values of db_controller_t */
 
+#define UI_SOURCES 8
+
+/* One connected host that can draw: a server or a Network Dock host. */
+typedef struct {
+    uint8_t kind; /* UI_CTRL_* */
+    bool chosen;  /* the one of its kind that draws when its kind is picked */
+    char label[24];
+    char id[96]; /* what the config keeps: the dock host's IP or the server's URL */
+} ui_source_t;
+
 typedef struct {
     int64_t now_us;
     int controller;
-    bool host_up[UI_CTRL_COUNT];
+    uint8_t hosts[UI_CTRL_COUNT]; /* connected hosts per kind */
+    ui_source_t sources[UI_SOURCES];
+    uint8_t source_count;
     bool lan_link;
     bool lan_up;
     bool lan_dhcp;
@@ -87,7 +99,8 @@ typedef struct {
 
 typedef enum {
     UI_DO_NOTHING,
-    UI_DO_CONTROLLER, /* value: UI_CTRL_* */
+    UI_DO_CONTROLLER, /* value: UI_CTRL_*, whichever host of it */
+    UI_DO_SOURCE,     /* value: index in ui_model_t.sources */
     UI_DO_BRIGHTNESS, /* value: change in percent */
     UI_DO_AP_START,
     UI_DO_AP_STOP,
@@ -104,7 +117,15 @@ typedef struct {
     uint8_t octets[4][4];
 } ui_action_t;
 
-typedef enum { PAGE_HOME, PAGE_MAIN, PAGE_LAN, PAGE_SETUP_AP, PAGE_WELCOME, PAGE_WELCOME_NET } ui_page_t;
+typedef enum {
+    PAGE_HOME,
+    PAGE_MAIN,
+    PAGE_LAN,
+    PAGE_SETUP_AP,
+    PAGE_WELCOME,
+    PAGE_WELCOME_NET,
+    PAGE_SOURCES, /* the hosts of one kind, when more than one is connected */
+} ui_page_t;
 
 typedef struct {
     ui_page_t page;
@@ -116,7 +137,9 @@ typedef struct {
     bool lan_dhcp;
     int field;
     uint8_t octets[4][4];
-    uint32_t keys_down; /* pressed on this page */
+    uint8_t pick_kind;   /* PAGE_SOURCES shows this kind */
+    ui_page_t pick_back; /* and goes back here */
+    uint32_t keys_down;  /* pressed on this page */
     uint8_t encoders_down;
 } ui_menu_t;
 

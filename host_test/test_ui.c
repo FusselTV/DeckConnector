@@ -56,7 +56,16 @@ static ui_model_t base_model(void)
     ui_model_t md = {
         .now_us = 100000000,
         .controller = 1,
-        .host_up = {false, true, true},
+        .hosts = {2, 2, 1},
+        .sources = {{.kind = 1, .chosen = true, .label = "192.168.1.15", .id = "192.168.1.15"},
+                    {.kind = 1, .label = "192.168.1.16", .id = "192.168.1.16"},
+                    {.kind = 2, .chosen = true, .label = "192.168.1.180", .id = "192.168.1.180"},
+                    {.kind = 0,
+                     .chosen = true,
+                     .label = "192.168.1.128:8765",
+                     .id = "ws://192.168.1.128:8765/x"},
+                    {.kind = 0, .label = "192.168.1.128:8766", .id = "ws://192.168.1.128:8766/x"}},
+        .source_count = 5,
         .lan_link = true,
         .lan_up = true,
         .lan_dhcp = true,
@@ -102,7 +111,8 @@ static ui_model_t variant(int v)
         md.lan_link = md.lan_up = md.wlan_up = false;
         md.wifi_ssid[0] = '\0';
         md.controller = 0;
-        md.host_up[1] = md.host_up[2] = false;
+        md.hosts[1] = md.hosts[2] = 0;
+        md.source_count = 0;
         break;
     case 3: /* server chosen, nothing configured, no WLAN chip */
         md.controller = 0;
@@ -159,8 +169,9 @@ static void check_page(const db_device_info_t *dev, const ui_screen_t *sc, const
 
 static void test_no_page_cuts_a_text(void)
 {
-    static const ui_page_t pages[] = {PAGE_HOME, PAGE_MAIN, PAGE_LAN, PAGE_SETUP_AP, PAGE_WELCOME_NET};
-    static const char *const page_names[] = {"home", "menu", "lan", "setup_ap", "welcome_net"};
+    static const ui_page_t pages[] = {PAGE_HOME,     PAGE_MAIN,        PAGE_LAN,
+                                      PAGE_SETUP_AP, PAGE_WELCOME_NET, PAGE_SOURCES};
+    static const char *const page_names[] = {"home", "menu", "lan", "setup_ap", "welcome_net", "sources"};
     for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
         db_device_info_t dev = open_deck(decks[d].pid);
         ui_layout_t l = ui_layout_of(&dev);
@@ -168,7 +179,8 @@ static void test_no_page_cuts_a_text(void)
             ui_model_t md = variant(v);
             for (size_t p = 0; p < sizeof(pages) / sizeof(pages[0]); p++) {
                 for (int fixed = 0; fixed < (pages[p] == PAGE_LAN ? 2 : 1); fixed++) {
-                    ui_menu_t m = {.page = pages[p], .confirm_key = -1, .lan_dhcp = !fixed};
+                    ui_menu_t m = {
+                        .page = pages[p], .confirm_key = -1, .lan_dhcp = !fixed, .pick_kind = v % 2 ? 0 : 1};
                     memcpy(m.octets, md.lan_cfg, sizeof(m.octets));
                     ui_screen_t sc;
                     ui_menu_screen(&m, &md, &l, &sc);
@@ -211,6 +223,7 @@ static void test_flows_on_the_plus(void)
     TEST_ASSERT_EQUAL_UINT8(2, l.rows);
     TEST_ASSERT_TRUE(l.strip);
     ui_model_t md = base_model();
+    md.hosts[UI_CTRL_SERVER] = 1; /* one server: its key picks it, no list */
     ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
     ui_action_t act;
 
@@ -219,6 +232,14 @@ static void test_flows_on_the_plus(void)
     press(&m, &md, &l, 2, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_CONTROLLER, act.what);
     TEST_ASSERT_EQUAL_INT(UI_CTRL_SERVER, act.value);
+
+    press(&m, &md, &l, 0, &act); /* two Companions: their own page, then one tap picks one */
+    TEST_ASSERT_EQUAL_INT(PAGE_SOURCES, m.page);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
+    TEST_ASSERT_EQUAL_INT(1, act.value);
+    TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
 
     press(&m, &md, &l, 3, &act); /* menu */
     TEST_ASSERT_TRUE(ui_menu_open(&m));

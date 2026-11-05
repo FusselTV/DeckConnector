@@ -6,7 +6,7 @@
 
 #include "esp_err.h"
 
-#define DB_MAX_SERVERS 2
+#define DB_MAX_SERVERS 4
 
 /* Who draws on the deck and gets its input. Switching needs no restart. */
 typedef enum {
@@ -34,11 +34,17 @@ typedef struct {
     db_ip_config_t wlan;
     char wifi_ssid[33];
     char wifi_pass[65];
-    char servers[DB_MAX_SERVERS][96]; /* ws://host:port/deckbridge; empty: find servers with mDNS */
-    char token[48];                   /* sent to servers as Bearer token, optional */
-    char admin_pass[24];              /* web UI password, generated on first start */
-    bool setup_done;                  /* the welcome steps on the deck or in the web UI were finished */
+    char servers_first[2][96]; /* use db_config_server(); the blob layout of older firmware */
+    char token[48];            /* sent to servers as Bearer token, optional */
+    char admin_pass[24];       /* web UI password, generated on first start */
+    bool setup_done;           /* the welcome steps on the deck or in the web UI were finished */
+    char servers_more[DB_MAX_SERVERS - 2][96];
+    char host[96]; /* which one of `controller` draws: a dock host's IP or a server's URL; empty: the first */
 } db_config_t;
+
+/* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
+char *db_config_server(db_config_t *cfg, int i);
+const char *db_config_server_of(const db_config_t *cfg, int i);
 
 esp_err_t db_config_load(void);
 const db_config_t *db_config(void);

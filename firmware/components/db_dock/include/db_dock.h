@@ -11,19 +11,18 @@
  * (_elg._tcp) and drive the attached Stream Deck as if it hung on an Elgato Network Dock. The protocol
  * ("Cora") is the one of @elgato-stream-deck/tcp; see docs/dock.md.
  *
- * Several hosts may stay connected at once. Only the one matching the controller draws on the deck and gets
- * its input; the others draw into their kept picture, which shows as soon as they are picked.
+ * Several hosts may stay connected at once, each with its own deck source. Only the writer draws on the deck
+ * and gets its input; the others draw into their kept picture, which shows as soon as they are picked.
  */
 
-#define DB_DOCK_HOSTS 3
+#define DB_DOCK_HOSTS 4
 
 typedef struct {
     db_controller_t kind; /* DB_CTRL_SERVER while still unknown */
     char ip[16];
-    bool device; /* also holds the device port */
+    int source; /* the deck source of its device port, -1 while it has none */
 } db_dock_host_t;
 
-/* `clients_changed` tells which kinds of host hold the device port, after every change. */
-esp_err_t db_dock_start(db_controller_t controller, void (*clients_changed)(bool app, bool companion));
-void db_dock_set_controller(db_controller_t controller);
+/* `hosts_changed` runs after a host took or left a device port, or told what it is. */
+esp_err_t db_dock_start(void (*hosts_changed)(void));
 size_t db_dock_hosts(db_dock_host_t *out, size_t max);

@@ -6,6 +6,7 @@
 #include "canvas.h"
 #include "db_config.h"
 #include "db_deck.h"
+#include "db_dock.h"
 #include "db_link.h"
 #include "db_net.h"
 #include "esp_app_desc.h"
@@ -32,8 +33,6 @@ static struct {
     TaskHandle_t task;
     SemaphoreHandle_t lock; /* menu, between the deck's event task and the UI task */
     int active_link;
-    bool app_client;
-    bool companion_client;
     int update_pct;
     char update_what[24];
     char c6[16];
@@ -61,6 +60,71 @@ static void octets_of(const char *ip, uint8_t out[4])
     }
 }
 
+/* The dock host of `kind` that draws when `kind` is picked: the configured one if it is there, else the
+ * first. */
+static int dock_choice(db_controller_t kind, const db_dock_host_t *hosts, size_t n)
+{
+    int pick = -1;
+    for (size_t i = 0; i < n; i++) {
+        if (hosts[i].kind != kind || hosts[i].source < 0) {
+            continue;
+        }
+        pick = pick < 0 ? (int)i : pick;
+        if (strcmp(hosts[i].ip, db_config()->host) == 0) {
+            return (int)i;
+        }
+    }
+    return pick;
+}
+
+db_source_t db_ui_chosen_source(void)
+{
+    db_controller_t kind = db_config()->controller;
+    if (kind == DB_CTRL_SERVER) {
+        return s.active_link >= 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link) : DB_SOURCE_UI;
+    }
+    db_dock_host_t hosts[DB_DOCK_HOSTS];
+    size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
+    int i = dock_choice(kind, hosts, n);
+    return i >= 0 ? (db_source_t)hosts[i].source : DB_SOURCE_UI;
+}
+
+/* Strips ws:// and the path: "192.168.1.5:8765". */
+static void url_label(const char *url, char *out, size_t cap)
+{
+    const char *h = strstr(url, "://");
+    h = h ? h + 3 : url;
+    size_t len = strcspn(h, "/");
+    snprintf(out, cap, "%.*s", (int)len, h);
+}
+
+static void model_sources(ui_model_t *md)
+{
+    for (int i = 0; i < DB_MAX_SERVERS && md->source_count < UI_SOURCES; i++) {
+        if (!db_link_connected(i)) {
+            continue;
+        }
+        ui_source_t *src = &md->sources[md->source_count++];
+        *src = (ui_source_t){.kind = UI_CTRL_SERVER, .chosen = db_link_active() == i};
+        snprintf(src->id, sizeof(src->id), "%s", db_link_url(i));
+        url_label(src->id, src->label, sizeof(src->label));
+        md->hosts[UI_CTRL_SERVER]++;
+    }
+    db_dock_host_t hosts[DB_DOCK_HOSTS];
+    size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
+    for (size_t i = 0; i < n && md->source_count < UI_SOURCES; i++) {
+        if (hosts[i].source < 0 || hosts[i].kind == DB_CTRL_SERVER) {
+            continue; /* no device port yet, or not told what it is */
+        }
+        ui_source_t *src = &md->sources[md->source_count++];
+        *src = (ui_source_t){.kind = (uint8_t)hosts[i].kind,
+                             .chosen = dock_choice(hosts[i].kind, hosts, n) == (int)i};
+        snprintf(src->id, sizeof(src->id), "%s", hosts[i].ip);
+        snprintf(src->label, sizeof(src->label), "%s", hosts[i].ip);
+        md->hosts[hosts[i].kind]++;
+    }
+}
+
 static void model(ui_model_t *md)
 {
     const db_config_t *c = db_config();
@@ -69,7 +133,6 @@ static void model(ui_model_t *md)
     *md = (ui_model_t){
         .now_us = esp_timer_get_time(),
         .controller = c->controller,
-        .host_up = {db_link_connected(0) || db_link_connected(1), s.companion_client, s.app_client},
         .lan_link = n.lan_link,
         .lan_up = n.lan_up,
         .lan_dhcp = c->lan.dhcp,
@@ -87,7 +150,8 @@ static void model(ui_model_t *md)
     snprintf(md->ap_ssid, sizeof(md->ap_ssid), "%s", n.ap_ssid);
     snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
     snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
-    snprintf(md->server_url, sizeof(md->server_url), "%s", c->servers[0]);
+    snprintf(md->server_url, sizeof(md->server_url), "%s", db_config_server_of(c, 0));
+    model_sources(md);
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);
     snprintf(md->fw, sizeof(md->fw), "%s", esp_app_get_description()->version);
     snprintf(md->wlan_fw, sizeof(md->wlan_fw), "%s", s.c6);
@@ -111,15 +175,7 @@ static db_source_t wanted_writer(void)
         s.menu.page == PAGE_WELCOME_NET) {
         return DB_SOURCE_UI;
     }
-    switch (db_config()->controller) {
-    case DB_CTRL_APP:
-        return s.app_client ? DB_SOURCE_APP : DB_SOURCE_UI;
-    case DB_CTRL_COMPANION:
-        return s.companion_client ? DB_SOURCE_COMPANION : DB_SOURCE_UI;
-    default:
-        break;
-    }
-    return s.active_link >= 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link) : DB_SOURCE_UI;
+    return db_ui_chosen_source();
 }
 
 static void pick_writer(void)
@@ -186,6 +242,13 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
     case UI_DO_CONTROLLER:
         db_config_copy(&c);
         c.controller = (db_controller_t)act->value;
+        c.host[0] = '\0';
+        db_config_save(&c);
+        break;
+    case UI_DO_SOURCE:
+        db_config_copy(&c);
+        c.controller = (db_controller_t)md->sources[act->value].kind;
+        snprintf(c.host, sizeof(c.host), "%s", md->sources[act->value].id);
         db_config_save(&c);
         break;
     case UI_DO_BRIGHTNESS: {
@@ -452,10 +515,8 @@ void db_ui_set_active_link(int index)
     changed();
 }
 
-void db_ui_set_dock_clients(bool app, bool companion)
+void db_ui_hosts_changed(void)
 {
-    s.app_client = app;
-    s.companion_client = companion;
     changed();
 }
 

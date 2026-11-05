@@ -18,8 +18,8 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
-/* Brightness, controller and setup_done apply at once; everything else needs a restart to take effect
- * cleanly. */
+/* Brightness, controller, host, servers and setup_done apply at once; everything else needs a restart to take
+ * effect cleanly. */
 int api_config(const char *body, char *reply, size_t cap)
 {
     static db_config_t old; /* two of them would crowd the caller's stack */
@@ -37,6 +37,9 @@ int api_config(const char *body, char *reply, size_t cap)
     live.brightness = old.brightness;
     live.controller = old.controller;
     live.setup_done = old.setup_done;
+    memcpy(live.servers_first, old.servers_first, sizeof(old.servers_first));
+    memcpy(live.servers_more, old.servers_more, sizeof(old.servers_more));
+    memcpy(live.host, old.host, sizeof(old.host));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);
