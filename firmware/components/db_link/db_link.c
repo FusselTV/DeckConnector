@@ -357,7 +357,8 @@ static int read_frame(link_t *l)
     }
 }
 
-static void session(link_t *l)
+/* true when the server went silent: the path may be dead, not only the server */
+static bool session(link_t *l)
 {
     l->last_rx_ms = l->last_ping_ms = now_ms();
     for (;;) {
@@ -366,12 +367,12 @@ static void session(link_t *l)
         if (l->reconnect) {
             ESP_LOGI(TAG, "server %d: %s", l->index, (const char *)l->reconnect);
             l->reconnect = NULL;
-            return;
+            return false;
         }
         if (err == -EAGAIN || err == 0) {
             if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
                 ESP_LOGW(TAG, "server %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
-                return;
+                return true;
             }
             if (now - l->last_ping_ms > PING_AFTER_MS) {
                 l->last_ping_ms = now;
@@ -380,7 +381,7 @@ static void session(link_t *l)
             continue;
         }
         ESP_LOGW(TAG, "server %d lost: %s", l->index, strerror(-err));
-        return;
+        return false;
     }
 }
 
@@ -442,7 +443,8 @@ static void link_task(void *arg)
         }
         send_hello(l->index);
         send_device(l->index);
-        session(l);
+        /* silent over LAN: a LAN that keeps its link but drops everything would cost a connect timeout */
+        via_wlan = session(l) && !l->over_wlan;
         l->connected = false;
         ws_close(&l->ws);
         recompute_active();

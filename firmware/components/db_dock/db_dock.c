@@ -170,6 +170,10 @@ static bool read_full(int sock, uint8_t *buf, size_t len)
     return true;
 }
 
+static volatile bool rejoining;
+static uint32_t rejoin_ip, rejoin_local_ip; /* one rejoin at a time, while rejoining */
+static void rejoin_app(void *arg);
+
 static void serve(conn_t *c, int sock, uint8_t *payload)
 {
     struct timeval tv = {.tv_sec = IDLE_TIMEOUT};
@@ -203,6 +207,13 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(c->kind));
     if (c->device_port) {
         db_deck_forget(source_of(c)); /* the next host in this slot must not show this one's picture */
+    } else if (c->kind == DB_CTRL_APP && !rejoining) {
+        rejoining = true;
+        rejoin_ip = c->ip;
+        rejoin_local_ip = c->local_ip;
+        if (xTaskCreate(rejoin_app, "dock_rejoin", 3072, NULL, 3, NULL) != pdPASS) {
+            rejoining = false;
+        }
     }
     report_clients();
 }
@@ -272,6 +283,21 @@ static void save_peers(void) /* from both listen tasks: under info_lock */
     }
 }
 
+static bool answers_arp(uint32_t ip, uint32_t local_ip);
+
+/* the Stream Deck app marks the dock offline and waits for the service to come online again; it misses an
+ * announcement that comes before it has noticed */
+static void announce_anew(void)
+{
+    if (!dock_instance[0]) {
+        return;
+    }
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
+    vTaskDelay(pdMS_TO_TICKS(500));
+    announce();
+}
+
 /*
  * After a power cut a host still holds its old connection, which looks alive to it. Companion notices by
  * itself; the Stream Deck app waits for data that never comes and does not connect again for minutes. A SYN
@@ -307,7 +333,9 @@ static void reset_old_peers(void *arg)
             }
             bool up = (net.lan_up && inet_addr(net.lan_ip) == peers[i].local_ip) ||
                       (net.wlan_up && inet_addr(net.wlan_ip) == peers[i].local_ip);
-            if (!up) {
+            /* an address can be up before the switch port forwards (a fixed or restored one), and a SYN sent
+             * then is lost: the host's ARP answer shows the path works */
+            if (!up || !answers_arp(peers[i].ip, peers[i].local_ip)) {
                 waiting = true;
                 continue;
             }
@@ -342,14 +370,40 @@ static void reset_old_peers(void *arg)
         close(socks[i]);
     }
     ESP_LOGI(TAG, "ended %d connections of the last boot", n);
-    if (n && dock_instance[0]) {
-        /* the Stream Deck app then marks the dock offline and waits for the service to come online again; it
-         * misses an announcement that comes before it has noticed */
-        vTaskDelay(pdMS_TO_TICKS(3000));
-        mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
-        vTaskDelay(pdMS_TO_TICKS(500));
-        announce();
+    if (n) {
+        announce_anew();
     }
+    vTaskDelete(NULL);
+}
+
+/* lwIP cannot drop a single entry; the other hosts are asked again on their next packet */
+static err_t forget_arp(struct tcpip_api_call_data *call)
+{
+    struct netif *n;
+    NETIF_FOREACH(n)
+    {
+        if (n->flags & NETIF_FLAG_ETHARP) {
+            etharp_cleanup_netif(n);
+        }
+    }
+    return ERR_OK;
+}
+
+/* The Stream Deck app marks a dock offline when its connection dies, also when only the path in between was
+ * down and the link stayed up, and comes back only for a new announcement. A fresh ARP answer shows the path
+ * works again. */
+static void rejoin_app(void *arg)
+{
+    struct tcpip_api_call_data call;
+    tcpip_api_call(forget_arp, &call);
+    for (int i = 0; i < 600; i++) {
+        if (answers_arp(rejoin_ip, rejoin_local_ip)) {
+            announce_anew();
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    rejoining = false;
     vTaskDelete(NULL);
 }
 
@@ -378,6 +432,7 @@ static const uint8_t no_mac[6];
 typedef struct {
     struct tcpip_api_call_data call;
     ip4_addr_t ip;
+    uint32_t local_ip;
     uint8_t mac[6];
 } arp_query_t;
 
@@ -404,6 +459,35 @@ static void mac_of(uint32_t ip, uint8_t mac[6])
     arp_query_t q = {.ip.addr = ip};
     tcpip_api_call(arp_lookup, &q.call);
     memcpy(mac, q.mac, 6);
+}
+
+static err_t arp_probe(struct tcpip_api_call_data *call)
+{
+    arp_query_t *q = (arp_query_t *)call;
+    struct netif *n;
+    NETIF_FOREACH(n)
+    {
+        if (!(n->flags & NETIF_FLAG_ETHARP) || !netif_is_up(n) || !netif_is_link_up(n) ||
+            netif_ip4_addr(n)->addr != q->local_ip) {
+            continue;
+        }
+        const ip4_addr_t *hop =
+            ip4_addr_net_eq(&q->ip, netif_ip4_addr(n), netif_ip4_netmask(n)) ? &q->ip : netif_ip4_gw(n);
+        struct eth_addr *eth;
+        const ip4_addr_t *found;
+        if (etharp_find_addr(n, hop, &eth, &found) >= 0) {
+            return ERR_OK;
+        }
+        etharp_request(n, hop);
+    }
+    return ERR_VAL;
+}
+
+/* asked on the interface with our address local_ip: WLAN is in the same subnet and answers when LAN does not */
+static bool answers_arp(uint32_t ip, uint32_t local_ip)
+{
+    arp_query_t q = {.ip.addr = ip, .local_ip = local_ip};
+    return tcpip_api_call(arp_probe, &q.call) == ERR_OK;
 }
 
 static void save_known(void)
