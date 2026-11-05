@@ -57,6 +57,7 @@ def boot_marks(wait_for: set, secs: float = 45) -> dict:
 
 @pytest.mark.parametrize("run", range(3))
 def test_power_cut_to_the_hosts_picture(run):
+    time.sleep(8)  # the hosts of the run before may still be connecting
     status = json.loads(api("GET", "/api/status")[1])
     assert status["controller"] == "companion", "the budgets are for Companion drawing"
     # a host counts when it was there before the cut: it must come back
@@ -65,6 +66,6 @@ def test_power_cut_to_the_hosts_picture(run):
     power_cut()
     time.sleep(3)
     marks = boot_marks(set(wanted))
-    print(f"run {run}: " + ", ".join(f"{k} {marks.get(k, '-')}" for k in BUDGET_MS))
+    print(f"\nrun {run}: " + ", ".join(f"{k} {marks.get(k, '-')}" for k in BUDGET_MS))
     late = {k: marks.get(k) for k, budget in wanted.items() if not marks.get(k) or marks[k] > budget}
     assert not late, f"over budget or missing: {late}"

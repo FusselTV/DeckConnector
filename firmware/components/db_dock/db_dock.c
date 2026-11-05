@@ -229,6 +229,9 @@ static void host_task(void *arg)
     vTaskDelete(NULL);
 }
 
+static char dock_instance[48];
+static void announce(void);
+
 /* The hosts of the last boot, so that after a power cut their old connections can be ended. */
 typedef struct {
     uint32_t ip;
@@ -332,6 +335,14 @@ static void reset_old_peers(void *arg)
         close(socks[i]);
     }
     ESP_LOGI(TAG, "ended %d connections of the last boot", n);
+    if (n && dock_instance[0]) {
+        /* the Stream Deck app then marks the dock offline and waits for the service to come online again; it
+         * misses an announcement that comes before it has noticed */
+        vTaskDelay(pdMS_TO_TICKS(3000));
+        mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        announce();
+    }
     vTaskDelete(NULL);
 }
 
@@ -541,10 +552,7 @@ static void listen_task(void *arg)
     }
 }
 
-static char dock_instance[48];
 static char device_instance[32];
-
-static void announce(void);
 
 static void reannounce(void)
 {
