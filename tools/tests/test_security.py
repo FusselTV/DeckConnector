@@ -1,4 +1,4 @@
-"""Attacks from the LAN without the password, each found in a review, each must fail."""
+"""Attacks from the LAN, each found in a review, each must fail."""
 
 import json
 import subprocess
@@ -6,6 +6,9 @@ import time
 import urllib.request
 
 from conftest import HOST, PASSWORD, api, status
+from cryptography.hazmat.primitives import serialization
+
+from dbtools import dbfw
 
 
 def post_raw(path: str, body: bytes, headers: dict) -> int:
@@ -62,3 +65,10 @@ def test_a_long_origin_is_no_way_around_the_origin_check():
 
 def test_the_password_is_not_in_the_log():
     assert PASSWORD not in api("GET", "/api/log")[1].decode(errors="replace")
+
+
+def test_a_signed_file_below_the_security_level_is_refused():
+    """Refused at the header, before anything is written."""
+    key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
+    code, body = api("POST", "/api/ota", dbfw.build("p4", bytes(4096), "old", key, level=0))
+    assert (code, json.loads(body)["error"]) == (400, "ESP_ERR_INVALID_VERSION")

@@ -153,6 +153,8 @@ async def servers():
     yield first, second
     await first.stop()
     await second.stop()
+    if cfg["controller"] != "server" or cfg.get("host"):
+        api("PUT", "/api/config", json.dumps({"controller": cfg["controller"], "host": cfg.get("host", "")}).encode())
 
 
 async def newest(server):

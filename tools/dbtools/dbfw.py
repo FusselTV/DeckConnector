@@ -7,6 +7,7 @@ dbfw info FILE                    show the header
 
 import argparse
 import hashlib
+import re
 import struct
 import sys
 from pathlib import Path
@@ -22,6 +23,11 @@ HEADER = struct.Struct("<4sBBHI32s32s")  # signed part, 76 bytes
 HEADER_LEN = 144
 KEY = Path.home() / ".config/deckbridge/ota_key.pem"
 PUBKEY_C = Path(__file__).resolve().parents[2] / "firmware/components/db_ota/ota_pubkey.c"
+OTA_C = PUBKEY_C.with_name("db_ota.c")
+
+
+def security_level() -> int:
+    return int(re.search(r"#define SECURITY_LEVEL (\d+)", OTA_C.read_text())[1])
 
 
 def keygen(_args) -> None:
@@ -47,9 +53,15 @@ def write_pubkey(pub) -> None:
     )
 
 
-def build(target: str, payload: bytes, version: str, key) -> bytes:
+def build(target: str, payload: bytes, version: str, key, level: int | None = None) -> bytes:
     head = HEADER.pack(
-        MAGIC, FORMAT, TARGETS[target], 0, len(payload), version.encode()[:31], hashlib.sha256(payload).digest()
+        MAGIC,
+        FORMAT,
+        TARGETS[target],
+        security_level() if level is None else level,
+        len(payload),
+        version.encode()[:31],
+        hashlib.sha256(payload).digest(),
     )
     der = key.sign(head, ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(der)
@@ -65,11 +77,12 @@ def pack(args) -> None:
 
 
 def parse(data: bytes, pub=None) -> dict:
-    magic, fmt, target, _, length, version, digest = HEADER.unpack_from(data)
+    magic, fmt, target, level, length, version, digest = HEADER.unpack_from(data)
     if magic != MAGIC or fmt != FORMAT:
         raise ValueError("not a dbfw image")
     info = {
         "target": {v: k for k, v in TARGETS.items()}[target],
+        "level": level,
         "length": length,
         "version": version.rstrip(b"\0").decode(),
         "hash_ok": hashlib.sha256(data[HEADER_LEN:]).digest() == digest,

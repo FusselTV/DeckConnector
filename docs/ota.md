@@ -12,7 +12,7 @@ A 144 byte header, then the image.
 | 0 | 4 | `DBFW` |
 | 4 | 1 | format, `1` |
 | 5 | 1 | target, `1` P4, `2` C6 |
-| 6 | 2 | reserved |
+| 6 | 2 | security level |
 | 8 | 4 | image length |
 | 12 | 32 | version text |
 | 44 | 32 | SHA-256 of the image |
@@ -22,6 +22,9 @@ A 144 byte header, then the image.
 ## What the bridge checks
 
 1. Header and signature, before it writes anything.
+   A file whose security level is below the bridge's own is refused, so a signed old firmware with a known
+   hole cannot go back on. `SECURITY_LEVEL` in `db_ota.c` sets the level, and `dbfw pack` reads it from there.
+   Raise it with a security fix. USB flashing still works for any version.
 2. The SHA-256 of the whole image, before it switches over.
 3. After the restart, the new P4 firmware has two minutes to reach the network and stay up for 20 seconds.
    Otherwise, or after a crash, the bootloader starts the old firmware again.

@@ -24,6 +24,8 @@
 #define TARGET_C6     2
 #define CONFIRM_WAIT  120
 #define CONFIRM_AFTER 20
+/* Raise it with a security fix: files with a lower level are refused even when signed. dbfw.py reads it. */
+#define SECURITY_LEVEL 1
 
 static const char *TAG = "ota";
 
@@ -129,7 +131,7 @@ static bool signature_ok(void)
 static esp_err_t start_payload(void)
 {
     if (memcmp(s.header, "DBFW", 4) != 0 || s.header[4] != 1) {
-        return ESP_ERR_INVALID_VERSION;
+        return ESP_ERR_INVALID_ARG;
     }
     s.target = s.header[5];
     memcpy(&s.payload_len, s.header + 8, 4);
@@ -138,6 +140,11 @@ static esp_err_t start_payload(void)
     }
     if (!signature_ok()) {
         return ESP_ERR_INVALID_CRC;
+    }
+    uint16_t level;
+    memcpy(&level, s.header + 6, 2);
+    if (level < SECURITY_LEVEL) {
+        return ESP_ERR_INVALID_VERSION;
     }
     s.hash = psa_hash_operation_init();
     psa_hash_setup(&s.hash, PSA_ALG_SHA_256);
@@ -201,7 +208,9 @@ esp_err_t db_ota_write(const uint8_t *data, size_t len)
         if (s.header_got == HEADER_LEN) {
             esp_err_t err = start_payload();
             if (err != ESP_OK) {
-                db_ota_abort(err == ESP_ERR_INVALID_CRC ? "signature" : "header");
+                db_ota_abort(err == ESP_ERR_INVALID_CRC       ? "signature"
+                             : err == ESP_ERR_INVALID_VERSION ? "older than the security level"
+                                                              : "header");
                 return err;
             }
         }
