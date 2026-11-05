@@ -65,31 +65,44 @@ static void *psram_realloc(void *ptr, size_t size)
 
 /* Draw again everything the new writer had on the deck, before anything new it sends. The UI is left out: it
  * draws a fresh screen whenever it takes over. */
+/* Runs in the writer task, so images that arrive meanwhile are drawn after it. Each image is copied out: the
+ * kept picture must not stay locked for USB transfers, a fresh deck can take half a second per report. */
 static void replay(void)
 {
-    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    static db_shot_t shots[DB_SCREEN_MAX];
     xSemaphoreTake(s.lock, portMAX_DELAY);
     db_source_t w = s.writer;
     bool present = s.present;
     s.replay = false;
     xSemaphoreGive(s.lock);
-    if (present && s.feature[w].len) {
-        xSemaphoreTake(s.io_lock, portMAX_DELAY);
-        usb_port_io()->set_feature(s.feature[w].buf, s.feature[w].len);
-        xSemaphoreGive(s.io_lock);
-        s.feature[w].len = 0;
-    }
-    const db_screen_t *sc = &s.screens[w];
-    for (int i = 0; present && w != DB_SOURCE_UI && i < sc->count; i++) {
-        const db_shot_t *shot = &sc->shots[i];
-        const db_target_t *t = db_device_find_target(&s.dev.info, shot->display, shot->rect);
-        if (t) {
-            xSemaphoreTake(s.io_lock, portMAX_DELAY);
-            s.dev.driver->write_image(&s.dev, t, shot->rect, shot->data, shot->len);
-            xSemaphoreGive(s.io_lock);
-        }
-    }
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    uint8_t feature[sizeof(s.feature[0].buf)];
+    size_t feature_len = s.feature[w].len;
+    memcpy(feature, s.feature[w].buf, feature_len);
+    s.feature[w].len = 0;
+    int n = w == DB_SOURCE_UI ? 0 : s.screens[w].count;
+    memcpy(shots, s.screens[w].shots, (size_t)n * sizeof(shots[0]));
     xSemaphoreGive(s.shot_lock);
+    if (!present) {
+        return;
+    }
+    if (feature_len) {
+        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        usb_port_io()->set_feature(feature, feature_len);
+        xSemaphoreGive(s.io_lock);
+    }
+    for (int i = 0; i < n; i++) {
+        uint8_t *data = NULL;
+        size_t len = 0;
+        const db_target_t *t = db_device_find_target(&s.dev.info, shots[i].display, shots[i].rect);
+        if (!t || db_deck_shot_copy(shots[i].id, &data, &len) != ESP_OK) {
+            continue; /* replaced meanwhile: the newer one is queued */
+        }
+        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        s.dev.driver->write_image(&s.dev, t, shots[i].rect, data, len);
+        xSemaphoreGive(s.io_lock);
+        heap_caps_free(data);
+    }
 }
 
 static void ack(const db_region_t *r, db_ack_result_t result, uint64_t t_start, uint64_t t_done)
@@ -480,9 +493,11 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
     }
     db_err_t err = DB_OK;
     if (s.writer == source) {
-        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        xSemaphoreTake(s.io_lock, portMAX_DELAY); /* as in db_deck_raw_set_feature */
+        xSemaphoreGive(s.shot_lock);
         err = io->write(padded, io->out_report_size);
         xSemaphoreGive(s.io_lock);
+        return to_esp(err);
     }
     xSemaphoreGive(s.shot_lock);
     return to_esp(err);
@@ -507,10 +522,15 @@ esp_err_t db_deck_raw_set_feature(db_source_t source, const uint8_t *buf, size_t
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
     db_err_t err = DB_OK;
     if (s.writer == source) {
+        /* the io lock before the shot lock goes: a writer change cannot slip in, and nobody who only reads
+         * the picture waits for the USB transfer */
         xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        xSemaphoreGive(s.shot_lock);
         err = usb_port_io()->set_feature(buf, len);
         xSemaphoreGive(s.io_lock);
-    } else if (len <= sizeof(s.feature[source].buf)) {
+        return to_esp(err);
+    }
+    if (len <= sizeof(s.feature[source].buf)) {
         memcpy(s.feature[source].buf, buf, len);
         s.feature[source].len = len;
     }

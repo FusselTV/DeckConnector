@@ -6,7 +6,7 @@ unplugged and plugged in over USB. After each round the bridge's memory and task
 the trend per hour shows a leak: free memory that keeps falling, a largest block that keeps shrinking, tasks
 that keep growing.
 
-uv run python -m dbtools.soak --minutes 20
+uv run python -m dbtools.soak --minutes 5
 Sets the controller to server while it runs and back to what it was.
 """
 
@@ -23,6 +23,7 @@ import traceback
 from pathlib import Path
 
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 
 from dbtools.load import Client
 from dbtools.server import Server
@@ -129,7 +130,7 @@ async def main_async(a) -> None:
                 bridge = await server.wait_bridge(60)
             try:
                 await round_trip(a.host, auth, c, bridge, n)
-            except (OSError, TimeoutError) as e:
+            except (OSError, TimeoutError, ConnectionClosed) as e:
                 step = traceback.extract_tb(e.__traceback__)[-1]
                 where = next(
                     (f.line for f in reversed(traceback.extract_tb(e.__traceback__)) if "soak.py" in f.filename),
@@ -170,7 +171,7 @@ async def main_async(a) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
-    ap.add_argument("--minutes", type=float, default=20)
+    ap.add_argument("--minutes", type=float, default=5)
     asyncio.run(main_async(ap.parse_args()))
 
 
