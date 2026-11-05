@@ -225,9 +225,11 @@ static void handle_command(link_t *l, const char *text)
     } else if (strcmp(t->valuestring, "ota") == 0) {
         const cJSON *target = cJSON_GetObjectItemCaseSensitive(root, "target");
         const cJSON *url = cJSON_GetObjectItemCaseSensitive(root, "url");
-        if (cJSON_IsString(target) && cJSON_IsString(url)) {
+        if (cJSON_IsString(target) && cJSON_IsString(url) && l->index == s.active) {
             s.hooks.ota_requested(target->valuestring, url->valuestring);
         }
+    } else if (strcmp(t->valuestring, "reboot") == 0 && l->index != s.active) {
+        ESP_LOGW(TAG, "server %d asked for a restart, but only the active server may", l->index);
     } else if (strcmp(t->valuestring, "reboot") == 0) {
         ESP_LOGW(TAG, "server %d asked for a restart", l->index);
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -414,7 +416,9 @@ static void link_task(void *arg)
             bound = db_net_ifname(wlan, ifname);
         }
         const char *over = bound ? (wlan ? "WLAN" : "LAN") : "the default route";
-        int err = ws_connect(&l->ws, url, "deckbridge.v1", s.headers[0] ? s.headers : NULL,
+        /* the token only goes to a server the user set, never to one that announced itself over mDNS */
+        bool set = strcmp(url, db_config_server_of(db_config(), l->index)) == 0;
+        int err = ws_connect(&l->ws, url, "deckbridge.v1", s.headers[0] && set ? s.headers : NULL,
                              bound ? ifname : NULL, CONNECT_TIMEOUT);
         if (err) {
             if (now_ms() >= next_log) {
@@ -522,7 +526,7 @@ static void supervisor_task(void *arg)
     int64_t next_status = 0;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(DISCOVER_EVERY));
-        if (!any_configured() && s.active < 0) {
+        if (!any_configured() && s.active < 0 && s.enabled) { /* only while a server is to draw */
             discover();
         }
         if (now_ms() >= next_status) {

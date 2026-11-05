@@ -208,6 +208,7 @@ static void model(ui_model_t *md)
     snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
     snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
     model_qr(md);
+    db_dock_request(md->request);
     snprintf(md->server_url, sizeof(md->server_url), "%s", db_config_server_of(c, 0));
     model_sources(md);
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);
@@ -229,7 +230,8 @@ static void model(ui_model_t *md)
 
 static db_source_t wanted_writer(void)
 {
-    if (ui_menu_open(&s.menu) || s.update_pct >= 0 || !db_config()->setup_done ||
+    char request[16];
+    if (ui_menu_open(&s.menu) || s.update_pct >= 0 || !db_config()->setup_done || db_dock_request(request) ||
         s.menu.page == PAGE_WELCOME_NET) {
         return DB_SOURCE_UI;
     }
@@ -302,6 +304,9 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         c.controller = (db_controller_t)act->value;
         c.host[0] = '\0';
         db_config_save(&c);
+        break;
+    case UI_DO_ANSWER:
+        db_dock_answer(act->value);
         break;
     case UI_DO_SOURCE:
         db_config_copy(&c);
@@ -533,6 +538,12 @@ static void on_device(const db_device_info_t *info)
 /* The chord must also fire while the encoders are held still, and the menu has its timers. */
 static void tick(void *arg)
 {
+    static bool asking; /* a request runs out after a minute: the deck goes back to who draws */
+    char ip[16];
+    if (db_dock_request(ip) != asking) {
+        asking = !asking;
+        changed();
+    }
     if (s.chord_since) {
         check_menu_chord();
     }

@@ -1,0 +1,64 @@
+"""Attacks from the LAN without the password, each found in a review, each must fail."""
+
+import json
+import subprocess
+import time
+import urllib.request
+
+from conftest import HOST, PASSWORD, api, status
+
+
+def post_raw(path: str, body: bytes, headers: dict) -> int:
+    req = urllib.request.Request(f"http://{HOST}{path}", data=body, method="POST", headers=headers)
+    try:
+        return urllib.request.urlopen(req, timeout=5).status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def test_deep_json_does_not_crash_the_bridge():
+    before = status()["uptime_s"]
+    code = post_raw("/api/login", b"[" * 127, {"X-Deckbridge": "1"})
+    assert code == 403
+    time.sleep(1)
+    assert status()["uptime_s"] >= before, "the bridge restarted"
+
+
+def test_login_needs_the_marker_header():
+    """A page on another site cannot add it, so it cannot guess passwords through a browser on the LAN."""
+    assert post_raw("/api/login", json.dumps({"password": PASSWORD}).encode(), {}) == 403
+
+
+def test_a_long_origin_is_no_way_around_the_origin_check():
+    origin = "http://" + "a" * 100 + ".example"
+    out = subprocess.run(
+        [
+            "curl",
+            "-s",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            "-u",
+            f"admin:{PASSWORD}",
+            "-H",
+            "Connection: Upgrade",
+            "-H",
+            "Upgrade: websocket",
+            "-H",
+            "Sec-WebSocket-Version: 13",
+            "-H",
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            "-H",
+            f"Origin: {origin}",
+            f"http://{HOST}/api/ws",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    ).stdout
+    assert out == "403"
+
+
+def test_the_password_is_not_in_the_log():
+    assert PASSWORD not in api("GET", "/api/log")[1].decode(errors="replace")

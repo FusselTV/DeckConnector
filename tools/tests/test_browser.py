@@ -22,7 +22,9 @@ def page(servers):
         page.click("#login button")
         page.wait_for_selector("#loginmsg:has-text('Falsches Passwort')")
         # through the request context, so a failing step never prints the password
-        context.request.post(f"http://{HOST}/api/login", data=json.dumps({"password": PASSWORD}))
+        context.request.post(
+            f"http://{HOST}/api/login", data=json.dumps({"password": PASSWORD}), headers={"X-Deckbridge": "1"}
+        )
         page.reload()
         page.wait_for_selector("#online.ok")
         yield page

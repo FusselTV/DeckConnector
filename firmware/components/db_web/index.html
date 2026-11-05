@@ -107,7 +107,9 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <section data-panel="home" class="stack">
 <div class="card"><div class="card-h"><h2>Wer steuert das Deck?</h2><p class="muted">Wechselt sofort. Die anderen bleiben verbunden.</p></div>
 <div class="card-b stack"><div class="choice" id="ctrl"></div>
+<div id="request" class="src" hidden style="border-color:var(--warn)"></div>
 <div><p class="section-t" style="margin-top:0">Quellen</p><div id="sources" class="srcs"></div></div>
+<div id="pairing" class="row small muted" style="justify-content:space-between"></div>
 <form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><button class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Server hinzufügen</button></form>
 <p id="howto" class="small muted"></p></div></div>
 <div class="card"><div class="card-h"><h2>Auf dem Deck</h2><p id="writer" class="muted"></p></div>
@@ -221,6 +223,30 @@ function renderSources(s) {
   for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => { const x = rows[+b.dataset.pick]; put({controller: x.kind, host: x.host}, true); };
   for (const b of $('sources').querySelectorAll('[data-del]')) b.onclick = () => setServers(config.servers.filter((u) => u && u !== rows[+b.dataset.del].host));
 }
+async function dock(body) {
+  const r = await api('/api/dock', {method: 'POST', body: JSON.stringify(body)}).catch(() => null);
+  if (!r || !r.ok) toast('Ging nicht.', true);
+  loadStatus();
+}
+function renderPairing(s) {
+  const p = s.pairing;
+  if (!p) return;
+  $('request').hidden = !p.request;
+  if (p.request) {
+    $('request').innerHTML = `<div class="grow"><b>Verbindungsanfrage</b><span class="small muted">${esc(p.request)} will das Deck steuern</span></div>
+      <button type="button" class="btn sm" id="accept">Annehmen</button><button type="button" class="btn outline sm" id="deny">Ablehnen</button>`;
+    $('accept').onclick = () => dock({accept: true});
+    $('deny').onclick = () => dock({accept: false});
+  }
+  const known = p.known.length ? 'Gekoppelt: ' + p.known.map(esc).join(', ') : 'Noch kein Rechner gekoppelt';
+  $('pairing').innerHTML = `<span>${known}${p.open ? ' · <b>Kopplung offen</b>' : ''}</span><span class="row">` +
+    (p.open ? '<button type="button" class="btn ghost sm" id="pairstop">Kopplung beenden</button>'
+            : '<button type="button" class="btn outline sm" id="pairgo">Neuen Rechner koppeln</button>') +
+    (p.known.length ? '<button type="button" class="btn ghost sm" id="forget">Alle vergessen</button>' : '') + '</span>';
+  if ($('pairgo')) $('pairgo').onclick = () => dock({pairing: 300});
+  if ($('pairstop')) $('pairstop').onclick = () => dock({pairing: 0});
+  if ($('forget')) $('forget').onclick = () => { if (confirm('Alle gekoppelten Rechner vergessen? Sie müssen danach neu gekoppelt werden.')) dock({forget: true}); };
+}
 async function setServers(list) {
   if ((await put({servers: list}, true)).ok) await loadConfig();
 }
@@ -254,6 +280,7 @@ function renderStatus() {
       <span class="badge ${n ? 'ok' : chosen ? 'warn' : ''}" style="margin-top:6px"><span class="dot"></span>${text}</span></button>`;
   }).join('');
   renderSources(s);
+  renderPairing(s);
   $('howto').textContent = howto(s);
   if (s.uptime_s !== undefined) renderSystem(s);
   for (const b of $('ctrl').querySelectorAll('button')) b.onclick = () => put({controller: b.dataset.c, host: ''}, true);

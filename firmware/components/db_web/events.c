@@ -159,10 +159,14 @@ static void poll_task(void *arg)
 /* A page on another site may open a socket with the browser's login; only our own page may. */
 static bool same_origin(httpd_req_t *req)
 {
-    char origin[80] = {0};
-    char host[64] = {0};
-    if (httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin)) != ESP_OK) {
+    char origin[128] = {0};
+    char host[128] = {0};
+    esp_err_t got = httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin));
+    if (got == ESP_ERR_NOT_FOUND) {
         return true; /* not a browser: scripts and Home Assistant */
+    }
+    if (got != ESP_OK) {
+        return false; /* too long to compare: not let through as if it were missing */
     }
     httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host));
     const char *o = strstr(origin, "://");

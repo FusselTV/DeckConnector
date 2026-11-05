@@ -9,6 +9,7 @@
 #include "cJSON.h"
 #include "db_config.h"
 #include "db_deck.h"
+#include "db_dock.h"
 #include "db_json.h"
 #include "db_log.h"
 #include "db_net.h"
@@ -56,8 +57,8 @@ typedef struct {
     uint64_t total_us;
 } route_t;
 
-static httpd_uri_t uris[20];
-static route_t routes[20];
+static httpd_uri_t uris[24];
+static route_t routes[24];
 static size_t route_count;
 
 esp_err_t send_json(httpd_req_t *req, const char *json)
@@ -204,6 +205,33 @@ static esp_err_t post_menu(httpd_req_t *req)
         return send_error(req, "409 Conflict", "no deck connected");
     }
     return send_json(req, "{\"ok\":true}");
+}
+
+/* {"accept": true|false} answers a request, {"pairing": seconds} opens pairing (0 closes it), {"forget":
+ * true} drops every paired host, {"forget": "IP"} one. */
+static esp_err_t post_dock(httpd_req_t *req)
+{
+    char body[128];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *accept = cJSON_GetObjectItemCaseSensitive(root, "accept");
+    const cJSON *pairing = cJSON_GetObjectItemCaseSensitive(root, "pairing");
+    const cJSON *forget = cJSON_GetObjectItemCaseSensitive(root, "forget");
+    bool ok = true;
+    if (cJSON_IsBool(accept)) {
+        db_dock_answer(cJSON_IsTrue(accept));
+    } else if (cJSON_IsNumber(pairing) && pairing->valueint >= 0 && pairing->valueint <= 3600) {
+        db_dock_pairing(pairing->valueint);
+    } else if (cJSON_IsTrue(forget) || cJSON_IsString(forget)) {
+        db_dock_forget(cJSON_IsString(forget) ? forget->valuestring : NULL);
+    } else {
+        ok = false;
+    }
+    cJSON_Delete(root);
+    return ok ? send_json(req, "{\"ok\":true}")
+              : send_error(req, "400 Bad Request", "accept, pairing (0 to 3600 s) or forget expected");
 }
 
 static esp_err_t post_deck_reconnect(httpd_req_t *req)
@@ -688,7 +716,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.lru_purge_enable = true;
     cfg.recv_wait_timeout =
-        5; /* a client that stops halfway through its headers blocks the server this long */
+        2; /* a client that stops halfway through its headers blocks the server this long */
     httpd_handle_t server;
     esp_err_t err = httpd_start(&server, &cfg);
     if (err != ESP_OK) {
@@ -707,6 +735,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {.uri = "/api/input", .method = HTTP_POST, .handler = post_input},
         {.uri = "/api/menu", .method = HTTP_POST, .handler = post_menu},
         {.uri = "/api/deck/reconnect", .method = HTTP_POST, .handler = post_deck_reconnect},
+        {.uri = "/api/dock", .method = HTTP_POST, .handler = post_dock},
         {.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg},
         {.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url},
         {.uri = "/api/ws",

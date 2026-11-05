@@ -118,6 +118,13 @@ async def main_async(a) -> None:
     server = Server(8765, "soak", ping=False)
     await server.start()
     put({"controller": "server", "host": server.url, "servers": [server.url]})
+    c.conn.request(
+        "POST",
+        "/api/dock",
+        body=json.dumps({"pairing": int(a.minutes * 60) + 60}),
+        headers={"Authorization": auth, "X-Deckbridge": "1"},
+    )  # its dock churn comes from a new host
+    c.conn.getresponse().read()
     samples = []
     failures: list[str] = []
     try:

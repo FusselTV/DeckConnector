@@ -46,7 +46,9 @@ async def settles(page, secs: float = 20) -> bool:
 
 
 async def login(context):
-    await context.request.post(f"http://{HOST}/api/login", data=json.dumps({"password": PASSWORD}))
+    await context.request.post(
+        f"http://{HOST}/api/login", data=json.dumps({"password": PASSWORD}), headers={"X-Deckbridge": "1"}
+    )
 
 
 async def open_page(p):

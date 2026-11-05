@@ -13,8 +13,9 @@ curl -u admin:PASSWORD http://192.168.1.214/api/status
 curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -X PUT -d '{"controller":"app"}' http://192.168.1.214/api/config
 ```
 
-The web UI logs in with `POST /api/login` and `{"password": "..."}` and gets a session cookie for 12 hours.
-`POST /api/logout` ends it. After five wrong passwords the login locks for a few seconds, up to a minute.
+The web UI logs in with `POST /api/login`, the header `X-Deckbridge: 1` and `{"password": "..."}`, and gets a
+session cookie for 12 hours. `POST /api/logout` ends it. After five wrong passwords from one address, that address
+waits a few seconds, up to a minute, for both kinds of login.
 
 Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login required"}`.
 
@@ -29,6 +30,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/screen/<id>.jpg` | One image of that picture |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
+| `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
@@ -142,6 +144,25 @@ count from 0. Coordinates are those of `/api/screen`.
 `action` is `press` (down and up, the default), `down`, `up`, or `turn` for encoders. Positive ticks turn right.
 The menu opens with `down` on the two controls in `menu_chord` and `up` after 2 s. A press on the real deck in
 between ends the simulated hold, because the deck always reports all keys at once.
+
+## Pairing
+
+Companion and the Stream Deck app connect without a password, so the bridge only lets in hosts it knows. A new
+host gets in and is remembered while none is known yet, in the first 5 minutes after a boot, and while pairing
+is open. Otherwise it is turned away, and the deck and the web UI ask whether to let it in. Up to 8 hosts are
+remembered by their address.
+
+`pairing` in the status has the waiting `request` or `null`, `open` while new hosts get in, `open_s` how long
+still, and the `known` addresses. `POST /api/dock` takes one of these:
+
+```json
+{"accept": true}
+{"accept": false}
+{"pairing": 300}
+{"pairing": 0}
+{"forget": "192.168.1.15"}
+{"forget": true}
+```
 
 ## Live changes
 

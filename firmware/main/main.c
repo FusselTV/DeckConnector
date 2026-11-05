@@ -83,7 +83,7 @@ static void write_source(db_json_t *j, const char *kind, const char *host, bool 
 }
 
 /* Every server that is set or was found, and every Network Dock host. */
-static void write_sources(db_json_t *j)
+static void write_sources(db_json_t *j, bool live)
 {
     db_json_arr_open(j, "sources");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
@@ -99,6 +99,25 @@ static void write_sources(db_json_t *j)
         write_source(j, kind, hosts[i].ip, hosts[i].source >= 0, hosts[i].source);
     }
     db_json_arr_close(j);
+    char ip[16];
+    char known[8][16];
+    size_t n_known = db_dock_known(known, 8);
+    db_json_obj_open(j, "pairing");
+    if (db_dock_request(ip)) {
+        db_json_str(j, "request", ip);
+    } else {
+        db_json_null(j, "request");
+    }
+    db_json_bool(j, "open", db_dock_pairing_left() > 0);
+    if (live) { /* counts down every second: not in the web socket's state, which goes out on changes */
+        db_json_int(j, "open_s", db_dock_pairing_left());
+    }
+    db_json_arr_open(j, "known");
+    for (size_t i = 0; i < n_known; i++) {
+        db_json_str(j, NULL, known[i]);
+    }
+    db_json_arr_close(j);
+    db_json_obj_close(j);
 }
 
 /* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
@@ -127,7 +146,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
     write_device(j);
     write_network(j, live);
-    write_sources(j);
+    write_sources(j, live);
     if (!live) {
         return;
     }

@@ -61,6 +61,19 @@ static void test_drops_an_image_with_missing_pieces(void)
     TEST_ASSERT_EQUAL_size_t(10, sc.shots[0].len);
 }
 
+static void test_an_image_that_never_ends_is_bounded(void)
+{
+    static uint8_t piece[64 * 1024];
+    db_chunk_t c = {.rect = {0, 0, 10, 10}, .data = piece, .len = sizeof(piece)};
+    db_err_t err = DB_OK;
+    for (uint16_t part = 0; part < 100 && err == DB_OK; part++) { /* a host that never sends the last piece */
+        c.part = part;
+        err = db_screen_feed(&sc, &c);
+    }
+    TEST_ASSERT_EQUAL_INT(DB_ERR_NOMEM, err);
+    TEST_ASSERT_NULL(sc.pending.data); /* and its memory is given back */
+}
+
 static void test_empty_image_is_dropped(void)
 {
     uint8_t piece[10] = {0};
@@ -79,5 +92,6 @@ int main(void)
     RUN_TEST(test_keeps_a_bounded_list);
     RUN_TEST(test_drops_an_image_with_missing_pieces);
     RUN_TEST(test_empty_image_is_dropped);
+    RUN_TEST(test_an_image_that_never_ends_is_bounded);
     return UNITY_END();
 }

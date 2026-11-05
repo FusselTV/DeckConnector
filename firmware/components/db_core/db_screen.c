@@ -50,6 +50,13 @@ db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c)
         s->pending.next_part = 0xffff; /* wait for the next first piece */
         return DB_ERR_PROTO;
     }
+    if (s->pending.len + c->len > DB_SCREEN_IMAGE_MAX) { /* a host that never sends the last piece */
+        s->free_fn(s->pending.data);
+        s->pending.data = NULL;
+        s->pending.cap = 0;
+        s->pending.next_part = 0xffff;
+        return DB_ERR_NOMEM;
+    }
     if (s->pending.len + c->len > s->pending.cap) {
         size_t cap = s->pending.cap ? s->pending.cap * 2 : 16384;
         while (cap < s->pending.len + c->len) {
@@ -87,5 +94,8 @@ void db_screen_clear(db_screen_t *s)
     while (s->count) {
         drop(s, s->count - 1);
     }
+    s->free_fn(s->pending.data);
+    s->pending.data = NULL;
+    s->pending.cap = 0;
     s->pending.next_part = 0xffff;
 }

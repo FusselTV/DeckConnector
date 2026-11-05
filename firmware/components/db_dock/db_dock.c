@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -334,6 +335,156 @@ static void reset_old_peers(void *arg)
     vTaskDelete(NULL);
 }
 
+/*
+ * Which hosts may connect. A known host always may. A new one is let in and remembered while the bridge has
+ * no known host yet, during the first minutes after a boot, or while pairing is open; otherwise it is turned
+ * away and its address waits as a request, which the deck or the web UI accepts.
+ */
+#define KNOWN_MAX  8
+#define OPEN_US    (5 * 60 * 1000000LL)
+#define REQUEST_US (60 * 1000000LL)
+
+static struct {
+    portMUX_TYPE mux;
+    uint32_t known[KNOWN_MAX];
+    int count;
+    int64_t open_until;
+    uint32_t request;
+    int64_t request_at;
+} pair = {.mux = portMUX_INITIALIZER_UNLOCKED, .open_until = OPEN_US};
+
+static void save_known(void)
+{
+    uint32_t copy[KNOWN_MAX];
+    taskENTER_CRITICAL(&pair.mux);
+    memcpy(copy, pair.known, sizeof(copy));
+    int n = pair.count;
+    taskEXIT_CRITICAL(&pair.mux);
+    nvs_handle_t h;
+    if (nvs_open("dock", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "known", copy, (size_t)n * sizeof(copy[0]));
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static void load_known(void)
+{
+    size_t len = sizeof(pair.known);
+    nvs_handle_t h;
+    if (nvs_open("dock", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_blob(h, "known", pair.known, &len) == ESP_OK) {
+            pair.count = (int)(len / sizeof(pair.known[0]));
+        }
+        nvs_close(h);
+    }
+}
+
+/* Under the mux. A full list takes nobody new: an address must not push out a paired host. */
+static void remember(uint32_t ip)
+{
+    if (pair.count < KNOWN_MAX) {
+        pair.known[pair.count++] = ip;
+    }
+}
+
+static bool admit(uint32_t ip)
+{
+    int64_t now = esp_timer_get_time();
+    bool known = false;
+    bool added = false;
+    taskENTER_CRITICAL(&pair.mux);
+    for (int i = 0; i < pair.count; i++) {
+        known |= pair.known[i] == ip;
+    }
+    bool asking = pair.request && now - pair.request_at < REQUEST_US;
+    if (!known && pair.count < KNOWN_MAX && (pair.count == 0 || now < pair.open_until)) {
+        remember(ip);
+        added = known = true;
+    } else if (!known && (!asking || pair.request == ip)) {
+        /* one request at a time: another address must not take the place of the one on the deck */
+        pair.request = ip;
+        pair.request_at = now;
+    }
+    taskEXIT_CRITICAL(&pair.mux);
+    if (added) {
+        save_known();
+    }
+    if (!known && s.hosts_changed) {
+        s.hosts_changed(); /* the deck shows the request */
+    }
+    return known;
+}
+
+bool db_dock_request(char ip[16])
+{
+    taskENTER_CRITICAL(&pair.mux);
+    uint32_t r = esp_timer_get_time() - pair.request_at < REQUEST_US ? pair.request : 0;
+    taskEXIT_CRITICAL(&pair.mux);
+    if (r) {
+        inet_ntoa_r(*(struct in_addr *)&r, ip, 16);
+    }
+    return r != 0;
+}
+
+void db_dock_answer(bool accept)
+{
+    taskENTER_CRITICAL(&pair.mux);
+    uint32_t r = pair.request;
+    pair.request = 0;
+    if (accept && r) {
+        remember(r);
+    }
+    taskEXIT_CRITICAL(&pair.mux);
+    if (accept && r) {
+        save_known();
+    }
+    if (s.hosts_changed) {
+        s.hosts_changed();
+    }
+}
+
+void db_dock_pairing(int seconds)
+{
+    taskENTER_CRITICAL(&pair.mux);
+    pair.open_until = esp_timer_get_time() + (int64_t)seconds * 1000000;
+    taskEXIT_CRITICAL(&pair.mux);
+}
+
+int db_dock_pairing_left(void)
+{
+    int64_t left = pair.open_until - esp_timer_get_time();
+    return left > 0 ? (int)(left / 1000000) : 0;
+}
+
+size_t db_dock_known(char out[][16], size_t max)
+{
+    uint32_t copy[KNOWN_MAX];
+    taskENTER_CRITICAL(&pair.mux);
+    size_t n = (size_t)pair.count < max ? (size_t)pair.count : max;
+    memcpy(copy, pair.known, sizeof(copy));
+    taskEXIT_CRITICAL(&pair.mux);
+    for (size_t i = 0; i < n; i++) {
+        inet_ntoa_r(*(struct in_addr *)&copy[i], out[i], 16);
+    }
+    return n;
+}
+
+void db_dock_forget(const char *ip)
+{
+    uint32_t addr = ip ? inet_addr(ip) : 0;
+    taskENTER_CRITICAL(&pair.mux);
+    int kept = 0;
+    for (int i = 0; i < pair.count; i++) {
+        if (ip && pair.known[i] != addr) {
+            pair.known[kept++] = pair.known[i];
+        }
+    }
+    pair.count = kept;
+    taskEXIT_CRITICAL(&pair.mux);
+    save_known();
+}
+
 static void listen_task(void *arg)
 {
     bool device_port = arg != NULL;
@@ -360,6 +511,11 @@ static void listen_task(void *arg)
         }
         char ip[16];
         inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
+        if (!admit(from.sin_addr.s_addr)) {
+            ESP_LOGW(TAG, "port %u: %s is not paired, asking on the deck", port, ip);
+            close(sock);
+            continue;
+        }
         if (!c) {
             ESP_LOGW(TAG, "port %u: %s refused, %d hosts connected", port, ip, DB_DOCK_HOSTS);
             close(sock);
@@ -557,6 +713,7 @@ static void close_hosts(void)
 esp_err_t db_dock_start(void (*hosts_changed)(void))
 {
     s.hosts_changed = hosts_changed;
+    load_known();
     xTaskCreate(reset_old_peers, "dock_reset", 3072, NULL, 3, NULL);
     esp_register_shutdown_handler(close_hosts);
     s.info_lock = xSemaphoreCreateMutex();

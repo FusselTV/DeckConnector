@@ -42,6 +42,8 @@ typedef enum {
     K_DONE,
     K_BACK,
     K_BRIGHT_STEP,
+    K_ACCEPT,
+    K_DENY,
     K_SRC0, /* K_SRC0 + index in ui_model_t.sources; keep it last */
 } key_act_t;
 
@@ -446,6 +448,25 @@ static void welcome_net(page_t *p)
     }
 }
 
+/* A program that is not paired wants the deck. */
+static void request_page(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, fit(p, "Verbindung", "Anfrage"), md->request,
+         fit(p, "neues Programm", "neu"));
+    ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
+    button(yes, ICON_SAVE, "Annehmen", fit(p, "darf verbinden", ""));
+    yes->active = true;
+    yes->color = C_ACTIVE;
+    ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
+    button(no, ICON_CLOSE, "Ablehnen", fit(p, "bleibt draußen", ""));
+    no->color = C_DANGER;
+    if (p->l->strip) {
+        segment(&p->sc->seg[0], 4, ICON_ALERT, C_WARN, "Verbindungsanfrage", md->request,
+                "Ein Programm, das noch nie verbunden war, will das Deck steuern");
+    }
+}
+
 /* One key per connected host of the picked kind; at most DB_DOCK_HOSTS or DB_MAX_SERVERS, so no paging. */
 static void sources_page(page_t *p)
 {
@@ -502,22 +523,32 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_SOURCES:
         sources_page(&p);
         break;
+    case PAGE_REQUEST:
+        request_page(&p);
+        break;
     default:
         home(&p);
         break;
     }
 }
 
+/* The page that shows: a connection request comes first, then the welcome steps until setup is done. */
+static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
+{
+    ui_menu_t shown = *m;
+    if (md->request[0]) {
+        shown.page = PAGE_REQUEST;
+    } else if (m->page == PAGE_HOME && !md->setup_done) {
+        shown.page = PAGE_WELCOME;
+    }
+    return shown;
+}
+
 void ui_menu_screen(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc)
 {
     uint8_t acts[UI_MAX_KEYS];
-    if (m->page == PAGE_HOME && !md->setup_done) {
-        ui_menu_t welcome_page = *m;
-        welcome_page.page = PAGE_WELCOME;
-        build(&welcome_page, md, l, sc, acts);
-        return;
-    }
-    build(m, md, l, sc, acts);
+    ui_menu_t shown = shown_menu(m, md);
+    build(&shown, md, l, sc, acts);
 }
 
 void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc)
@@ -663,10 +694,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     static ui_screen_t sc_buf; /* 5 KB: too big for the deck's event task stack; one caller at a time */
     ui_screen_t *sc = &sc_buf;
     uint8_t acts[UI_MAX_KEYS];
-    ui_menu_t shown = *m;
-    if (m->page == PAGE_HOME && !md->setup_done) {
-        shown.page = PAGE_WELCOME;
-    }
+    ui_menu_t shown = shown_menu(m, md);
     build(&shown, md, l, sc, acts);
     key_act_t what = ev->index < UI_MAX_KEYS ? (key_act_t)acts[ev->index] : K_NONE;
     if (what == K_RESTART) {
@@ -702,6 +730,10 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     case K_BACK:
         go(m, m->pick_back, md->now_us);
+        return true;
+    case K_ACCEPT:
+    case K_DENY:
+        *act = (ui_action_t){.what = UI_DO_ANSWER, .value = what == K_ACCEPT};
         return true;
     case K_CLOSE:
         go(m, PAGE_HOME, md->now_us);

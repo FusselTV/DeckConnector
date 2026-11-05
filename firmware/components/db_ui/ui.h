@@ -96,7 +96,8 @@ typedef struct {
     char ap_ssid[33];
     char ap_pass[16];
     char ap_ip[16];
-    ui_qr_t ap_qr; /* joins the setup WLAN when a phone scans it */
+    ui_qr_t ap_qr;    /* joins the setup WLAN when a phone scans it */
+    char request[16]; /* a host that is not paired asks to connect */
     char server_url[96];
     char web_pass[24];
     char fw[32];
@@ -111,6 +112,7 @@ typedef enum {
     UI_DO_NOTHING,
     UI_DO_CONTROLLER, /* value: UI_CTRL_*, whichever host of it */
     UI_DO_SOURCE,     /* value: index in ui_model_t.sources */
+    UI_DO_ANSWER,     /* value: 1 lets the requesting host in */
     UI_DO_BRIGHTNESS, /* value: change in percent */
     UI_DO_AP_START,
     UI_DO_AP_STOP,
@@ -135,6 +137,7 @@ typedef enum {
     PAGE_WELCOME,
     PAGE_WELCOME_NET,
     PAGE_SOURCES, /* the hosts of one kind, when more than one is connected */
+    PAGE_REQUEST, /* shown over every page while a host that is not paired asks */
 } ui_page_t;
 
 typedef struct {
