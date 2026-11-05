@@ -29,6 +29,7 @@
 #define TEXT_MAX        2048
 #define IMAGE_MAX       (1024 * 1024)
 #define STATUS_PERIOD   10000
+#define PROBE_TIMEOUT   1000
 #define DISCOVER_EVERY  5000
 #define RETRY_MS        2000
 #define CONNECT_TIMEOUT 3000
@@ -51,6 +52,8 @@ typedef struct {
     ws_t ws;
     char url[96];
     volatile bool connected;
+    volatile bool over_wlan;
+    volatile bool move_to_lan; /* set by the supervisor, acted on by the link's own task */
     int64_t last_rx_ms;
     int64_t last_ping_ms;
     char text[TEXT_MAX];
@@ -348,6 +351,11 @@ static void session(link_t *l)
     for (;;) {
         int err = read_frame(l);
         int64_t now = now_ms();
+        if (l->move_to_lan) {
+            l->move_to_lan = false;
+            ESP_LOGI(TAG, "server %d: LAN is up, moving from WLAN", l->index);
+            return;
+        }
         if (err == -EAGAIN || err == 0) {
             if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
                 ESP_LOGW(TAG, "server %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
@@ -406,6 +414,7 @@ static void link_task(void *arg)
         }
         via_wlan = false; /* next time start with LAN again */
         ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, over, l->url);
+        l->over_wlan = bound && wlan;
         l->connected = true;
         if (!recompute_active()) {
             send_role(l->index);
@@ -472,6 +481,25 @@ static void discover(void)
     mdns_query_results_free(results);
 }
 
+/* A link on WLAN goes back to LAN as soon as the server answers there again: after a start, when WLAN was up
+ * first, or when a dead switch port works again. The probe is one TCP connect, so a dead LAN never wins. */
+static void back_to_lan(void)
+{
+    char lan[6];
+    if (!db_net_ifname(false, lan)) {
+        return;
+    }
+    for (int i = 0; i < DB_MAX_SERVERS; i++) {
+        link_t *l = &s.links[i];
+        char url[sizeof(l->url)];
+        strlcpy(url, l->url, sizeof(url));
+        if (l->connected && l->over_wlan && ws_probe(url, lan, PROBE_TIMEOUT) == 0) {
+            l->over_wlan = false;
+            l->move_to_lan = true;
+        }
+    }
+}
+
 static void supervisor_task(void *arg)
 {
     int64_t next_status = 0;
@@ -484,6 +512,7 @@ static void supervisor_task(void *arg)
             next_status = now_ms() + STATUS_PERIOD;
             send_status();
         }
+        back_to_lan();
     }
 }
 

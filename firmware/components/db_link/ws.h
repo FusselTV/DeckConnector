@@ -36,6 +36,8 @@ void ws_init(ws_t *ws);
 int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers,
                const char *ifname, int timeout_ms);
 void ws_close(ws_t *ws);
+/* 0 when a TCP connection to the server in `url` opens over `ifname`; it is closed again at once. */
+int ws_probe(const char *url, const char *ifname, int timeout_ms);
 
 /* Next frame header. Returns 0, -EAGAIN when nothing arrived within the socket timeout, or a negative errno.
  */

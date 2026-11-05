@@ -67,4 +67,7 @@ async def test_dead_lan_falls_back_to_wlan(servers):
     print(f"back over WLAN {took:.1f} s after the LAN went dead")
     assert back.ws.remote_address[0] != LAN_IP
     assert took < 12
-    await asyncio.sleep(1)
+    t1 = time.monotonic()
+    home = await first.wait_bridge(60)
+    print(f"back on LAN {time.monotonic() - t1:.1f} s after the port was opened again")
+    assert home.ws.remote_address[0] == LAN_IP

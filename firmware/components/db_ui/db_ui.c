@@ -8,25 +8,28 @@
 #include "db_deck.h"
 #include "db_link.h"
 #include "db_net.h"
-#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "icons.h"
 #include "jpeg_port.h"
 #include "menu.h"
 
-#define QUALITY      80
-#define REDRAW_DELAY 80 /* ms: collect bursts of changes into one image */
+#define QUALITY      85
+#define REDRAW_DELAY 10 /* ms: the events of one turn or press come in a burst */
 #define MENU_HOLD_US 2000000
-#define C_BG         0x101418
-#define C_TILE       0x232a31
-#define C_OK         0x1f7a45
-#define C_BAD        0x8c2a2a
-#define C_WAIT       0x7a5a12
+#define FULL_ABOVE   5 /* more changed areas than this go out as one full image, measured faster */
+#define RADIUS       16
+#define C_SCREEN     0x000000
+#define C_BUTTON     0x1c1c1e
+#define C_CARD       0x26262a
+#define C_LCD        0x101012
+#define C_TRACK      0x3a3a40
 #define C_TEXT       0xffffff
-#define C_DIM        0xb8c0c8
+#define C_DIM        0x9a9aa0
+#define C_UPDATE     0x2f7cf6
 
 static const char *TAG = "ui";
 
@@ -46,7 +49,14 @@ static struct {
     bool key_down[32];
     int64_t chord_since;
     bool covered;
-} s = {.active_link = -1, .update_pct = -1};
+    bool full;         /* the next picture goes out whole: someone else drew meanwhile */
+    ui_screen_t shown; /* what is on the deck, to send only what changed */
+} s = {.active_link = -1, .update_pct = -1, .full = true};
+
+static ui_state_t state(void)
+{
+    return (ui_state_t){.app_client = s.app_client, .companion_client = s.companion_client, .c6 = s.c6};
+}
 
 static db_source_t wanted_writer(void)
 {
@@ -64,85 +74,144 @@ static db_source_t wanted_writer(void)
     return s.active_link >= 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link) : DB_SOURCE_UI;
 }
 
-static void changed(void)
+static void pick_writer(void)
 {
     /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
     bool covering = (ui_menu_open() || s.update_pct >= 0) && s.active_link >= 0;
-    db_deck_set_writer(wanted_writer());
+    db_source_t wanted = wanted_writer();
+    if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
+        s.full = true;
+    }
+    db_deck_set_writer(wanted);
     if (s.covered && !covering && s.active_link >= 0) {
         db_link_resend_role();
     }
     s.covered = covering;
+}
+
+static void changed(void)
+{
+    pick_writer();
     xTaskNotifyGive(s.task);
 }
 
-static void status_screen(ui_screen_t *sc)
+static uint32_t mix(uint32_t a, uint32_t b, float t)
 {
-    db_net_status_t n;
-    db_net_status(&n);
-    const db_config_t *c = db_config();
-    bool dock = c->controller != DB_CTRL_SERVER;
-    if (!n.lan_up && !n.wlan_up) {
-        snprintf(sc->title, sizeof(sc->title), "Kein Netz");
-        sc->color = C_BAD;
-    } else if (dock) {
-        snprintf(sc->title, sizeof(sc->title), "Warte auf %s", ui_controller_label(c->controller));
-        sc->color = C_WAIT;
-    } else if (db_link_connected(0) || db_link_connected(1)) {
-        snprintf(sc->title, sizeof(sc->title), "Verbunden");
-        sc->color = C_OK;
-    } else {
-        snprintf(sc->title, sizeof(sc->title), c->servers[0][0] ? "Server nicht erreichbar" : "Suche Server");
-        sc->color = C_WAIT;
+    uint32_t out = 0;
+    for (int sh = 0; sh <= 16; sh += 8) {
+        float va = (float)((a >> sh) & 0xff);
+        float vb = (float)((b >> sh) & 0xff);
+        out |= (uint32_t)(vb + (va - vb) * t + 0.5f) << sh;
     }
-    snprintf(sc->line, sizeof(sc->line), "Web: http://%s", n.lan_up ? n.lan_ip : n.wlan_ip);
-    char rssi[16];
-    snprintf(rssi, sizeof(rssi), "✓ %d dBm", n.rssi);
-    ui_set_tile(sc, 0, "LAN", n.lan_up ? "✓ verbunden" : (n.lan_link ? "✗ kein DHCP" : "✗ kein Kabel"),
-                n.lan_up ? C_OK : C_BAD);
-    ui_set_tile(sc, 1, "WLAN", n.wlan_up ? rssi : (c->wifi_ssid[0] ? "✗ getrennt" : "aus"),
-                n.wlan_up ? C_OK : C_TILE);
-    for (int i = 0; i < 2; i++) {
-        char label[12];
-        bool up = db_link_connected(i);
-        snprintf(label, sizeof(label), "Server %d", i + 1);
-        ui_set_tile(sc, 2 + i, label, up ? (s.active_link == i ? "✓ aktiv" : "✓ bereit") : "✗",
-                    up ? C_OK : C_TILE);
-    }
-    ui_set_tile(sc, 4, "Steuerung", ui_controller_label(c->controller), C_TILE);
-    ui_set_tile(sc, 5, "Firmware", esp_app_get_description()->version, C_TILE);
-    ui_set_tile(sc, 6, "WLAN-Chip", s.c6[0] ? s.c6 : "-", C_TILE);
-    ui_set_tile(sc, 7, "Menü", "Regler 1 + 4 halten", C_TILE);
+    return out;
 }
 
-static void update_screen(ui_screen_t *sc)
+static const ui_font_t *const value_fonts[] = {&ui_font_medium, &ui_font_label, &ui_font_narrow};
+static const ui_font_t *const label_fonts[] = {&ui_font_label, &ui_font_small, &ui_font_narrow_small};
+static const ui_font_t *const small_fonts[] = {&ui_font_small, &ui_font_narrow_small};
+static const ui_font_t *const title_fonts[] = {&ui_font_large, &ui_font_title, &ui_font_medium,
+                                               &ui_font_label};
+
+static db_rect_t inset(db_rect_t r, int dx, int dy)
 {
-    snprintf(sc->title, sizeof(sc->title), "Update %s: %d %%", s.update_what, s.update_pct);
-    snprintf(sc->line, sizeof(sc->line), "Nicht vom Strom trennen");
-    sc->color = C_WAIT;
-    sc->progress = s.update_pct;
+    return (db_rect_t){(uint16_t)(r.x + dx), (uint16_t)(r.y + dy), (uint16_t)(r.w - 2 * dx),
+                       (uint16_t)(r.h - 2 * dy)};
+}
+
+static void badge(db_rect_t r, ui_badge_t b, uint32_t color)
+{
+    db_rect_t dot = {(uint16_t)(r.x + r.w - 30), (uint16_t)(r.y + 6), 24, 24};
+    ui_round(&s.canvas, dot, 12, b == BADGE_CLOSE ? color : C_TRACK);
+    ui_text(&s.canvas, &ui_font_icon_small, dot, dot.y + 21, C_TEXT,
+            b == BADGE_CLOSE ? ICON_CLOSE : ICON_OPEN);
 }
 
 static void draw_tile(const ui_tile_t *t, db_rect_t r)
 {
-    ui_fill(&s.canvas, r, t->color ? t->color : C_TILE);
-    r = (db_rect_t){(uint16_t)(r.x + 8), r.y, (uint16_t)(r.w - 16), r.h}; /* the key frame hides the edges */
-    ui_text(&s.canvas, &ui_font_medium, r, r.y + r.h / 2 - 4, C_TEXT, t->label);
-    ui_text(&s.canvas, &ui_font_small, r, r.y + r.h / 2 + 24, C_DIM, t->sub);
+    ui_fill(&s.canvas, r, C_SCREEN);
+    if (t->kind == TILE_NONE) {
+        return;
+    }
+    db_rect_t text = inset(r, 6, 0);
+    if (t->kind == TILE_CARD) {
+        ui_round(&s.canvas, r, RADIUS, C_CARD);
+        int label_x = 8;
+        if (t->icon) {
+            ui_text_at(&s.canvas, &ui_font_icon_small, (db_rect_t){(uint16_t)(r.x + 7), r.y, 26, r.h},
+                       r.y + 29, C_DIM, t->icon, UI_LEFT);
+            label_x = 34;
+        }
+        db_rect_t lab = {(uint16_t)(r.x + label_x), r.y, (uint16_t)(r.w - label_x - 6), r.h};
+        ui_text_fit(&s.canvas, small_fonts, 2, lab, r.y + 25, C_DIM, t->label, UI_LEFT);
+        ui_text_fit(&s.canvas, value_fonts, 3, text, r.y + 72, C_TEXT, t->value, UI_CENTER);
+        ui_text_fit(&s.canvas, small_fonts, 2, text, r.y + 100, C_DIM, t->sub, UI_CENTER);
+    } else {
+        if (t->active) {
+            ui_round(&s.canvas, r, RADIUS, t->color);
+            ui_round(&s.canvas, inset(r, 5, 5), RADIUS - 5, mix(t->color, C_BUTTON, 0.22f));
+        } else {
+            ui_round(&s.canvas, r, RADIUS, C_BUTTON);
+        }
+        uint32_t icon = t->dim ? C_TRACK : (t->active ? t->color : C_TEXT);
+        uint32_t sub = t->active ? mix(t->color, C_TEXT, 0.75f) : C_DIM;
+        if (t->icon) {
+            ui_text(&s.canvas, &ui_font_icon, r, r.y + 58, icon, t->icon);
+        }
+        ui_text_fit(&s.canvas, label_fonts, 3, text, r.y + 84, t->dim ? C_DIM : C_TEXT, t->label, UI_CENTER);
+        ui_text_fit(&s.canvas, small_fonts, 2, text, r.y + 104, sub, t->sub, UI_CENTER);
+    }
+    if (t->badge != BADGE_NONE) {
+        badge(r, t->badge, t->color);
+    }
 }
 
-static void draw_banner(const ui_screen_t *sc, db_rect_t r)
+static void draw_segment(const ui_segment_t *g, db_rect_t r)
 {
-    ui_fill(&s.canvas, r, sc->color);
-    const ui_font_t *big =
-        ui_text_width(&ui_font_large, sc->title) < r.w - 20 ? &ui_font_large : &ui_font_medium;
-    ui_text(&s.canvas, big, r, r.y + r.h / 2 + 4, C_TEXT, sc->title);
-    ui_text(&s.canvas, &ui_font_small, r, r.y + r.h - 12, C_TEXT, sc->line);
-    if (sc->progress >= 0) {
-        db_rect_t bar = {(uint16_t)(r.x + 20), (uint16_t)(r.y + 6),
-                         (uint16_t)((r.w - 40) * sc->progress / 100), 8};
-        ui_fill(&s.canvas, bar, C_TEXT);
+    ui_fill(&s.canvas, r, C_SCREEN);
+    db_rect_t box = inset(r, 3, 0);
+    ui_round(&s.canvas, box, 10, C_LCD);
+    bool wide = g->span > 1;
+    int x = 12;
+    if (g->icon) {
+        const ui_font_t *f = wide ? &ui_font_icon : &ui_font_icon_small;
+        ui_text_at(&s.canvas, f, (db_rect_t){(uint16_t)(box.x + 10), box.y, 56, box.h},
+                   box.y + (wide ? 70 : 36), g->icon_color, g->icon, UI_LEFT);
+        x = wide ? 76 : 40;
     }
+    db_rect_t col = {(uint16_t)(box.x + x), box.y, (uint16_t)(box.w - x - 10), box.h};
+    ui_text_fit(&s.canvas, small_fonts, 2, col, box.y + 24, C_DIM, g->label, UI_LEFT);
+    if (wide) {
+        ui_text_fit(&s.canvas, title_fonts, 4, col, box.y + 64, C_TEXT, g->value, UI_LEFT);
+        ui_text_fit(&s.canvas, small_fonts, 2, col, box.y + 88, C_DIM, g->sub, UI_LEFT);
+        return;
+    }
+    db_rect_t full = {(uint16_t)(box.x + 12), box.y, (uint16_t)(box.w - 22), box.h};
+    ui_text_fit(&s.canvas, title_fonts, 4, g->icon ? col : full, box.y + 66, C_TEXT, g->value, UI_LEFT);
+    if (g->bar >= 0) {
+        db_rect_t track = {(uint16_t)(box.x + 12), (uint16_t)(box.y + 82), (uint16_t)(box.w - 24), 8};
+        ui_round(&s.canvas, track, 4, C_TRACK);
+        uint16_t w = (uint16_t)(track.w * (g->bar > 100 ? 100 : g->bar) / 100);
+        if (w >= 8) {
+            ui_round(&s.canvas, (db_rect_t){track.x, track.y, w, track.h}, 4, g->icon_color);
+        }
+    } else {
+        ui_text_fit(&s.canvas, small_fonts, 2, full, box.y + 88, C_DIM, g->sub, UI_LEFT);
+    }
+}
+
+static void update_screen(ui_screen_t *sc)
+{
+    ui_segment_t *g = &sc->seg[0];
+    *g = (ui_segment_t){.span = 4, .icon = ICON_UPDATE, .icon_color = C_UPDATE, .bar = -1};
+    snprintf(g->label, sizeof(g->label), "Update");
+    snprintf(g->value, sizeof(g->value), "Update %s: %d %%", s.update_what, s.update_pct);
+    snprintf(g->sub, sizeof(g->sub), "Nicht vom Strom trennen, die Bridge startet danach neu");
+    /* decks without a strip show it on the first key */
+    ui_tile_t *t = &sc->tiles[0];
+    *t = (ui_tile_t){.kind = TILE_CARD, .icon = ICON_UPDATE};
+    snprintf(t->label, sizeof(t->label), "Update");
+    snprintf(t->value, sizeof(t->value), "%d %%", s.update_pct);
+    snprintf(t->sub, sizeof(t->sub), "%s", s.update_what);
 }
 
 static bool ensure_canvas(const db_display_t *d)
@@ -152,34 +221,40 @@ static bool ensure_canvas(const db_display_t *d)
     }
     heap_caps_free(s.canvas.px);
     s.canvas = (ui_canvas_t){.w = d->width, .h = d->height, .px = jpeg_port_alloc_rgb(d->width, d->height)};
+    s.full = true;
     return s.canvas.px != NULL;
 }
 
-/* Copy one rectangle out of the canvas into a fresh encoder buffer and queue it. */
-static void submit_rect(db_rect_t r)
+/* Copy one rectangle out of the canvas, encode it and queue it. */
+static bool submit_rect(db_rect_t r)
 {
+    static uint8_t *area; /* reused: one key or a strip part at a time */
+    static size_t area_px;
     const uint8_t *src = s.canvas.px;
-    uint8_t *tmp = NULL;
     if (r.w != s.canvas.w || r.h != s.canvas.h) {
-        tmp = jpeg_port_alloc_rgb(r.w, r.h);
-        if (!tmp) {
-            return;
+        if ((size_t)r.w * r.h > area_px) {
+            heap_caps_free(area);
+            area = jpeg_port_alloc_rgb(r.w, r.h);
+            area_px = area ? (size_t)r.w * r.h : 0;
+            if (!area) {
+                return false;
+            }
         }
         for (int y = 0; y < r.h; y++) {
-            memcpy(tmp + (size_t)y * r.w * 3, s.canvas.px + ((size_t)(r.y + y) * s.canvas.w + r.x) * 3,
+            memcpy(area + (size_t)y * r.w * 3, s.canvas.px + ((size_t)(r.y + y) * s.canvas.w + r.x) * 3,
                    (size_t)r.w * 3);
         }
-        src = tmp;
+        src = area;
     }
     uint8_t *jpeg = NULL;
     size_t len = 0;
     esp_err_t err = jpeg_port_encode(src, r.w, r.h, QUALITY, &jpeg, &len);
-    heap_caps_free(tmp);
-    if (err == ESP_OK) {
-        db_deck_submit(DB_SOURCE_UI, 0, r, ++s.seq, jpeg, len, (uint64_t)esp_timer_get_time());
-    } else {
+    if (err != ESP_OK) {
         ESP_LOGW(TAG, "encode %ux%u failed: %s", r.w, r.h, esp_err_to_name(err));
+        return false;
     }
+    db_deck_submit(DB_SOURCE_UI, 0, r, ++s.seq, jpeg, len, (uint64_t)esp_timer_get_time());
+    return true;
 }
 
 static void render(const ui_screen_t *sc)
@@ -188,30 +263,55 @@ static void render(const ui_screen_t *sc)
     if (!ensure_canvas(d)) {
         return;
     }
-    ui_fill(&s.canvas, (db_rect_t){0, 0, d->width, d->height}, C_BG);
     const db_target_t *full = NULL;
     const db_target_t *strip = NULL;
     for (int i = 0; i < d->target_count; i++) {
-        if (d->targets[i].kind == DB_TARGET_FULL) {
-            full = &d->targets[i];
-        } else if (d->targets[i].kind == DB_TARGET_STRIP) {
-            strip = &d->targets[i];
-        }
+        full = d->targets[i].kind == DB_TARGET_FULL ? &d->targets[i] : full;
+        strip = d->targets[i].kind == DB_TARGET_STRIP ? &d->targets[i] : strip;
     }
-    /* Without a strip the banner goes behind the keys, so the tiles stay readable. */
-    draw_banner(sc, strip ? strip->rect : (db_rect_t){0, 0, d->width, d->height});
+    bool whole = s.full;
+    s.full = false; /* a writer change while drawing sets it again */
+    if (whole) {
+        ui_fill(&s.canvas, (db_rect_t){0, 0, d->width, d->height}, C_SCREEN);
+    }
+    db_rect_t dirty[DB_MAX_TARGETS + UI_SEGMENTS];
+    int n = 0;
     for (int i = 0; i < d->target_count; i++) {
         const db_target_t *t = &d->targets[i];
-        if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_TILES) {
+        if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_TILES &&
+            (whole || memcmp(&sc->tiles[t->index], &s.shown.tiles[t->index], sizeof(ui_tile_t)) != 0)) {
             draw_tile(&sc->tiles[t->index], t->rect);
+            dirty[n++] = t->rect;
+        } else if (t->kind == DB_TARGET_KEY && t->index >= UI_MAX_TILES && whole) {
+            dirty[n++] = t->rect;
         }
     }
-    if (full) {
-        submit_rect(full->rect);
+    for (int i = 0; strip && i < UI_SEGMENTS;) {
+        int span = sc->seg[i].span ? sc->seg[i].span : 1;
+        span = i + span > UI_SEGMENTS ? UI_SEGMENTS - i : span;
+        bool same = !whole && memcmp(&sc->seg[i], &s.shown.seg[i], sizeof(ui_segment_t) * (size_t)span) == 0;
+        uint16_t w = (uint16_t)(strip->rect.w / UI_SEGMENTS);
+        db_rect_t r = {(uint16_t)(strip->rect.x + i * w), strip->rect.y, (uint16_t)(w * span), strip->rect.h};
+        if (!same) {
+            draw_segment(&sc->seg[i], r);
+            dirty[n++] = r;
+        }
+        i += span;
+    }
+    s.shown = *sc;
+    if (n == 0) {
         return;
     }
-    for (int i = 0; i < d->target_count; i++) {
-        submit_rect(d->targets[i].rect);
+    bool sent = true;
+    if (full && (whole || n > FULL_ABOVE)) {
+        sent = submit_rect(full->rect);
+    } else {
+        for (int i = 0; i < n; i++) {
+            sent &= submit_rect(dirty[i]);
+        }
+    }
+    if (!sent) {
+        s.full = true; /* what the deck shows is unknown now */
     }
 }
 
@@ -222,17 +322,16 @@ static void ui_task(void *arg)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         vTaskDelay(pdMS_TO_TICKS(REDRAW_DELAY));
         ulTaskNotifyTake(pdTRUE, 0);
+        pick_writer();
         if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
             continue;
         }
         memset(&sc, 0, sizeof(sc));
-        sc.progress = -1;
         if (s.update_pct >= 0) {
             update_screen(&sc);
-        } else if (ui_menu_open()) {
-            ui_menu_screen(&sc);
         } else {
-            status_screen(&sc);
+            ui_state_t st = state();
+            ui_menu_screen(&sc, &st);
         }
         render(&sc);
     }
@@ -265,8 +364,12 @@ static void on_input(const db_input_t *ev)
         s.key_down[ev->index & 31] = ev->kind == DB_INPUT_KEY_DOWN;
     }
     check_menu_chord();
-    if (ui_menu_open() && ui_menu_input(ev)) {
-        changed();
+    /* the home screen only takes input while it is what the deck shows, and nothing during an update */
+    bool ours = s.update_pct < 0 && (ui_menu_open() || db_deck_writer() == DB_SOURCE_UI);
+    if (ours && ui_menu_input(ev)) {
+        /* the UI task switches the writer, once this event has reached every listener: a release that closes
+         * the menu must not go on to the host that draws next */
+        xTaskNotifyGive(s.task);
     }
 }
 
@@ -275,6 +378,7 @@ static void on_device(const db_device_info_t *info)
     s.present = info != NULL;
     if (info) {
         s.dev = *info;
+        s.full = true;
         db_deck_set_brightness(db_config()->brightness);
     }
     changed();
@@ -315,15 +419,15 @@ void db_ui_set_dock_clients(bool app, bool companion)
     changed();
 }
 
-void db_ui_refresh(void)
-{
-    changed();
-}
-
 void db_ui_set_update(int pct, const char *what)
 {
     s.update_pct = pct;
     snprintf(s.update_what, sizeof(s.update_what), "%s", what ? what : "");
+    changed();
+}
+
+void db_ui_refresh(void)
+{
     changed();
 }
 

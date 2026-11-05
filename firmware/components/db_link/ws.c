@@ -193,6 +193,20 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     return 0;
 }
 
+int ws_probe(const char *url, const char *ifname, int timeout_ms)
+{
+    char host[64];
+    unsigned port;
+    const char *path;
+    int err = parse_url(url, host, sizeof(host), &port, &path);
+    int s = err ? err : open_socket(host, port, ifname, timeout_ms);
+    if (s < 0) {
+        return s;
+    }
+    close(s);
+    return 0;
+}
+
 void ws_close(ws_t *ws)
 {
     xSemaphoreTake(ws->tx, portMAX_DELAY);

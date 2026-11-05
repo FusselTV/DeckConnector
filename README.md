@@ -15,8 +15,8 @@ the three at any time, and the deck shows the picked one's picture at once.
 - One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
   Stream Deck +).
 - LAN and WLAN at the same time. Connections go over LAN. If a server cannot be reached there, the next try
-  goes over WLAN, and the connection stays there until it ends. The bridge notices a dead LAN within 6 s. It
-  announces the Network Dock on WLAN only while the LAN has no address.
+  goes over WLAN. As soon as the server answers over LAN again, the connection moves back. The bridge notices a
+  dead LAN within 6 s. It announces the Network Dock on WLAN only while the LAN has no address.
 - Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
   once when the connection closes and within 6 s when the server just goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
@@ -47,7 +47,8 @@ idf.py build
 idf.py -p /dev/ttyACM0 flash
 ```
 
-The first start creates a password for the web UI. The device shows it under Menu, Info.
+The first start creates a password for the web UI. The device shows it in its menu, on the strip under
+Web-Zugang.
 
 ## Setup
 
@@ -61,8 +62,9 @@ The first start creates a password for the web UI. The device shows it under Men
      type Elgato Stream Deck with the address of the board.
    - Stream Deck app. It finds the board by itself.
 
-The menu on the device opens when you hold the first and the last encoder for two seconds. It also works while
-a host draws. When it closes, the deck shows the host's picture again at once.
+When nobody draws, the deck shows its home screen. Tap a key on it to pick who controls the deck, or Menü for
+the settings. While a host draws, hold the first and the last encoder for two seconds to open the menu. When it
+closes, the deck shows the host's picture again at once.
 
 ## Writing a server
 

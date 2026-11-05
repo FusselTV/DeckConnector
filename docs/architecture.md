@@ -35,7 +35,11 @@ Exactly one source writes to the device at a time. `db_ui` decides:
 2. Otherwise the controller from the settings draws. That is the active server, or the Stream Deck app or
    Companion once it opened the device port.
 
-In every other case the device UI draws and shows what is missing, for example "Kein Netz" or "Suche Server".
+In every other case the device UI draws its home screen. It shows what is missing, for example "Kein Netz" or
+"Warte auf Companion", and lets you pick the controller there.
+
+The device UI keeps what it last drew and only draws and sends the keys and strip parts that changed. After
+another source drew, or when more than five areas changed, it sends the whole screen as one image.
 
 `db_deck` keeps the newest image per area for every source (`db_core/db_screen.c`). Dock hosts send raw reports,
 which the driver reads back into images. When a source other than the device UI becomes the writer again, `db_deck`

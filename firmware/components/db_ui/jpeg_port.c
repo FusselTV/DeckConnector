@@ -25,12 +25,19 @@ esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t q
         jpeg_encode_engine_cfg_t cfg = {.timeout_ms = 200};
         ESP_RETURN_ON_ERROR(jpeg_new_encoder_engine(&cfg, &encoder), TAG, "engine");
     }
-    jpeg_encode_memory_alloc_cfg_t mem = {.buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER};
-    size_t cap = 0;
+    /* one output buffer for every image, grown when a bigger one comes: allocating 0.5 MB of DMA memory per
+     * image cost more than the encoding */
+    static uint8_t *buf;
+    static size_t cap;
     size_t worst = (size_t)w * h * 3 / 2 + 4096;
-    uint8_t *buf = jpeg_alloc_encoder_mem(worst, &mem, &cap);
-    if (!buf) {
-        return ESP_ERR_NO_MEM;
+    if (worst > cap) {
+        heap_caps_free(buf);
+        jpeg_encode_memory_alloc_cfg_t mem = {.buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER};
+        buf = jpeg_alloc_encoder_mem(worst, &mem, &cap);
+        if (!buf) {
+            cap = 0;
+            return ESP_ERR_NO_MEM;
+        }
     }
     /* 4:2:0 needs sides that are a multiple of 16; keys of 120 px are only a multiple of 8. */
     bool by16 = w % 16 == 0 && h % 16 == 0;
@@ -44,17 +51,14 @@ esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t q
     uint32_t n = 0;
     esp_err_t err = jpeg_encoder_process(encoder, &cfg, rgb, (uint32_t)w * h * 3, buf, (uint32_t)cap, &n);
     if (err != ESP_OK) {
-        heap_caps_free(buf);
         return err;
     }
     /* The DMA buffer is large and aligned; hand the deck a tight copy. */
     *out = heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
     if (!*out) {
-        heap_caps_free(buf);
         return ESP_ERR_NO_MEM;
     }
     memcpy(*out, buf, n);
-    heap_caps_free(buf);
     *out_len = n;
     return ESP_OK;
 }
