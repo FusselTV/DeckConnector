@@ -24,6 +24,9 @@ int ui_text_width(const ui_font_t *f, const char *utf8);
 void ui_text(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *utf8);
 void ui_text_at(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *utf8,
                 ui_align_t align);
+/* Texts cut with "…" so far; host_test/test_ui.c checks that no page needs it. */
+extern int ui_text_cuts;
+extern void (*ui_on_cut)(const char *text, int room);
 /* With the first of `fonts` (largest first) it fits in; in the last one cut with "…". */
 void ui_text_fit(ui_canvas_t *c, const ui_font_t *const *fonts, int n, db_rect_t clip, int y, uint32_t color,
                  const char *utf8, ui_align_t align);

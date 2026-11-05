@@ -8,33 +8,29 @@
 #include "db_deck.h"
 #include "db_link.h"
 #include "db_net.h"
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "icons.h"
 #include "jpeg_port.h"
-#include "menu.h"
+#include "lwip/ip4_addr.h"
+#include "ui.h"
 
-#define QUALITY      85
-#define REDRAW_DELAY 10 /* ms: the events of one turn or press come in a burst */
-#define MENU_HOLD_US 2000000
-#define FULL_ABOVE   5 /* more changed areas than this go out as one full image, measured faster */
-#define RADIUS       16
-#define C_SCREEN     0x000000
-#define C_BUTTON     0x1c1c1e
-#define C_CARD       0x26262a
-#define C_LCD        0x101012
-#define C_TRACK      0x3a3a40
-#define C_TEXT       0xffffff
-#define C_DIM        0x9a9aa0
-#define C_UPDATE     0x2f7cf6
+#define QUALITY       85
+#define REDRAW_DELAY  10 /* ms: the events of one turn or press come in a burst */
+#define MENU_HOLD_US  2000000
+#define FULL_ABOVE    5       /* more changed areas than this go out as one full image, measured faster */
+#define SAVE_AFTER_US 1500000 /* brightness goes to flash once it rests */
 
 static const char *TAG = "ui";
 
 static struct {
     TaskHandle_t task;
+    SemaphoreHandle_t lock; /* menu, between the deck's event task and the UI task */
     int active_link;
     bool app_client;
     bool companion_client;
@@ -51,16 +47,68 @@ static struct {
     bool covered;
     bool full;         /* the next picture goes out whole: someone else drew meanwhile */
     ui_screen_t shown; /* what is on the deck, to send only what changed */
-} s = {.active_link = -1, .update_pct = -1, .full = true};
+    ui_menu_t menu;
+    volatile int brightness; /* applied but not saved yet, -1 when saved */
+    esp_timer_handle_t save_timer;
+} s = {.active_link = -1, .update_pct = -1, .full = true, .menu = {.confirm_key = -1}, .brightness = -1};
 
-static ui_state_t state(void)
+static void octets_of(const char *ip, uint8_t out[4])
 {
-    return (ui_state_t){.app_client = s.app_client, .companion_client = s.companion_client, .c6 = s.c6};
+    ip4_addr_t a = {0};
+    ip4addr_aton(ip, &a);
+    for (int o = 0; o < 4; o++) {
+        out[o] = (uint8_t)(ip4_addr_get_u32(&a) >> (8 * o));
+    }
+}
+
+static void model(ui_model_t *md)
+{
+    const db_config_t *c = db_config();
+    db_net_status_t n;
+    db_net_status(&n);
+    *md = (ui_model_t){
+        .now_us = esp_timer_get_time(),
+        .controller = c->controller,
+        .host_up = {db_link_connected(0) || db_link_connected(1), s.companion_client, s.app_client},
+        .lan_link = n.lan_link,
+        .lan_up = n.lan_up,
+        .lan_dhcp = c->lan.dhcp,
+        .wlan_chip = n.wlan_chip,
+        .wlan_up = n.wlan_up,
+        .wlan_rssi = n.rssi,
+        .ap_on = n.ap_active,
+        .brightness = s.brightness >= 0 ? s.brightness : c->brightness,
+        .update_pct = s.update_pct,
+        .setup_done = c->setup_done,
+    };
+    snprintf(md->lan_ip, sizeof(md->lan_ip), "%s", n.lan_ip);
+    snprintf(md->wlan_ip, sizeof(md->wlan_ip), "%s", n.wlan_ip);
+    snprintf(md->wifi_ssid, sizeof(md->wifi_ssid), "%s", c->wifi_ssid);
+    snprintf(md->ap_ssid, sizeof(md->ap_ssid), "%s", n.ap_ssid);
+    snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
+    snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
+    snprintf(md->server_url, sizeof(md->server_url), "%s", c->servers[0]);
+    snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);
+    snprintf(md->fw, sizeof(md->fw), "%s", esp_app_get_description()->version);
+    snprintf(md->wlan_fw, sizeof(md->wlan_fw), "%s", s.c6);
+    snprintf(md->update_what, sizeof(md->update_what), "%s", s.update_what);
+    db_ip_config_t lan = c->lan;
+    if (lan.ip[0] == '\0') {
+        snprintf(lan.ip, sizeof(lan.ip), "%s", n.lan_ip); /* start from the address DHCP gave */
+    }
+    if (lan.mask[0] == '\0') {
+        snprintf(lan.mask, sizeof(lan.mask), "255.255.255.0");
+    }
+    const char *fields[] = {lan.ip, lan.mask, lan.gateway, lan.dns};
+    for (int f = 0; f < 4; f++) {
+        octets_of(fields[f], md->lan_cfg[f]);
+    }
 }
 
 static db_source_t wanted_writer(void)
 {
-    if (ui_menu_open() || s.update_pct >= 0) {
+    if (ui_menu_open(&s.menu) || s.update_pct >= 0 || !db_config()->setup_done ||
+        s.menu.page == PAGE_WELCOME_NET) {
         return DB_SOURCE_UI;
     }
     switch (db_config()->controller) {
@@ -77,7 +125,7 @@ static db_source_t wanted_writer(void)
 static void pick_writer(void)
 {
     /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
-    bool covering = (ui_menu_open() || s.update_pct >= 0) && s.active_link >= 0;
+    bool covering = (ui_menu_open(&s.menu) || s.update_pct >= 0) && s.active_link >= 0;
     db_source_t wanted = wanted_writer();
     if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
         s.full = true;
@@ -95,123 +143,84 @@ static void changed(void)
     xTaskNotifyGive(s.task);
 }
 
-static uint32_t mix(uint32_t a, uint32_t b, float t)
+static void save_brightness(void *arg)
 {
-    uint32_t out = 0;
-    for (int sh = 0; sh <= 16; sh += 8) {
-        float va = (float)((a >> sh) & 0xff);
-        float vb = (float)((b >> sh) & 0xff);
-        out |= (uint32_t)(vb + (va - vb) * t + 0.5f) << sh;
-    }
-    return out;
-}
-
-static const ui_font_t *const value_fonts[] = {&ui_font_medium, &ui_font_label, &ui_font_narrow};
-static const ui_font_t *const label_fonts[] = {&ui_font_label, &ui_font_small, &ui_font_narrow_small};
-static const ui_font_t *const small_fonts[] = {&ui_font_small, &ui_font_narrow_small};
-static const ui_font_t *const title_fonts[] = {&ui_font_large, &ui_font_title, &ui_font_medium,
-                                               &ui_font_label};
-
-static db_rect_t inset(db_rect_t r, int dx, int dy)
-{
-    return (db_rect_t){(uint16_t)(r.x + dx), (uint16_t)(r.y + dy), (uint16_t)(r.w - 2 * dx),
-                       (uint16_t)(r.h - 2 * dy)};
-}
-
-static void badge(db_rect_t r, ui_badge_t b, uint32_t color)
-{
-    db_rect_t dot = {(uint16_t)(r.x + r.w - 30), (uint16_t)(r.y + 6), 24, 24};
-    ui_round(&s.canvas, dot, 12, b == BADGE_CLOSE ? color : C_TRACK);
-    ui_text(&s.canvas, &ui_font_icon_small, dot, dot.y + 21, C_TEXT,
-            b == BADGE_CLOSE ? ICON_CLOSE : ICON_OPEN);
-}
-
-static void draw_tile(const ui_tile_t *t, db_rect_t r)
-{
-    ui_fill(&s.canvas, r, C_SCREEN);
-    if (t->kind == TILE_NONE) {
+    int b = s.brightness;
+    if (b < 0) {
         return;
     }
-    db_rect_t text = inset(r, 6, 0);
-    if (t->kind == TILE_CARD) {
-        ui_round(&s.canvas, r, RADIUS, C_CARD);
-        int label_x = 8;
-        if (t->icon) {
-            ui_text_at(&s.canvas, &ui_font_icon_small, (db_rect_t){(uint16_t)(r.x + 7), r.y, 26, r.h},
-                       r.y + 29, C_DIM, t->icon, UI_LEFT);
-            label_x = 34;
-        }
-        db_rect_t lab = {(uint16_t)(r.x + label_x), r.y, (uint16_t)(r.w - label_x - 6), r.h};
-        ui_text_fit(&s.canvas, small_fonts, 2, lab, r.y + 25, C_DIM, t->label, UI_LEFT);
-        ui_text_fit(&s.canvas, value_fonts, 3, text, r.y + 72, C_TEXT, t->value, UI_CENTER);
-        ui_text_fit(&s.canvas, small_fonts, 2, text, r.y + 100, C_DIM, t->sub, UI_CENTER);
-    } else {
-        if (t->active) {
-            ui_round(&s.canvas, r, RADIUS, t->color);
-            ui_round(&s.canvas, inset(r, 5, 5), RADIUS - 5, mix(t->color, C_BUTTON, 0.22f));
-        } else {
-            ui_round(&s.canvas, r, RADIUS, C_BUTTON);
-        }
-        uint32_t icon = t->dim ? C_TRACK : (t->active ? t->color : C_TEXT);
-        uint32_t sub = t->active ? mix(t->color, C_TEXT, 0.75f) : C_DIM;
-        if (t->icon) {
-            ui_text(&s.canvas, &ui_font_icon, r, r.y + 58, icon, t->icon);
-        }
-        ui_text_fit(&s.canvas, label_fonts, 3, text, r.y + 84, t->dim ? C_DIM : C_TEXT, t->label, UI_CENTER);
-        ui_text_fit(&s.canvas, small_fonts, 2, text, r.y + 104, sub, t->sub, UI_CENTER);
-    }
-    if (t->badge != BADGE_NONE) {
-        badge(r, t->badge, t->color);
+    db_config_t c;
+    db_config_copy(&c);
+    c.brightness = (uint8_t)b;
+    db_config_save(&c);
+    if (s.brightness == b) { /* a turn during the save keeps its value for the next save */
+        s.brightness = -1;
     }
 }
 
-static void draw_segment(const ui_segment_t *g, db_rect_t r)
+static void restart_task(void *arg)
 {
-    ui_fill(&s.canvas, r, C_SCREEN);
-    db_rect_t box = inset(r, 3, 0);
-    ui_round(&s.canvas, box, 10, C_LCD);
-    bool wide = g->span > 1;
-    int x = 12;
-    if (g->icon) {
-        const ui_font_t *f = wide ? &ui_font_icon : &ui_font_icon_small;
-        ui_text_at(&s.canvas, f, (db_rect_t){(uint16_t)(box.x + 10), box.y, 56, box.h},
-                   box.y + (wide ? 70 : 36), g->icon_color, g->icon, UI_LEFT);
-        x = wide ? 76 : 40;
+    vTaskDelay(pdMS_TO_TICKS(800));
+    esp_restart();
+}
+
+static void save_lan(const ui_action_t *act)
+{
+    db_config_t c;
+    db_config_copy(&c);
+    c.lan.dhcp = act->dhcp;
+    char *fields[] = {c.lan.ip, c.lan.mask, c.lan.gateway, c.lan.dns};
+    for (int f = 0; f < 4; f++) {
+        const uint8_t *o = act->octets[f];
+        snprintf(fields[f], 16, "%u.%u.%u.%u", o[0], o[1], o[2], o[3]);
     }
-    db_rect_t col = {(uint16_t)(box.x + x), box.y, (uint16_t)(box.w - x - 10), box.h};
-    ui_text_fit(&s.canvas, small_fonts, 2, col, box.y + 24, C_DIM, g->label, UI_LEFT);
-    if (wide) {
-        ui_text_fit(&s.canvas, title_fonts, 4, col, box.y + 64, C_TEXT, g->value, UI_LEFT);
-        ui_text_fit(&s.canvas, small_fonts, 2, col, box.y + 88, C_DIM, g->sub, UI_LEFT);
-        return;
-    }
-    db_rect_t full = {(uint16_t)(box.x + 12), box.y, (uint16_t)(box.w - 22), box.h};
-    ui_text_fit(&s.canvas, title_fonts, 4, g->icon ? col : full, box.y + 66, C_TEXT, g->value, UI_LEFT);
-    if (g->bar >= 0) {
-        db_rect_t track = {(uint16_t)(box.x + 12), (uint16_t)(box.y + 82), (uint16_t)(box.w - 24), 8};
-        ui_round(&s.canvas, track, 4, C_TRACK);
-        uint16_t w = (uint16_t)(track.w * (g->bar > 100 ? 100 : g->bar) / 100);
-        if (w >= 8) {
-            ui_round(&s.canvas, (db_rect_t){track.x, track.y, w, track.h}, 4, g->icon_color);
-        }
-    } else {
-        ui_text_fit(&s.canvas, small_fonts, 2, full, box.y + 88, C_DIM, g->sub, UI_LEFT);
+    if (db_config_save(&c) == ESP_OK) {
+        xTaskCreate(restart_task, "ui_restart", 2048, NULL, 5, NULL);
     }
 }
 
-static void update_screen(ui_screen_t *sc)
+static void carry_out(const ui_action_t *act, const ui_model_t *md)
 {
-    ui_segment_t *g = &sc->seg[0];
-    *g = (ui_segment_t){.span = 4, .icon = ICON_UPDATE, .icon_color = C_UPDATE, .bar = -1};
-    snprintf(g->label, sizeof(g->label), "Update");
-    snprintf(g->value, sizeof(g->value), "Update %s: %d %%", s.update_what, s.update_pct);
-    snprintf(g->sub, sizeof(g->sub), "Nicht vom Strom trennen, die Bridge startet danach neu");
-    /* decks without a strip show it on the first key */
-    ui_tile_t *t = &sc->tiles[0];
-    *t = (ui_tile_t){.kind = TILE_CARD, .icon = ICON_UPDATE};
-    snprintf(t->label, sizeof(t->label), "Update");
-    snprintf(t->value, sizeof(t->value), "%d %%", s.update_pct);
-    snprintf(t->sub, sizeof(t->sub), "%s", s.update_what);
+    db_config_t c;
+    switch (act->what) {
+    case UI_DO_CONTROLLER:
+        db_config_copy(&c);
+        c.controller = (db_controller_t)act->value;
+        db_config_save(&c);
+        break;
+    case UI_DO_BRIGHTNESS: {
+        int b = md->brightness + act->value;
+        s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b);
+        db_deck_set_brightness((uint8_t)s.brightness);
+        esp_timer_stop(s.save_timer);
+        esp_timer_start_once(s.save_timer, SAVE_AFTER_US);
+        break;
+    }
+    case UI_DO_AP_START:
+        db_net_ap_start();
+        break;
+    case UI_DO_AP_STOP:
+        db_net_ap_stop();
+        break;
+    case UI_DO_RESET:
+        ESP_LOGW(TAG, "factory reset from the deck");
+        db_config_reset();
+        xTaskCreate(restart_task, "ui_restart", 2048, NULL, 5, NULL);
+        break;
+    case UI_DO_RESTART:
+        xTaskCreate(restart_task, "ui_restart", 2048, NULL, 5, NULL);
+        break;
+    case UI_DO_SAVE_LAN:
+        save_lan(act);
+        break;
+    case UI_DO_SETUP_DONE:
+        db_config_copy(&c);
+        c.setup_done = true;
+        db_config_save(&c);
+        break;
+    default:
+        break;
+    }
 }
 
 static bool ensure_canvas(const db_display_t *d)
@@ -264,46 +273,16 @@ static void render(const ui_screen_t *sc)
         return;
     }
     const db_target_t *full = NULL;
-    const db_target_t *strip = NULL;
     for (int i = 0; i < d->target_count; i++) {
         full = d->targets[i].kind == DB_TARGET_FULL ? &d->targets[i] : full;
-        strip = d->targets[i].kind == DB_TARGET_STRIP ? &d->targets[i] : strip;
     }
     bool whole = s.full;
     s.full = false; /* a writer change while drawing sets it again */
-    if (whole) {
-        ui_fill(&s.canvas, (db_rect_t){0, 0, d->width, d->height}, C_SCREEN);
-    }
     db_rect_t dirty[DB_MAX_TARGETS + UI_SEGMENTS];
-    int n = 0;
-    for (int i = 0; i < d->target_count; i++) {
-        const db_target_t *t = &d->targets[i];
-        if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_TILES &&
-            (whole || memcmp(&sc->tiles[t->index], &s.shown.tiles[t->index], sizeof(ui_tile_t)) != 0)) {
-            draw_tile(&sc->tiles[t->index], t->rect);
-            dirty[n++] = t->rect;
-        } else if (t->kind == DB_TARGET_KEY && t->index >= UI_MAX_TILES && whole) {
-            dirty[n++] = t->rect;
-        }
-    }
-    for (int i = 0; strip && i < UI_SEGMENTS;) {
-        int span = sc->seg[i].span ? sc->seg[i].span : 1;
-        span = i + span > UI_SEGMENTS ? UI_SEGMENTS - i : span;
-        bool same = !whole && memcmp(&sc->seg[i], &s.shown.seg[i], sizeof(ui_segment_t) * (size_t)span) == 0;
-        uint16_t w = (uint16_t)(strip->rect.w / UI_SEGMENTS);
-        db_rect_t r = {(uint16_t)(strip->rect.x + i * w), strip->rect.y, (uint16_t)(w * span), strip->rect.h};
-        if (!same) {
-            draw_segment(&sc->seg[i], r);
-            dirty[n++] = r;
-        }
-        i += span;
-    }
+    int n = ui_render(&s.canvas, &s.dev, sc, whole ? NULL : &s.shown, dirty, DB_MAX_TARGETS + UI_SEGMENTS);
     s.shown = *sc;
-    if (n == 0) {
-        return;
-    }
     bool sent = true;
-    if (full && (whole || n > FULL_ABOVE)) {
+    if (full && n && (whole || n > FULL_ABOVE)) {
         sent = submit_rect(full->rect);
     } else {
         for (int i = 0; i < n; i++) {
@@ -317,7 +296,8 @@ static void render(const ui_screen_t *sc)
 
 static void ui_task(void *arg)
 {
-    ui_screen_t sc;
+    static ui_screen_t sc; /* 2 KB, kept off the task stack */
+    static ui_model_t md;
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         vTaskDelay(pdMS_TO_TICKS(REDRAW_DELAY));
@@ -326,12 +306,14 @@ static void ui_task(void *arg)
         if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
             continue;
         }
-        memset(&sc, 0, sizeof(sc));
+        model(&md);
+        ui_layout_t l = ui_layout_of(&s.dev);
         if (s.update_pct >= 0) {
-            update_screen(&sc);
+            ui_update_screen(&md, &l, &sc);
         } else {
-            ui_state_t st = state();
-            ui_menu_screen(&sc, &st);
+            xSemaphoreTake(s.lock, portMAX_DELAY);
+            ui_menu_screen(&s.menu, &md, &l, &sc);
+            xSemaphoreGive(s.lock);
         }
         render(&sc);
     }
@@ -348,10 +330,12 @@ static void check_menu_chord(void)
         s.chord_since = 0;
     } else if (!s.chord_since) {
         s.chord_since = now;
-    } else if (now - s.chord_since >= MENU_HOLD_US && !ui_menu_open()) {
+    } else if (now - s.chord_since >= MENU_HOLD_US && !ui_menu_open(&s.menu)) {
         s.chord_since = 0;
         ESP_LOGI(TAG, "menu opened");
-        ui_menu_open_main();
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        ui_menu_open_main(&s.menu, now);
+        xSemaphoreGive(s.lock);
         changed();
     }
 }
@@ -364,9 +348,19 @@ static void on_input(const db_input_t *ev)
         s.key_down[ev->index & 31] = ev->kind == DB_INPUT_KEY_DOWN;
     }
     check_menu_chord();
-    /* the home screen only takes input while it is what the deck shows, and nothing during an update */
-    bool ours = s.update_pct < 0 && (ui_menu_open() || db_deck_writer() == DB_SOURCE_UI);
-    if (ours && ui_menu_input(ev)) {
+    /* the device UI only takes input while it is what the deck shows, and nothing during an update */
+    if (s.update_pct >= 0 || db_deck_writer() != DB_SOURCE_UI) {
+        return;
+    }
+    static ui_model_t md; /* only the deck's event task gets here */
+    model(&md);
+    ui_layout_t l = ui_layout_of(&s.dev);
+    ui_action_t act;
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    bool redraw = ui_menu_input(&s.menu, &md, &l, ev, &act);
+    xSemaphoreGive(s.lock);
+    carry_out(&act, &md);
+    if (redraw || act.what != UI_DO_NOTHING) {
         /* the UI task switches the writer, once this event has reached every listener: a release that closes
          * the menu must not go on to the host that draws next */
         xTaskNotifyGive(s.task);
@@ -384,25 +378,39 @@ static void on_device(const db_device_info_t *info)
     changed();
 }
 
-/* The chord must also fire while the encoders are held still, so poll it. */
-static void chord_timer(void *arg)
+/* The chord must also fire while the encoders are held still, and the menu has its timers. */
+static void tick(void *arg)
 {
     if (s.chord_since) {
         check_menu_chord();
+    }
+    static int64_t next;
+    int64_t now = esp_timer_get_time();
+    if (now >= next) {
+        next = now + 1000000;
+        ui_model_t md = {.now_us = now};
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        bool redraw = ui_menu_tick(&s.menu, &md);
+        xSemaphoreGive(s.lock);
+        if (redraw) {
+            changed();
+        }
     }
 }
 
 esp_err_t db_ui_start(void)
 {
+    s.lock = xSemaphoreCreateMutex();
     xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0);
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
     db_net_on_change(changed);
-    ui_menu_init(changed);
-    const esp_timer_create_args_t targs = {.callback = chord_timer, .name = "ui_chord"};
+    const esp_timer_create_args_t targs = {.callback = tick, .name = "ui_tick"};
     esp_timer_handle_t timer;
     esp_timer_create(&targs, &timer);
     esp_timer_start_periodic(timer, 200000);
+    const esp_timer_create_args_t save = {.callback = save_brightness, .name = "brightness_save"};
+    esp_timer_create(&save, &s.save_timer);
     return ESP_OK;
 }
 

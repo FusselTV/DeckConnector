@@ -14,7 +14,7 @@
 #include "lwip/ip4_addr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 1
+#define CONFIG_VERSION 2 /* 2: setup_done */
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -64,6 +64,9 @@ esp_err_t db_config_load(void)
         err = blob ? nvs_get_blob(h, NVS_KEY, blob, &len) : ESP_ERR_NO_MEM;
         if (err == ESP_OK) {
             memcpy(&current, blob, len < sizeof(current) ? len : sizeof(current));
+            if (current.version < 2) {
+                current.setup_done = true; /* saved before the welcome steps existed: already set up */
+            }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
                 current.controller = DB_CTRL_SERVER;
@@ -153,6 +156,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "name", cfg->name);
     db_json_str(&j, "controller", db_controller_name(cfg->controller));
+    db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
     ip_to_json(&j, "lan", &cfg->lan);
     ip_to_json(&j, "wlan", &cfg->wlan);
@@ -259,6 +263,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->controller = (db_controller_t)found;
+    }
+    const cJSON *done = cJSON_GetObjectItemCaseSensitive(root, "setup_done");
+    if (done) {
+        if (!cJSON_IsBool(done)) {
+            snprintf(err, err_cap, "setup_done: true or false expected");
+            return false;
+        }
+        cfg->setup_done = cJSON_IsTrue(done);
     }
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "brightness");
     if (b) {

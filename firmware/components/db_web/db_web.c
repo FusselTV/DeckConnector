@@ -129,6 +129,7 @@ static esp_err_t put_config(httpd_req_t *req)
     db_config_t live = cfg;
     live.brightness = old.brightness;
     live.controller = old.controller;
+    live.setup_done = old.setup_done;
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);

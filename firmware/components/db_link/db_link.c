@@ -24,18 +24,19 @@
 #include "mdns.h"
 #include "ws.h"
 
-#define TX_INLINE       32
-#define TX_QUEUE        64
-#define TEXT_MAX        2048
-#define IMAGE_MAX       (1024 * 1024)
-#define STATUS_PERIOD   10000
-#define PROBE_TIMEOUT   1000
-#define DISCOVER_EVERY  5000
-#define RETRY_MS        2000
-#define CONNECT_TIMEOUT 3000
-#define PING_AFTER_MS   2000
-#define SILENT_LIMIT_MS 6000
-#define ALL_LINKS       (-1)
+#define TX_INLINE        32
+#define TX_QUEUE         64
+#define TEXT_MAX         2048
+#define IMAGE_MAX        (1024 * 1024)
+#define STATUS_PERIOD    10000
+#define PROBE_TIMEOUT    1000
+#define BOOT_LAN_WAIT_US (30LL * 1000000)
+#define DISCOVER_EVERY   5000
+#define RETRY_MS         2000
+#define CONNECT_TIMEOUT  3000
+#define PING_AFTER_MS    2000
+#define SILENT_LIMIT_MS  6000
+#define ALL_LINKS        (-1)
 
 static const char *TAG = "link";
 
@@ -391,6 +392,12 @@ static void link_task(void *arg)
         char ifname[6];
         char url[sizeof(l->url)];
         strlcpy(url, l->url, sizeof(url)); /* discover() may rewrite l->url meanwhile */
+        db_net_status_t n;
+        db_net_status(&n);
+        if (!via_wlan && n.lan_link && !n.lan_up && esp_timer_get_time() < BOOT_LAN_WAIT_US) {
+            vTaskDelay(pdMS_TO_TICKS(250)); /* the cable is in and DHCP is on its way: no detour over WLAN */
+            continue;
+        }
         bool wlan = via_wlan;
         bool bound = db_net_ifname(wlan, ifname);
         if (!bound) {

@@ -17,8 +17,9 @@ FONTS = [
     # narrow fallbacks, so an IP address fits on a key
     ("narrow", "{condensed}/DejaVuSansCondensed.ttf", 14),
     ("narrow_small", "{condensed}/DejaVuSansCondensed.ttf", 13),
+    ("tiny", "{condensed}/DejaVuSansCondensed.ttf", 11),
 ]
-CHARS = [chr(c) for c in range(32, 127)] + list("ÄÖÜäöüß–…·›„“")
+CHARS = [chr(c) for c in range(32, 127)] + list("ÄÖÜäöüß–…·›„“→")
 # MDI name -> macro name; the icons get code points from U+E000 on
 ICONS = {
     "server-network": "SERVER",
@@ -45,7 +46,7 @@ ICONS = {
     "autorenew": "DHCP",
     "pin": "FIXED",
 }
-ICON_FONTS = [("icon", 50), ("icon_small", 22)]
+ICON_FONTS = [("icon", 50), ("icon_mid", 34), ("icon_small", 22)]
 HERE = Path(__file__).resolve().parents[2] / "firmware/components/db_ui"
 OUT = HERE / "font_data.c"
 
@@ -103,10 +104,11 @@ def main() -> None:
         "#pragma once",
         "",
     ]
+    width = max(len(m) for m in ICONS.values())
     for i, macro in enumerate(ICONS.values()):
         cp = 0xE000 + i
         utf8 = "".join(f"\\x{b:02x}" for b in chr(cp).encode())
-        header.append(f'#define ICON_{macro} "{utf8}"')
+        header.append(f'#define ICON_{macro:<{width}} "{utf8}"')  # aligned like clang-format wants
     (HERE / "icons.h").write_text("\n".join(header) + "\n")
     print(f"wrote {OUT} and icons.h")
 

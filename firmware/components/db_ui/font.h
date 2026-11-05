@@ -25,5 +25,7 @@ extern const ui_font_t ui_font_label;
 extern const ui_font_t ui_font_title;
 extern const ui_font_t ui_font_icon;
 extern const ui_font_t ui_font_icon_small;
+extern const ui_font_t ui_font_icon_mid;
 extern const ui_font_t ui_font_narrow;
 extern const ui_font_t ui_font_narrow_small;
+extern const ui_font_t ui_font_tiny;

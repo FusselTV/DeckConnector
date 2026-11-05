@@ -8,6 +8,7 @@ typedef struct {
     bool lan_link;
     bool lan_up; /* has an address */
     bool wlan_up;
+    bool wlan_chip;
     bool ap_active;
     int rssi;
     char lan_ip[16];

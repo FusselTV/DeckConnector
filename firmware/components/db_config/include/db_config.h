@@ -37,6 +37,7 @@ typedef struct {
     char servers[DB_MAX_SERVERS][96]; /* ws://host:port/deckbridge; empty: find servers with mDNS */
     char token[48];                   /* sent to servers as Bearer token, optional */
     char admin_pass[24];              /* web UI password, generated on first start */
+    bool setup_done;                  /* the welcome steps on the deck or in the web UI were finished */
 } db_config_t;
 
 esp_err_t db_config_load(void);

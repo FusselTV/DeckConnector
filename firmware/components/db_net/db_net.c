@@ -183,6 +183,7 @@ static esp_err_t start_wifi(void)
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "wifi start");
     esp_wifi_set_ps(WIFI_PS_NONE); /* power save adds up to 100 ms of latency */
     s.wifi_started = true;
+    s.st.wlan_chip = true;
     return ESP_OK;
 }
 

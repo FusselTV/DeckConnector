@@ -11,6 +11,9 @@ static void to_bytes(uint32_t color, uint8_t out[3])
     out[2] = (uint8_t)(color >> 16);
 }
 
+int ui_text_cuts;
+void (*ui_on_cut)(const char *text, int room);
+
 static db_rect_t clip_to(const ui_canvas_t *c, db_rect_t r)
 {
     if (r.x >= c->w || r.y >= c->h) {
@@ -186,6 +189,10 @@ void ui_text_fit(ui_canvas_t *c, const ui_font_t *const *fonts, int n, db_rect_t
         }
     }
     /* still too wide in the smallest font: as much as fits, then "…" */
+    ui_text_cuts++;
+    if (ui_on_cut) {
+        ui_on_cut(s, clip.w);
+    }
     const ui_font_t *f = fonts[n - 1];
     int room = clip.w - ui_text_width(f, "…");
     const char *end = s;
