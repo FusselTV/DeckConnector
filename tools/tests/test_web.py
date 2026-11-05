@@ -80,3 +80,34 @@ def test_metrics_are_percentages():
         assert len(m[key]) <= 120 and all(0 <= v <= 100 for v in m[key])
     assert 0 < m["firmware"]["used"] < m["firmware"]["size"]
     assert 0 < m["settings"]["used"] < m["settings"]["size"]
+
+
+def test_a_listener_that_stops_reading_cannot_stall_the_api(servers):
+    """Events go to every web socket listener; one that stopped reading must be dropped, not waited for."""
+    import socket
+    import threading
+
+    token = base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
+    s = socket.create_connection((HOST, 80))
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+    s.sendall(
+        f"GET /api/ws HTTP/1.1\r\nHost: {HOST}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+        f"Authorization: Basic {token}\r\n\r\n".encode()
+    )
+    assert b" 101 " in s.recv(200)  # and then it never reads again
+    end = time.time() + 10
+
+    def turns():  # each turn is an event for every listener
+        while time.time() < end:
+            api("POST", "/api/input", b'{"encoder": 1, "action": "turn", "ticks": 1}')
+
+    threading.Thread(target=turns, daemon=True).start()
+    slowest = 0.0
+    while time.time() < end:
+        t = time.time()
+        assert api("GET", "/api/config", timeout=5)[0] == 200
+        slowest = max(slowest, time.time() - t)
+        time.sleep(0.2)
+    s.close()
+    assert slowest < 1

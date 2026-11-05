@@ -13,14 +13,16 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "lwip/sockets.h"
 
 #define CLIENTS   8
 #define STATE_MAX 2048
 #define POLL_MS   200
 #define FRAME_MAX 512
 #define INPUT_MAX 160
-#define PING_MS   5000 /* a listener hears something this often, so it can tell a dead link from a quiet deck \
-                        */
+#define PING_MS                                                                                              \
+    5000 /* a listener hears something this often, so it can tell a dead link from a quiet deck              \
+          */
 
 static const char *TAG = "events";
 
@@ -35,8 +37,24 @@ static struct {
     unsigned evict;
 } e;
 
+/* A listener that stopped reading fills its socket, and the next send would block the sender for the send
+ * timeout while it holds the lock the web server waits for. Such a listener is closed instead. */
+static bool writable(int fd)
+{
+    fd_set w;
+    FD_ZERO(&w);
+    FD_SET(fd, &w);
+    struct timeval now = {0};
+    return select(fd + 1, NULL, &w, NULL, &now) > 0;
+}
+
 static void send_to(int fd, const char *json)
 {
+    if (!writable(fd)) {
+        ESP_LOGW(TAG, "listener %d does not read, closing it", fd);
+        httpd_sess_trigger_close(e.server, fd);
+        return;
+    }
     httpd_ws_frame_t f = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)json, .len = strlen(json)};
     httpd_ws_send_frame_async(e.server, fd, &f);
 }

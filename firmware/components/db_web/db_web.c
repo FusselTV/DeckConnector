@@ -675,6 +675,10 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     cfg.max_open_sockets = 12;
     cfg.backlog_conn = cfg.max_open_sockets; /* a refused SYN costs the client a 1 s retry */
     cfg.open_fn = no_delay;
+    cfg.keep_alive_enable = true; /* a client gone without closing shows after about 20 s, not never */
+    cfg.keep_alive_idle = 5;
+    cfg.keep_alive_interval = 5;
+    cfg.keep_alive_count = 3;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.lru_purge_enable = true;
     cfg.recv_wait_timeout =
