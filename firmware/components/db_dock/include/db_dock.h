@@ -43,5 +43,7 @@ typedef struct {
 /* The hosts that connected (dock_paired_only off) or were paired (on), oldest first. */
 size_t db_dock_known(db_dock_peer_t *out, size_t max);
 bool db_dock_peer_connected(const db_dock_peer_t *p);
+/* The name its router knows it by, "" until the lookup answered or when there is none. `ip` in network order. */
+void db_dock_name(uint32_t ip, char name[40]);
 /* NULL forgets every paired host. */
 void db_dock_forget(const char *ip);

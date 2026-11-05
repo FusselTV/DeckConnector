@@ -98,6 +98,7 @@ typedef struct {
     char ap_ip[16];
     ui_qr_t ap_qr;    /* joins the setup WLAN when a phone scans it */
     char request[16]; /* a host that is not paired asks to connect */
+    char request_name[40];
     char server_url[96];
     char web_pass[24];
     char fw[32];

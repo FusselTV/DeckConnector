@@ -202,6 +202,12 @@ static void test_no_page_cuts_a_text(void)
             char name[64];
             snprintf(name, sizeof(name), "%s_welcome_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
+            strcpy(md.request, "192.168.1.255");
+            strcpy(md.request_name, v == 1 ? "studio-pc-regie-links-2" : "DESKTOP-EXAMPLE");
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_request_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
+            md.request[0] = '\0';
             md.update_pct = 100;
             strcpy(md.update_what, "WLAN-Chip");
             ui_update_screen(&md, &l, &sc);

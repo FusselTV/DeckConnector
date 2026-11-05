@@ -1,5 +1,6 @@
 #include "events.h"
 #include "db_web.h"
+#include "web.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,11 +29,11 @@
 static const char *TAG = "events";
 
 static struct {
-    httpd_handle_t server;
     size_t (*state_json)(char *buf, size_t cap);
     SemaphoreHandle_t lock; /* the client list, and one frame on the wire at a time */
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
     int fds[CLIENTS];
+    httpd_handle_t servers[CLIENTS]; /* HTTP or HTTPS: each fd belongs to one of them */
     char *state; /* the last state sent, to send only changes */
     uint32_t screen;
     unsigned evict;
@@ -49,21 +50,21 @@ static bool writable(int fd)
     return select(fd + 1, NULL, &w, NULL, &now) > 0;
 }
 
-static void send_to(int fd, const char *json)
+static void send_to(httpd_handle_t server, int fd, const char *json)
 {
     if (!writable(fd)) {
         ESP_LOGW(TAG, "listener %d does not read, closing it", fd);
-        httpd_sess_trigger_close(e.server, fd);
+        httpd_sess_trigger_close(server, fd);
         return;
     }
     httpd_ws_frame_t f = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)json, .len = strlen(json)};
-    httpd_ws_send_frame_async(e.server, fd, &f);
+    httpd_ws_send_frame_async(server, fd, &f);
 }
 
-static void send_locked(int fd, const char *json)
+static void send_locked(httpd_handle_t server, int fd, const char *json)
 {
     xSemaphoreTake(e.lock, portMAX_DELAY);
-    send_to(fd, json);
+    send_to(server, fd, json);
     xSemaphoreGive(e.lock);
 }
 
@@ -78,11 +79,11 @@ static void broadcast(const char *json)
         if (fd < 0) {
             continue;
         }
-        if (httpd_ws_get_fd_info(e.server, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
+        if (httpd_ws_get_fd_info(e.servers[i], fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
             e.fds[i] = -1; /* gone */
             continue;
         }
-        send_to(fd, json);
+        send_to(e.servers[i], fd, json);
     }
     xSemaphoreGive(e.lock);
 }
@@ -173,7 +174,7 @@ static bool same_origin(httpd_req_t *req)
     return o && strcmp(o + 3, host) == 0;
 }
 
-static void command(int fd, const char *text)
+static void command(httpd_handle_t server, int fd, const char *text)
 {
     cJSON *root = cJSON_Parse(text);
     const cJSON *t = cJSON_GetObjectItemCaseSensitive(root, "t");
@@ -193,12 +194,16 @@ static void command(int fd, const char *text)
     char out[224];
     snprintf(out, sizeof(out), "{\"t\":\"result\",\"id\":%d,\"status\":%d,\"reply\":%s}", id, code, reply);
     cJSON_Delete(root);
-    send_locked(fd, out);
+    send_locked(server, fd, out);
 }
 
 /* Before the upgrade, so a refused socket gets a plain 401 or 403 and never opens. */
 esp_err_t events_check(httpd_req_t *req)
 {
+    if (web_plain_refused(req)) {
+        httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "HTTPS only");
+        return ESP_FAIL;
+    }
     if (!same_origin(req)) {
         httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "other origin");
         return ESP_FAIL;
@@ -215,7 +220,7 @@ esp_err_t events_open(httpd_req_t *req)
     for (int i = 0; i < CLIENTS; i++) {
         /* a closed listener's fd number comes back with a new socket: it must not hold a second slot */
         if (e.fds[i] == fd || e.fds[i] < 0 ||
-            httpd_ws_get_fd_info(e.server, e.fds[i]) != HTTPD_WS_CLIENT_WEBSOCKET) {
+            httpd_ws_get_fd_info(e.servers[i], e.fds[i]) != HTTPD_WS_CLIENT_WEBSOCKET) {
             e.fds[i] = -1;
             if (slot < 0) {
                 slot = i;
@@ -225,13 +230,14 @@ esp_err_t events_open(httpd_req_t *req)
     if (slot < 0) { /* full: a client that vanished without closing must not lock out the next one */
         slot = e.evict++ % CLIENTS;
         ESP_LOGW(TAG, "%d listeners already, dropping one", CLIENTS);
-        httpd_sess_trigger_close(e.server, e.fds[slot]);
+        httpd_sess_trigger_close(e.servers[slot], e.fds[slot]);
     }
     e.fds[slot] = fd;
+    e.servers[slot] = req->handle;
     xSemaphoreGive(e.lock);
     char *buf = malloc(STATE_MAX);
     if (buf && e.state_json(buf, STATE_MAX)) {
-        send_locked(fd, buf); /* the current state at once, then only changes */
+        send_locked(req->handle, fd, buf); /* the current state at once, then only changes */
     }
     free(buf);
     return ESP_OK;
@@ -256,7 +262,7 @@ esp_err_t events_handler(httpd_req_t *req)
         return ESP_OK;
     }
     text[f.len] = '\0';
-    command(httpd_req_to_sockfd(req), text);
+    command(req->handle, httpd_req_to_sockfd(req), text);
     return ESP_OK;
 }
 
@@ -265,9 +271,8 @@ void db_web_broadcast(const char *json)
     broadcast(json);
 }
 
-void events_start(httpd_handle_t server, size_t (*state_json)(char *buf, size_t cap))
+void events_start(size_t (*state_json)(char *buf, size_t cap))
 {
-    e.server = server;
     e.state_json = state_json;
     e.lock = xSemaphoreCreateMutex();
     e.inputs = xQueueCreate(16, INPUT_MAX);

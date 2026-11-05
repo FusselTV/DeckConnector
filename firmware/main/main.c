@@ -111,8 +111,11 @@ static void write_sources(db_json_t *j, bool live)
     size_t n_known = db_dock_known(known, 8);
     db_json_obj_open(j, "pairing");
     db_json_bool(j, "only_paired", db_config()->dock_paired_only);
+    char name[40];
     if (db_dock_request(ip)) {
         db_json_str(j, "request", ip);
+        db_dock_name(inet_addr(ip), name);
+        db_json_str(j, "request_name", name);
     } else {
         db_json_null(j, "request");
     }
@@ -132,6 +135,8 @@ static void write_sources(db_json_t *j, bool live)
         db_json_obj_open(j, NULL);
         db_json_str(j, "ip", ip);
         db_json_str(j, "mac", mac);
+        db_dock_name(p->ip, name);
+        db_json_str(j, "name", name);
         db_json_str(j, "kind",
                     p->kind == DB_CTRL_SERVER ? "unknown" : db_controller_name((db_controller_t)p->kind));
         db_json_bool(j, "connected", db_dock_peer_connected(p));
@@ -153,6 +158,7 @@ static void write_status(db_json_t *j, bool live)
     char id[13];
     snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     db_json_str(j, "id", id); /* stable, unlike the name: for Home Assistant's unique_id */
+    db_json_str(j, "https_fingerprint", db_web_fingerprint());
     db_json_str(j, "name", db_config()->name);
     db_json_str(j, "firmware", esp_app_get_description()->version);
     if (c6) {

@@ -43,6 +43,7 @@ typedef struct {
     bool
         dock_paired_only; /* Companion and app hosts must be paired; off: anyone on the network may connect */
     char satellite[64];   /* Companion's Satellite API, "host" or "host:port"; empty: not used */
+    bool https_only;      /* plain HTTP only redirects browsers to HTTPS and answers nothing else */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

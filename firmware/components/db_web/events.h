@@ -12,4 +12,4 @@
 esp_err_t events_check(httpd_req_t *req);
 esp_err_t events_open(httpd_req_t *req);
 esp_err_t events_handler(httpd_req_t *req);
-void events_start(httpd_handle_t server, size_t (*state_json)(char *buf, size_t cap));
+void events_start(size_t (*state_json)(char *buf, size_t cap));

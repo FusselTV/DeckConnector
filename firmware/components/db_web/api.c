@@ -18,8 +18,8 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
-/* Brightness, controller, host, servers, satellite, dock pairing and setup_done apply at once; everything else
- * needs a restart to take effect cleanly. */
+/* Brightness, controller, host, servers, satellite, dock pairing, https_only and setup_done apply at once;
+ * everything else needs a restart to take effect cleanly. */
 int api_config(const char *body, char *reply, size_t cap)
 {
     static db_config_t old; /* two of them would crowd the caller's stack */
@@ -42,6 +42,7 @@ int api_config(const char *body, char *reply, size_t cap)
     memcpy(live.host, old.host, sizeof(old.host));
     memcpy(live.satellite, old.satellite, sizeof(old.satellite));
     live.dock_paired_only = old.dock_paired_only;
+    live.https_only = old.https_only;
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);

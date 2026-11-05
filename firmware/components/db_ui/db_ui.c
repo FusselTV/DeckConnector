@@ -225,7 +225,9 @@ static void model(ui_model_t *md)
     snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
     snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
     model_qr(md);
-    db_dock_request(md->request);
+    if (db_dock_request(md->request)) {
+        db_dock_name(ipaddr_addr(md->request), md->request_name);
+    }
     snprintf(md->server_url, sizeof(md->server_url), "%s", db_config_server_of(c, 0));
     model_sources(md);
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);

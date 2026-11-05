@@ -19,6 +19,7 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
+#include "esp_https_server.h"
 #include "esp_image_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
@@ -430,8 +431,49 @@ static esp_err_t post_ota_url(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+static httpd_handle_t tls_server;
+static char fingerprint[96];
+
+bool web_tls(httpd_req_t *req)
+{
+    return tls_server && req->handle == tls_server;
+}
+
+bool web_plain_refused(httpd_req_t *req)
+{
+    if (!db_config()->https_only || web_tls(req)) {
+        return false;
+    }
+    db_net_status_t n;
+    db_net_status(&n);
+    return !n.ap_active; /* phones look for the setup page over plain HTTP */
+}
+
+/* A browser opening the page goes over to HTTPS; everything else gets nothing, a password included. 302, not
+ * 301: a browser keeps a 301 after "nur HTTPS" is turned off again. */
+static esp_err_t refuse_plain(httpd_req_t *req)
+{
+    char host[64];
+    if (req->method == HTTP_GET && strcmp(req->uri, "/") == 0 &&
+        httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) == ESP_OK) {
+        char *port = strchr(host, ':');
+        if (port) {
+            *port = '\0';
+        }
+        char to[80];
+        snprintf(to, sizeof(to), "https://%s/", host);
+        httpd_resp_set_status(req, "302 Found");
+        httpd_resp_set_hdr(req, "Location", to);
+        return httpd_resp_send(req, NULL, 0);
+    }
+    return send_error(req, "403 Forbidden", "HTTPS only");
+}
+
 static esp_err_t timed(httpd_req_t *req)
 {
+    if (web_plain_refused(req)) {
+        return refuse_plain(req);
+    }
     route_t *r = req->user_ctx;
     int64_t start = esp_timer_get_time();
     esp_err_t err = r->open || auth_check(req) ? r->handler(req) : ESP_OK;
@@ -698,6 +740,42 @@ static void dns_task(void *arg)
     }
 }
 
+static void start_tls(void)
+{
+    char *cert, *key;
+    if (!web_cert(db_config()->name, &cert, &key, fingerprint)) {
+        ESP_LOGE(TAG, "no certificate, no HTTPS");
+        return;
+    }
+    httpd_ssl_config_t cfg = HTTPD_SSL_CONFIG_DEFAULT();
+    cfg.servercert = (const uint8_t *)cert;
+    cfg.servercert_len = strlen(cert) + 1;
+    cfg.prvtkey_pem = (const uint8_t *)key;
+    cfg.prvtkey_len = strlen(key) + 1;
+    cfg.session_tickets = true;
+    cfg.httpd.max_uri_handlers = route_count;
+    cfg.httpd.uri_match_fn = httpd_uri_match_wildcard;
+    cfg.httpd.keep_alive_enable = true;
+    cfg.httpd.keep_alive_idle = 5;
+    cfg.httpd.keep_alive_interval = 5;
+    cfg.httpd.keep_alive_count = 3;
+    esp_err_t err = httpd_ssl_start(&tls_server, &cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "HTTPS: %s", esp_err_to_name(err));
+        tls_server = NULL;
+        return;
+    }
+    for (size_t i = 0; i < route_count; i++) {
+        httpd_register_uri_handler(tls_server, &uris[i]);
+    }
+    httpd_register_err_handler(tls_server, HTTPD_404_NOT_FOUND, not_found);
+}
+
+const char *db_web_fingerprint(void)
+{
+    return fingerprint;
+}
+
 esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(char *buf, size_t cap))
 {
     status_json = status;
@@ -764,7 +842,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         httpd_register_uri_handler(server, &uris[i]);
     }
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
-    events_start(server, state);
+    events_start(state);
+    start_tls();
     esp_timer_handle_t timer;
     esp_timer_create_args_t every = {.callback = sample_metrics, .name = "metrics"};
     if (esp_timer_create(&every, &timer) == ESP_OK) {
@@ -772,6 +851,6 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     }
     announce_api();
     xTaskCreate(dns_task, "dns", 3072, NULL, 3, NULL);
-    ESP_LOGI(TAG, "web UI on port 80");
+    ESP_LOGI(TAG, "web UI on port 80%s", tls_server ? " and 443" : "");
     return ESP_OK;
 }

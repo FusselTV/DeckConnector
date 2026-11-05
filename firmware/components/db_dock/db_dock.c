@@ -8,15 +8,18 @@
 #include <string.h>
 
 #include "db_cora.h"
+#include "db_dns.h"
 #include "db_deck.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "lwip/dns.h"
 #include "lwip/etharp.h"
 #include "lwip/priv/tcpip_priv.h"
 #include "lwip/sockets.h"
@@ -425,7 +428,93 @@ static struct {
     uint32_t request;
     uint8_t request_mac[6];
     int64_t request_at;
+    struct {
+        uint32_t ip;
+        char name[DB_DNS_NAME_LEN];
+        int64_t asked_at;
+    } names[KNOWN_MAX]; /* RAM only: a name is asked again after a boot, it may have changed */
+    int next_name;
 } pair = {.mux = portMUX_INITIALIZER_UNLOCKED, .open_until = OPEN_US};
+
+static void lookup_task(void *arg)
+{
+    uint32_t ip = (uint32_t)(uintptr_t)arg;
+    char name[DB_DNS_NAME_LEN] = "";
+    const ip_addr_t *dns = dns_getserver(0);
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock >= 0 && dns && !ip_addr_isany(dns)) {
+        struct timeval wait = {.tv_sec = 1};
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &wait, sizeof(wait));
+        struct sockaddr_in to = {.sin_family = AF_INET, .sin_port = htons(53)};
+        to.sin_addr.s_addr = ip_2_ip4(dns)->addr;
+        uint16_t id = (uint16_t)esp_random();
+        uint8_t query[64], answer[512];
+        size_t n = db_dns_ptr_query(ip, id, query);
+        for (int i = 0; i < 2 && !name[0]; i++) {
+            sendto(sock, query, n, 0, (struct sockaddr *)&to, sizeof(to));
+            int got = recv(sock, answer, sizeof(answer), 0);
+            if (got > 0) {
+                db_dns_ptr_name(answer, (size_t)got, id, name);
+            }
+        }
+    }
+    if (sock >= 0) {
+        close(sock);
+    }
+    taskENTER_CRITICAL(&pair.mux);
+    for (int i = 0; i < KNOWN_MAX; i++) {
+        if (pair.names[i].ip == ip) {
+            snprintf(pair.names[i].name, sizeof(pair.names[i].name), "%s", name);
+        }
+    }
+    taskEXIT_CRITICAL(&pair.mux);
+    if (name[0] && s.hosts_changed) {
+        s.hosts_changed();
+    }
+    vTaskDelete(NULL);
+}
+
+/* Under the mux. Without an answer it asks again after a minute, not on every call. */
+static bool should_ask(uint32_t ip, int64_t now)
+{
+    for (int i = 0; i < KNOWN_MAX; i++) {
+        if (pair.names[i].ip == ip) {
+            if (pair.names[i].name[0] || now - pair.names[i].asked_at < 60000000) {
+                return false;
+            }
+            pair.names[i].asked_at = now;
+            return true;
+        }
+    }
+    int i = pair.next_name++ % KNOWN_MAX;
+    pair.names[i].ip = ip;
+    pair.names[i].name[0] = 0;
+    pair.names[i].asked_at = now;
+    return true;
+}
+
+static void look_up(uint32_t ip)
+{
+    int64_t now = esp_timer_get_time();
+    taskENTER_CRITICAL(&pair.mux);
+    bool ask = should_ask(ip, now);
+    taskEXIT_CRITICAL(&pair.mux);
+    if (ask) {
+        xTaskCreate(lookup_task, "dock_name", 3072, (void *)(uintptr_t)ip, 2, NULL);
+    }
+}
+
+void db_dock_name(uint32_t ip, char name[DB_DNS_NAME_LEN])
+{
+    name[0] = 0;
+    taskENTER_CRITICAL(&pair.mux);
+    for (int i = 0; i < KNOWN_MAX; i++) {
+        if (pair.names[i].ip == ip) {
+            snprintf(name, DB_DNS_NAME_LEN, "%s", pair.names[i].name);
+        }
+    }
+    taskEXIT_CRITICAL(&pair.mux);
+}
 
 static const uint8_t no_mac[6];
 
@@ -547,6 +636,7 @@ static bool remember(uint32_t ip, const uint8_t mac[6], bool strict)
 
 static bool admit(uint32_t ip)
 {
+    look_up(ip);
     uint8_t mac[6];
     mac_of(ip, mac);
     bool strict = db_config()->dock_paired_only;
@@ -644,6 +734,9 @@ size_t db_dock_known(db_dock_peer_t *out, size_t max)
     size_t n = (size_t)pair.count < max ? (size_t)pair.count : max;
     memcpy(out, pair.known, n * sizeof(out[0]));
     taskEXIT_CRITICAL(&pair.mux);
+    for (size_t i = 0; i < n; i++) {
+        look_up(out[i].ip);
+    }
     return n;
 }
 
@@ -815,12 +908,23 @@ static void tell_hosts(void)
             send_dock_report(&s.docks[i], 0x1c, 0);
         }
     }
+}
+
+static esp_timer_handle_t services_timer;
+
+static void sync_services(void *arg)
+{
+    xSemaphoreTake(s.info_lock, portMAX_DELAY);
+    device_service(s.info.device);
+    xSemaphoreGive(s.info_lock);
     if (dock_instance[0]) {
         mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
         announce();
     }
 }
 
+/* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them go
+ * offline and online several times, and the Stream Deck app then never resolved the device again. */
 static void on_device(const db_device_info_t *info)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
@@ -828,9 +932,10 @@ static void on_device(const db_device_info_t *info)
         s.attached = *info;
     }
     s.info.device = info ? &s.attached : NULL;
-    device_service(info);
     xSemaphoreGive(s.info_lock);
     tell_hosts();
+    esp_timer_stop(services_timer);
+    esp_timer_start_once(services_timer, 1000000);
 }
 
 size_t db_dock_hosts(db_dock_host_t *out, size_t max)
@@ -910,12 +1015,16 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
         s.devices[i] =
             (conn_t){.device_port = true, .connection_no = 2, .sock = -1, .tx = xSemaphoreCreateMutex()};
     }
-    db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input};
-    db_deck_add_listener(&l);
+    esp_timer_create_args_t timer = {.callback = sync_services, .name = "dock_mdns"};
+    esp_timer_create(&timer, &services_timer);
     db_device_info_t now;
     if (db_deck_info(&now)) {
-        on_device(&now);
+        s.attached = now;
+        s.info.device = &s.attached;
+        device_service(&now);
     }
+    db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input};
+    db_deck_add_listener(&l);
     xTaskCreatePinnedToCore(listen_task, "dock_port", 3072, NULL, 6, NULL, 0);
     xTaskCreatePinnedToCore(listen_task, "dock_dev_port", 3072, (void *)1, 7, NULL, 0);
     xTaskCreatePinnedToCore(keepalive_task, "dock_ka", 3072, NULL, 5, NULL, 0);

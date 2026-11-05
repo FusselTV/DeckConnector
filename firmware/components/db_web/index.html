@@ -81,6 +81,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/></symbol>
 <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
 <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
 </svg>
 <main>
 <form id="login" class="card" hidden style="max-width:380px;margin:12vh auto 0">
@@ -145,6 +146,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </div>
 <p class="section-t">Web-Zugang</p>
 <div class="grid"><div><label for="apass">Neues Passwort für admin</label><input id="apass" type="password" placeholder="unverändert" minlength="6" maxlength="23"></div></div>
+<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Ohne Verschlüsselung leitet die Bridge den Browser um und beantwortet sonst nichts, auch nicht Home Assistant mit http://. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
 <div class="row"><button class="btn">Speichern</button><span class="hint" style="margin:0">Netz, Server und Name starten die Bridge neu.</span></div>
 </div></form>
 </section>
@@ -156,6 +158,8 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div class="card-b stack"><div class="row"><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><button id="up" class="btn" disabled>Installieren</button></div>
 <form id="otaurl" class="row" style="flex-wrap:nowrap"><input id="url" type="url" placeholder="oder Adresse: http://…/deckbridge.dbfw"><button class="btn outline">Laden</button></form>
 <p id="upmsg" class="small"></p></div></div>
+<div class="card"><div class="card-h"><h2>Einstellungen sichern</h2><p class="muted">Passwörter bleiben auf der Bridge und stehen nicht in der Datei.</p></div>
+<div class="card-b row"><button id="backup" class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Herunterladen</button><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Wiederherstellen<input id="restore" type="file" accept=".json,application/json" hidden></label></div></div>
 <div class="card"><div class="card-h"><h2>Gerät</h2></div><div class="card-b"><div class="kv" id="sys"></div></div></div>
 <div class="card"><div class="card-h row between"><h2>Protokoll</h2><div class="row"><button id="logbtn" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Aktualisieren</button><button id="reboot" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Neu starten</button></div></div>
 <div class="card-b"><pre id="log">Noch nicht geladen.</pre></div></div>
@@ -196,6 +200,25 @@ async function put(body, quiet) {
   else if (!quiet || j.restart) toast(j.restart ? 'Gespeichert. Die Bridge startet neu.' : 'Gespeichert.');
   return j;
 }
+
+$('backup').onclick = async () => {
+  const r = await api('/api/config').catch(() => null);
+  if (!r || !r.ok) return toast('Bridge nicht erreichbar', true);
+  const cfg = await r.json();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(cfg, null, 2)], {type: 'application/json'}));
+  a.download = `${cfg.name}-einstellungen.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+$('restore').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  let cfg;
+  try { cfg = JSON.parse(await file.text()); } catch { return toast('Keine Einstellungsdatei.', true); }
+  if (typeof cfg !== 'object' || !cfg.controller) return toast('Keine Einstellungsdatei.', true);
+  if (confirm(`Einstellungen aus „${file.name}“ übernehmen? Ändert sich das Netz, startet die Bridge neu.`)) put(cfg);
+};
 
 const controllers = [
   ['companion', 'Companion', 'Bitfocus Companion'],
@@ -240,12 +263,12 @@ function renderPairing(s) {
   $('strict').checked = p.only_paired;
   $('request').hidden = !p.request;
   if (p.request) {
-    $('request').innerHTML = `<div class="grow"><b>Verbindungsanfrage</b><span class="small muted">${esc(p.request)} will das Deck steuern</span></div>
+    $('request').innerHTML = `<div class="grow"><b>Verbindungsanfrage</b><span class="small muted">${p.request_name ? esc(p.request_name) + ' (' + esc(p.request) + ')' : esc(p.request)} will das Deck steuern</span></div>
       <button type="button" class="btn sm" id="accept">Annehmen</button><button type="button" class="btn outline sm" id="deny">Ablehnen</button>`;
     $('accept').onclick = () => dock({accept: true});
     $('deny').onclick = () => dock({accept: false});
   }
-  $('hosts').innerHTML = p.hosts.map((h, i) => `<div class="src"><div class="grow"><b>${kinds[h.kind] || 'Unbekannt'}</b>
+  $('hosts').innerHTML = p.hosts.map((h, i) => `<div class="src"><div class="grow"><b>${h.name ? esc(h.name) + ' · ' : ''}${kinds[h.kind] || 'Unbekannt'}</b>
       <span class="small muted">${esc(h.ip)}${h.mac ? ' · ' + esc(h.mac) : ''}</span></div>
       <span class="badge ${h.connected ? 'ok' : ''}"><span class="dot"></span>${h.connected ? 'verbunden' : 'getrennt'}</span>
       <button type="button" class="btn ghost sm" data-forget="${i}" aria-label="Rechner entfernen" title="Rechner entfernen"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>`).join('') ||
@@ -259,6 +282,8 @@ function renderPairing(s) {
   if ($('pairstop')) $('pairstop').onclick = () => dock({pairing: 0});
 }
 $('strict').onchange = () => put({dock_paired_only: $('strict').checked}, true).then(loadStatus);
+$('httpsonly').onchange = () => put({https_only: $('httpsonly').checked}, true);
+if (location.protocol === 'http:') { $('tohttps').hidden = false; $('tohttps').href = `https://${location.hostname}/`; }
 async function setServers(list) {
   if ((await put({servers: list}, true)).ok) await loadConfig();
 }
@@ -460,6 +485,7 @@ async function loadConfig() {
   config = await (await api('/api/config')).json();
   $('name').value = config.name; $('brightness').value = config.brightness; $('bval').textContent = config.brightness + ' %';
   $('ssid').value = config.wifi_ssid;
+  $('httpsonly').checked = !!config.https_only;
   $('satellite').value = config.satellite;
   if (state) renderSources(state);
   for (const key of ['lan', 'wlan']) {
@@ -508,6 +534,7 @@ function renderSystem(s) {
   const m = s.memory;
   const c = s.counters;
   $('sys').innerHTML = kv('Firmware', s.firmware) + kv('WLAN-Chip', s.wlan_firmware) +
+    (s.https_fingerprint ? kv('HTTPS-Fingerabdruck (SHA-256)', s.https_fingerprint) : '') +
     (s.device ? kv('Stream Deck', `${s.device.model}, Firmware ${s.device.firmware ?? '–'}`) : '') +
     kv('Läuft seit', since(s.uptime_s)) + (s.network.wlan.ip ? kv('WLAN-Signal', s.network.wlan.rssi + ' dBm') : '') +
     kv('Speicher frei', `${Math.round(m.heap_free / 1024)} KB, mindestens ${Math.round(m.heap_min_free / 1024)} KB`) +

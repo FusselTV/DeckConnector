@@ -171,6 +171,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "host", cfg->host);
     db_json_str(&j, "satellite", cfg->satellite);
     db_json_bool(&j, "dock_paired_only", cfg->dock_paired_only);
+    db_json_bool(&j, "https_only", cfg->https_only);
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
     ip_to_json(&j, "lan", &cfg->lan);
@@ -281,9 +282,9 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->controller = (db_controller_t)found;
     }
-    const char *flags[] = {"setup_done", "dock_paired_only"};
-    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only};
-    for (int i = 0; i < 2; i++) {
+    const char *flags[] = {"setup_done", "dock_paired_only", "https_only"};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only};
+    for (int i = 0; i < 3; i++) {
         const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
         if (v && !cJSON_IsBool(v)) {
             snprintf(err, err_cap, "%s: true or false expected", flags[i]);

@@ -26,8 +26,8 @@ CONFIG_LWIP_TCP_WND_DEFAULT=65535
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768
 CONFIG_LWIP_TCP_RECVMBOX_SIZE=64
 CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=64
-CONFIG_LWIP_MAX_SOCKETS=32
-CONFIG_LWIP_MAX_ACTIVE_TCP=32
+CONFIG_LWIP_MAX_SOCKETS=40
+CONFIG_LWIP_MAX_ACTIVE_TCP=40
 # connections that arrive together wait here for accept; a full box answers with a reset
 CONFIG_LWIP_TCP_ACCEPTMBOX_SIZE=16
 # the address comes seconds sooner: no ARP probe of the offered address, and the last one is asked for first
@@ -54,3 +54,11 @@ CONFIG_HTTPD_WS_POST_HANDSHAKE_CB_SUPPORT=y
 
 # Deeper JSON overflows the parser's stack: 127 nested brackets restarted the bridge
 CONFIG_CJSON_NESTING_LIMIT=16
+
+# HTTPS on 443 next to HTTP, with a certificate made on the device. TLS buffers in PSRAM: about 25 KB per
+# connection that internal RAM cannot spare.
+CONFIG_ESP_HTTPS_SERVER_ENABLE=y
+CONFIG_ESP_TLS_SERVER_SESSION_TICKETS=y
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+CONFIG_MBEDTLS_X509_CREATE_C=y
+CONFIG_MBEDTLS_X509_CRT_WRITE_C=y

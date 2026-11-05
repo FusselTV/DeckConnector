@@ -53,6 +53,9 @@ def test_pairing():
         assert not admitted()
         p = status()["pairing"]
         assert p["request"] == me and me not in known()
+        assert p["request_name"].lower() == socket.gethostbyaddr(me)[0].split(".")[0].lower(), (
+            "named as the router knows it"
+        )
         assert status()["writer"] == "ui", "the deck shows the request"
         dock({"accept": False})
         assert status()["pairing"]["request"] is None

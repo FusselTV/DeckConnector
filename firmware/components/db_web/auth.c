@@ -214,8 +214,9 @@ esp_err_t auth_login(httpd_req_t *req)
     }
     char token[TOKEN_BYTES * 2 + 1];
     new_session(token);
-    char cookie[128];
-    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200", token);
+    char cookie[160];
+    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200%s", token,
+             web_tls(req) ? "; Secure" : "");
     httpd_resp_set_hdr(req, "Set-Cookie", cookie);
     return send_json(req, "{\"ok\":true}");
 }

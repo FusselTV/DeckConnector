@@ -1,7 +1,13 @@
 # Web API
 
-Everything the web UI does goes through this JSON API on port 80. Scripts can use it the same way. The bridge
-announces it over mDNS as `_deckbridge-api._tcp`, with `path` and `fw` in the TXT record.
+Everything the web UI does goes through this JSON API on port 80, and the same over HTTPS on port 443. Scripts
+can use it the same way. The bridge announces it over mDNS as `_deckbridge-api._tcp`, with `path` and `fw` in the
+TXT record.
+
+The bridge makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
+`https_fingerprint` in the status is its SHA-256, to compare with what the browser shows. With `https_only` set,
+plain HTTP answers the page with a redirect to HTTPS and everything else with 403, so no password goes over the
+network unencrypted. The setup access point stays on plain HTTP.
 
 ## Login
 
@@ -59,7 +65,7 @@ The change works at once. All of them stay connected, and the deck shows the pic
 The others keep drawing into their own picture in the background and get no input. The same choice is in the menu
 on the device. When more than one host of a kind is connected, its key opens a list of them.
 
-`brightness`, `host`, `servers` and `satellite` also work at once. Every other change restarts the bridge, and
+`brightness`, `host`, `servers`, `satellite` and `https_only` also work at once. Every other change restarts the bridge, and
 the reply says so: `{"ok": true, "restart": true}`.
 
 ## Settings
@@ -70,13 +76,16 @@ the reply says so: `{"ok": true, "restart": true}`.
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
  "servers": ["ws://192.168.1.128:8765/deckbridge", "ws://192.168.1.128:8766/deckbridge", "", ""],
- "satellite": "192.168.1.15", "token_set": false}
+ "satellite": "192.168.1.15", "https_only": false, "token_set": false}
 ```
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
 needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
 address needs `ip` and `mask`. `satellite` is the address of Companion for its Satellite API, `host` or
 `host:port`, port 16622 when left out. Empty turns it off.
+
+The secret keys never come out of `GET /api/config`. So its reply is a backup without passwords, and a `PUT` of
+it restores the settings. The web UI does this under System.
 
 ## Status
 
@@ -159,7 +168,9 @@ minutes after a boot, and while pairing is open. Otherwise it is turned away, an
 whether to let it in. Up to 8 hosts are listed.
 
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
-`open_s` how long still, and `hosts` with `ip`, `mac`, `kind` and `connected`. `POST /api/dock` takes one of
+`open_s` how long still, and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and
+`request_name` for the waiting host, is what the router's DNS answers for the address, empty when it does not
+know one. `POST /api/dock` takes one of
 these:
 
 ```json

@@ -1,6 +1,6 @@
-idf_component_register(SRCS db_web.c auth.c api.c events.c INCLUDE_DIRS include EMBED_TXTFILES index.html
+idf_component_register(SRCS db_web.c auth.c api.c events.c cert.c INCLUDE_DIRS include EMBED_TXTFILES index.html
                        REQUIRES esp_common
-                       PRIV_REQUIRES app_update bootloader_support nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_timer lwip mbedtls)
+                       PRIV_REQUIRES app_update bootloader_support nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_https_server esp_timer lwip mbedtls)
 
 idf_build_get_property(python PYTHON)
 set(page_gz ${CMAKE_CURRENT_BINARY_DIR}/index.html.gz)

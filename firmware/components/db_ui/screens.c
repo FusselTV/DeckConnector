@@ -452,8 +452,9 @@ static void welcome_net(page_t *p)
 static void request_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, fit(p, "Verbindung", "Anfrage"), md->request,
-         fit(p, "neues Programm", "neu"));
+    bool named = md->request_name[0];
+    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, fit(p, "Verbindung", "Anfrage"),
+         named ? md->request_name : md->request, named ? md->request : fit(p, "neues Programm", "neu"));
     ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
     button(yes, ICON_SAVE, "Annehmen", fit(p, "darf verbinden", ""));
     yes->active = true;
@@ -462,7 +463,9 @@ static void request_page(page_t *p)
     button(no, ICON_CLOSE, "Ablehnen", fit(p, "bleibt draußen", ""));
     no->color = C_DANGER;
     if (p->l->strip) {
-        segment(&p->sc->seg[0], 4, ICON_ALERT, C_WARN, "Verbindungsanfrage", md->request,
+        char who[48];
+        snprintf(who, sizeof(who), "%.24s (%s)", md->request_name, md->request);
+        segment(&p->sc->seg[0], 4, ICON_ALERT, C_WARN, "Verbindungsanfrage", named ? who : md->request,
                 "Ein Programm, das noch nie verbunden war, will das Deck steuern");
     }
 }
