@@ -206,6 +206,12 @@ static esp_err_t post_menu(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+static esp_err_t post_deck_reconnect(httpd_req_t *req)
+{
+    db_deck_reconnect();
+    return send_json(req, "{\"ok\":true}");
+}
+
 static esp_err_t post_ota(httpd_req_t *req)
 {
     if (db_ota_begin(req->content_len) != ESP_OK) {
@@ -700,6 +706,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image},
         {.uri = "/api/input", .method = HTTP_POST, .handler = post_input},
         {.uri = "/api/menu", .method = HTTP_POST, .handler = post_menu},
+        {.uri = "/api/deck/reconnect", .method = HTTP_POST, .handler = post_deck_reconnect},
         {.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg},
         {.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url},
         {.uri = "/api/ws",

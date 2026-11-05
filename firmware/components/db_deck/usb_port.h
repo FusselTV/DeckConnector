@@ -22,3 +22,5 @@ void usb_port_close(void);
 const db_hid_io_t *usb_port_io(void);
 
 uint32_t usb_port_errors(void);
+/* Cut and restore the port, as if the cable were pulled and plugged in again. Blocks for half a second. */
+esp_err_t usb_port_replug(void);

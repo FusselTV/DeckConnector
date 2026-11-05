@@ -216,10 +216,24 @@ static void handle_attach(uint8_t address)
     }
     ESP_LOGI(TAG, "%s %s, serial %s, firmware %s", s.dev.info.vendor, s.dev.info.model, s.dev.info.serial,
              s.dev.info.firmware);
+    /* another deck: the kept pictures have its predecessor's layout. The same one: draw them again at once,
+     * it lost its picture with its power, and a host may not send it again. */
+    static char last_serial[sizeof(s.dev.info.serial)];
+    bool same = strcmp(last_serial, s.dev.info.serial) == 0;
+    strlcpy(last_serial, s.dev.info.serial, sizeof(last_serial));
+    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+    for (int i = 0; i < DB_SOURCE_COUNT && !same; i++) {
+        db_screen_clear(&s.screens[i]);
+    }
+    xSemaphoreGive(s.shot_lock);
     xSemaphoreTake(s.lock, portMAX_DELAY);
     s.present = true;
+    s.replay = same;
     xSemaphoreGive(s.lock);
     notify_device(&s.dev.info);
+    if (same) {
+        xTaskNotifyGive(s.writer_task);
+    }
 }
 
 static void handle_detach(void)
@@ -232,12 +246,7 @@ static void handle_detach(void)
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
     usb_port_close();
     xSemaphoreGive(s.io_lock);
-    xSemaphoreTake(s.shot_lock, portMAX_DELAY);
-    for (int i = 0; i < DB_SOURCE_COUNT; i++) {
-        db_screen_clear(&s.screens[i]);
-    }
-    xSemaphoreGive(s.shot_lock);
-    notify_device(NULL);
+    notify_device(NULL); /* the kept pictures stay: the same deck plugged in again shows them at once */
 }
 
 static void handle_input(const ev_t *ev)
@@ -372,6 +381,21 @@ const char *db_deck_source_name(db_source_t source)
     static const char *const names[DB_SOURCE_COUNT] = {"ui",    "server1", "server2", "server3", "server4",
                                                        "dock1", "dock2",   "dock3",   "dock4"};
     return source < DB_SOURCE_COUNT ? names[source] : "";
+}
+
+static void replug_task(void *arg)
+{
+    esp_err_t err = usb_port_replug();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
+    }
+    vTaskDelete(NULL);
+}
+
+void db_deck_reconnect(void)
+{
+    ESP_LOGI(TAG, "reconnecting the deck");
+    xTaskCreate(replug_task, "deck_replug", 2560, NULL, 5, NULL);
 }
 
 void db_deck_forget(db_source_t source)

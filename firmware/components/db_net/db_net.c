@@ -18,6 +18,7 @@
 #include "mdns.h"
 
 #define RSSI_MAX_AGE_US 2000000
+#define DHCP_KICK_US    12000000
 #define LAN_ROUTE_PRIO  200 /* above the WLAN station (100): LAN wins when both are up */
 
 static const char *TAG = "net";
@@ -29,6 +30,8 @@ static struct {
     esp_netif_t *ap;
     db_net_status_t st;
     int64_t rssi_at;
+    int64_t link_at;
+    esp_timer_handle_t kick;
     bool wifi_started;
     void (*on_change)(void);
 } s;
@@ -95,12 +98,31 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     changed();
 }
 
+/* A switch port with spanning tree drops the first seconds of frames after the link comes up, and DHCP
+ * retries after 1, 2 and 4 s: the address came up to 6 s late. Asking again every second gets it a second
+ * after the port forwards. */
+static void dhcp_kick(void *arg)
+{
+    int64_t since = esp_timer_get_time() - s.link_at;
+    if (s.st.lan_up || !s.st.lan_link || since > DHCP_KICK_US) {
+        esp_timer_stop(s.kick);
+        return;
+    }
+    esp_netif_dhcpc_stop(s.lan);
+    esp_netif_dhcpc_start(s.lan);
+}
+
 static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (id == ETHERNET_EVENT_CONNECTED) {
         ESP_LOGI(TAG, "LAN link up");
         s.st.lan_link = true;
         apply_static(s.lan, &db_config()->lan);
+        if (db_config()->lan.dhcp && s.kick) {
+            s.link_at = esp_timer_get_time();
+            esp_timer_stop(s.kick);
+            esp_timer_start_periodic(s.kick, 1000000);
+        }
     } else if (id == ETHERNET_EVENT_DISCONNECTED) {
         ESP_LOGW(TAG, "LAN link down");
         s.st.lan_link = false;
@@ -160,6 +182,8 @@ static esp_err_t start_eth(const db_board_t *b)
     esp_eth_handle_t eth;
     ESP_RETURN_ON_ERROR(esp_eth_driver_install(&cfg, &eth), TAG, "eth driver");
     ESP_RETURN_ON_ERROR(esp_netif_attach(s.lan, esp_eth_new_netif_glue(eth)), TAG, "eth netif");
+    esp_timer_create_args_t kick = {.callback = dhcp_kick, .name = "dhcp_kick"};
+    ESP_RETURN_ON_ERROR(esp_timer_create(&kick, &s.kick), TAG, "dhcp timer");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, on_eth, NULL), TAG, "eth ev");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, on_ip, NULL), TAG, "ip ev");
     return esp_eth_start(eth);

@@ -28,6 +28,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/screen/<id>.jpg` | One image of that picture |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
+| `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
 | `POST /api/reboot` | Restart |

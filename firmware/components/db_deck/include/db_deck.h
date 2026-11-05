@@ -47,6 +47,8 @@ void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
 
 /* Pending images of the old writer are dropped and acknowledged as REJECTED_ROLE. */
 void db_deck_set_writer(db_source_t source);
+/* Unplug and plug in the deck by switching its USB port off and on; returns at once. */
+void db_deck_reconnect(void);
 /* Drop the kept picture of a source whose host left. */
 void db_deck_forget(db_source_t source);
 db_source_t db_deck_writer(void);

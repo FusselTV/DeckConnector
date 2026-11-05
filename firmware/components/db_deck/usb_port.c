@@ -196,6 +196,15 @@ static void client_task(void *arg)
     }
 }
 
+esp_err_t usb_port_replug(void)
+{
+    /* the port without power is a pulled cable to the host stack: the device goes, and comes back enumerated
+     * anew */
+    ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    return usb_host_lib_set_root_port_power(true);
+}
+
 esp_err_t usb_port_start(const usb_port_cb_t *cb)
 {
     s.cb = *cb;

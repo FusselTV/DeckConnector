@@ -88,6 +88,8 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     if (c->kind == DB_CTRL_SERVER && query) {
         c->kind = h->op == DB_CORA_OP_GET_REPORT ? DB_CTRL_COMPANION : DB_CTRL_APP;
         ESP_LOGI(TAG, "dock host is %s", db_controller_name(c->kind));
+        report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
+                             next event */
     }
     if (query) {
         send_dock_report(c, p[1], h->id);
