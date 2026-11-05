@@ -42,6 +42,9 @@ typedef struct {
     } pending;
 } db_screen_t;
 
+/* Ids name images in cached URLs: a random start per boot keeps one from naming an image of an earlier boot.
+ */
+void db_screen_seed_ids(uint32_t first);
 void db_screen_init(db_screen_t *s, void *(*realloc_fn)(void *, size_t), void (*free_fn)(void *));
 /* Takes ownership of `data`. */
 void db_screen_put(db_screen_t *s, uint8_t display, db_rect_t rect, uint8_t *data, size_t len);

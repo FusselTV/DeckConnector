@@ -7,6 +7,7 @@
 #include "db_screen.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -332,6 +333,7 @@ esp_err_t db_deck_start(void)
     for (int i = 0; i < DB_SOURCE_COUNT; i++) {
         db_screen_init(&s.screens[i], psram_realloc, heap_caps_free);
     }
+    db_screen_seed_ids(esp_random());
     db_regions_init(&s.pending, PENDING_BUDGET);
     xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, NULL, 8, &s.writer_task, 1);
     xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1);

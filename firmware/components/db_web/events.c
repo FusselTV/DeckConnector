@@ -19,6 +19,8 @@
 #define POLL_MS   200
 #define FRAME_MAX 512
 #define INPUT_MAX 160
+#define PING_MS   5000 /* a listener hears something this often, so it can tell a dead link from a quiet deck \
+                        */
 
 static const char *TAG = "events";
 
@@ -99,9 +101,14 @@ static void poll_task(void *arg)
     static db_shot_t shots[DB_SCREEN_MAX];
     char input[INPUT_MAX];
     TickType_t next = xTaskGetTickCount();
+    TickType_t ping = next;
     for (;;) {
         if (xQueueReceive(e.inputs, input, pdMS_TO_TICKS(POLL_MS)) == pdTRUE) {
             broadcast(input);
+        }
+        if (xTaskGetTickCount() - ping >= pdMS_TO_TICKS(PING_MS) && anyone()) {
+            ping = xTaskGetTickCount();
+            broadcast("{\"t\":\"ping\"}");
         }
         if (xTaskGetTickCount() < next || !anyone() || !buf) {
             continue;

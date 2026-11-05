@@ -4,6 +4,11 @@
 
 static uint32_t next_id; /* shared by all screens, so ids never repeat */
 
+void db_screen_seed_ids(uint32_t first)
+{
+    next_id = first;
+}
+
 void db_screen_init(db_screen_t *s, void *(*realloc_fn)(void *, size_t), void (*free_fn)(void *))
 {
     memset(s, 0, sizeof(*s));

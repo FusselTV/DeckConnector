@@ -327,17 +327,25 @@ async function loadStatus() {
 }
 function connect() {
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws`);
-  ws.onopen = () => { online(true); clearInterval(poll); poll = null; loadScreen(); };
+  /* the bridge pings every 5 s; a restart leaves the socket open but dead, and only silence shows that */
+  let alive = null;
+  const dead = () => {
+    clearTimeout(alive);
+    ws.onclose = ws.onmessage = null;
+    ws.close();
+    online(false);
+    if (!poll) poll = setInterval(() => { loadStatus(); loadScreen(); }, 2000);
+    setTimeout(connect, 1000);
+  };
+  const heard = () => { clearTimeout(alive); alive = setTimeout(dead, 12000); };
+  ws.onopen = () => { heard(); online(true); clearInterval(poll); poll = null; loadScreen(); };
   ws.onmessage = (m) => {
+    heard();
     const msg = JSON.parse(m.data);
     if (msg.t === 'state') { state = msg; renderStatus(); }
     if (msg.t === 'screen') loadScreen();
   };
-  ws.onclose = () => {
-    online(false);
-    if (!poll) poll = setInterval(() => { loadStatus(); loadScreen(); }, 2000);
-    setTimeout(connect, 3000);
-  };
+  ws.onclose = dead;
 }
 
 /* ---- settings ---- */
