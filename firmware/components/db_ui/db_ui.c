@@ -319,24 +319,51 @@ static void ui_task(void *arg)
     }
 }
 
+bool db_ui_menu_chord(int encoders, int keys, int *last)
+{
+    bool on_encoders = encoders >= 2;
+    *last = (on_encoders ? encoders : keys) - 1;
+    return on_encoders;
+}
+
+static void open_menu(int64_t now)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    bool opened = !ui_menu_open(&s.menu);
+    if (opened) {
+        ui_menu_open_main(&s.menu, now);
+    }
+    xSemaphoreGive(s.lock);
+    if (opened) {
+        ESP_LOGI(TAG, "menu opened");
+        changed();
+    }
+}
+
+esp_err_t db_ui_open_menu(void)
+{
+    if (!s.present) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    open_menu(esp_timer_get_time());
+    return ESP_OK;
+}
+
 static void check_menu_chord(void)
 {
-    int last_enc = s.dev.encoder_count - 1;
-    int last_key = s.dev.key_count - 1;
-    bool held = s.dev.encoder_count >= 2 ? (s.enc_down[0] && s.enc_down[last_enc])
-                                         : (s.key_down[0] && last_key > 0 && s.key_down[last_key]);
+    int last;
+    bool on_encoders = db_ui_menu_chord(s.dev.encoder_count, s.dev.key_count, &last);
+    const bool *down = on_encoders ? s.enc_down : s.key_down;
+    int size = on_encoders ? sizeof(s.enc_down) : sizeof(s.key_down);
+    bool held = last > 0 && last < size && down[0] && down[last];
     int64_t now = esp_timer_get_time();
     if (!held) {
         s.chord_since = 0;
     } else if (!s.chord_since) {
         s.chord_since = now;
-    } else if (now - s.chord_since >= MENU_HOLD_US && !ui_menu_open(&s.menu)) {
+    } else if (now - s.chord_since >= MENU_HOLD_US) {
         s.chord_since = 0;
-        ESP_LOGI(TAG, "menu opened");
-        xSemaphoreTake(s.lock, portMAX_DELAY);
-        ui_menu_open_main(&s.menu, now);
-        xSemaphoreGive(s.lock);
-        changed();
+        open_menu(now);
     }
 }
 

@@ -158,6 +158,17 @@ static esp_err_t post_input(httpd_req_t *req)
     return reply_with(req, api_input(body, reply, sizeof(reply)), reply);
 }
 
+static esp_err_t post_menu(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
+    }
+    if (db_ui_open_menu() != ESP_OK) {
+        return send_error(req, "409 Conflict", "no deck connected");
+    }
+    return send_json(req, "{\"ok\":true}", 11);
+}
+
 static esp_err_t post_ota(httpd_req_t *req)
 {
     if (!auth_check(req)) {
@@ -270,6 +281,13 @@ static esp_err_t get_screen(httpd_req_t *req)
         }
         db_json_arr_close(&j);
         db_json_int(&j, "encoders", dev->encoder_count);
+        int last;
+        bool on_encoders = db_ui_menu_chord(dev->encoder_count, dev->key_count, &last);
+        db_json_obj_open(&j, "menu_chord");
+        db_json_str(&j, "on", on_encoders ? "encoders" : "keys");
+        db_json_int(&j, "first", 0);
+        db_json_int(&j, "last", last);
+        db_json_obj_close(&j);
     }
     db_json_arr_open(&j, "images");
     for (size_t i = 0; present && i < n; i++) {
@@ -463,6 +481,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen},
         {.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image},
         {.uri = "/api/input", .method = HTTP_POST, .handler = post_input},
+        {.uri = "/api/menu", .method = HTTP_POST, .handler = post_menu},
         {.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg},
         {.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url},
         {.uri = "/api/ws",

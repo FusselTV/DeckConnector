@@ -86,7 +86,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div class="card"><div class="card-h"><h2>Auf dem Deck</h2><p id="writer" class="muted"></p></div>
 <div class="card-b"><div id="deck"><div id="pics"></div><div id="hits"></div></div><div id="encs"></div>
 <p class="hint">Tasten anklicken oder halten. Auf dem Streifen tippen oder wischen. Das Mausrad dreht die Regler.</p>
-<p class="hint">Menü auf dem Deck: die Taste „Menü“. Zeichnet gerade ein Programm, den ersten und letzten Regler 2 Sekunden halten. Ohne Regler die erste und letzte Taste.</p></div></div>
+<div class="row" style="margin-top:12px;flex-wrap:nowrap;align-items:flex-start"><button type="button" class="btn outline sm" id="openmenu">Menü öffnen</button><p class="hint" id="menuhow" style="margin:0"></p></div></div></div>
 <div class="card"><div class="card-h"><h2>Status</h2></div><div class="card-b"><div class="kv" id="status"></div></div></div>
 </section>
 
@@ -261,6 +261,22 @@ function buildControls(sc) {
     wheel(el, () => encoder);
   }
 }
+/* Which controls open the menu comes from the deck itself, so every model gets its own words. */
+let chord = '';
+function chordText(sc) {
+  const c = sc.menu_chord;
+  if (!c || c.last < 1) return '';
+  if (c.on === 'encoders') return `Regler ${c.first + 1} und Regler ${c.last + 1}`;
+  const xs = sc.keys.map((r) => r.x), ys = sc.keys.map((r) => r.y);
+  const where = (r) => (r.y === Math.min(...ys) ? 'oben' : r.y === Math.max(...ys) ? 'unten' : 'Mitte') + ' ' +
+    (r.x === Math.min(...xs) ? 'links' : r.x === Math.max(...xs) ? 'rechts' : 'Mitte');
+  return `Taste ${c.first + 1} (${where(sc.keys[c.first])}) und Taste ${c.last + 1} (${where(sc.keys[c.last])})`;
+}
+const menuHow = () => chord ? `Am Deck selbst: ${chord} gleichzeitig 2 Sekunden halten.` : 'Kein Stream Deck angeschlossen.';
+async function openMenu() {
+  const r = await api('/api/menu', {method: 'POST'}).catch(() => null);
+  if (!r || !r.ok) toast('Menü ging nicht auf. Ist das Deck angeschlossen?', true);
+}
 let shown = '';
 let layout = '';
 async function loadScreen() {
@@ -273,6 +289,9 @@ async function loadScreen() {
     layout = geometry;
     $('deck').style.aspectRatio = sc.width ? `${sc.width} / ${sc.height}` : '';
     if (sc.width) buildControls(sc); else $('hits').innerHTML = $('encs').innerHTML = '';
+    chord = sc.width ? chordText(sc) : '';
+    $('menuhow').textContent = menuHow();
+    $('openmenu').disabled = !sc.width;
   }
   const key = sc.images.map((i) => i.url).join();
   if (key === shown) return;
@@ -377,6 +396,7 @@ $('otaurl').onsubmit = async (e) => {
   toast(r.ok ? 'Update läuft. Der Fortschritt steht auf dem Deck, danach startet die Bridge neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
 };
 $('logbtn').onclick = loadLog;
+$('openmenu').onclick = openMenu;
 $('reboot').onclick = async () => { if (confirm('Bridge jetzt neu starten?')) { await api('/api/reboot', {method: 'POST'}); toast('Startet neu …'); } };
 
 /* ---- tabs ---- */
@@ -408,7 +428,7 @@ const steps = [
       return b.wifi_ssid === config.wifi_ssid && !b.wifi_pass ? null : put(b);
     }},
   {title: 'Fertig', text: 'Die Bridge ist eingerichtet.',
-    body: () => `<p class="small">${esc(howto({...state, controller: picked})) || 'Das Programm übernimmt das Deck gleich.'}</p><p class="small muted">Das Menü auf dem Deck öffnet die Taste „Menü“. Zeichnet gerade ein Programm, den ersten und letzten Regler 2 Sekunden halten. Ohne Regler die erste und letzte Taste.</p>`,
+    body: () => `<p class="small">${esc(howto({...state, controller: picked})) || 'Das Programm übernimmt das Deck gleich.'}</p><p class="small muted">Das Menü auf dem Deck öffnet der Knopf „Menü öffnen“ in der Übersicht. ${esc(chord ? menuHow() : '')}</p>`,
     save: () => put({setup_done: true}, true)},
 ];
 function render() {

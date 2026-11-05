@@ -6,6 +6,10 @@ execute_process(COMMAND git describe --tags --always --dirty WORKING_DIRECTORY $
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/../.git/HEAD
              ${CMAKE_CURRENT_LIST_DIR}/../.git/index)
 
+# The lock file pins every component. The check for newer ones reads esp_hosted 3.1.0, whose manifest names
+# Kconfig options 3.0.10 lacks, and that fails the configure step.
+set(ENV{IDF_COMPONENT_CHECK_NEW_VERSION} 0)
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(deckbridge)
 

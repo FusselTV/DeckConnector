@@ -10,7 +10,7 @@
  * The on-device UI. It decides who may draw on the device: the menu and updates win, then the dock client or
  * the active server. Whenever nobody else draws, it shows what is missing (network, server, client).
  *
- * Menu: hold the first and the last encoder for 2 seconds (key 1 and the last key on decks without encoders).
+ * Menu: hold the two controls db_ui_menu_chord() names for 2 seconds, or call db_ui_open_menu().
  */
 
 esp_err_t db_ui_start(void);
@@ -24,3 +24,8 @@ void db_ui_set_c6_version(const char *version);
 void db_ui_refresh(void);
 /* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */
 esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len);
+/* The controls that open the menu: index 0 and *last of the encoders (true) or of the keys (false). *last <
+ * 1: none. */
+bool db_ui_menu_chord(int encoders, int keys, int *last);
+/* ESP_ERR_INVALID_STATE when no deck is connected. */
+esp_err_t db_ui_open_menu(void);

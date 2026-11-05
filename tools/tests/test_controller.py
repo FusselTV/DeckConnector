@@ -67,3 +67,24 @@ async def test_switching_keeps_servers_connected(bridges):
     sc = await screen()
     assert sc["writer"] == "server1"
     assert sc["images"] == before, "the kept picture is back without the server sending it again"
+
+
+async def wait_writer(prefix: str) -> None:
+    for _ in range(50):
+        if (await screen())["writer"].startswith(prefix):
+            return
+        await asyncio.sleep(0.1)
+    assert (await screen())["writer"].startswith(prefix)
+
+
+async def test_menu_opens_from_the_web_and_names_its_chord(bridges):
+    sc = await screen()
+    chord = sc["menu_chord"]
+    count = sc["encoders"] if chord["on"] == "encoders" else len(sc["keys"])
+    assert chord["first"] == 0 and chord["last"] == count - 1
+    assert (await http("POST", "/api/menu"))[0] == 200
+    await wait_writer("ui")
+    top = min(r["y"] for r in sc["keys"])
+    close = max((r["x"], i) for i, r in enumerate(sc["keys"]) if r["y"] == top)[1]  # top right closes the menu
+    assert (await http("POST", "/api/input", json.dumps({"key": close}).encode()))[0] == 200
+    await wait_writer("server")
