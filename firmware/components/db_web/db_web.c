@@ -445,7 +445,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         5; /* plus 2 * DB_DOCK_HOSTS dock sockets and the links, under CONFIG_LWIP_MAX_SOCKETS */
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.lru_purge_enable = true;
-    cfg.recv_wait_timeout = 15;
+    cfg.recv_wait_timeout =
+        5; /* a client that stops halfway through its headers blocks the server this long */
     httpd_handle_t server;
     esp_err_t err = httpd_start(&server, &cfg);
     if (err != ESP_OK) {

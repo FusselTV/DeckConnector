@@ -36,6 +36,8 @@ async def wait_role(bridge, active: bool) -> None:
 async def test_screen_shows_what_the_server_drew(bridges):
     active, _ = bridges
     full, key = jpeg((10, 120, 200)), jpeg((250, 200, 0), (120, 120))
+    assert (await active.send_image(KEY0, key)).result == AckResult.SHOWN
+    covered = (await screen())["images"][-1]["url"]
     assert (await active.send_image(FULL, full)).result == AckResult.SHOWN
     assert (await active.send_image(KEY0, key)).result == AckResult.SHOWN
     sc = await screen()
@@ -44,7 +46,7 @@ async def test_screen_shows_what_the_server_drew(bridges):
     assert rects == [FULL, KEY0], "the full image covers all older ones, the key lies on top"
     assert (await http("GET", sc["images"][0]["url"]))[1] == full
     assert (await http("GET", sc["images"][1]["url"]))[1] == key
-    assert (await http("GET", "/api/screen/1.jpg"))[0] == 404
+    assert (await http("GET", covered))[0] == 404
 
 
 async def test_switching_keeps_servers_connected(bridges):

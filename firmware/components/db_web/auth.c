@@ -58,11 +58,32 @@ static bool session_valid(const char *token)
     return ok;
 }
 
+static bool locked(void)
+{
+    return esp_timer_get_time() < locked_until;
+}
+
+/* One counter for the login form and for basic auth, so neither allows unlimited guessing. */
+static void count_try(bool ok)
+{
+    if (ok) {
+        failures = 0;
+        return;
+    }
+    failures++;
+    if (failures >= FREE_TRIES) {
+        int shift = failures - FREE_TRIES < 6 ? failures - FREE_TRIES : 6;
+        int secs = 1 << shift;
+        locked_until = esp_timer_get_time() + (int64_t)(secs < MAX_LOCK_S ? secs : MAX_LOCK_S) * 1000000;
+    }
+    ESP_LOGW(TAG, "wrong web password (%d in a row)", failures);
+}
+
 static bool basic_auth_ok(httpd_req_t *req)
 {
     char given[96] = {0};
     if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK ||
-        strncmp(given, "Basic ", 6) != 0) {
+        strncmp(given, "Basic ", 6) != 0 || locked()) {
         return false;
     }
     char plain[64];
@@ -71,7 +92,9 @@ static bool basic_auth_ok(httpd_req_t *req)
     int len = snprintf(plain, sizeof(plain), "admin:%s", db_config()->admin_pass);
     mbedtls_base64_encode(expected, sizeof(expected) - 1, &n, (const unsigned char *)plain, (size_t)len);
     expected[n] = '\0';
-    return equal(given + 6, (const char *)expected);
+    bool ok = equal(given + 6, (const char *)expected);
+    count_try(ok);
+    return ok;
 }
 
 bool auth_check(httpd_req_t *req)
@@ -149,17 +172,11 @@ esp_err_t auth_login(httpd_req_t *req)
                  (long long)((locked_until - now) / 1000000 + 1));
         return reply(req, "429 Too Many Requests", msg);
     }
-    if (!password_matches(req)) {
-        failures++;
-        if (failures >= FREE_TRIES) {
-            int shift = failures - FREE_TRIES < 6 ? failures - FREE_TRIES : 6;
-            int secs = 1 << shift;
-            locked_until = now + (int64_t)(secs < MAX_LOCK_S ? secs : MAX_LOCK_S) * 1000000;
-        }
-        ESP_LOGW(TAG, "failed web login (%d in a row)", failures);
+    bool ok = password_matches(req);
+    count_try(ok);
+    if (!ok) {
         return reply(req, "403 Forbidden", "{\"ok\":false,\"error\":\"wrong password\"}");
     }
-    failures = 0;
     char token[TOKEN_BYTES * 2 + 1];
     new_session(token);
     char cookie[128];

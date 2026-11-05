@@ -214,11 +214,11 @@ static void test_flows_on_the_plus(void)
     ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
     ui_action_t act;
 
-    press(&m, &md, &l, 0, &act); /* home: the first tap only asks */
+    press(&m, &md, &l, 2, &act); /* home: the first tap only asks; key 2 is the server */
     TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
-    press(&m, &md, &l, 0, &act);
+    press(&m, &md, &l, 2, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_CONTROLLER, act.what);
-    TEST_ASSERT_EQUAL_INT(0, act.value);
+    TEST_ASSERT_EQUAL_INT(UI_CTRL_SERVER, act.value);
 
     press(&m, &md, &l, 3, &act); /* menu */
     TEST_ASSERT_TRUE(ui_menu_open(&m));

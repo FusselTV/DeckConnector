@@ -30,6 +30,7 @@ static struct {
     int fds[CLIENTS];
     char *state; /* the last state sent, to send only changes */
     uint32_t screen;
+    unsigned evict;
 } e;
 
 static void send_to(int fd, const char *json)
@@ -172,19 +173,25 @@ esp_err_t events_check(httpd_req_t *req)
 esp_err_t events_open(httpd_req_t *req)
 {
     int fd = httpd_req_to_sockfd(req);
-    bool added = false;
+    int slot = -1;
     xSemaphoreTake(e.lock, portMAX_DELAY);
-    for (int i = 0; i < CLIENTS && !added; i++) {
-        if (e.fds[i] < 0 || httpd_ws_get_fd_info(e.server, e.fds[i]) != HTTPD_WS_CLIENT_WEBSOCKET) {
-            e.fds[i] = fd;
-            added = true;
+    for (int i = 0; i < CLIENTS; i++) {
+        /* a closed listener's fd number comes back with a new socket: it must not hold a second slot */
+        if (e.fds[i] == fd || e.fds[i] < 0 ||
+            httpd_ws_get_fd_info(e.server, e.fds[i]) != HTTPD_WS_CLIENT_WEBSOCKET) {
+            e.fds[i] = -1;
+            if (slot < 0) {
+                slot = i;
+            }
         }
     }
-    xSemaphoreGive(e.lock);
-    if (!added) {
-        ESP_LOGW(TAG, "%d listeners already, one more refused", CLIENTS);
-        return ESP_FAIL;
+    if (slot < 0) { /* full: a client that vanished without closing must not lock out the next one */
+        slot = e.evict++ % CLIENTS;
+        ESP_LOGW(TAG, "%d listeners already, dropping one", CLIENTS);
+        httpd_sess_trigger_close(e.server, e.fds[slot]);
     }
+    e.fds[slot] = fd;
+    xSemaphoreGive(e.lock);
     char *buf = malloc(STATE_MAX);
     if (buf && e.state_json(buf, STATE_MAX)) {
         xSemaphoreTake(e.lock, portMAX_DELAY);
@@ -201,13 +208,17 @@ esp_err_t events_handler(httpd_req_t *req)
     if (httpd_ws_recv_frame(req, &f, 0) != ESP_OK || f.len > FRAME_MAX) {
         return ESP_FAIL;
     }
-    if (f.type != HTTPD_WS_TYPE_TEXT || f.len == 0) {
+    if (f.len == 0) {
         return ESP_OK;
     }
     char text[FRAME_MAX + 1];
     f.payload = (uint8_t *)text;
-    if (httpd_ws_recv_frame(req, &f, f.len) != ESP_OK) {
+    if (httpd_ws_recv_frame(req, &f, f.len) !=
+        ESP_OK) { /* also for frames we ignore: the next one starts after it */
         return ESP_FAIL;
+    }
+    if (f.type != HTTPD_WS_TYPE_TEXT) {
+        return ESP_OK;
     }
     text[f.len] = '\0';
     command(httpd_req_to_sockfd(req), text);
