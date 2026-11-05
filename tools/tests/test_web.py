@@ -71,3 +71,12 @@ def test_wrong_passwords_lock_the_login():
     assert api("GET", "/api/status")[0] == 401  # basic auth shares the lock, else it would allow endless guessing
     time.sleep(3)
     assert login(op, PASSWORD)[0] == 200
+
+
+def test_metrics_are_percentages():
+    m = json.loads(api("GET", "/api/metrics")[1])
+    assert m["every_s"] == 5
+    for key in ("cpu", "ram", "psram"):
+        assert len(m[key]) <= 120 and all(0 <= v <= 100 for v in m[key])
+    assert 0 < m["firmware"]["used"] < m["firmware"]["size"]
+    assert 0 < m["settings"]["used"] < m["settings"]["size"]

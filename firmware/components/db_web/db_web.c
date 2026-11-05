@@ -18,7 +18,9 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
+#include "esp_image_format.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "events.h"
@@ -26,6 +28,7 @@
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 #include "mdns.h"
+#include "nvs.h"
 #include "web.h"
 
 #define BODY_MAX        2048
@@ -469,6 +472,113 @@ static size_t profile_json(char *buf, size_t cap)
     return db_json_end(&j);
 }
 
+/* Load over the last minutes, sampled into RAM only: nothing of it is ever written to flash. */
+#define METRIC_EVERY_US (5 * 1000000LL)
+#define METRIC_SAMPLES  120 /* 10 minutes */
+
+static struct {
+    portMUX_TYPE mux;
+    uint8_t cpu[METRIC_SAMPLES], heap[METRIC_SAMPLES], psram[METRIC_SAMPLES]; /* percent used */
+    uint16_t next, count;
+    uint64_t idle, at;
+} metrics = {.mux = portMUX_INITIALIZER_UNLOCKED};
+
+static uint64_t idle_time(void)
+{
+    uint64_t sum = 0;
+    for (int core = 0; core < portNUM_PROCESSORS; core++) {
+        TaskStatus_t st;
+        vTaskGetInfo(xTaskGetIdleTaskHandleForCore(core), &st, pdFALSE, eRunning);
+        sum += st.ulRunTimeCounter;
+    }
+    return sum;
+}
+
+static uint8_t used_pct(uint32_t caps)
+{
+    size_t total = heap_caps_get_total_size(caps);
+    return total ? (uint8_t)(100 - heap_caps_get_free_size(caps) * 100 / total) : 0;
+}
+
+static void sample_metrics(void *arg)
+{
+    uint64_t now = esp_timer_get_time();
+    uint64_t idle = idle_time();
+    uint64_t span = (now - metrics.at) * portNUM_PROCESSORS; /* the run time counters count microseconds */
+    uint8_t cpu = metrics.at && span ? (uint8_t)(100 - (idle - metrics.idle) * 100 / span) : 0;
+    uint8_t heap =
+        used_pct(MALLOC_CAP_INTERNAL); /* outside the critical section: the heap takes its own lock */
+    uint8_t psram = used_pct(MALLOC_CAP_SPIRAM);
+    taskENTER_CRITICAL(&metrics.mux);
+    if (metrics.at) {
+        metrics.cpu[metrics.next] = cpu;
+        metrics.heap[metrics.next] = heap;
+        metrics.psram[metrics.next] = psram;
+        metrics.next = (metrics.next + 1) % METRIC_SAMPLES;
+        metrics.count += metrics.count < METRIC_SAMPLES;
+    }
+    metrics.idle = idle;
+    metrics.at = now;
+    taskEXIT_CRITICAL(&metrics.mux);
+}
+
+static void write_series(db_json_t *j, const char *key, const uint8_t *ring)
+{
+    db_json_arr_open(j, key);
+    for (int i = 0; i < metrics.count; i++) { /* oldest first */
+        db_json_int(j, NULL, ring[(metrics.next + METRIC_SAMPLES - metrics.count + i) % METRIC_SAMPLES]);
+    }
+    db_json_arr_close(j);
+}
+
+/* Size of the running firmware in its slot, read once: it walks the whole image. */
+static void write_flash(db_json_t *j)
+{
+    static uint32_t app_len;
+    const esp_partition_t *part = esp_ota_get_running_partition();
+    if (!app_len) {
+        esp_partition_pos_t pos = {.offset = part->address, .size = part->size};
+        esp_image_metadata_t meta;
+        app_len = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &pos, &meta) == ESP_OK ? meta.image_len : 0;
+    }
+    db_json_obj_open(j, "firmware");
+    db_json_int(j, "used", app_len);
+    db_json_int(j, "size", part->size);
+    db_json_obj_close(j);
+    nvs_stats_t nvs;
+    if (nvs_get_stats(NULL, &nvs) == ESP_OK) {
+        db_json_obj_open(j, "settings");
+        db_json_int(j, "used", nvs.used_entries);
+        db_json_int(j, "size", nvs.total_entries);
+        db_json_obj_close(j);
+    }
+}
+
+static size_t metrics_json(char *buf, size_t cap)
+{
+    static uint8_t cpu[METRIC_SAMPLES], heap[METRIC_SAMPLES], psram[METRIC_SAMPLES];
+    taskENTER_CRITICAL(&metrics.mux); /* a copy, so the JSON is built outside the critical section */
+    memcpy(cpu, metrics.cpu, sizeof(cpu));
+    memcpy(heap, metrics.heap, sizeof(heap));
+    memcpy(psram, metrics.psram, sizeof(psram));
+    taskEXIT_CRITICAL(&metrics.mux);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_int(&j, "every_s", METRIC_EVERY_US / 1000000);
+    write_series(&j, "cpu", cpu);
+    write_series(&j, "ram", heap);
+    write_series(&j, "psram", psram);
+    write_flash(&j);
+    db_json_obj_close(&j);
+    return db_json_end(&j);
+}
+
+static esp_err_t get_metrics(httpd_req_t *req)
+{
+    return send_built(req, STATUS_JSON_MAX, metrics_json);
+}
+
 static esp_err_t get_profile(httpd_req_t *req)
 {
     return send_built(req, STATUS_JSON_MAX, profile_json);
@@ -597,6 +707,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {.uri = "/api/login", .method = HTTP_POST, .handler = auth_login},
         {.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout},
         {.uri = "/api/profile", .method = HTTP_GET, .handler = get_profile},
+        {.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics},
     };
     _Static_assert(sizeof(list) <= sizeof(uris), "more routes than slots");
     route_count = sizeof(list) / sizeof(list[0]);
@@ -614,6 +725,11 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     }
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
     events_start(server, state);
+    esp_timer_handle_t timer;
+    esp_timer_create_args_t every = {.callback = sample_metrics, .name = "metrics"};
+    if (esp_timer_create(&every, &timer) == ESP_OK) {
+        esp_timer_start_periodic(timer, METRIC_EVERY_US);
+    }
     announce_api();
     xTaskCreate(dns_task, "dns", 3072, NULL, 3, NULL);
     ESP_LOGI(TAG, "web UI on port 80");

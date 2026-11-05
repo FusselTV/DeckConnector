@@ -4,10 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>deckbridge</title>
+<script>/* before the first paint, so the page never flashes in the wrong theme */
+let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {}
+document.documentElement.dataset.theme = theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');</script>
 <style>
 :root{--bg:#fff;--fg:#09090b;--card:#fff;--muted:#f4f4f5;--muted-fg:#71717a;--border:#e4e4e7;--primary:#18181b;--primary-fg:#fafafa;--accent:#f4f4f5;--ring:#a1a1aa;--ok:#16a34a;--ok-bg:#dcfce7;--warn:#b45309;--warn-bg:#fef3c7;--bad:#dc2626;--bad-bg:#fee2e2;--radius:10px}
-@media (prefers-color-scheme:dark){:root{--bg:#09090b;--fg:#fafafa;--card:#0c0c0e;--muted:#18181b;--muted-fg:#a1a1aa;--border:#27272a;--primary:#fafafa;--primary-fg:#18181b;--accent:#27272a;--ring:#52525b;--ok:#4ade80;--ok-bg:#052e16;--warn:#fbbf24;--warn-bg:#422006;--bad:#f87171;--bad-bg:#450a0a}}
-*{box-sizing:border-box}body{accent-color:var(--primary)}[hidden]{display:none!important}
+:root[data-theme=dark]{color-scheme:dark;--bg:#09090b;--fg:#fafafa;--card:#0c0c0e;--muted:#18181b;--muted-fg:#a1a1aa;--border:#27272a;--primary:#fafafa;--primary-fg:#18181b;--accent:#27272a;--ring:#52525b;--ok:#4ade80;--ok-bg:#052e16;--warn:#fbbf24;--warn-bg:#422006;--bad:#f87171;--bad-bg:#450a0a}
+*{box-sizing:border-box}.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs button{display:inline-flex;align-items:center;gap:6px}
+@media (max-width:440px){.wide{display:none}.tabs button{padding:0 9px}}
+.meters{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.meter{border:1px solid var(--border);border-radius:8px;padding:10px 12px;min-width:0}
+.meter b{font-size:20px;font-variant-numeric:tabular-nums}.meter svg{display:block;width:100%;height:44px;margin-top:6px;color:var(--ok)}
+.bar{height:8px;border-radius:4px;background:var(--muted);overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--primary)}body{accent-color:var(--primary)}[hidden]{display:none!important}
 .srcs{display:grid;gap:6px}.src{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-width:0}.src .grow{flex:1;min-width:0;display:flex;flex-direction:column}.src .grow span{overflow-wrap:anywhere}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 main{max-width:960px;margin:0 auto;padding:16px}
@@ -59,38 +67,53 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </style>
 </head>
 <body>
+<svg hidden xmlns="http://www.w3.org/2000/svg">
+<symbol id="i-in" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></symbol>
+<symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+<symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8M21 3v5h-5"/></symbol>
+<symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+</svg>
 <main>
 <form id="login" class="card" hidden style="max-width:380px;margin:12vh auto 0">
 <div class="card-h"><h1>deckbridge</h1><p class="muted">Anmelden, um die Bridge einzurichten.</p></div>
 <div class="card-b stack">
 <div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password" autofocus>
 <p class="hint">Steht auf dem Stream Deck im Menü unter Web-Zugang.</p></div>
-<button class="btn">Anmelden</button><p id="loginmsg" class="small" style="color:var(--bad)" role="alert"></p>
+<button class="btn"><svg class="i" aria-hidden="true"><use href="#i-in"/></svg>Anmelden</button><p id="loginmsg" class="small" style="color:var(--bad)" role="alert"></p>
 </div>
 </form>
 
 <div id="app" hidden>
 <header class="row between">
 <div class="row"><h1 id="title">deckbridge</h1><span id="online" class="badge warn"><span class="dot"></span>verbinde …</span></div>
-<button id="logout" class="btn ghost sm">Abmelden</button>
+<div class="row"><button id="theme" type="button" class="btn ghost sm" aria-label="Hell oder dunkel" title="Hell oder dunkel"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button><button id="logout" class="btn ghost sm" aria-label="Abmelden" title="Abmelden"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg><span class="wide">Abmelden</span></button></div>
 </header>
 
 <nav class="tabs" role="tablist">
-<button role="tab" data-tab="home" aria-selected="true">Übersicht</button>
-<button role="tab" data-tab="settings" aria-selected="false">Einstellungen</button>
-<button role="tab" data-tab="system" aria-selected="false">System</button>
+<button role="tab" data-tab="home" aria-selected="true"><svg class="i" aria-hidden="true"><use href="#i-home"/></svg>Übersicht</button>
+<button role="tab" data-tab="settings" aria-selected="false"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>Einstellungen</button>
+<button role="tab" data-tab="system" aria-selected="false"><svg class="i" aria-hidden="true"><use href="#i-pulse"/></svg>System</button>
 </nav>
 
 <section data-panel="home" class="stack">
 <div class="card"><div class="card-h"><h2>Wer steuert das Deck?</h2><p class="muted">Wechselt sofort. Die anderen bleiben verbunden.</p></div>
 <div class="card-b stack"><div class="choice" id="ctrl"></div>
 <div><p class="section-t" style="margin-top:0">Quellen</p><div id="sources" class="srcs"></div></div>
-<form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><button class="btn outline">Server hinzufügen</button></form>
+<form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><button class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Server hinzufügen</button></form>
 <p id="howto" class="small muted"></p></div></div>
 <div class="card"><div class="card-h"><h2>Auf dem Deck</h2><p id="writer" class="muted"></p></div>
 <div class="card-b"><div id="deck"><div id="pics"></div><div id="hits"></div></div><div id="encs"></div>
 <p class="hint">Tasten anklicken oder halten. Auf dem Streifen tippen oder wischen. Das Mausrad dreht die Regler.</p>
-<div class="row" style="margin-top:12px;flex-wrap:nowrap;align-items:flex-start"><button type="button" class="btn outline sm" id="openmenu">Menü öffnen</button><p class="hint" id="menuhow" style="margin:0"></p></div></div></div>
+<div class="row" style="margin-top:12px;flex-wrap:nowrap;align-items:flex-start"><button type="button" class="btn outline sm" id="openmenu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menü öffnen</button><p class="hint" id="menuhow" style="margin:0"></p></div></div></div>
 <div class="card"><div class="card-h"><h2>Status</h2></div><div class="card-b"><div class="kv" id="status"></div></div></div>
 </section>
 
@@ -120,12 +143,14 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </section>
 
 <section data-panel="system" class="stack" hidden>
+<div class="card"><div class="card-h"><h2>Auslastung</h2><p class="muted">Die letzten 10 Minuten, alle 5 Sekunden gemessen. Nur im Arbeitsspeicher, nichts davon wird gespeichert.</p></div>
+<div class="card-b stack"><div class="meters" id="meters"></div><div class="meters" id="storage"></div></div></div>
 <div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für die Bridge oder den WLAN-Chip.</p></div>
-<div class="card-b stack"><div class="row"><label class="btn outline" style="margin:0">Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><button id="up" class="btn" disabled>Installieren</button></div>
+<div class="card-b stack"><div class="row"><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><button id="up" class="btn" disabled>Installieren</button></div>
 <form id="otaurl" class="row" style="flex-wrap:nowrap"><input id="url" type="url" placeholder="oder Adresse: http://…/deckbridge.dbfw"><button class="btn outline">Laden</button></form>
 <p id="upmsg" class="small"></p></div></div>
 <div class="card"><div class="card-h"><h2>Gerät</h2></div><div class="card-b"><div class="kv" id="sys"></div></div></div>
-<div class="card"><div class="card-h row between"><h2>Protokoll</h2><div class="row"><button id="logbtn" class="btn outline sm">Aktualisieren</button><button id="reboot" class="btn outline sm">Neu starten</button></div></div>
+<div class="card"><div class="card-h row between"><h2>Protokoll</h2><div class="row"><button id="logbtn" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Aktualisieren</button><button id="reboot" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Neu starten</button></div></div>
 <div class="card-b"><pre id="log">Noch nicht geladen.</pre></div></div>
 <div class="card"><div class="card-h"><h2>Schnittstellen</h2></div>
 <div class="card-b small">JSON-API unter <code>/api</code>, live über <code>/api/ws</code>, das Bild des Decks als <code>/api/screen.jpg</code>. Anmeldung mit Benutzer <code>admin</code> und dem Passwort. <a href="/api/status" target="_blank" style="color:inherit">Status als JSON</a></div></div>
@@ -191,7 +216,7 @@ function renderSources(s) {
     return `<div class="src"><div class="grow"><b>${kinds[x.kind]}</b><span class="small muted">${esc(shortHost(x.host))}</span></div>
       <span class="badge ${x.drawing ? 'ok' : x.connected ? '' : 'warn'}"><span class="dot"></span>${label}</span>
       ${x.connected && !x.drawing ? `<button type="button" class="btn outline sm" data-pick="${i}">Wählen</button>` : ''}
-      ${mine ? `<button type="button" class="btn ghost sm" data-del="${i}" aria-label="Server entfernen" title="Server entfernen">✕</button>` : ''}</div>`;
+      ${mine ? `<button type="button" class="btn ghost sm" data-del="${i}" aria-label="Server entfernen" title="Server entfernen"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>` : ''}</div>`;
   }).join('') || '<p class="small muted">Noch nichts verbunden.</p>';
   for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => { const x = rows[+b.dataset.pick]; put({controller: x.kind, host: x.host}, true); };
   for (const b of $('sources').querySelectorAll('[data-del]')) b.onclick = () => setServers(config.servers.filter((u) => u && u !== rows[+b.dataset.del].host));
@@ -421,6 +446,24 @@ function since(sec) {
   const m = Math.floor(sec / 60) % 60;
   return (d ? d + ' d ' : '') + (d || h ? h + ' h ' : '') + m + ' min';
 }
+/* a sparkline of percent values, oldest left */
+function spark(v) {
+  if (v.length < 2) return '';
+  const pts = v.map((y, i) => `${(i * 120 / (v.length - 1)).toFixed(1)},${(40 - y * 0.38).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,40 ${pts} 120,40" fill="currentColor" fill-opacity=".15" stroke="none"/><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+async function loadMetrics() {
+  const r = await api('/api/metrics').catch(() => null);
+  if (!r || !r.ok) return;
+  const m = await r.json();
+  const now = (v) => (v.length ? v[v.length - 1] + ' %' : '–');
+  $('meters').innerHTML = [['CPU', 'beide Kerne', m.cpu], ['Arbeitsspeicher', 'intern', m.ram], ['PSRAM', 'für Bilder', m.psram]]
+    .map(([name, what, v]) => `<div class="meter"><div class="small muted">${name} · ${what}</div><b>${now(v)}</b>${spark(v)}</div>`).join('');
+  const mb = (b) => (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
+  const bar = (name, x, text) => (x ? `<div class="meter"><div class="small muted">${name}</div><b>${Math.round(100 * x.used / x.size)} %</b> <span class="small muted">${text}</span><div class="bar"><i style="width:${100 * x.used / x.size}%"></i></div></div>` : '');
+  $('storage').innerHTML = bar('Flash · Firmware', m.firmware, m.firmware && `${mb(m.firmware.used)} von ${mb(m.firmware.size)}`) +
+    bar('Flash · Einstellungen', m.settings, m.settings && `${m.settings.used} von ${m.settings.size} Einträgen`);
+}
 function renderSystem(s) {
   const m = s.memory;
   const c = s.counters;
@@ -428,7 +471,6 @@ function renderSystem(s) {
     (s.device ? kv('Stream Deck', `${s.device.model}, Firmware ${s.device.firmware ?? '–'}`) : '') +
     kv('Läuft seit', since(s.uptime_s)) + (s.network.wlan.ip ? kv('WLAN-Signal', s.network.wlan.rssi + ' dBm') : '') +
     kv('Speicher frei', `${Math.round(m.heap_free / 1024)} KB, mindestens ${Math.round(m.heap_min_free / 1024)} KB`) +
-    kv('PSRAM frei', Math.round(m.psram_free / 1048576) + ' MB') +
     kv('Bilder', `${c.images} gezeigt, ${c.superseded} übersprungen`) + kv('Fehler', `${c.usb_errors} USB, ${c.rejected ?? 0} abgelehnt`) +
     kv('Quellen', s.sources.map((x) => `${kinds[x.kind] || 'unbekannt'} ${shortHost(x.host)}${x.connected ? '' : ' (getrennt)'}`).join(', ') || '–');
 }
@@ -457,7 +499,7 @@ function showTab(name) {
   for (const t of document.querySelectorAll('[data-tab]')) t.setAttribute('aria-selected', t.dataset.tab === name);
   for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
   clearInterval(sysPoll);
-  if (name === 'system') { loadStatus(); loadLog(); sysPoll = setInterval(loadStatus, 5000); }
+  if (name === 'system') { loadStatus(); loadLog(); loadMetrics(); sysPoll = setInterval(() => { loadStatus(); loadMetrics(); }, 5000); }
 }
 for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { history.replaceState(null, '', '#' + b.dataset.tab); showTab(b.dataset.tab); };
 
@@ -527,6 +569,16 @@ $('login').onsubmit = async (e) => {
   if (j.ok) return start();
   $('loginmsg').textContent = j.error === 'locked' ? `Zu viele Versuche. Bitte ${j.retry} s warten.` : 'Falsches Passwort.';
 };
+function themeIcon() {
+  $('theme').innerHTML = `<svg class="i" aria-hidden="true"><use href="#i-${document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon'}"/></svg>`;
+}
+$('theme').onclick = () => {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (e) { /* private mode: the choice lasts for this page */ }
+  themeIcon();
+};
+themeIcon();
 $('logout').onclick = async () => { await api('/api/logout', {method: 'POST'}); location.reload(); };
 start();
 </script>

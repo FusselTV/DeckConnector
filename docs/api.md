@@ -31,6 +31,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
 | `POST /api/reboot` | Restart |
+| `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
 | `GET /api/ws` | Web socket with live changes, see below |
 
