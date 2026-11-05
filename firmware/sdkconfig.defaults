@@ -30,6 +30,9 @@ CONFIG_LWIP_MAX_SOCKETS=40
 CONFIG_LWIP_MAX_ACTIVE_TCP=40
 # connections that arrive together wait here for accept; a full box answers with a reset
 CONFIG_LWIP_TCP_ACCEPTMBOX_SIZE=16
+# TIME-WAIT is 2 MSL. lwIP ignores the RST a client sends when it reuses a port the bridge still holds there,
+# so that client's connect hangs until TIME-WAIT ends: 120 s with the default MSL.
+CONFIG_LWIP_TCP_MSL=1000
 # the address comes seconds sooner: no ARP probe of the offered address, and the last one is asked for first
 CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP=y
 CONFIG_LWIP_DHCP_RESTORE_LAST_IP=y
