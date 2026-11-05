@@ -104,11 +104,15 @@ async def servers():
     await second.stop()
 
 
-@pytest.fixture(scope="session")
+async def newest(server):
+    """The link that connected last: tests that make the bridge connect again leave older ones behind."""
+    return list(server.bridges.values())[-1] if server.bridges else await server.wait_bridge(60)
+
+
+@pytest.fixture
 async def bridges(servers):
     first, second = servers
-    a = first.bridges.get(next(iter(first.bridges), None)) or await first.wait_bridge(60)
-    b = second.bridges.get(next(iter(second.bridges), None)) or await second.wait_bridge(60)
+    a, b = await newest(first), await newest(second)
     for _ in range(100):
         if a.device:
             break

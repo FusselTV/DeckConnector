@@ -1,6 +1,7 @@
 # Web API
 
-Everything the web UI does goes through this JSON API on port 80. Scripts can use it the same way.
+Everything the web UI does goes through this JSON API on port 80. Scripts can use it the same way. The bridge
+announces it over mDNS as `_deckbridge-api._tcp`, with `path` and `fw` in the TXT record.
 
 ## Login
 
@@ -31,6 +32,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
+| `POST /api/ota/url` | Send `{"url": "http://..."}` and the bridge loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
@@ -74,7 +76,7 @@ needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a
 ## Status
 
 ```json
-{"name": "deckbridge-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
+{"id": "a0b1c2a1b2c3", "name": "deckbridge-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
  "controller": "companion", "writer": "dock2",
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
@@ -90,6 +92,7 @@ needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a
 - `writer` is who draws at this moment: `ui`, `server1` to `server4`, or `dock1` to `dock4`. The source with
   `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs, or the
   picked controller is not connected.
+- `id` is the bridge's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck.
 - `sources` lists every server that is set or was found, and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `chosen` marks the one
@@ -145,6 +148,7 @@ refused. Every message is one JSON object, and `t` says what it is.
 | `state` | At once on connect, then on every change. The status without uptime, signal and counters |
 | `screen` | The picture changed. `GET /api/screen` or `/api/screen.jpg` has the new one |
 | `input` | Someone used the deck: `kind`, `index`, `value`, `x`, `y`, `x2`, `y2` and the `writer` that got it |
+| `ota` | Progress of an update: `target`, `state`, `pct`, and `error` when it failed |
 | `ping` | Every 5 s. Without any message for 12 s the connection is dead, so connect again |
 
 To change something, send `{"t": "set", "id": 1, ...}` with the keys of `PUT /api/config`, or

@@ -15,6 +15,7 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -106,6 +107,11 @@ static void write_status(db_json_t *j, bool live)
     db_deck_stats_t st;
     db_deck_stats(&st);
     const char *c6 = db_ota_c6_version();
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_BASE);
+    char id[13];
+    snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    db_json_str(j, "id", id); /* stable, unlike the name: for Home Assistant's unique_id */
     db_json_str(j, "name", db_config()->name);
     db_json_str(j, "firmware", esp_app_get_description()->version);
     if (c6) {
@@ -204,6 +210,7 @@ static void on_ota_progress(const char *target, const char *state, int pct, cons
     db_json_obj_close(&j);
     if (db_json_end(&j)) {
         db_link_broadcast(buf);
+        db_web_broadcast(buf);
     }
     bool running = strcmp(state, "error") != 0;
     db_ui_set_update(running ? pct : -1, target[0] == 'c' ? "WLAN-Chip" : "Firmware");

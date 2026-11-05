@@ -59,13 +59,8 @@ async def open_page(p):
     return browser, page
 
 
-async def live(server):
-    """The link that is up now: an earlier test may have made the bridge connect again."""
-    return list(server.bridges.values())[-1] if server.bridges else await server.wait_bridge(60)
-
-
 async def test_preview_matches_the_deck(servers, bridges):
-    active = await live(servers[0])
+    active, _ = bridges
     async with async_api.async_playwright() as p:
         browser, page = await open_page(p)
         for background, key in [((200, 30, 30), (20, 200, 40)), ((30, 30, 200), (240, 200, 0))]:

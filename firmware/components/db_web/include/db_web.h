@@ -14,3 +14,6 @@
  * what changes all the time. */
 esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap),
                        size_t (*state_json)(char *buf, size_t cap));
+
+/* Send one JSON message to every listener of /api/ws. */
+void db_web_broadcast(const char *json);

@@ -1,4 +1,5 @@
 #include "events.h"
+#include "db_web.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +69,9 @@ static void send_locked(int fd, const char *json)
 
 static void broadcast(const char *json)
 {
+    if (!e.lock) {
+        return; /* before db_web_start */
+    }
     xSemaphoreTake(e.lock, portMAX_DELAY);
     for (int i = 0; i < CLIENTS; i++) {
         int fd = e.fds[i];
@@ -248,6 +252,11 @@ esp_err_t events_handler(httpd_req_t *req)
     text[f.len] = '\0';
     command(httpd_req_to_sockfd(req), text);
     return ESP_OK;
+}
+
+void db_web_broadcast(const char *json)
+{
+    broadcast(json);
 }
 
 void events_start(httpd_handle_t server, size_t (*state_json)(char *buf, size_t cap))

@@ -111,3 +111,8 @@ def test_a_listener_that_stops_reading_cannot_stall_the_api(servers):
         time.sleep(0.2)
     s.close()
     assert slowest < 1
+
+
+def test_status_has_a_stable_id():
+    s = json.loads(api("GET", "/api/status")[1])
+    assert len(s["id"]) == 12 and int(s["id"], 16) > 0
