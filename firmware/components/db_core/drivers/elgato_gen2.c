@@ -316,8 +316,8 @@ static size_t build_input(const db_dev_t *dev, const db_input_t *ev, uint8_t *r,
         }
         r[1] = IN_TOUCH;
         db_put_u16(r + 2, 14);
-        r[4] = ev->kind == DB_INPUT_TOUCH_TAP ? TOUCH_TAP
-                                              : (ev->kind == DB_INPUT_TOUCH_LONG ? TOUCH_LONG : TOUCH_SWIPE);
+        r[4] =
+            (uint8_t)(TOUCH_TAP + (ev->kind - DB_INPUT_TOUCH_TAP)); /* both list tap, long, swipe in order */
         db_put_u16(r + 6, (uint16_t)(ev->x - m->strip.x));
         db_put_u16(r + 8, (uint16_t)(ev->y - m->strip.y));
         if (ev->kind == DB_INPUT_TOUCH_SWIPE) {
