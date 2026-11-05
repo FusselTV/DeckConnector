@@ -19,6 +19,7 @@ import os
 import socket
 import statistics
 import time
+import traceback
 from pathlib import Path
 
 from websockets.asyncio.client import connect
@@ -117,6 +118,7 @@ async def main_async(a) -> None:
     await server.start()
     put({"controller": "server", "host": server.url, "servers": [server.url]})
     samples = []
+    failures: list[str] = []
     try:
         bridge = await server.wait_bridge(60)
         start = time.time()
@@ -125,7 +127,17 @@ async def main_async(a) -> None:
             n += 1
             if bridge.ws.state.name != "OPEN":
                 bridge = await server.wait_bridge(60)
-            await round_trip(a.host, auth, c, bridge, n)
+            try:
+                await round_trip(a.host, auth, c, bridge, n)
+            except (OSError, TimeoutError) as e:
+                step = traceback.extract_tb(e.__traceback__)[-1]
+                where = next(
+                    (f.line for f in reversed(traceback.extract_tb(e.__traceback__)) if "soak.py" in f.filename),
+                    step.line,
+                )
+                failures.append(f"{(time.time() - start) / 60:.1f} min: {type(e).__name__} at {where}")
+                print(f"round {n} failed: {type(e).__name__} at {where}", flush=True)
+                c = Client(a.host, auth)
             if n % 5 == 0:
                 await asyncio.to_thread(post, "/api/deck/reconnect")
                 await asyncio.sleep(3)
@@ -144,9 +156,10 @@ async def main_async(a) -> None:
     half = samples[len(samples) // 4 :]  # after the first quarter: caches and pools have filled
     t = [s[0] for s in half]
     print(f"\n{len(samples)} rounds in {samples[-1][0] / 60:.1f} min. Trend per hour after the first quarter:")
-    for key in ("heap_free", "heap_largest", "psram_free", "psram_largest", "tasks"):
+    print(f"  failed rounds: {len(failures)} {failures[:5]}")
+    for key in ("heap_free", "heap_largest", "psram_free", "psram_largest", "tasks", "sockets"):
         v = [s[1][key] for s in half]
-        unit = 1 if key == "tasks" else 1024
+        unit = 1 if key in ("tasks", "sockets") else 1024
         print(
             f"  {key:14} first {v[0] / unit:10.0f}  last {v[-1] / unit:10.0f}  "
             f"trend {slope_per_hour(t, v) / unit:+9.1f}{'' if key == 'tasks' else ' KB'} per hour"

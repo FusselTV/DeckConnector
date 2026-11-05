@@ -19,6 +19,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lwip/sockets.h"
 #include "nvs_flash.h"
 
 #define SETUP_AP_AFTER_S 60
@@ -173,6 +174,16 @@ static void write_tasks(db_json_t *j)
     free(tasks);
 }
 
+/* lwIP numbers its sockets from LWIP_SOCKET_OFFSET; a closed one answers EBADF. */
+static int open_sockets(void)
+{
+    int n = 0;
+    for (int fd = LWIP_SOCKET_OFFSET; fd < LWIP_SOCKET_OFFSET + CONFIG_LWIP_MAX_SOCKETS; fd++) {
+        n += fcntl(fd, F_GETFL, 0) >= 0;
+    }
+    return n;
+}
+
 static size_t web_status(char *buf, size_t cap)
 {
     db_json_t j;
@@ -195,6 +206,8 @@ static size_t web_status(char *buf, size_t cap)
     db_json_int(&j, "heap_largest", (int64_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
     db_json_int(&j, "psram_largest", (int64_t)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
     db_json_int(&j, "tasks", uxTaskGetNumberOfTasks());
+    db_json_int(&j, "sockets", open_sockets());
+    db_json_int(&j, "sockets_max", CONFIG_LWIP_MAX_SOCKETS);
     write_tasks(&j);
     db_json_obj_close(&j);
     db_json_obj_close(&j);
