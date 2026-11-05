@@ -86,6 +86,11 @@ static ui_model_t base_model(void)
     strcpy(md.web_pass, "bench-pass-12");
     strcpy(md.fw, "v0.1.0-20-ge4fdacd-dirty");
     strcpy(md.wlan_fw, "3.0.10");
+    md.ap_qr.size =
+        29; /* a stand-in pattern: the host build has no QR encoder, the bench reads the real one */
+    for (int i = 0; i < 29 * 29; i++) {
+        md.ap_qr.bits[i / 8] |= (uint8_t)(((i * 7) % 3 == 0) << (i % 8));
+    }
     return md;
 }
 

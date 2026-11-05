@@ -6,6 +6,7 @@ import io
 import json
 import os
 import subprocess
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -69,6 +70,56 @@ def camera_frame() -> Image.Image:
         check=True,
     ).stdout
     return Image.open(io.BytesIO(raw)).convert("RGB")
+
+
+class CameraStream:
+    """The camera as a running stream: every frame's arrival time and the strip's mean colour. A single
+    camera_frame() call cannot be timed, its first frame is of unknown age."""
+
+    def __init__(self):
+        x, y, x2, y2 = STRIP_IN_CAMERA
+        self.proc = subprocess.Popen(
+            [
+                "ffmpeg",
+                "-loglevel",
+                "error",
+                "-fflags",
+                "nobuffer",
+                "-flags",
+                "low_delay",
+                "-rtsp_transport",
+                "tcp",
+                "-i",
+                CAMERA,
+                "-vf",
+                f"crop={x2 - x}:{y2 - y}:{x}:{y},scale=1:1",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        self.frames: list[tuple[float, tuple[int, int, int]]] = []
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        while px := self.proc.stdout.read(3):
+            self.frames.append((time.monotonic(), tuple(px)))
+
+    def first_after(self, since: float, channel: int, timeout: float = 5) -> float | None:
+        """When the first frame after `since` showed `channel` (0 red, 1 green, 2 blue) strongest."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            for at, rgb in list(self.frames):
+                if at > since and max(range(3), key=lambda i: rgb[i]) == channel:
+                    return at
+            time.sleep(0.01)
+        return None
+
+    def close(self):
+        self.proc.kill()
 
 
 # Where the touch strip sits in the 1920x1080 camera picture of this bench.

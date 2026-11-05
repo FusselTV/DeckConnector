@@ -1,4 +1,7 @@
 #include "db_dock.h"
+#include "db_log.h"
+#include "db_net.h"
+#include "nvs.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -30,6 +33,8 @@ typedef struct {
     uint8_t connection_no;
     volatile int sock;
     uint32_t ip;
+    uint32_t local_ip;    /* the bridge's address this host reached */
+    uint16_t peer_port;   /* network order */
     db_controller_t kind; /* DB_CTRL_SERVER until the first message tells */
     SemaphoreHandle_t tx;
 } conn_t;
@@ -104,6 +109,7 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     if (c->kind == DB_CTRL_SERVER) {
         c->kind = (h->flags & DB_CORA_FLAG_REQ_ACK) ? DB_CTRL_APP : DB_CTRL_COMPANION;
         ESP_LOGI(TAG, "device host is %s", db_controller_name(c->kind));
+        db_log_mark(c->kind == DB_CTRL_APP ? DB_MARK_APP : DB_MARK_COMPANION);
         report_clients();
     }
     if (!(h->flags & DB_CORA_FLAG_VERBATIM)) {
@@ -222,6 +228,112 @@ static void host_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/* The hosts of the last boot, so that after a power cut their old connections can be ended. */
+typedef struct {
+    uint32_t ip;
+    uint32_t local_ip; /* ours: the reset must come from the address the connection used */
+    uint16_t port;     /* theirs, network order */
+    uint16_t local;    /* ours */
+} peer_t;
+
+#define NVS_PEERS "dock_peers"
+
+static void save_peers(void) /* from both listen tasks: under info_lock */
+{
+    static peer_t saved[2 * DB_DOCK_HOSTS];
+    peer_t now[2 * DB_DOCK_HOSTS] = {0};
+    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+        const conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+        if (c->sock >= 0) {
+            now[i] = (peer_t){c->ip, c->local_ip, c->peer_port,
+                              c->device_port ? DB_CORA_DEVICE_PORT : DB_CORA_DOCK_PORT};
+        }
+    }
+    if (memcmp(now, saved, sizeof(now)) == 0) {
+        return; /* a write only when a host connected anew */
+    }
+    memcpy(saved, now, sizeof(now));
+    nvs_handle_t h;
+    if (nvs_open("dock", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, NVS_PEERS, now, sizeof(now));
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+/*
+ * After a power cut a host still holds its old connection, which looks alive to it. Companion notices by
+ * itself; the Stream Deck app waits for data that never comes and does not connect again for minutes. A SYN
+ * from our old port to its old port makes its stack answer with an ACK (RFC 5961), which our stack answers
+ * with a reset that fits exactly: the host sees its connection end, as after a clean restart.
+ */
+static void reset_old_peers(void *arg)
+{
+    peer_t peers[2 * DB_DOCK_HOSTS] = {0};
+    size_t len = sizeof(peers);
+    nvs_handle_t h;
+    if (nvs_open("dock", NVS_READONLY, &h) != ESP_OK) {
+        vTaskDelete(NULL);
+        return;
+    }
+    esp_err_t err = nvs_get_blob(h, NVS_PEERS, peers, &len);
+    nvs_close(h);
+    if (err != ESP_OK) {
+        vTaskDelete(NULL);
+        return;
+    }
+    int socks[2 * DB_DOCK_HOSTS];
+    int n = 0;
+    /* lwIP binds to an address no interface has yet, and the reset would leave the wrong way: wait until the
+     * old address is up again, LAN can take 10 s */
+    for (int round = 0; round < 100; round++) {
+        bool waiting = false;
+        db_net_status_t net;
+        db_net_status(&net);
+        for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+            if (!peers[i].ip) {
+                continue;
+            }
+            bool up = (net.lan_up && inet_addr(net.lan_ip) == peers[i].local_ip) ||
+                      (net.wlan_up && inet_addr(net.wlan_ip) == peers[i].local_ip);
+            if (!up) {
+                waiting = true;
+                continue;
+            }
+            int sock = socket(AF_INET, SOCK_STREAM, 0);
+            if (sock < 0) {
+                continue;
+            }
+            int one = 1;
+            setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+            fcntl(sock, F_SETFL, O_NONBLOCK);
+            struct sockaddr_in local = {.sin_family = AF_INET,
+                                        .sin_port = htons(peers[i].local),
+                                        .sin_addr.s_addr = peers[i].local_ip};
+            struct sockaddr_in peer = {
+                .sin_family = AF_INET, .sin_port = peers[i].port, .sin_addr.s_addr = peers[i].ip};
+            if (bind(sock, (struct sockaddr *)&local, sizeof(local)) == 0) {
+                connect(sock, (struct sockaddr *)&peer, sizeof(peer));
+                socks[n++] = sock;
+                peers[i].ip = 0;
+            } else {
+                close(sock);
+                waiting = true;
+            }
+        }
+        if (!waiting) {
+            break;
+        }
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    vTaskDelay(pdMS_TO_TICKS(500));
+    for (int i = 0; i < n; i++) {
+        close(socks[i]);
+    }
+    ESP_LOGI(TAG, "ended %d connections of the last boot", n);
+    vTaskDelete(NULL);
+}
+
 static void listen_task(void *arg)
 {
     bool device_port = arg != NULL;
@@ -255,8 +367,15 @@ static void listen_task(void *arg)
         }
         ESP_LOGI(TAG, "%s host %s", device_port ? "device" : "dock", ip);
         c->ip = from.sin_addr.s_addr;
+        c->peer_port = from.sin_port;
+        struct sockaddr_in at;
+        socklen_t at_len = sizeof(at);
+        c->local_ip = getsockname(sock, (struct sockaddr *)&at, &at_len) == 0 ? at.sin_addr.s_addr : 0;
         c->kind = DB_CTRL_SERVER;
         c->sock = sock;
+        xSemaphoreTake(s.info_lock, portMAX_DELAY);
+        save_peers();
+        xSemaphoreGive(s.info_lock);
         if (xTaskCreatePinnedToCore(host_task, device_port ? "dock_dev" : "dock_host", 4096, c,
                                     device_port ? 7 : 6, NULL, 0) != pdPASS) {
             ESP_LOGE(TAG, "no memory for a host task, %s refused", ip);
@@ -438,6 +557,7 @@ static void close_hosts(void)
 esp_err_t db_dock_start(void (*hosts_changed)(void))
 {
     s.hosts_changed = hosts_changed;
+    xTaskCreate(reset_old_peers, "dock_reset", 3072, NULL, 3, NULL);
     esp_register_shutdown_handler(close_hosts);
     s.info_lock = xSemaphoreCreateMutex();
     esp_read_mac(s.info.mac, ESP_MAC_BASE);

@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "jpeg_port.h"
 #include "lwip/ip4_addr.h"
+#include "qrcode.h"
 #include "ui.h"
 
 #define QUALITY       85
@@ -125,6 +126,62 @@ static void model_sources(ui_model_t *md)
     }
 }
 
+/* WIFI:T:WPA;S:name;P:password;; with \ before \ ; , : and ", the format phone cameras read. */
+static void wifi_qr_text(char *out, size_t cap, const char *ssid, const char *pass)
+{
+    size_t n = 0;
+    const char *parts[] = {"WIFI:T:WPA;S:", ssid, ";P:", pass, ";;"};
+    for (int i = 0; i < 5; i++) {
+        for (const char *c = parts[i]; *c && n + 2 < cap; c++) {
+            if (i % 2 && strchr("\\;,:\"", *c)) {
+                out[n++] = '\\';
+            }
+            out[n++] = *c;
+        }
+    }
+    out[n] = '\0';
+}
+
+static ui_qr_t *qr_target;
+
+static void take_qr(esp_qrcode_handle_t code)
+{
+    int size = esp_qrcode_get_size(code);
+    if (size > UI_QR_MAX) {
+        return;
+    }
+    memset(qr_target, 0, sizeof(*qr_target));
+    qr_target->size = (uint8_t)size;
+    for (int y = 0; y < size; y++) {
+        for (int x = 0; x < size; x++) {
+            if (esp_qrcode_get_module(code, x, y)) {
+                qr_target->bits[(y * size + x) / 8] |= (uint8_t)(1 << ((y * size + x) % 8));
+            }
+        }
+    }
+}
+
+/* Made again only when the setup WLAN's name or password changed. */
+static void model_qr(ui_model_t *md)
+{
+    static char made_for[128];
+    static ui_qr_t qr;
+    char text[sizeof(made_for)];
+    wifi_qr_text(text, sizeof(text), md->ap_ssid, md->ap_pass);
+    if (md->ap_on && strcmp(text, made_for) != 0) {
+        qr_target = &qr;
+        esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
+        cfg.display_func = take_qr;
+        cfg.max_qrcode_version = 6;
+        cfg.qrcode_ecc_level = ESP_QRCODE_ECC_LOW;
+        qr.size = 0;
+        if (esp_qrcode_generate(&cfg, text) == ESP_OK) {
+            strcpy(made_for, text);
+        }
+    }
+    md->ap_qr = md->ap_on ? qr : (ui_qr_t){0};
+}
+
 static void model(ui_model_t *md)
 {
     const db_config_t *c = db_config();
@@ -150,6 +207,7 @@ static void model(ui_model_t *md)
     snprintf(md->ap_ssid, sizeof(md->ap_ssid), "%s", n.ap_ssid);
     snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
     snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
+    model_qr(md);
     snprintf(md->server_url, sizeof(md->server_url), "%s", db_config_server_of(c, 0));
     model_sources(md);
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);

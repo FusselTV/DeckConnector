@@ -86,12 +86,17 @@ needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a
               "chosen": false, "drawing": false},
              {"kind": "companion", "host": "192.168.1.15", "connected": true, "chosen": true, "drawing": true}],
  "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "inputs": 0, "inputs_dropped": 0},
- "memory": {"heap_free": 353203, "heap_min_free": 290191, "psram_free": 32211772, "stack_free": {"ui": 3688}}}
+ "boot_ms": {"deck": 537, "lan_link": 2688, "wlan_ip": 5724, "lan_ip": 6692, "companion": 7439, "host_draws": 7665},
+ "memory": {"heap_free": 353203, "heap_min_free": 290191, "psram_free": 32211772, "heap_largest": 208896,
+            "psram_largest": 30932992, "tasks": 37, "stack_free": {"ui": 3688}}}
 ```
 
 - `writer` is who draws at this moment: `ui`, `server1` to `server4`, or `dock1` to `dock4`. The source with
   `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs, or the
   picked controller is not connected.
+- `boot_ms` says when each step of this boot happened first, in ms after the firmware started: the deck, the
+  LAN link, each address, Companion, the Stream Deck app, a server, and the first picture of a host.
+- `heap_largest`, `psram_largest` and `tasks` show fragmentation and leaks over a long run.
 - `id` is the bridge's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck.
 - `sources` lists every server that is set or was found, and every Network Dock host. A dock host's `kind` is

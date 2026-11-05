@@ -1,4 +1,5 @@
 #include "db_deck.h"
+#include "db_log.h"
 
 #include <string.h>
 
@@ -216,6 +217,7 @@ static void handle_attach(uint8_t address)
     }
     ESP_LOGI(TAG, "%s %s, serial %s, firmware %s", s.dev.info.vendor, s.dev.info.model, s.dev.info.serial,
              s.dev.info.firmware);
+    db_log_mark(DB_MARK_DECK);
     /* another deck: the kept pictures have its predecessor's layout. The same one: draw them again at once,
      * it lost its picture with its power, and a host may not send it again. */
     static char last_serial[sizeof(s.dev.info.serial)];
@@ -368,6 +370,9 @@ void db_deck_set_writer(db_source_t source)
     xSemaphoreTake(s.lock, portMAX_DELAY);
     if (s.writer != source) {
         ESP_LOGI(TAG, "writer %d -> %d", s.writer, source);
+        if (source != DB_SOURCE_UI) {
+            db_log_mark(DB_MARK_HOST_DRAWS);
+        }
         s.writer = source;
         s.replay = true;
         db_regions_clear(&s.pending, free_region, (void *)&wrong_role);

@@ -1,4 +1,5 @@
 #include "db_link.h"
+#include "db_log.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -431,6 +432,7 @@ static void link_task(void *arg)
         ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, over, l->url);
         l->over_wlan = bound && wlan;
         l->connected = true;
+        db_log_mark(DB_MARK_SERVER);
         if (!recompute_active()) {
             send_role(l->index);
         }

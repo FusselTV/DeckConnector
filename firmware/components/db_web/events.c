@@ -122,8 +122,10 @@ static void poll_task(void *arg)
     char *buf = malloc(STATE_MAX);
     static db_shot_t shots[DB_SCREEN_MAX];
     char input[INPUT_MAX];
-    TickType_t next = xTaskGetTickCount();
-    TickType_t ping = next;
+    /* differences only: the tick count wraps after 49.7 days, and a plain comparison would stop the updates
+     */
+    TickType_t polled = xTaskGetTickCount();
+    TickType_t ping = polled;
     for (;;) {
         if (xQueueReceive(e.inputs, input, pdMS_TO_TICKS(POLL_MS)) == pdTRUE) {
             broadcast(input);
@@ -132,10 +134,10 @@ static void poll_task(void *arg)
             ping = xTaskGetTickCount();
             broadcast("{\"t\":\"ping\"}");
         }
-        if (xTaskGetTickCount() < next || !anyone() || !buf) {
+        if (xTaskGetTickCount() - polled < pdMS_TO_TICKS(POLL_MS) || !anyone() || !buf) {
             continue;
         }
-        next = xTaskGetTickCount() + pdMS_TO_TICKS(POLL_MS);
+        polled = xTaskGetTickCount();
         size_t n = e.state_json(buf, STATE_MAX);
         if (n && strcmp(buf, e.state) != 0) {
             memcpy(e.state, buf, n + 1);

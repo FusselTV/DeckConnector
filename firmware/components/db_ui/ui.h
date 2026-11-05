@@ -15,7 +15,7 @@
 #define UI_MAX_KEYS 32
 #define UI_SEGMENTS 4
 
-typedef enum { TILE_NONE, TILE_CARD, TILE_BUTTON } ui_tile_kind_t;
+typedef enum { TILE_NONE, TILE_CARD, TILE_BUTTON, TILE_QR } ui_tile_kind_t; /* TILE_QR: ui_screen_t.qr */
 typedef enum { BADGE_NONE, BADGE_OPEN, BADGE_CLOSE } ui_badge_t;
 
 /* A card only shows something; a button does something. */
@@ -42,9 +42,18 @@ typedef struct {
     int bar; /* 0 to 100, < 0 for none */
 } ui_segment_t;
 
+#define UI_QR_MAX 41 /* version 6: a WLAN name of 32 characters and a password of 63 still fit */
+
+/* QR modules, row by row, one bit each, 1 = dark. */
+typedef struct {
+    uint8_t size; /* modules per side, 0: none */
+    uint8_t bits[(UI_QR_MAX * UI_QR_MAX + 7) / 8];
+} ui_qr_t;
+
 typedef struct {
     ui_tile_t tiles[UI_MAX_KEYS];
     ui_segment_t seg[UI_SEGMENTS];
+    ui_qr_t qr; /* one per screen; its tile carries what it encodes as value, so a change redraws it */
 } ui_screen_t;
 
 typedef struct {
@@ -87,6 +96,7 @@ typedef struct {
     char ap_ssid[33];
     char ap_pass[16];
     char ap_ip[16];
+    ui_qr_t ap_qr; /* joins the setup WLAN when a phone scans it */
     char server_url[96];
     char web_pass[24];
     char fw[32];

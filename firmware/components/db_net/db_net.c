@@ -1,4 +1,5 @@
 #include "db_net.h"
+#include "db_log.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -90,6 +91,7 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     bool lan = e->esp_netif == s.lan;
     ESP_LOGI(TAG, "%s address " IPSTR, lan ? "LAN" : "WLAN", IP2STR(&e->ip_info.ip));
     set_ip(lan ? s.st.lan_ip : s.st.wlan_ip, &e->ip_info.ip);
+    db_log_mark(lan ? DB_MARK_LAN_IP : DB_MARK_WLAN_IP);
     if (lan) {
         s.st.lan_up = true;
     } else {
@@ -116,6 +118,7 @@ static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (id == ETHERNET_EVENT_CONNECTED) {
         ESP_LOGI(TAG, "LAN link up");
+        db_log_mark(DB_MARK_LAN_LINK);
         s.st.lan_link = true;
         apply_static(s.lan, &db_config()->lan);
         if (db_config()->lan.dhcp && s.kick) {

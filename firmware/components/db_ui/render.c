@@ -208,8 +208,33 @@ static bool value_lines(ui_canvas_t *c, const style_t *st, db_rect_t text, int y
     return true;
 }
 
-static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r)
+/* White with a quiet zone of two modules: phones read a 29 module code in 3 px modules on a 120 px key. */
+static void draw_qr(ui_canvas_t *c, const ui_qr_t *qr, db_rect_t r)
 {
+    int scale = r.w / (qr->size + 4);
+    int side = scale * qr->size;
+    int x0 = r.x + (r.w - side) / 2;
+    int y0 = r.y + (r.h - side) / 2;
+    ui_round_over(c, r, r.w / 12, 0xffffff, C_SCREEN);
+    for (int y = 0; y < qr->size; y++) {
+        for (int x = 0; x < qr->size; x++) {
+            int bit = y * qr->size + x;
+            if (qr->bits[bit / 8] & (1 << (bit % 8))) {
+                ui_fill(c,
+                        (db_rect_t){(uint16_t)(x0 + x * scale), (uint16_t)(y0 + y * scale), (uint16_t)scale,
+                                    (uint16_t)scale},
+                        0x000000);
+            }
+        }
+    }
+}
+
+static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_qr_t *qr)
+{
+    if (t->kind == TILE_QR && qr->size) {
+        draw_qr(c, qr, r);
+        return;
+    }
     if (t->kind == TILE_NONE) {
         ui_fill(c, r, C_SCREEN);
         return;
@@ -316,7 +341,7 @@ int ui_render(ui_canvas_t *c, const db_device_info_t *dev, const ui_screen_t *sc
         strip = t->kind == DB_TARGET_STRIP ? t : strip;
         if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_KEYS &&
             (!shown || memcmp(&sc->tiles[t->index], &shown->tiles[t->index], sizeof(ui_tile_t)) != 0)) {
-            draw_tile(c, &sc->tiles[t->index], t->rect);
+            draw_tile(c, &sc->tiles[t->index], t->rect, &sc->qr);
             dirty[n++] = t->rect;
         }
     }

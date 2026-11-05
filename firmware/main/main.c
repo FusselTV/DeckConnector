@@ -179,10 +179,22 @@ static size_t web_status(char *buf, size_t cap)
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     write_status(&j, true);
+    db_json_obj_open(&j, "boot_ms");
+    for (int m = 0; m < DB_MARK_COUNT; m++) {
+        int64_t at = db_log_mark_ms((db_mark_t)m);
+        if (at) {
+            db_json_int(&j, db_log_mark_name((db_mark_t)m), at);
+        }
+    }
+    db_json_obj_close(&j);
     db_json_obj_open(&j, "memory");
     db_json_int(&j, "heap_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     db_json_int(&j, "heap_min_free", (int64_t)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));
     db_json_int(&j, "psram_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    /* the largest block shows fragmentation, the task count a leak of tasks: both for long runs */
+    db_json_int(&j, "heap_largest", (int64_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    db_json_int(&j, "psram_largest", (int64_t)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
+    db_json_int(&j, "tasks", uxTaskGetNumberOfTasks());
     write_tasks(&j);
     db_json_obj_close(&j);
     db_json_obj_close(&j);
