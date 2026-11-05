@@ -9,6 +9,7 @@
 #include "db_dock.h"
 #include "db_link.h"
 #include "db_net.h"
+#include "db_satellite.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -78,16 +79,25 @@ static int dock_choice(db_controller_t kind, const db_dock_host_t *hosts, size_t
     return pick;
 }
 
-db_source_t db_ui_chosen_source(void)
+/* Companion over its Satellite API draws unless the config names a dock host of it that is there. */
+static db_source_t choice(db_controller_t kind)
 {
-    db_controller_t kind = db_config()->controller;
     if (kind == DB_CTRL_SERVER) {
         return s.active_link >= 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link) : DB_SOURCE_UI;
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
     int i = dock_choice(kind, hosts, n);
+    bool named = i >= 0 && strcmp(hosts[i].ip, db_config()->host) == 0;
+    if (kind == DB_CTRL_COMPANION && db_satellite_connected() && !named) {
+        return DB_SOURCE_SAT;
+    }
     return i >= 0 ? (db_source_t)hosts[i].source : DB_SOURCE_UI;
+}
+
+db_source_t db_ui_chosen_source(void)
+{
+    return choice(db_config()->controller);
 }
 
 /* Strips ws:// and the path: "192.168.1.5:8765". */
@@ -111,6 +121,13 @@ static void model_sources(ui_model_t *md)
         url_label(src->id, src->label, sizeof(src->label));
         md->hosts[UI_CTRL_SERVER]++;
     }
+    if (db_satellite_connected() && md->source_count < UI_SOURCES) {
+        ui_source_t *src = &md->sources[md->source_count++];
+        *src = (ui_source_t){.kind = UI_CTRL_COMPANION, .chosen = choice(DB_CTRL_COMPANION) == DB_SOURCE_SAT};
+        snprintf(src->id, sizeof(src->id), "satellite");
+        snprintf(src->label, sizeof(src->label), "%s", db_satellite_address());
+        md->hosts[UI_CTRL_COMPANION]++;
+    }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
     for (size_t i = 0; i < n && md->source_count < UI_SOURCES; i++) {
@@ -119,7 +136,7 @@ static void model_sources(ui_model_t *md)
         }
         ui_source_t *src = &md->sources[md->source_count++];
         *src = (ui_source_t){.kind = (uint8_t)hosts[i].kind,
-                             .chosen = dock_choice(hosts[i].kind, hosts, n) == (int)i};
+                             .chosen = choice(hosts[i].kind) == (db_source_t)hosts[i].source};
         snprintf(src->id, sizeof(src->id), "%s", hosts[i].ip);
         snprintf(src->label, sizeof(src->label), "%s", hosts[i].ip);
         md->hosts[hosts[i].kind]++;

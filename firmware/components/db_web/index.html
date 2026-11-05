@@ -128,6 +128,9 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div><label for="name">Name im Netz</label><input id="name" maxlength="31"></div>
 <div><label for="brightness">Helligkeit <span id="bval" class="muted"></span></label><input id="brightness" type="range" min="0" max="100" style="height:36px;padding:0;border:0;margin:0"></div>
 </div>
+<p class="section-t">Companion über die Satellite-API</p>
+<p class="hint">Die Bridge verbindet sich selbst mit Companion. Ohne Port nimmt sie 16622. Leer lassen, wenn Companion die Bridge als Network Dock findet.</p>
+<div class="grid"><div><label for="satellite">Adresse von Companion</label><input id="satellite" placeholder="192.168.1.10" maxlength="63"></div></div>
 <p class="section-t">Eigene Server</p>
 <p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht die Bridge einen im Netz.</p>
 <div class="grid"><div><label for="token">Token</label><input id="token" type="password" placeholder="unverändert" maxlength="47"></div></div>
@@ -217,12 +220,13 @@ function renderSources(s) {
   $('sources').innerHTML = rows.map((x, i) => {
     const label = x.drawing ? 'zeichnet' : x.chosen ? 'gewählt' : x.connected ? 'verbunden' : 'getrennt';
     const mine = x.kind === 'server' && config?.servers.includes(x.host);
-    return `<div class="src"><div class="grow"><b>${kinds[x.kind]}</b><span class="small muted">${esc(shortHost(x.host))}</span></div>
+    const via = x.via === 'satellite' ? ' · Satellite' : '';
+    return `<div class="src"><div class="grow"><b>${kinds[x.kind]}</b><span class="small muted">${esc(shortHost(x.host))}${via}</span></div>
       <span class="badge ${x.drawing ? 'ok' : x.connected ? '' : 'warn'}"><span class="dot"></span>${label}</span>
       ${x.connected && !x.drawing ? `<button type="button" class="btn outline sm" data-pick="${i}">Wählen</button>` : ''}
       ${mine ? `<button type="button" class="btn ghost sm" data-del="${i}" aria-label="Server entfernen" title="Server entfernen"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>` : ''}</div>`;
   }).join('') || '<p class="small muted">Noch nichts verbunden.</p>';
-  for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => { const x = rows[+b.dataset.pick]; put({controller: x.kind, host: x.host}, true); };
+  for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => { const x = rows[+b.dataset.pick]; put({controller: x.kind, host: x.via === 'satellite' ? 'satellite' : x.host}, true); };
   for (const b of $('sources').querySelectorAll('[data-del]')) b.onclick = () => setServers(config.servers.filter((u) => u && u !== rows[+b.dataset.del].host));
 }
 async function dock(body) {
@@ -269,7 +273,7 @@ $('addsrv').onsubmit = (e) => {
 function howto(s) {
   const ip = s.network.lan.ip || s.network.wlan.ip;
   if (hostAt(s, s.controller)) return '';
-  if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces eine Remote Surface mit der Adresse ${ip} anlegen.`;
+  if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces die Bridge unter Discover hinzufügen, oder eine Remote Surface mit der Adresse ${ip} anlegen. Oder unter Einstellungen die Adresse von Companion für die Satellite-API eintragen.`;
   if (s.controller === 'app') return 'Die Stream Deck Software findet die Bridge selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
   return 'Die Adresse des Servers unter Einstellungen eintragen. Leer gelassen sucht die Bridge einen Server im Netz.';
 }
@@ -456,6 +460,7 @@ async function loadConfig() {
   config = await (await api('/api/config')).json();
   $('name').value = config.name; $('brightness').value = config.brightness; $('bval').textContent = config.brightness + ' %';
   $('ssid').value = config.wifi_ssid;
+  $('satellite').value = config.satellite;
   if (state) renderSources(state);
   for (const key of ['lan', 'wlan']) {
     $(key + '_dhcp').checked = config[key].dhcp;
@@ -469,7 +474,7 @@ $('cfg').onsubmit = async (e) => {
   e.preventDefault();
   const ip = (key) => Object.fromEntries([['dhcp', $(key + '_dhcp').checked], ...ipFields.map((f) => [f, $(key + '_' + f).value])]);
   const body = {name: $('name').value, brightness: +$('brightness').value,
-    wifi_ssid: $('ssid').value, lan: ip('lan'), wlan: ip('wlan')};
+    wifi_ssid: $('ssid').value, satellite: $('satellite').value.trim(), lan: ip('lan'), wlan: ip('wlan')};
   for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
   await put(body);
 };

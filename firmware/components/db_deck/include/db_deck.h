@@ -14,12 +14,14 @@
 #define DB_SOURCE_LINKS 4 /* = DB_MAX_SERVERS */
 #define DB_SOURCE_DOCKS 4 /* = DB_DOCK_HOSTS */
 
-/* The deck's own UI, then one source per server link, then one per Network Dock host. */
+/* The deck's own UI, then one source per server link, one per Network Dock host, and Companion over its
+ * Satellite API. */
 typedef enum {
     DB_SOURCE_UI = 0,
     DB_SOURCE_LINK0,
     DB_SOURCE_DOCK0 = DB_SOURCE_LINK0 + DB_SOURCE_LINKS,
-    DB_SOURCE_COUNT = DB_SOURCE_DOCK0 + DB_SOURCE_DOCKS,
+    DB_SOURCE_SAT = DB_SOURCE_DOCK0 + DB_SOURCE_DOCKS,
+    DB_SOURCE_COUNT,
 } db_source_t;
 
 typedef struct {
@@ -60,7 +62,8 @@ bool db_deck_info(db_device_info_t *out);
 
 /*
  * Queue one image. Takes ownership of `data` (heap_caps_malloc). The result always arrives through the ack
- * handler of `source`, also for rejected images.
+ * handler of `source`, also for rejected images. An image of DB_SOURCE_SAT while it is not the writer only
+ * goes into its kept picture.
  */
 void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_t seq, uint8_t *data,
                     size_t len, uint64_t t_recv);

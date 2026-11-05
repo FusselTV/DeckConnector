@@ -39,9 +39,10 @@ typedef struct {
     char admin_pass[24];       /* web UI password, generated on first start */
     bool setup_done;           /* the welcome steps on the deck or in the web UI were finished */
     char servers_more[DB_MAX_SERVERS - 2][96];
-    char host[96]; /* which one of `controller` draws: a dock host's IP or a server's URL; empty: the first */
+    char host[96]; /* which one of `controller` draws: a dock host's IP, a server's URL or "satellite" */
     bool
         dock_paired_only; /* Companion and app hosts must be paired; off: anyone on the network may connect */
+    char satellite[64];   /* Companion's Satellite API, "host" or "host:port"; empty: not used */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

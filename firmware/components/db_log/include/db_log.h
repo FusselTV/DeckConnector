@@ -18,6 +18,7 @@ typedef enum {
     DB_MARK_APP,        /* the Stream Deck app uses the deck */
     DB_MARK_SERVER,     /* a server is connected */
     DB_MARK_HOST_DRAWS, /* the deck shows a host's picture, not its own screen */
+    DB_MARK_SATELLITE,  /* Companion took the deck over its Satellite API */
     DB_MARK_COUNT,
 } db_mark_t;
 

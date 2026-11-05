@@ -14,7 +14,7 @@
 static const char *TAG = "jpeg";
 static jpeg_encoder_handle_t encoder;
 static jpeg_decoder_handle_t decoder;
-static SemaphoreHandle_t lock; /* the UI task encodes keys, the web server makes snapshots */
+static SemaphoreHandle_t lock; /* the UI and the Satellite client encode, the web server makes snapshots */
 
 void jpeg_port_init(void)
 {

@@ -81,6 +81,7 @@ int64_t db_log_mark_ms(db_mark_t mark)
 const char *db_log_mark_name(db_mark_t mark)
 {
     static const char *const names[DB_MARK_COUNT] = {"deck",      "lan_link", "lan_ip", "wlan_ip",
-                                                     "companion", "app",      "server", "host_draws"};
+                                                     "companion", "app",      "server", "host_draws",
+                                                     "satellite"};
     return names[mark];
 }

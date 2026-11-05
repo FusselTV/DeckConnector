@@ -48,18 +48,19 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 |---|---|
 | `server` | Your own servers over WebSocket ([protocol.md](protocol.md)) |
 | `app` | The Elgato Stream Deck app, through the Network Dock emulation |
-| `companion` | Bitfocus Companion, through the Network Dock emulation |
+| `companion` | Bitfocus Companion, through the Network Dock emulation or its Satellite API ([satellite.md](satellite.md)) |
 
 Up to 4 servers and up to 4 dock hosts can be connected at once, in any mix. `host` picks one of them by its
-address: a dock host's IP or a server's URL. When `host` is empty or not connected, the first connected one of
-that kind draws.
+address: a dock host's IP or a server's URL. `satellite` picks Companion over its Satellite API. When `host` is
+empty or not connected, the first connected one of that kind draws. For `companion` that is the Satellite API
+when it is connected.
 
 The change works at once. All of them stay connected, and the deck shows the picked one's picture right away.
 The others keep drawing into their own picture in the background and get no input. The same choice is in the menu
 on the device. When more than one host of a kind is connected, its key opens a list of them.
 
-`brightness`, `host` and `servers` also work at once. Every other change restarts the bridge, and the reply says
-so: `{"ok": true, "restart": true}`.
+`brightness`, `host`, `servers` and `satellite` also work at once. Every other change restarts the bridge, and
+the reply says so: `{"ok": true, "restart": true}`.
 
 ## Settings
 
@@ -69,11 +70,13 @@ so: `{"ok": true, "restart": true}`.
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
  "servers": ["ws://192.168.1.128:8765/deckbridge", "ws://192.168.1.128:8766/deckbridge", "", ""],
- "token_set": false}
+ "satellite": "192.168.1.15", "token_set": false}
 ```
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
-needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed address needs `ip` and `mask`.
+needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
+address needs `ip` and `mask`. `satellite` is the address of Companion for its Satellite API, `host` or
+`host:port`, port 16622 when left out. Empty turns it off.
 
 ## Status
 
@@ -93,15 +96,17 @@ needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a
             "psram_largest": 30932992, "tasks": 37, "sockets": 9, "sockets_max": 32, "stack_free": {"ui": 3688}}}
 ```
 
-- `writer` is who draws at this moment: `ui`, `server1` to `server4`, or `dock1` to `dock4`. The source with
-  `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs, or the
-  picked controller is not connected.
+- `writer` is who draws at this moment: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. The
+  source with `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs,
+  or the picked controller is not connected.
 - `boot_ms` says when each step of this boot happened first, in ms after the firmware started: the deck, the
-  LAN link, each address, Companion, the Stream Deck app, a server, and the first picture of a host.
+  LAN link, each address, Companion, the Stream Deck app, a server, the first picture of a host, and Companion
+  over its Satellite API.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
 - `id` is the bridge's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck.
-- `sources` lists every server that is set or was found, and every Network Dock host. A dock host's `kind` is
+- `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
+  `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `chosen` marks the one
   that draws whenever no menu covers it.
 - `superseded` counts images that a newer one replaced before they were drawn.

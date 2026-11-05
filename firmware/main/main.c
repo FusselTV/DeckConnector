@@ -10,6 +10,7 @@
 #include "db_log.h"
 #include "db_net.h"
 #include "db_ota.h"
+#include "db_satellite.h"
 #include "db_ui.h"
 #include "db_web.h"
 #include "esp_app_desc.h"
@@ -76,13 +77,16 @@ static void write_source(db_json_t *j, const char *kind, const char *host, bool 
     db_json_obj_open(j, NULL);
     db_json_str(j, "kind", kind);
     db_json_str(j, "host", host);
+    if (source == DB_SOURCE_SAT) {
+        db_json_str(j, "via", "satellite");
+    }
     db_json_bool(j, "connected", connected);
     db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
     db_json_bool(j, "drawing", source >= 0 && (db_source_t)source == db_deck_writer());
     db_json_obj_close(j);
 }
 
-/* Every server that is set or was found, and every Network Dock host. */
+/* Every server that is set or was found, Companion's Satellite API when set, and every Network Dock host. */
 static void write_sources(db_json_t *j, bool live)
 {
     db_json_arr_open(j, "sources");
@@ -91,6 +95,9 @@ static void write_sources(db_json_t *j, bool live)
             write_source(j, "server", db_link_url(i), db_link_connected(i),
                          db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1);
         }
+    }
+    if (db_satellite_address()[0]) {
+        write_source(j, "companion", db_satellite_address(), db_satellite_connected(), DB_SOURCE_SAT);
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
@@ -342,6 +349,7 @@ void app_main(void)
                             .active_changed = db_ui_set_active_link};
     ESP_ERROR_CHECK(db_link_start(&link));
     ESP_ERROR_CHECK(db_dock_start(db_ui_hosts_changed));
+    ESP_ERROR_CHECK(db_satellite_start(db_ui_hosts_changed));
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
     db_config_on_save(apply_controller);
     ESP_ERROR_CHECK(db_web_start(web_status, web_state));

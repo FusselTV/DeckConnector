@@ -1,4 +1,5 @@
-set(srcs db_device.c db_driver.c db_json.c db_proto.c db_regions.c db_screen.c drivers/elgato_gen2.c db_cora.c)
+set(srcs db_device.c db_driver.c db_json.c db_proto.c db_regions.c db_screen.c drivers/elgato_gen2.c db_cora.c
+         db_sat.c)
 
 if(ESP_PLATFORM)
     idf_component_register(SRCS ${srcs} INCLUDE_DIRS include)

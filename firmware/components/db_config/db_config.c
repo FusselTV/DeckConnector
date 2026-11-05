@@ -169,6 +169,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "name", cfg->name);
     db_json_str(&j, "controller", db_controller_name(cfg->controller));
     db_json_str(&j, "host", cfg->host);
+    db_json_str(&j, "satellite", cfg->satellite);
     db_json_bool(&j, "dock_paired_only", cfg->dock_paired_only);
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
@@ -316,10 +317,15 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "wifi_pass", cfg->wifi_pass, sizeof(cfg->wifi_pass), err, err_cap) &&
               take_str(root, "token", cfg->token, sizeof(cfg->token), err, err_cap) &&
               take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
+              take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
               take_scalars(root, cfg, err, err_cap);
+    if (ok && strpbrk(cfg->satellite, " \"/")) {
+        snprintf(err, err_cap, "satellite: host or host:port expected");
+        ok = false;
+    }
     if (ok && strlen(cfg->admin_pass) < 6) {
         snprintf(err, err_cap, "admin_pass: at least 6 characters");
         ok = false;

@@ -16,7 +16,7 @@
 #include "freertos/task.h"
 #include "usb_port.h"
 
-#define MAX_LISTENERS  4
+#define MAX_LISTENERS  6
 #define PENDING_BUDGET (4 * 1024 * 1024)
 #define INPUT_REPORT   64
 #define EVENTS_PER_RPT 8
@@ -141,10 +141,18 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
         reject = DB_ACK_BUSY;
     } else if (!s.present) {
         reject = DB_ACK_NO_DEVICE;
-    } else if (source != s.writer) {
-        reject = DB_ACK_REJECTED_ROLE;
     } else if (!db_device_find_target(&s.dev.info, display, rect)) {
         reject = DB_ACK_REJECTED_RECT;
+    } else if (source == DB_SOURCE_SAT && source != s.writer) {
+        /* under the lock: a writer change cannot slip in between and replay the picture without it */
+        xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+        db_screen_put(&s.screens[source], display, rect, data, len);
+        xSemaphoreGive(s.shot_lock);
+        xSemaphoreGive(s.lock);
+        heap_caps_free(r);
+        return;
+    } else if (source != s.writer) {
+        reject = DB_ACK_REJECTED_ROLE;
     } else {
         *r = tmp;
         r->data = data;
@@ -185,7 +193,8 @@ static void writer_task(void *arg)
             xSemaphoreGive(s.io_lock);
             s.stats.images++;
             ack(r, err == DB_OK ? DB_ACK_SHOWN : DB_ACK_NO_DEVICE, t0, t1);
-            if (err == DB_OK && r->source < DB_SOURCE_DOCK0) { /* a dock host's picture keeps it already */
+            bool dock = r->source >= DB_SOURCE_DOCK0 && r->source < DB_SOURCE_SAT;
+            if (err == DB_OK && !dock) { /* a dock host's picture keeps it already */
                 xSemaphoreTake(s.shot_lock, portMAX_DELAY);
                 db_screen_put(&s.screens[r->source], r->display, r->rect, r->data, r->len);
                 xSemaphoreGive(s.shot_lock);
@@ -367,9 +376,8 @@ esp_err_t db_deck_start(void)
 
 void db_deck_add_listener(const db_deck_listener_t *listener)
 {
-    if (s.listener_count < MAX_LISTENERS) {
-        s.listeners[s.listener_count++] = *listener;
-    }
+    configASSERT(s.listener_count < MAX_LISTENERS); /* one more silently missed all input once */
+    s.listeners[s.listener_count++] = *listener;
 }
 
 void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
@@ -397,7 +405,7 @@ void db_deck_set_writer(db_source_t source)
 const char *db_deck_source_name(db_source_t source)
 {
     static const char *const names[DB_SOURCE_COUNT] = {"ui",    "server1", "server2", "server3", "server4",
-                                                       "dock1", "dock2",   "dock3",   "dock4"};
+                                                       "dock1", "dock2",   "dock3",   "dock4",   "satellite"};
     return source < DB_SOURCE_COUNT ? names[source] : "";
 }
 

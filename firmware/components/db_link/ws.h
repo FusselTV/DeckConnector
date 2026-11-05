@@ -36,6 +36,8 @@ void ws_init(ws_t *ws);
 int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers,
                const char *ifname, int timeout_ms);
 void ws_close(ws_t *ws);
+/* A plain TCP socket with TCP_NODELAY and `timeout_ms` for every send and receive, or a negative errno. */
+int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout_ms);
 /* 0 when a TCP connection to the server in `url` opens over `ifname`; it is closed again at once. */
 int ws_probe(const char *url, const char *ifname, int timeout_ms);
 

@@ -72,7 +72,7 @@ static int connect_within(int s, const struct sockaddr *addr, socklen_t len, int
     return err;
 }
 
-static int open_socket(const char *host, unsigned port, const char *ifname, int timeout_ms)
+int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout_ms)
 {
     char port_s[8];
     snprintf(port_s, sizeof(port_s), "%u", port);
@@ -175,7 +175,7 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     if (err) {
         return err;
     }
-    int s = open_socket(host, port, ifname, timeout_ms);
+    int s = ws_tcp_open(host, port, ifname, timeout_ms);
     if (s < 0) {
         return s;
     }
@@ -199,7 +199,7 @@ int ws_probe(const char *url, const char *ifname, int timeout_ms)
     unsigned port;
     const char *path;
     int err = parse_url(url, host, sizeof(host), &port, &path);
-    int s = err ? err : open_socket(host, port, ifname, timeout_ms);
+    int s = err ? err : ws_tcp_open(host, port, ifname, timeout_ms);
     if (s < 0) {
         return s;
     }

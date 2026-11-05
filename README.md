@@ -2,7 +2,8 @@
 
 Firmware for an ESP32-P4 board that drives an Elgato Stream Deck over USB and puts it on the network. Your own
 server renders the images and gets every key press, encoder turn and touch. The board also acts like an Elgato
-Network Dock, so Bitfocus Companion and the Stream Deck app use it without any extra software. You switch between
+Network Dock, so Bitfocus Companion and the Stream Deck app use it without any extra software. Companion can
+also take the deck over its Satellite API. You switch between
 the three at any time, and the deck shows the picked one's picture at once.
 
 <table><tr>
@@ -60,6 +61,9 @@ Web-Zugang.
      that announce `_deckbridge._tcp` over mDNS.
    - Companion. The board shows up under Surfaces, Discover. Click Add Connection, or add a remote surface of the
      type Elgato Stream Deck with the address of the board.
+     Or enter the address of Companion under Settings, Companion über die Satellite-API. The board then connects
+     to Companion itself. This also works when Companion runs in Docker without host networking, as long as
+     port 16622 is reachable.
    - Stream Deck app. It finds the board by itself.
 
 When nobody draws, the deck shows its home screen. Tap a key on it to pick who controls the deck, or Menü for

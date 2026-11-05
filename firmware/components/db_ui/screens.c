@@ -485,7 +485,7 @@ static void sources_page(page_t *p)
         /* a card, so an address breaks into lines instead of being cut: two servers may differ only in the
          * port */
         card(t, NULL, drawing ? "zeichnet" : (src->kind == UI_CTRL_SERVER ? "Server" : "Rechner"), src->label,
-             "");
+             strcmp(src->id, "satellite") == 0 ? "Satellite" : "");
         t->active = drawing;
         t->color = C_ACTIVE;
     }

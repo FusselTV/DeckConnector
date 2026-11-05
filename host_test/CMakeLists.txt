@@ -20,6 +20,10 @@ foreach(t test_regions test_proto test_elgato test_cora test_screen)
     add_test(NAME ${t} COMMAND ${t})
 endforeach()
 
+add_executable(test_sat test_sat.c)
+target_link_libraries(test_sat db_core unity z)
+add_test(NAME test_sat COMMAND test_sat)
+
 set(ui ../firmware/components/db_ui)
 add_executable(test_ui test_ui.c ${ui}/screens.c ${ui}/render.c ${ui}/canvas.c ${ui}/font_data.c)
 target_include_directories(test_ui PRIVATE ${ui})

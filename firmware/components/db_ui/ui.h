@@ -73,7 +73,7 @@ typedef struct {
     uint8_t kind; /* UI_CTRL_* */
     bool chosen;  /* the one of its kind that draws when its kind is picked */
     char label[24];
-    char id[96]; /* what the config keeps: the dock host's IP or the server's URL */
+    char id[96]; /* what the config keeps: the dock host's IP, the server's URL, or "satellite" */
 } ui_source_t;
 
 typedef struct {

@@ -1,0 +1,684 @@
+#include "db_satellite.h"
+
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "db_config.h"
+#include "db_deck.h"
+#include "db_log.h"
+#include "db_net.h"
+#include "db_sat.h"
+#include "esp_heap_caps.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "fcntl.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "jpeg_port.h"
+#include "lwip/sockets.h"
+#include "mbedtls/base64.h"
+#include "nvs.h"
+#include "ws.h"
+
+#define LINE_CAP     (256 * 1024) /* an rgb strip part is 80 KB of base64; Companion's own limit is 2 MB */
+#define RX_CHUNK     8192
+#define RX_WAIT_MS   200
+#define CONNECT_MS   3000
+#define RETRY_MS     2000
+#define PING_MS      2000
+#define SILENT_MS    6000 /* Companion answers every PING */
+#define ADD_AGAIN_MS 3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
+#define LAN_PROBE_MS 5000
+#define BOOT_LAN_US  (30LL * 1000000)
+#define QUALITY      90
+#define CACHE_SLOTS  2048
+#define CACHE_BUDGET (4 * 1024 * 1024)
+#define PNG_PREFIX   "data:image/png;base64,"
+
+static const char *TAG = "satellite";
+
+typedef struct {
+    char id[24];
+    uint8_t *jpeg; /* NULL: free slot */
+    size_t len;
+} cached_t;
+
+static struct {
+    void (*changed)(void);
+    SemaphoreHandle_t lock; /* the controls, between the deck's event task and the client */
+    SemaphoreHandle_t tx;
+    volatile int sock;
+    volatile bool added;
+    volatile bool device_dirty;
+    bool flip;
+    bool png;
+    bool rotary_amount;
+    bool caching;
+    int brightness;
+    bool was_writer;
+    bool over_wlan;
+    bool to_lan;
+    int64_t add_sent_ms;
+    char addr[sizeof(((db_config_t *)0)->satellite)];
+    char host[sizeof(((db_config_t *)0)->satellite)];
+    unsigned port;
+    char serial[32];
+    char model[32];
+    db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
+    size_t nctl;
+    uint8_t *line;
+    size_t fill;
+    uint8_t *rgb; /* B, G, R for the encoder, as big as the largest control */
+    uint8_t *work;
+    size_t work_cap;
+    uint32_t seq;
+    cached_t *cache;
+} s = {.sock = -1, .brightness = -1};
+
+static int64_t now_ms(void)
+{
+    return esp_timer_get_time() / 1000;
+}
+
+static void send_line(const char *fmt, ...)
+{
+    char buf[256];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    xSemaphoreTake(s.tx, portMAX_DELAY);
+    if (s.sock >= 0 && n > 0 && (size_t)n < sizeof(buf)) {
+        send(s.sock, buf, (size_t)n, 0);
+    }
+    xSemaphoreGive(s.tx);
+}
+
+static void cache_clear(void)
+{
+    for (int i = 0; i < CACHE_SLOTS; i++) {
+        heap_caps_free(s.cache[i].jpeg);
+        s.cache[i].jpeg = NULL;
+    }
+}
+
+static cached_t *cache_find(const char *id)
+{
+    for (int i = 0; i < CACHE_SLOTS; i++) {
+        if (s.cache[i].jpeg && strcmp(s.cache[i].id, id) == 0) {
+            return &s.cache[i];
+        }
+    }
+    return NULL;
+}
+
+/* Companion keeps the books of what the bridge holds and tells it what to drop. Each entry is reported at
+ * no less than its share of the budget, so the slots never run out before the budget does. */
+static bool cache_put(const char *id, const uint8_t *jpeg, size_t len)
+{
+    cached_t *c = cache_find(id);
+    for (int i = 0; i < CACHE_SLOTS && !c; i++) {
+        c = s.cache[i].jpeg ? NULL : &s.cache[i];
+    }
+    uint8_t *copy = c && strlen(id) < sizeof(c->id) ? heap_caps_malloc(len, MALLOC_CAP_SPIRAM) : NULL;
+    if (!copy) {
+        return false;
+    }
+    memcpy(copy, jpeg, len);
+    heap_caps_free(c->jpeg);
+    *c = (cached_t){.jpeg = copy, .len = len};
+    strcpy(c->id, id);
+    size_t cost = len > CACHE_BUDGET / CACHE_SLOTS ? len : CACHE_BUDGET / CACHE_SLOTS;
+    send_line("BITMAP-COST BITMAP_ID=\"%s\" BYTES=%u\n", id, (unsigned)cost);
+    return true;
+}
+
+static void cache_evict(char *ids)
+{
+    for (char *id = strtok(ids, ","); id; id = strtok(NULL, ",")) {
+        cached_t *c = cache_find(id);
+        if (c) {
+            heap_caps_free(c->jpeg);
+            c->jpeg = NULL;
+        }
+    }
+}
+
+static bool find_control(const char *id, db_sat_control_t *out)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    const db_sat_control_t *c = id ? db_sat_find(s.ctl, s.nctl, id) : NULL;
+    if (c) {
+        *out = *c;
+    }
+    xSemaphoreGive(s.lock);
+    return c != NULL;
+}
+
+/* A bitmap as Companion sends it (a PNG data URL, or raw R, G, B) to a JPEG for the deck. */
+static esp_err_t to_jpeg(char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
+{
+    bool png = strncmp(bitmap, PNG_PREFIX, strlen(PNG_PREFIX)) == 0;
+    char *b64 = png ? bitmap + strlen(PNG_PREFIX) : bitmap;
+    int n = db_base64_decode(b64, strlen(b64));
+    size_t px = (size_t)r.w * r.h;
+    if (n < 0) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (png) {
+        if (db_png_decode((uint8_t *)b64, (size_t)n, r.w, r.h, s.rgb, s.work, s.work_cap) != DB_OK) {
+            return ESP_ERR_INVALID_ARG;
+        }
+    } else if ((size_t)n == px * 3) {
+        for (size_t i = 0; i < px; i++) {
+            s.rgb[i * 3] = (uint8_t)b64[i * 3 + 2];
+            s.rgb[i * 3 + 1] = (uint8_t)b64[i * 3 + 1];
+            s.rgb[i * 3 + 2] = (uint8_t)b64[i * 3];
+        }
+    } else {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    for (size_t i = 0; s.flip && i < px / 2; i++) { /* turned by 180 degrees: the pixels backwards */
+        uint8_t t[3];
+        memcpy(t, s.rgb + i * 3, 3);
+        memcpy(s.rgb + i * 3, s.rgb + (px - 1 - i) * 3, 3);
+        memcpy(s.rgb + (px - 1 - i) * 3, t, 3);
+    }
+    return jpeg_port_encode(s.rgb, r.w, r.h, QUALITY, jpeg, len);
+}
+
+static void draw(const db_sat_control_t *c, uint8_t *jpeg, size_t len)
+{
+    db_deck_submit(DB_SOURCE_SAT, 0, c->rect, ++s.seq, jpeg, len, (uint64_t)esp_timer_get_time());
+}
+
+/* false: the picture cannot be drawn as Companion thinks, and only a new session puts that right. */
+static bool key_state(const db_sat_msg_t *m)
+{
+    db_sat_control_t c;
+    if (!s.rgb || !s.work || !find_control(db_sat_get(m, "CONTROLID"), &c) || c.kind == DB_SAT_ENCODER) {
+        return true;
+    }
+    char *bitmap = (char *)db_sat_get(m, "BITMAP");
+    const char *id = db_sat_get(m, "BITMAP_ID");
+    uint8_t *jpeg = NULL;
+    size_t len = 0;
+    if (bitmap && bitmap[0]) {
+        esp_err_t err = to_jpeg(bitmap, c.rect, &jpeg, &len);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "bitmap for %u/%u not drawn: %s", c.row, c.col, esp_err_to_name(err));
+            return true;
+        }
+        if (id && s.caching && !cache_put(id, jpeg, len)) {
+            ESP_LOGW(TAG, "bitmap %s not cached", id);
+            heap_caps_free(jpeg);
+            return false;
+        }
+    } else if (id) {
+        cached_t *hit = cache_find(id);
+        jpeg = hit ? heap_caps_malloc(hit->len, MALLOC_CAP_SPIRAM) : NULL;
+        if (!jpeg) {
+            ESP_LOGW(TAG, "bitmap %s %s", id, hit ? "no memory" : "not in the cache");
+            return false;
+        }
+        memcpy(jpeg, hit->jpeg, hit->len);
+        len = hit->len;
+    } else {
+        return true;
+    }
+    draw(&c, jpeg, len);
+    return true;
+}
+
+static void clear_keys(void)
+{
+    for (size_t i = 0; i < s.nctl; i++) {
+        const db_sat_control_t *c = &s.ctl[i];
+        uint8_t *jpeg = NULL;
+        size_t len = 0;
+        if (c->kind != DB_SAT_ENCODER) {
+            memset(s.rgb, 0, (size_t)c->rect.w * c->rect.h * 3);
+            if (jpeg_port_encode(s.rgb, c->rect.w, c->rect.h, QUALITY, &jpeg, &len) == ESP_OK) {
+                draw(c, jpeg, len);
+            }
+        }
+    }
+}
+
+static void add_device(void)
+{
+    char *json = malloc(2048);
+    char *b64 = malloc(2800);
+    char *line = malloc(3200);
+    size_t n = 0;
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    size_t len = json ? db_sat_manifest(s.ctl, s.nctl, json, 2048) : 0;
+    xSemaphoreGive(s.lock);
+    if (len && b64 && line &&
+        mbedtls_base64_encode((unsigned char *)b64, 2800, &n, (unsigned char *)json, len) == 0) {
+        /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock */
+        int k = snprintf(line, 3200,
+                         "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
+                         "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s\n",
+                         s.serial, s.serial, s.model, b64, s.png ? "png" : "rgb");
+        xSemaphoreTake(s.tx, portMAX_DELAY);
+        if (k > 0 && k < 3200) {
+            send(s.sock, line, (size_t)k, 0);
+            s.add_sent_ms = now_ms();
+        }
+        xSemaphoreGive(s.tx);
+    }
+    free(json);
+    free(b64);
+    free(line);
+}
+
+/* The deck came, went or changed: Companion gets the new layout, and the buffers fit its largest control. */
+static void apply_device(void)
+{
+    s.device_dirty = false;
+    s.add_sent_ms = 0;
+    if (s.added) {
+        send_line("REMOVE-DEVICE DEVICEID=\"%s\"\n", s.serial);
+        s.added = false;
+        s.changed();
+    }
+    db_device_info_t *dev = malloc(sizeof(*dev));
+    bool present = dev && db_deck_info(dev);
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    s.nctl = present ? db_sat_controls(dev, s.ctl, DB_SAT_MAX_CONTROLS) : 0;
+    xSemaphoreGive(s.lock);
+    if (present) {
+        snprintf(s.serial, sizeof(s.serial), "%s", dev->serial);
+        snprintf(s.model, sizeof(s.model), "%s", dev->model);
+        s.flip = dev->displays[0].flip_x && dev->displays[0].flip_y;
+    }
+    free(dev);
+    size_t px = 0;
+    for (size_t i = 0; i < s.nctl; i++) {
+        size_t a = (size_t)s.ctl[i].rect.w * s.ctl[i].rect.h;
+        px = a > px ? a : px;
+    }
+    heap_caps_free(s.rgb);
+    heap_caps_free(s.work);
+    s.rgb = px ? jpeg_port_alloc_rgb(px, 1) : NULL;
+    s.work_cap = px * 4 + 1024; /* rows of RGBA plus a filter byte each */
+    s.work = px ? heap_caps_malloc(s.work_cap, MALLOC_CAP_SPIRAM) : NULL;
+    if (s.nctl && s.rgb && s.work) {
+        add_device();
+    }
+}
+
+/* false ends the session. */
+static bool handle(char *line)
+{
+    db_sat_msg_t m;
+    db_sat_parse(line, &m);
+    const char *v;
+    if (strcmp(m.cmd, "KEY-STATE") == 0) {
+        return key_state(&m);
+    } else if (strcmp(m.cmd, "BEGIN") == 0) {
+        const char *api = db_sat_get(&m, "ApiVersion");
+        v = db_sat_get(&m, "CompanionVersion");
+        ESP_LOGI(TAG, "Companion %s, API %s", v ? v : "?", api ? api : "?");
+    } else if (strcmp(m.cmd, "CAPS") == 0) {
+        s.png = (v = db_sat_get(&m, "BITMAP_FORMATS")) && strstr(v, "png");
+        s.rotary_amount = (v = db_sat_get(&m, "ROTARY_AMOUNT")) && strcmp(v, "1") == 0;
+        if (CACHE_BUDGET && (v = db_sat_get(&m, "BITMAP_CACHE")) && strcmp(v, "1") == 0) {
+            send_line("BITMAP-CACHE BYTES=%u\n", (unsigned)CACHE_BUDGET);
+        }
+        apply_device();
+    } else if (strcmp(m.cmd, "BITMAP-CACHE") == 0) {
+        s.caching = db_sat_get(&m, "OK") != NULL;
+    } else if (strcmp(m.cmd, "BITMAP-EVICT") == 0) {
+        char *ids = (char *)db_sat_get(&m, "BITMAP_IDS");
+        if (db_sat_get(&m, "ALL")) {
+            cache_clear();
+        } else if (ids) {
+            cache_evict(ids);
+        }
+    } else if (strcmp(m.cmd, "ADD-DEVICE") == 0) {
+        s.added = db_sat_get(&m, "OK") != NULL;
+        s.add_sent_ms = 0;
+        if (s.added) {
+            ESP_LOGI(TAG, "Companion took the %s", s.model);
+            db_log_mark(DB_MARK_SATELLITE);
+            s.changed();
+        } else {
+            ESP_LOGW(TAG, "Companion refused the deck: %s", (v = db_sat_get(&m, "MESSAGE")) ? v : "?");
+            return false; /* e.g. "Device exists elsewhere" while it has not noticed the last session ended */
+        }
+    } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE"))) {
+        s.brightness = atoi(v);
+        s.was_writer = false; /* applied below, now or once the deck is ours */
+    } else if (strcmp(m.cmd, "KEYS-CLEAR") == 0) {
+        clear_keys();
+    } else if (strcmp(m.cmd, "ERROR") == 0) {
+        ESP_LOGW(TAG, "Companion: %s", (v = db_sat_get(&m, "MESSAGE")) ? v : line);
+    }
+    return true;
+}
+
+static void session(void)
+{
+    s.fill = 0;
+    s.added = s.caching = s.png = s.rotary_amount = false;
+    s.was_writer = false;
+    s.add_sent_ms = 0;
+    int64_t last_rx = now_ms();
+    int64_t last_ping = last_rx;
+    int64_t last_probe = last_rx;
+    for (;;) {
+        if (strcmp(s.addr, db_config()->satellite) != 0) {
+            ESP_LOGI(TAG, "address changed");
+            return;
+        }
+        if (s.device_dirty) {
+            apply_device();
+        }
+        bool writer = db_deck_writer() == DB_SOURCE_SAT;
+        if (writer && !s.was_writer && s.brightness >= 0) {
+            db_deck_set_brightness((uint8_t)(s.brightness > 100 ? 100 : s.brightness));
+        }
+        s.was_writer = writer;
+        if (s.fill == LINE_CAP) {
+            ESP_LOGW(TAG, "line longer than %d KB", LINE_CAP / 1024);
+            return;
+        }
+        size_t want = LINE_CAP - s.fill < RX_CHUNK ? LINE_CAP - s.fill : RX_CHUNK;
+        int n = recv(s.sock, s.line + s.fill, want, 0);
+        int64_t now = now_ms();
+        if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+            ESP_LOGW(TAG, "connection lost: %s", n ? strerror(errno) : "closed");
+            return;
+        }
+        if (n > 0) {
+            last_rx = now;
+            size_t start = 0;
+            for (size_t i = s.fill; i < s.fill + (size_t)n; i++) {
+                if (s.line[i] == '\n') {
+                    s.line[i] = '\0';
+                    if (!handle((char *)s.line + start)) {
+                        return;
+                    }
+                    start = i + 1;
+                }
+            }
+            s.fill += (size_t)n - start;
+            memmove(s.line, s.line + start, s.fill);
+        } else if (now - last_rx > SILENT_MS) {
+            ESP_LOGW(TAG, "Companion silent for %d s", SILENT_MS / 1000);
+            return;
+        }
+        if (now - last_ping >= PING_MS) {
+            last_ping = now;
+            send_line("PING\n");
+        }
+        if (!s.added && s.add_sent_ms && now - s.add_sent_ms > ADD_AGAIN_MS) {
+            add_device();
+        }
+        char lan[6];
+        if (s.over_wlan && now - last_probe >= LAN_PROBE_MS && db_net_ifname(false, lan)) {
+            last_probe = now;
+            int probe = ws_tcp_open(s.host, s.port, lan, 1000); /* only a LAN that reaches Companion wins */
+            if (probe >= 0) {
+                close(probe);
+                ESP_LOGI(TAG, "LAN is up, moving from WLAN");
+                s.to_lan = true;
+                return;
+            }
+        }
+    }
+}
+
+/* The connection of the last boot, for end_old_session(). Addresses and ports in network order. */
+typedef struct {
+    uint32_t ip;
+    uint32_t local_ip;
+    uint16_t port;
+    uint16_t local;
+} old_t;
+
+static void remember(int sock)
+{
+    struct sockaddr_in a = {0};
+    struct sockaddr_in b = {0};
+    socklen_t la = sizeof(a);
+    socklen_t lb = sizeof(b);
+    getpeername(sock, (struct sockaddr *)&a, &la);
+    getsockname(sock, (struct sockaddr *)&b, &lb);
+    old_t o = {a.sin_addr.s_addr, b.sin_addr.s_addr, a.sin_port, b.sin_port};
+    nvs_handle_t h;
+    if (nvs_open("satellite", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "old", &o, sizeof(o));
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+/*
+ * After a power cut Companion keeps writing into the session of the last boot, so it does not time out, and
+ * the deck stays taken ("Device exists elsewhere") until a retransmission reaches us, seconds later. The
+ * reset db_dock sends to the Stream Deck app ends it at once: a SYN from the old port, Companion's stack
+ * answers with an ACK, ours with a reset. True once done, or when there is nothing to end.
+ */
+static bool end_old_session(void)
+{
+    old_t o = {0};
+    size_t len = sizeof(o);
+    nvs_handle_t h;
+    if (nvs_open("satellite", NVS_READONLY, &h) != ESP_OK) {
+        return true;
+    }
+    esp_err_t err = nvs_get_blob(h, "old", &o, &len);
+    nvs_close(h);
+    db_net_status_t n;
+    db_net_status(&n);
+    bool up =
+        (n.lan_up && inet_addr(n.lan_ip) == o.local_ip) || (n.wlan_up && inet_addr(n.wlan_ip) == o.local_ip);
+    if (err != ESP_OK || !o.ip) {
+        return true;
+    }
+    if (!up) {
+        return esp_timer_get_time() > BOOT_LAN_US; /* lwIP would send the SYN from the wrong address */
+    }
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        return true;
+    }
+    int one = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    fcntl(sock, F_SETFL, O_NONBLOCK);
+    struct sockaddr_in local = {.sin_family = AF_INET, .sin_port = o.local, .sin_addr.s_addr = o.local_ip};
+    struct sockaddr_in peer = {.sin_family = AF_INET, .sin_port = o.port, .sin_addr.s_addr = o.ip};
+    if (bind(sock, (struct sockaddr *)&local, sizeof(local)) == 0) {
+        connect(sock, (struct sockaddr *)&peer, sizeof(peer));
+        vTaskDelay(pdMS_TO_TICKS(300));
+        ESP_LOGI(TAG, "ended the session of the last boot");
+    }
+    close(sock);
+    return true;
+}
+
+/* LAN first, WLAN after a failed try, and back to LAN as soon as it reaches Companion. */
+static void client_task(void *arg)
+{
+    bool via_wlan = false;
+    bool old_ended = false;
+    for (;;) {
+        snprintf(s.addr, sizeof(s.addr), "%s", db_config()->satellite);
+        if (!s.addr[0]) {
+            vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
+            continue;
+        }
+        db_net_status_t n;
+        db_net_status(&n);
+        if (!via_wlan && n.lan_link && !n.lan_up && esp_timer_get_time() < BOOT_LAN_US) {
+            vTaskDelay(pdMS_TO_TICKS(250)); /* the cable is in and DHCP is on its way: no detour over WLAN */
+            continue;
+        }
+        if (!old_ended && !(old_ended = end_old_session())) {
+            vTaskDelay(pdMS_TO_TICKS(250));
+            continue;
+        }
+        snprintf(s.host, sizeof(s.host), "%s", s.addr);
+        char *colon = strchr(s.host, ':');
+        s.port = colon ? (unsigned)atoi(colon + 1) : DB_SAT_PORT;
+        if (colon) {
+            *colon = '\0';
+        }
+        char ifname[6];
+        bool wlan = via_wlan;
+        bool bound = db_net_ifname(wlan, ifname);
+        if (!bound) {
+            wlan = !wlan;
+            bound = db_net_ifname(wlan, ifname);
+        }
+        int sock = ws_tcp_open(s.host, s.port, bound ? ifname : NULL, CONNECT_MS);
+        if (sock < 0) {
+            /* right after a start the switch port may not pass traffic yet: LAN again, soon */
+            bool early = !wlan && n.lan_link && esp_timer_get_time() < BOOT_LAN_US;
+            via_wlan = early ? false : !wlan;
+            vTaskDelay(pdMS_TO_TICKS(early ? 250 : RETRY_MS));
+            continue;
+        }
+        struct timeval tv = {.tv_usec = RX_WAIT_MS * 1000};
+        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        s.over_wlan = bound && wlan;
+        remember(sock);
+        ESP_LOGI(TAG, "connected to %s over %s", s.addr,
+                 bound ? (wlan ? "WLAN" : "LAN") : "the default route");
+        s.sock = sock;
+        session();
+        xSemaphoreTake(s.tx, portMAX_DELAY);
+        s.sock = -1;
+        close(sock);
+        xSemaphoreGive(s.tx);
+        if (s.added) {
+            s.added = false;
+            s.changed();
+        }
+        db_deck_forget(DB_SOURCE_SAT);
+        cache_clear();
+        heap_caps_free(s.rgb);
+        heap_caps_free(s.work);
+        s.rgb = s.work = NULL;
+        via_wlan = false;
+        vTaskDelay(pdMS_TO_TICKS(s.to_lan ? 0 : RETRY_MS));
+        s.to_lan = false;
+    }
+}
+
+static void press(const db_sat_control_t *c, bool down)
+{
+    send_line("KEY-PRESS DEVICEID=\"%s\" CONTROLID=\"%u/%u\" PRESSED=%d\n", s.serial, c->row, c->col, down);
+}
+
+static void rotate(const db_sat_control_t *c, int ticks)
+{
+    if (s.rotary_amount) {
+        send_line("KEY-ROTATE DEVICEID=\"%s\" CONTROLID=\"%u/%u\" DIRECTION=%d\n", s.serial, c->row, c->col,
+                  ticks);
+        return;
+    }
+    for (int i = 0; i < abs(ticks); i++) {
+        send_line("KEY-ROTATE DEVICEID=\"%s\" CONTROLID=\"%u/%u\" DIRECTION=%d\n", s.serial, c->row, c->col,
+                  ticks > 0);
+    }
+}
+
+static const db_sat_control_t *control_of(db_sat_kind_t kind, uint8_t index)
+{
+    for (size_t i = 0; i < s.nctl; i++) {
+        if (s.ctl[i].kind == kind && s.ctl[i].index == index) {
+            return &s.ctl[i];
+        }
+    }
+    return NULL;
+}
+
+/* As the Stream Deck plugin does it: a tap presses the strip part under the finger, a sideways swipe turns
+ * the page, an upward or downward one turns the part. */
+static void on_input(const db_input_t *ev)
+{
+    if (!s.added || db_deck_writer() != DB_SOURCE_SAT) {
+        return;
+    }
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    const db_sat_control_t *c = NULL;
+    switch (ev->kind) {
+    case DB_INPUT_KEY_DOWN:
+    case DB_INPUT_KEY_UP:
+        if ((c = control_of(DB_SAT_KEY, ev->index))) {
+            press(c, ev->kind == DB_INPUT_KEY_DOWN);
+        }
+        break;
+    case DB_INPUT_ENCODER_DOWN:
+    case DB_INPUT_ENCODER_UP:
+        if ((c = control_of(DB_SAT_ENCODER, ev->index))) {
+            press(c, ev->kind == DB_INPUT_ENCODER_DOWN);
+        }
+        break;
+    case DB_INPUT_ENCODER_TURN:
+        if ((c = control_of(DB_SAT_ENCODER, ev->index))) {
+            rotate(c, ev->value);
+        }
+        break;
+    case DB_INPUT_TOUCH_TAP:
+    case DB_INPUT_TOUCH_LONG:
+        if ((c = db_sat_lcd_at(s.ctl, s.nctl, ev->x))) {
+            press(c, true);
+            press(c, false);
+        }
+        break;
+    case DB_INPUT_TOUCH_SWIPE: {
+        int dx = abs(ev->x2 - ev->x);
+        int dy = abs(ev->y2 - ev->y);
+        c = db_sat_lcd_at(s.ctl, s.nctl, ev->x);
+        if (c && 100 * dy >= 119 * dx &&
+            c == db_sat_lcd_at(s.ctl, s.nctl, ev->x2)) { /* steeper than 50 deg */
+            rotate(c, ev->y > ev->y2 ? 1 : -1);
+        } else if (1000 * dy <= 414 * dx) { /* flatter than 22.5 degrees */
+            send_line("CHANGE-PAGE DEVICEID=\"%s\" DIRECTION=%d\n", s.serial, ev->x > ev->x2);
+        }
+        break;
+    }
+    }
+    xSemaphoreGive(s.lock);
+}
+
+static void on_device(const db_device_info_t *info)
+{
+    s.device_dirty = true;
+}
+
+esp_err_t db_satellite_start(void (*changed)(void))
+{
+    s.changed = changed;
+    s.lock = xSemaphoreCreateMutex();
+    s.tx = xSemaphoreCreateMutex();
+    s.line = heap_caps_malloc(LINE_CAP, MALLOC_CAP_SPIRAM);
+    s.cache = heap_caps_calloc(CACHE_SLOTS, sizeof(cached_t), MALLOC_CAP_SPIRAM);
+    if (!s.line || !s.cache) {
+        return ESP_ERR_NO_MEM;
+    }
+    db_deck_listener_t dl = {.input = on_input, .device_changed = on_device};
+    db_deck_add_listener(&dl);
+    /* tinfl, which inflates the PNGs, keeps 11 KB of state on the stack */
+    xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, NULL, 0);
+    return ESP_OK;
+}
+
+bool db_satellite_connected(void)
+{
+    return s.added;
+}
+
+const char *db_satellite_address(void)
+{
+    return db_config()->satellite;
+}
