@@ -12,4 +12,5 @@
 
 /* `status_json` writes the body of /api/status; `state_json` the web socket's state message, which leaves out
  * what changes all the time. */
-esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap), size_t (*state_json)(char *buf, size_t cap));
+esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap),
+                       size_t (*state_json)(char *buf, size_t cap));
