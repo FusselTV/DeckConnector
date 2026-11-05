@@ -10,13 +10,15 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "lwip/ip4_addr.h"
 #include "mdns.h"
 
-#define LAN_ROUTE_PRIO 200 /* above the WLAN station (100): LAN wins when both are up */
+#define RSSI_MAX_AGE_US 2000000
+#define LAN_ROUTE_PRIO  200 /* above the WLAN station (100): LAN wins when both are up */
 
 static const char *TAG = "net";
 
@@ -26,6 +28,7 @@ static struct {
     esp_netif_t *wlan;
     esp_netif_t *ap;
     db_net_status_t st;
+    int64_t rssi_at;
     bool wifi_started;
     void (*on_change)(void);
 } s;
@@ -226,10 +229,16 @@ esp_err_t db_net_start(void)
 void db_net_status(db_net_status_t *out)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
+    /* the signal is a call to the WLAN chip over SDIO, too slow for every status and every redraw */
+    int64_t now = esp_timer_get_time();
+    if (s.st.wlan_up && now - s.rssi_at > RSSI_MAX_AGE_US) {
+        wifi_ap_record_t ap;
+        s.st.rssi = esp_wifi_sta_get_ap_info(&ap) == ESP_OK ? ap.rssi : 0;
+        s.rssi_at = now;
+    }
     *out = s.st;
     xSemaphoreGive(s.lock);
-    wifi_ap_record_t ap;
-    out->rssi = (out->wlan_up && esp_wifi_sta_get_ap_info(&ap) == ESP_OK) ? ap.rssi : 0;
+    out->rssi = out->wlan_up ? out->rssi : 0;
 }
 
 bool db_net_ifname(bool wlan, char name[6])

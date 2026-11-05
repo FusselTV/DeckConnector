@@ -14,6 +14,11 @@ static void to_bytes(uint32_t color, uint8_t out[3])
 int ui_text_cuts;
 void (*ui_on_cut)(const char *text, int room);
 
+static int fit_radius(db_rect_t r, int radius)
+{
+    return radius * 2 > r.w ? r.w / 2 : (radius * 2 > r.h ? r.h / 2 : radius);
+}
+
 static db_rect_t clip_to(const ui_canvas_t *c, db_rect_t r)
 {
     if (r.x >= c->w || r.y >= c->h) {
@@ -52,7 +57,7 @@ static void blend_px(uint8_t *p, const uint8_t rgb[3], float a)
 void ui_round(ui_canvas_t *c, db_rect_t r, int radius, uint32_t color)
 {
     r = clip_to(c, r);
-    radius = radius * 2 > r.w ? r.w / 2 : (radius * 2 > r.h ? r.h / 2 : radius);
+    radius = fit_radius(r, radius);
     if (!r.w || !r.h) {
         return;
     }
@@ -84,6 +89,20 @@ void ui_round(ui_canvas_t *c, db_rect_t r, int radius, uint32_t color)
     }
 }
 
+void ui_round_over(ui_canvas_t *c, db_rect_t r, int radius, uint32_t color, uint32_t bg)
+{
+    r = clip_to(c, r);
+    radius = fit_radius(r, radius);
+    uint16_t d = (uint16_t)radius;
+    uint16_t right = (uint16_t)(r.x + r.w - d);
+    uint16_t bottom = (uint16_t)(r.y + r.h - d);
+    db_rect_t corners[] = {{r.x, r.y, d, d}, {right, r.y, d, d}, {r.x, bottom, d, d}, {right, bottom, d, d}};
+    for (int i = 0; i < 4; i++) {
+        ui_fill(c, corners[i], bg);
+    }
+    ui_round(c, r, radius, color);
+}
+
 /* Decode one UTF-8 code point; advances `*s`. Invalid bytes become '?'. */
 static uint16_t next_codepoint(const char **s)
 {
@@ -105,6 +124,10 @@ static uint16_t next_codepoint(const char **s)
 
 static const ui_glyph_t *glyph(const ui_font_t *f, uint16_t cp)
 {
+    /* the text fonts start with 32..126 in order (gen_font.py), the hot path of every width and draw */
+    if (cp >= 32 && cp - 32u < f->count && f->glyphs[cp - 32].codepoint == cp) {
+        return &f->glyphs[cp - 32];
+    }
     for (uint16_t i = 0; i < f->count; i++) {
         if (f->glyphs[i].codepoint == cp) {
             return &f->glyphs[i];
@@ -113,14 +136,19 @@ static const ui_glyph_t *glyph(const ui_font_t *f, uint16_t cp)
     return cp == '?' ? NULL : glyph(f, '?');
 }
 
-int ui_text_width(const ui_font_t *f, const char *s)
+int ui_text_width_n(const ui_font_t *f, const char *s, const char *end)
 {
     int w = 0;
-    while (*s) {
+    while (*s && (!end || s < end)) {
         const ui_glyph_t *g = glyph(f, next_codepoint(&s));
         w += g ? g->advance : 0;
     }
     return w;
+}
+
+int ui_text_width(const ui_font_t *f, const char *s)
+{
+    return ui_text_width_n(f, s, NULL);
 }
 
 static void blend(uint8_t *p, const uint8_t rgb[3], unsigned alpha)
@@ -133,20 +161,21 @@ static void blend(uint8_t *p, const uint8_t rgb[3], unsigned alpha)
 static void draw_glyph(ui_canvas_t *c, const ui_glyph_t *g, const uint8_t *bits, db_rect_t clip, int pen_x,
                        int base_y, const uint8_t rgb[3])
 {
-    for (int gy = 0; gy < g->h; gy++) {
-        int y = base_y + g->y + gy;
-        if (y < clip.y || y >= clip.y + clip.h || y >= c->h) {
-            continue;
-        }
-        for (int gx = 0; gx < g->w; gx++) {
-            int x = pen_x + g->x + gx;
-            if (x < clip.x || x >= clip.x + clip.w || x >= c->w) {
-                continue;
-            }
+    int x0 = pen_x + g->x;
+    int y0 = base_y + g->y;
+    int right = clip.x + clip.w < c->w ? clip.x + clip.w : c->w;
+    int bottom = clip.y + clip.h < c->h ? clip.y + clip.h : c->h;
+    int gx0 = x0 < clip.x ? clip.x - x0 : 0;
+    int gy0 = y0 < clip.y ? clip.y - y0 : 0;
+    int gx1 = x0 + g->w > right ? right - x0 : g->w;
+    int gy1 = y0 + g->h > bottom ? bottom - y0 : g->h;
+    for (int gy = gy0; gy < gy1; gy++) {
+        uint8_t *row = c->px + ((size_t)(y0 + gy) * c->w + x0) * 3;
+        for (int gx = gx0; gx < gx1; gx++) {
             size_t i = (size_t)gy * g->w + gx;
             unsigned alpha = (i & 1) ? bits[g->offset + i / 2] & 0x0f : bits[g->offset + i / 2] >> 4;
             if (alpha) {
-                blend(c->px + ((size_t)y * c->w + x) * 3, rgb, alpha);
+                blend(row + gx * 3, rgb, alpha);
             }
         }
     }

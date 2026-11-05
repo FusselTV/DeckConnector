@@ -135,13 +135,6 @@ static bool fits(const ui_font_t *const *fonts, int n, int room, const char *s)
     return false;
 }
 
-static int width_of(const ui_font_t *f, const char *s, size_t n)
-{
-    char buf[48];
-    snprintf(buf, sizeof(buf), "%.*s", (int)n, s);
-    return ui_text_width(f, buf);
-}
-
 /* Splits `v` into lines that fit `room` in `f`, breaking after ".", "-" or " " where it can. Returns the
  * count, or 0 when more than `max` lines are needed. */
 static int split(const ui_font_t *f, const char *v, int room, int max, size_t *starts)
@@ -159,7 +152,7 @@ static int split(const ui_font_t *f, const char *v, int room, int max, size_t *s
             if (k < len && (v[k] & 0xc0) == 0x80) {
                 continue; /* not inside a UTF-8 character */
             }
-            if (width_of(f, v + at, k - at) > room) {
+            if (ui_text_width_n(f, v + at, v + k) > room) {
                 break;
             }
             end = k;
@@ -175,7 +168,8 @@ static int split(const ui_font_t *f, const char *v, int room, int max, size_t *s
         for (size_t k = 1; k < len; k++) {
             bool better =
                 strchr(".- ", v[k - 1]) && abs((int)(2 * k) - (int)len) < abs((int)(2 * best) - (int)len);
-            if (better && width_of(f, v, k) <= room && width_of(f, v + k, len - k) <= room) {
+            if (better && ui_text_width_n(f, v, v + k) <= room &&
+                ui_text_width_n(f, v + k, v + len) <= room) {
                 best = k;
             }
         }
@@ -216,15 +210,15 @@ static bool value_lines(ui_canvas_t *c, const style_t *st, db_rect_t text, int y
 
 static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r)
 {
-    ui_fill(c, r, C_SCREEN);
     if (t->kind == TILE_NONE) {
+        ui_fill(c, r, C_SCREEN);
         return;
     }
     const style_t *st = r.h >= 110 ? &large : (r.h >= 90 ? &medium : &small);
     int pad = r.h >= 90 ? 6 : 4;
     db_rect_t text = {(uint16_t)(r.x + pad), r.y, (uint16_t)(r.w - 2 * pad), r.h};
     if (t->kind == TILE_CARD) {
-        ui_round(c, r, st->radius, C_CARD);
+        ui_round_over(c, r, st->radius, C_CARD, C_SCREEN);
         int right = t->badge ? st->badge + 6 : pad;
         int label_x = st->card_label_x;
         /* the icon makes room for a name that would not fit next to it */
@@ -241,10 +235,10 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r)
         }
     } else {
         if (t->active) {
-            ui_round(c, r, st->radius, t->color);
+            ui_round_over(c, r, st->radius, t->color, C_SCREEN);
             ui_round(c, inset(r, st->frame), st->radius - st->frame, mix(t->color, C_BUTTON, 0.22f));
         } else {
-            ui_round(c, r, st->radius, C_BUTTON);
+            ui_round_over(c, r, st->radius, C_BUTTON, C_SCREEN);
         }
         uint32_t icon = t->dim ? C_TRACK : (t->active ? t->color : C_TEXT);
         uint32_t sub = t->active ? mix(t->color, C_TEXT, 0.75f) : C_DIM;
@@ -262,9 +256,10 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r)
 
 static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
 {
-    ui_fill(c, r, C_SCREEN);
     db_rect_t box = {(uint16_t)(r.x + 3), r.y, (uint16_t)(r.w - 6), r.h};
-    ui_round(c, box, 10, C_LCD);
+    ui_fill(c, (db_rect_t){r.x, r.y, 3, r.h}, C_SCREEN);
+    ui_fill(c, (db_rect_t){(uint16_t)(box.x + box.w), r.y, (uint16_t)(r.w - 3 - box.w), r.h}, C_SCREEN);
+    ui_round_over(c, box, 10, C_LCD, C_SCREEN);
     bool wide = g->span > 1;
     int x = 12;
     if (g->icon) {
@@ -315,9 +310,6 @@ int ui_render(ui_canvas_t *c, const db_device_info_t *dev, const ui_screen_t *sc
 {
     const db_display_t *d = &dev->displays[0];
     const db_target_t *strip = NULL;
-    if (!shown) {
-        ui_fill(c, (db_rect_t){0, 0, d->width, d->height}, C_SCREEN);
-    }
     int n = 0;
     for (uint8_t i = 0; i < d->target_count && n < max; i++) {
         const db_target_t *t = &d->targets[i];

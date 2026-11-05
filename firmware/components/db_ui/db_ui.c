@@ -231,7 +231,11 @@ static bool ensure_canvas(const db_display_t *d)
     heap_caps_free(s.canvas.px);
     s.canvas = (ui_canvas_t){.w = d->width, .h = d->height, .px = jpeg_port_alloc_rgb(d->width, d->height)};
     s.full = true;
-    return s.canvas.px != NULL;
+    if (!s.canvas.px) {
+        return false;
+    }
+    memset(s.canvas.px, 0, (size_t)d->width * d->height * 3); /* the gaps between keys, never drawn again */
+    return true;
 }
 
 /* Copy one rectangle out of the canvas, encode it and queue it. */
@@ -489,41 +493,75 @@ static void turn_around(uint8_t *px, uint16_t w, db_rect_t r)
     }
 }
 
+/* *complete is false when an image that is still shown could not be drawn, e.g. out of memory. */
+static esp_err_t render_snapshot(const db_device_info_t *dev, const db_shot_t *shots, size_t n,
+                                 uint8_t **jpeg, size_t *len, bool *complete)
+{
+    *complete = true;
+    const db_display_t *d = &dev->displays[0];
+    uint8_t *px = jpeg_port_alloc_rgb(d->width, d->height);
+    if (!px) {
+        return ESP_ERR_NO_MEM;
+    }
+    memset(px, 0, (size_t)d->width * d->height * 3);
+    for (size_t i = 0; i < n; i++) {
+        uint8_t *data = NULL;
+        size_t dlen = 0;
+        esp_err_t err = db_deck_shot_copy(shots[i].id, &data, &dlen);
+        if (err == ESP_ERR_NOT_FOUND) {
+            continue; /* replaced meanwhile; the newer one is in the list too */
+        }
+        if (err == ESP_OK) {
+            err =
+                jpeg_port_decode_into(data, dlen, px, d->width, d->height, shots[i].rect.x, shots[i].rect.y);
+        }
+        heap_caps_free(data);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "snapshot: image %lu not drawn: %s", (unsigned long)shots[i].id,
+                     esp_err_to_name(err));
+            *complete = false;
+        } else if (d->flip_x && d->flip_y) {
+            turn_around(px, d->width, shots[i].rect);
+        }
+    }
+    esp_err_t err = jpeg_port_encode(px, d->width, d->height, QUALITY, jpeg, len);
+    heap_caps_free(px);
+    return err;
+}
+
 esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len)
 {
     static db_device_info_t dev; /* too big for the web server's stack */
     static db_shot_t shots[DB_SCREEN_MAX];
     static SemaphoreHandle_t busy;
+    static uint8_t *cached; /* cameras polling an unchanged deck get a copy, not a render */
+    static size_t cached_len;
+    static uint32_t cached_key;
     if (!busy) {
         busy = xSemaphoreCreateMutex();
     }
     xSemaphoreTake(busy, portMAX_DELAY);
     esp_err_t err = db_deck_info(&dev) ? ESP_OK : ESP_ERR_INVALID_STATE;
-    const db_display_t *d = &dev.displays[0];
-    uint8_t *px = err == ESP_OK ? jpeg_port_alloc_rgb(d->width, d->height) : NULL;
-    if (err == ESP_OK && !px) {
-        err = ESP_ERR_NO_MEM;
-    }
     if (err == ESP_OK) {
-        memset(px, 0, (size_t)d->width * d->height * 3);
         db_source_t writer;
         size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
-        for (size_t i = 0; i < n; i++) {
-            uint8_t *data = NULL;
-            size_t dlen = 0;
-            if (db_deck_shot_copy(shots[i].id, &data, &dlen) != ESP_OK) {
-                continue; /* replaced meanwhile; the newer one is in the list too */
-            }
-            if (jpeg_port_decode_into(data, dlen, px, d->width, d->height, shots[i].rect.x,
-                                      shots[i].rect.y) == ESP_OK &&
-                d->flip_x && d->flip_y) {
-                turn_around(px, d->width, shots[i].rect);
-            }
-            heap_caps_free(data);
+        uint32_t key = db_deck_shots_key(writer, shots, n);
+        if (!cached || key != cached_key) {
+            heap_caps_free(cached);
+            cached = NULL;
+            bool complete;
+            err = render_snapshot(&dev, shots, n, &cached, &cached_len, &complete);
+            cached_key = complete ? key : key + 1; /* a picture with a hole is sent once, then drawn again */
         }
-        err = jpeg_port_encode(px, d->width, d->height, QUALITY, jpeg, len);
     }
-    heap_caps_free(px);
+    if (err == ESP_OK) {
+        *jpeg = heap_caps_malloc(cached_len, MALLOC_CAP_SPIRAM);
+        err = *jpeg ? ESP_OK : ESP_ERR_NO_MEM;
+    }
+    if (err == ESP_OK) {
+        memcpy(*jpeg, cached, cached_len);
+        *len = cached_len;
+    }
     xSemaphoreGive(busy);
     return err;
 }

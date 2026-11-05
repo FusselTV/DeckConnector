@@ -24,8 +24,7 @@ void db_ui_set_c6_version(const char *version);
 void db_ui_refresh(void);
 /* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */
 esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len);
-/* The controls that open the menu: index 0 and *last of the encoders (true) or of the keys (false). *last <
- * 1: none. */
+/* Menu controls: index 0 and *last of the encoders (true) or keys (false); none when *last < 1. */
 bool db_ui_menu_chord(int encoders, int keys, int *last);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */
 esp_err_t db_ui_open_menu(void);

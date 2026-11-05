@@ -14,7 +14,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
-#define CLIENTS   4
+#define CLIENTS   8
 #define STATE_MAX 2048
 #define POLL_MS   200
 #define FRAME_MAX 512
@@ -37,6 +37,13 @@ static void send_to(int fd, const char *json)
 {
     httpd_ws_frame_t f = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)json, .len = strlen(json)};
     httpd_ws_send_frame_async(e.server, fd, &f);
+}
+
+static void send_locked(int fd, const char *json)
+{
+    xSemaphoreTake(e.lock, portMAX_DELAY);
+    send_to(fd, json);
+    xSemaphoreGive(e.lock);
 }
 
 static void broadcast(const char *json)
@@ -107,12 +114,9 @@ static void poll_task(void *arg)
         }
         db_source_t writer;
         size_t count = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
-        uint32_t sum = (uint32_t)writer * 2654435761u;
-        for (size_t i = 0; i < count; i++) {
-            sum = sum * 31 + shots[i].id;
-        }
-        if (sum != e.screen) {
-            e.screen = sum;
+        uint32_t key = db_deck_shots_key(writer, shots, count);
+        if (key != e.screen) {
+            e.screen = key;
             char json[96];
             snprintf(json, sizeof(json), "{\"t\":\"screen\",\"writer\":\"%s\",\"images\":%u}",
                      db_deck_source_name(writer), (unsigned)count);
@@ -154,9 +158,7 @@ static void command(int fd, const char *text)
     char out[224];
     snprintf(out, sizeof(out), "{\"t\":\"result\",\"id\":%d,\"status\":%d,\"reply\":%s}", id, code, reply);
     cJSON_Delete(root);
-    xSemaphoreTake(e.lock, portMAX_DELAY);
-    send_to(fd, out);
-    xSemaphoreGive(e.lock);
+    send_locked(fd, out);
 }
 
 /* Before the upgrade, so a refused socket gets a plain 401 or 403 and never opens. */
@@ -194,9 +196,7 @@ esp_err_t events_open(httpd_req_t *req)
     xSemaphoreGive(e.lock);
     char *buf = malloc(STATE_MAX);
     if (buf && e.state_json(buf, STATE_MAX)) {
-        xSemaphoreTake(e.lock, portMAX_DELAY);
-        send_to(fd, buf); /* the current state at once, then only changes */
-        xSemaphoreGive(e.lock);
+        send_locked(fd, buf); /* the current state at once, then only changes */
     }
     free(buf);
     return ESP_OK;

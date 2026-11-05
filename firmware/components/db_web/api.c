@@ -8,9 +8,7 @@
 #include "db_config.h"
 #include "db_deck.h"
 #include "esp_log.h"
-#include "esp_system.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "web.h"
 
 static const char *TAG = "api";
 
@@ -18,12 +16,6 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
 {
     snprintf(reply, cap, "{\"ok\":false,\"error\":\"%s\"}", msg);
     return status;
-}
-
-static void restart_task(void *arg)
-{
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    esp_restart();
 }
 
 /* Brightness, controller and setup_done apply at once; everything else needs a restart to take effect
@@ -52,7 +44,7 @@ int api_config(const char *body, char *reply, size_t cap)
     snprintf(reply, cap, "{\"ok\":true,\"restart\":%s}", restart ? "true" : "false");
     if (restart) {
         ESP_LOGW(TAG, "config changed, restarting");
-        xTaskCreate(restart_task, "web_restart", 2048, NULL, 5, NULL);
+        restart_soon();
     }
     return 200;
 }

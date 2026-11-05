@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "db_config.h"
@@ -25,20 +26,28 @@ static const char *TAG = "main";
 
 static void write_device(db_json_t *j)
 {
-    static db_device_info_t dev; /* too big for the callers' stacks */
-    if (!db_deck_info(&dev)) {
+    /* too big for the callers' stacks, and not static: the web server, the web socket and the links call this
+     * from their own tasks */
+    db_device_info_t *dev = malloc(sizeof(*dev));
+    if (!dev) {
+        ESP_LOGE(TAG, "no memory for the device info");
+        return; /* no "device" at all: null means no deck */
+    }
+    if (!db_deck_info(dev)) {
+        free(dev);
         db_json_null(j, "device");
         return;
     }
     db_json_obj_open(j, "device");
-    db_json_str(j, "model", dev.model);
-    db_json_str(j, "serial", dev.serial);
-    db_json_str(j, "firmware", dev.firmware);
-    db_json_int(j, "keys", dev.key_count);
-    db_json_int(j, "encoders", dev.encoder_count);
-    db_json_int(j, "width", dev.displays[0].width);
-    db_json_int(j, "height", dev.displays[0].height);
+    db_json_str(j, "model", dev->model);
+    db_json_str(j, "serial", dev->serial);
+    db_json_str(j, "firmware", dev->firmware);
+    db_json_int(j, "keys", dev->key_count);
+    db_json_int(j, "encoders", dev->encoder_count);
+    db_json_int(j, "width", dev->displays[0].width);
+    db_json_int(j, "height", dev->displays[0].height);
     db_json_obj_close(j);
+    free(dev);
 }
 
 static void write_network(db_json_t *j, bool live)
@@ -120,15 +129,20 @@ static void write_status(db_json_t *j, bool live)
     db_json_obj_close(j);
 }
 
-static size_t link_status(char *buf, size_t cap)
+static size_t tagged_status(char *buf, size_t cap, const char *t, bool live)
 {
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
-    db_json_str(&j, "t", "status");
-    write_status(&j, true);
+    db_json_str(&j, "t", t);
+    write_status(&j, live);
     db_json_obj_close(&j);
     return db_json_end(&j);
+}
+
+static size_t link_status(char *buf, size_t cap)
+{
+    return tagged_status(buf, cap, "status", true);
 }
 
 /* Smallest free stack each task ever had, to size the stacks from measurements. */
@@ -166,13 +180,7 @@ static size_t web_status(char *buf, size_t cap)
 
 static size_t web_state(char *buf, size_t cap)
 {
-    db_json_t j;
-    db_json_begin(&j, buf, cap);
-    db_json_obj_open(&j, NULL);
-    db_json_str(&j, "t", "state");
-    write_status(&j, false);
-    db_json_obj_close(&j);
-    return db_json_end(&j);
+    return tagged_status(buf, cap, "state", false);
 }
 
 static void on_ota_progress(const char *target, const char *state, int pct, const char *error)

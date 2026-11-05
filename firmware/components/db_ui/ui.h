@@ -135,7 +135,8 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
 
 /*
  * Draw `sc` onto `c` for `dev`. With `shown` only the keys and strip parts that differ from it are drawn;
- * NULL draws everything. Returns how many areas changed and puts them in `dirty`.
+ * NULL draws everything. Only key and strip areas are drawn: the caller clears the gaps once, when it
+ * allocates the canvas. Returns how many areas changed and puts them in `dirty`.
  */
 int ui_render(ui_canvas_t *c, const db_device_info_t *dev, const ui_screen_t *sc, const ui_screen_t *shown,
               db_rect_t *dirty, int max);

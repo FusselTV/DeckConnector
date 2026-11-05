@@ -31,6 +31,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
 | `POST /api/reboot` | Restart |
+| `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
 
 ## Who controls the deck
 
@@ -95,7 +96,8 @@ needs at least 6 characters. An empty `servers` list finds servers over mDNS. A 
 ```
 
 `keys` lists the keys in index order, `touch` the touch strips. `menu_chord` names the two encoders or keys
-(`on` is `encoders` or `keys`) that open the menu when held together for 2 seconds.
+(`on` is `encoders` or `keys`) that open the menu when held together for 2 seconds. `last` below 1 means
+there is no such pair.
 
 Draw the JPEGs in this order at their place to get the picture. On the Stream Deck + the keys are at their place
 on the 800 x 480 screen, and the touch strip is the bottom 100 pixels. An image keeps its URL until something
@@ -119,5 +121,5 @@ count from 0. Coordinates are those of `/api/screen`.
 ```
 
 `action` is `press` (down and up, the default), `down`, `up`, or `turn` for encoders. Positive ticks turn right.
-The menu opens with `down` on both outer encoders and `up` after 2 s. A press on the real deck in between ends
+The menu opens with `down` on the two controls in `menu_chord` and `up` after 2 s. A press on the real deck in between ends
 the simulated hold, because the deck always reports all keys at once.

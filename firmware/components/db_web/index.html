@@ -146,6 +146,7 @@ async function api(path, opts = {}) {
   if (r.status === 401 && path !== '/api/status' && path !== '/api/login') location.reload(); /* session ended */
   return r;
 }
+const kv = (label, value) => `<div>${label}<b>${esc(value ?? '–')}</b></div>`;
 function toast(text, bad) {
   const t = document.createElement('div');
   t.className = 'toast' + (bad ? ' bad' : '');
@@ -184,7 +185,6 @@ function howto(s) {
 function renderStatus() {
   const s = state;
   const n = s.network;
-  const kv = (label, value) => `<div>${label}<b>${esc(value ?? '–')}</b></div>`;
   $('title').textContent = s.name;
   $('status').innerHTML = kv('Stream Deck', s.device ? `${s.device.model} · ${s.device.serial}` : 'nicht angeschlossen') +
     kv('LAN', n.lan.ip || (n.lan.cable ? 'keine Adresse' : 'kein Kabel')) +
@@ -261,7 +261,6 @@ function buildControls(sc) {
     wheel(el, () => encoder);
   }
 }
-/* Which controls open the menu comes from the deck itself, so every model gets its own words. */
 let chord = '';
 function chordText(sc) {
   const c = sc.menu_chord;
@@ -275,12 +274,25 @@ function chordText(sc) {
 const menuHow = () => chord ? `Am Deck selbst: ${chord} gleichzeitig 2 Sekunden halten.` : 'Kein Stream Deck angeschlossen.';
 async function openMenu() {
   const r = await api('/api/menu', {method: 'POST'}).catch(() => null);
-  if (!r || !r.ok) toast('Menü ging nicht auf. Ist das Deck angeschlossen?', true);
+  if (!r) toast('Bridge nicht erreichbar.', true);
+  else if (r.status === 409) toast('Kein Stream Deck angeschlossen.', true);
+  else if (!r.ok) toast('Menü ging nicht auf: ' + ((await r.json().catch(() => ({}))).error || r.status), true);
 }
 let shown = '';
 let layout = '';
-async function loadScreen() {
-  const r = await api('/api/screen').catch(() => null);
+/* one request at a time: a burst of changes ends with one more load, never with an older answer drawn last */
+let screenLoad = null;
+let screenAgain = false;
+function loadScreen() {
+  if (screenLoad) { screenAgain = true; return; }
+  screenLoad = drawScreen().catch(() => null).finally(() => {
+    screenLoad = null;
+    if (screenAgain) { screenAgain = false; loadScreen(); }
+  });
+}
+async function drawScreen() {
+  /* a request stuck on a dead connection must not hold up every later one */
+  const r = await api('/api/screen', {signal: AbortSignal.timeout(5000)}).catch(() => null);
   if (!r || !r.ok) return;
   const sc = await r.json();
   $('writer').textContent = sc.width ? 'Gerade zeichnet ' + (writers[sc.writer] || sc.writer) + '.' : 'Kein Stream Deck angeschlossen.';
@@ -368,10 +380,9 @@ function since(sec) {
   return (d ? d + ' d ' : '') + (d || h ? h + ' h ' : '') + m + ' min';
 }
 function renderSystem(s) {
-  const kv = (label, value) => `<div>${label}<b>${esc(value)}</b></div>`;
   const m = s.memory;
   const c = s.counters;
-  $('sys').innerHTML = kv('Firmware', s.firmware) + kv('WLAN-Chip', s.wlan_firmware ?? '–') +
+  $('sys').innerHTML = kv('Firmware', s.firmware) + kv('WLAN-Chip', s.wlan_firmware) +
     (s.device ? kv('Stream Deck', `${s.device.model}, Firmware ${s.device.firmware ?? '–'}`) : '') +
     kv('Läuft seit', since(s.uptime_s)) + (s.network.wlan.ip ? kv('WLAN-Signal', s.network.wlan.rssi + ' dBm') : '') +
     kv('Speicher frei', `${Math.round(m.heap_free / 1024)} KB, mindestens ${Math.round(m.heap_min_free / 1024)} KB`) +
@@ -462,9 +473,8 @@ async function start() {
   $('login').hidden = true; $('app').hidden = false;
   state = await r.json();
   renderStatus();
+  connect(); /* ws.onopen loads the deck picture, alongside loadConfig() */
   await loadConfig();
-  loadScreen();
-  connect();
   showTab(['settings', 'system'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home');
   if (!config.setup_done) wizard();
 }

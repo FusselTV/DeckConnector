@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "mbedtls/base64.h"
+#include "web.h"
 
 #define SESSIONS    4
 #define TOKEN_BYTES 32
@@ -111,9 +112,7 @@ bool auth_check(httpd_req_t *req)
         return true;
     }
     /* No WWW-Authenticate header: the page shows its own login form instead of the browser dialog. */
-    httpd_resp_set_status(req, "401 Unauthorized");
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"login required\"}");
+    send_error(req, "401 Unauthorized", "login required");
     return false;
 }
 
@@ -137,25 +136,12 @@ static void new_session(char *out)
     portEXIT_CRITICAL(&mux);
 }
 
-static esp_err_t reply(httpd_req_t *req, const char *status, const char *json)
-{
-    httpd_resp_set_status(req, status);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    return httpd_resp_sendstr(req, json);
-}
-
 static bool password_matches(httpd_req_t *req)
 {
     char body[128];
-    if (req->content_len >= sizeof(body)) {
+    if (read_body(req, body, sizeof(body)) < 0) {
         return false;
     }
-    int n = httpd_req_recv(req, body, req->content_len);
-    if (n != (int)req->content_len) {
-        return false;
-    }
-    body[n] = '\0';
     cJSON *root = cJSON_Parse(body);
     const cJSON *pw = cJSON_GetObjectItemCaseSensitive(root, "password");
     bool ok = cJSON_IsString(pw) && equal(pw->valuestring, db_config()->admin_pass);
@@ -170,19 +156,20 @@ esp_err_t auth_login(httpd_req_t *req)
         char msg[80];
         snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"locked\",\"retry\":%lld}",
                  (long long)((locked_until - now) / 1000000 + 1));
-        return reply(req, "429 Too Many Requests", msg);
+        httpd_resp_set_status(req, "429 Too Many Requests");
+        return send_json(req, msg);
     }
     bool ok = password_matches(req);
     count_try(ok);
     if (!ok) {
-        return reply(req, "403 Forbidden", "{\"ok\":false,\"error\":\"wrong password\"}");
+        return send_error(req, "403 Forbidden", "wrong password");
     }
     char token[TOKEN_BYTES * 2 + 1];
     new_session(token);
     char cookie[128];
     snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200", token);
     httpd_resp_set_hdr(req, "Set-Cookie", cookie);
-    return reply(req, "200 OK", "{\"ok\":true}");
+    return send_json(req, "{\"ok\":true}");
 }
 
 esp_err_t auth_logout(httpd_req_t *req)
@@ -199,5 +186,5 @@ esp_err_t auth_logout(httpd_req_t *req)
         portEXIT_CRITICAL(&mux);
     }
     httpd_resp_set_hdr(req, "Set-Cookie", COOKIE "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
-    return reply(req, "200 OK", "{\"ok\":true}");
+    return send_json(req, "{\"ok\":true}");
 }
