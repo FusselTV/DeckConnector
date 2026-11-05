@@ -270,6 +270,66 @@ static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_c
     return true;
 }
 
+static size_t build_input(const db_dev_t *dev, const db_input_t *ev, uint8_t *r, size_t cap)
+{
+    const state_t *st = (const state_t *)dev->state;
+    const model_t *m = st->model;
+    size_t keys = (size_t)m->cols * m->rows;
+    if (cap < 64) {
+        return 0;
+    }
+    memset(r, 0, 64);
+    r[0] = 0x01;
+    bool down = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN;
+    switch (ev->kind) {
+    case DB_INPUT_KEY_DOWN:
+    case DB_INPUT_KEY_UP:
+        if (ev->index >= keys) {
+            return 0;
+        }
+        r[1] = IN_KEYS;
+        db_put_u16(r + 2, (uint16_t)keys);
+        memcpy(r + 4, st->keys, keys);
+        r[4 + ev->index] = down;
+        return 4 + keys;
+    case DB_INPUT_ENCODER_DOWN:
+    case DB_INPUT_ENCODER_UP:
+    case DB_INPUT_ENCODER_TURN:
+        if (ev->index >= m->encoders) {
+            return 0;
+        }
+        r[1] = IN_ENCODER;
+        db_put_u16(r + 2, (uint16_t)(1 + m->encoders));
+        if (ev->kind == DB_INPUT_ENCODER_TURN) {
+            r[4] = 0x01;
+            r[5 + ev->index] = (uint8_t)(int8_t)ev->value;
+        } else {
+            memcpy(r + 5, st->encoders, m->encoders);
+            r[5 + ev->index] = down;
+        }
+        return 5 + m->encoders;
+    case DB_INPUT_TOUCH_TAP:
+    case DB_INPUT_TOUCH_LONG:
+    case DB_INPUT_TOUCH_SWIPE:
+        if (!m->strip.w) {
+            return 0;
+        }
+        r[1] = IN_TOUCH;
+        db_put_u16(r + 2, 14);
+        r[4] = ev->kind == DB_INPUT_TOUCH_TAP ? TOUCH_TAP
+                                              : (ev->kind == DB_INPUT_TOUCH_LONG ? TOUCH_LONG : TOUCH_SWIPE);
+        db_put_u16(r + 6, (uint16_t)(ev->x - m->strip.x));
+        db_put_u16(r + 8, (uint16_t)(ev->y - m->strip.y));
+        if (ev->kind == DB_INPUT_TOUCH_SWIPE) {
+            db_put_u16(r + 10, (uint16_t)(ev->x2 - m->strip.x));
+            db_put_u16(r + 12, (uint16_t)(ev->y2 - m->strip.y));
+        }
+        return 14;
+    default:
+        return 0;
+    }
+}
+
 static size_t emit(db_input_t *out, size_t max, size_t n, db_input_t ev)
 {
     if (n < max) {
@@ -380,4 +440,5 @@ const db_driver_t db_driver_elgato_gen2 = {
     .parse_input = parse_input,
     .set_brightness = set_brightness,
     .parse_output = parse_output,
+    .build_input = build_input,
 };

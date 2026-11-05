@@ -21,7 +21,7 @@
 
 static const char *TAG = "deck";
 
-typedef enum { EV_ATTACHED, EV_DETACHED, EV_INPUT } ev_kind_t;
+typedef enum { EV_ATTACHED, EV_DETACHED, EV_INPUT, EV_SIMULATE } ev_kind_t;
 
 typedef struct {
     ev_kind_t kind;
@@ -275,6 +275,17 @@ static void event_task(void *arg)
                 handle_input(&ev);
             }
             break;
+        case EV_SIMULATE: {
+            /* built here, so it starts from the key states every earlier report left */
+            db_input_t in;
+            memcpy(&in, ev.report, sizeof(in));
+            size_t len = s.present ? s.dev.driver->build_input(&s.dev, &in, ev.report, sizeof(ev.report)) : 0;
+            if (len) {
+                ev.len = (uint8_t)len;
+                handle_input(&ev);
+            }
+            break;
+        }
         }
     }
 }
@@ -299,6 +310,17 @@ static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
     if (xQueueSend(s.events, &ev, 0) != pdTRUE) {
         s.stats.inputs_dropped++;
     }
+}
+
+esp_err_t db_deck_simulate(const db_input_t *in)
+{
+    _Static_assert(sizeof(db_input_t) <= INPUT_REPORT, "input does not fit the event");
+    if (!s.present) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    ev_t ev = {.kind = EV_SIMULATE, .t_us = (uint64_t)esp_timer_get_time()};
+    memcpy(ev.report, in, sizeof(*in));
+    return xQueueSend(s.events, &ev, pdMS_TO_TICKS(100)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
 esp_err_t db_deck_start(void)

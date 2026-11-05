@@ -222,6 +222,40 @@ static void test_touch_in_display_coordinates(void)
     TEST_ASSERT_EQUAL_UINT16(380 + 71, ev[0].y2);
 }
 
+static db_input_t simulate(db_input_t ev)
+{
+    uint8_t r[64];
+    size_t len = dev.driver->build_input(&dev, &ev, r, sizeof(r));
+    TEST_ASSERT_NOT_EQUAL(0, len);
+    db_input_t out[8];
+    TEST_ASSERT_EQUAL_size_t(1, parse(r, len, out));
+    return out[0];
+}
+
+static void test_builds_what_the_deck_would_send(void)
+{
+    db_input_t e = simulate((db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = 2});
+    TEST_ASSERT_EQUAL_INT(DB_INPUT_KEY_DOWN, e.kind);
+    TEST_ASSERT_EQUAL_UINT8(2, e.index);
+    e = simulate((db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = 5}); /* key 2 stays down */
+    TEST_ASSERT_EQUAL_UINT8(5, e.index);
+    e = simulate((db_input_t){.kind = DB_INPUT_KEY_UP, .index = 2});
+    TEST_ASSERT_EQUAL_INT(DB_INPUT_KEY_UP, e.kind);
+    TEST_ASSERT_EQUAL_UINT8(2, e.index);
+    e = simulate((db_input_t){.kind = DB_INPUT_ENCODER_TURN, .index = 3, .value = -2});
+    TEST_ASSERT_EQUAL_INT(DB_INPUT_ENCODER_TURN, e.kind);
+    TEST_ASSERT_EQUAL_INT16(-2, e.value);
+    e = simulate((db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 1});
+    TEST_ASSERT_EQUAL_INT(DB_INPUT_ENCODER_DOWN, e.kind);
+    e = simulate((db_input_t){.kind = DB_INPUT_TOUCH_SWIPE, .x = 600, .y = 420, .x2 = 100, .y2 = 430});
+    TEST_ASSERT_EQUAL_INT(DB_INPUT_TOUCH_SWIPE, e.kind);
+    TEST_ASSERT_EQUAL_UINT16(600, e.x);
+    TEST_ASSERT_EQUAL_UINT16(430, e.y2);
+    uint8_t r[64];
+    TEST_ASSERT_EQUAL_size_t(
+        0, dev.driver->build_input(&dev, &(db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = 8}, r, sizeof(r)));
+}
+
 static void test_ignores_garbage(void)
 {
     uint8_t junk[3] = {0x01, 0x00, 0};
@@ -250,6 +284,7 @@ int main(void)
     RUN_TEST(test_key_edges);
     RUN_TEST(test_encoder_turn_and_press);
     RUN_TEST(test_touch_in_display_coordinates);
+    RUN_TEST(test_builds_what_the_deck_would_send);
     RUN_TEST(test_ignores_garbage);
     RUN_TEST(test_brightness_clamps);
     return UNITY_END();

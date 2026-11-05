@@ -24,7 +24,11 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 .ctrl button{background:transparent;color:var(--text);border:1px solid var(--line);text-align:left;padding:10px 12px}
 .ctrl button[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
 .ctrl small{display:block;font-size:12px;color:var(--dim)}
-#deck{position:relative;width:100%;background:#000;border-radius:8px;overflow:hidden}#deck img{position:absolute}
+#deck{position:relative;width:100%;background:#000;border-radius:8px;overflow:hidden;touch-action:none;user-select:none}
+#deck img,.hit{position:absolute}.hit{cursor:pointer;border-radius:6px}.hit:hover{box-shadow:inset 0 0 0 2px var(--accent)}
+.hit.down{background:rgba(255,255,255,.25)}
+#encs{display:grid;gap:8px;margin-top:8px}.enc{display:flex;gap:4px;justify-content:center;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px}
+.enc button{padding:6px 10px}.enc .knob{border-radius:50%;width:44px;height:44px;padding:0}
 @media (max-width:560px){.ctrl{grid-template-columns:1fr}}
 </style>
 </head>
@@ -45,7 +49,8 @@ fieldset{border:0;padding:0;margin:0}.static{display:none}.fixed .static{display
 <section>
 <h2>Gesteuert von</h2>
 <div class="ctrl" id="ctrl"></div>
-<div id="deck"></div>
+<div id="deck"><div id="pics"></div><div id="hits"></div></div>
+<div id="encs"></div>
 <p id="writer" class="dim" style="margin:8px 0 0"></p>
 </section>
 
@@ -147,6 +152,69 @@ function renderControllers(s) {
 }
 
 let shown = '';
+let layout = '';
+/* one at a time, so an up never overtakes its down */
+let inputs = Promise.resolve();
+const input = (body) => (inputs = inputs.then(() => api('/api/input', {method: 'POST', body: JSON.stringify(body)})).catch(() => null));
+
+function holdable(el, body) {
+  let held = false;
+  el.onpointerdown = (e) => { if (e.button) return; held = true; el.setPointerCapture(e.pointerId); el.classList.add('down'); input({...body, action: 'down'}); };
+  el.onpointerup = el.onpointercancel = () => { if (!held) return; held = false; el.classList.remove('down'); input({...body, action: 'up'}); };
+}
+
+const wheelAcc = {};
+function wheel(el, encoderAt) {
+  el.onwheel = (e) => {
+    e.preventDefault();
+    const encoder = encoderAt(e);
+    /* a mouse wheel notch is one detent; a trackpad's small steps add up to one */
+    const big = Math.abs(e.deltaY) >= 50;
+    wheelAcc[encoder] = big ? 0 : (wheelAcc[encoder] || 0) + e.deltaY;
+    const steps = big ? Math.sign(e.deltaY) : Math.trunc(wheelAcc[encoder] / 50);
+    if (!steps) return;
+    if (!big) wheelAcc[encoder] -= steps * 50;
+    input({encoder, action: 'turn', ticks: -steps}); /* wheel up turns right */
+  };
+}
+
+const place = (r, sc) => {
+  const pct = (v, total) => (100 * v / total) + '%';
+  return `left:${pct(r.x, sc.width)};top:${pct(r.y, sc.height)};width:${pct(r.w, sc.width)};height:${pct(r.h, sc.height)}`;
+};
+
+function buildControls(sc) {
+  $('hits').innerHTML = sc.keys.map((r, i) => `<div class="hit" data-k="${i}" title="Taste ${i + 1}" style="${place(r, sc)}"></div>`).join('') +
+    sc.touch.map((r, i) => `<div class="hit" data-t="${i}" title="Streifen: tippen, lang drücken, wischen, Mausrad" style="${place(r, sc)}"></div>`).join('');
+  for (const el of $('hits').querySelectorAll('[data-k]')) holdable(el, {key: +el.dataset.k});
+  for (const el of $('hits').querySelectorAll('[data-t]')) {
+    const r = sc.touch[+el.dataset.t];
+    const at = (e) => {
+      const b = el.getBoundingClientRect();
+      const clamp = (v, lo, len) => Math.max(lo, Math.min(lo + len - 1, Math.floor(v)));
+      return {x: clamp(r.x + (e.clientX - b.left) / b.width * r.w, r.x, r.w), y: clamp(r.y + (e.clientY - b.top) / b.height * r.h, r.y, r.h)};
+    };
+    let start = null;
+    el.onpointerdown = (e) => { if (e.button) return; el.setPointerCapture(e.pointerId); start = {...at(e), t: Date.now()}; };
+    el.onpointerup = (e) => {
+      if (!start) return;
+      const end = at(e);
+      if (Math.abs(end.x - start.x) > 20) input({touch: 'swipe', x: start.x, y: start.y, x2: end.x, y2: end.y});
+      else input({touch: Date.now() - start.t > 500 ? 'long' : 'tap', x: start.x, y: start.y});
+      start = null;
+    };
+    if (sc.encoders) wheel(el, (e) => Math.min(sc.encoders - 1, Math.floor((at(e).x - r.x) / r.w * sc.encoders)));
+  }
+  $('encs').style.gridTemplateColumns = `repeat(${sc.encoders || 1}, 1fr)`;
+  $('encs').innerHTML = Array.from({length: sc.encoders}, (_, i) =>
+    `<div class="enc" data-e="${i}" title="Regler ${i + 1}: Mausrad dreht"><button class="plain" data-turn="-1">⟲</button><button class="plain knob" title="drücken">${i + 1}</button><button class="plain" data-turn="1">⟳</button></div>`).join('');
+  for (const el of $('encs').querySelectorAll('.enc')) {
+    const encoder = +el.dataset.e;
+    holdable(el.querySelector('.knob'), {encoder});
+    for (const b of el.querySelectorAll('[data-turn]')) b.onclick = () => input({encoder, action: 'turn', ticks: +b.dataset.turn});
+    wheel(el, () => encoder);
+  }
+}
 async function loadScreen() {
   const r = await api('/api/screen').catch(() => null);
   if (!r || !r.ok) {
@@ -155,13 +223,16 @@ async function loadScreen() {
   }
   const sc = await r.json();
   $('writer').textContent = sc.width ? 'Auf dem Deck zeichnet gerade ' + (writers[sc.writer] || sc.writer) + '.' : 'Kein Stream Deck angeschlossen.';
+  const geometry = JSON.stringify([sc.width, sc.keys, sc.touch, sc.encoders]);
+  if (geometry !== layout) {
+    layout = geometry;
+    $('deck').style.aspectRatio = sc.width ? `${sc.width} / ${sc.height}` : '';
+    if (sc.width) buildControls(sc); else $('hits').innerHTML = $('encs').innerHTML = '';
+  }
   const key = sc.images.map((i) => i.url).join();
   if (key === shown) return;
   shown = key;
-  const deck = $('deck');
-  deck.style.aspectRatio = sc.width ? `${sc.width} / ${sc.height}` : '';
-  const pct = (v, total) => (100 * v / total) + '%';
-  deck.innerHTML = sc.images.map((i) => `<img src="${i.url}" alt="" onerror="shown=''" style="left:${pct(i.x, sc.width)};top:${pct(i.y, sc.height)};width:${pct(i.w, sc.width)};height:${pct(i.h, sc.height)}">`).join('');
+  $('pics').innerHTML = sc.images.map((i) => `<img src="${i.url}" alt="" onerror="shown=''" style="${place(i, sc)}">`).join('');
 }
 
 async function loadStatus() {

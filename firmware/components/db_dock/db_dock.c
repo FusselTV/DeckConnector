@@ -16,7 +16,7 @@
 #include "mdns.h"
 
 #define PAYLOAD_MAX  8192
-#define KEEPALIVE_MS 1500
+#define KEEPALIVE_MS 2500  /* Companion drops a connection after 5 s without data */
 #define ANNOUNCE_MS  30000 /* the Stream Deck app drops a dock it has not heard from for a minute */
 #define FEATURE_LEN  64
 #define IDLE_TIMEOUT 10 /* s without data from the host */

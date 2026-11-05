@@ -61,6 +61,9 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
 
+/* Handle `in` as if the device had sent it: the writer gets it exactly like a real press. */
+esp_err_t db_deck_simulate(const db_input_t *in);
+
 /* Raw access for the dock emulation. Writes of a source that is not the writer only update its kept picture.
  */
 esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t len);

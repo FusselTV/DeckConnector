@@ -22,8 +22,8 @@ the three at any time, and the deck shows the picked one's picture at once.
 - The newest image for each area wins, so a slow link never builds a queue.
 - Signed updates for the firmware and the WLAN chip, with automatic rollback if new bridge firmware does not
   come up.
-- A status screen and a settings menu on the device itself, a web UI with a live view of the deck, and a setup
-  WLAN for first use.
+- A status screen and a settings menu on the device itself, a web UI with a live view of the deck that you can
+  click, hold, swipe and scroll like the real one, and a setup WLAN for first use.
 - A JSON API for all of it, see [docs/api.md](docs/api.md).
 
 ## Hardware

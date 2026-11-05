@@ -44,6 +44,9 @@ struct db_driver {
     /* Read back an image report the way `write_image` builds it, for reports a dock host sends. False for
      * other reports. `out->data` points into `report`. */
     bool (*parse_output)(const db_dev_t *dev, const uint8_t *report, size_t len, db_chunk_t *out);
+    /* The input report the device would send for `ev`, for input simulated from the web UI. Key and encoder
+     * presses keep the state of the others. Returns the length, 0 when the device has no such input. */
+    size_t (*build_input)(const db_dev_t *dev, const db_input_t *ev, uint8_t *report, size_t cap);
 };
 
 const db_driver_t *db_driver_find(uint16_t vid, uint16_t pid);

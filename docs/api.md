@@ -26,6 +26,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `PUT /api/config` | Change settings. Send only the keys you change |
 | `GET /api/screen` | What the deck shows right now, see below |
 | `GET /api/screen/<id>.jpg` | One image of that picture |
+| `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
 | `POST /api/reboot` | Restart |
@@ -86,11 +87,35 @@ needs at least 6 characters. An empty `servers` list finds servers over mDNS. A 
 
 ```json
 {"writer": "companion", "width": 800, "height": 480,
+ "keys": [{"x": 13, "y": 12, "w": 120, "h": 120}, ...], "touch": [{"x": 0, "y": 380, "w": 800, "h": 100}],
+ "encoders": 4,
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"},
             {"x": 232, "y": 12, "w": 120, "h": 120, "url": "/api/screen/10.jpg"}]}
 ```
+
+`keys` lists the keys in index order, `touch` the touch strips.
 
 Draw the JPEGs in this order at their place to get the picture. On the Stream Deck + the keys are at their place
 on the 800 x 480 screen, and the touch strip is the bottom 100 pixels. An image keeps its URL until something
 covers it, so a browser may cache it. A URL that is gone answers 404. Without a Stream Deck, `width` and `height`
 are missing and `images` is empty.
+
+## Input
+
+`POST /api/input` acts as if you used the deck. Whoever draws gets it exactly like a real press. Keys and encoders
+count from 0. Coordinates are those of `/api/screen`.
+
+```json
+{"key": 3}
+{"key": 3, "action": "down"}
+{"key": 3, "action": "up"}
+{"encoder": 0, "action": "turn", "ticks": -2}
+{"encoder": 0}
+{"touch": "tap", "x": 100, "y": 430}
+{"touch": "long", "x": 100, "y": 430}
+{"touch": "swipe", "x": 700, "y": 430, "x2": 100, "y2": 430}
+```
+
+`action` is `press` (down and up, the default), `down`, `up`, or `turn` for encoders. Positive ticks turn right.
+The menu opens with `down` on both outer encoders and `up` after 2 s. A press on the real deck in between ends
+the simulated hold, because the deck always reports all keys at once.

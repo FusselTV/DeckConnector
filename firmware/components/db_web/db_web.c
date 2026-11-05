@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "auth.h"
+#include "cJSON.h"
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_json.h"
@@ -203,6 +204,134 @@ static esp_err_t get_log(httpd_req_t *req)
     return err;
 }
 
+static void write_rect(db_json_t *j, db_rect_t r)
+{
+    db_json_obj_open(j, NULL);
+    db_json_int(j, "x", r.x);
+    db_json_int(j, "y", r.y);
+    db_json_int(j, "w", r.w);
+    db_json_int(j, "h", r.h);
+    db_json_obj_close(j);
+}
+
+static int json_int(const cJSON *root, const char *key, int fallback)
+{
+    const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, key);
+    return cJSON_IsNumber(v) ? v->valueint : fallback;
+}
+
+static bool in_touch_area(const db_device_info_t *dev, int x, int y)
+{
+    for (uint8_t t = 0; t < dev->touch_count; t++) {
+        db_rect_t r = dev->touch[t].rect;
+        if (x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static const char *parse_touch(const cJSON *root, const char *kind, const db_device_info_t *dev,
+                               db_input_t *ev)
+{
+    db_input_kind_t k = strcmp(kind, "tap") == 0     ? DB_INPUT_TOUCH_TAP
+                        : strcmp(kind, "long") == 0  ? DB_INPUT_TOUCH_LONG
+                        : strcmp(kind, "swipe") == 0 ? DB_INPUT_TOUCH_SWIPE
+                                                     : 0;
+    if (!k) {
+        return "touch: tap, long or swipe expected";
+    }
+    int x = json_int(root, "x", -1);
+    int y = json_int(root, "y", -1);
+    int x2 = json_int(root, "x2", -1);
+    int y2 = json_int(root, "y2", -1);
+    if (!in_touch_area(dev, x, y) || (k == DB_INPUT_TOUCH_SWIPE && !in_touch_area(dev, x2, y2))) {
+        return "x and y (and x2, y2 for a swipe) must lie on the touch strip";
+    }
+    *ev = (db_input_t){.kind = k, .x = (uint16_t)x, .y = (uint16_t)y};
+    if (k == DB_INPUT_TOUCH_SWIPE) {
+        ev->x2 = (uint16_t)x2;
+        ev->y2 = (uint16_t)y2;
+    }
+    return NULL;
+}
+
+/* Fills `ev` (and `then` for a press: down, then up). Returns an error text or NULL. */
+static const char *parse_input(const cJSON *root, const db_device_info_t *dev, db_input_t *ev,
+                               db_input_t *then)
+{
+    const cJSON *touch = cJSON_GetObjectItemCaseSensitive(root, "touch");
+    if (cJSON_IsString(touch)) {
+        return parse_touch(root, touch->valuestring, dev, ev);
+    }
+    const cJSON *action = cJSON_GetObjectItemCaseSensitive(root, "action");
+    const char *a = cJSON_IsString(action) ? action->valuestring : "press";
+    bool key = cJSON_GetObjectItemCaseSensitive(root, "key") != NULL;
+    if (!key && !cJSON_GetObjectItemCaseSensitive(root, "encoder")) {
+        return "key, encoder or touch expected";
+    }
+    int index = json_int(root, key ? "key" : "encoder", -1);
+    if (index < 0 || index >= (key ? dev->key_count : dev->encoder_count)) {
+        return key ? "no such key" : "no such encoder";
+    }
+    db_input_kind_t down = key ? DB_INPUT_KEY_DOWN : DB_INPUT_ENCODER_DOWN;
+    *ev = (db_input_t){.kind = down, .index = (uint8_t)index};
+    if (strcmp(a, "turn") == 0 && !key) {
+        int ticks = json_int(root, "ticks", 0);
+        if (ticks == 0 || ticks < -127 || ticks > 127) {
+            return "ticks: -127 to 127, not 0";
+        }
+        ev->kind = DB_INPUT_ENCODER_TURN;
+        ev->value = (int16_t)ticks;
+    } else if (strcmp(a, "up") == 0) {
+        ev->kind = (db_input_kind_t)(down + 1);
+    } else if (strcmp(a, "press") == 0) {
+        *then = (db_input_t){.kind = (db_input_kind_t)(down + 1), .index = (uint8_t)index};
+    } else if (strcmp(a, "down") != 0) {
+        return key ? "action: press, down or up expected" : "action: press, down, up or turn expected";
+    }
+    return NULL;
+}
+
+static esp_err_t post_input(httpd_req_t *req)
+{
+    if (!auth_check(req)) {
+        return ESP_OK;
+    }
+    char body[256];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    db_device_info_t *dev = malloc(sizeof(*dev));
+    if (!dev) {
+        return send_error(req, "500 Internal Server Error", "memory");
+    }
+    if (!db_deck_info(dev)) {
+        free(dev);
+        return send_error(req, "409 Conflict", "no Stream Deck attached");
+    }
+    cJSON *root = cJSON_Parse(body);
+    db_input_t ev;
+    db_input_t then = {.kind = 0};
+    const char *err = root ? parse_input(root, dev, &ev, &then) : "invalid JSON";
+    cJSON_Delete(root);
+    free(dev);
+    if (err) {
+        return send_error(req, "400 Bad Request", err);
+    }
+    esp_err_t sent = db_deck_simulate(&ev);
+    if (sent == ESP_OK && then.kind) {
+        sent = db_deck_simulate(&then);
+    }
+    if (sent == ESP_ERR_INVALID_STATE) {
+        return send_error(req, "409 Conflict", "no Stream Deck attached");
+    }
+    if (sent != ESP_OK) {
+        return send_error(req, "503 Service Unavailable", "input queue full");
+    }
+    return send_json(req, "{\"ok\":true}", 11);
+}
+
 static esp_err_t get_screen(httpd_req_t *req)
 {
     if (!auth_check(req)) {
@@ -225,8 +354,24 @@ static esp_err_t get_screen(httpd_req_t *req)
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "writer", db_deck_source_name(writer));
     if (present) {
-        db_json_int(&j, "width", dev->displays[0].width);
-        db_json_int(&j, "height", dev->displays[0].height);
+        const db_display_t *d = &dev->displays[0];
+        db_json_int(&j, "width", d->width);
+        db_json_int(&j, "height", d->height);
+        db_json_arr_open(&j, "keys");
+        for (uint8_t k = 0; k < dev->key_count; k++) {
+            for (uint8_t t = 0; t < d->target_count; t++) {
+                if (d->targets[t].kind == DB_TARGET_KEY && d->targets[t].index == k) {
+                    write_rect(&j, d->targets[t].rect);
+                }
+            }
+        }
+        db_json_arr_close(&j);
+        db_json_arr_open(&j, "touch");
+        for (uint8_t t = 0; t < dev->touch_count; t++) {
+            write_rect(&j, dev->touch[t].rect);
+        }
+        db_json_arr_close(&j);
+        db_json_int(&j, "encoders", dev->encoder_count);
     }
     db_json_arr_open(&j, "images");
     for (size_t i = 0; present && i < n; i++) {
@@ -361,6 +506,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap))
         {.uri = "/api/log", .method = HTTP_GET, .handler = get_log},
         {.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen},
         {.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image},
+        {.uri = "/api/input", .method = HTTP_POST, .handler = post_input},
         {.uri = "/api/login", .method = HTTP_POST, .handler = auth_login},
         {.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout},
     };
