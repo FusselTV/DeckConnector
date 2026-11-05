@@ -41,7 +41,7 @@ static const db_hid_io_t io = {no_write, no_flush, feature, set_feature, 1024};
 static const struct {
     uint16_t pid;
     const char *name;
-} decks[] = {{0x0084, "plus"}, {0x0080, "mk2"}, {0x008f, "xl"}};
+} decks[] = {{0x0084, "plus"}, {0x0080, "mk2"}, {0x008f, "xl"}, {0x009a, "neo"}};
 
 static db_device_info_t open_deck(uint16_t pid)
 {
@@ -215,6 +215,27 @@ static bool press(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, uint
     return ui_menu_input(m, md, l, &up, act);
 }
 
+static void test_neo_keeps_brightness_and_password(void)
+{
+    db_device_info_t dev = open_deck(0x009a);
+    ui_layout_t l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_UINT8(2, l.rows);
+    ui_model_t md = base_model();
+    md.brightness = 90;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    ui_action_t act;
+    press(&m, &md, &l, 6, &act); /* home, bottom row, third key: one step up, past 100 back to 20 */
+    TEST_ASSERT_EQUAL_INT(UI_DO_BRIGHTNESS, act.what);
+    TEST_ASSERT_EQUAL_INT(10, act.value);
+    md.brightness = 100;
+    press(&m, &md, &l, 6, &act);
+    TEST_ASSERT_EQUAL_INT(-80, act.value);
+    ui_screen_t sc;
+    m.page = PAGE_MAIN;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING(md.web_pass, sc.tiles[6].value);
+}
+
 static void test_flows_on_the_plus(void)
 {
     db_device_info_t dev = open_deck(0x0084);
@@ -322,6 +343,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_no_page_cuts_a_text);
     RUN_TEST(test_flows_on_the_plus);
+    RUN_TEST(test_neo_keeps_brightness_and_password);
     RUN_TEST(test_flows_without_encoders);
     RUN_TEST(test_welcome);
     return UNITY_END();

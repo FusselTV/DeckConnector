@@ -41,6 +41,7 @@ typedef enum {
     K_SKIP,
     K_DONE,
     K_BACK,
+    K_BRIGHT_STEP,
     K_SRC0, /* K_SRC0 + index in ui_model_t.sources; keep it last */
 } key_act_t;
 
@@ -178,6 +179,20 @@ static void brightness(page_t *p, int row)
     button(put(p, at(p, row, 1), K_BRIGHTER), ICON_BRIGHTNESS, "Heller", v);
 }
 
+/* Two rows, no strip and no encoders (Stream Deck Neo): no room for a row of brightness keys. */
+static bool cramped(const page_t *p)
+{
+    return !p->l->strip && !p->l->encoders && p->l->rows < 3;
+}
+
+/* One key that steps the brightness up by 20 % and starts over at 20 % after 100 %. */
+static void brightness_step(page_t *p, int key)
+{
+    char v[16];
+    snprintf(v, sizeof(v), "%d %%", p->md->brightness);
+    card(put(p, key, K_BRIGHT_STEP), ICON_BRIGHTNESS, "Licht", v, "tippen");
+}
+
 /* What is missing: a wide strip part, or one card on decks without a strip. */
 static void status_message(page_t *p, const char *icon, uint32_t color, const char *label, const char *title,
                            const char *sub, const char *short_title, const char *short_sub)
@@ -238,7 +253,11 @@ static void home(page_t *p)
     menu->badge = BADGE_OPEN;
     lan_card(p, put(p, at(p, 1, 0), K_NONE));
     wlan_card(p, put(p, at(p, 1, 1), K_NONE));
-    firmware_card(p, put(p, at(p, 1, 2), K_NONE));
+    if (cramped(p)) {
+        brightness_step(p, at(p, 1, 2)); /* the firmware version is in the web UI */
+    } else {
+        firmware_card(p, put(p, at(p, 1, 2), K_NONE));
+    }
     brightness(p, 2);
     home_status(p);
 }
@@ -293,8 +312,13 @@ static void main_menu(page_t *p)
         segment(&p->sc->seg[1], 2, ICON_WEB, C_DIM, "Web-Zugang", web, p->m->note[0] ? p->m->note : login);
         segment(&p->sc->seg[3], 1, ICON_CLOSE, C_DIM, "", "Schließen", "tippen oder drehen");
     } else {
-        card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz", "admin");
-        card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+        if (cramped(
+                p)) { /* no third row: the address is on the LAN key beside it, so the password goes here */
+            card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "admin");
+        } else {
+            card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz", "admin");
+            card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+        }
     }
 }
 
@@ -692,6 +716,11 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     case K_BRIGHTER:
         *act = (ui_action_t){.what = UI_DO_BRIGHTNESS, .value = what == K_DIMMER ? -10 : 10};
         return true;
+    case K_BRIGHT_STEP: {
+        int next = md->brightness / 20 * 20 + 20;
+        *act = (ui_action_t){.what = UI_DO_BRIGHTNESS, .value = (next > 100 ? 20 : next) - md->brightness};
+        return true;
+    }
     case K_FIELD0:
     case K_FIELD1:
     case K_FIELD2:
