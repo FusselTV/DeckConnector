@@ -52,6 +52,11 @@ static struct {
     SemaphoreHandle_t lock; /* the controls, between the deck's event task and the client */
     SemaphoreHandle_t tx;
     volatile int sock;
+    volatile uint32_t peer;
+    ws_t ws; /* the WebSocket port (16623), when the address is a ws:// or wss:// URL */
+    bool ws_mode;
+    uint64_t frame_left;
+    char pin[sizeof(((db_config_t *)0)->satellite_pin)];
     volatile bool added;
     volatile bool device_dirty;
     bool flip;
@@ -84,6 +89,19 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
+/* Under `tx`. Over the WebSocket one frame carries one line, as Companion sends them. */
+static void raw_send(const char *buf, size_t n)
+{
+    if (s.sock < 0) {
+        return;
+    }
+    if (s.ws_mode) {
+        ws_send(&s.ws, WS_OP_TEXT, buf, n);
+    } else {
+        send(s.sock, buf, n, 0);
+    }
+}
+
 static void send_line(const char *fmt, ...)
 {
     char buf[256];
@@ -92,10 +110,48 @@ static void send_line(const char *fmt, ...)
     int n = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     xSemaphoreTake(s.tx, portMAX_DELAY);
-    if (s.sock >= 0 && n > 0 && (size_t)n < sizeof(buf)) {
-        send(s.sock, buf, (size_t)n, 0);
+    if (n > 0 && (size_t)n < sizeof(buf)) {
+        raw_send(buf, (size_t)n);
     }
     xSemaphoreGive(s.tx);
+}
+
+/* Companion's bytes: straight from TCP, or out of the WebSocket frames that carry them. Like recv(). */
+static int sat_recv(uint8_t *buf, size_t cap)
+{
+    if (!s.ws_mode) {
+        return recv(s.sock, buf, cap, 0);
+    }
+    while (s.frame_left == 0) {
+        uint8_t op;
+        bool fin;
+        uint64_t len;
+        int err = ws_read_header(&s.ws, &op, &fin, &len);
+        if (!err && op == WS_OP_CLOSE) {
+            return 0;
+        }
+        if (!err && op == WS_OP_PING && len <= 125) {
+            uint8_t ping[125];
+            err = ws_read(&s.ws, ping, (size_t)len);
+            err = err ? err : ws_send(&s.ws, WS_OP_PONG, ping, (size_t)len);
+        } else if (!err && op != WS_OP_TEXT && op != WS_OP_BINARY && op != WS_OP_CONT) {
+            err = ws_skip(&s.ws, len);
+        } else if (!err) {
+            s.frame_left = len;
+        }
+        if (err) {
+            errno = -err;
+            return -1;
+        }
+    }
+    size_t n = s.frame_left < cap ? (size_t)s.frame_left : cap;
+    int err = ws_read(&s.ws, buf, n);
+    if (err) {
+        errno = -err;
+        return -1;
+    }
+    s.frame_left -= n;
+    return (int)n;
 }
 
 static void cache_clear(void)
@@ -267,7 +323,7 @@ static void add_device(void)
                          s.serial, s.serial, s.model, b64, s.png ? "png" : "rgb");
         xSemaphoreTake(s.tx, portMAX_DELAY);
         if (k > 0 && k < 3200) {
-            send(s.sock, line, (size_t)k, 0);
+            raw_send(line, (size_t)k);
             s.add_sent_ms = now_ms();
         }
         xSemaphoreGive(s.tx);
@@ -373,7 +429,7 @@ static void session(void)
     int64_t last_ping = last_rx;
     int64_t last_probe = last_rx;
     for (;;) {
-        if (strcmp(s.addr, db_config()->satellite) != 0) {
+        if (strcmp(s.addr, db_config()->satellite) != 0 || strcmp(s.pin, db_config()->satellite_pin) != 0) {
             ESP_LOGI(TAG, "address changed");
             return;
         }
@@ -390,7 +446,7 @@ static void session(void)
             return;
         }
         size_t want = LINE_CAP - s.fill < RX_CHUNK ? LINE_CAP - s.fill : RX_CHUNK;
-        int n = recv(s.sock, s.line + s.fill, want, 0);
+        int n = sat_recv(s.line + s.fill, want);
         int64_t now = now_ms();
         if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
             ESP_LOGW(TAG, "connection lost: %s", n ? strerror(errno) : "closed");
@@ -525,11 +581,17 @@ static void client_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(250));
             continue;
         }
-        snprintf(s.host, sizeof(s.host), "%s", s.addr);
-        char *colon = strchr(s.host, ':');
-        s.port = colon ? (unsigned)atoi(colon + 1) : DB_SAT_PORT;
-        if (colon) {
-            *colon = '\0';
+        snprintf(s.pin, sizeof(s.pin), "%s", db_config()->satellite_pin);
+        s.ws_mode = strncmp(s.addr, "ws://", 5) == 0 || strncmp(s.addr, "wss://", 6) == 0;
+        if (s.ws_mode) {
+            ws_url_host(s.addr, s.host, sizeof(s.host), &s.port);
+        } else {
+            snprintf(s.host, sizeof(s.host), "%s", s.addr);
+            char *colon = strchr(s.host, ':');
+            s.port = colon ? (unsigned)atoi(colon + 1) : DB_SAT_PORT;
+            if (colon) {
+                *colon = '\0';
+            }
         }
         char ifname[6];
         bool wlan = via_wlan;
@@ -538,7 +600,17 @@ static void client_task(void *arg)
             wlan = !wlan;
             bound = db_net_ifname(wlan, ifname);
         }
-        int sock = ws_tcp_open(s.host, s.port, bound ? ifname : NULL, CONNECT_MS);
+        int sock = -1;
+        if (s.ws_mode) {
+            uint8_t pin[32];
+            bool pinned = db_config_pin(s.pin, pin);
+            sock =
+                ws_connect(&s.ws, s.addr, NULL, NULL, bound ? ifname : NULL, CONNECT_MS, pinned ? pin : NULL);
+            sock = sock ? sock : s.ws.sock;
+            s.frame_left = 0;
+        } else {
+            sock = ws_tcp_open(s.host, s.port, bound ? ifname : NULL, CONNECT_MS);
+        }
         if (sock < 0) {
             /* right after a start the switch port may not pass traffic yet: LAN again, soon */
             bool early = !wlan && n.lan_link && esp_timer_get_time() < BOOT_LAN_US;
@@ -552,11 +624,20 @@ static void client_task(void *arg)
         remember(sock);
         ESP_LOGI(TAG, "connected to %s over %s", s.addr,
                  bound ? (wlan ? "WLAN" : "LAN") : "the default route");
+        struct sockaddr_in peer = {0};
+        socklen_t plen = sizeof(peer);
+        getpeername(sock, (struct sockaddr *)&peer, &plen);
+        s.peer = peer.sin_addr.s_addr;
         s.sock = sock;
         session();
+        s.peer = 0;
         xSemaphoreTake(s.tx, portMAX_DELAY);
         s.sock = -1;
-        close(sock);
+        if (s.ws_mode) {
+            ws_close(&s.ws);
+        } else {
+            close(sock);
+        }
         xSemaphoreGive(s.tx);
         if (s.added) {
             s.added = false;
@@ -661,6 +742,7 @@ esp_err_t db_satellite_start(void (*changed)(void))
     s.changed = changed;
     s.lock = xSemaphoreCreateMutex();
     s.tx = xSemaphoreCreateMutex();
+    ws_init(&s.ws);
     s.line = heap_caps_malloc(LINE_CAP, MALLOC_CAP_SPIRAM);
     s.cache = heap_caps_calloc(CACHE_SLOTS, sizeof(cached_t), MALLOC_CAP_SPIRAM);
     if (!s.line || !s.cache) {
@@ -676,6 +758,11 @@ esp_err_t db_satellite_start(void (*changed)(void))
 bool db_satellite_connected(void)
 {
     return s.added;
+}
+
+uint32_t db_satellite_peer(void)
+{
+    return s.peer;
 }
 
 const char *db_satellite_address(void)

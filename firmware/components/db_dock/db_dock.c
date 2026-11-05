@@ -8,8 +8,8 @@
 #include <string.h>
 
 #include "db_cora.h"
-#include "db_dns.h"
 #include "db_deck.h"
+#include "db_dns.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -514,6 +514,9 @@ void db_dock_name(uint32_t ip, char name[DB_DNS_NAME_LEN])
         }
     }
     taskEXIT_CRITICAL(&pair.mux);
+    if (!name[0] && ip) {
+        look_up(ip); /* Companion over Satellite is no dock host, so nothing else asks for its name */
+    }
 }
 
 static const uint8_t no_mac[6];
@@ -572,7 +575,8 @@ static err_t arp_probe(struct tcpip_api_call_data *call)
     return ERR_VAL;
 }
 
-/* asked on the interface with our address local_ip: WLAN is in the same subnet and answers when LAN does not */
+/* asked on the interface with our address local_ip: WLAN is in the same subnet and answers when LAN does not
+ */
 static bool answers_arp(uint32_t ip, uint32_t local_ip)
 {
     arp_query_t q = {.ip.addr = ip, .local_ip = local_ip};
@@ -923,8 +927,8 @@ static void sync_services(void *arg)
     }
 }
 
-/* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them go
- * offline and online several times, and the Stream Deck app then never resolved the device again. */
+/* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them
+ * go offline and online several times, and the Stream Deck app then never resolved the device again. */
 static void on_device(const db_device_info_t *info)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);

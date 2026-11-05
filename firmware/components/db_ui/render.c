@@ -243,7 +243,12 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_
     int pad = r.h >= 90 ? 6 : 4;
     db_rect_t text = {(uint16_t)(r.x + pad), r.y, (uint16_t)(r.w - 2 * pad), r.h};
     if (t->kind == TILE_CARD) {
-        ui_round_over(c, r, st->radius, C_CARD, C_SCREEN);
+        if (t->active) { /* a host that draws */
+            ui_round_over(c, r, st->radius, t->color, C_SCREEN);
+            ui_round(c, inset(r, st->frame), st->radius - st->frame, mix(t->color, C_CARD, 0.22f));
+        } else {
+            ui_round_over(c, r, st->radius, C_CARD, C_SCREEN);
+        }
         int right = t->badge ? st->badge + 6 : pad;
         int label_x = st->card_label_x;
         /* the icon makes room for a name that would not fit next to it */

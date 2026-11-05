@@ -68,17 +68,20 @@ enum { UI_CTRL_SERVER, UI_CTRL_COMPANION, UI_CTRL_APP, UI_CTRL_COUNT }; /* the v
 
 #define UI_SOURCES 8
 
-/* One connected host that can draw: a server or a Network Dock host. */
+enum { UI_VIA_SERVER, UI_VIA_SATELLITE, UI_VIA_DOCK }; /* the protocol a source speaks */
+
+/* One connected host that can draw: Companion over Satellite, a Network Dock host, or a server. */
 typedef struct {
-    uint8_t kind; /* UI_CTRL_* */
-    bool chosen;  /* the one of its kind that draws when its kind is picked */
-    char label[24];
-    char id[96]; /* what the config keeps: the dock host's IP, the server's URL, or "satellite" */
+    uint8_t kind;   /* UI_CTRL_*: the program */
+    uint8_t via;    /* UI_VIA_* */
+    bool chosen;    /* draws now, or would if nothing covered the deck */
+    char label[40]; /* the host's name, or its address when it has none */
+    char id[96];    /* what the config keeps: the dock host's IP, the server's URL, or "satellite" */
 } ui_source_t;
 
 typedef struct {
     int64_t now_us;
-    int controller;
+    int controller;               /* the program of the chosen host */
     uint8_t hosts[UI_CTRL_COUNT]; /* connected hosts per kind */
     ui_source_t sources[UI_SOURCES];
     uint8_t source_count;
@@ -111,7 +114,6 @@ typedef struct {
 
 typedef enum {
     UI_DO_NOTHING,
-    UI_DO_CONTROLLER, /* value: UI_CTRL_*, whichever host of it */
     UI_DO_SOURCE,     /* value: index in ui_model_t.sources */
     UI_DO_ANSWER,     /* value: 1 lets the requesting host in */
     UI_DO_BRIGHTNESS, /* value: change in percent */
@@ -137,7 +139,7 @@ typedef enum {
     PAGE_SETUP_AP,
     PAGE_WELCOME,
     PAGE_WELCOME_NET,
-    PAGE_SOURCES, /* the hosts of one kind, when more than one is connected */
+    PAGE_SOURCES, /* every connected host, when the top row has no room for all */
     PAGE_REQUEST, /* shown over every page while a host that is not paired asks */
 } ui_page_t;
 
@@ -151,8 +153,7 @@ typedef struct {
     bool lan_dhcp;
     int field;
     uint8_t octets[4][4];
-    uint8_t pick_kind;   /* PAGE_SOURCES shows this kind */
-    ui_page_t pick_back; /* and goes back here */
+    ui_page_t pick_back; /* PAGE_SOURCES goes back here */
     uint32_t keys_down;  /* pressed on this page */
     uint8_t encoders_down;
 } ui_menu_t;

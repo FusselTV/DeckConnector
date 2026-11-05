@@ -1,10 +1,10 @@
-# deckbridge
+# Deck-Connector
 
 Firmware for an ESP32-P4 board that drives an Elgato Stream Deck over USB and puts it on the network. Your own
 server renders the images and gets every key press, encoder turn and touch. The board also acts like an Elgato
 Network Dock, so Bitfocus Companion and the Stream Deck app use it without any extra software. Companion can
-also take the deck over its Satellite API. You switch between
-the three at any time, and the deck shows the picked one's picture at once.
+also take the deck over its Satellite API. Every connected host is in one list, on the deck and in the web UI. A
+tap picks the one that draws, and the deck shows its picture at once.
 
 <table><tr>
 <td><img src="docs/img/status.jpg" width="380" alt=""></td>
@@ -16,12 +16,13 @@ the three at any time, and the deck shows the picked one's picture at once.
 - One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
   Stream Deck +).
 - LAN and WLAN at the same time. Connections go over LAN. If a server cannot be reached there, the next try
-  goes over WLAN. As soon as the server answers over LAN again, the connection moves back. The bridge notices a
+  goes over WLAN. As soon as the server answers over LAN again, the connection moves back. The Deck-Connector notices a
   dead LAN within 6 s. It announces the Network Dock on WLAN only while the LAN has no address.
 - Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
   once when the connection closes and within 6 s when the server just goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
-- Signed updates for the firmware and the WLAN chip, with automatic rollback if new bridge firmware does not
+- `wss://` for servers and for Companion's WebSocket port, checked against public CAs or a pinned certificate.
+- Signed updates for the firmware and the WLAN chip, with automatic rollback if new firmware does not
   come up.
 - A status screen and a settings menu on the device itself, a web UI with a live view of the deck that you can
   click, hold, swipe and scroll like the real one, and a setup WLAN for first use.
@@ -56,18 +57,17 @@ Web-Zugang.
 1. Plug in LAN, or wait a minute. Without a network the board opens a setup WLAN. Its name and password are on
    the device.
 2. Open `http://<address>/` and log in as `admin`.
-3. Pick who controls the deck.
-   - Own servers. Enter one or two server URLs (`ws://host:port/deckbridge`). Leave them empty to find servers
-     that announce `_deckbridge._tcp` over mDNS.
-   - Companion. The board shows up under Surfaces, Discover. Click Add Connection, or add a remote surface of the
-     type Elgato Stream Deck with the address of the board.
-     Or enter the address of Companion under Settings, Companion über die Satellite-API. The board then connects
-     to Companion itself. This also works when Companion runs in Docker without host networking, as long as
-     port 16622 is reachable.
+3. Connect the program that should draw, then pick it under „Wer steuert das Deck?“.
+   - Companion, best over its Satellite API. Enter the address of Companion under Settings, Companion über die
+     Satellite-API. The board then connects to Companion itself. This also works when Companion runs in Docker
+     without host networking, as long as port 16622, or 16623 for `ws://`, is reachable. Without it, the board
+     shows up in Companion under Surfaces, Discover, as a Network Dock.
    - Stream Deck app. It finds the board by itself.
+   - Own servers. Add a server URL (`ws://host:port/deckbridge` or `wss://`). Without one, the board finds
+     servers that announce `_deckbridge._tcp` over mDNS.
 
-When nobody draws, the deck shows its home screen. Tap a key on it to pick who controls the deck, or Menü for
-the settings. While a host draws, hold the first and the last encoder for two seconds to open the menu. When it
+When nobody draws, the deck shows its home screen. Its top row lists the connected hosts. Tap one twice to let
+it draw, or Menü for the settings. While a host draws, hold the first and the last encoder for two seconds to open the menu. When it
 closes, the deck shows the host's picture again at once.
 
 ## Writing a server
@@ -94,6 +94,5 @@ cd tools && uv run pytest tests -m ota     # updates, restarts the board
 
 ## Limits
 
-- `ws://` only, no TLS.
 - The ESP32-C6 has no 5 GHz radio.
-- Up to three Network Dock hosts at once. Two hosts of the same kind both draw and both get the input.
+- Up to four Network Dock hosts and four servers at once. Only the picked one draws and gets the input.

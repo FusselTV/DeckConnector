@@ -32,8 +32,7 @@ Companion asks the dock with `GET_REPORT`. The Stream Deck app sends the same qu
 4 zero bytes). Companion never sets that flag, so it tells the two apart. A feature report asked for with only the
 report id gets the full 32 bytes.
 
-Up to three hosts may hold each port at once. The setting `controller` picks the one that draws, see
-[api.md](api.md).
+Up to four hosts may hold each port at once. The host list picks the one that draws, see [api.md](api.md).
 
 ## Tested with
 

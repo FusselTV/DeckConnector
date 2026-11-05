@@ -72,11 +72,17 @@ static void write_network(db_json_t *j, bool live)
     db_json_obj_close(j);
 }
 
-static void write_source(db_json_t *j, const char *kind, const char *host, bool connected, int source)
+static void write_source(db_json_t *j, const char *kind, const char *host, uint32_t ip, bool connected,
+                         int source)
 {
+    char name[40] = "";
+    if (ip) {
+        db_dock_name(ip, name);
+    }
     db_json_obj_open(j, NULL);
     db_json_str(j, "kind", kind);
     db_json_str(j, "host", host);
+    db_json_str(j, "name", name);
     if (source == DB_SOURCE_SAT) {
         db_json_str(j, "via", "satellite");
     }
@@ -92,18 +98,19 @@ static void write_sources(db_json_t *j, bool live)
     db_json_arr_open(j, "sources");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         if (db_link_url(i)[0]) {
-            write_source(j, "server", db_link_url(i), db_link_connected(i),
+            write_source(j, "server", db_link_url(i), 0, db_link_connected(i),
                          db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1);
         }
     }
     if (db_satellite_address()[0]) {
-        write_source(j, "companion", db_satellite_address(), db_satellite_connected(), DB_SOURCE_SAT);
+        write_source(j, "companion", db_satellite_address(), db_satellite_peer(), db_satellite_connected(),
+                     DB_SOURCE_SAT);
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
     for (size_t i = 0; i < n; i++) {
         const char *kind = hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind);
-        write_source(j, kind, hosts[i].ip, hosts[i].source >= 0, hosts[i].source);
+        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].source);
     }
     db_json_arr_close(j);
     char ip[16];
@@ -340,7 +347,7 @@ void app_main(void)
     db_log_start();
     init_nvs();
     ESP_ERROR_CHECK(db_config_load());
-    ESP_LOGI(TAG, "deckbridge %s, controller %s", esp_app_get_description()->version,
+    ESP_LOGI(TAG, "Deck-Connector %s, controller %s", esp_app_get_description()->version,
              db_controller_name(db_config()->controller));
 
     ESP_ERROR_CHECK(db_ui_start());

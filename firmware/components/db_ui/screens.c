@@ -20,9 +20,7 @@
 /* What a key does on the page that is shown; the builder sets it next to the tile, so they never disagree. */
 typedef enum {
     K_NONE,
-    K_CTRL0, /* K_CTRL0 + UI_CTRL_* */
-    K_CTRL1,
-    K_CTRL2,
+    K_ALL,
     K_MENU,
     K_CLOSE,
     K_LAN,
@@ -117,36 +115,68 @@ static const char *ip_of(const ui_model_t *md)
 
 static const char *controller_label(int c)
 {
-    return c == UI_CTRL_SERVER ? "Server" : (c == UI_CTRL_APP ? "Elgato App" : "Companion");
+    return c == UI_CTRL_SERVER ? "Server" : (c == UI_CTRL_APP ? "Stream Deck App" : "Companion");
 }
+
+static const char *const via_label[] = {"", "Satellite", "Dock"}; /* UI_VIA_*; a server says it once */
 
 static const char *controller_icon(int c)
 {
     return c == UI_CTRL_SERVER ? ICON_SERVER : (c == UI_CTRL_APP ? ICON_APP : ICON_COMPANION);
 }
 
-/* The common ones first; the web UI uses the same order. */
-static const int controller_order[UI_CTRL_COUNT] = {UI_CTRL_COMPANION, UI_CTRL_APP, UI_CTRL_SERVER};
-
-/* Three keys, one per controller. `ask`: a second tap confirms (the home screen). */
-static void controller_keys(page_t *p, bool ask)
+static void source_key(page_t *p, int key, int i, bool ask)
 {
-    for (int i = 0; i < UI_CTRL_COUNT; i++) {
-        int c = controller_order[i];
-        int key = at(p, 0, i);
-        bool asking = ask && confirming(p->m, key, p->md->now_us);
-        int hosts = p->md->hosts[c];
-        bool up = hosts > 0;
-        char count[16];
-        snprintf(count, sizeof(count), "%d verbunden", hosts);
-        ui_tile_t *t = put(p, key, (key_act_t)(K_CTRL0 + c));
-        button(t, controller_icon(c), asking ? "Wechseln?" : controller_label(c),
-               asking ? fit(p, "nochmal tippen", "nochmal")
-                      : (hosts > 1 ? fit(p, count, "mehrere") : (up ? "verbunden" : "getrennt")));
-        t->badge = hosts > 1 && !asking ? BADGE_OPEN : BADGE_NONE; /* opens the list of hosts */
-        t->active = p->md->controller == c || asking;
-        t->color =
-            asking ? C_EDIT : (up ? C_ACTIVE : C_WARN); /* chosen but away: amber, not "all good" green */
+    const ui_source_t *src = &p->md->sources[i];
+    bool asking = ask && !src->chosen && confirming(p->m, key, p->md->now_us);
+    ui_tile_t *t = put(p, key, (key_act_t)(K_SRC0 + i));
+    /* a card, so a name breaks into lines instead of being cut; on small keys the icon names the program */
+    card(t, controller_icon(src->kind), asking ? "Wechseln?" : fit(p, controller_label(src->kind), ""),
+         src->label, asking ? fit(p, "nochmal tippen", "nochmal") : via_label[src->via]);
+    t->active = src->chosen || asking;
+    t->color = asking ? C_EDIT : C_ACTIVE;
+}
+
+/*
+ * The top row left of the menu key: every host that can draw, the chosen one first, and "Alle" when they do
+ * not fit. While the chosen program is away its key stays in amber, so a stray tap cannot hide that.
+ * `ask`: a second tap confirms (the home screen).
+ */
+static void host_row(page_t *p, bool ask, bool welcome)
+{
+    const ui_model_t *md = p->md;
+    int room = p->l->cols - 1;
+    int order[UI_SOURCES];
+    int n = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < md->source_count; i++) {
+            if (md->sources[i].chosen == (pass == 0)) {
+                order[n++] = i;
+            }
+        }
+    }
+    int slot = 0;
+    if (!welcome && (n == 0 || !md->sources[order[0]].chosen)) {
+        ui_tile_t *t = put(p, at(p, 0, slot++), K_NONE);
+        card(t, controller_icon(md->controller), controller_label(md->controller), "getrennt",
+             fit(p, "zeichnet, wenn da", "wartet"));
+        t->active = true;
+        t->color = C_WARN;
+    } else if (n == 0) {
+        card(put(p, at(p, 0, slot++), K_NONE), ICON_ALERT, fit(p, "Noch niemand", "Niemand"), "verbunden",
+             "");
+    }
+    bool more = slot + n > room;
+    int shown = more ? room - slot - 1 : n;
+    for (int i = 0; i < shown; i++) {
+        source_key(p, at(p, 0, slot++), order[i], ask && !welcome);
+    }
+    if (more) {
+        char count[24];
+        snprintf(count, sizeof(count), "%d Rechner", n);
+        ui_tile_t *t = put(p, at(p, 0, room - 1), K_ALL);
+        button(t, ICON_OPEN, "Alle", count);
+        t->badge = BADGE_OPEN;
     }
 }
 
@@ -214,7 +244,7 @@ static void home_status(page_t *p)
     if (!md->lan_up && !md->wlan_up) {
         status_message(p, ICON_NO_NETWORK, C_DANGER, "Netzwerk", "Kein Netz",
                        "LAN-Kabel stecken. Nach 1 min startet das Setup-WLAN.", "Kein Netz", "LAN-Kabel");
-    } else if (md->hosts[md->controller]) { /* connected, but has not drawn yet */
+    } else if (md->hosts[md->controller] && md->source_count) { /* connected, but has not drawn yet */
         snprintf(sub, sizeof(sub), "%s verbunden", controller_label(md->controller));
         status_message(p, controller_icon(md->controller), C_ACTIVE, controller_label(md->controller), sub,
                        "Zeichnet gleich", controller_label(md->controller), "verbunden");
@@ -222,11 +252,10 @@ static void home_status(page_t *p)
         snprintf(sub, sizeof(sub), "In Companion unter Surfaces als Remote Surface eintragen: %s", ip_of(md));
         status_message(p, ICON_ALERT, C_WARN, "Companion", "Warte auf Companion", sub, "Companion", "wartet");
     } else if (md->controller == UI_CTRL_APP) {
-        status_message(p, ICON_ALERT, C_WARN, "Elgato App", "Warte auf die Elgato App",
-                       "Die Stream Deck App findet die Bridge im Netz selbst", "Elgato App", "wartet");
+        status_message(p, ICON_ALERT, C_WARN, "Stream Deck App", "Warte auf die Stream Deck App",
+                       "Die Stream Deck App findet den Deck-Connector im Netz selbst", "SD App", "wartet");
     } else {
-        snprintf(sub, sizeof(sub), "%s",
-                 md->server_url[0] ? md->server_url : "Sucht einen deckbridge-Server im Netz");
+        snprintf(sub, sizeof(sub), "%s", md->server_url[0] ? md->server_url : "Sucht einen Server im Netz");
         status_message(p, ICON_ALERT, C_WARN, "Server",
                        md->server_url[0] ? "Server getrennt" : "Suche Server", sub, "Server",
                        md->server_url[0] ? "getrennt" : "sucht");
@@ -249,7 +278,7 @@ static void firmware_card(const page_t *p, ui_tile_t *t)
 
 static void home(page_t *p)
 {
-    controller_keys(p, true);
+    host_row(p, true, false);
     ui_tile_t *menu = put(p, at(p, 0, -1), K_MENU);
     button(menu, ICON_SETTINGS, "Menü", fit(p, "Einstellungen", ""));
     menu->badge = BADGE_OPEN;
@@ -294,7 +323,7 @@ static void close_key(ui_tile_t *t, const char *icon, const char *label, const c
 static void main_menu(page_t *p)
 {
     const ui_model_t *md = p->md;
-    controller_keys(p, false);
+    host_row(p, false, false);
     close_key(put(p, at(p, 0, -1), K_CLOSE), ICON_SETTINGS, "Menü", "schließen");
     ui_tile_t *lan = put(p, at(p, 1, 0), K_LAN);
     lan_card(p, lan);
@@ -398,15 +427,16 @@ static void ap_page(page_t *p)
 
 static void welcome(page_t *p)
 {
-    controller_keys(p, false);
-    for (int i = 0; i < UI_CTRL_COUNT; i++) {
+    host_row(p, false, true);
+    for (int i = 0; i < p->l->cols - 1; i++) {
         p->sc->tiles[at(p, 0, i)].active = false; /* nothing is chosen yet */
     }
     button(put(p, at(p, 0, -1), K_SKIP), ICON_CLOSE, "Später", fit(p, "überspringen", ""));
     if (p->l->strip) {
         segment(
-            &p->sc->seg[0], 4, ICON_SETTINGS, C_EDIT, "Willkommen bei deckbridge", "Wer steuert das Deck?",
-            "Companion, die Elgato App oder einen eigenen Server antippen. Ändern geht jederzeit im Menü.");
+            &p->sc->seg[0], 4, ICON_SETTINGS, C_EDIT, "Willkommen beim Deck-Connector",
+            "Wer steuert das Deck?",
+            "Oben den Rechner antippen, der zeichnen soll, sobald er verbunden ist. Ändern geht im Menü.");
     } else {
         card(put(p, at(p, 1, 0), K_NONE), ICON_SETTINGS, fit(p, "Willkommen", "Hallo"), "Wer steuert?",
              fit(p, "oben antippen", ""));
@@ -424,7 +454,7 @@ static void welcome_net(page_t *p)
     ap->badge = md->wlan_chip ? BADGE_OPEN : BADGE_NONE;
     ap->dim = !md->wlan_chip;
     ui_tile_t *done = put(p, at(p, 0, -1), K_DONE);
-    button(done, ICON_SAVE, "Fertig", controller_label(md->controller));
+    button(done, ICON_SAVE, "Fertig", fit(p, "ins Menü", ""));
     done->active = true;
     done->color = C_ACTIVE;
     card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz",
@@ -432,15 +462,11 @@ static void welcome_net(page_t *p)
     card(put(p, at(p, 1, 1), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, fit(p, "fürs Web", ""));
     if (p->l->strip) {
         char sub[112];
-        const char *who = md->controller == UI_CTRL_SERVER
-                              ? "der Server"
-                              : (md->controller == UI_CTRL_APP ? "die Elgato App" : "Companion");
         if (ip_of(md)) {
-            snprintf(sub, sizeof(sub), "Im Browser http://%s öffnen. Mit „Fertig“ übernimmt %s das Deck.",
-                     ip_of(md), who);
-        } else {
             snprintf(sub, sizeof(sub),
-                     "LAN-Kabel stecken oder Setup-WLAN starten. Mit „Fertig“ übernimmt %s.", who);
+                     "Im Browser http://%s öffnen. Mit „Fertig“ übernimmt der Rechner das Deck.", ip_of(md));
+        } else {
+            snprintf(sub, sizeof(sub), "LAN-Kabel stecken oder Setup-WLAN starten. Dann „Fertig“ tippen.");
         }
         segment(&p->sc->seg[0], 4, md->lan_up || md->wlan_up ? ICON_LAN : ICON_NO_NETWORK,
                 md->lan_up || md->wlan_up ? C_ACTIVE : C_DANGER, "Netzwerk",
@@ -470,34 +496,20 @@ static void request_page(page_t *p)
     }
 }
 
-/* One key per connected host of the picked kind; at most DB_DOCK_HOSTS or DB_MAX_SERVERS, so no paging. */
+/* Every host that can draw; at most UI_SOURCES, so even the Neo needs no paging. */
 static void sources_page(page_t *p)
 {
     const ui_model_t *md = p->md;
     int back = at(p, 0, -1);
     close_key(put(p, back, K_BACK), ICON_CLOSE, "Zurück", fit(p, "ohne Wechsel", ""));
     int key = 0;
-    for (int i = 0; i < md->source_count; i++) {
-        const ui_source_t *src = &md->sources[i];
-        if (src->kind != p->m->pick_kind) {
-            continue;
-        }
+    for (int i = 0; i < md->source_count && key < p->l->cols * p->l->rows; i++) {
         key += key == back;
-        ui_tile_t *t = put(p, key++, (key_act_t)(K_SRC0 + i));
-        bool drawing = src->chosen && md->controller == src->kind;
-        /* a card, so an address breaks into lines instead of being cut: two servers may differ only in the
-         * port */
-        card(t, NULL, drawing ? "zeichnet" : (src->kind == UI_CTRL_SERVER ? "Server" : "Rechner"), src->label,
-             strcmp(src->id, "satellite") == 0 ? "Satellite" : "");
-        t->active = drawing;
-        t->color = C_ACTIVE;
+        source_key(p, key++, i, false);
     }
     if (p->l->strip) {
-        bool server = p->m->pick_kind == UI_CTRL_SERVER;
-        segment(&p->sc->seg[0], 4, controller_icon(p->m->pick_kind), C_EDIT,
-                controller_label(p->m->pick_kind), server ? "Welcher Server?" : "Welcher Rechner?",
-                server ? "Antippen, und dieser Server zeichnet auf dem Deck."
-                       : "Antippen, und dieser Rechner zeichnet auf dem Deck.");
+        segment(&p->sc->seg[0], 4, ICON_OPEN, C_EDIT, "Wer zeichnet?", "Welcher Rechner?",
+                "Antippen, und dieser Rechner zeichnet auf dem Deck.");
     }
 }
 
@@ -561,7 +573,7 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
     snprintf(v, sizeof(v), "Update %s: %d %%", md->update_what, md->update_pct);
     if (l->strip) {
         segment(&sc->seg[0], 4, ICON_UPDATE, C_EDIT, "Update", v,
-                "Nicht vom Strom trennen, die Bridge startet danach neu");
+                "Nicht vom Strom trennen, der Deck-Connector startet danach neu");
     }
     char pct[12];
     snprintf(pct, sizeof(pct), "%d %%", md->update_pct);
@@ -708,26 +720,10 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return false;
     }
     switch (what) {
-    case K_CTRL0:
-    case K_CTRL1:
-    case K_CTRL2: {
-        int c = what - K_CTRL0;
-        if (md->hosts[c] > 1) { /* which of them: a page of its own */
-            m->pick_kind = (uint8_t)c;
-            m->pick_back = shown.page;
-            go(m, PAGE_SOURCES, md->now_us);
-            return true;
-        }
-        if (shown.page == PAGE_HOME) { /* a stray tap while the chosen host is away must not switch */
-            if (md->controller != c && confirmed(m, ev->index, md->now_us)) {
-                *act = (ui_action_t){.what = UI_DO_CONTROLLER, .value = c};
-            }
-            return true;
-        }
-        *act = (ui_action_t){.what = UI_DO_CONTROLLER, .value = c};
-        go(m, shown.page == PAGE_WELCOME ? PAGE_WELCOME_NET : PAGE_HOME, md->now_us);
+    case K_ALL:
+        m->pick_back = shown.page;
+        go(m, PAGE_SOURCES, md->now_us);
         return true;
-    }
     case K_MENU:
         go(m, PAGE_MAIN, md->now_us);
         return true;
@@ -792,8 +788,16 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     default:
         if (what >= K_SRC0 && (int)what < K_SRC0 + md->source_count) {
-            *act = (ui_action_t){.what = UI_DO_SOURCE, .value = what - K_SRC0};
-            go(m, m->pick_back == PAGE_WELCOME ? PAGE_WELCOME_NET : PAGE_HOME, md->now_us);
+            int i = what - K_SRC0;
+            /* a stray tap while the chosen host is away must not switch */
+            if (shown.page == PAGE_HOME && !md->sources[i].chosen && !confirmed(m, ev->index, md->now_us)) {
+                return true;
+            }
+            if (!md->sources[i].chosen || shown.page != PAGE_HOME) {
+                *act = (ui_action_t){.what = UI_DO_SOURCE, .value = i};
+            }
+            ui_page_t from = shown.page == PAGE_SOURCES ? m->pick_back : shown.page;
+            go(m, from == PAGE_WELCOME ? PAGE_WELCOME_NET : PAGE_HOME, md->now_us);
             return true;
         }
         return false;

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>deckbridge</title>
+<title>Deck-Connector</title>
 <script>/* before the first paint, so the page never flashes in the wrong theme */
 let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {}
 document.documentElement.dataset.theme = theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');</script>
@@ -85,7 +85,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </svg>
 <main>
 <form id="login" class="card" hidden style="max-width:380px;margin:12vh auto 0">
-<div class="card-h"><h1>deckbridge</h1><p class="muted">Anmelden, um die Bridge einzurichten.</p></div>
+<div class="card-h"><h1>Deck-Connector</h1><p class="muted">Anmelden, um den Deck-Connector einzurichten.</p></div>
 <div class="card-b stack">
 <div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password" autofocus>
 <p class="hint">Steht auf dem Stream Deck im Menü unter Web-Zugang.</p></div>
@@ -95,7 +95,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 
 <div id="app" hidden>
 <header class="row between">
-<div class="row"><h1 id="title">deckbridge</h1><span id="online" class="badge warn"><span class="dot"></span>verbinde …</span></div>
+<div class="row"><h1 id="title">Deck-Connector</h1><span id="online" class="badge warn"><span class="dot"></span>verbinde …</span></div>
 <div class="row"><button id="theme" type="button" class="btn ghost sm" aria-label="Hell oder dunkel" title="Hell oder dunkel"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button><button id="logout" class="btn ghost sm" aria-label="Abmelden" title="Abmelden"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg><span class="wide">Abmelden</span></button></div>
 </header>
 
@@ -107,10 +107,10 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 
 <section data-panel="home" class="stack">
 <div class="card"><div class="card-h"><h2>Wer steuert das Deck?</h2><p class="muted">Wechselt sofort. Die anderen bleiben verbunden.</p></div>
-<div class="card-b stack"><div class="choice" id="ctrl"></div>
+<div class="card-b stack">
 <div id="request" class="src" hidden style="border-color:var(--warn)"></div>
-<div><p class="section-t" style="margin-top:0">Quellen</p><div id="sources" class="srcs"></div></div>
-<form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><button class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Server hinzufügen</button></form>
+<div id="sources" class="srcs"></div>
+<form id="addsrv" class="row"><input id="newsrv" placeholder="ws://host:8765/deckbridge" maxlength="95" aria-label="Adresse eines eigenen Servers" style="flex:1 1 220px"><input id="newpin" placeholder="SHA-256 (optional, wss://)" maxlength="95" aria-label="SHA-256-Fingerabdruck des Zertifikats" style="flex:1 1 220px"><button class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Server hinzufügen</button></form>
 <div><p class="section-t">Rechner</p>
 <label class="row small" style="font-weight:400;margin-bottom:8px;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="strict" style="width:auto;height:auto;margin-top:3px;flex:none"> Nur gekoppelte Rechner dürfen das Deck steuern</label>
 <div id="hosts" class="srcs"></div><div id="pairing" class="row small muted" style="justify-content:space-between;margin-top:6px"></div></div>
@@ -130,10 +130,11 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div><label for="brightness">Helligkeit <span id="bval" class="muted"></span></label><input id="brightness" type="range" min="0" max="100" style="height:36px;padding:0;border:0;margin:0"></div>
 </div>
 <p class="section-t">Companion über die Satellite-API</p>
-<p class="hint">Die Bridge verbindet sich selbst mit Companion. Ohne Port nimmt sie 16622. Leer lassen, wenn Companion die Bridge als Network Dock findet.</p>
-<div class="grid"><div><label for="satellite">Adresse von Companion</label><input id="satellite" placeholder="192.168.1.10" maxlength="63"></div></div>
+<p class="hint">Der Deck-Connector verbindet sich selbst mit Companion. Ohne Port nimmt er 16622. Eine ws:// oder wss:// Adresse geht über den WebSocket-Port von Companion (16623) oder einen Proxy davor. Leer lassen, wenn Companion den Deck-Connector als Network Dock findet.</p>
+<div class="grid"><div><label for="satellite">Adresse von Companion</label><input id="satellite" placeholder="192.168.1.10 oder wss://…" maxlength="63"></div>
+<div><label for="satpin">SHA-256 des Zertifikats (optional, wss://)</label><input id="satpin" maxlength="95"></div></div>
 <p class="section-t">Eigene Server</p>
-<p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht die Bridge einen im Netz.</p>
+<p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht der Deck-Connector einen im Netz.</p>
 <div class="grid"><div><label for="token">Token</label><input id="token" type="password" placeholder="unverändert" maxlength="47"></div></div>
 <p class="section-t">WLAN</p>
 <div class="grid">
@@ -146,19 +147,19 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </div>
 <p class="section-t">Web-Zugang</p>
 <div class="grid"><div><label for="apass">Neues Passwort für admin</label><input id="apass" type="password" placeholder="unverändert" minlength="6" maxlength="23"></div></div>
-<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Ohne Verschlüsselung leitet die Bridge den Browser um und beantwortet sonst nichts, auch nicht Home Assistant mit http://. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
-<div class="row"><button class="btn">Speichern</button><span class="hint" style="margin:0">Netz, Server und Name starten die Bridge neu.</span></div>
+<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Ohne Verschlüsselung leitet der Deck-Connector den Browser um und beantwortet sonst nichts, auch nicht Home Assistant mit http://. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
+<div class="row"><button class="btn">Speichern</button><span class="hint" style="margin:0">Netz, Server und Name starten den Deck-Connector neu.</span></div>
 </div></form>
 </section>
 
 <section data-panel="system" class="stack" hidden>
 <div class="card"><div class="card-h"><h2>Auslastung</h2><p class="muted">Die letzten 10 Minuten, alle 5 Sekunden gemessen. Nur im Arbeitsspeicher, nichts davon wird gespeichert.</p></div>
 <div class="card-b stack"><div class="meters" id="meters"></div><div class="meters" id="storage"></div></div></div>
-<div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für die Bridge oder den WLAN-Chip.</p></div>
+<div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für den Deck-Connector oder den WLAN-Chip.</p></div>
 <div class="card-b stack"><div class="row"><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><button id="up" class="btn" disabled>Installieren</button></div>
 <form id="otaurl" class="row" style="flex-wrap:nowrap"><input id="url" type="url" placeholder="oder Adresse: http://…/deckbridge.dbfw"><button class="btn outline">Laden</button></form>
 <p id="upmsg" class="small"></p></div></div>
-<div class="card"><div class="card-h"><h2>Einstellungen sichern</h2><p class="muted">Passwörter bleiben auf der Bridge und stehen nicht in der Datei.</p></div>
+<div class="card"><div class="card-h"><h2>Einstellungen sichern</h2><p class="muted">Passwörter bleiben auf dem Deck-Connector und stehen nicht in der Datei.</p></div>
 <div class="card-b row"><button id="backup" class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Herunterladen</button><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Wiederherstellen<input id="restore" type="file" accept=".json,application/json" hidden></label></div></div>
 <div class="card"><div class="card-h"><h2>Gerät</h2></div><div class="card-b"><div class="kv" id="sys"></div></div></div>
 <div class="card"><div class="card-h row between"><h2>Protokoll</h2><div class="row"><button id="logbtn" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Aktualisieren</button><button id="reboot" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Neu starten</button></div></div>
@@ -195,15 +196,15 @@ function toast(text, bad) {
 }
 async function put(body, quiet) {
   const r = await api('/api/config', {method: 'PUT', body: JSON.stringify(body)}).catch(() => null);
-  const j = r ? await r.json().catch(() => ({ok: false, error: 'HTTP ' + r.status})) : {ok: false, error: 'Bridge nicht erreichbar'};
+  const j = r ? await r.json().catch(() => ({ok: false, error: 'HTTP ' + r.status})) : {ok: false, error: 'Deck-Connector nicht erreichbar'};
   if (!j.ok) toast(j.error, true);
-  else if (!quiet || j.restart) toast(j.restart ? 'Gespeichert. Die Bridge startet neu.' : 'Gespeichert.');
+  else if (!quiet || j.restart) toast(j.restart ? 'Gespeichert. Der Deck-Connector startet neu.' : 'Gespeichert.');
   return j;
 }
 
 $('backup').onclick = async () => {
   const r = await api('/api/config').catch(() => null);
-  if (!r || !r.ok) return toast('Bridge nicht erreichbar', true);
+  if (!r || !r.ok) return toast('Deck-Connector nicht erreichbar', true);
   const cfg = await r.json();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(cfg, null, 2)], {type: 'application/json'}));
@@ -217,40 +218,41 @@ $('restore').onchange = async e => {
   let cfg;
   try { cfg = JSON.parse(await file.text()); } catch { return toast('Keine Einstellungsdatei.', true); }
   if (typeof cfg !== 'object' || !cfg.controller) return toast('Keine Einstellungsdatei.', true);
-  if (confirm(`Einstellungen aus „${file.name}“ übernehmen? Ändert sich das Netz, startet die Bridge neu.`)) put(cfg);
+  if (confirm(`Einstellungen aus „${file.name}“ übernehmen? Ändert sich das Netz, startet der Deck-Connector neu.`)) put(cfg);
 };
 
-const controllers = [
-  ['companion', 'Companion', 'Bitfocus Companion'],
-  ['app', 'Elgato App', 'Die Stream Deck Software am PC'],
-  ['server', 'Eigener Server', 'Für Entwickler'],
-];
-const kinds = {companion: 'Companion', app: 'Elgato App', server: 'Server'};
+const kinds = {companion: 'Companion', app: 'Stream Deck App', server: 'Server'};
 let state = null;
 
 const shortHost = (h) => h.replace(/^wss?:\/\//, '').replace(/\/.*$/, '');
 const connected = (s, kind) => s.sources.filter((x) => x.kind === kind && x.connected);
 /* the address of the connected host, or null */
 const hostAt = (s, key) => (connected(s, key)[0] ? shortHost(connected(s, key)[0].host) : null);
+/* "core · Companion · Satellite": the host, the program, and how it talks to the deck */
+const proto = (x) => (x.via === 'satellite' ? 'Satellite' : x.kind === 'server' ? '' : 'Dock');
+const what = (x) => [kinds[x.kind], proto(x)].filter(Boolean).join(' · ');
+const hostName = (x) => x.name || shortHost(x.host);
+const pick = (x) => put({controller: x.kind, host: x.via === 'satellite' ? 'satellite' : x.host}, true);
 function writerName(id) {
-  if (id === 'ui') return 'die Bridge selbst';
+  if (id === 'ui') return 'der Deck-Connector selbst';
   const x = state?.sources.find((y) => y.drawing);
-  return x ? `${kinds[x.kind]} (${shortHost(x.host)})` : id;
+  return x ? `${hostName(x)} · ${what(x)}` : id;
 }
 function renderSources(s) {
-  const rank = (x) => (x.drawing ? 0 : x.connected ? 1 : 2);
+  const rank = (x) => (x.drawing ? 0 : x.chosen ? 1 : x.connected ? 2 : 3);
   const rows = s.sources.filter((x) => kinds[x.kind]).sort((a, b) => rank(a) - rank(b));
-  $('sources').innerHTML = rows.map((x, i) => {
+  const away = rows.some((x) => x.chosen && x.connected) ? '' : `<div class="src" style="border-color:var(--warn)"><div class="grow"><b>${kinds[s.controller]}</b><span class="small muted">gewählt, zeichnet, sobald verbunden</span></div>
+      <span class="badge warn"><span class="dot"></span>getrennt</span></div>`;
+  $('sources').innerHTML = away + rows.map((x, i) => {
     const label = x.drawing ? 'zeichnet' : x.chosen ? 'gewählt' : x.connected ? 'verbunden' : 'getrennt';
     const mine = x.kind === 'server' && config?.servers.includes(x.host);
-    const via = x.via === 'satellite' ? ' · Satellite' : '';
-    return `<div class="src"><div class="grow"><b>${kinds[x.kind]}</b><span class="small muted">${esc(shortHost(x.host))}${via}</span></div>
+    return `<div class="src"><div class="grow"><b>${esc(hostName(x))} · ${what(x)}</b><span class="small muted">${esc(x.name ? shortHost(x.host) : '')}</span></div>
       <span class="badge ${x.drawing ? 'ok' : x.connected ? '' : 'warn'}"><span class="dot"></span>${label}</span>
-      ${x.connected && !x.drawing ? `<button type="button" class="btn outline sm" data-pick="${i}">Wählen</button>` : ''}
+      ${x.connected && !x.chosen ? `<button type="button" class="btn outline sm" data-pick="${i}">Wählen</button>` : ''}
       ${mine ? `<button type="button" class="btn ghost sm" data-del="${i}" aria-label="Server entfernen" title="Server entfernen"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button>` : ''}</div>`;
-  }).join('') || '<p class="small muted">Noch nichts verbunden.</p>';
-  for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => { const x = rows[+b.dataset.pick]; put({controller: x.kind, host: x.via === 'satellite' ? 'satellite' : x.host}, true); };
-  for (const b of $('sources').querySelectorAll('[data-del]')) b.onclick = () => setServers(config.servers.filter((u) => u && u !== rows[+b.dataset.del].host));
+  }).join('');
+  for (const b of $('sources').querySelectorAll('[data-pick]')) b.onclick = () => pick(rows[+b.dataset.pick]);
+  for (const b of $('sources').querySelectorAll('[data-del]')) b.onclick = () => setServers(servers().filter(([u]) => u !== rows[+b.dataset.del].host));
 }
 async function dock(body) {
   const r = await api('/api/dock', {method: 'POST', body: JSON.stringify(body)}).catch(() => null);
@@ -284,23 +286,25 @@ function renderPairing(s) {
 $('strict').onchange = () => put({dock_paired_only: $('strict').checked}, true).then(loadStatus);
 $('httpsonly').onchange = () => put({https_only: $('httpsonly').checked}, true);
 if (location.protocol === 'http:') { $('tohttps').hidden = false; $('tohttps').href = `https://${location.hostname}/`; }
+/* [url, pin] of each set server; the pins sit at the same index as their URL */
+const servers = () => config.servers.map((u, i) => [u, config.server_pins[i]]).filter(([u]) => u);
 async function setServers(list) {
-  if ((await put({servers: list}, true)).ok) await loadConfig();
+  if ((await put({servers: list.map(([u]) => u), server_pins: list.map(([, p]) => p)}, true)).ok) await loadConfig();
 }
 $('addsrv').onsubmit = (e) => {
   e.preventDefault();
   const url = $('newsrv').value.trim();
-  const list = config.servers.filter(Boolean);
+  const list = servers();
   if (!url) return;
   if (list.length >= 4) return toast('Höchstens 4 Server. Erst einen entfernen.', true);
-  setServers([...list, url]).then(() => { $('newsrv').value = ''; });
+  setServers([...list, [url, $('newpin').value.trim()]]).then(() => { $('newsrv').value = ''; $('newpin').value = ''; });
 };
 function howto(s) {
   const ip = s.network.lan.ip || s.network.wlan.ip;
   if (hostAt(s, s.controller)) return '';
-  if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces die Bridge unter Discover hinzufügen, oder eine Remote Surface mit der Adresse ${ip} anlegen. Oder unter Einstellungen die Adresse von Companion für die Satellite-API eintragen.`;
-  if (s.controller === 'app') return 'Die Stream Deck Software findet die Bridge selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
-  return 'Die Adresse des Servers unter Einstellungen eintragen. Leer gelassen sucht die Bridge einen Server im Netz.';
+  if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces den Deck-Connector unter Discover hinzufügen, oder eine Remote Surface mit der Adresse ${ip} anlegen. Oder unter Einstellungen die Adresse von Companion für die Satellite-API eintragen.`;
+  if (s.controller === 'app') return 'Die Stream Deck Software findet den Deck-Connector selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
+  return 'Die Adresse des Servers unter Einstellungen eintragen. Leer gelassen sucht der Deck-Connector einen Server im Netz.';
 }
 function renderStatus() {
   const s = state;
@@ -309,18 +313,11 @@ function renderStatus() {
   $('status').innerHTML = kv('Stream Deck', s.device ? `${s.device.model} · ${s.device.serial}` : 'nicht angeschlossen') +
     kv('LAN', n.lan.ip || (n.lan.cable ? 'keine Adresse' : 'kein Kabel')) +
     kv('WLAN', n.wlan.ip ? `${n.wlan.ip} · ${n.wlan.ssid}` : (n.wlan.ssid ? 'getrennt' : 'aus'));
-  $('ctrl').innerHTML = controllers.map(([key, name, what]) => {
-    const n = connected(s, key).length;
-    const chosen = s.controller === key;
-    const text = n > 1 ? `${n} verbunden` : n ? 'verbunden · ' + esc(hostAt(s, key)) : chosen ? 'wartet' : 'nicht verbunden';
-    return `<button type="button" data-c="${key}" aria-pressed="${chosen}"><b>${name}</b><span class="small muted">${what}</span>
-      <span class="badge ${n ? 'ok' : chosen ? 'warn' : ''}" style="margin-top:6px"><span class="dot"></span>${text}</span></button>`;
-  }).join('');
   renderSources(s);
   renderPairing(s);
   $('howto').textContent = howto(s);
   if (s.uptime_s !== undefined) renderSystem(s);
-  for (const b of $('ctrl').querySelectorAll('button')) b.onclick = () => put({controller: b.dataset.c, host: ''}, true);
+  if ($('wizard').open && step === 1) render(); /* a host that just connected shows up to be picked */
 }
 
 /* ---- live deck ---- */
@@ -396,7 +393,7 @@ function chordText(sc) {
 const menuHow = () => chord ? `Am Deck selbst: ${chord} gleichzeitig 2 Sekunden halten.` : 'Kein Stream Deck angeschlossen.';
 async function openMenu() {
   const r = await api('/api/menu', {method: 'POST'}).catch(() => null);
-  if (!r) toast('Bridge nicht erreichbar.', true);
+  if (!r) toast('Deck-Connector nicht erreichbar.', true);
   else if (r.status === 409) toast('Kein Stream Deck angeschlossen.', true);
   else if (!r.ok) toast('Menü ging nicht auf: ' + ((await r.json().catch(() => ({}))).error || r.status), true);
 }
@@ -487,6 +484,7 @@ async function loadConfig() {
   $('ssid').value = config.wifi_ssid;
   $('httpsonly').checked = !!config.https_only;
   $('satellite').value = config.satellite;
+  $('satpin').value = config.satellite_pin;
   if (state) renderSources(state);
   for (const key of ['lan', 'wlan']) {
     $(key + '_dhcp').checked = config[key].dhcp;
@@ -500,7 +498,7 @@ $('cfg').onsubmit = async (e) => {
   e.preventDefault();
   const ip = (key) => Object.fromEntries([['dhcp', $(key + '_dhcp').checked], ...ipFields.map((f) => [f, $(key + '_' + f).value])]);
   const body = {name: $('name').value, brightness: +$('brightness').value,
-    wifi_ssid: $('ssid').value, satellite: $('satellite').value.trim(), lan: ip('lan'), wlan: ip('wlan')};
+    wifi_ssid: $('ssid').value, satellite: $('satellite').value.trim(), satellite_pin: $('satpin').value.trim(), lan: ip('lan'), wlan: ip('wlan')};
   for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
   await put(body);
 };
@@ -539,7 +537,7 @@ function renderSystem(s) {
     kv('Läuft seit', since(s.uptime_s)) + (s.network.wlan.ip ? kv('WLAN-Signal', s.network.wlan.rssi + ' dBm') : '') +
     kv('Speicher frei', `${Math.round(m.heap_free / 1024)} KB, mindestens ${Math.round(m.heap_min_free / 1024)} KB`) +
     kv('Bilder', `${c.images} gezeigt, ${c.superseded} übersprungen`) + kv('Fehler', `${c.usb_errors} USB, ${c.rejected ?? 0} abgelehnt`) +
-    kv('Quellen', s.sources.map((x) => `${kinds[x.kind] || 'unbekannt'} ${shortHost(x.host)}${x.connected ? '' : ' (getrennt)'}`).join(', ') || '–');
+    kv('Quellen', s.sources.map((x) => `${hostName(x)} · ${what(x) || 'unbekannt'}${x.connected ? '' : ' (getrennt)'}`).join(', ') || '–');
 }
 let sysPoll = null;
 async function loadLog() { $('log').textContent = await (await api('/api/log')).text(); $('log').scrollTop = 1e9; }
@@ -550,16 +548,16 @@ $('up').onclick = async () => {
   const r = await api('/api/ota', {method: 'POST', body: $('fw').files[0]}).then((x) => x.json()).catch(() => ({ok: false, error: 'Verbindung verloren'}));
   $('up').disabled = false;
   $('upmsg').textContent = '';
-  toast(r.ok ? 'Installiert. Die Bridge startet neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
+  toast(r.ok ? 'Installiert. Der Deck-Connector startet neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
 };
 $('otaurl').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await api('/api/ota/url', {method: 'POST', body: JSON.stringify({url: $('url').value})}).then((x) => x.json()).catch(() => ({ok: false, error: 'Bridge nicht erreichbar'}));
-  toast(r.ok ? 'Update läuft. Der Fortschritt steht auf dem Deck, danach startet die Bridge neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
+  const r = await api('/api/ota/url', {method: 'POST', body: JSON.stringify({url: $('url').value})}).then((x) => x.json()).catch(() => ({ok: false, error: 'Deck-Connector nicht erreichbar'}));
+  toast(r.ok ? 'Update läuft. Der Fortschritt steht auf dem Deck, danach startet der Deck-Connector neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
 };
 $('logbtn').onclick = loadLog;
 $('openmenu').onclick = openMenu;
-$('reboot').onclick = async () => { if (confirm('Bridge jetzt neu starten?')) { await api('/api/reboot', {method: 'POST'}); toast('Startet neu …'); } };
+$('reboot').onclick = async () => { if (confirm('Deck-Connector jetzt neu starten?')) { await api('/api/reboot', {method: 'POST'}); toast('Startet neu …'); } };
 
 /* ---- tabs ---- */
 function showTab(name) {
@@ -574,13 +572,17 @@ for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { his
 let step = 0;
 let picked = null;
 const steps = [
-  {title: 'Willkommen', text: 'Die Bridge bringt dein Stream Deck ins Netz. Ein paar kurze Schritte, alles lässt sich später ändern.',
+  {title: 'Willkommen', text: 'Der Deck-Connector bringt dein Stream Deck ins Netz. Ein paar kurze Schritte, alles lässt sich später ändern.',
     body: () => '<p class="small">Das Stream Deck zeigt dieselben Schritte. Du kannst sie dort oder hier erledigen.</p>'},
-  {title: 'Wer soll das Deck steuern?', text: 'Das Programm, das die Tasten zeichnet und die Drücke bekommt.',
-    body: () => '<div class="choice" id="wctrl">' + controllers.map(([key, name, what]) =>
-      `<button type="button" data-c="${key}" aria-pressed="${picked === key}"><b>${name}</b><span class="small muted">${what}</span></button>`).join('') + '</div>',
-    after: () => { $('wnext').disabled = !picked; for (const b of $('wctrl').querySelectorAll('button')) b.onclick = () => { picked = b.dataset.c; render(); }; },
-    save: () => put({controller: picked}, true)},
+  {title: 'Wer soll das Deck steuern?', text: 'Das Programm, das die Tasten zeichnet und die Drücke bekommt. Es erscheint hier, sobald es verbunden ist.',
+    body: () => {
+      const rows = state.sources.filter((x) => x.connected && kinds[x.kind]);
+      return rows.length ? '<div class="choice" id="wctrl">' + rows.map((x, i) =>
+        `<button type="button" data-i="${i}" aria-pressed="${picked === x.host}"><b>${esc(hostName(x))}</b><span class="small muted">${what(x)}</span></button>`).join('') + '</div>'
+        : '<p class="small">Noch nichts verbunden. In Companion unter Surfaces den Deck-Connector unter Discover hinzufügen. Die Stream Deck App findet ihn selbst.</p>';
+    },
+    after: () => { for (const b of $('wctrl')?.querySelectorAll('button') || []) b.onclick = () => { picked = state.sources.filter((x) => x.connected && kinds[x.kind])[+b.dataset.i].host; render(); }; },
+    save: () => { const x = state.sources.find((y) => y.connected && y.host === picked); return x ? pick(x) : null; }},
   {title: 'WLAN', text: 'Nur nötig ohne LAN-Kabel, oder als Ausweg, wenn das LAN ausfällt. Leer lassen geht.',
     body: () => `<div><label for="wssid">WLAN-Name (nur 2,4 GHz)</label><input id="wssid" value="${esc(config.wifi_ssid)}" maxlength="32"></div>
       <div><label for="wwpass">WLAN-Passwort</label><input id="wwpass" type="password" placeholder="${config.wifi_pass_set ? 'unverändert' : ''}" maxlength="64"></div>`,
@@ -589,8 +591,8 @@ const steps = [
       if ($('wwpass').value) b.wifi_pass = $('wwpass').value;
       return b.wifi_ssid === config.wifi_ssid && !b.wifi_pass ? null : put(b);
     }},
-  {title: 'Fertig', text: 'Die Bridge ist eingerichtet.',
-    body: () => `<p class="small">${esc(howto({...state, controller: picked})) || 'Das Programm übernimmt das Deck gleich.'}</p><p class="small muted">Das Menü auf dem Deck öffnet der Knopf „Menü öffnen“ in der Übersicht. ${esc(chord ? menuHow() : '')}</p>`,
+  {title: 'Fertig', text: 'Der Deck-Connector ist eingerichtet.',
+    body: () => `<p class="small">${esc(howto(state)) || 'Das Programm übernimmt das Deck gleich.'}</p><p class="small muted">Das Menü auf dem Deck öffnet der Knopf „Menü öffnen“ in der Übersicht. ${esc(chord ? menuHow() : '')}</p>`,
     save: () => put({setup_done: true}, true)},
 ];
 function render() {

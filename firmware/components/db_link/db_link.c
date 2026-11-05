@@ -419,8 +419,10 @@ static void link_task(void *arg)
         const char *over = bound ? (wlan ? "WLAN" : "LAN") : "the default route";
         /* the token only goes to a server the user set, never to one that announced itself over mDNS */
         bool set = strcmp(url, db_config_server_of(db_config(), l->index)) == 0;
+        uint8_t pin[32];
+        bool pinned = set && db_config_pin(db_config()->server_pins[l->index], pin);
         int err = ws_connect(&l->ws, url, "deckbridge.v1", s.headers[0] && set ? s.headers : NULL,
-                             bound ? ifname : NULL, CONNECT_TIMEOUT);
+                             bound ? ifname : NULL, CONNECT_TIMEOUT, pinned ? pin : NULL);
         if (err) {
             if (now_ms() >= next_log) {
                 next_log = now_ms() + 30000;
@@ -560,6 +562,7 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
         snprintf(name, sizeof(name), "link%d", i);
         xTaskCreatePinnedToCore(link_task, name, 6144, l, 6, NULL, 0);
     }
+    db_link_reload(); /* takes note of the pins, before any link is up */
     xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
     xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0);
     return ESP_OK;
@@ -569,8 +572,16 @@ void db_link_reload(void)
 {
     /* only what the config changed: a server found by mDNS keeps its URL while the config stays empty */
     static char applied[DB_MAX_SERVERS][sizeof(s.links[0].url)];
+    static char applied_pin[DB_MAX_SERVERS][sizeof(db_config()->server_pins[0])];
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         const char *want = db_config_server_of(db_config(), i);
+        const char *pin = db_config()->server_pins[i];
+        if (strcmp(pin, applied_pin[i]) != 0) {
+            strlcpy(applied_pin[i], pin, sizeof(applied_pin[i]));
+            if (s.links[i].connected) { /* the next connect checks the new one anyway */
+                s.links[i].reconnect = "certificate pin changed";
+            }
+        }
         if (strcmp(want, applied[i]) == 0) {
             continue;
         }

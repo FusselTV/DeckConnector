@@ -1,73 +1,75 @@
-"""The web page in a real browser: login, controller cards, a click that reaches the deck, the welcome steps."""
+"""The web page in a real browser: login, the list of hosts, a click that reaches the deck, the welcome steps.
 
+The async API, so the test servers on the same event loop keep answering the bridge while the browser works."""
+
+import asyncio
 import json
 
 import pytest
 from conftest import HOST, PASSWORD, api, status
 
-sync_api = pytest.importorskip("playwright.sync_api")
+async_api = pytest.importorskip("playwright.async_api")
 
 
 @pytest.fixture
-def page(servers):
-    with sync_api.sync_playwright() as p:
-        browser = p.chromium.launch()
-        context = browser.new_context(viewport={"width": 390, "height": 900})
-        page = context.new_page()
+async def page(servers):
+    async with async_api.async_playwright() as p:
+        browser = await p.chromium.launch()
+        context = await browser.new_context(viewport={"width": 390, "height": 900})
+        page = await context.new_page()
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
-        page.goto(f"http://{HOST}/")
-        page.wait_for_selector("#pw", state="visible")
-        page.fill("#pw", "wrong")
-        page.click("#login button")
-        page.wait_for_selector("#loginmsg:has-text('Falsches Passwort')")
+        await page.goto(f"http://{HOST}/")
+        await page.wait_for_selector("#pw", state="visible")
+        await page.fill("#pw", "wrong")
+        await page.click("#login button")
+        await page.wait_for_selector("#loginmsg:has-text('Falsches Passwort')")
         # through the request context, so a failing step never prints the password
-        context.request.post(
+        await context.request.post(
             f"http://{HOST}/api/login", data=json.dumps({"password": PASSWORD}), headers={"X-Deckbridge": "1"}
         )
-        page.reload()
-        page.wait_for_selector("#online.ok")
+        await page.reload()
+        await page.wait_for_selector("#online.ok")
         yield page
         assert errors == []
-        browser.close()
+        await browser.close()
 
 
-def test_overview_on_a_phone(page):
-    names = [t.split("\n")[0] for t in page.locator("#ctrl button").all_inner_texts()]
-    assert names == ["Companion", "Elgato App", "Eigener Server"]
-    assert page.locator('#ctrl [aria-pressed="true"]').inner_text().startswith("Eigener Server")
-    page.wait_for_selector("#deck .hit")
-    assert page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") == 0
-    page.click('[data-tab="system"]')
-    page.wait_for_selector("#sys b")
+async def test_overview_on_a_phone(page):
+    first = page.locator("#sources .src").first  # the host that draws comes first, once the servers are in
+    await async_api.expect(first.locator(".badge")).to_have_text("zeichnet", timeout=20000)
+    assert (await first.locator("b").inner_text()).endswith(" · Server")
+    await page.wait_for_selector("#deck .hit")
+    assert await page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") == 0
+    await page.click('[data-tab="system"]')
+    await page.wait_for_selector("#sys b")
     assert page.url.endswith("#system")
 
 
-def test_a_click_reaches_the_deck(page):
-    before = status()["counters"]["inputs"]
-    page.wait_for_selector("#deck .hit")
-    page.locator("#deck .hit").first.click()
-    page.locator(".enc [data-turn='1']").first.click()
-    page.wait_for_timeout(500)
-    assert status()["counters"]["inputs"] >= before + 3  # down, up, turn
+async def test_a_click_reaches_the_deck(page):
+    before = (await asyncio.to_thread(status))["counters"]["inputs"]
+    await page.wait_for_selector("#deck .hit")
+    await page.locator("#deck .hit").first.click()
+    await page.locator(".enc [data-turn='1']").first.click()
+    await page.wait_for_timeout(500)
+    assert (await asyncio.to_thread(status))["counters"]["inputs"] >= before + 3  # down, up, turn
 
 
-def test_welcome_steps(page):
-    api("PUT", "/api/config", json.dumps({"setup_done": False}).encode())
+async def test_welcome_steps(page):
+    await asyncio.to_thread(api, "PUT", "/api/config", json.dumps({"setup_done": False}).encode())
     try:
-        page.reload()
-        page.wait_for_selector("#wizard[open]")
-        page.click("#wnext")
-        assert page.locator("#wnext").is_disabled(), "nothing is picked for the user"
-        page.click('#wctrl [data-c="server"]')
-        page.click("#wnext")
-        page.wait_for_selector("#wtitle:has-text('WLAN')")
-        page.click("#wnext")
-        page.wait_for_selector("#wtitle:has-text('Fertig')")
-        assert page.locator("#wskip").is_hidden()
-        page.click("#wnext")
-        page.wait_for_selector("#wizard[open]", state="detached")
-        cfg = json.loads(api("GET", "/api/config")[1])
-        assert cfg["setup_done"] and cfg["controller"] == "server"
+        await page.reload()
+        await page.wait_for_selector("#wizard[open]")
+        await page.click("#wnext")
+        await page.click('#wctrl button:has-text("8766")')  # the second test server, so the pick shows
+        await page.click("#wnext")
+        await page.wait_for_selector("#wtitle:has-text('WLAN')")
+        await page.click("#wnext")
+        await page.wait_for_selector("#wtitle:has-text('Fertig')")
+        assert await page.locator("#wskip").is_hidden()
+        await page.click("#wnext")
+        await page.wait_for_selector("#wizard[open]", state="detached")
+        cfg = json.loads((await asyncio.to_thread(api, "GET", "/api/config"))[1])
+        assert cfg["setup_done"] and cfg["controller"] == "server" and cfg["host"].endswith(":8766/deckbridge")
     finally:
-        api("PUT", "/api/config", json.dumps({"setup_done": True}).encode())
+        await asyncio.to_thread(api, "PUT", "/api/config", json.dumps({"setup_done": True, "host": ""}).encode())

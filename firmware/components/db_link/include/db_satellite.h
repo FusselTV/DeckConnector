@@ -14,5 +14,7 @@
 esp_err_t db_satellite_start(void (*changed)(void));
 /* Companion uses the deck. */
 bool db_satellite_connected(void);
+/* Companion's IPv4 address in network order while connected, else 0. */
+uint32_t db_satellite_peer(void);
 /* What the client connects to, "" when no address is set. */
 const char *db_satellite_address(void);

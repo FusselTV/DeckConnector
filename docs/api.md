@@ -1,10 +1,10 @@
 # Web API
 
 Everything the web UI does goes through this JSON API on port 80, and the same over HTTPS on port 443. Scripts
-can use it the same way. The bridge announces it over mDNS as `_deckbridge-api._tcp`, with `path` and `fw` in the
+can use it the same way. The Deck-Connector announces it over mDNS as `_deckbridge-api._tcp`, with `path` and `fw` in the
 TXT record.
 
-The bridge makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
+The Deck-Connector makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
 `https_fingerprint` in the status is its SHA-256, to compare with what the browser shows. With `https_only` set,
 plain HTTP answers the page with a redirect to HTTPS and everything else with 403, so no password goes over the
 network unencrypted. The setup access point stays on plain HTTP.
@@ -16,7 +16,7 @@ header `X-Deckbridge: 1`.
 
 ```
 curl -u admin:PASSWORD http://192.168.1.214/api/status
-curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -X PUT -d '{"controller":"app"}' http://192.168.1.214/api/config
+curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -X PUT -d '{"controller":"app","host":""}' http://192.168.1.214/api/config
 ```
 
 The web UI logs in with `POST /api/login`, the header `X-Deckbridge: 1` and `{"password": "..."}`, and gets a
@@ -29,7 +29,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 
 | Method and path | What it does |
 |---|---|
-| `GET /api/status` | State of the bridge, see below |
+| `GET /api/status` | State of the Deck-Connector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
 | `PUT /api/config` | Change settings. Send only the keys you change |
 | `GET /api/screen` | What the deck shows right now, see below |
@@ -39,8 +39,8 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text |
-| `POST /api/ota` | Upload a signed `.dbfw` file as the body. The bridge restarts when it is done |
-| `POST /api/ota/url` | Send `{"url": "http://..."}` and the bridge loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
+| `POST /api/ota` | Upload a signed `.dbfw` file as the body. The Deck-Connector restarts when it is done |
+| `POST /api/ota/url` | Send `{"url": "http://..."}` and the Deck-Connector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
@@ -48,41 +48,55 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 
 ## Who controls the deck
 
-`controller` in the settings picks who draws on the deck and gets the key presses.
+Every host that can draw is in one list: Companion over its Satellite API ([satellite.md](satellite.md)), hosts
+that use the Network Dock emulation (Companion, the Stream Deck app), and your own servers
+([protocol.md](protocol.md)). Up to 4 servers and up to 4 dock hosts can be connected at once, in any mix.
+`sources` in the status is that list.
 
-| Value | Who |
+Two settings pick one entry of it, and they go together. `host` names the entry: a dock host's IP, a server's URL,
+or `satellite`. `controller` is the program behind it.
+
+| `controller` | Program |
 |---|---|
-| `server` | Your own servers over WebSocket ([protocol.md](protocol.md)) |
-| `app` | The Elgato Stream Deck app, through the Network Dock emulation |
-| `companion` | Bitfocus Companion, through the Network Dock emulation or its Satellite API ([satellite.md](satellite.md)) |
+| `companion` | Bitfocus Companion, over Satellite or as a dock host |
+| `app` | The Elgato Stream Deck app, as a dock host |
+| `server` | Your own servers |
 
-Up to 4 servers and up to 4 dock hosts can be connected at once, in any mix. `host` picks one of them by its
-address: a dock host's IP or a server's URL. `satellite` picks Companion over its Satellite API. When `host` is
-empty or not connected, the first connected one of that kind draws. For `companion` that is the Satellite API
-when it is connected.
+To pick an entry, send both: `{"controller": "companion", "host": "satellite"}`. When the picked host is not
+connected, the first connected one of the same program draws, for `companion` the Satellite connection first.
+`controller` alone with an empty `host` means exactly that from the start, so settings from older firmware keep
+working.
 
-The change works at once. All of them stay connected, and the deck shows the picked one's picture right away.
-The others keep drawing into their own picture in the background and get no input. The same choice is in the menu
-on the device. When more than one host of a kind is connected, its key opens a list of them.
+The change works at once. All hosts stay connected, and the deck shows the picked one's picture right away. The
+others keep drawing into their own picture in the background and get no input. On the device the hosts are the top
+row of the home screen and the menu.
 
-`brightness`, `host`, `servers`, `satellite` and `https_only` also work at once. Every other change restarts the bridge, and
-the reply says so: `{"ok": true, "restart": true}`.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin` and `https_only` also
+work at once. Every other change restarts the Deck-Connector, and the reply says so:
+`{"ok": true, "restart": true}`.
 
 ## Settings
 
 ```json
-{"name": "deckbridge-a1b2c3", "controller": "companion", "host": "192.168.1.15", "brightness": 80,
+{"name": "deck-connector-a1b2c3", "controller": "companion", "host": "192.168.1.15", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
- "servers": ["ws://192.168.1.128:8765/deckbridge", "ws://192.168.1.128:8766/deckbridge", "", ""],
- "satellite": "192.168.1.15", "https_only": false, "token_set": false}
+ "servers": ["ws://192.168.1.128:8765/deckbridge", "wss://example.org/deckbridge", "", ""],
+ "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_pin": "",
+ "https_only": false, "token_set": false}
 ```
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
 needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
 address needs `ip` and `mask`. `satellite` is the address of Companion for its Satellite API, `host` or
-`host:port`, port 16622 when left out. Empty turns it off.
+`host:port`, port 16622 when left out. A `ws://` or `wss://` URL goes to Companion's WebSocket port 16623, or to
+a proxy in front of it. Empty turns it off.
+
+A `wss://` address must show a certificate from one of the 41 most used public CAs, made out to its host name.
+For any other certificate, put its SHA-256 into `server_pins` (same position as the URL in `servers`) or
+`satellite_pin`. Then only that certificate counts, and the name in it does not matter. `openssl x509 -noout
+-fingerprint -sha256` prints it, colons are fine. The Deck-Connector never talks TLS to a host it cannot check.
 
 The secret keys never come out of `GET /api/config`. So its reply is a backup without passwords, and a `PUT` of
 it restores the settings. The web UI does this under System.
@@ -90,15 +104,16 @@ it restores the settings. The web UI does this under System.
 ## Status
 
 ```json
-{"id": "a0b1c2a1b2c3", "name": "deckbridge-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
+{"id": "a0b1c2a1b2c3", "name": "deck-connector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
  "controller": "companion", "writer": "dock2",
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "ip": "192.168.1.214"},
              "wlan": {"ssid": "deckbridge", "ip": "192.168.1.237", "rssi": -23}},
- "sources": [{"kind": "server", "host": "ws://192.168.1.128:8765/deckbridge", "connected": false,
+ "sources": [{"kind": "server", "host": "ws://192.168.1.128:8765/deckbridge", "name": "", "connected": false,
               "chosen": false, "drawing": false},
-             {"kind": "companion", "host": "192.168.1.15", "connected": true, "chosen": true, "drawing": true}],
+             {"kind": "companion", "host": "192.168.1.15", "name": "studio", "connected": true, "chosen": true,
+              "drawing": true}],
  "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "inputs": 0, "inputs_dropped": 0},
  "boot_ms": {"deck": 537, "lan_link": 2688, "wlan_ip": 5724, "lan_ip": 6692, "companion": 7439, "host_draws": 7665},
  "memory": {"heap_free": 353203, "heap_min_free": 290191, "psram_free": 32211772, "heap_largest": 208896,
@@ -107,17 +122,18 @@ it restores the settings. The web UI does this under System.
 
 - `writer` is who draws at this moment: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. The
   source with `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs,
-  or the picked controller is not connected.
+  or the picked host is not connected.
 - `boot_ms` says when each step of this boot happened first, in ms after the firmware started: the deck, the
   LAN link, each address, Companion, the Stream Deck app, a server, the first picture of a host, and Companion
   over its Satellite API.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
-- `id` is the bridge's MAC address. It stays when the name changes.
+- `id` is the Deck-Connector's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck.
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
-  `unknown` until it asks something, and it is `connected` once it also uses the deck. `chosen` marks the one
-  that draws whenever no menu covers it.
+  `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router
+  calls the host, empty when it has no name or is a server. `chosen` marks the one that draws whenever no menu
+  covers it.
 - `superseded` counts images that a newer one replaced before they were drawn.
 
 ## What the deck shows
@@ -161,7 +177,7 @@ between ends the simulated hold, because the deck always reports all keys at onc
 
 ## Pairing
 
-Companion and the Stream Deck app connect without a password. The bridge lists every host that connected, by its
+Companion and the Stream Deck app connect without a password. The Deck-Connector lists every host that connected, by its
 MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
 the settings, only listed hosts get in. A new host is then let in and listed while none is known, in the first 5
 minutes after a boot, and while pairing is open. Otherwise it is turned away, and the deck and the web UI ask

@@ -1,5 +1,6 @@
 #include "db_config.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,11 +50,11 @@ static void defaults(db_config_t *c)
     uint8_t mac[6];
     esp_read_mac(mac, ESP_MAC_BASE);
     *c = (db_config_t){.version = CONFIG_VERSION,
-                       .controller = DB_CTRL_SERVER,
+                       .controller = DB_CTRL_COMPANION, /* Companion over Satellite or as a dock host */
                        .brightness = 80,
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
-    snprintf(c->name, sizeof(c->name), "deckbridge-%02x%02x%02x", mac[3], mac[4], mac[5]);
+    snprintf(c->name, sizeof(c->name), "deck-connector-%02x%02x%02x", mac[3], mac[4], mac[5]);
     db_config_random_password(c->admin_pass, 9);
 }
 
@@ -183,6 +184,12 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
         db_json_str(&j, NULL, db_config_server_of(cfg, i));
     }
     db_json_arr_close(&j);
+    db_json_arr_open(&j, "server_pins");
+    for (int i = 0; i < DB_MAX_SERVERS; i++) {
+        db_json_str(&j, NULL, cfg->server_pins[i]);
+    }
+    db_json_arr_close(&j);
+    db_json_str(&j, "satellite_pin", cfg->satellite_pin);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) {
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -257,13 +264,67 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
     cJSON_ArrayForEach(v, arr)
     {
         if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof(cfg->servers_first[0]) ||
-            (v->valuestring[0] && strncmp(v->valuestring, "ws://", 5) != 0)) {
-            snprintf(err, err_cap, "servers: ws:// URL expected");
+            (v->valuestring[0] && strncmp(v->valuestring, "ws://", 5) != 0 &&
+             strncmp(v->valuestring, "wss://", 6) != 0)) {
+            snprintf(err, err_cap, "servers: ws:// or wss:// URL expected");
             return false;
         }
         strcpy(db_config_server(cfg, i++), v->valuestring);
     }
     return true;
+}
+
+/* A fingerprint as tools print it ("AB:CD:…", or without colons) to 64 lower case hex digits. */
+static bool take_pin(const cJSON *v, char out[65])
+{
+    if (!cJSON_IsString(v)) {
+        return false;
+    }
+    size_t n = 0;
+    for (const char *c = v->valuestring; *c; c++) {
+        if (*c == ':' || *c == ' ') {
+            continue;
+        }
+        if (n == 64 || !isxdigit((unsigned char)*c)) {
+            return false;
+        }
+        out[n++] = (char)tolower((unsigned char)*c);
+    }
+    out[n] = '\0';
+    return n == 0 || n == 64;
+}
+
+static bool take_pins(const cJSON *root, db_config_t *cfg, char *err, size_t err_cap)
+{
+    const cJSON *arr = cJSON_GetObjectItemCaseSensitive(root, "server_pins");
+    const cJSON *sat = cJSON_GetObjectItemCaseSensitive(root, "satellite_pin");
+    if (arr && (!cJSON_IsArray(arr) || cJSON_GetArraySize(arr) > DB_MAX_SERVERS)) {
+        snprintf(err, err_cap, "server_pins: list of at most %d fingerprints expected", DB_MAX_SERVERS);
+        return false;
+    }
+    for (int i = 0; arr && i < DB_MAX_SERVERS; i++) {
+        const cJSON *v = cJSON_GetArrayItem(arr, i);
+        cfg->server_pins[i][0] = '\0';
+        if (v && !take_pin(v, cfg->server_pins[i])) {
+            snprintf(err, err_cap, "server_pins: SHA-256 fingerprint expected");
+            return false;
+        }
+    }
+    if (sat && !take_pin(sat, cfg->satellite_pin)) {
+        snprintf(err, err_cap, "satellite_pin: SHA-256 fingerprint expected");
+        return false;
+    }
+    return true;
+}
+
+bool db_config_pin(const char *hex, uint8_t out[32])
+{
+    for (int i = 0; hex[0] && i < 32; i++) {
+        unsigned b;
+        sscanf(hex + 2 * i, "%2x", &b);
+        out[i] = (uint8_t)b;
+    }
+    return hex[0] != '\0';
 }
 
 static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t err_cap)
@@ -322,9 +383,10 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
-              take_scalars(root, cfg, err, err_cap);
-    if (ok && strpbrk(cfg->satellite, " \"/")) {
-        snprintf(err, err_cap, "satellite: host or host:port expected");
+              take_pins(root, cfg, err, err_cap) && take_scalars(root, cfg, err, err_cap);
+    bool url = strncmp(cfg->satellite, "ws://", 5) == 0 || strncmp(cfg->satellite, "wss://", 6) == 0;
+    if (ok && strpbrk(cfg->satellite, url ? " \"" : " \"/")) {
+        snprintf(err, err_cap, "satellite: host, host:port, or a ws:// or wss:// URL expected");
         ok = false;
     }
     if (ok && strlen(cfg->admin_pass) < 6) {

@@ -120,10 +120,54 @@ class Bridge:
                     fut.set_exception(ConnectionError("bridge disconnected"))
 
 
+def self_signed():
+    """An SSL context with a new P-256 certificate, and that certificate's SHA-256 in hex."""
+    import datetime
+    import ssl
+    import tempfile
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "dbtools")])
+    now = datetime.datetime.now(datetime.UTC)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=30))
+        .sign(key, hashes.SHA256())
+    )
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    with tempfile.NamedTemporaryFile("wb", suffix=".pem") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+        f.write(
+            key.private_bytes(
+                serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+            )
+        )
+        f.flush()
+        ctx.load_cert_chain(f.name)
+    return ctx, cert.fingerprint(hashes.SHA256()).hex()
+
+
 class Server:
     def __init__(
-        self, port: int = 8765, name: str = "dbtools", announce: bool = False, token: str = "", ping: bool = True
+        self,
+        port: int = 8765,
+        name: str = "dbtools",
+        announce: bool = False,
+        token: str = "",
+        ping: bool = True,
+        tls: bool = False,
     ):
+        """`tls`: wss:// with a certificate made for this run; `fingerprint` is its SHA-256 for the bridge."""
         self.port = port
         self.name = name
         self.announce = announce
@@ -133,10 +177,11 @@ class Server:
         self.connected: asyncio.Queue[Bridge] = asyncio.Queue()
         self._server = None
         self._zc: AsyncZeroconf | None = None
+        self.ssl, self.fingerprint = self_signed() if tls else (None, "")
 
     @property
     def url(self) -> str:
-        return f"ws://{local_ip()}:{self.port}/deckbridge"
+        return f"{'wss' if self.ssl else 'ws'}://{local_ip()}:{self.port}/deckbridge"
 
     async def _handler(self, ws: ServerConnection) -> None:
         if self.token and ws.request.headers.get("Authorization") != f"Bearer {self.token}":
@@ -164,6 +209,7 @@ class Server:
             max_size=2**22,
             ping_interval=5 if self.ping else None,
             ping_timeout=15,
+            ssl=self.ssl,
         )
         if self.announce:
             self._zc = AsyncZeroconf(ip_version=IPVersion.V4Only)

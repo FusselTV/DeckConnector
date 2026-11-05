@@ -104,10 +104,21 @@ async def test_picking_one_of_two_servers(servers, bridges):
         chosen = [x for x in (await asyncio.to_thread(status))["sources"] if x["chosen"]]
         assert [x["host"] for x in chosen] == [servers[1].url]
 
-        # the same on the deck: menu, the server key opens the list of both, the first one is a tap away
+        # the same on the deck: the menu's top row lists the hosts, the chosen one first, "Alle" when they
+        # do not fit; the deck lists Satellite, then dock hosts, then servers
+        st = await asyncio.to_thread(status)
+        up = [x for x in st["sources"] if x["connected"]]
+        listed = [x["host"] for x in up if x.get("via") == "satellite"]
+        listed += [x["host"] for x in up if x["kind"] in ("companion", "app") and x.get("via") != "satellite"]
+        listed += [x["host"] for x in up if x["kind"] == "server"]
+        room = len({k["x"] for k in (await screen())["keys"]}) - 1  # the top row left of the menu key
+        order = [servers[1].url] + [h for h in listed if h != servers[1].url]
+        keys = [room - 1, listed.index(servers[0].url)] if len(listed) > room else [order.index(servers[0].url)]
+        if len(keys) == 2 and keys[1] >= room:  # the list page has "Zurück" top right
+            keys[1] += 1
         assert (await http("POST", "/api/menu"))[0] == 200
         await wait_writer("ui")
-        for key in (2, 0):  # Companion, Elgato App, Server, Menü in the top row; then the first listed server
+        for key in keys:
             assert (await http("POST", "/api/input", json.dumps({"key": key}).encode()))[0] == 200
             await asyncio.sleep(0.3)
         await wait_role(first, True)

@@ -109,24 +109,31 @@ static void url_label(const char *url, char *out, size_t cap)
     snprintf(out, cap, "%.*s", (int)len, h);
 }
 
+/* The name the router knows for `ip` without its domain, else the address. */
+static void host_label(uint32_t ip, const char *addr, char *out, size_t cap)
+{
+    char name[40];
+    db_dock_name(ip, name);
+    name[strcspn(name, ".")] = '\0';
+    snprintf(out, cap, "%s", name[0] ? name : addr);
+}
+
+static ui_source_t *add_source(ui_model_t *md, uint8_t kind, uint8_t via, db_source_t source)
+{
+    ui_source_t *src = &md->sources[md->source_count++];
+    db_controller_t chosen = db_config()->controller;
+    *src = (ui_source_t){.kind = kind, .via = via, .chosen = kind == chosen && choice(chosen) == source};
+    md->hosts[kind]++;
+    return src;
+}
+
+/* Companion over Satellite first: it is the better way for Companion. */
 static void model_sources(ui_model_t *md)
 {
-    for (int i = 0; i < DB_MAX_SERVERS && md->source_count < UI_SOURCES; i++) {
-        if (!db_link_connected(i)) {
-            continue;
-        }
-        ui_source_t *src = &md->sources[md->source_count++];
-        *src = (ui_source_t){.kind = UI_CTRL_SERVER, .chosen = db_link_active() == i};
-        snprintf(src->id, sizeof(src->id), "%s", db_link_url(i));
-        url_label(src->id, src->label, sizeof(src->label));
-        md->hosts[UI_CTRL_SERVER]++;
-    }
-    if (db_satellite_connected() && md->source_count < UI_SOURCES) {
-        ui_source_t *src = &md->sources[md->source_count++];
-        *src = (ui_source_t){.kind = UI_CTRL_COMPANION, .chosen = choice(DB_CTRL_COMPANION) == DB_SOURCE_SAT};
+    if (db_satellite_connected()) {
+        ui_source_t *src = add_source(md, UI_CTRL_COMPANION, UI_VIA_SATELLITE, DB_SOURCE_SAT);
         snprintf(src->id, sizeof(src->id), "satellite");
-        snprintf(src->label, sizeof(src->label), "%s", db_satellite_address());
-        md->hosts[UI_CTRL_COMPANION]++;
+        host_label(db_satellite_peer(), db_satellite_address(), src->label, sizeof(src->label));
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
@@ -134,12 +141,17 @@ static void model_sources(ui_model_t *md)
         if (hosts[i].source < 0 || hosts[i].kind == DB_CTRL_SERVER) {
             continue; /* no device port yet, or not told what it is */
         }
-        ui_source_t *src = &md->sources[md->source_count++];
-        *src = (ui_source_t){.kind = (uint8_t)hosts[i].kind,
-                             .chosen = choice(hosts[i].kind) == (db_source_t)hosts[i].source};
+        ui_source_t *src = add_source(md, (uint8_t)hosts[i].kind, UI_VIA_DOCK, (db_source_t)hosts[i].source);
         snprintf(src->id, sizeof(src->id), "%s", hosts[i].ip);
-        snprintf(src->label, sizeof(src->label), "%s", hosts[i].ip);
-        md->hosts[hosts[i].kind]++;
+        host_label(ipaddr_addr(hosts[i].ip), hosts[i].ip, src->label, sizeof(src->label));
+    }
+    for (int i = 0; i < DB_MAX_SERVERS && md->source_count < UI_SOURCES; i++) {
+        if (db_link_connected(i)) {
+            ui_source_t *src =
+                add_source(md, UI_CTRL_SERVER, UI_VIA_SERVER, (db_source_t)(DB_SOURCE_LINK0 + i));
+            snprintf(src->id, sizeof(src->id), "%s", db_link_url(i));
+            url_label(src->id, src->label, sizeof(src->label));
+        }
     }
 }
 
@@ -318,12 +330,6 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
 {
     db_config_t c;
     switch (act->what) {
-    case UI_DO_CONTROLLER:
-        db_config_copy(&c);
-        c.controller = (db_controller_t)act->value;
-        c.host[0] = '\0';
-        db_config_save(&c);
-        break;
     case UI_DO_ANSWER:
         db_dock_answer(act->value);
         break;

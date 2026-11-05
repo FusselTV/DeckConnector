@@ -1,6 +1,6 @@
 # Updates
 
-The bridge takes signed `.dbfw` files for its own firmware (P4) and for the WLAN chip (C6). A file comes from
+The Deck-Connector takes signed `.dbfw` files for its own firmware (P4) and for the WLAN chip (C6). A file comes from
 a server (`{"t": "ota", "url": ...}`) or from the web UI.
 
 ## File format
@@ -19,10 +19,10 @@ A 144 byte header, then the image.
 | 76 | 64 | ECDSA P-256 signature (r, s) over bytes 0 to 75 |
 | 140 | 4 | reserved |
 
-## What the bridge checks
+## What the Deck-Connector checks
 
 1. Header and signature, before it writes anything.
-   A file whose security level is below the bridge's own is refused, so a signed old firmware with a known
+   A file whose security level is below the Deck-Connector's own is refused, so a signed old firmware with a known
    hole cannot go back on. `SECURITY_LEVEL` in `db_ota.c` sets the level, and `dbfw pack` reads it from there.
    Raise it with a security fix. USB flashing still works for any version.
 2. The SHA-256 of the whole image, before it switches over.
@@ -39,5 +39,5 @@ uv run python -m dbtools.dbfw keygen        # once; key in ~/.config/deckbridge/
 uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckbridge.bin out.dbfw
 ```
 
-`keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A bridge only accepts files signed
+`keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A Deck-Connector only accepts files signed
 with the key it was built with. Losing the private key means the next firmware has to go on over USB.

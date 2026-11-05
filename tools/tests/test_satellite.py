@@ -87,3 +87,59 @@ def test_without_an_address_the_source_goes():
         assert wait(lambda: satellite_source() is None, 10)
     finally:
         put({"satellite": cfg["satellite"]})
+
+
+def tls_proxy(port: int, to: tuple[str, int]) -> str:
+    """wss:// in front of Companion's WebSocket port, as a reverse proxy would do it. Returns the pin."""
+    import asyncio
+    import threading
+
+    from dbtools.server import self_signed
+
+    ctx, pin = self_signed()
+
+    async def pipe(r, w):
+        try:
+            while data := await r.read(65536):
+                w.write(data)
+                await w.drain()
+        finally:
+            w.close()
+
+    async def handle(r, w):
+        r2, w2 = await asyncio.open_connection(*to)
+        await asyncio.gather(pipe(r, w2), pipe(r2, w), return_exceptions=True)
+
+    async def serve():
+        server = await asyncio.start_server(handle, "0.0.0.0", port, ssl=ctx)
+        await server.serve_forever()
+
+    threading.Thread(target=lambda: asyncio.run(serve()), daemon=True).start()
+    return pin
+
+
+@pytest.mark.parametrize("scheme", ["ws", "wss"])
+def test_over_the_websocket_port(scheme):
+    host = SATELLITE.rsplit(":", 1)[0]
+    if not reachable(f"{host}:16623"):
+        pytest.skip("Companion's WebSocket port is closed")
+    from dbtools.server import local_ip
+
+    addr, pin = f"ws://{host}:16623", ""
+    if scheme == "wss":
+        pin = tls_proxy(16633, (host, 16623))
+        addr = f"wss://{local_ip()}:16633"
+    cfg = json.loads(api("GET", "/api/config")[1])
+    put({"satellite": ""})  # the session before must end, or its pictures would pass for this one
+    assert wait(lambda: status()["writer"] != "satellite", 10)
+    put({"satellite": addr, "satellite_pin": pin, "controller": "companion", "host": "satellite"})
+    try:
+        assert wait(lambda: (x := satellite_source()) and x["drawing"]), "Companion did not take the deck"
+        assert wait(lambda: (p := pictures()) and len(p) >= 12 and p), "no full picture from Companion"
+        if scheme == "wss":  # another certificate: no session
+            put({"satellite_pin": "00" * 32})
+            assert wait(lambda: not satellite_source()["connected"], 10)
+            time.sleep(6)
+            assert not satellite_source()["connected"]
+    finally:
+        put({**{k: cfg[k] for k in ("satellite", "satellite_pin", "controller", "host")}})

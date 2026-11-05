@@ -42,8 +42,13 @@ typedef struct {
     char host[96]; /* which one of `controller` draws: a dock host's IP, a server's URL or "satellite" */
     bool
         dock_paired_only; /* Companion and app hosts must be paired; off: anyone on the network may connect */
-    char satellite[64];   /* Companion's Satellite API, "host" or "host:port"; empty: not used */
+    char satellite[64];   /* Companion's Satellite API: "host", "host:port", ws:// or wss:// URL; empty: not
+                             used */
     bool https_only;      /* plain HTTP only redirects browsers to HTTPS and answers nothing else */
+    /* SHA-256 of a wss:// server's certificate in hex, one per server and one for Satellite; empty: a public
+     * CA must vouch for the certificate */
+    char server_pins[DB_MAX_SERVERS][65];
+    char satellite_pin[65];
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
@@ -58,6 +63,9 @@ esp_err_t db_config_save(const db_config_t *cfg);
 esp_err_t db_config_reset(void);
 /* Called after every successful save, from the saving task. */
 void db_config_on_save(void (*cb)(void));
+
+/* `hex` as 32 bytes; false when it is empty. */
+bool db_config_pin(const char *hex, uint8_t out[32]);
 
 /* The name in the JSON. */
 const char *db_controller_name(db_controller_t c);

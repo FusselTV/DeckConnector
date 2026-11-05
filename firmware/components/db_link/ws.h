@@ -24,17 +24,21 @@ enum {
 
 typedef struct {
     int sock;
-    SemaphoreHandle_t tx;
-    uint8_t *frame; /* send buffer, guarded by `tx` */
+    SemaphoreHandle_t tx; /* sending, and with TLS also reading: one TLS session is not safe from two tasks */
+    uint8_t *frame;       /* send buffer, guarded by `tx` */
+    void *tls;            /* NULL for ws:// */
 } ws_t;
 
 void ws_init(ws_t *ws);
 /*
  * `extra_headers` is a list of "Name: value\r\n" lines or NULL. `ifname` forces the interface (lwIP name),
- * NULL uses the routing table. Returns 0 or a negative errno.
+ * NULL uses the routing table. A wss:// server must show the certificate whose SHA-256 is `pin`, or with no
+ * pin one that a public CA signed for its name. Returns 0 or a negative errno.
  */
 int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *extra_headers,
-               const char *ifname, int timeout_ms);
+               const char *ifname, int timeout_ms, const uint8_t *pin);
+/* Host and port of a ws:// or wss:// URL. */
+int ws_url_host(const char *url, char *host, size_t host_cap, unsigned *port);
 void ws_close(ws_t *ws);
 /* A plain TCP socket with TCP_NODELAY and `timeout_ms` for every send and receive, or a negative errno. */
 int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout_ms);

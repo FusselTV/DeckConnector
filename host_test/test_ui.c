@@ -57,14 +57,17 @@ static ui_model_t base_model(void)
         .now_us = 100000000,
         .controller = 1,
         .hosts = {2, 2, 1},
-        .sources = {{.kind = 1, .chosen = true, .label = "192.168.1.15", .id = "192.168.1.15"},
-                    {.kind = 1, .label = "192.168.1.16", .id = "192.168.1.16"},
-                    {.kind = 2, .chosen = true, .label = "192.168.1.180", .id = "192.168.1.180"},
+        .sources = {{.kind = 1, .via = UI_VIA_SATELLITE, .chosen = true, .label = "studio", .id = "satellite"},
+                    {.kind = 1, .via = UI_VIA_DOCK, .label = "192.168.1.16", .id = "192.168.1.16"},
+                    {.kind = 2, .via = UI_VIA_DOCK, .label = "DESKTOP-EXAMPLE", .id = "192.168.1.180"},
                     {.kind = 0,
-                     .chosen = true,
+                     .via = UI_VIA_SERVER,
                      .label = "192.168.1.128:8765",
                      .id = "ws://192.168.1.128:8765/x"},
-                    {.kind = 0, .label = "192.168.1.128:8766", .id = "ws://192.168.1.128:8766/x"}},
+                    {.kind = 0,
+                     .via = UI_VIA_SERVER,
+                     .label = "192.168.1.128:8766",
+                     .id = "ws://192.168.1.128:8766/x"}},
         .source_count = 5,
         .lan_link = true,
         .lan_up = true,
@@ -111,6 +114,10 @@ static ui_model_t variant(int v)
         strcpy(md.wlan_fw, "10.20.300");
         md.brightness = 100;
         md.controller = 2;
+        md.sources[0].chosen = false;
+        md.sources[2].chosen = true;
+        strcpy(md.sources[2].label, "studio-pc-regie-links-2");
+        strcpy(md.sources[1].label, "255.255.255.255");
         break;
     case 2: /* no network at all */
         md.lan_link = md.lan_up = md.wlan_up = false;
@@ -119,8 +126,9 @@ static ui_model_t variant(int v)
         md.hosts[1] = md.hosts[2] = 0;
         md.source_count = 0;
         break;
-    case 3: /* server chosen, nothing configured, no WLAN chip */
+    case 3: /* server chosen and away, nothing configured, no WLAN chip */
         md.controller = 0;
+        md.sources[0].chosen = false;
         md.server_url[0] = '\0';
         md.wlan_chip = false;
         md.wlan_up = false;
@@ -184,8 +192,7 @@ static void test_no_page_cuts_a_text(void)
             ui_model_t md = variant(v);
             for (size_t p = 0; p < sizeof(pages) / sizeof(pages[0]); p++) {
                 for (int fixed = 0; fixed < (pages[p] == PAGE_LAN ? 2 : 1); fixed++) {
-                    ui_menu_t m = {
-                        .page = pages[p], .confirm_key = -1, .lan_dhcp = !fixed, .pick_kind = v % 2 ? 0 : 1};
+                    ui_menu_t m = {.page = pages[p], .confirm_key = -1, .lan_dhcp = !fixed};
                     memcpy(m.octets, md.lan_cfg, sizeof(m.octets));
                     ui_screen_t sc;
                     ui_menu_screen(&m, &md, &l, &sc);
@@ -195,7 +202,13 @@ static void test_no_page_cuts_a_text(void)
                     check_page(&dev, &sc, name);
                 }
             }
-            ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+            ui_menu_t m = {.page = PAGE_HOME, .confirm_key = 1, .confirm_until = md.now_us + 1};
+            ui_screen_t asking; /* the second host waits for its second tap */
+            ui_menu_screen(&m, &md, &l, &asking);
+            char asked[64];
+            snprintf(asked, sizeof(asked), "%s_asking_%d", decks[d].name, v);
+            check_page(&dev, &asking, asked);
+            m.confirm_key = -1;
             md.setup_done = false;
             ui_screen_t sc;
             ui_menu_screen(&m, &md, &l, &sc);
@@ -255,23 +268,34 @@ static void test_flows_on_the_plus(void)
     TEST_ASSERT_EQUAL_UINT8(2, l.rows);
     TEST_ASSERT_TRUE(l.strip);
     ui_model_t md = base_model();
-    md.hosts[UI_CTRL_SERVER] = 1; /* one server: its key picks it, no list */
     ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
     ui_action_t act;
+    ui_screen_t sc;
+    ui_menu_screen(&m, &md, &l, &sc); /* the chosen host first, then the next, then "Alle" for five */
+    TEST_ASSERT_EQUAL_STRING("studio", sc.tiles[0].value);
+    TEST_ASSERT_EQUAL_STRING("Satellite", sc.tiles[0].sub);
+    TEST_ASSERT_TRUE(sc.tiles[0].active);
+    TEST_ASSERT_EQUAL_STRING("Alle", sc.tiles[2].label);
 
-    press(&m, &md, &l, 2, &act); /* home: the first tap only asks; key 2 is the server */
-    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
-    press(&m, &md, &l, 2, &act);
-    TEST_ASSERT_EQUAL_INT(UI_DO_CONTROLLER, act.what);
-    TEST_ASSERT_EQUAL_INT(UI_CTRL_SERVER, act.value);
-
-    press(&m, &md, &l, 0, &act); /* two Companions: their own page, then one tap picks one */
-    TEST_ASSERT_EQUAL_INT(PAGE_SOURCES, m.page);
+    press(&m, &md, &l, 1, &act); /* home: the first tap only asks */
     TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
     press(&m, &md, &l, 1, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
     TEST_ASSERT_EQUAL_INT(1, act.value);
+
+    press(&m, &md, &l, 2, &act); /* "Alle": a page of its own, then one tap picks */
+    TEST_ASSERT_EQUAL_INT(PAGE_SOURCES, m.page);
+    press(&m, &md, &l, 4, &act); /* key 3 is "Zurück", so the fourth host sits on key 4 */
+    TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
+    TEST_ASSERT_EQUAL_INT(3, act.value);
     TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
+
+    md.sources[0].chosen = false; /* the chosen program is away: an amber key says so, and does nothing */
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("getrennt", sc.tiles[0].value);
+    press(&m, &md, &l, 0, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    md.sources[0].chosen = true;
 
     press(&m, &md, &l, 3, &act); /* menu */
     TEST_ASSERT_TRUE(ui_menu_open(&m));
@@ -279,8 +303,8 @@ static void test_flows_on_the_plus(void)
     ui_menu_input(&m, &md, &l, &turn, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_BRIGHTNESS, act.what);
     TEST_ASSERT_EQUAL_INT(-10, act.value);
-    press(&m, &md, &l, 2, &act); /* in the menu one tap picks and closes */
-    TEST_ASSERT_EQUAL_INT(UI_DO_CONTROLLER, act.what);
+    press(&m, &md, &l, 1, &act); /* in the menu one tap picks and closes */
+    TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
     TEST_ASSERT_FALSE(ui_menu_open(&m));
 
     ui_menu_open_main(&m, md.now_us); /* the chord's release must not close it again */
@@ -333,7 +357,7 @@ static void test_welcome(void)
     ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
     ui_action_t act;
     press(&m, &md, &l, 1, &act); /* first start: one tap picks, no confirm */
-    TEST_ASSERT_EQUAL_INT(UI_DO_CONTROLLER, act.what);
+    TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
     TEST_ASSERT_EQUAL_INT(PAGE_WELCOME_NET, m.page);
     press(&m, &md, &l, 3, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_SETUP_DONE, act.what);
