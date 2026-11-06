@@ -22,7 +22,9 @@ CONFIG_SPIRAM_MEMTEST=n
 # Network
 CONFIG_ETH_ENABLED=y
 CONFIG_ETH_USE_ESP32_EMAC=y
-CONFIG_LWIP_TCP_WND_DEFAULT=65535
+# Six full frames: the Ethernet receive ring (20 x 512 B) holds no more. A 64 KB window let a sender burst past it,
+# a third of the segments were sent again and a link stalled for seconds (0.2 MB/s instead of 6.5 MB/s).
+CONFIG_LWIP_TCP_WND_DEFAULT=8640
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=32768
 CONFIG_LWIP_TCP_RECVMBOX_SIZE=64
 CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=64
