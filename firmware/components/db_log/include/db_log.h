@@ -12,15 +12,15 @@ size_t db_log_since(uint64_t *pos, char *buf, size_t cap);
 
 /* The milestones of this boot: the first time each one happened, in ms since boot. For boot time tests. */
 typedef enum {
-    DB_MARK_DECK,       /* a Stream Deck is ready */
-    DB_MARK_LAN_LINK,   /* the LAN cable has a link */
-    DB_MARK_LAN_IP,     /* the LAN has an address */
-    DB_MARK_WLAN_IP,    /* the WLAN has an address */
-    DB_MARK_COMPANION,  /* Companion uses the deck */
-    DB_MARK_APP,        /* the Stream Deck app uses the deck */
-    DB_MARK_SERVER,     /* a server is connected */
+    DB_MARK_DECK, /* a Stream Deck is ready */
+    DB_MARK_LAN_LINK,
+    DB_MARK_LAN_IP,
+    DB_MARK_WLAN_IP,
+    DB_MARK_COMPANION,
+    DB_MARK_APP,
+    DB_MARK_SERVER,
     DB_MARK_HOST_DRAWS, /* the deck shows a host's picture, not its own screen */
-    DB_MARK_SATELLITE,  /* Companion took the deck over its Satellite API */
+    DB_MARK_SATELLITE,
     DB_MARK_COUNT,
 } db_mark_t;
 

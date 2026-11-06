@@ -5,9 +5,8 @@
 #include "esp_err.h"
 
 /*
- * Web UI and JSON API on port 80 and, with a certificate made on the device, on 443. Behind HTTP basic auth
- * (user admin, the generated password). While the setup access point is on, a DNS server sends every name to
- * the bridge so phones open the page by themselves.
+ * Web UI and JSON API on port 80 and, with a certificate made on the device, on 443. The password (a session
+ * cookie, or basic auth for scripts) or an API token opens it, see auth.h.
  */
 
 /* Version of the API a page in the `www` partition may ask for (api_min in its .dbfw header). Raise it when a

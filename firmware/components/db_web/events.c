@@ -24,9 +24,8 @@
 #define FRAME_MAX 512
 #define INPUT_MAX 160
 #define LOG_CHUNK 4096 /* per listener and poll: a full log backlog goes out in about 1 s */
-#define PING_MS                                                                                              \
-    5000 /* a listener hears something this often, so it can tell a dead link from a quiet deck              \
-          */
+/* a listener hears something this often, so it can tell a dead link from a quiet deck */
+#define PING_MS 5000
 
 static const char *TAG = "events";
 

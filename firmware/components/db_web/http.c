@@ -91,7 +91,7 @@ void restart_soon(void)
 
 /* The page itself is public; it shows the login form until /api/status answers. It comes from the `www`
  * partition when one is there, else from the firmware; its ETag is that copy's hash, so a browser that has it
- * gets 304. Only the gzip copy is kept: every browser takes it. */
+ * gets 304. */
 static esp_err_t page(httpd_req_t *req)
 {
     char etag[20];

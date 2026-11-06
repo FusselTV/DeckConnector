@@ -516,8 +516,8 @@ esp_err_t db_deck_set_brightness(uint8_t pct)
 }
 
 /* An image report from a dock host is collected until its image is whole, and that goes to the queue like a
- * server's image: a newer image for the same key replaces one that is not drawn yet. Without that, every page
- * a host flips through went to the deck in full, and fast flipping fell seconds behind. */
+ * server's image: a newer image for the same key replaces one that is not drawn yet, so fast page flips do
+ * not fall behind. */
 esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t len)
 {
     if (!s.present) {

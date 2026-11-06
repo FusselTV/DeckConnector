@@ -15,8 +15,7 @@
 
 static const char *TAG = "cert";
 
-/* A new P-256 key and a certificate for it, signed by itself: ECDSA, because RSA-2048 made each handshake three
- * times as slow (681 ms against 226 ms). */
+/* A new P-256 key and a certificate for it, signed by itself: RSA-2048 made each handshake three times as slow. */
 static bool make(const char *name, char *cert, char *key)
 {
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;

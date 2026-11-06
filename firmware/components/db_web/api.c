@@ -46,8 +46,7 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
-/* Brightness, controller, host, servers and their pins, satellite, dock pairing, https_only, cors_origins, the
- * menu chord and setup_done apply at once; everything else needs a restart to take effect cleanly. */
+/* The fields copied into `live` below apply at once; a change of any other one restarts the bridge. */
 int api_config(const char *body, char *reply, size_t cap)
 {
     static db_config_t old; /* two of them would crowd the caller's stack */

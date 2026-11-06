@@ -69,7 +69,6 @@ typedef struct {
     uint16_t api_min;
 } db_ota_web_t;
 
-/* Read the partition at start. */
 void db_ota_web_load(uint16_t api);
 /* Check a whole image and write it to the partition. On ESP_OK it is served from now on and owns `img`
  * (heap_caps_malloc). Callers run one at a time with db_ota_web(). */

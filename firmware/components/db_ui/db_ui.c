@@ -99,7 +99,7 @@ db_source_t db_ui_chosen_source(void)
     return choice(db_config()->controller);
 }
 
-/* Strips ws:// and the path: "192.168.1.5:8765". */
+/* "ws://192.168.1.5:8765/x" -> "192.168.1.5:8765" */
 static void url_label(const char *url, char *out, size_t cap)
 {
     const char *h = strstr(url, "://");
@@ -126,7 +126,6 @@ static ui_source_t *add_source(ui_model_t *md, uint8_t kind, uint8_t via, db_sou
     return src;
 }
 
-/* Companion over Satellite first: it is the better way for Companion. */
 static void model_sources(ui_model_t *md)
 {
     if (db_satellite_connected()) {

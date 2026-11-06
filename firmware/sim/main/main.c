@@ -39,7 +39,6 @@ static size_t status_json(char *buf, size_t cap)
     return tagged(buf, cap, "status");
 }
 
-/* The web socket's first message */
 static size_t state_json(char *buf, size_t cap)
 {
     return tagged(buf, cap, "state");

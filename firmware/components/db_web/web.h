@@ -25,7 +25,7 @@ typedef enum { WEB_OPEN, WEB_CONTROL, WEB_ADMIN } web_level_t;
 
 /* Every route but the web socket runs through timed(): the login check, and the time for /api/profile. Ports
  * 80 and 443 are two server tasks, and the handlers share static buffers, so timed() runs one handler at a
- * time. */
+ * time, except the firmware upload, which shares nothing and may take a minute. */
 typedef struct {
     esp_err_t (*handler)(httpd_req_t *req);
     web_level_t level;
@@ -55,7 +55,6 @@ esp_err_t get_profile(httpd_req_t *req);
 void restart_soon(void);
 /* The HTTPS certificate and key as PEM, made and kept on the first start; its SHA-256 fingerprint. */
 bool web_cert(const char *name, char **cert, char **key, char fingerprint[96]);
-/* The request came over HTTPS. */
 bool web_tls(httpd_req_t *req);
 /* Plain HTTP while "nur HTTPS" is on: it gets no answer but a redirect. */
 bool web_plain_refused(httpd_req_t *req);

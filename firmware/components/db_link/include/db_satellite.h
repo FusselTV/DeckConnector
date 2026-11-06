@@ -12,7 +12,6 @@
 
 /* `changed` runs when Companion took the deck or let it go. */
 esp_err_t db_satellite_start(void (*changed)(void));
-/* Companion uses the deck. */
 bool db_satellite_connected(void);
 /* Companion's IPv4 address in network order while connected, else 0. */
 uint32_t db_satellite_peer(void);

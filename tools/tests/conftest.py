@@ -38,7 +38,6 @@ SIM = Path(__file__).resolve().parents[2] / "firmware/sim/build/deckbridge_sim.e
 
 
 def _start_sim() -> tuple[str, str]:
-    """One simulator per worker, on its own port (firmware/sim, built with idf.py)."""
     worker = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
     port, password = 18080 + 2 * worker, "simulator-pass"
     log = Path(f"/tmp/deckbridge-sim-{port}.log")
@@ -74,7 +73,6 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    """On the simulator only the tests marked `sim` run: everything else needs the deck, the camera or the bench."""
     if TARGET == "sim":
         for item in items:
             if not item.get_closest_marker("sim"):

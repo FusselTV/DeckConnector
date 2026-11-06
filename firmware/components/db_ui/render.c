@@ -208,7 +208,7 @@ static bool value_lines(ui_canvas_t *c, const style_t *st, db_rect_t text, int y
     return true;
 }
 
-/* White with a quiet zone of two modules: phones read a 29 module code in 3 px modules on a 120 px key. */
+/* White with a quiet zone of two modules: a 41 module code (version 6) still gets 2 px modules on a 120 px key. */
 static void draw_qr(ui_canvas_t *c, const ui_qr_t *qr, db_rect_t r)
 {
     int scale = r.w / (qr->size + 4);
