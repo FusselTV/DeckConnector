@@ -3,6 +3,7 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "db_board.h"
@@ -48,6 +49,7 @@ static struct {
     esp_ping_handle_t ping;
     int missed;
     bool gateway_seen;
+    int join_reason;
 } s;
 
 /* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
@@ -229,12 +231,27 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
             esp_wifi_connect();
         }
         break;
-    case WIFI_EVENT_STA_CONNECTED:
+    case WIFI_EVENT_STA_CONNECTED: {
+        wifi_event_sta_connected_t *c = data;
+        char bssid[18];
+        snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x", c->bssid[0], c->bssid[1], c->bssid[2],
+                 c->bssid[3], c->bssid[4], c->bssid[5]);
+        if (s.st.wlan_bssid[0] && strcmp(s.st.wlan_bssid, bssid) != 0) {
+            ESP_LOGI(TAG, "WLAN roam %.*s %s -> %s, channel %u", c->ssid_len, c->ssid, s.st.wlan_bssid, bssid,
+                     c->channel);
+        } else {
+            ESP_LOGI(TAG, "WLAN joined %.*s %s, channel %u", c->ssid_len, c->ssid, bssid, c->channel);
+        }
+        snprintf(s.st.wlan_ssid, sizeof(s.st.wlan_ssid), "%.*s", c->ssid_len, c->ssid);
+        strcpy(s.st.wlan_bssid, bssid);
+        s.st.wlan_channel = c->channel;
         apply_static(s.wlan, &db_config()->wlan);
         break;
+    }
     case WIFI_EVENT_STA_DISCONNECTED: {
         wifi_event_sta_disconnected_t *d = data;
         ESP_LOGW(TAG, "WLAN lost, reason %d", d->reason);
+        s.join_reason = d->reason;
         s.st.wlan_up = false;
         set_ip(s.st.wlan_ip, NULL);
         changed();
@@ -278,6 +295,15 @@ static esp_err_t start_eth(const db_board_t *b)
     return esp_eth_start(eth);
 }
 
+static wifi_config_t sta_config(const char *ssid, const char *pass, const char *bssid)
+{
+    wifi_config_t cfg = {0};
+    strlcpy((char *)cfg.sta.ssid, ssid, sizeof(cfg.sta.ssid));
+    strlcpy((char *)cfg.sta.password, pass, sizeof(cfg.sta.password));
+    cfg.sta.bssid_set = db_config_bssid(bssid, cfg.sta.bssid);
+    return cfg;
+}
+
 static esp_err_t start_wifi(void)
 {
     const db_config_t *c = db_config();
@@ -290,9 +316,7 @@ static esp_err_t start_wifi(void)
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi, NULL), TAG,
                         "wifi ev");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip, NULL), TAG, "ip ev");
-    wifi_config_t cfg = {0};
-    strlcpy((char *)cfg.sta.ssid, c->wifi_ssid, sizeof(cfg.sta.ssid));
-    strlcpy((char *)cfg.sta.password, c->wifi_pass, sizeof(cfg.sta.password));
+    wifi_config_t cfg = sta_config(c->wifi_ssid, c->wifi_pass, c->wifi_bssid);
     ESP_RETURN_ON_ERROR(esp_wifi_set_storage(WIFI_STORAGE_RAM), TAG, "wifi storage");
     ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), TAG, "wifi mode");
     ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA, &cfg), TAG, "wifi config");
@@ -546,4 +570,119 @@ esp_err_t db_net_ap_stop(void)
     s.st.ap_active = false;
     changed();
     return esp_wifi_set_mode(WIFI_MODE_STA);
+}
+
+int db_net_wifi_scan(db_net_ap_t *out, size_t max)
+{
+    if (!s.wifi_started) {
+        return -1;
+    }
+    wifi_scan_config_t scan = {0};
+    uint16_t n = 0;
+    if (esp_wifi_scan_start(&scan, true) != ESP_OK || esp_wifi_scan_get_ap_num(&n) != ESP_OK) {
+        return -1;
+    }
+    wifi_ap_record_t *rec = calloc(n ? n : 1, sizeof(*rec));
+    if (!rec) {
+        esp_wifi_clear_ap_list();
+        return -1;
+    }
+    esp_wifi_scan_get_ap_records(&n, rec); /* strongest first */
+    size_t count = 0;
+    for (uint16_t i = 0; i < n && count < max; i++) {
+        if (!rec[i].ssid[0] || (s.st.ap_active && strcmp((char *)rec[i].ssid, s.st.ap_ssid) == 0)) {
+            continue; /* hidden ones have no name to show, and the setup AP is no place to go */
+        }
+        db_net_ap_t *a = &out[count++];
+        strlcpy(a->ssid, (char *)rec[i].ssid, sizeof(a->ssid));
+        snprintf(a->bssid, sizeof(a->bssid), "%02x:%02x:%02x:%02x:%02x:%02x", rec[i].bssid[0], rec[i].bssid[1],
+                 rec[i].bssid[2], rec[i].bssid[3], rec[i].bssid[4], rec[i].bssid[5]);
+        a->rssi = rec[i].rssi;
+        a->channel = rec[i].primary;
+        a->open = rec[i].authmode == WIFI_AUTH_OPEN;
+    }
+    free(rec);
+    return (int)count;
+}
+
+typedef struct {
+    char ssid[33];
+    char pass[65];
+    char bssid[18];
+} join_t;
+
+static void set_join(const char *state, const char *error)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    s.st.join_state = state;
+    strlcpy(s.st.join_error, error, sizeof(s.st.join_error));
+    xSemaphoreGive(s.lock);
+    changed();
+}
+
+static void join_task(void *arg)
+{
+    join_t *j = arg;
+    const db_config_t *c = db_config();
+    ESP_LOGI(TAG, "WLAN trying %s", j->ssid);
+    wifi_config_t cfg = sta_config(j->ssid, j->pass, j->bssid);
+    s.join_reason = 0;
+    esp_wifi_disconnect();
+    esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    esp_wifi_connect();
+    bool up = false;
+    for (int i = 0; i < 150 && !up; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        up = s.st.wlan_up && strcmp(s.st.wlan_ssid, j->ssid) == 0;
+    }
+    if (up) {
+        static db_config_t next;
+        db_config_copy(&next);
+        strlcpy(next.wifi_ssid, j->ssid, sizeof(next.wifi_ssid));
+        strlcpy(next.wifi_pass, j->pass, sizeof(next.wifi_pass));
+        strlcpy(next.wifi_bssid, j->bssid, sizeof(next.wifi_bssid));
+        bool saved = db_config_save(&next) == ESP_OK;
+        set_join(saved ? "ok" : "failed", saved ? "" : "not saved");
+    } else {
+        int r = s.join_reason;
+        set_join("failed", r == WIFI_REASON_NO_AP_FOUND                                    ? "network not found"
+                           : r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
+                                     r == WIFI_REASON_HANDSHAKE_TIMEOUT || r == WIFI_REASON_MIC_FAILURE
+                               ? "wrong password"
+                               : "no address");
+        ESP_LOGW(TAG, "WLAN %s failed (reason %d), back to %s", j->ssid, r, c->wifi_ssid[0] ? c->wifi_ssid : "none");
+        wifi_config_t old = sta_config(c->wifi_ssid, c->wifi_pass, c->wifi_bssid);
+        esp_wifi_disconnect();
+        esp_wifi_set_config(WIFI_IF_STA, &old);
+        if (c->wifi_ssid[0]) {
+            esp_wifi_connect();
+        }
+    }
+    free(j);
+    vTaskDelete(NULL);
+}
+
+esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid)
+{
+    uint8_t mac[6];
+    if (!s.wifi_started || !ssid[0] || strlen(ssid) > 32 || strlen(pass) > 64 || (bssid[0] && !db_config_bssid(bssid, mac))) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (s.st.join_state && strcmp(s.st.join_state, "testing") == 0) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    join_t *j = calloc(1, sizeof(*j));
+    if (!j) {
+        return ESP_ERR_NO_MEM;
+    }
+    strlcpy(j->ssid, ssid, sizeof(j->ssid));
+    strlcpy(j->pass, pass, sizeof(j->pass));
+    strlcpy(j->bssid, bssid, sizeof(j->bssid));
+    set_join("testing", "");
+    if (xTaskCreate(join_task, "wifi_join", 4096, j, 4, NULL) != pdPASS) {
+        free(j);
+        set_join("failed", "no memory");
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
 }

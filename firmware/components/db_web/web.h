@@ -33,8 +33,8 @@ typedef struct {
     uint32_t max_us;
     uint64_t total_us;
 } route_t;
-extern httpd_uri_t web_uris[36];
-extern route_t web_routes[36];
+extern httpd_uri_t web_uris[48];
+extern route_t web_routes[48];
 extern size_t web_route_count;
 
 /* Replies and request bodies, shared by the handlers in this component. */

@@ -9,6 +9,7 @@
 #include "db_deck.h"
 #include "db_dock.h"
 #include "db_log.h"
+#include "db_config.h"
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_ui.h"
@@ -226,10 +227,32 @@ size_t db_net_companions(db_net_found_t *out, size_t max)
     return max ? 1 : 0;
 }
 
+static const char *sim_join = "";
+
 void db_net_status(db_net_status_t *out)
 {
-    *out = (db_net_status_t){.lan_link = true, .lan_up = true};
+    *out = (db_net_status_t){.lan_link = true, .lan_up = true, .join_state = sim_join};
     strcpy(out->lan_ip, "127.0.0.1");
+}
+
+int db_net_wifi_scan(db_net_ap_t *out, size_t max)
+{
+    db_net_ap_t sim[] = {{"Zuhause", "aa:bb:cc:00:00:01", -48, 1, false},
+                         {"Zuhause", "aa:bb:cc:00:00:02", -61, 6, false},
+                         {"Gast", "aa:bb:cc:00:00:03", -70, 11, true}};
+    size_t n = max < 3 ? max : 3;
+    memcpy(out, sim, n * sizeof(*out));
+    return (int)n;
+}
+
+esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid)
+{
+    uint8_t mac[6];
+    if (!ssid[0] || strlen(ssid) > 32 || strlen(pass) > 64 || (bssid[0] && !db_config_bssid(bssid, mac))) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    sim_join = strcmp(ssid, "Zuhause") == 0 ? "ok" : "failed"; /* no radio: a known name joins at once */
+    return ESP_OK;
 }
 
 /* metrics.c reads task and flash statistics the host does not have. */

@@ -19,7 +19,20 @@ typedef struct {
     char ap_ssid[33];
     char ap_pass[16];
     char ap_ip[16];
+    char wlan_ssid[33]; /* the network joined, and the access point and channel */
+    char wlan_bssid[18];
+    uint8_t wlan_channel;
+    const char *join_state; /* a join from db_net_wifi_join: "", "testing", "ok" or "failed" */
+    char join_error[32];
 } db_net_status_t;
+
+typedef struct {
+    char ssid[33];
+    char bssid[18];
+    int8_t rssi;
+    uint8_t channel;
+    bool open;
+} db_net_ap_t;
 
 /* Start Ethernet and WLAN with the saved config, and mDNS as <config name>.local. */
 esp_err_t db_net_start(void);
@@ -52,5 +65,10 @@ typedef struct {
 size_t db_net_companions(db_net_found_t *out, size_t max);
 
 /* Setup access point "<name>" with a fresh random WPA2 password. */
+/* Networks in reach, one entry per access point, strongest first, without the setup AP. -1 while the radio is busy. */
+int db_net_wifi_scan(db_net_ap_t *out, size_t max);
+/* Try a network in the background; it is saved only when it gives an address within 15 s, otherwise the old one
+ * comes back. The state shows in db_net_status(). */
+esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid);
 esp_err_t db_net_ap_start(void);
 esp_err_t db_net_ap_stop(void);

@@ -31,8 +31,8 @@ static const char *TAG = "web";
 extern const char index_gz_start[] asm("_binary_index_html_gz_start");
 extern const char index_gz_end[] asm("_binary_index_html_gz_end");
 
-httpd_uri_t web_uris[36];
-route_t web_routes[36];
+httpd_uri_t web_uris[48];
+route_t web_routes[48];
 size_t web_route_count;
 static SemaphoreHandle_t handler_lock;
 
@@ -417,6 +417,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics}, WEB_CONTROL},
         {{.uri = "/api/frontend", .method = HTTP_GET, .handler = get_frontend}, WEB_CONTROL},
         {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_FULL},
+        {{.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = get_wifi_scan}, WEB_FULL},
+        {{.uri = "/api/wifi/join", .method = HTTP_POST, .handler = post_wifi_join}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_FULL},
         {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_FULL},

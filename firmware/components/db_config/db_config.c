@@ -109,6 +109,10 @@ esp_err_t db_config_load(void)
             if (strcmp(current.usb_speed, "full") != 0) {
                 strcpy(current.usb_speed, fresh.usb_speed);
             }
+            uint8_t mac[6];
+            if (!db_config_bssid(current.wifi_bssid, mac)) {
+                current.wifi_bssid[0] = '\0';
+            }
         }
         free(blob);
     }
@@ -219,6 +223,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "cors_origins", cfg->cors_origins);
     db_json_str(&j, "menu_chord", cfg->menu_chord);
     db_json_str(&j, "usb_speed", cfg->usb_speed);
+    db_json_str(&j, "wifi_bssid", cfg->wifi_bssid);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) {
@@ -240,6 +245,20 @@ static bool take_str(const cJSON *obj, const char *key, char *dst, size_t cap, c
         return false;
     }
     strcpy(dst, v->valuestring);
+    return true;
+}
+
+bool db_config_bssid(const char *text, uint8_t out[6])
+{
+    unsigned b[6];
+    char end;
+    if (sscanf(text, "%2x:%2x:%2x:%2x:%2x:%2x%c", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5], &end) != 6 ||
+        strlen(text) != 17) {
+        return false;
+    }
+    for (int i = 0; i < 6; i++) {
+        out[i] = (uint8_t)b[i];
+    }
     return true;
 }
 
@@ -425,6 +444,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "cors_origins", cfg->cors_origins, sizeof(cfg->cors_origins), err, err_cap) &&
               take_str(root, "menu_chord", cfg->menu_chord, sizeof(cfg->menu_chord), err, err_cap) &&
               take_str(root, "usb_speed", cfg->usb_speed, sizeof(cfg->usb_speed), err, err_cap) &&
+              take_str(root, "wifi_bssid", cfg->wifi_bssid, sizeof(cfg->wifi_bssid), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
@@ -432,6 +452,11 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     bool url = strncmp(cfg->satellite, "ws://", 5) == 0 || strncmp(cfg->satellite, "wss://", 6) == 0;
     if (ok && strpbrk(cfg->satellite, url ? " \"" : " \"/")) {
         snprintf(err, err_cap, "satellite: host, host:port, or a ws:// or wss:// URL expected");
+        ok = false;
+    }
+    uint8_t mac[6];
+    if (ok && cfg->wifi_bssid[0] && !db_config_bssid(cfg->wifi_bssid, mac)) {
+        snprintf(err, err_cap, "wifi_bssid: aa:bb:cc:dd:ee:ff or empty");
         ok = false;
     }
     if (ok && strcmp(cfg->usb_speed, "auto") != 0 && strcmp(cfg->usb_speed, "full") != 0) {

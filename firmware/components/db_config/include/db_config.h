@@ -54,6 +54,7 @@ typedef struct {
     char menu_chord[10];   /* which two controls open the menu: auto, keys, encoders or off */
     uint16_t menu_hold_ms;
     char usb_speed[6]; /* auto: high speed, full speed when no deck comes up behind a hub; full: always */
+    char wifi_bssid[18]; /* "aa:bb:cc:dd:ee:ff" joins only that access point; empty: any with wifi_ssid */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
@@ -71,6 +72,8 @@ void db_config_on_save(void (*cb)(void));
 
 /* `hex` as 32 bytes; false when it is empty. */
 bool db_config_pin(const char *hex, uint8_t out[32]);
+/* "aa:bb:cc:dd:ee:ff" into 6 bytes; false for anything else, the empty text included. */
+bool db_config_bssid(const char *text, uint8_t out[6]);
 
 /* The name in the JSON. */
 const char *db_controller_name(db_controller_t c);

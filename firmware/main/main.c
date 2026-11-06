@@ -79,9 +79,18 @@ static void write_network(db_json_t *j, bool live)
     db_json_obj_open(j, "wlan");
     db_json_str(j, "ssid", db_config()->wifi_ssid);
     db_json_str(j, "ip", n.wlan_up ? n.wlan_ip : "");
+    db_json_str(j, "bssid", n.wlan_up ? n.wlan_bssid : "");
+    db_json_int(j, "channel", n.wlan_up ? n.wlan_channel : 0);
+    db_json_str(j, "lock", db_config()->wifi_bssid);
     if (live) {
         db_json_int(j, "rssi", n.wlan_up ? n.rssi : 0);
     }
+    db_json_str(j, "join", n.join_state ? n.join_state : "");
+    db_json_str(j, "join_error", n.join_error);
+    db_json_obj_close(j);
+    db_json_obj_open(j, "ap");
+    db_json_bool(j, "on", n.ap_active);
+    db_json_str(j, "ssid", n.ap_active ? n.ap_ssid : "");
     db_json_obj_close(j);
     db_json_obj_close(j);
 }

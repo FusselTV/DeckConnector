@@ -550,6 +550,57 @@ esp_err_t get_companions(httpd_req_t *req)
     return send_built(req, 512, companions_json);
 }
 
+#define SCAN_MAX 40
+
+static size_t scan_json(char *buf, size_t cap)
+{
+    db_net_ap_t *aps = calloc(SCAN_MAX, sizeof(*aps));
+    int n = aps ? db_net_wifi_scan(aps, SCAN_MAX) : -1;
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_arr_open(&j, NULL);
+    for (int i = 0; i < n; i++) {
+        db_json_obj_open(&j, NULL);
+        db_json_str(&j, "ssid", aps[i].ssid);
+        db_json_str(&j, "bssid", aps[i].bssid);
+        db_json_int(&j, "rssi", aps[i].rssi);
+        db_json_int(&j, "channel", aps[i].channel);
+        db_json_bool(&j, "open", aps[i].open);
+        db_json_obj_close(&j);
+    }
+    db_json_arr_close(&j);
+    free(aps);
+    return n < 0 ? 0 : db_json_end(&j);
+}
+
+/* Takes 2 to 3 s: the radio listens on every channel. */
+esp_err_t get_wifi_scan(httpd_req_t *req)
+{
+    return send_built(req, SCAN_MAX * 120 + 16, scan_json);
+}
+
+esp_err_t post_wifi_join(httpd_req_t *req)
+{
+    char body[256];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *ssid = cJSON_GetObjectItemCaseSensitive(root, "ssid");
+    const cJSON *pass = cJSON_GetObjectItemCaseSensitive(root, "pass");
+    const cJSON *bssid = cJSON_GetObjectItemCaseSensitive(root, "bssid");
+    esp_err_t err = cJSON_IsString(ssid) && (!pass || cJSON_IsString(pass)) && (!bssid || cJSON_IsString(bssid))
+                        ? db_net_wifi_join(ssid->valuestring, pass ? pass->valuestring : "",
+                                           bssid ? bssid->valuestring : "")
+                        : ESP_ERR_INVALID_ARG;
+    cJSON_Delete(root);
+    if (err == ESP_ERR_INVALID_ARG) {
+        return send_error(req, "400 Bad Request", "ssid (1 to 32), pass (up to 64) and an optional bssid expected");
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "409 Conflict", err == ESP_ERR_INVALID_STATE ? "a test is running" : esp_err_to_name(err));
+    }
+    httpd_resp_set_status(req, "202 Accepted");
+    return send_json(req, "{\"ok\":true,\"join\":\"testing\"}");
+}
+
 #define FRONTEND_MAX (1024 * 1024) /* the www partition */
 
 esp_err_t put_frontend(httpd_req_t *req)

@@ -80,6 +80,8 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
+| `GET /api/wifi/scan` | Networks in reach, one entry per access point, strongest first: `ssid`, `bssid`, `rssi` (dBm), `channel`, `open`. Only 2.4 GHz. Hidden networks and the setup network are left out. Takes 2 to 3 s |
+| `POST /api/wifi/join` | `{"ssid": "...", "pass": "...", "bssid": "..."}` tries that network and answers 202 at once. `network.wlan.join` in the status goes from `testing` to `ok` or `failed` (with `join_error`) within 15 s. Only a network that gives an address is saved, otherwise the old one comes back. `bssid` is optional and locks the DeckConnector to that access point |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call, and the smallest free stack each task ever had (`stack_free`) |
 | `GET /api/tokens` | The API tokens: `name` and `right` |
@@ -163,8 +165,10 @@ it restores the settings. The web UI does this under System.
  "controller": "companion", "writer": "dock2",
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
- "network": {"lan": {"cable": true, "ip": "192.168.1.214"},
-             "wlan": {"ssid": "deckbridge", "ip": "192.168.1.237", "rssi": -23}},
+ "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.214"},
+             "wlan": {"ssid": "deckbridge", "ip": "192.168.1.237", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
+                      "lock": "", "rssi": -48, "join": "", "join_error": ""},
+             "ap": {"on": false, "ssid": ""}},
  "sources": [{"kind": "server", "host": "ws://192.168.1.128:8765/deckbridge", "name": "", "connected": false,
               "chosen": false, "drawing": false},
              {"kind": "companion", "host": "192.168.1.15", "name": "studio", "connected": true, "chosen": true,
@@ -190,6 +194,9 @@ it restores the settings. The web UI does this under System.
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router
   calls the host, empty when it has no name or is a server. `chosen` marks the one that draws whenever no menu
   covers it.
+- `network.wlan.lock` is the access point the DeckConnector is locked to (`wifi_bssid`), empty for any. `join`
+  is the state of the last `POST /api/wifi/join`. `network.ap.on` says the setup WLAN is open; a page reached over
+  it loses the DeckConnector when the setup network closes.
 - `superseded` counts images that a newer one replaced before they were drawn.
 - `usb_errors` counts failed USB transfers. Transfers that an unplug ends are not counted.
 - `usb_speed` is `high` or `full`, the speed the USB port runs at now.
