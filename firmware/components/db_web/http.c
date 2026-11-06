@@ -417,6 +417,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/profile", .method = HTTP_GET, .handler = get_profile}, WEB_ADMIN},
         {{.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics}, WEB_CONTROL},
         {{.uri = "/api/frontend", .method = HTTP_GET, .handler = get_frontend}, WEB_CONTROL},
+        {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_ADMIN},
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_ADMIN},
         {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_ADMIN},
     };

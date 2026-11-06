@@ -131,7 +131,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </div>
 <p class="section-t">Companion über die Satellite-API</p>
 <p class="hint">Der Deck-Connector verbindet sich selbst mit Companion. Ohne Port nimmt er 16622. Eine ws:// oder wss:// Adresse geht über den WebSocket-Port von Companion (16623) oder einen Proxy davor. Leer lassen, wenn Companion den Deck-Connector als Network Dock findet.</p>
-<div class="grid"><div><label for="satellite">Adresse von Companion</label><input id="satellite" placeholder="192.168.1.10 oder wss://…" maxlength="63"></div>
+<div class="grid"><div><label for="satellite">Adresse von Companion</label><input id="satellite" placeholder="192.168.1.10 oder wss://…" maxlength="63"><div id="found" class="hint"></div></div>
 <div><label for="satpin">SHA-256 des Zertifikats (optional, wss://)</label><input id="satpin" maxlength="95"></div></div>
 <p class="section-t">Eigene Server</p>
 <p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht der Deck-Connector einen im Netz.</p>
@@ -481,6 +481,11 @@ function ipForm(box, key) {
 }
 ipForm($('lan'), 'lan');
 ipForm($('wlan'), 'wlan');
+async function showFound() {
+  const found = await (await api('/api/companion/found')).json().catch(() => []);
+  $('found').innerHTML = found.length ? 'Im Netz gefunden: ' + found.map((c) => `<button type="button" class="btn ghost sm" data-host="${esc(c.port === 16622 ? c.host : c.host + ':' + c.port)}">${esc(c.name)} (${esc(c.host)})</button>`).join(' ') : '';
+  for (const b of $('found').querySelectorAll('button')) b.onclick = () => { $('satellite').value = b.dataset.host; };
+}
 let config = null;
 async function loadConfig() {
   config = await (await api('/api/config')).json();
@@ -489,6 +494,7 @@ async function loadConfig() {
   $('httpsonly').checked = !!config.https_only;
   $('satellite').value = config.satellite;
   $('satpin').value = config.satellite_pin;
+  showFound(); setTimeout(showFound, 2500); /* the first call starts the search */
   if (state) renderSources(state);
   for (const key of ['lan', 'wlan']) {
     $(key + '_dhcp').checked = config[key].dhcp;

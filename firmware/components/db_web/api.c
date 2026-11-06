@@ -10,6 +10,7 @@
 #include "db_dock.h"
 #include "db_json.h"
 #include "db_log.h"
+#include "db_net.h"
 #include "db_ota.h"
 #include "db_screen.h"
 #include "db_ui.h"
@@ -415,6 +416,29 @@ static size_t frontend_json(char *buf, size_t cap)
 esp_err_t get_frontend(httpd_req_t *req)
 {
     return send_built(req, 256, frontend_json);
+}
+
+static size_t companions_json(char *buf, size_t cap)
+{
+    db_net_found_t found[4];
+    size_t n = db_net_companions(found, 4);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_arr_open(&j, NULL);
+    for (size_t i = 0; i < n; i++) {
+        db_json_obj_open(&j, NULL);
+        db_json_str(&j, "name", found[i].name);
+        db_json_str(&j, "host", found[i].host);
+        db_json_int(&j, "port", found[i].port);
+        db_json_obj_close(&j);
+    }
+    db_json_arr_close(&j);
+    return db_json_end(&j);
+}
+
+esp_err_t get_companions(httpd_req_t *req)
+{
+    return send_built(req, 512, companions_json);
 }
 
 #define FRONTEND_MAX (1024 * 1024) /* the www partition */

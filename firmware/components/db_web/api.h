@@ -23,6 +23,7 @@ esp_err_t post_deck_reconnect(httpd_req_t *req);
 esp_err_t post_ota(httpd_req_t *req);
 esp_err_t get_slots(httpd_req_t *req);
 esp_err_t get_frontend(httpd_req_t *req);
+esp_err_t get_companions(httpd_req_t *req);
 esp_err_t put_frontend(httpd_req_t *req);
 esp_err_t delete_frontend(httpd_req_t *req);
 esp_err_t post_slot_boot(httpd_req_t *req);

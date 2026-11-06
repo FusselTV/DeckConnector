@@ -146,3 +146,9 @@ def test_over_the_websocket_port(scheme):
             assert not satellite_source()["connected"]
     finally:
         put({**{k: cfg[k] for k in ("satellite", "satellite_pin", "controller", "host")}})
+
+
+def test_the_local_companion_is_found_by_mdns():
+    me = SATELLITE.rsplit(":", 1)[0]
+    found = wait(lambda: any(c["host"] == me for c in json.loads(api("GET", "/api/companion/found")[1])), 10)
+    assert found, "the Companion on this machine was not found"

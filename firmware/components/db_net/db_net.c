@@ -22,6 +22,8 @@
 #define RSSI_MAX_AGE_US 2000000
 #define DHCP_KICK_US    12000000
 #define LAN_ROUTE_PRIO  200 /* above the WLAN station (100): LAN wins when both are up */
+#define FOUND_MAX       4
+#define BROWSE_EVERY_US 5000000
 
 static const char *TAG = "net";
 
@@ -36,6 +38,10 @@ static struct {
     esp_timer_handle_t kick;
     bool wifi_started;
     void (*on_change)(void);
+    db_net_found_t found[FOUND_MAX];
+    size_t found_count;
+    int64_t browsed_at;
+    bool browsing;
 } s;
 
 /* Hosts keep the first mDNS answer per name, so with both up in one subnet they could pick WLAN. */
@@ -326,6 +332,63 @@ bool db_net_online(void)
 void db_net_on_change(void (*cb)(void))
 {
     s.on_change = cb;
+}
+
+static bool in_our_subnet(const esp_ip4_addr_t *a)
+{
+    esp_netif_t *nets[] = {s.lan, s.wlan};
+    for (int i = 0; i < 2; i++) {
+        esp_netif_ip_info_t ip;
+        if (nets[i] && esp_netif_get_ip_info(nets[i], &ip) == ESP_OK && ip.ip.addr &&
+            (a->addr & ip.netmask.addr) == (ip.ip.addr & ip.netmask.addr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void browse_task(void *arg)
+{
+    mdns_result_t *results = NULL;
+    db_net_found_t found[FOUND_MAX];
+    size_t n = 0;
+    if (mdns_query_ptr("_companion-satellite-tcp", "_tcp", 2000, FOUND_MAX, &results) == ESP_OK) {
+        for (mdns_result_t *r = results; r && n < FOUND_MAX; r = r->next) {
+            /* a host also announces its Docker and VPN addresses: one in our subnet first */
+            const esp_ip4_addr_t *pick = NULL;
+            for (mdns_ip_addr_t *a = r->addr; a; a = a->next) {
+                if (a->addr.type == ESP_IPADDR_TYPE_V4 && (!pick || in_our_subnet(&a->addr.u_addr.ip4))) {
+                    pick = &a->addr.u_addr.ip4;
+                }
+            }
+            if (pick) {
+                strlcpy(found[n].name, r->instance_name ? r->instance_name : "", sizeof(found[n].name));
+                snprintf(found[n].host, sizeof(found[n].host), IPSTR, IP2STR(pick));
+                found[n++].port = r->port;
+            }
+        }
+        mdns_query_results_free(results);
+    }
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    memcpy(s.found, found, sizeof(found));
+    s.found_count = n;
+    s.browsing = false;
+    xSemaphoreGive(s.lock);
+    vTaskDelete(NULL);
+}
+
+size_t db_net_companions(db_net_found_t *out, size_t max)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    int64_t now = esp_timer_get_time();
+    if (!s.browsing && (!s.browsed_at || now - s.browsed_at > BROWSE_EVERY_US)) {
+        s.browsing = xTaskCreate(browse_task, "browse", 3072, NULL, 3, NULL) == pdPASS;
+        s.browsed_at = now;
+    }
+    size_t n = s.found_count < max ? s.found_count : max;
+    memcpy(out, s.found, n * sizeof(*out));
+    xSemaphoreGive(s.lock);
+    return n;
 }
 
 esp_err_t db_net_ap_start(void)

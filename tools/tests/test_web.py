@@ -122,3 +122,9 @@ def test_a_listener_that_stops_reading_cannot_stall_the_api(servers):
 def test_status_has_a_stable_id():
     s = json.loads(api("GET", "/api/status")[1])
     assert len(s["id"]) == 12 and int(s["id"], 16) > 0
+
+
+@pytest.mark.sim
+def test_found_companions_have_name_host_and_port():
+    found = json.loads(api("GET", "/api/companion/found")[1])
+    assert all(set(c) == {"name", "host", "port"} for c in found)

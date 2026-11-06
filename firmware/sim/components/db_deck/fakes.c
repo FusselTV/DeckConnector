@@ -158,6 +158,15 @@ size_t db_log_read(char *buf, size_t cap)
     return (size_t)snprintf(buf, cap, "simulator\n");
 }
 
+size_t db_net_companions(db_net_found_t *out, size_t max)
+{
+    db_net_found_t sim = {.name = "Companion (sim)", .host = "127.0.0.1", .port = 16622};
+    if (max) {
+        out[0] = sim;
+    }
+    return max ? 1 : 0;
+}
+
 void db_net_status(db_net_status_t *out)
 {
     *out = (db_net_status_t){.lan_link = true, .lan_up = true};

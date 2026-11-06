@@ -70,6 +70,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api` (the firmware's API version), and for a page from the partition its `version`, `api_min` and `size` |
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
+| `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN; enter its address by hand |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
 | `GET /api/tokens` | The names of the API tokens |

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 
@@ -28,6 +30,16 @@ bool db_net_ifname(bool wlan, char name[6]);
 
 /* Called from the event task whenever an address or link changes. One listener. */
 void db_net_on_change(void (*cb)(void));
+
+typedef struct {
+    char name[32];
+    char host[16];
+    uint16_t port;
+} db_net_found_t;
+
+/* Companions that announce their Satellite API over mDNS, from the last browse. A call starts a new 2 s browse in
+ * the background when the last one is older than 5 s, so the next call has fresh results. */
+size_t db_net_companions(db_net_found_t *out, size_t max);
 
 /* Setup access point "<name>" with a fresh random WPA2 password. */
 esp_err_t db_net_ap_start(void);
