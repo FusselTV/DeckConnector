@@ -253,7 +253,11 @@ static int io_send(ws_t *ws, int sock, const void *buf, size_t len)
     size_t done = 0;
     while (done < len) {
         int n = mbedtls_ssl_write(&t->ssl, (const unsigned char *)buf + done, len - done);
-        if (n == MBEDTLS_ERR_SSL_WANT_WRITE || n == MBEDTLS_ERR_SSL_WANT_READ) {
+        if (n == MBEDTLS_ERR_SSL_WANT_WRITE) { /* the socket blocks: this is the send timeout, the peer stalls */
+            errno = EAGAIN;
+            return -1;
+        }
+        if (n == MBEDTLS_ERR_SSL_WANT_READ) {
             continue;
         }
         if (n < 0) {
