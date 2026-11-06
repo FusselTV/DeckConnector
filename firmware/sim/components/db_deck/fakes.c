@@ -180,6 +180,11 @@ esp_err_t db_ota_web_rejected(void)
     return ESP_OK;
 }
 
+const char *db_ota_refusal(void)
+{
+    return NULL;
+}
+
 bool db_ota_restarts(void)
 {
     return false;

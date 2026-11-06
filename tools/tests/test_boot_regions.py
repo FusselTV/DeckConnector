@@ -60,26 +60,46 @@ def move_running(t, rows):
 
 
 @pytest.mark.parametrize(
-    "image",
+    "image, why",
     [
-        pytest.param(lambda: dbfw.build("ptable", table(shrink_nvs), "x", KEY), id="settings-change-size"),
-        pytest.param(lambda: dbfw.build("ptable", table(move_running), "x", KEY), id="an-app-slot-overlaps"),
-        pytest.param(lambda: dbfw.build("ptable", b"\xaa\x50" + bytes(3070), "x", KEY), id="table-without-md5"),
-        pytest.param(lambda: dbfw.build("bootloader", b"\x00" * 4096, "x", KEY), id="not-a-bootloader"),
-        pytest.param(lambda: dbfw.build("bootloader", b"\xe9" * 30000, "x", KEY), id="bootloader-too-big"),
-        pytest.param(lambda: dbfw.build("bootloader", other_chip(), "x", KEY), id="bootloader-for-another-chip"),
+        pytest.param(
+            lambda: dbfw.build("ptable", table(shrink_nvs), "x", KEY),
+            "data partition moves",
+            id="settings-change-size",
+        ),
+        pytest.param(
+            lambda: dbfw.build("ptable", table(move_running), "x", KEY), "partitions overlap", id="an-app-slot-overlaps"
+        ),
+        pytest.param(
+            lambda: dbfw.build("ptable", b"\xaa\x50" + bytes(3070), "x", KEY), "(MD5)", id="table-without-md5"
+        ),
+        pytest.param(lambda: dbfw.build("ptable", bad_md5(), "x", KEY), "(MD5)", id="table-bad-md5-row"),
+        pytest.param(
+            lambda: dbfw.build("bootloader", b"\x00" * 4096, "x", KEY), "not a bootloader", id="not-a-bootloader"
+        ),
+        pytest.param(
+            lambda: dbfw.build("bootloader", b"\xe9" * 30000, "x", KEY), "INVALID_SIZE", id="bootloader-too-big"
+        ),
+        pytest.param(
+            lambda: dbfw.build("bootloader", other_chip(), "x", KEY),
+            "not a bootloader",
+            id="bootloader-for-another-chip",
+        ),
         pytest.param(
             lambda: (
                 dbfw.build("ptable", (BUILD / "partition_table/partition-table.bin").read_bytes(), "x", KEY)[:-1]
                 + b"\0"
             ),
+            "INVALID_CRC",
             id="changed-after-signing",
         ),
     ],
 )
-def test_refused_and_nothing_changes(image):
+def test_refused_and_nothing_changes(image, why):
+    """Each case is refused by the check it is named for, not by a lock or another check."""
     before = regions()
-    assert upload(image()) == 400
+    code, body = api("POST", "/api/ota?boot=0", image())
+    assert (code, why in json.loads(body)["error"]) == (400, True), body
     assert regions() == before
 
 

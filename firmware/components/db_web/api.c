@@ -398,7 +398,9 @@ esp_err_t post_ota(httpd_req_t *req)
                           "written incompletely: do not power off, write it again or flash over USB");
     }
     if (err != ESP_OK) {
-        return send_error(req, device_fault(err) ? "500 Internal Server Error" : "400 Bad Request", esp_err_to_name(err));
+        const char *why = db_ota_refusal();
+        return send_error(req, device_fault(err) ? "500 Internal Server Error" : "400 Bad Request",
+                          why ? why : esp_err_to_name(err));
     }
     return send_json(req, db_ota_restarts() ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
 }

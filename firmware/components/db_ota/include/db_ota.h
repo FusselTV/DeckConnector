@@ -27,6 +27,8 @@ esp_err_t db_ota_end(void);
 #define DB_OTA_ERR_HALF_WRITTEN 0x15ff /* in the OTA error range, unused by IDF */
 /* Whether the update db_ota_end() just finished restarts the bridge (bootloader and table updates do not). */
 bool db_ota_restarts(void);
+/* Why the last bootloader or table was refused, NULL when it was not. */
+const char *db_ota_refusal(void);
 void db_ota_abort(const char *why);
 
 /* Download and install a .dbfw file in the background. */

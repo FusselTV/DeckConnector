@@ -61,6 +61,7 @@ static struct {
     char c6_version[16];
     bool restarts; /* the last finished update restarts the bridge */
     bool c6_open;  /* the C6 is in an update: an abort must end it there too */
+    const char *refusal;
 } s;
 
 static const char *target_name(void)
@@ -103,6 +104,7 @@ esp_err_t db_ota_begin(size_t total, int slot, bool boot)
     if (xSemaphoreTake(s.lock, 0) != pdTRUE) {
         return ESP_ERR_INVALID_STATE;
     }
+    s.refusal = NULL;
     if (total <= HEADER_LEN) {
         xSemaphoreGive(s.lock);
         return ESP_ERR_INVALID_SIZE;
@@ -372,6 +374,7 @@ static esp_err_t check_table(const uint8_t *next)
     heap_caps_free(now);
     if (why) {
         ESP_LOGE(TAG, "partition table refused: %s", why);
+        s.refusal = why;
     }
     return why ? ESP_ERR_INVALID_ARG : ESP_OK;
 }
@@ -387,6 +390,9 @@ static esp_err_t commit_boot(void)
     esp_err_t err = s.target == TARGET_TABLE                         ? check_table(s.table)
                     : s.table[0] == 0xE9 && chip == ESP_CHIP_ID_ESP32P4 ? ESP_OK
                                                                          : ESP_ERR_INVALID_ARG;
+    if (s.target == TARGET_BOOT && err != ESP_OK) {
+        s.refusal = "not a bootloader for this chip";
+    }
     if (err == ESP_OK) {
         remember_level(s.partition, -1);
         err = esp_ota_begin(s.partition, final->size, &s.p4); /* the whole size: the copy takes it all */
@@ -829,6 +835,11 @@ esp_err_t db_ota_boot_read(bool bootloader, size_t offset, void *buf, size_t len
 {
     const esp_partition_t *p = primary(bootloader ? TARGET_BOOT : TARGET_TABLE);
     return p ? esp_partition_read(p, offset, buf, len) : ESP_ERR_NOT_FOUND;
+}
+
+const char *db_ota_refusal(void)
+{
+    return s.refusal;
 }
 
 bool db_ota_restarts(void)
