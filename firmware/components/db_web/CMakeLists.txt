@@ -1,4 +1,4 @@
-idf_component_register(SRCS db_web.c auth.c api.c events.c cert.c INCLUDE_DIRS include
+idf_component_register(SRCS http.c api.c metrics.c auth.c events.c cert.c INCLUDE_DIRS include
                        REQUIRES esp_common
                        PRIV_REQUIRES app_update bootloader_support nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_https_server esp_timer lwip mbedtls)
 

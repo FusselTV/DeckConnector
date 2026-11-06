@@ -16,6 +16,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "lwip/ip4_addr.h"
+#include "lwip/sockets.h"
 #include "mdns.h"
 
 #define RSSI_MAX_AGE_US 2000000
@@ -231,6 +232,48 @@ static void start_mdns(void)
     }
 }
 
+/* Answer every A query with the address of the setup AP while it is on. */
+static void dns_task(void *arg)
+{
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(53)};
+    if (sock < 0 || bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        ESP_LOGE(TAG, "captive DNS not available");
+        vTaskDelete(NULL);
+    }
+    uint8_t pkt[512];
+    for (;;) {
+        struct sockaddr_in from;
+        socklen_t from_len = sizeof(from);
+        int n = recvfrom(sock, pkt, sizeof(pkt) - 16, 0, (struct sockaddr *)&from, &from_len);
+        db_net_status_t st;
+        db_net_status(&st);
+        if (n < 12 || !st.ap_active) {
+            continue;
+        }
+        /* Keep only header and question: an EDNS record after the question would hide our answer. */
+        int q = 12;
+        while (q < n && pkt[q] != 0) {
+            q += pkt[q] + 1;
+        }
+        q += 5; /* zero label, type, class */
+        if (q > n) {
+            continue;
+        }
+        n = q;
+        memset(pkt + 8, 0, 4); /* no authority or additional records */
+        struct in_addr ip;
+        inet_aton(st.ap_ip, &ip);
+        pkt[2] = 0x81; /* response, recursion desired */
+        pkt[3] = 0x80; /* recursion available, no error */
+        pkt[7] = 1;    /* one answer */
+        const uint8_t answer[] = {0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4};
+        memcpy(pkt + n, answer, sizeof(answer));
+        memcpy(pkt + n + sizeof(answer), &ip.s_addr, 4);
+        sendto(sock, pkt, (size_t)n + sizeof(answer) + 4, 0, (struct sockaddr *)&from, from_len);
+    }
+}
+
 esp_err_t db_net_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
@@ -250,6 +293,7 @@ esp_err_t db_net_start(void)
         }
     }
     start_mdns();
+    xTaskCreate(dns_task, "dns", 3072, NULL, 3, NULL);
     return ESP_OK;
 }
 
