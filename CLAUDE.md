@@ -14,4 +14,5 @@ switch real lights, scenes, a vacuum and more through Home Assistant, MQTT and H
   `tests/conftest.py` ends the whole run when the bridge lacks it, also after a slot switch.
 - Ad-hoc scripts follow the same rules as tests. When in doubt, point them at a dock host or test Companion on this
   machine (`tools/companion-check`, a local Companion container), never at the production Companion (192.168.1.15).
-- After any test, the bridge goes back to `controller: companion`, `host: ""`, and core draws again.
+- After any test, the bridge goes back to its production settings (`controller: companion`, `host: satellite`,
+  `satellite: wss://companion.example.com/satellite`), and core draws again.
