@@ -7,6 +7,7 @@
 #define ENTRY   32
 #define MAX     95
 #define TYPE_APP 0
+#define TABLE_END 0x9000 /* bootloader at 0x2000, table at 0x8000 */
 
 typedef struct {
     uint8_t type;
@@ -51,6 +52,9 @@ static const char *check(const part_t *a, int na, const part_t *b, int nb, uint3
     for (int i = 0; i < nb; i++) {
         if ((uint64_t)b[i].offset + b[i].size > flash_size) {
             return "a partition ends past the flash";
+        }
+        if (b[i].offset < TABLE_END) {
+            return "a partition lies on the bootloader or the table";
         }
         if (b[i].type == TYPE_APP && (b[i].offset % 0x10000 || b[i].size < image_len)) {
             return "an app slot is unaligned or smaller than the running firmware";

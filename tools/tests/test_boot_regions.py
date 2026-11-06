@@ -10,7 +10,7 @@ import pytest
 from conftest import api
 from cryptography.hazmat.primitives import serialization
 
-from dbtools import dbfw
+from dbtools import dbfw, fw
 
 BUILD = Path(__file__).resolve().parents[2] / "firmware/build"
 KEY = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
@@ -23,6 +23,10 @@ def regions() -> tuple[str, str]:
 
 def upload(image: bytes) -> int:
     return api("POST", "/api/ota?boot=0", image)[0]
+
+
+def upload_to(slot: int, image: bytes) -> int:
+    return api("POST", f"/api/ota?slot={slot}&boot=0", image)[0]
 
 
 def table(change) -> bytes:
@@ -62,8 +66,19 @@ def move_running(t, rows):
 )
 def test_refused_and_nothing_changes(image):
     before = regions()
-    assert upload(image()) != 200
+    assert upload(image()) == 400
     assert regions() == before
+
+
+def test_a_refused_table_leaves_every_firmware_slot_alone():
+    """The table is checked before the slot it would be staged in, the one after the running one, is erased."""
+    slots = json.loads(api("GET", "/api/slots")[1])
+    staging = (next(x["slot"] for x in slots if x["running"]) + 1) % len(slots)
+    if slots[staging]["state"] == "empty":  # give it a firmware to lose
+        assert upload_to(staging, fw.sign((BUILD / "deckbridge.bin").read_bytes())) == 200
+        slots = json.loads(api("GET", "/api/slots")[1])
+    assert upload(dbfw.build("ptable", table(shrink_nvs), "x", KEY)) == 400
+    assert json.loads(api("GET", "/api/slots")[1]) == slots
 
 
 @pytest.mark.bootwrite

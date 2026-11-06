@@ -56,6 +56,7 @@ static struct {
     esp_ota_handle_t p4;
     const esp_partition_t *partition;
     uint8_t *c6_buf;
+    uint8_t *table; /* a new partition table, until it is checked */
     size_t c6_fill;
     char c6_version[16];
     bool restarts; /* the last finished update restarts the bridge */
@@ -93,13 +94,11 @@ static void report(const char *state, int pct, const char *error)
 void db_ota_set_progress_cb(db_ota_progress_cb_t cb)
 {
     s.progress = cb;
+    s.lock = xSemaphoreCreateMutex(); /* here, at start: made on first use, two uploads at once both made one */
 }
 
 esp_err_t db_ota_begin(size_t total, int slot, bool boot)
 {
-    if (!s.lock) {
-        s.lock = xSemaphoreCreateMutex();
-    }
     if (xSemaphoreTake(s.lock, 0) != pdTRUE) {
         return ESP_ERR_INVALID_STATE;
     }
@@ -131,6 +130,8 @@ static void finish(void)
     }
     heap_caps_free(s.c6_buf);
     s.c6_buf = NULL;
+    heap_caps_free(s.table);
+    s.table = NULL;
     s.busy = false;
     xSemaphoreGive(s.lock);
 }
@@ -225,6 +226,13 @@ static esp_err_t start_payload(void)
         if (!final || !s.partition || s.partition == esp_ota_get_boot_partition() || s.payload_len > final->size) {
             return ESP_ERR_INVALID_SIZE;
         }
+        if (s.target == TARGET_TABLE) { /* kept until it is checked: a refused table must not erase the slot */
+            s.table = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
+            if (s.table) {
+                memset(s.table, 0xff, final->size);
+            }
+            return s.table ? ESP_OK : ESP_ERR_NO_MEM;
+        }
         esp_err_t err = esp_ota_begin(s.partition, final->size, &s.p4); /* the whole size: the copy takes it all */
         return err == ESP_OK ? esp_ota_set_final_partition(s.p4, final, true) : err;
     }
@@ -268,7 +276,12 @@ static esp_err_t write_payload(const uint8_t *p, size_t n)
         return ESP_ERR_INVALID_SIZE;
     }
     psa_hash_update(&s.hash, p, n);
-    esp_err_t err = s.target == TARGET_C6 ? write_c6(p, n) : esp_ota_write(s.p4, p, n);
+    esp_err_t err = ESP_OK;
+    if (s.target == TARGET_TABLE) {
+        memcpy(s.table + s.written, p, n);
+    } else {
+        err = s.target == TARGET_C6 ? write_c6(p, n) : esp_ota_write(s.p4, p, n);
+    }
     s.written += (uint32_t)n;
     int pct = (int)((uint64_t)s.written * 100 / s.payload_len);
     if (pct / 5 != s.last_pct / 5) {
@@ -337,21 +350,35 @@ static esp_err_t check_table(const uint8_t *next)
 static esp_err_t commit_boot(void)
 {
     const esp_partition_t *final = primary(s.target);
+    esp_err_t err = ESP_OK;
+    if (s.target == TARGET_TABLE) {
+        err = check_table(s.table);
+        if (err == ESP_OK) {
+            err = esp_ota_begin(s.partition, final->size, &s.p4);
+        }
+        if (err == ESP_OK) {
+            err = esp_ota_set_final_partition(s.p4, final, true);
+        }
+        if (err == ESP_OK) {
+            err = esp_ota_write(s.p4, s.table, s.payload_len);
+        }
+    }
     uint8_t *staged = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
     uint8_t *placed = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
-    esp_err_t err = staged && placed ? esp_partition_read(s.partition, 0, staged, final->size) : ESP_ERR_NO_MEM;
-    if (err == ESP_OK && s.target == TARGET_TABLE) {
-        err = check_table(staged);
+    if (err == ESP_OK) {
+        err = staged && placed ? esp_partition_read(s.partition, 0, staged, final->size) : ESP_ERR_NO_MEM;
     }
     if (err == ESP_OK) {
         ESP_LOGW(TAG, "writing the %s", target_name());
         err = esp_ota_end(s.p4);
         s.p4 = 0;
-    }
-    if (err == ESP_OK) {
-        err = esp_partition_read(final, 0, placed, s.payload_len) == ESP_OK && !memcmp(placed, staged, s.payload_len)
-                  ? ESP_OK
-                  : ESP_ERR_INVALID_CRC;
+        if (err != ESP_OK || esp_partition_read(final, 0, placed, s.payload_len) != ESP_OK ||
+            memcmp(placed, staged, s.payload_len)) {
+            /* the region may be half written: the board may not start again until it is written again */
+            ESP_LOGE(TAG, "the %s at 0x%lx is written incompletely (%s): do not power off, write it again",
+                     target_name(), (unsigned long)final->address, esp_err_to_name(err));
+            err = DB_OTA_ERR_HALF_WRITTEN;
+        }
     }
     heap_caps_free(staged);
     heap_caps_free(placed);

@@ -23,6 +23,8 @@ esp_err_t db_ota_begin(size_t total, int slot, bool boot);
 esp_err_t db_ota_write(const uint8_t *data, size_t len);
 /* Verify, and switch over and restart when the begin asked to boot it. */
 esp_err_t db_ota_end(void);
+/* db_ota_end: the bootloader or partition table may be half written. Do not power off; write it again. */
+#define DB_OTA_ERR_HALF_WRITTEN 0x15ff /* in the OTA error range, unused by IDF */
 /* Whether the update db_ota_end() just finished restarts the bridge (bootloader and table updates do not). */
 bool db_ota_restarts(void);
 void db_ota_abort(const char *why);

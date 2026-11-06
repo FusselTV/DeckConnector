@@ -103,6 +103,18 @@ static void test_overlap_flash_end_and_garbage_are_refused(void)
     TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
 }
 
+static void test_nothing_may_sit_on_the_bootloader_or_the_table(void)
+{
+    row_t rows[ROWS + 1];
+    memcpy(rows, ours, sizeof(ours));
+    rows[ROWS] = (row_t){1, 0x81, 0x4000, 0x1000, "spare"}; /* data in the bootloader */
+    write_table(next, rows, ROWS + 1);
+    TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
+    rows[ROWS] = (row_t){0, 0x10, 0x0, 0x10000, "ota_x"}; /* an app slot at 0 */
+    write_table(next, rows, ROWS + 1);
+    TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -111,5 +123,6 @@ int main(void)
     RUN_TEST(test_settings_and_the_page_stay_where_they_are);
     RUN_TEST(test_app_slots_keep_the_running_one_and_fit_it);
     RUN_TEST(test_overlap_flash_end_and_garbage_are_refused);
+    RUN_TEST(test_nothing_may_sit_on_the_bootloader_or_the_table);
     return UNITY_END();
 }

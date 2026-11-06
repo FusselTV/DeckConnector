@@ -170,12 +170,17 @@ def main() -> None:
         key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
         image = dbfw.build(a.what, (ROOT / "firmware/build" / name).read_bytes(), a.what, key)
         confirmed()
-        print(*api("POST", "/api/ota?boot=0", image))
+        code, reply = api("POST", "/api/ota?boot=0", image)
+        print(code, reply)
+        if code != 200:
+            raise SystemExit(f"{a.what}: {reply}")
     elif a.cmd == "web":
         key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
         start = time.time()
-        print(*(api("DELETE", "/api/frontend") if a.erase else api("PUT", "/api/frontend", dbfw.web_image(key))))
-        print(f"{time.time() - start:.1f} s")
+        code, reply = api("DELETE", "/api/frontend") if a.erase else api("PUT", "/api/frontend", dbfw.web_image(key))
+        print(code, reply, f"{time.time() - start:.1f} s")
+        if code != 200:
+            raise SystemExit(f"web page not changed: {reply}")
     else:
         images = build(a.a), build(a.b)
         first = bench_slot(set())

@@ -349,8 +349,12 @@ esp_err_t post_ota(httpd_req_t *req)
         cap = CHUNK;
         buf = heap_caps_malloc(cap, MALLOC_CAP_INTERNAL);
     }
+    if (!buf) {
+        db_ota_abort("memory");
+        return send_error(req, "500 Internal Server Error", "no memory for the upload");
+    }
     size_t left = req->content_len, have = 0;
-    esp_err_t err = buf ? ESP_OK : ESP_ERR_NO_MEM;
+    esp_err_t err = ESP_OK;
     int timeouts = 0;
     while (err == ESP_OK && left > 0) {
         int n = httpd_req_recv(req, (char *)buf + have, left < cap - have ? left : cap - have);
@@ -373,8 +377,12 @@ esp_err_t post_ota(httpd_req_t *req)
     if (err == ESP_OK) {
         err = db_ota_end();
     }
+    /* db_ota_write and db_ota_end end the update themselves: aborting again here could end one started since */
+    if (err == DB_OTA_ERR_HALF_WRITTEN) {
+        return send_error(req, "500 Internal Server Error",
+                          "written incompletely: do not power off, write it again or flash over USB");
+    }
     if (err != ESP_OK) {
-        db_ota_abort(esp_err_to_name(err));
         return send_error(req, "400 Bad Request", esp_err_to_name(err));
     }
     return send_json(req, db_ota_restarts() ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
