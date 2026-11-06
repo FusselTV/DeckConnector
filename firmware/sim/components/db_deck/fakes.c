@@ -44,6 +44,7 @@ bool db_deck_info(db_device_info_t *out)
 }
 
 static bool input_real;
+static uint32_t input_only_ip;
 
 bool db_deck_input_real(void)
 {
@@ -52,7 +53,7 @@ bool db_deck_input_real(void)
 
 bool db_deck_input_real_for(uint32_t peer_ip)
 {
-    return input_real;
+    return input_real && (!input_only_ip || input_only_ip == peer_ip);
 }
 
 size_t db_deck_input_space(void)
@@ -63,6 +64,7 @@ size_t db_deck_input_space(void)
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     input_real = real;
+    input_only_ip = only_ip;
     for (int i = 0; i < listener_count; i++) {
         if (listeners[i].input && (real || !listeners[i].external)) {
             listeners[i].input(in);

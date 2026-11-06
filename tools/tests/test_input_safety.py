@@ -3,9 +3,12 @@ Tools name the host instead, from dbtools.safety.real_input_target, which allows
 the bridge forwards a press only while that host draws (see dbtools/safety.py)."""
 
 import re
+from ipaddress import ip_address
 from pathlib import Path
 
 import pytest
+
+from dbtools.safety import NOBODY
 
 pytestmark = pytest.mark.sim
 
@@ -19,6 +22,9 @@ def test_nothing_sends_real_presses_without_the_check():
         if ".venv" in f.parts or f.name in ("safety.py", Path(__file__).name):
             continue
         text = f.read_text()
+        bound = re.findall(r"""["']real["']\s*:\s*["']([^"']*)["']""", text)
+        if all(ip_address(a) in NOBODY for a in bound) and len(bound) == len(real.findall(text)):
+            continue  # every press is bound to an address no host has
         if real.search(text) and "real_input_target(" not in text:
             offenders.append(str(f.relative_to(TOOLS)))
     assert not offenders, f"sends real presses without dbtools.safety.real_input_target: {offenders}"

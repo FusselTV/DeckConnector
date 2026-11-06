@@ -4,6 +4,7 @@ import asyncio
 import atexit
 import base64
 import io
+import ipaddress
 import json
 import os
 import subprocess
@@ -17,7 +18,7 @@ import pytest
 from PIL import Image
 
 from dbtools.load import password
-from dbtools.safety import UnsafeBridge, real_input_target, require_input_gate
+from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate
 from dbtools.server import Server
 
 
@@ -83,7 +84,8 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
     if path.startswith("/api/input") and body and b'"real"' in body:
         if b'"real": true' in body:
             raise UnsafeBridge('"real": true is for a person at the web UI: tests name the host')
-        real_input_target(status())  # only a test Companion on this machine may get them
+        if ipaddress.ip_address(json.loads(body)["real"]) not in NOBODY:
+            real_input_target(status())  # only a test Companion on this machine may get them
     req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-Deckbridge": "1"})
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())

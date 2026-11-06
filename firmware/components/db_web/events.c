@@ -197,7 +197,7 @@ static void on_input(const db_input_t *ev)
         "{\"t\":\"input\",\"kind\":\"%s\",\"index\":%u,\"value\":%d,\"x\":%u,\"y\":%u,\"x2\":%u,\"y2\":%u,"
         "\"writer\":\"%s\",\"simulated\":%s}",
         kinds[ev->kind], ev->index, ev->value, ev->x, ev->y, ev->x2, ev->y2,
-        db_deck_source_name(db_deck_writer()), db_deck_input_real() ? "false" : "true");
+        db_deck_source_name(db_deck_writer()), db_deck_input_real_for(0) ? "false" : "true"); /* a person's, not a tool's */
     xQueueSend(e.inputs, json, 0); /* full: the press is dropped for listeners, never for the deck */
 }
 

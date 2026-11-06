@@ -16,6 +16,10 @@ class UnsafeBridge(RuntimeError):
     pass
 
 
+# RFC 5737 documentation addresses: no host has one, so a press bound to it can reach nobody.
+NOBODY = ipaddress.ip_network("192.0.2.0/24")
+
+
 def require_input_gate(status: dict) -> None:
     if status.get("simulated_input") != "local":
         raise UnsafeBridge(

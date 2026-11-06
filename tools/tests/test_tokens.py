@@ -105,13 +105,15 @@ async def test_a_simulated_press_reaches_no_integration(token):
     ):
         await ha.recv()
         await ui.recv()
-        assert api("POST", "/api/input", json.dumps({"key": 1}).encode())[0] == 200
-        seen = []
-        while not seen:
-            msg = json.loads(await asyncio.wait_for(ui.recv(), 3))
-            if msg["t"] == "input":
-                seen.append(msg)
-        assert seen[0]["simulated"] is True
+        # a tool's press bound to a host is simulated too: only a person's press from the web UI is not
+        for press in ({"key": 1}, {"key": 2, "real": "192.0.2.1"}):
+            assert api("POST", "/api/input", json.dumps(press).encode())[0] == 200
+            seen = []
+            while not seen:
+                msg = json.loads(await asyncio.wait_for(ui.recv(), 3))
+                if msg["t"] == "input":
+                    seen.append(msg)
+            assert seen[0]["simulated"] is True, press
         try:
             while True:
                 assert json.loads(await asyncio.wait_for(ha.recv(), 1))["t"] != "input", "a token got a simulated press"
