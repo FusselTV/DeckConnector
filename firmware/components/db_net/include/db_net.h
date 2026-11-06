@@ -8,7 +8,8 @@
 
 typedef struct {
     bool lan_link;
-    bool lan_up; /* has an address */
+    bool lan_up;   /* has an address */
+    bool lan_dead; /* address and link, but the gateway stopped answering */
     bool wlan_up;
     bool wlan_chip;
     bool ap_active;

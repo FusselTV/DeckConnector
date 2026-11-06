@@ -393,7 +393,10 @@ static void rejoin_app(void *arg)
     struct tcpip_api_call_data call;
     tcpip_api_call(forget_arp, &call);
     for (int i = 0; i < 600; i++) {
-        if (answers_arp(rejoin_ip, rejoin_local_ip)) {
+        db_net_status_t n;
+        db_net_status(&n);
+        uint32_t from = n.lan_dead && n.wlan_up ? inet_addr(n.wlan_ip) : rejoin_local_ip; /* a dead LAN keeps its address */
+        if (answers_arp(rejoin_ip, from)) {
             announce_anew();
             break;
         }
@@ -848,9 +851,14 @@ static void keepalive_task(void *arg)
         if (tick % (ANNOUNCE_MS / KEEPALIVE_MS) == 0) {
             reannounce();
         }
+        db_net_status_t n;
+        db_net_status(&n);
+        uint32_t wlan = n.wlan_up && n.lan_up && !n.lan_dead ? inet_addr(n.wlan_ip) : 0;
         for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
             conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
-            if (c->sock >= 0) {
+            if (c->sock >= 0 && wlan && c->local_ip == wlan) {
+                shutdown(c->sock, SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
+            } else if (c->sock >= 0) {
                 db_cora_keepalive(c->connection_no, buf);
                 send_frame(c, 0, 0, 0, buf, sizeof(buf));
             }

@@ -73,6 +73,7 @@ static void write_network(db_json_t *j, bool live)
     db_json_obj_open(j, "network");
     db_json_obj_open(j, "lan");
     db_json_bool(j, "cable", n.lan_link);
+    db_json_bool(j, "dead", n.lan_dead);
     db_json_str(j, "ip", n.lan_up ? n.lan_ip : "");
     db_json_obj_close(j);
     db_json_obj_open(j, "wlan");

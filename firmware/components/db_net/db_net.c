@@ -19,12 +19,14 @@
 #include "lwip/ip4_addr.h"
 #include "lwip/sockets.h"
 #include "mdns.h"
+#include "ping/ping_sock.h"
 
 #define RSSI_MAX_AGE_US 2000000
 #define DHCP_KICK_US    12000000
 #define LAN_ROUTE_PRIO  200 /* above the WLAN station (100): LAN wins when both are up */
 #define FOUND_MAX       4
 #define BROWSE_EVERY_US 5000000
+#define LAN_DEAD_AFTER  3 /* gateway pings in a row without an answer */
 
 static const char *TAG = "net";
 
@@ -43,16 +45,38 @@ static struct {
     size_t found_count;
     int64_t browsed_at;
     bool browsing;
+    esp_ping_handle_t ping;
+    int missed;
+    bool gateway_seen;
 } s;
 
-/* Hosts keep the first mDNS answer per name, so with both up in one subnet they could pick WLAN. */
+/* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
+static bool lan_usable(void)
+{
+    return s.st.lan_up && (!s.st.lan_dead || !s.st.wlan_up);
+}
+
+/* One interface announces at a time: hosts keep the first answer per name, and esp mdns takes our own
+ * announcement heard on the other interface for a rival and renames the service. */
 static void mdns_follow(void)
 {
-    if (s.wlan) {
-        bool announce = s.st.wlan_up && !s.st.lan_up;
-        mdns_netif_action(s.wlan, announce ? MDNS_EVENT_ENABLE_IP4 | MDNS_EVENT_ANNOUNCE_IP4
-                                           : MDNS_EVENT_DISABLE_IP4);
+    static int last = -1;
+    bool lan = lan_usable();
+    bool wlan = s.wlan && s.st.wlan_up && !lan;
+    if ((lan | wlan << 1) == last) {
+        return;
     }
+    if (s.wlan && !wlan) {
+        mdns_netif_action(s.wlan, MDNS_EVENT_DISABLE_IP4);
+    }
+    if (s.st.lan_up) {
+        mdns_netif_action(s.lan, lan ? MDNS_EVENT_ENABLE_IP4 | MDNS_EVENT_ANNOUNCE_IP4 : MDNS_EVENT_DISABLE_IP4);
+    }
+    if (wlan) {
+        mdns_register_netif(s.wlan); /* mdns forgets a netif of ours when it disables it */
+        mdns_netif_action(s.wlan, MDNS_EVENT_ENABLE_IP4 | MDNS_EVENT_ANNOUNCE_IP4);
+    }
+    last = lan | wlan << 1;
 }
 
 static void changed(void)
@@ -93,6 +117,59 @@ static void apply_static(esp_netif_t *netif, const db_ip_config_t *c)
     ESP_LOGI(TAG, "%s: fixed address %s", esp_netif_get_desc(netif), c->ip);
 }
 
+static void note_gateway(bool answered)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    bool was = s.st.lan_dead;
+    if (answered) {
+        s.gateway_seen = true;
+        s.missed = 0;
+        s.st.lan_dead = false;
+    } else if (s.gateway_seen && ++s.missed >= LAN_DEAD_AFTER) { /* a gateway that never answers pings proves nothing */
+        s.st.lan_dead = true;
+    }
+    bool dead = s.st.lan_dead;
+    xSemaphoreGive(s.lock);
+    if (dead == was) {
+        return;
+    }
+    ESP_LOGW(TAG, "%s", dead ? "LAN dead: the gateway stopped answering" : "LAN answers again");
+    changed();
+}
+
+static void ping_ok(esp_ping_handle_t h, void *arg)
+{
+    note_gateway(true);
+}
+
+static void ping_lost(esp_ping_handle_t h, void *arg)
+{
+    note_gateway(false);
+}
+
+static void watch_gateway(const esp_netif_ip_info_t *ip)
+{
+    if (s.ping) {
+        esp_ping_stop(s.ping);
+        esp_ping_delete_session(s.ping);
+        s.ping = NULL;
+    }
+    s.missed = 0;
+    s.gateway_seen = false;
+    s.st.lan_dead = false;
+    esp_ping_config_t c = ESP_PING_DEFAULT_CONFIG();
+    c.target_addr.type = IPADDR_TYPE_V4;
+    c.target_addr.u_addr.ip4.addr = ip->gw.addr;
+    c.count = ESP_PING_COUNT_INFINITE;
+    c.interval_ms = 1000;
+    c.timeout_ms = 1000;
+    c.interface = esp_netif_get_netif_impl_index(s.lan);
+    esp_ping_callbacks_t cb = {.on_ping_success = ping_ok, .on_ping_timeout = ping_lost};
+    if (ip->gw.addr && esp_ping_new_session(&c, &cb, &s.ping) == ESP_OK) {
+        esp_ping_start(s.ping);
+    }
+}
+
 static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     ip_event_got_ip_t *e = data;
@@ -102,6 +179,7 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     db_log_mark(lan ? DB_MARK_LAN_IP : DB_MARK_WLAN_IP);
     if (lan) {
         s.st.lan_up = true;
+        watch_gateway(&e->ip_info);
     } else {
         s.st.wlan_up = true;
     }
@@ -321,7 +399,7 @@ void db_net_status(db_net_status_t *out)
 
 bool db_net_ifname(bool wlan, char name[6])
 {
-    bool up = wlan ? s.st.wlan_up : s.st.lan_up;
+    bool up = wlan ? s.st.wlan_up : lan_usable();
     return up && esp_netif_get_netif_impl_name(wlan ? s.wlan : s.lan, name) == ESP_OK;
 }
 
