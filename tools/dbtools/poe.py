@@ -8,6 +8,7 @@ uv run python -m dbtools.poe --usb-unplugged
 
 import argparse
 import json
+import os
 import ssl
 import urllib.request
 from pathlib import Path
@@ -31,8 +32,11 @@ def call(path: str, body: dict | None = None) -> dict:
         return json.loads(r.read())
 
 
-def power_cut() -> None:
-    """Power-cycle port 4, after checking that it is the PoE port the bridge hangs on."""
+def power_cut(usb_unplugged: bool = False) -> None:
+    """Power-cycle port 4, after checking that it is the PoE port the bridge hangs on. Callers confirm the unplugged
+    USB cable with the flag or DECKBRIDGE_USB_UNPLUGGED=1."""
+    if not (usb_unplugged or os.environ.get("DECKBRIDGE_USB_UNPLUGGED") == "1"):
+        raise SystemExit("unplug the USB serial cable first, then confirm with DECKBRIDGE_USB_UNPLUGGED=1")
     switch = next(d for d in call("stat/device/")["data"] if d["_id"] == SWITCH)
     port = next(p for p in switch["port_table"] if p["port_idx"] == PORT)
     if not (port.get("port_poe") and port.get("poe_enable") and port.get("up")):
@@ -44,7 +48,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--usb-unplugged", action="store_true", required=True, help="the USB serial cable is out")
     ap.parse_args()
-    power_cut()
+    power_cut(usb_unplugged=True)
     print(f"port {PORT} power-cycled")
 
 

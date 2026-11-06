@@ -30,7 +30,7 @@ BUDGET_MS = {
 
 def power_cut() -> None:
     """A reset through the serial bridge, keeping /tmp/esp-live.log as tools/flash.sh does. With
-    DECKBRIDGE_POWER_CUT=poe a real one over PoE instead, only with the USB serial cable unplugged (poe-test.md)."""
+    DECKBRIDGE_POWER_CUT=poe a real one over PoE instead, with DECKBRIDGE_USB_UNPLUGGED=1 (poe-test.md)."""
     if os.environ.get("DECKBRIDGE_POWER_CUT") == "poe":
         from dbtools.poe import power_cut as poe_cut
 
