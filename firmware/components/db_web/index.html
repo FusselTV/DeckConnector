@@ -553,13 +553,13 @@ $('up').onclick = async () => {
   toast(!r.ok ? 'Update fehlgeschlagen: ' + r.error : slot ? `In Slot ${slot} installiert.` : 'Installiert. Der Deck-Connector startet neu.', !r.ok);
   if (r.ok && slot) loadSlots();
 };
-const slotNote = {pending: 'ungeprüft', invalid: 'ungültig'};
+const slotNote = {pending: 'ungeprüft', invalid: 'ungültig', unknown: 'unbekannt'};
 async function loadSlots() {
   const list = await api('/api/slots').then((x) => x.json()).catch(() => []);
   $('slots').innerHTML = list.map((x) => `<div class="row between"><span class="small"><b>Slot ${x.slot}</b> · ${esc(x.version ?? 'leer')}${x.built ? ' · ' + esc(x.built) : ''}
     ${x.running ? '<span class="badge ok"><span class="dot"></span>läuft</span>' : x.next ? '<span class="badge">startet als Nächstes</span>' : ''}
     ${slotNote[x.state] ? `<span class="badge warn">${slotNote[x.state]}</span>` : ''}</span>
-    ${!x.running && x.state === 'valid' && x.level !== undefined ? `<button class="btn outline sm" data-boot="${x.slot}">Starten</button>` : ''}</div>`).join('');
+    ${!x.running && (x.state === 'valid' || x.state === 'unknown') && x.level !== undefined ? `<button class="btn outline sm" data-boot="${x.slot}">Starten</button>` : ''}</div>`).join('');
   $('slot').innerHTML = '<option value="">nächster Slot, danach starten</option>' +
     list.filter((x) => !x.running).map((x) => `<option value="${x.slot}">nur in Slot ${x.slot} schreiben</option>`).join('');
 }

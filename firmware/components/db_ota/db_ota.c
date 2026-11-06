@@ -433,7 +433,9 @@ int db_ota_slots(db_ota_slot_t *out, int max)
         }
         snprintf(o->version, sizeof(o->version), "%s", d.version);
         snprintf(o->built, sizeof(o->built), "%s %s", d.date, d.time);
-        o->state = esp_ota_get_state_partition(p, &st) != ESP_OK ? "valid" /* flashed over USB */
+        /* not in otadata (flashed over USB, or written before the last USB flash): only the running one is known
+         * to work */
+        o->state = esp_ota_get_state_partition(p, &st) != ESP_OK ? (o->running ? "valid" : "unknown")
                    : st == ESP_OTA_IMG_PENDING_VERIFY || st == ESP_OTA_IMG_NEW ? "pending"
                    : st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED    ? "invalid"
                                                                                : "valid";
