@@ -60,6 +60,7 @@ static struct {
     size_t c6_fill;
     char c6_version[16];
     bool restarts; /* the last finished update restarts the bridge */
+    bool c6_open;  /* the C6 is in an update: an abort must end it there too */
 } s;
 
 static const char *target_name(void)
@@ -123,9 +124,15 @@ static void finish(void)
         esp_ota_abort(s.p4);
         s.p4 = 0;
     }
+    if (s.c6_open) {
+        esp_hosted_slave_ota_end(); /* refuses the half image; the next begin starts clean */
+        s.c6_open = false;
+    }
     if (s.target == TARGET_BOOT || s.target == TARGET_TABLE) {
         /* IDF opens both regions for writing and leaves them open, and only esp_ota_end() resets the offset */
-        esp_flash_set_dangerous_write_protection(esp_flash_default_chip, true);
+        if (esp_flash_set_dangerous_write_protection(esp_flash_default_chip, true) != ESP_OK) {
+            ESP_LOGE(TAG, "bootloader and partition table stay writable");
+        }
         esp_image_bootloader_offset_set(ESP_PRIMARY_BOOTLOADER_OFFSET);
     }
     heap_caps_free(s.c6_buf);
@@ -178,14 +185,20 @@ static const esp_partition_t *slot_partition(int slot)
 static void remember_level(const esp_partition_t *part, int level)
 {
     nvs_handle_t h;
-    if (nvs_open("ota", NVS_READWRITE, &h) == ESP_OK) {
+    esp_err_t err = nvs_open("ota", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
         if (level < 0) {
-            nvs_erase_key(h, part->label); /* the slot is about to be erased: its old note would lie */
+            err = nvs_erase_key(h, part->label); /* the slot is about to be erased: its old note would lie */
+            err = err == ESP_ERR_NVS_NOT_FOUND ? ESP_OK : err;
         } else {
-            nvs_set_u16(h, part->label, (uint16_t)level);
+            err = nvs_set_u16(h, part->label, (uint16_t)level);
         }
-        nvs_commit(h);
+        err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "security level of %s not noted (%s): it cannot be booted by choice", part->label,
+                 esp_err_to_name(err));
     }
 }
 
@@ -220,7 +233,9 @@ static esp_err_t start_payload(void)
         return ESP_ERR_INVALID_VERSION;
     }
     s.hash = psa_hash_operation_init();
-    psa_hash_setup(&s.hash, PSA_ALG_SHA_256);
+    if (psa_hash_setup(&s.hash, PSA_ALG_SHA_256) != PSA_SUCCESS) {
+        return ESP_ERR_NO_MEM;
+    }
     ESP_LOGI(TAG, "signed %s image %.32s, %lu bytes", target_name(), (const char *)s.header + 12,
              (unsigned long)s.payload_len);
     if (s.target == TARGET_BOOT || s.target == TARGET_TABLE) {
@@ -250,7 +265,9 @@ static esp_err_t start_payload(void)
     }
     s.c6_buf = heap_caps_malloc(C6_CHUNK, MALLOC_CAP_INTERNAL);
     s.c6_fill = 0;
-    return s.c6_buf ? esp_hosted_slave_ota_begin() : ESP_ERR_NO_MEM;
+    esp_err_t err = s.c6_buf ? esp_hosted_slave_ota_begin() : ESP_ERR_NO_MEM;
+    s.c6_open = err == ESP_OK;
+    return err;
 }
 
 static esp_err_t write_c6(const uint8_t *p, size_t n)
@@ -325,6 +342,14 @@ static void restart_task(void *arg)
 {
     vTaskDelay(pdMS_TO_TICKS(1500));
     esp_restart();
+}
+
+/* after the reply has gone out; without memory for the task, at once */
+static void restart_soon(void)
+{
+    if (xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL) != pdPASS) {
+        esp_restart();
+    }
 }
 
 /* A new table must keep everything the running firmware and its data rely on (db_ptable.c). */
@@ -418,6 +443,7 @@ static esp_err_t commit(void)
         return ESP_FAIL;
     }
     esp_err_t err = esp_hosted_slave_ota_end();
+    s.c6_open = false;
     /* Co-processor firmware before 2.6 switches over in end() and has no activate call. */
     esp_hosted_coprocessor_fwver_t v = {0};
     bool known = esp_hosted_get_coprocessor_fwversion(&v) == ESP_OK;
@@ -457,7 +483,7 @@ esp_err_t db_ota_end(void)
     finish();
     /* After a C6 update the host restarts too, so both sides start their link again. */
     if (restart) {
-        xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL);
+        restart_soon();
     }
     return ESP_OK;
 }
@@ -623,14 +649,17 @@ esp_err_t db_ota_boot_slot(int slot)
         st == ESP_OTA_IMG_PENDING_VERIFY) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (known_level(p) < SECURITY_LEVEL || (esp_ota_get_state_partition(p, &st) == ESP_OK &&
-                                            (st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED))) {
-        return ESP_ERR_INVALID_VERSION;
+    if (esp_ota_get_state_partition(p, &st) == ESP_OK && (st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED)) {
+        return ESP_ERR_INVALID_CRC;
+    }
+    int level = known_level(p);
+    if (level < SECURITY_LEVEL) {
+        return level < 0 ? ESP_ERR_INVALID_ARG : ESP_ERR_INVALID_VERSION;
     }
     esp_err_t err = esp_ota_set_boot_partition(p); /* checks the image; the new start must confirm itself */
     if (err == ESP_OK) {
         ESP_LOGW(TAG, "booting slot %s", p->label);
-        xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL);
+        restart_soon();
     }
     return err;
 }

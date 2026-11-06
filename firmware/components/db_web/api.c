@@ -578,7 +578,9 @@ esp_err_t post_slot_boot(httpd_req_t *req)
     esp_err_t err = db_ota_boot_slot(slot);
     if (err != ESP_OK) {
         return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict",
-                          err == ESP_ERR_INVALID_VERSION ? "slot not bootable"
+                          err == ESP_ERR_INVALID_VERSION ? "slot below the security level"
+                          : err == ESP_ERR_INVALID_ARG   ? "no security level noted for the slot"
+                          : err == ESP_ERR_INVALID_CRC   ? "the image in the slot is marked invalid"
                           : err == ESP_ERR_INVALID_STATE ? "the running firmware has not confirmed itself yet"
                                                          : esp_err_to_name(err));
     }
