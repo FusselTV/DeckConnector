@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import struct
 from pathlib import Path
 
@@ -66,6 +67,8 @@ def test_refused_and_nothing_changes(image):
 
 
 @pytest.mark.bootwrite
+# a -m on the command line replaces the addopts that deselect it: only this variable lets it write
+@pytest.mark.skipif(not os.environ.get("DECKBRIDGE_BOOTWRITE"), reason="set DECKBRIDGE_BOOTWRITE=1 to write")
 def test_the_same_bootloader_and_table_round_trip():
     before = regions()
     for name, target in (
