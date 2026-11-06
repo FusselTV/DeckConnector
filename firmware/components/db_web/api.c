@@ -369,7 +369,7 @@ esp_err_t post_ota(httpd_req_t *req)
         db_ota_abort(esp_err_to_name(err));
         return send_error(req, "400 Bad Request", esp_err_to_name(err));
     }
-    return send_json(req, boot ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
+    return send_json(req, db_ota_restarts() ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
 }
 
 static size_t slots_json(char *buf, size_t cap)
@@ -443,6 +443,58 @@ static size_t companions_json(char *buf, size_t cap)
     }
     db_json_arr_close(&j);
     return db_json_end(&j);
+}
+
+static size_t boot_json(char *buf, size_t cap)
+{
+    db_ota_boot_t b;
+    db_ota_boot_info(&b);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_obj_open(&j, "bootloader");
+    db_json_int(&j, "version", b.bootloader_version);
+    db_json_str(&j, "idf", b.bootloader_idf);
+    db_json_str(&j, "built", b.bootloader_built);
+    db_json_str(&j, "sha256", b.bootloader_sha256);
+    db_json_obj_close(&j);
+    db_json_obj_open(&j, "ptable");
+    db_json_int(&j, "partitions", b.partitions);
+    db_json_str(&j, "md5", b.table_md5);
+    db_json_str(&j, "sha256", b.table_sha256);
+    db_json_obj_close(&j);
+    db_json_obj_close(&j);
+    return db_json_end(&j);
+}
+
+static esp_err_t send_region(httpd_req_t *req, bool bootloader)
+{
+    size_t size = db_ota_boot_size(bootloader);
+    char *chunk = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM);
+    if (!size || !chunk) {
+        heap_caps_free(chunk);
+        return send_error(req, "500 Internal Server Error", "cannot read it");
+    }
+    httpd_resp_set_type(req, "application/octet-stream");
+    esp_err_t err = ESP_OK;
+    for (size_t off = 0; off < size && err == ESP_OK; off += 4096) {
+        size_t n = size - off < 4096 ? size - off : 4096;
+        err = db_ota_boot_read(bootloader, off, chunk, n);
+        if (err == ESP_OK) {
+            err = httpd_resp_send_chunk(req, chunk, (ssize_t)n);
+        }
+    }
+    heap_caps_free(chunk);
+    return err == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : err;
+}
+
+/* ?raw=bootloader or ?raw=ptable: the region as it is on the chip, a backup before writing a new one. */
+esp_err_t get_boot(httpd_req_t *req)
+{
+    if (strstr(req->uri, "raw=")) {
+        return send_region(req, strstr(req->uri, "raw=bootloader") != NULL);
+    }
+    return send_built(req, 512, boot_json);
 }
 
 esp_err_t get_companions(httpd_req_t *req)

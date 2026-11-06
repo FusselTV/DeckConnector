@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 MAGIC = b"DBFW"
 FORMAT = 1
-TARGETS = {"p4": 1, "c6": 2, "web": 3}  # web: the page for the www partition, level holds api_min
+TARGETS = {"p4": 1, "c6": 2, "web": 3, "bootloader": 4, "ptable": 5}  # web: level holds api_min
 HEADER = struct.Struct("<4sBBHI32s32s")  # signed part, 76 bytes
 HEADER_LEN = 144
 KEY = Path.home() / ".config/deckbridge/ota_key.pem"

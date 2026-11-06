@@ -421,6 +421,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_ADMIN},
         {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_ADMIN},
         {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_ADMIN},
+        {{.uri = "/api/boot", .method = HTTP_GET, .handler = get_boot}, WEB_ADMIN},
         {{.uri = "/api/coredump", .method = HTTP_DELETE, .handler = delete_coredump}, WEB_ADMIN},
 #ifdef DB_DEBUG_CRASH
         {{.uri = "/api/debug/crash", .method = HTTP_POST, .handler = post_debug_crash}, WEB_ADMIN},

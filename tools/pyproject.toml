@@ -29,9 +29,10 @@ markers = [
     "ota: restarts the bridge, slow",
     "unifi: changes the switch config",
     "boot: cuts the power through the serial bridge, slow",
+    "bootwrite: rewrites the bootloader and partition table with what is already there (USB needed if power fails)",
     "sim: needs only the API, so it also runs on firmware/sim (--target sim)",
 ]
-addopts = "-m 'not ota and not unifi and not boot'"
+addopts = "-m 'not ota and not unifi and not boot and not bootwrite'"
 
 [build-system]
 requires = ["hatchling"]

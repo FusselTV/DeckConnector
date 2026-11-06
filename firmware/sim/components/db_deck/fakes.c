@@ -154,6 +154,26 @@ bool db_ota_web(db_ota_web_t *out)
     return false;
 }
 
+bool db_ota_restarts(void)
+{
+    return false;
+}
+
+size_t db_ota_boot_size(bool bootloader)
+{
+    return 0;
+}
+
+esp_err_t db_ota_boot_read(bool bootloader, size_t offset, void *buf, size_t len)
+{
+    return ESP_ERR_NOT_FOUND;
+}
+
+void db_ota_boot_info(db_ota_boot_t *out)
+{
+    *out = (db_ota_boot_t){.partitions = 9};
+}
+
 size_t db_log_read(char *buf, size_t cap)
 {
     return (size_t)snprintf(buf, cap, "simulator\n");

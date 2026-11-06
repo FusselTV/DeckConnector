@@ -64,6 +64,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/log` | The last 16 KB of the log, as text |
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckbridge.elf` with the ELF of the same build |
 | `DELETE /api/coredump` | Clear it |
+| `GET /api/boot` | The bootloader (`version`, `idf`, `built`, `sha256`) and the partition table (`partitions`, `md5`, `sha256`). `?raw=bootloader` or `?raw=ptable` gives the region itself. Both are replaced with `POST /api/ota`, see [ota.md](ota.md) |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the Deck-Connector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
 | `GET /api/slots` | The firmware slots: `slot`, `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |

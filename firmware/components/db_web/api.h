@@ -27,6 +27,7 @@ esp_err_t get_companions(httpd_req_t *req);
 esp_err_t put_frontend(httpd_req_t *req);
 esp_err_t delete_frontend(httpd_req_t *req);
 esp_err_t get_coredump(httpd_req_t *req);
+esp_err_t get_boot(httpd_req_t *req);
 esp_err_t delete_coredump(httpd_req_t *req);
 esp_err_t post_debug_crash(httpd_req_t *req);
 esp_err_t post_slot_boot(httpd_req_t *req);
