@@ -237,9 +237,9 @@ deck in between ends the simulated hold, because the deck always reports all key
 
 Companion and the Stream Deck app connect without a password. The Deck-Connector lists every host that connected,
 by its MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
-the settings, only listed hosts get in. A new host is then let in and listed while none is known, in the first 5
-minutes after a boot, and while pairing is open. Otherwise it is turned away, and the deck and the web UI ask
-whether to let it in. Up to 8 hosts are listed.
+the settings, only listed hosts get in. A new host is then let in and listed while none is known and while pairing
+is open. So the first host gets in by itself, and later ones need pairing. Otherwise it is turned away, and the deck
+and the web UI ask whether to let it in. Up to 8 hosts are listed.
 
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
 `open_s` how long still, and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and

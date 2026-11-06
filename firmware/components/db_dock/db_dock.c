@@ -409,11 +409,10 @@ static void rejoin_app(void *arg)
 /*
  * The hosts that connected, by MAC address, so a laptop that gets a new address from DHCP stays the same
  * host. With dock_paired_only off (the default) everyone may connect and the list is an overview. With it on,
- * a new host gets in and is remembered while none is known, in the first minutes after a boot, or while
- * pairing is open; otherwise it is turned away and waits as a request that the deck or the web UI answers.
+ * a new host gets in and is remembered while none is known or while pairing is open; otherwise it is turned
+ * away and waits as a request that the deck or the web UI answers.
  */
 #define KNOWN_MAX  8
-#define OPEN_US    (5 * 60 * 1000000LL)
 #define REQUEST_US (60 * 1000000LL)
 
 static struct {
@@ -430,7 +429,7 @@ static struct {
         int64_t asked_at;
     } names[KNOWN_MAX]; /* RAM only: a name is asked again after a boot, it may have changed */
     int next_name;
-} pair = {.mux = portMUX_INITIALIZER_UNLOCKED, .open_until = OPEN_US};
+} pair = {.mux = portMUX_INITIALIZER_UNLOCKED};
 
 static void lookup_task(void *arg)
 {
