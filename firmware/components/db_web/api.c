@@ -58,6 +58,9 @@ int api_config(const char *body, char *reply, size_t cap)
     if (db_config_from_json(&cfg, body, err, sizeof(err)) != ESP_OK) {
         return fail(reply, cap, 400, err);
     }
+    if (cfg.https_only && !old.https_only && !web_tls_running()) {
+        return fail(reply, cap, 409, "HTTPS is not running, so plain HTTP must stay");
+    }
     if (db_config_save(&cfg) != ESP_OK) {
         return fail(reply, cap, 500, "saving failed");
     }

@@ -144,9 +144,14 @@ bool web_tls(httpd_req_t *req)
     return tls_server && req->handle == tls_server;
 }
 
+bool web_tls_running(void)
+{
+    return tls_server != NULL;
+}
+
 bool web_plain_refused(httpd_req_t *req)
 {
-    if (!db_config()->https_only || web_tls(req)) {
+    if (!db_config()->https_only || web_tls(req) || !tls_server) { /* no HTTPS: plain stays, or nobody gets in */
         return false;
     }
     db_net_status_t n;

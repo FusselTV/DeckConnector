@@ -8,7 +8,7 @@ import time
 import urllib.request
 
 import pytest
-from conftest import HOST, PASSWORD, api
+from conftest import HOST, PASSWORD, TARGET, api
 
 
 def opener():
@@ -135,3 +135,12 @@ def test_menu_chord_settings_are_checked():
     for body in ({"menu_chord": "corners"}, {"menu_chord": "auto keys"}, {"menu_hold_ms": 100}):
         assert api("PUT", "/api/config", json.dumps(body).encode())[0] == 400, body
     assert json.loads(api("GET", "/api/config")[1])["menu_chord"] == "auto"
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="the simulator runs no HTTPS; the bridge does")
+def test_https_only_is_refused_while_https_does_not_run():
+    """Turned on without HTTPS, it would lock everyone out: plain refused, and nothing on port 443."""
+    code, reply = api("PUT", "/api/config", b'{"https_only": true}')
+    assert code == 409, reply
+    assert json.loads(api("GET", "/api/config")[1])["https_only"] is False

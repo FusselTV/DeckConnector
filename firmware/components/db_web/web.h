@@ -57,3 +57,4 @@ bool web_cert(const char *name, char **cert, char **key, char fingerprint[96]);
 bool web_tls(httpd_req_t *req);
 /* Plain HTTP while "nur HTTPS" is on: it gets no answer but a redirect. */
 bool web_plain_refused(httpd_req_t *req);
+bool web_tls_running(void);
