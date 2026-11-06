@@ -50,13 +50,20 @@ size_t db_log_since(uint64_t *pos, char *buf, size_t cap)
     portENTER_CRITICAL(&mux);
     uint64_t oldest = total > RING_SIZE ? total - RING_SIZE : 0;
     uint64_t from = *pos < oldest ? oldest : *pos;
-    size_t len = total - from < cap ? (size_t)(total - from) : cap;
+    uint64_t lost = from - *pos;
+    portEXIT_CRITICAL(&mux);
+    size_t mark = lost ? (size_t)snprintf(buf, cap, "[... %llu bytes lost]\n", (unsigned long long)lost) : 0;
+    mark = mark < cap ? mark : 0;
+    portENTER_CRITICAL(&mux);
+    oldest = total > RING_SIZE ? total - RING_SIZE : 0; /* the ring may have moved meanwhile */
+    from = from < oldest ? oldest : from;
+    size_t len = total - from < cap - mark ? (size_t)(total - from) : cap - mark;
     for (size_t i = 0; i < len; i++) {
-        buf[i] = ring[(from + i) % RING_SIZE];
+        buf[mark + i] = ring[(from + i) % RING_SIZE];
     }
     *pos = from + len;
     portEXIT_CRITICAL(&mux);
-    return len;
+    return mark + len;
 }
 
 size_t db_log_read(char *buf, size_t cap)
