@@ -10,6 +10,8 @@
 #include "auth.h"
 #include "cJSON.h"
 #include "db_deck.h"
+#include "db_log.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -21,6 +23,7 @@
 #define POLL_MS   200
 #define FRAME_MAX 512
 #define INPUT_MAX 160
+#define LOG_CHUNK 4096 /* per listener and poll: a full log backlog goes out in about 1 s */
 #define PING_MS                                                                                              \
     5000 /* a listener hears something this often, so it can tell a dead link from a quiet deck              \
           */
@@ -34,6 +37,8 @@ static struct {
     int fds[CLIENTS];
     httpd_handle_t servers[CLIENTS]; /* HTTP or HTTPS: each fd belongs to one of them */
     bool by_token[CLIENTS];          /* a token may press, but not change settings */
+    bool log[CLIENTS];               /* asked for the log with {"t":"log"} */
+    uint64_t log_pos[CLIENTS];
     char *state;                     /* the last state sent, to send only changes */
     uint32_t screen;
     unsigned evict;
@@ -70,6 +75,7 @@ static void send_locked(httpd_handle_t server, int fd, const char *json)
 
 typedef struct {
     httpd_handle_t server;
+    int fd; /* -1: every listener of this server */
     char json[];
 } job_t;
 
@@ -81,7 +87,7 @@ static void send_job(void *arg)
     xSemaphoreTake(e.lock, portMAX_DELAY);
     for (int i = 0; i < CLIENTS; i++) {
         int fd = e.fds[i];
-        if (fd < 0 || e.servers[i] != job->server) {
+        if (fd < 0 || e.servers[i] != job->server || (job->fd >= 0 && fd != job->fd)) {
             continue;
         }
         if (httpd_ws_get_fd_info(job->server, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
@@ -92,6 +98,21 @@ static void send_job(void *arg)
     }
     xSemaphoreGive(e.lock);
     free(job);
+}
+
+static void queue_job(httpd_handle_t server, int fd, const char *json)
+{
+    size_t len = strlen(json) + 1;
+    job_t *job = malloc(sizeof(*job) + len);
+    if (!job) {
+        return;
+    }
+    job->server = server;
+    job->fd = fd;
+    memcpy(job->json, json, len);
+    if (httpd_queue_work(server, send_job, job) != ESP_OK) {
+        free(job);
+    }
 }
 
 static void broadcast(const char *json)
@@ -107,17 +128,40 @@ static void broadcast(const char *json)
         }
     }
     xSemaphoreGive(e.lock);
-    size_t len = strlen(json) + 1;
     for (int k = 0; k < 2 && servers[k]; k++) {
-        job_t *job = malloc(sizeof(*job) + len);
-        if (!job) {
+        queue_job(servers[k], -1, json);
+    }
+}
+
+/* New log text to each listener that asked for it, from where it left off. */
+static void send_log(char *chunk)
+{
+    for (int i = 0; i < CLIENTS; i++) {
+        xSemaphoreTake(e.lock, portMAX_DELAY);
+        bool on = e.log[i] && e.fds[i] >= 0;
+        uint64_t pos = e.log_pos[i];
+        int fd = e.fds[i];
+        httpd_handle_t server = e.servers[i];
+        xSemaphoreGive(e.lock);
+        size_t n = on ? db_log_since(&pos, chunk, LOG_CHUNK) : 0;
+        if (!n) {
             continue;
         }
-        job->server = servers[k];
-        memcpy(job->json, json, len);
-        if (httpd_queue_work(job->server, send_job, job) != ESP_OK) {
-            free(job);
+        chunk[n] = '\0';
+        cJSON *msg = cJSON_CreateObject();
+        cJSON_AddStringToObject(msg, "t", "log");
+        cJSON_AddStringToObject(msg, "text", chunk);
+        char *json = cJSON_PrintUnformatted(msg);
+        cJSON_Delete(msg);
+        if (json) {
+            queue_job(server, fd, json);
+            free(json);
         }
+        xSemaphoreTake(e.lock, portMAX_DELAY);
+        if (e.fds[i] == fd) {
+            e.log_pos[i] = pos;
+        }
+        xSemaphoreGive(e.lock);
     }
 }
 
@@ -154,6 +198,7 @@ static void on_input(const db_input_t *ev)
 static void poll_task(void *arg)
 {
     char *buf = malloc(STATE_MAX);
+    char *chunk = heap_caps_malloc(LOG_CHUNK + 1, MALLOC_CAP_SPIRAM);
     static db_shot_t shots[DB_SCREEN_MAX];
     char input[INPUT_MAX];
     /* differences only: the tick count wraps after 49.7 days, and a plain comparison would stop the updates
@@ -172,6 +217,9 @@ static void poll_task(void *arg)
             continue;
         }
         polled = xTaskGetTickCount();
+        if (chunk) {
+            send_log(chunk);
+        }
         size_t n = e.state_json(buf, STATE_MAX);
         if (n && strcmp(buf, e.state) != 0) {
             memcpy(e.state, buf, n + 1);
@@ -213,9 +261,22 @@ static void command(httpd_handle_t server, int fd, const char *text)
     const cJSON *t = cJSON_GetObjectItemCaseSensitive(root, "t");
     const cJSON *id_item = cJSON_GetObjectItemCaseSensitive(root, "id");
     int id = cJSON_IsNumber(id_item) ? id_item->valueint : 0; /* read before the item is deleted below */
-    char reply[160] = "{\"ok\":false,\"error\":\"t: set or input expected\"}";
+    char reply[160] = "{\"ok\":false,\"error\":\"t: set, input or log expected\"}";
     int code = 400;
-    if (cJSON_IsString(t) && (strcmp(t->valuestring, "set") == 0 || strcmp(t->valuestring, "input") == 0)) {
+    if (cJSON_IsString(t) && strcmp(t->valuestring, "log") == 0) {
+        code = 403;
+        snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"needs the password, not a token\"}");
+        xSemaphoreTake(e.lock, portMAX_DELAY);
+        for (int i = 0; i < CLIENTS; i++) {
+            if (e.fds[i] == fd && e.servers[i] == server && !e.by_token[i]) {
+                e.log[i] = true; /* from the oldest line still kept: a new listener sees the boot too */
+                e.log_pos[i] = 0;
+                code = 200;
+                snprintf(reply, sizeof(reply), "{\"ok\":true}");
+            }
+        }
+        xSemaphoreGive(e.lock);
+    } else if (cJSON_IsString(t) && (strcmp(t->valuestring, "set") == 0 || strcmp(t->valuestring, "input") == 0)) {
         bool set = t->valuestring[0] == 's';
         bool token = false;
         xSemaphoreTake(e.lock, portMAX_DELAY);
@@ -282,6 +343,7 @@ esp_err_t events_open(httpd_req_t *req)
     e.fds[slot] = fd;
     e.servers[slot] = req->handle;
     e.by_token[slot] = auth_by_token(req);
+    e.log[slot] = false;
     char *buf = malloc(STATE_MAX);
     if (buf && e.state_json(buf, STATE_MAX)) {
         send_to(req->handle, fd, buf); /* under the lock: the current state comes before any change */

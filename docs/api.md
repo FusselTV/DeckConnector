@@ -256,7 +256,11 @@ refused. Every message is one JSON object, and `t` says what it is.
 | `input` | Someone used the deck: `kind`, `index`, `value`, `x`, `y`, `x2`, `y2` and the `writer` that got it |
 | `ota` | Progress of an update: `target`, `state`, `pct`, and `error` when it failed |
 | `ping` | Every 5 s. Without any message for 12 s the connection is dead, so connect again |
+| `log` | Only after `{"t": "log"}`: new log text in `text`. The first ones carry everything still kept, the boot included |
 
 To change something, send `{"t": "set", "id": 1, ...}` with the keys of `PUT /api/config`, or
 `{"t": "input", "id": 2, ...}` with the keys of `POST /api/input`. The answer is
 `{"t": "result", "id": 1, "status": 200, "reply": {...}}`.
+
+`{"t": "log", "id": 3}` starts the log on this connection. It needs the password, a token gets 403.
+`uv run python -m dbtools.netlog --secs 60` follows it from a shell.

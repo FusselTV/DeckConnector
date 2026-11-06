@@ -159,6 +159,13 @@ size_t db_log_read(char *buf, size_t cap)
     return (size_t)snprintf(buf, cap, "simulator\n");
 }
 
+size_t db_log_since(uint64_t *pos, char *buf, size_t cap)
+{
+    size_t n = *pos ? 0 : db_log_read(buf, cap);
+    *pos += n;
+    return n;
+}
+
 size_t db_net_companions(db_net_found_t *out, size_t max)
 {
     db_net_found_t sim = {.name = "Companion (sim)", .host = "127.0.0.1", .port = 16622};
