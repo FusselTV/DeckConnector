@@ -194,8 +194,9 @@ int api_input(const char *body, char *reply, size_t cap)
         return fail(reply, cap, 503, "input queue full");
     }
     esp_err_t sent = db_deck_simulate(&ev, real, only_ip);
-    if (sent == ESP_OK && then.kind) {
-        sent = db_deck_simulate(&then, real, only_ip);
+    if (sent == ESP_OK && then.kind) { /* the down is in: the up must follow, or the key stays held */
+        for (int i = 0; (sent = db_deck_simulate(&then, real, only_ip)) == ESP_ERR_TIMEOUT && i < 20; i++) {
+        }
     }
     if (sent == ESP_ERR_INVALID_STATE) {
         return fail(reply, cap, 409, "no Stream Deck attached");
