@@ -404,10 +404,13 @@ static esp_err_t commit(void)
     esp_err_t err = esp_hosted_slave_ota_end();
     /* Co-processor firmware before 2.6 switches over in end() and has no activate call. */
     esp_hosted_coprocessor_fwver_t v = {0};
-    bool has_activate = esp_hosted_get_coprocessor_fwversion(&v) == ESP_OK &&
-                        (v.major1 > 2 || (v.major1 == 2 && v.minor1 >= 6));
-    if (err == ESP_OK && has_activate) {
-        err = esp_hosted_slave_ota_activate();
+    bool known = esp_hosted_get_coprocessor_fwversion(&v) == ESP_OK;
+    if (err == ESP_OK && (!known || v.major1 > 2 || (v.major1 == 2 && v.minor1 >= 6))) {
+        esp_err_t act = esp_hosted_slave_ota_activate();
+        if (act != ESP_OK) {
+            ESP_LOGW(TAG, "C6 activate: %s%s", esp_err_to_name(act), known ? "" : " (version unknown, maybe old firmware)");
+            err = known ? act : ESP_OK;
+        }
     }
     return err;
 }
