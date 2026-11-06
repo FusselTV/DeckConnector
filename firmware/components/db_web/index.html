@@ -149,13 +149,13 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </div>
 <p class="section-t">Web-Zugang</p>
 <div class="grid"><div><label for="apass">Neues Passwort für admin</label><input id="apass" type="password" placeholder="unverändert" minlength="6" maxlength="23"></div></div>
-<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Ohne Verschlüsselung leitet der Deck-Connector den Browser um und beantwortet sonst nichts, auch nicht Home Assistant mit http://. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
+<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Über http:// leitet der Deck-Connector den Browser um und beantwortet sonst nichts, auch Home Assistant nicht. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
 <div class="row"><button class="btn">Speichern</button><span class="hint" style="margin:0">Netz, Server und Name starten den Deck-Connector neu.</span></div>
 </div></form>
 </section>
 
 <section data-panel="system" class="stack" hidden>
-<div class="card"><div class="card-h"><h2>Auslastung</h2><p class="muted">Die letzten 10 Minuten, alle 5 Sekunden gemessen. Nur im Arbeitsspeicher, nichts davon wird gespeichert.</p></div>
+<div class="card"><div class="card-h"><h2>Auslastung</h2><p class="muted">Die letzten 10 Minuten, alle 5 Sekunden gemessen. Liegt nur im Arbeitsspeicher.</p></div>
 <div class="card-b stack"><div class="meters" id="meters"></div><div class="meters" id="storage"></div></div></div>
 <div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für den Deck-Connector, den WLAN-Chip oder die Oberfläche.</p></div>
 <div class="card-b stack"><div id="slots" class="stack" style="gap:8px"></div>
