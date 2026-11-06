@@ -19,7 +19,7 @@
 #include "freertos/task.h"
 
 #define CLIENTS   8
-#define STATE_MAX 2048
+#define STATE_MAX 4096 /* as big as /api/status: a bigger state would stop going out */
 #define POLL_MS   200
 #define FRAME_MAX 512
 #define INPUT_MAX 160
@@ -205,7 +205,7 @@ static void on_input(const db_input_t *ev)
 /* State and screen changes, checked a few times a second while someone listens. */
 static void poll_task(void *arg)
 {
-    char *buf = malloc(STATE_MAX);
+    char *buf = heap_caps_malloc(STATE_MAX, MALLOC_CAP_SPIRAM);
     char *chunk = heap_caps_malloc(LOG_CHUNK + 1, MALLOC_CAP_SPIRAM);
     static db_shot_t shots[DB_SCREEN_MAX];
     char input[INPUT_MAX];
@@ -229,6 +229,11 @@ static void poll_task(void *arg)
             send_log(chunk);
         }
         size_t n = e.state_json(buf, STATE_MAX);
+        static bool warned;
+        if (!n && !warned) {
+            warned = true;
+            ESP_LOGW(TAG, "state does not fit %d bytes, listeners stop getting it", STATE_MAX);
+        }
         if (n && strcmp(buf, e.state) != 0) {
             memcpy(e.state, buf, n + 1);
             broadcast(buf);
@@ -352,7 +357,7 @@ esp_err_t events_open(httpd_req_t *req)
     e.servers[slot] = req->handle;
     e.by_token[slot] = auth_by_token(req);
     e.log[slot] = false;
-    char *buf = malloc(STATE_MAX);
+    char *buf = heap_caps_malloc(STATE_MAX, MALLOC_CAP_SPIRAM);
     if (buf && e.state_json(buf, STATE_MAX)) {
         send_to(req->handle, fd, buf); /* under the lock: the current state comes before any change */
     }
@@ -394,7 +399,7 @@ void events_start(size_t (*state_json)(char *buf, size_t cap))
     e.state_json = state_json;
     e.lock = xSemaphoreCreateMutex();
     e.inputs = xQueueCreate(16, INPUT_MAX);
-    e.state = calloc(1, STATE_MAX);
+    e.state = heap_caps_calloc(1, STATE_MAX, MALLOC_CAP_SPIRAM);
     for (int i = 0; i < CLIENTS; i++) {
         e.fds[i] = -1;
     }
