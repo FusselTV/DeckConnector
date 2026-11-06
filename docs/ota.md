@@ -1,8 +1,8 @@
 # Updates
 
-The Deck-Connector takes signed `.dbfw` files for its own firmware (P4), for the WLAN chip (C6), for its web page,
-and for its bootloader and partition table.
-A file comes from a server (`{"t": "ota", "url": ...}`), from the web UI, or for the page from `PUT /api/frontend`.
+The Deck-Connector takes signed `.dbfw` files for its own firmware (P4), for the WLAN chip (C6), for its web
+page, and for its bootloader and partition table. A file comes from a server (`{"t": "ota", "url": ...}`), from
+the web UI, or for the page from `PUT /api/frontend`.
 
 ## File format
 
@@ -85,5 +85,5 @@ uv run python -m dbtools.dbfw keygen        # once; key in ~/.config/deckbridge/
 uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckbridge.bin out.dbfw
 ```
 
-`keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A Deck-Connector only accepts files signed
-with the key it was built with. Losing the private key means the next firmware has to go on over USB.
+`keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A Deck-Connector only accepts files
+signed with the key it was built with. Losing the private key means the next firmware has to go on over USB.

@@ -8,13 +8,14 @@ bridge knows the USB protocol of the device and shows the newest image for each 
 - The Deck-Connector is the client. It opens `ws://<server>/deckbridge` with the subprotocol `deckbridge.v1`.
   A `wss://` URL works too. The server's certificate must come from a public CA and name the host, or match the
   SHA-256 set for that server in `server_pins` ([api.md](api.md)).
-- The Deck-Connector keeps a connection to every configured server, at most two. The first server in the list that is
-  connected is **active**. The other one is **standby**.
-- Only the active server may send images. The Deck-Connector answers images from a standby server with `REJECTED_ROLE`.
+- The Deck-Connector keeps a connection to every configured server, at most four. The first connected server in
+  the list is **active**. The others are **standby**.
+- Only the active server may send images. The Deck-Connector answers images from a standby server with
+  `REJECTED_ROLE`.
 - Input goes to the active server only.
-- When the active server is lost, the standby server becomes active and gets a `role` message. It must then
-  draw every area again. The Deck-Connector first shows what this server drew last time, which may be old. The active
-  server gets `role` again when the menu or an update on the device drew over its picture.
+- When the active server is lost, the next connected server becomes active and gets a `role` message. It must
+  then draw every area again. The Deck-Connector first shows what this server drew last time, which may be old.
+  The active server gets `role` again when the menu or an update on the device drew over its picture.
 - While the controller setting is `app` or `companion`, every server is standby. See [api.md](api.md).
 - The Deck-Connector sends a ping every 2 s. A server that sends nothing for 6 s counts as lost.
 

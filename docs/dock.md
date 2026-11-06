@@ -19,8 +19,7 @@ The board announces both services every 30 s, and again on every plug or unplug 
 | 5344 | The device. The board passes output, feature and input reports through |
 
 Every connection gets a keepalive at once and then every 2.5 s. Hosts drop a connection after 5 s without
-data.
-A plug or unplug of the deck sends a new `0x1c` report to every host that has asked the dock something.
+data. A plug or unplug of the deck sends a new `0x1c` report to every host that has asked the dock something.
 
 The framing ("Cora") is a 16 byte header (`43 93 8a 41`, flags, HID op, message id, length) and a HID report.
 `db_core/db_cora.c` builds the answers. `host_test/test_cora.c` checks them.

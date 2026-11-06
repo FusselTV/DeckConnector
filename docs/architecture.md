@@ -2,7 +2,7 @@
 
 ```
 firmware/
-  main/              composition root: starts components, connects their hooks
+  main/              starts the components and connects their hooks
   components/
     db_core/         plain C, no ESP-IDF: device model, drivers, image queue, protocol, Cora framing, Satellite
                      lines, layout and PNG
@@ -51,6 +51,7 @@ draws its kept picture at once, before anything new. `GET /api/screen` serves th
 ## Data path
 
 Server image → `db_link` reads the frame straight into one PSRAM buffer → `db_deck_submit` drops every pending
-image the new one covers → the writer task sends it over USB → the server gets an ACK with Deck-Connector timestamps.
+image the new one covers → the writer task sends it over USB → the server gets an ACK with Deck-Connector
+timestamps.
 
 Input runs the other way: USB report → driver → one event per change → the active server.

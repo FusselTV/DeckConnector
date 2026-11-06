@@ -16,16 +16,16 @@ tap picks the one that draws, and the deck shows its picture at once.
 - One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
   Stream Deck +).
 - LAN and WLAN at the same time. Connections go over LAN. If a server cannot be reached there, the next try
-  goes over WLAN. As soon as the server answers over LAN again, the connection moves back. The Deck-Connector notices a
-  dead LAN within 6 s. It announces the Network Dock on WLAN only while the LAN has no address.
-- Two servers. The first one in the list that is connected draws. If it goes away, the second takes over, at
-  once when the connection closes and within 6 s when the server just goes silent.
+  goes over WLAN. As soon as the server answers over LAN again, the connection moves back. A dead LAN shows within
+  6 s. The Network Dock is announced on WLAN only while the LAN has no address.
+- Up to four servers. The first connected one in the list draws. If it goes away, the next one takes over, at
+  once when the connection closes and within 6 s when the server goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
 - `wss://` for servers and for Companion's WebSocket port, checked against public CAs or a pinned certificate.
 - Signed updates for the firmware and the WLAN chip, with automatic rollback if new firmware does not
   come up.
-- A status screen and a settings menu on the device itself, a web UI with a live view of the deck that you can
-  click, hold, swipe and scroll like the real one, and a setup WLAN for first use.
+- A status screen and a settings menu on the device itself, and a setup WLAN for first use.
+- A web UI with a live view of the deck. You can click, hold, swipe and scroll it like the real one.
 - A JSON API for all of it, see [docs/api.md](docs/api.md).
 
 ## Hardware
@@ -57,7 +57,7 @@ Web-Zugang.
 1. Plug in LAN, or wait a minute. Without a network the board opens a setup WLAN. Its name and password are on
    the device.
 2. Open `http://<address>/` and log in as `admin`.
-3. Connect the program that should draw, then pick it under „Wer steuert das Deck?“.
+3. Connect the program that should draw, then pick it under "Wer steuert das Deck?".
    - Companion, best over its Satellite API. Enter the address of Companion under Settings, Companion über die
      Satellite-API. The board then connects to Companion itself. This also works when Companion runs in Docker
      without host networking, as long as port 16622, or 16623 for `ws://`, is reachable. Without it, the board
@@ -67,13 +67,13 @@ Web-Zugang.
      servers that announce `_deckbridge._tcp` over mDNS.
 
 When nobody draws, the deck shows its home screen. Its top row lists the connected hosts. Tap one twice to let
-it draw, or Menü for the settings. While a host draws, hold the first and the last encoder for two seconds to open the menu. When it
-closes, the deck shows the host's picture again at once.
+it draw, or Menü for the settings. While a host draws, hold the first and the last encoder for two seconds to
+open the menu. When it closes, the deck shows the host's picture again at once.
 
 ## Writing a server
 
-The protocol is in [docs/protocol.md](docs/protocol.md). `tools/dbtools/server.py` is a small Python server that the
-tests and benchmarks use, and a good starting point.
+The protocol is in [docs/protocol.md](docs/protocol.md). `tools/dbtools/server.py` is the small Python server
+that the tests and benchmarks use. Start from it.
 
 ## Updates
 

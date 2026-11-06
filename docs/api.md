@@ -1,8 +1,8 @@
 # Web API
 
 Everything the web UI does goes through this JSON API on port 80, and the same over HTTPS on port 443. Scripts
-can use it the same way. The Deck-Connector announces it over mDNS as `_deckbridge-api._tcp`, with `path` and `fw` in the
-TXT record.
+can use it the same way. The Deck-Connector announces it over mDNS as `_deckbridge-api._tcp`, with `path` and
+`fw` in the TXT record.
 
 The Deck-Connector makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
 `https_fingerprint` in the status is its SHA-256, to compare with what the browser shows. With `https_only` set,
@@ -73,7 +73,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api` (the firmware's API version), and for a page from the partition its `version`, `api_min` and `size` |
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
-| `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN; enter its address by hand |
+| `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call, and the smallest free stack each task ever had (`stack_free`) |
 | `GET /api/tokens` | The names of the API tokens |
@@ -206,9 +206,9 @@ are missing and `images` is empty.
 
 Companion, the Stream Deck app and the Satellite connection get the input only with `"real"`, because their
 buttons switch real devices. `"real": true` is for a person who pressed something, as the web UI does. A script
-names the host instead, `"real": "192.168.1.20"`, and the press goes out only if that host draws at that moment. Without it, only
-the Deck-Connector's own screens and your own servers get the input. `simulated_input: "local"` in the status says
-the firmware works this way.
+names the host instead, `"real": "192.168.1.20"`, and the press goes out only if that host draws at that moment.
+Without `"real"`, only the Deck-Connector's own screens and your own servers get the input.
+`simulated_input: "local"` in the status says the firmware works this way.
 
 ```json
 {"key": 3}
@@ -222,13 +222,13 @@ the firmware works this way.
 ```
 
 `action` is `press` (down and up, the default), `down`, `up`, or `turn` for encoders. Positive ticks turn right.
-The menu opens with `down` on the two controls in `menu_chord` and `up` after its `hold_ms`. A press on the real deck in
-between ends the simulated hold, because the deck always reports all keys at once.
+The menu opens with `down` on the two controls in `menu_chord` and `up` after its `hold_ms`. A press on the real
+deck in between ends the simulated hold, because the deck always reports all keys at once.
 
 ## Pairing
 
-Companion and the Stream Deck app connect without a password. The Deck-Connector lists every host that connected, by its
-MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
+Companion and the Stream Deck app connect without a password. The Deck-Connector lists every host that connected,
+by its MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
 the settings, only listed hosts get in. A new host is then let in and listed while none is known, in the first 5
 minutes after a boot, and while pairing is open. Otherwise it is turned away, and the deck and the web UI ask
 whether to let it in. Up to 8 hosts are listed.
@@ -236,8 +236,7 @@ whether to let it in. Up to 8 hosts are listed.
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
 `open_s` how long still, and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and
 `request_name` for the waiting host, is what the router's DNS answers for the address, empty when it does not
-know one. `POST /api/dock` takes one of
-these:
+know one. `POST /api/dock` takes one of these:
 
 ```json
 {"accept": true}
@@ -266,5 +265,5 @@ To change something, send `{"t": "set", "id": 1, ...}` with the keys of `PUT /ap
 `{"t": "input", "id": 2, ...}` with the keys of `POST /api/input`. The answer is
 `{"t": "result", "id": 1, "status": 200, "reply": {...}}`.
 
-`{"t": "log", "id": 3}` starts the log on this connection. It needs the password, a token gets 403.
+`{"t": "log", "id": 3}` starts the log on this connection. It needs the password. A token gets 403.
 `uv run python -m dbtools.netlog --secs 60` follows it from a shell.

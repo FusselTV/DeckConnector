@@ -5,7 +5,7 @@ switch real lights, scenes, a vacuum and more through Home Assistant, MQTT and H
 
 - Simulated presses (`POST /api/input`, `{"t": "input"}` on `/api/ws`, encoder turns, touches) must never reach a real
   host. Firmware that reports `simulated_input: "local"` in `/api/status` keeps them away from Companion, the Stream
-  Deck app and Satellite unless the request carries `"real": true`.
+  Deck app and Satellite unless the request carries `"real"`.
 - Never send `"real": true` from a test, tool or script: it is for a person at the web UI. Tools send
   `"real": "<ip>"` with the address from `dbtools.safety.real_input_target`, which allows only a host on this
   machine, and the firmware forwards each press only while that host draws. `tests/test_input_safety.py` and
