@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+import time
 import urllib.request
 from pathlib import Path
 
@@ -116,3 +117,75 @@ async def test_a_simulated_press_reaches_no_integration(token):
                 assert json.loads(await asyncio.wait_for(ha.recv(), 1))["t"] != "input", "a token got a simulated press"
         except TimeoutError:
             pass
+
+
+# Written out, not read from GET /api: a route moved down to control by mistake must fail here.
+ADMIN = [
+    ("DELETE", "/api/coredump"),
+    ("DELETE", "/api/frontend"),
+    ("DELETE", "/api/tokens/x"),
+    ("GET", "/api/boot"),
+    ("GET", "/api/companion/found"),
+    ("GET", "/api/config"),
+    ("GET", "/api/coredump"),
+    ("GET", "/api/log"),
+    ("GET", "/api/profile"),
+    ("GET", "/api/slots"),
+    ("GET", "/api/tokens"),
+    ("POST", "/api/dock"),
+    ("POST", "/api/ota"),
+    ("POST", "/api/ota/url"),
+    ("POST", "/api/reboot"),
+    ("POST", "/api/slots/0/boot"),
+    ("POST", "/api/tokens"),
+    ("PUT", "/api/config"),
+    ("PUT", "/api/frontend"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), ADMIN)
+def test_a_token_may_not_use_an_admin_route(token, method, path):
+    assert call(method, path, token, body=b"{}" if method != "GET" else None)[0] == 403
+
+
+def test_the_same_name_replaces_its_token(token):
+    second = json.loads(api("POST", "/api/tokens", json.dumps({"name": "pytest"}).encode())[1])["token"]
+    assert call("GET", "/api/status", token)[0] == 401
+    assert call("GET", "/api/status", second)[0] == 200
+    assert [t["name"] for t in json.loads(api("GET", "/api/tokens")[1])].count("pytest") == 1
+
+
+@pytest.mark.parametrize("name", ["", "a b", "x" * 24, "ä"])
+def test_token_names_are_checked(name):
+    assert api("POST", "/api/tokens", json.dumps({"name": name}).encode())[0] == 400
+
+
+def test_at_most_eight_tokens(token):
+    have = {t["name"] for t in json.loads(api("GET", "/api/tokens")[1])}
+    extra = [f"t{i}" for i in range(8 - len(have))]
+    try:
+        for name in extra:
+            assert api("POST", "/api/tokens", json.dumps({"name": name}).encode())[0] == 200
+        assert api("POST", "/api/tokens", json.dumps({"name": "ninth"}).encode())[0] == 409
+    finally:
+        for name in extra:
+            api("DELETE", f"/api/tokens/{name}")
+
+
+@pytest.mark.parametrize("origin", ["http://frontend.test.evil", "http://frontend.tes", "http://evil.frontend.test"])
+def test_cors_matches_whole_origins_only(origin):
+    try:
+        assert api("PUT", "/api/config", json.dumps({"cors_origins": "http://frontend.test"}).encode())[0] == 200
+        assert call("OPTIONS", "/api/status", headers={"Origin": origin})[0] == 403
+    finally:
+        api("PUT", "/api/config", json.dumps({"cors_origins": ""}).encode())
+
+
+def test_wrong_tokens_lock_out_with_a_wait(token):
+    for _ in range(12):
+        code, body, _ = call("GET", "/api/status", "wrong")
+        if code == 429:
+            break
+    assert code == 429 and json.loads(body)["retry"] > 0
+    assert call("GET", "/api/status", token)[0] == 429, "a good token must wait too, not hear 'unknown token'"
+    time.sleep(json.loads(body)["retry"] + 1)
