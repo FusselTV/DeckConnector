@@ -406,6 +406,17 @@ static void free_transfers(void)
     }
 }
 
+esp_err_t usb_port_ids(uint8_t address, uint16_t *vid, uint16_t *pid)
+{
+    usb_device_handle_t d;
+    ESP_RETURN_ON_ERROR(usb_host_device_open(s.client, address, &d), TAG, "open");
+    const usb_device_desc_t *dd;
+    usb_host_get_device_descriptor(d, &dd);
+    *vid = dd->idVendor;
+    *pid = dd->idProduct;
+    return usb_host_device_close(s.client, d);
+}
+
 esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
 {
     if (s.dev) {

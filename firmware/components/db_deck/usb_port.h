@@ -19,6 +19,8 @@ bool usb_port_full_speed(void);
 
 /* Open and claim the device announced by `attached`. Call from a task other than the USB client task. */
 esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid);
+/* Vendor and product of a present device, without claiming it. */
+esp_err_t usb_port_ids(uint8_t address, uint16_t *vid, uint16_t *pid);
 void usb_port_close(void);
 
 /* Valid after usb_port_open() returned ESP_OK. */

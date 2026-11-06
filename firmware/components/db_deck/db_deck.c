@@ -226,14 +226,15 @@ static void replug_task(void *arg);
 static void handle_attach(uint8_t address)
 {
     /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen at
-     * 16, 32 and 48, never in between). Plugged in again it gets the next one. */
-    if ((address & 0x0f) == 0) {
+     * 16, 32 and 48, never in between). Plugged in again it gets the next one. A hub or another device there
+     * is left alone. */
+    uint16_t vid;
+    uint16_t pid;
+    if ((address & 0x0f) == 0 && usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
         ESP_LOGW(TAG, "USB address %u, plugging the deck in again", address);
         xTaskCreate(replug_task, "deck_replug", 3072, (void *)(uintptr_t)address, 5, NULL);
         return;
     }
-    uint16_t vid;
-    uint16_t pid;
     esp_err_t opened = usb_port_open(address, &vid, &pid);
     if (opened != ESP_OK) {
         if (opened == ESP_ERR_INVALID_STATE) {
