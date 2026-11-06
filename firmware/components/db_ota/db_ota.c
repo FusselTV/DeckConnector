@@ -602,6 +602,7 @@ esp_err_t db_ota_boot_slot(int slot)
 /* The web page: a whole .dbfw image with target web, kept in PSRAM. Readers and db_ota_web_store run one at a
  * time (the web server's lock). */
 static uint8_t *web_img;
+static esp_err_t web_rejected; /* why the page in the partition is not served */
 
 static const esp_partition_t *www(void)
 {
@@ -646,6 +647,7 @@ void db_ota_web_load(uint16_t api)
     }
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "web page in the partition not used: %s", esp_err_to_name(err));
+        web_rejected = err;
         heap_caps_free(img);
         return;
     }
@@ -663,14 +665,16 @@ esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api)
     if (err == ESP_OK) {
         err = esp_partition_erase_range(part, 0, (len + 4095) & ~4095u);
     }
-    if (err == ESP_OK) {
-        err = esp_partition_write(part, 0, img, len);
+    if (err == ESP_OK && esp_partition_write(part, 0, img, len) != ESP_OK) {
+        esp_partition_erase_range(part, 0, 4096); /* no half page at the next start: the built-in one */
+        err = ESP_FAIL;
     }
     if (err != ESP_OK) {
         return err;
     }
     heap_caps_free(web_img);
     web_img = img;
+    web_rejected = ESP_OK;
     return ESP_OK;
 }
 
@@ -681,8 +685,14 @@ esp_err_t db_ota_web_erase(void)
     if (err == ESP_OK) {
         heap_caps_free(web_img);
         web_img = NULL;
+        web_rejected = ESP_OK;
     }
     return err;
+}
+
+esp_err_t db_ota_web_rejected(void)
+{
+    return web_rejected;
 }
 
 bool db_ota_web(db_ota_web_t *out)

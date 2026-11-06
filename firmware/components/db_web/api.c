@@ -440,6 +440,9 @@ static size_t frontend_json(char *buf, size_t cap)
     db_json_obj_open(&j, NULL);
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "source", own ? "partition" : "builtin");
+    if (!own && db_ota_web_rejected() != ESP_OK) {
+        db_json_str(&j, "rejected", esp_err_to_name(db_ota_web_rejected()));
+    }
     if (own) {
         db_json_str(&j, "version", web.version);
         db_json_int(&j, "api_min", web.api_min);
@@ -550,6 +553,9 @@ esp_err_t put_frontend(httpd_req_t *req)
     esp_err_t err = db_ota_web_store(img, len, DB_WEB_API);
     if (err != ESP_OK) {
         heap_caps_free(img);
+        if (err == ESP_FAIL) {
+            return send_error(req, "500 Internal Server Error", "page not saved, the built-in one is used after a restart");
+        }
         return send_error(req, "400 Bad Request",
                           err == ESP_ERR_INVALID_VERSION ? "needs a newer firmware" : esp_err_to_name(err));
     }

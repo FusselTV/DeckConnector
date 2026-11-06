@@ -77,6 +77,8 @@ esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api);
 esp_err_t db_ota_web_erase(void);
 /* The page in use from the partition; false for the built-in one. */
 bool db_ota_web(db_ota_web_t *out);
+/* Why the page in the partition was not used at start, or ESP_OK. */
+esp_err_t db_ota_web_rejected(void);
 
 /* What sits below the app slots. Both can be replaced with POST /api/ota and a signed "bootloader" or "ptable" file. */
 typedef struct {

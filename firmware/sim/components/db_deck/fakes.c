@@ -173,6 +173,10 @@ bool db_ota_web(db_ota_web_t *out)
 {
     return false;
 }
+esp_err_t db_ota_web_rejected(void)
+{
+    return ESP_OK;
+}
 
 bool db_ota_restarts(void)
 {
