@@ -8,6 +8,7 @@ import urllib.request
 import pytest
 from conftest import HOST, PASSWORD, api
 from websockets.asyncio.client import connect
+from websockets.exceptions import InvalidStatus
 
 AUTH = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode(), "X-Deckbridge": "1"}
 TLS = ssl.create_default_context()
@@ -63,7 +64,7 @@ async def test_https_only_leaves_plain_http_a_redirect(https_only):
     code, headers, _ = get(f"http://{HOST}/", {})
     assert (code, headers["Location"]) == (302, f"https://{HOST}/")
     assert get(f"http://{HOST}/api/status", AUTH)[0] == 403, "a password must not go over plain HTTP"
-    with pytest.raises(Exception, match="403"):
+    with pytest.raises(InvalidStatus, match="403"):
         async with connect(f"ws://{HOST}/api/ws", additional_headers={"Authorization": AUTH["Authorization"]}):
             pass
     assert get(f"https://{HOST}/api/status", AUTH)[0] == 200

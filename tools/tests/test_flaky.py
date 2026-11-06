@@ -30,8 +30,11 @@ class Proxy:
                 await asyncio.sleep(random.uniform(0, self.jitter))
                 writer.write(data)
                 await writer.drain()
-        except (ConnectionError, asyncio.CancelledError):
+        except ConnectionError:
             pass
+        except asyncio.CancelledError:
+            writer.close()
+            raise
         writer.close()
 
     async def handle(self, reader, writer):

@@ -1,7 +1,6 @@
 """The API answers over both networks, in about the time the bench measured."""
 
 import base64
-import contextlib
 import json
 import random
 import socket
@@ -56,9 +55,13 @@ def test_a_client_port_the_bridge_closed_connects_again():
     closed = []
     for i, s in enumerate(idle):
         s.settimeout(0.2)
-        with contextlib.suppress(OSError):
+        try:
             if s.recv(10) == b"":
                 closed.append(base + i)
+        except ConnectionResetError:
+            closed.append(base + i)  # a reset closes it too
+        except OSError:
+            pass  # still open: nothing came within the timeout
     for i, s in enumerate(idle):
         if base + i not in closed:  # a reset leaves no TIME-WAIT here that a later run could trip over
             s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))

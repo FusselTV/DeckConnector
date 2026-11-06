@@ -62,7 +62,9 @@ def wait_version(version: str, secs: float = 90) -> float:
     start = time.time()
     while time.time() - start < secs:
         try:
-            s = api("GET", "/api/status", timeout=2)[1]
+            code, s = api("GET", "/api/status", timeout=2)
+            if code == 401:
+                raise SystemExit("the bridge refuses the password in ~/.config/deckbridge/admin_pass")
             if s["firmware"] == version and s["uptime_s"] <= time.time() - start + 1:
                 return time.time() - start
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
@@ -72,8 +74,13 @@ def wait_version(version: str, secs: float = 90) -> float:
 
 
 def bench_slot(avoid: set) -> int:
-    _, slots = api("GET", "/api/slots")
-    return next(s for s in BENCH_SLOTS if s not in avoid and not slots[s]["running"])
+    code, slots = api("GET", "/api/slots")
+    if code != 200:
+        raise SystemExit(f"/api/slots answered {code}: firmware without slots, deploy with tools/flash.sh")
+    free = [s for s in BENCH_SLOTS if s not in avoid and not slots[s]["running"]]
+    if not free:
+        raise SystemExit(f"no bench slot left among {BENCH_SLOTS} (avoiding {sorted(avoid)})")
+    return free[0]
 
 
 def confirmed(secs: float = 150) -> None:
@@ -84,7 +91,7 @@ def confirmed(secs: float = 150) -> None:
         if code == 200:
             if not any(s["running"] and s["state"] == "pending" for s in slots):
                 break
-        elif api("GET", "/api/status")[1]["uptime_s"] > 25:  # a firmware without slots: past its confirm time
+        elif code == 404 and api("GET", "/api/status")[1]["uptime_s"] > 25:  # no slots yet: past its confirm time
             break
         if time.time() - start > secs:
             raise SystemExit("the running firmware never confirmed itself")
