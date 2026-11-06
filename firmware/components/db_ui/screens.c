@@ -425,22 +425,49 @@ static void ap_page(page_t *p)
     }
 }
 
+/* "Drehregler 1 und 4" / "Tasten 1 und 15" and "2 s halten", or "aus". */
+static void chord_words(const page_t *p, char *which, size_t cap, char *hold, size_t hold_cap)
+{
+    bool enc;
+    int last;
+    if (!ui_menu_chord(p->md->menu_chord, p->l->encoders, p->l->cols * p->l->rows, &enc, &last)) {
+        snprintf(which, cap, "aus");
+        snprintf(hold, hold_cap, "%s", fit(p, "nur im Web", ""));
+        return;
+    }
+    snprintf(which, cap, "%s 1 + %d", enc ? fit(p, "Drehregler", "Regler") : "Tasten", last + 1);
+    int ms = p->md->menu_hold_ms;
+    snprintf(hold, hold_cap, ms % 1000 ? "%d,%d s halten" : "%d s halten", ms / 1000, ms % 1000 / 100);
+}
+
+/* A new deck: the address to type into Companion or the Stream Deck app, and how to reach the menu. The first
+ * host that connects draws by itself (ui_first_source). */
 static void welcome(page_t *p)
 {
+    const ui_model_t *md = p->md;
     host_row(p, false, true);
     for (int i = 0; i < p->l->cols - 1; i++) {
         p->sc->tiles[at(p, 0, i)].active = false; /* nothing is chosen yet */
     }
     button(put(p, at(p, 0, -1), K_SKIP), ICON_CLOSE, "Später", fit(p, "überspringen", ""));
+    char which[32];
+    char hold[24];
+    chord_words(p, which, sizeof(which), hold, sizeof(hold));
+    const char *ip = ip_of(md);
     if (p->l->strip) {
-        segment(
-            &p->sc->seg[0], 4, ICON_SETTINGS, C_EDIT, "Willkommen beim Deck-Connector",
-            "Wer steuert das Deck?",
-            "Oben den Rechner antippen, der zeichnen soll, sobald er verbunden ist. Ändern geht im Menü.");
-    } else {
-        card(put(p, at(p, 1, 0), K_NONE), ICON_SETTINGS, fit(p, "Willkommen", "Hallo"), "Wer steuert?",
-             fit(p, "oben antippen", ""));
+        if (ip) {
+            segment(&p->sc->seg[0], 2, ICON_WEB, C_EDIT, "Diese Adresse eintragen", ip,
+                    "in Companion oder der Stream Deck App");
+        } else {
+            segment(&p->sc->seg[0], 2, ICON_NO_NETWORK, C_DANGER, "Kein Netz", "LAN-Kabel stecken",
+                    "nach 1 min startet das Setup-WLAN");
+        }
+        segment(&p->sc->seg[2], 2, ICON_SETTINGS, C_DIM, "Menü öffnen", which, hold);
+        return;
     }
+    card(put(p, at(p, 1, 0), K_NONE), ip ? ICON_WEB : ICON_NO_NETWORK, fit(p, "Adresse", "IP"),
+         ip ? ip : "kein Netz", ip ? fit(p, "in Companion/App", "eintragen") : fit(p, "LAN-Kabel", "Kabel"));
+    card(put(p, at(p, 1, 1), K_NONE), ICON_SETTINGS, "Menü", which, hold);
 }
 
 static void welcome_net(page_t *p)
@@ -496,6 +523,26 @@ static void request_page(page_t *p)
     }
 }
 
+/* A Companion announced itself and no Satellite address is set: connect over Satellite with one key. */
+static void offer_page(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    card(put(p, at(p, 0, 0), K_NONE), ICON_COMPANION, fit(p, "Companion", "Gefunden"), md->offer_name,
+         fit(p, "gefunden", ""));
+    ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
+    button(yes, ICON_SAVE, "Verbinden", fit(p, "über Satellite", ""));
+    yes->active = true;
+    yes->color = C_ACTIVE;
+    ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
+    button(no, ICON_CLOSE, "Nein", fit(p, "nicht fragen", ""));
+    no->color = C_DANGER;
+    if (p->l->strip) {
+        char v[48];
+        snprintf(v, sizeof(v), "%.24s verbinden?", md->offer_name);
+        segment(&p->sc->seg[0], 4, ICON_COMPANION, C_EDIT, "Companion gefunden", v, md->offer_addr);
+    }
+}
+
 /* Every host that can draw; at most UI_SOURCES, so even the Neo needs no paging. */
 static void sources_page(page_t *p)
 {
@@ -541,18 +588,24 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_REQUEST:
         request_page(&p);
         break;
+    case PAGE_OFFER:
+        offer_page(&p);
+        break;
     default:
         home(&p);
         break;
     }
 }
 
-/* The page that shows: a connection request comes first, then the welcome steps until setup is done. */
+/* The page that shows: a connection request comes first, then a found Companion, then the welcome steps until
+ * setup is done. */
 static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
 {
     ui_menu_t shown = *m;
     if (md->request[0]) {
         shown.page = PAGE_REQUEST;
+    } else if (m->page == PAGE_HOME && md->offer_addr[0]) {
+        shown.page = PAGE_OFFER;
     } else if (m->page == PAGE_HOME && !md->setup_done) {
         shown.page = PAGE_WELCOME;
     }
@@ -732,7 +785,8 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     case K_ACCEPT:
     case K_DENY:
-        *act = (ui_action_t){.what = UI_DO_ANSWER, .value = what == K_ACCEPT};
+        *act = (ui_action_t){.what = shown.page == PAGE_OFFER ? UI_DO_OFFER : UI_DO_ANSWER,
+                             .value = what == K_ACCEPT};
         return true;
     case K_CLOSE:
         go(m, PAGE_HOME, md->now_us);
@@ -802,6 +856,15 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         }
         return false;
     }
+}
+
+bool ui_first_source(const ui_model_t *md, ui_action_t *act)
+{
+    if (md->setup_done || md->request[0] || md->offer_addr[0] || !md->source_count) {
+        return false;
+    }
+    *act = (ui_action_t){.what = UI_DO_SOURCE, .value = 0};
+    return true;
 }
 
 bool ui_menu_tick(ui_menu_t *m, const ui_model_t *md)

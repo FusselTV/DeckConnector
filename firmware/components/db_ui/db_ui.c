@@ -210,6 +210,35 @@ static void model_qr(ui_model_t *md)
     md->ap_qr = md->ap_on ? qr : (ui_qr_t){0};
 }
 
+#define OFFER_DENIED_MAX 4
+static char denied[OFFER_DENIED_MAX][16]; /* Companions the deck was told "no" for, until a restart */
+
+/* A Companion that announces its Satellite API while no address is set and nobody said no to it. */
+static void model_offer(ui_model_t *md, const db_config_t *c)
+{
+    if (c->satellite[0]) {
+        return;
+    }
+    db_net_found_t found[OFFER_DENIED_MAX];
+    size_t n = db_net_companions(found, OFFER_DENIED_MAX);
+    for (size_t i = 0; i < n; i++) {
+        bool no = false;
+        for (int d = 0; d < OFFER_DENIED_MAX; d++) {
+            no |= strcmp(denied[d], found[i].host) == 0;
+        }
+        if (!no) {
+            /* "Companion (studio)" -> "studio": the key already says Companion */
+            const char *name = found[i].name[0] ? found[i].name : found[i].host;
+            size_t len = strlen(name);
+            bool wrapped = strncmp(name, "Companion (", 11) == 0 && len > 12 && name[len - 1] == ')';
+            snprintf(md->offer_name, sizeof(md->offer_name), "%.*s", wrapped ? (int)len - 12 : (int)len,
+                     wrapped ? name + 11 : name);
+            snprintf(md->offer_addr, sizeof(md->offer_addr), "%s:%u", found[i].host, found[i].port);
+            return;
+        }
+    }
+}
+
 static void model(ui_model_t *md)
 {
     const db_config_t *c = db_config();
@@ -228,7 +257,10 @@ static void model(ui_model_t *md)
         .brightness = s.brightness >= 0 ? s.brightness : c->brightness,
         .update_pct = s.update_pct,
         .setup_done = c->setup_done,
+        .menu_hold_ms = c->menu_hold_ms,
     };
+    snprintf(md->menu_chord, sizeof(md->menu_chord), "%s", c->menu_chord);
+    model_offer(md, c);
     snprintf(md->lan_ip, sizeof(md->lan_ip), "%s", n.lan_ip);
     snprintf(md->wlan_ip, sizeof(md->wlan_ip), "%s", n.wlan_ip);
     snprintf(md->wifi_ssid, sizeof(md->wifi_ssid), "%s", c->wifi_ssid);
@@ -336,6 +368,22 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         db_config_copy(&c);
         c.controller = (db_controller_t)md->sources[act->value].kind;
         snprintf(c.host, sizeof(c.host), "%s", md->sources[act->value].id);
+        c.setup_done = true;
+        db_config_save(&c);
+        break;
+    case UI_DO_OFFER:
+        if (!act->value) {
+            static int next;
+            snprintf(denied[next++ % OFFER_DENIED_MAX], sizeof(denied[0]), "%.*s",
+                     (int)strcspn(md->offer_addr, ":"), md->offer_addr);
+            break;
+        }
+        db_config_copy(&c);
+        snprintf(c.satellite, sizeof(c.satellite), "%s", md->offer_addr);
+        c.controller = DB_CTRL_COMPANION;
+        snprintf(c.host, sizeof(c.host), "satellite");
+        c.setup_done = true;
+        ESP_LOGI(TAG, "Companion %s over Satellite, chosen on the deck", md->offer_addr);
         db_config_save(&c);
         break;
     case UI_DO_BRIGHTNESS: {
@@ -461,6 +509,12 @@ static void ui_task(void *arg)
             continue;
         }
         model(&md);
+        ui_action_t first;
+        if (ui_first_source(&md, &first)) {
+            ESP_LOGI(TAG, "first host draws: %s", md.sources[0].id);
+            carry_out(&first, &md);
+            continue; /* the save brings the next round, with that host as the writer */
+        }
         ui_layout_t l = ui_layout_of(&s.dev);
         if (s.update_pct >= 0) {
             ui_update_screen(&md, &l, &sc);
@@ -572,6 +626,17 @@ static void tick(void *arg)
     }
     static int64_t next;
     int64_t now = esp_timer_get_time();
+    static int64_t next_look;
+    if (now >= next_look && s.present && !db_config()->satellite[0] && db_deck_writer() == DB_SOURCE_UI) {
+        next_look = now + 5000000;
+        static size_t seen;
+        db_net_found_t found[OFFER_DENIED_MAX];
+        size_t n = db_net_companions(found, OFFER_DENIED_MAX); /* also starts the next browse */
+        if (n != seen) {
+            seen = n;
+            changed();
+        }
+    }
     if (now >= next) {
         next = now + 1000000;
         ui_model_t md = {.now_us = now};

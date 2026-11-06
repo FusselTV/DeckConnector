@@ -70,6 +70,16 @@ When nobody draws, the deck shows its home screen. Its top row lists the connect
 it draw, or Menü for the settings. While a host draws, hold the first and the last encoder for two seconds to
 open the menu. When it closes, the deck shows the host's picture again at once.
 
+### Without the web UI
+
+The web UI is optional. Plug in LAN. The deck shows its address and how to open its menu.
+
+- Stream Deck app: it finds the board by itself.
+- Companion: enter the address under Surfaces as a remote surface. When Companion announces its Satellite API in
+  your network, the deck asks "Companion gefunden, verbinden?" instead. One key connects it over Satellite.
+- The first program that connects takes the deck. Later ones are picked on the deck's home screen.
+- No LAN cable: after a minute the deck shows a QR code for its setup WLAN.
+
 ## Writing a server
 
 The protocol is in [docs/protocol.md](docs/protocol.md). `tools/dbtools/server.py` is the small Python server

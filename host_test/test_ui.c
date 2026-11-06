@@ -78,7 +78,9 @@ static ui_model_t base_model(void)
         .wlan_rssi = -67,
         .brightness = 100,
         .update_pct = -1,
+        .menu_hold_ms = 2000,
         .setup_done = true};
+    strcpy(md.menu_chord, "auto");
     strcpy(md.lan_ip, "192.168.1.214");
     strcpy(md.wlan_ip, "192.168.1.237");
     strcpy(md.wifi_ssid, "deckbridge");
@@ -221,6 +223,18 @@ static void test_no_page_cuts_a_text(void)
             snprintf(name, sizeof(name), "%s_request_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             md.request[0] = '\0';
+            strcpy(md.offer_name, v == 1 ? "studio-pc-regie-links-2" : "studio");
+            strcpy(md.offer_addr, v == 1 ? "255.255.255.255:65535" : "192.168.1.15:16622");
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_offer_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
+            md.offer_addr[0] = '\0';
+            md.source_count = 0; /* a new deck: nobody connected yet */
+            md.menu_hold_ms = v == 1 ? 2500 : 2000;
+            strcpy(md.menu_chord, v == 2 ? "keys" : (v == 3 ? "off" : "auto"));
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_new_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
             md.update_pct = 100;
             strcpy(md.update_what, "WLAN-Chip");
             ui_update_screen(&md, &l, &sc);
@@ -383,6 +397,61 @@ static void test_welcome(void)
     TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
 }
 
+/* No web UI: a new deck shows its address and the menu chord, the first host draws by itself, and a Companion
+ * found over mDNS is taken with one key. */
+static void test_without_the_web_ui(void)
+{
+    for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
+        db_device_info_t dev = open_deck(decks[d].pid);
+        ui_layout_t l = ui_layout_of(&dev);
+        ui_model_t md = base_model();
+        md.setup_done = false;
+        md.source_count = 0;
+        ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+        ui_screen_t sc;
+        ui_menu_screen(&m, &md, &l, &sc);
+        bool address = false;
+        bool chord = false;
+        for (int i = 0; i < UI_SEGMENTS; i++) {
+            address |= strcmp(sc.seg[i].value, "192.168.1.214") == 0;
+            chord |= strstr(sc.seg[i].value, "1 + ") != NULL;
+        }
+        for (int i = 0; i < UI_MAX_KEYS; i++) {
+            address |= strcmp(sc.tiles[i].value, "192.168.1.214") == 0;
+            chord |= strstr(sc.tiles[i].value, "1 + ") != NULL;
+        }
+        TEST_ASSERT_TRUE_MESSAGE(address, decks[d].name);
+        TEST_ASSERT_TRUE_MESSAGE(chord, decks[d].name);
+        ui_action_t act;
+        TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* nobody there yet */
+        md.source_count = 1;                            /* the Stream Deck app or Companion connects */
+        TEST_ASSERT_TRUE(ui_first_source(&md, &act));
+        TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
+        TEST_ASSERT_EQUAL_INT(0, act.value);
+        md.setup_done = true; /* chosen once: later hosts are picked on the deck */
+        TEST_ASSERT_FALSE(ui_first_source(&md, &act));
+
+        md.setup_done = false;
+        strcpy(md.offer_name, "studio");
+        strcpy(md.offer_addr, "192.168.1.15:16622");
+        TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* the offer comes first */
+        ui_menu_screen(&m, &md, &l, &sc);
+        TEST_ASSERT_EQUAL_STRING("studio", sc.tiles[0].value);
+        press(&m, &md, &l, 1, &act);
+        TEST_ASSERT_EQUAL_INT(UI_DO_OFFER, act.what);
+        TEST_ASSERT_EQUAL_INT(1, act.value);
+        press(&m, &md, &l, 2, &act);
+        TEST_ASSERT_EQUAL_INT(UI_DO_OFFER, act.what);
+        TEST_ASSERT_EQUAL_INT(0, act.value);
+        md.offer_addr[0] = '\0';
+        md.request[0] = '\0';
+        strcpy(md.request, "192.168.1.77"); /* a pairing request still comes before an offer */
+        strcpy(md.offer_addr, "192.168.1.15:16622");
+        press(&m, &md, &l, 1, &act);
+        TEST_ASSERT_EQUAL_INT(UI_DO_ANSWER, act.what);
+    }
+}
+
 void setUp(void)
 {
     ui_on_cut = print_cut;
@@ -401,5 +470,6 @@ int main(void)
     RUN_TEST(test_flows_without_encoders);
     RUN_TEST(test_welcome);
     RUN_TEST(test_menu_chord_on_every_deck);
+    RUN_TEST(test_without_the_web_ui);
     return UNITY_END();
 }

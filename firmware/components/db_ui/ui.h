@@ -102,6 +102,10 @@ typedef struct {
     ui_qr_t ap_qr;    /* joins the setup WLAN when a phone scans it */
     char request[16]; /* a host that is not paired asks to connect */
     char request_name[40];
+    char offer_name[32]; /* a Companion found by mDNS while no Satellite address is set */
+    char offer_addr[24]; /* its "host:port" */
+    char menu_chord[12];
+    int menu_hold_ms;
     char server_url[96];
     char web_pass[24];
     char fw[32];
@@ -123,6 +127,7 @@ typedef enum {
     UI_DO_RESET,
     UI_DO_SAVE_LAN, /* dhcp, octets */
     UI_DO_SETUP_DONE,
+    UI_DO_OFFER, /* value: 1 connects to the offered Companion over Satellite, 0 asks no more until a restart */
 } ui_do_t;
 
 typedef struct {
@@ -141,6 +146,7 @@ typedef enum {
     PAGE_WELCOME_NET,
     PAGE_SOURCES, /* every connected host, when the top row has no room for all */
     PAGE_REQUEST, /* shown over every page while a host that is not paired asks */
+    PAGE_OFFER,   /* instead of home or welcome while a found Companion is offered */
 } ui_page_t;
 
 typedef struct {
@@ -172,6 +178,8 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
 /* Once a second: closes an idle menu, ends a confirm, counts down a held restart key. True to redraw. */
 bool ui_menu_tick(ui_menu_t *m, const ui_model_t *md);
 void ui_menu_screen(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc);
+/* Before setup is done the first host that connects draws without a tap: true and `act` when it is there. */
+bool ui_first_source(const ui_model_t *md, ui_action_t *act);
 void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc);
 
 /*
