@@ -420,6 +420,11 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_ADMIN},
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_ADMIN},
         {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_ADMIN},
+        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_ADMIN},
+        {{.uri = "/api/coredump", .method = HTTP_DELETE, .handler = delete_coredump}, WEB_ADMIN},
+#ifdef DB_DEBUG_CRASH
+        {{.uri = "/api/debug/crash", .method = HTTP_POST, .handler = post_debug_crash}, WEB_ADMIN},
+#endif
     };
     _Static_assert(sizeof(list) / sizeof(list[0]) <= sizeof(web_uris) / sizeof(web_uris[0]),
                    "more routes than slots");

@@ -20,6 +20,13 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "web.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "sdkconfig.h"
+#if !CONFIG_IDF_TARGET_LINUX
+#include "esp_core_dump.h"
+#include "esp_partition.h"
+#endif
 
 #define BODY_MAX        2048
 #define CHUNK           4096
@@ -664,3 +671,93 @@ esp_err_t post_ota_url(httpd_req_t *req)
     /* progress shows on the deck and in the state of /api/ws; the bridge restarts when done */
     return send_json(req, "{\"ok\":true}");
 }
+
+#if CONFIG_IDF_TARGET_LINUX
+esp_err_t get_coredump(httpd_req_t *req)
+{
+    return send_error(req, "404 Not Found", "no coredump");
+}
+
+esp_err_t delete_coredump(httpd_req_t *req)
+{
+    return send_json(req, "{\"ok\":true}");
+}
+#else
+static size_t coredump_json(char *buf, size_t cap)
+{
+    esp_core_dump_summary_t *sum = heap_caps_malloc(sizeof(*sum), MALLOC_CAP_SPIRAM); /* 1.2 KB, stack dump */
+    size_t addr = 0;
+    size_t size = 0;
+    esp_core_dump_image_get(&addr, &size);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_int(&j, "size", (int64_t)size);
+    if (sum && esp_core_dump_get_summary(sum) == ESP_OK) {
+        char hex[12];
+        db_json_str(&j, "task", sum->exc_task);
+        snprintf(hex, sizeof(hex), "0x%08lx", (unsigned long)sum->exc_pc);
+        db_json_str(&j, "pc", hex);
+        snprintf(hex, sizeof(hex), "0x%08lx", (unsigned long)sum->ex_info.ra);
+        db_json_str(&j, "ra", hex);
+        snprintf(hex, sizeof(hex), "0x%08lx", (unsigned long)sum->ex_info.sp);
+        db_json_str(&j, "sp", hex);
+        db_json_int(&j, "mcause", sum->ex_info.mcause);
+        snprintf(hex, sizeof(hex), "0x%08lx", (unsigned long)sum->ex_info.mtval);
+        db_json_str(&j, "mtval", hex);
+        db_json_str(&j, "elf_sha256", (const char *)sum->app_elf_sha256);
+    }
+    heap_caps_free(sum);
+    db_json_obj_close(&j);
+    return db_json_end(&j);
+}
+
+/* GET /api/coredump: what crashed. ?raw=1: the ELF dump itself, for `idf.py coredump-info -c` with the build's ELF. */
+esp_err_t get_coredump(httpd_req_t *req)
+{
+    size_t addr = 0;
+    size_t size = 0;
+    if (esp_core_dump_image_check() != ESP_OK || esp_core_dump_image_get(&addr, &size) != ESP_OK) {
+        return send_error(req, "404 Not Found", "no coredump");
+    }
+    if (!strstr(req->uri, "raw=1")) {
+        return send_built(req, 512, coredump_json);
+    }
+    const esp_partition_t *part =
+        esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, NULL);
+    char *chunk = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM);
+    if (!part || !chunk) {
+        heap_caps_free(chunk);
+        return send_error(req, "500 Internal Server Error", "memory");
+    }
+    httpd_resp_set_type(req, "application/octet-stream");
+    esp_err_t err = ESP_OK;
+    for (size_t off = 0; off < size && err == ESP_OK; off += 4096) {
+        size_t n = size - off < 4096 ? size - off : 4096;
+        err = esp_partition_read(part, addr - part->address + off, chunk, n);
+        if (err == ESP_OK) {
+            err = httpd_resp_send_chunk(req, chunk, (ssize_t)n);
+        }
+    }
+    heap_caps_free(chunk);
+    return err == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : err;
+}
+
+esp_err_t delete_coredump(httpd_req_t *req)
+{
+    esp_err_t err = esp_core_dump_image_erase();
+    return err == ESP_OK ? send_json(req, "{\"ok\":true}")
+                         : send_error(req, "500 Internal Server Error", esp_err_to_name(err));
+}
+#endif
+
+#ifdef DB_DEBUG_CRASH
+/* Only in test builds (idf.py -DDB_DEBUG_CRASH=1): proves a crash leaves a dump that GET /api/coredump reads. */
+esp_err_t post_debug_crash(httpd_req_t *req)
+{
+    send_json(req, "{\"ok\":true}");
+    vTaskDelay(pdMS_TO_TICKS(200));
+    *(volatile int *)0 = 0;
+    return ESP_OK;
+}
+#endif

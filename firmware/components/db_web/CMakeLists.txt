@@ -6,7 +6,11 @@ if(${IDF_TARGET} STREQUAL "linux")
 else()
     idf_component_register(SRCS http.c api.c metrics.c auth.c events.c cert.c INCLUDE_DIRS include
                            REQUIRES esp_common
-                           PRIV_REQUIRES app_update bootloader_support nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_https_server esp_timer lwip mbedtls)
+                           PRIV_REQUIRES app_update bootloader_support espcoredump esp_partition nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_https_server esp_timer lwip mbedtls)
+endif()
+# Test builds only: a route that crashes on purpose, for the coredump test (tools/tests/test_coredump.py).
+if(DB_DEBUG_CRASH)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DB_DEBUG_CRASH)
 endif()
 idf_build_get_property(python PYTHON)
 set(page_gz ${CMAKE_CURRENT_BINARY_DIR}/index.html.gz)
