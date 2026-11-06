@@ -216,14 +216,16 @@ static void notify_device(const db_device_info_t *info)
     }
 }
 
+static void replug_task(void *arg);
+
 static void handle_attach(uint8_t address)
 {
     /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen at
      * 16, 32 and 48, never in between). Plugged in again it gets the next one.
-     * ponytail: this powers the whole root port, so behind a hub every deck replugs; skip per hub port then. */
+     * Behind a hub only its own hub port goes off. */
     if ((address & 0x0f) == 0) {
         ESP_LOGW(TAG, "USB address %u, plugging the deck in again", address);
-        db_deck_reconnect();
+        xTaskCreate(replug_task, "deck_replug", 3072, (void *)(uintptr_t)address, 5, NULL);
         return;
     }
     uint16_t vid;
@@ -420,7 +422,7 @@ const char *db_deck_source_name(db_source_t source)
 
 static void replug_task(void *arg)
 {
-    esp_err_t err = usb_port_replug();
+    esp_err_t err = usb_port_replug((uint8_t)(uintptr_t)arg);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
     }
@@ -430,7 +432,7 @@ static void replug_task(void *arg)
 void db_deck_reconnect(void)
 {
     ESP_LOGI(TAG, "reconnecting the deck");
-    xTaskCreate(replug_task, "deck_replug", 2560, NULL, 5, NULL);
+    xTaskCreate(replug_task, "deck_replug", 3072, NULL, 5, NULL);
 }
 
 void db_deck_forget(db_source_t source)

@@ -168,7 +168,7 @@ static void client_event(const usb_host_client_event_msg_t *msg, void *arg)
 {
     if (msg->event == USB_HOST_CLIENT_EVENT_NEW_DEV) {
         s.cb.attached(msg->new_dev.address);
-    } else if (msg->event == USB_HOST_CLIENT_EVENT_DEV_GONE) {
+    } else if (msg->event == USB_HOST_CLIENT_EVENT_DEV_GONE && msg->dev_gone.dev_hdl == s.dev) {
         s.open = false;
         s.cb.detached();
     }
@@ -201,10 +201,58 @@ static void client_task(void *arg)
     }
 }
 
-esp_err_t usb_port_replug(void)
+/* SET_FEATURE or CLEAR_FEATURE(PORT_POWER) on a port of the hub the device hangs on (USB 2.0 11.24.2). */
+static esp_err_t hub_port_power(const usb_parent_dev_info_t *parent, bool on)
 {
-    /* the port without power is a pulled cable to the host stack: the device goes, and comes back enumerated
-     * anew */
+    usb_device_info_t hub_info;
+    usb_device_handle_t hub;
+    ESP_RETURN_ON_ERROR(usb_host_device_info(parent->dev_hdl, &hub_info), TAG, "hub info");
+    ESP_RETURN_ON_ERROR(usb_host_device_open(s.client, hub_info.dev_addr, &hub), TAG, "hub open");
+    usb_transfer_t *t;
+    esp_err_t err = usb_host_transfer_alloc(sizeof(usb_setup_packet_t), 0, &t);
+    if (err == ESP_OK) {
+        *(usb_setup_packet_t *)t->data_buffer = (usb_setup_packet_t){
+            .bmRequestType = 0x23, .bRequest = on ? 3 : 1, .wValue = 8, .wIndex = parent->port_num};
+        t->num_bytes = sizeof(usb_setup_packet_t);
+        t->device_handle = hub;
+        t->callback = ctrl_done;
+        xSemaphoreTake(s.ctrl_lock, portMAX_DELAY); /* ctrl_done is shared with the deck's control transfers */
+        xSemaphoreTake(s.ctrl_done, 0);
+        err = usb_host_transfer_submit_control(s.client, t);
+        if (err == ESP_OK && xSemaphoreTake(s.ctrl_done, pdMS_TO_TICKS(CTRL_TIMEOUT_MS)) != pdTRUE) {
+            err = ESP_ERR_TIMEOUT; /* t is still in flight: leak it rather than free it under the stack */
+            t = NULL;
+        } else if (err == ESP_OK && t->status != USB_TRANSFER_STATUS_COMPLETED) {
+            err = ESP_FAIL;
+        }
+        xSemaphoreGive(s.ctrl_lock);
+        if (t) {
+            usb_host_transfer_free(t);
+        }
+    }
+    usb_host_device_close(s.client, hub);
+    return err;
+}
+
+esp_err_t usb_port_replug(uint8_t address)
+{
+    usb_device_info_t info = {0};
+    usb_device_handle_t dev = s.dev;
+    bool opened = address && usb_host_device_open(s.client, address, &dev) == ESP_OK;
+    if (dev) {
+        usb_host_device_info(dev, &info);
+    }
+    if (opened) {
+        usb_host_device_close(s.client, dev);
+    }
+    /* a port without power is a pulled cable to the host stack: the device goes, and comes back enumerated anew.
+     * Behind a hub only the deck's own port, so other decks on that hub stay. */
+    if (info.parent.dev_hdl) {
+        ESP_LOGI(TAG, "power cycling hub port %u", info.parent.port_num);
+        ESP_RETURN_ON_ERROR(hub_port_power(&info.parent, false), TAG, "hub port off");
+        vTaskDelay(pdMS_TO_TICKS(500));
+        return hub_port_power(&info.parent, true);
+    }
     ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
     vTaskDelay(pdMS_TO_TICKS(500));
     return usb_host_lib_set_root_port_power(true);
@@ -282,6 +330,10 @@ static void free_transfers(void)
 
 esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
 {
+    if (s.dev) {
+        ESP_LOGW(TAG, "device %u ignored: one deck at a time", address); /* ponytail: until several decks */
+        return ESP_ERR_INVALID_STATE;
+    }
     ESP_RETURN_ON_ERROR(usb_host_device_open(s.client, address, &s.dev), TAG, "open");
     const usb_device_desc_t *dd;
     const usb_config_desc_t *cd;

@@ -22,5 +22,6 @@ void usb_port_close(void);
 const db_hid_io_t *usb_port_io(void);
 
 uint32_t usb_port_errors(void);
-/* Cut and restore the port, as if the cable were pulled and plugged in again. Blocks for half a second. */
-esp_err_t usb_port_replug(void);
+/* Cut and restore the power of the port the device at `address` (0: the open one) hangs on, as if its cable
+ * were pulled and plugged in again: a hub port behind a hub, else the root port. Blocks for half a second. */
+esp_err_t usb_port_replug(uint8_t address);
