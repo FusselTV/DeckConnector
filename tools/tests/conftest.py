@@ -1,6 +1,7 @@
 """End to end tests against a real bridge on the bench. Set DECKBRIDGE_HOST to the bridge's LAN address."""
 
 import asyncio
+import atexit
 import base64
 import io
 import json
@@ -126,9 +127,24 @@ class CameraStream:
 STRIP_IN_CAMERA = (700, 700, 1500, 790)
 
 
+_stream: CameraStream | None = None
+
+
 def strip_color() -> tuple[int, int, int]:
-    crop = camera_frame().crop(STRIP_IN_CAMERA).resize((1, 1), Image.Resampling.BOX)
-    return crop.getpixel((0, 0))
+    """The strip as the camera shows it now: the first frame from a running stream after the camera's delay. A new
+    connection per call costs about 6 s, waiting for a key frame."""
+    global _stream
+    if _stream is None or _stream.proc.poll() is not None:
+        _stream = CameraStream()
+        atexit.register(_stream.close)
+    since = time.monotonic() + 0.4
+    end = since + 10
+    while time.monotonic() < end:
+        for at, rgb in reversed(_stream.frames):
+            if at > since:
+                return rgb
+        time.sleep(0.02)
+    raise TimeoutError("no camera frame")
 
 
 def jpeg(color, size=(800, 480), quality=80) -> bytes:
