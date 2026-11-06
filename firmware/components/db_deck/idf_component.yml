@@ -1,2 +1,6 @@
 dependencies:
-  espressif/usb: "^1.6.0"
+  espressif/usb:
+    version: "^1.6.0"
+    # 1.6.0 plus espressif/esp-usb#605: a hub that drops off the bus, or a root port power cycle with a hub on it,
+    # otherwise trips the device_release assert in ext_hub.c and restarts the bridge (esp-usb#604).
+    override_path: "../../vendor/usb"
