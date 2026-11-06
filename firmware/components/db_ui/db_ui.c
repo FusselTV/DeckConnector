@@ -203,6 +203,7 @@ static void model_qr(ui_model_t *md)
         cfg.max_qrcode_version = 6;
         cfg.qrcode_ecc_level = ESP_QRCODE_ECC_LOW;
         qr.size = 0;
+        esp_log_level_set("QRCODE", ESP_LOG_WARN); /* it logs the text it encodes: the WLAN password */
         if (esp_qrcode_generate(&cfg, text) == ESP_OK) {
             strcpy(made_for, text);
         }
