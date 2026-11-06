@@ -27,6 +27,7 @@
 #define LINE_CAP     (256 * 1024) /* an rgb strip part is 80 KB of base64; Companion's own limit is 2 MB */
 #define RX_CHUNK     8192
 #define RX_WAIT_MS   200
+#define SEND_WAIT_MS 500
 #define CONNECT_MS   3000
 #define RETRY_MS     2000
 #define PING_MS      2000
@@ -58,6 +59,7 @@ static struct {
     uint64_t frame_left;
     char pin[sizeof(((db_config_t *)0)->satellite_pin)];
     volatile bool added;
+    volatile bool broken;
     volatile bool device_dirty;
     bool flip;
     bool png;
@@ -89,16 +91,18 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
-/* Under `tx`. Over the WebSocket one frame carries one line, as Companion sends them. */
+/* Under `tx`. Over the WebSocket one frame carries one line, as Companion sends them. A failed or short send ends
+ * the session: a lost key-up would leave the key held in Companion, and the deck's input task must not wait. */
 static void raw_send(const char *buf, size_t n)
 {
-    if (s.sock < 0) {
+    if (s.sock < 0 || s.broken) {
         return;
     }
-    if (s.ws_mode) {
-        ws_send(&s.ws, WS_OP_TEXT, buf, n);
-    } else {
-        send(s.sock, buf, n, 0);
+    bool ok = s.ws_mode ? ws_send(&s.ws, WS_OP_TEXT, buf, n) == 0 : send(s.sock, buf, n, 0) == (int)n;
+    if (!ok) {
+        ESP_LOGW(TAG, "send failed, ending the session");
+        s.broken = true;
+        shutdown(s.sock, SHUT_RDWR);
     }
 }
 
@@ -565,6 +569,7 @@ static void client_task(void *arg)
 {
     bool via_wlan = false;
     bool old_ended = false;
+    int last_err = 0;
     for (;;) {
         snprintf(s.addr, sizeof(s.addr), "%s", db_config()->satellite);
         if (!s.addr[0]) {
@@ -612,14 +617,22 @@ static void client_task(void *arg)
             sock = ws_tcp_open(s.host, s.port, bound ? ifname : NULL, CONNECT_MS);
         }
         if (sock < 0) {
+            if (sock != last_err) {
+                ESP_LOGW(TAG, "%s: no connection (%s)", s.addr, strerror(-sock));
+                last_err = sock;
+            }
             /* right after a start the switch port may not pass traffic yet: LAN again, soon */
             bool early = !wlan && n.lan_link && esp_timer_get_time() < BOOT_LAN_US;
             via_wlan = early ? false : !wlan;
             vTaskDelay(pdMS_TO_TICKS(early ? 250 : RETRY_MS));
             continue;
         }
+        last_err = 0;
         struct timeval tv = {.tv_usec = RX_WAIT_MS * 1000};
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        struct timeval send_tv = {.tv_usec = SEND_WAIT_MS * 1000};
+        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &send_tv, sizeof(send_tv));
+        s.broken = false;
         s.over_wlan = bound && wlan;
         remember(sock);
         ESP_LOGI(TAG, "connected to %s over %s", s.addr,
