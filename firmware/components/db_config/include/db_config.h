@@ -49,6 +49,8 @@ typedef struct {
      * CA must vouch for the certificate */
     char server_pins[DB_MAX_SERVERS][65];
     char satellite_pin[65];
+    char cors_origins[128]; /* origins whose pages may call the API with a token, comma separated; empty: none
+                             */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

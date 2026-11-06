@@ -34,7 +34,8 @@ static struct {
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
     int fds[CLIENTS];
     httpd_handle_t servers[CLIENTS]; /* HTTP or HTTPS: each fd belongs to one of them */
-    char *state; /* the last state sent, to send only changes */
+    bool by_token[CLIENTS];          /* a token may press, but not change settings */
+    char *state;                     /* the last state sent, to send only changes */
     uint32_t screen;
     unsigned evict;
 } e;
@@ -217,13 +218,25 @@ static void command(httpd_handle_t server, int fd, const char *text)
     int code = 400;
     if (cJSON_IsString(t) && (strcmp(t->valuestring, "set") == 0 || strcmp(t->valuestring, "input") == 0)) {
         bool set = t->valuestring[0] == 's';
+        bool token = false;
+        xSemaphoreTake(e.lock, portMAX_DELAY);
+        for (int i = 0; i < CLIENTS; i++) {
+            token |= e.fds[i] == fd && e.servers[i] == server && e.by_token[i];
+        }
+        xSemaphoreGive(e.lock);
         cJSON_DeleteItemFromObjectCaseSensitive(root, "t");
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
-        web_lock();
-        code = body ? (set ? api_config(body, reply, sizeof(reply)) : api_input(body, reply, sizeof(reply)))
-                    : 500;
-        web_unlock();
+        if (set && token) {
+            snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"needs the password, not a token\"}");
+            code = 403;
+        } else {
+            web_lock();
+            code =
+                body ? (set ? api_config(body, reply, sizeof(reply)) : api_input(body, reply, sizeof(reply)))
+                     : 500;
+            web_unlock();
+        }
         free(body);
     }
     char out[224];
@@ -243,7 +256,7 @@ esp_err_t events_check(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, "other origin");
         return ESP_FAIL;
     }
-    return auth_check(req) ? ESP_OK : ESP_FAIL;
+    return auth_check(req, WEB_CONTROL) ? ESP_OK : ESP_FAIL;
 }
 
 /* After the upgrade: the new listener gets the current state at once, then only changes. */
@@ -269,6 +282,7 @@ esp_err_t events_open(httpd_req_t *req)
     }
     e.fds[slot] = fd;
     e.servers[slot] = req->handle;
+    e.by_token[slot] = auth_by_token(req);
     char *buf = malloc(STATE_MAX);
     if (buf && e.state_json(buf, STATE_MAX)) {
         send_to(req->handle, fd, buf); /* under the lock: the current state comes before any change */

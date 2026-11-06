@@ -27,6 +27,18 @@
 
 static const char *TAG = "main";
 
+static void write_device_fields(db_json_t *j, const db_device_info_t *dev)
+{
+    db_json_str(j, "model", dev->model);
+    db_json_str(j, "serial", dev->serial);
+    db_json_str(j, "firmware", dev->firmware);
+    db_json_int(j, "keys", dev->key_count);
+    db_json_int(j, "encoders", dev->encoder_count);
+    db_json_int(j, "width", dev->displays[0].width);
+    db_json_int(j, "height", dev->displays[0].height);
+}
+
+/* `decks` lists every attached deck (one for now; `?deck=<serial>` picks one); `device` is the first. */
 static void write_device(db_json_t *j)
 {
     /* too big for the callers' stacks, and not static: the web server, the web socket and the links call this
@@ -36,20 +48,21 @@ static void write_device(db_json_t *j)
         ESP_LOGE(TAG, "no memory for the device info");
         return; /* no "device" at all: null means no deck */
     }
-    if (!db_deck_info(dev)) {
-        free(dev);
-        db_json_null(j, "device");
-        return;
+    bool present = db_deck_info(dev);
+    db_json_arr_open(j, "decks");
+    if (present) {
+        db_json_obj_open(j, NULL);
+        write_device_fields(j, dev);
+        db_json_obj_close(j);
     }
-    db_json_obj_open(j, "device");
-    db_json_str(j, "model", dev->model);
-    db_json_str(j, "serial", dev->serial);
-    db_json_str(j, "firmware", dev->firmware);
-    db_json_int(j, "keys", dev->key_count);
-    db_json_int(j, "encoders", dev->encoder_count);
-    db_json_int(j, "width", dev->displays[0].width);
-    db_json_int(j, "height", dev->displays[0].height);
-    db_json_obj_close(j);
+    db_json_arr_close(j);
+    if (present) {
+        db_json_obj_open(j, "device");
+        write_device_fields(j, dev);
+        db_json_obj_close(j);
+    } else {
+        db_json_null(j, "device");
+    }
     free(dev);
 }
 

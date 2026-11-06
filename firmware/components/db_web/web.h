@@ -6,18 +6,22 @@
 #include "esp_err.h"
 #include "esp_http_server.h"
 
+/* Who may call a route: anyone, a Bearer token or the password (cookie or basic auth), or the password only.
+ */
+typedef enum { WEB_OPEN, WEB_CONTROL, WEB_ADMIN } web_level_t;
+
 /* Every route but the web socket runs through timed(): the login check, and the time for /api/profile. Ports
  * 80 and 443 are two server tasks, and the handlers share static buffers, so timed() runs one handler at a
  * time. */
 typedef struct {
     esp_err_t (*handler)(httpd_req_t *req);
-    bool open; /* no login needed */
+    web_level_t level;
     uint32_t count;
     uint32_t max_us;
     uint64_t total_us;
 } route_t;
-extern httpd_uri_t web_uris[24];
-extern route_t web_routes[24];
+extern httpd_uri_t web_uris[32];
+extern route_t web_routes[32];
 extern size_t web_route_count;
 
 /* Replies and request bodies, shared by the handlers in this component. */

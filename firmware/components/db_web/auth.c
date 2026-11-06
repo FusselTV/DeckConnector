@@ -1,10 +1,12 @@
 #include "auth.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "cJSON.h"
 #include "db_config.h"
+#include "db_json.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -12,6 +14,8 @@
 #include "freertos/semphr.h"
 #include "lwip/sockets.h"
 #include "mbedtls/base64.h"
+#include "nvs.h"
+#include "psa/crypto.h"
 #include "web.h"
 
 #define SESSIONS    4
@@ -20,6 +24,7 @@
 #define FREE_TRIES  5
 #define MAX_LOCK_S  60
 #define COOKIE      "db_session"
+#define API_TOKENS  8
 
 static const char *TAG = "auth";
 
@@ -36,6 +41,12 @@ static struct {
     int64_t locked_until;
 } triers[TRIERS];
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
+typedef struct {
+    char name[24];
+    uint8_t sha[32];
+} api_token_t;
+static api_token_t tokens[API_TOKENS]; /* in NVS "auth", not in the settings: a backup must not carry them */
 
 /* Compare without an early exit, so the time does not tell how many characters were right. */
 static bool equal(const char *a, const char *b)
@@ -141,8 +152,55 @@ static bool basic_auth_ok(httpd_req_t *req)
     return ok;
 }
 
-bool auth_check(httpd_req_t *req)
+static void sha256(const char *text, uint8_t out[32])
 {
+    size_t len;
+    psa_crypto_init();
+    psa_hash_compute(PSA_ALG_SHA_256, (const uint8_t *)text, strlen(text), out, 32, &len);
+}
+
+bool auth_by_token(httpd_req_t *req)
+{
+    char given[16] = {0};
+    httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)); /* too long is fine: a prefix */
+    return strncmp(given, "Bearer ", 7) == 0;
+}
+
+static bool token_ok(httpd_req_t *req)
+{
+    char given[96] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK || locked_s(req)) {
+        return false;
+    }
+    uint8_t sha[32];
+    sha256(given + 7, sha);
+    unsigned diff = 1;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < API_TOKENS; i++) {
+        unsigned d = tokens[i].name[0] ? 0 : 1;
+        for (int k = 0; k < 32; k++) {
+            d |= tokens[i].sha[k] ^ sha[k];
+        }
+        diff &= d;
+    }
+    portEXIT_CRITICAL(&mux);
+    count_try(req, diff == 0);
+    return diff == 0;
+}
+
+bool auth_check(httpd_req_t *req, web_level_t need)
+{
+    if (auth_by_token(req)) {
+        if (!token_ok(req)) {
+            send_error(req, "401 Unauthorized", "unknown token");
+            return false;
+        }
+        if (need == WEB_ADMIN) {
+            send_error(req, "403 Forbidden", "needs the password, not a token");
+            return false;
+        }
+        return true;
+    }
     /* Browsers send cookies and remembered basic auth also with requests from other sites; those cannot add
      * a custom header, so every change needs it. */
     char marker[4] = {0};
@@ -235,5 +293,110 @@ esp_err_t auth_logout(httpd_req_t *req)
         portEXIT_CRITICAL(&mux);
     }
     httpd_resp_set_hdr(req, "Set-Cookie", COOKIE "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+    return send_json(req, "{\"ok\":true}");
+}
+
+static void save_tokens(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("auth", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "tokens", tokens, sizeof(tokens));
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+void auth_start(void)
+{
+    nvs_handle_t h;
+    size_t len = sizeof(tokens);
+    if (nvs_open("auth", NVS_READONLY, &h) == ESP_OK) {
+        nvs_get_blob(h, "tokens", tokens, &len);
+        nvs_close(h);
+    }
+}
+
+esp_err_t auth_tokens_list(httpd_req_t *req)
+{
+    char buf[API_TOKENS * 40 + 16];
+    db_json_t j;
+    db_json_begin(&j, buf, sizeof(buf));
+    db_json_arr_open(&j, NULL);
+    for (int i = 0; i < API_TOKENS; i++) {
+        if (tokens[i].name[0]) {
+            db_json_obj_open(&j, NULL);
+            db_json_str(&j, "name", tokens[i].name);
+            db_json_obj_close(&j);
+        }
+    }
+    db_json_arr_close(&j);
+    db_json_end(&j);
+    return send_json(req, buf);
+}
+
+/* The token is in the reply once and never again: only its SHA-256 stays. */
+esp_err_t auth_tokens_add(httpd_req_t *req)
+{
+    char body[96];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, "name");
+    bool ok =
+        cJSON_IsString(name) && name->valuestring[0] && strlen(name->valuestring) < sizeof(tokens[0].name);
+    for (const char *c = ok ? name->valuestring : ""; *c; c++) {
+        ok &= isalnum((unsigned char)*c) || *c == '-' || *c == '_'; /* it goes into a URL to remove it */
+    }
+    char wanted[sizeof(tokens[0].name)] = {0};
+    if (ok) {
+        strlcpy(wanted, name->valuestring, sizeof(wanted));
+    }
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "name: 1 to 23 letters, digits, - or _");
+    }
+    char token[TOKEN_BYTES * 2 + 1];
+    uint8_t raw[TOKEN_BYTES];
+    esp_fill_random(raw, sizeof(raw));
+    for (int i = 0; i < TOKEN_BYTES; i++) {
+        snprintf(token + 2 * i, 3, "%02x", raw[i]);
+    }
+    api_token_t t = {0};
+    strlcpy(t.name, wanted, sizeof(t.name));
+    sha256(token, t.sha);
+    int slot = -1;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < API_TOKENS; i++) {
+        if (strcmp(tokens[i].name, wanted) == 0 || (slot < 0 && !tokens[i].name[0])) {
+            slot = i; /* the same name replaces its token */
+        }
+    }
+    if (slot >= 0) {
+        tokens[slot] = t;
+    }
+    portEXIT_CRITICAL(&mux);
+    if (slot < 0) {
+        return send_error(req, "409 Conflict", "8 tokens already, remove one first");
+    }
+    save_tokens();
+    char reply[160];
+    snprintf(reply, sizeof(reply), "{\"name\":\"%s\",\"token\":\"%s\"}", wanted, token);
+    return send_json(req, reply);
+}
+
+esp_err_t auth_tokens_remove(httpd_req_t *req)
+{
+    const char *name = req->uri + strlen("/api/tokens/");
+    bool found = false;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < API_TOKENS; i++) {
+        if (tokens[i].name[0] && strcmp(tokens[i].name, name) == 0) {
+            memset(&tokens[i], 0, sizeof(tokens[i]));
+            found = true;
+        }
+    }
+    portEXIT_CRITICAL(&mux);
+    if (!found) {
+        return send_error(req, "404 Not Found", "no such token");
+    }
+    save_tokens();
     return send_json(req, "{\"ok\":true}");
 }

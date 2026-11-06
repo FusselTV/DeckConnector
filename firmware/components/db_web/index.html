@@ -165,8 +165,11 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div class="card"><div class="card-h"><h2>Gerät</h2></div><div class="card-b"><div class="kv" id="sys"></div></div></div>
 <div class="card"><div class="card-h row between"><h2>Protokoll</h2><div class="row"><button id="logbtn" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Aktualisieren</button><button id="reboot" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Neu starten</button></div></div>
 <div class="card-b"><pre id="log">Noch nicht geladen.</pre></div></div>
-<div class="card"><div class="card-h"><h2>Schnittstellen</h2></div>
-<div class="card-b small">JSON-API unter <code>/api</code>, live über <code>/api/ws</code>, das Bild des Decks als <code>/api/screen.jpg</code>. Anmeldung mit Benutzer <code>admin</code> und dem Passwort. <a href="/api/status" target="_blank" style="color:inherit">Status als JSON</a></div></div>
+<div class="card"><div class="card-h"><h2>Zugriff für Integrationen</h2><p class="muted">Ein Token für Home Assistant oder Skripte. Es darf Status und Bild lesen und Tasten drücken, aber keine Einstellungen ändern.</p></div>
+<div class="card-b stack"><div id="tokens" class="stack" style="gap:8px"></div>
+<form id="tokenform" class="row" style="flex-wrap:nowrap"><input id="tokenname" placeholder="Name, z. B. home-assistant" pattern="[A-Za-z0-9_\-]{1,23}" required><button class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Token erstellen</button></form>
+<div id="newtoken" class="stack" hidden><p class="small">Nur jetzt sichtbar. Kopiere es in deine Integration.</p><input id="tokenvalue" readonly></div>
+<p class="small muted">API unter <code>/api</code>, live über <code>/api/ws</code>, das Bild des Decks als <code>/api/screen.jpg</code>. <a href="/api" target="_blank" style="color:inherit">Alle Endpunkte</a></p></div></div>
 </section>
 </div>
 </main>
@@ -541,6 +544,27 @@ function renderSystem(s) {
     kv('Quellen', s.sources.map((x) => `${hostName(x)} · ${what(x) || 'unbekannt'}${x.connected ? '' : ' (getrennt)'}`).join(', ') || '–');
 }
 let sysPoll = null;
+async function loadTokens() {
+  const list = await (await api('/api/tokens')).json().catch(() => []);
+  $('tokens').innerHTML = list.length ? list.map((t) => `<div class="row between"><b>${esc(t.name)}</b><button class="btn ghost sm" data-token="${esc(t.name)}" aria-label="${esc(t.name)} entfernen" title="Entfernen"><svg class="i" aria-hidden="true"><use href="#i-x"/></svg></button></div>`).join('') : '<p class="small muted">Noch keine Tokens.</p>';
+  for (const b of $('tokens').querySelectorAll('[data-token]')) b.onclick = async () => {
+    if (!confirm(`Token „${b.dataset.token}“ entfernen? Was es benutzt, verliert sofort den Zugriff.`)) return;
+    await api('/api/tokens/' + b.dataset.token, {method: 'DELETE'});
+    $('newtoken').hidden = true;
+    loadTokens();
+  };
+}
+$('tokenform').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await api('/api/tokens', {method: 'POST', body: JSON.stringify({name: $('tokenname').value})});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) return toast(j.error || 'Token nicht erstellt', true);
+  $('tokenvalue').value = j.token;
+  $('newtoken').hidden = false;
+  $('tokenvalue').select();
+  $('tokenname').value = '';
+  loadTokens();
+};
 async function loadLog() { $('log').textContent = await (await api('/api/log')).text(); $('log').scrollTop = 1e9; }
 $('fw').onchange = () => { $('fname').textContent = $('fw').files[0]?.name || 'keine Datei'; $('up').disabled = !$('fw').files[0]; };
 $('up').onclick = async () => {
@@ -583,7 +607,7 @@ function showTab(name) {
   for (const t of document.querySelectorAll('[data-tab]')) t.setAttribute('aria-selected', t.dataset.tab === name);
   for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
   clearInterval(sysPoll);
-  if (name === 'system') { loadStatus(); loadLog(); loadMetrics(); loadSlots(); sysPoll = setInterval(() => { loadStatus(); loadMetrics(); }, 5000); }
+  if (name === 'system') { loadStatus(); loadLog(); loadMetrics(); loadSlots(); loadTokens(); sysPoll = setInterval(() => { loadStatus(); loadMetrics(); }, 5000); }
 }
 for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { history.replaceState(null, '', '#' + b.dataset.tab); showTab(b.dataset.tab); };
 

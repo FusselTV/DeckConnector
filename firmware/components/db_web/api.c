@@ -36,8 +36,8 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
-/* Brightness, controller, host, servers and their pins, satellite, dock pairing, https_only and setup_done
- * apply at once; everything else needs a restart to take effect cleanly. */
+/* Brightness, controller, host, servers and their pins, satellite, dock pairing, https_only, cors_origins and
+ * setup_done apply at once; everything else needs a restart to take effect cleanly. */
 int api_config(const char *body, char *reply, size_t cap)
 {
     static db_config_t old; /* two of them would crowd the caller's stack */
@@ -63,6 +63,7 @@ int api_config(const char *body, char *reply, size_t cap)
     memcpy(live.satellite_pin, old.satellite_pin, sizeof(old.satellite_pin));
     live.dock_paired_only = old.dock_paired_only;
     live.https_only = old.https_only;
+    memcpy(live.cors_origins, old.cors_origins, sizeof(old.cors_origins));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);
@@ -233,13 +234,36 @@ esp_err_t put_config(httpd_req_t *req)
     return body_api(req, api_config);
 }
 
+/* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. */
+static bool deck_refused(httpd_req_t *req)
+{
+    char query[64];
+    char want[32];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
+        httpd_query_key_value(query, "deck", want, sizeof(want)) != ESP_OK) {
+        return false;
+    }
+    static db_device_info_t dev; /* too big for the stack; callers hold web_lock() */
+    if (db_deck_info(&dev) && strcmp(dev.serial, want) == 0) {
+        return false;
+    }
+    send_error(req, "404 Not Found", "no such deck");
+    return true;
+}
+
 esp_err_t post_input(httpd_req_t *req)
 {
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
     return body_api(req, api_input);
 }
 
 esp_err_t post_menu(httpd_req_t *req)
 {
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
     if (db_ui_open_menu() != ESP_OK) {
         return send_error(req, "409 Conflict", "no deck connected");
     }
@@ -275,6 +299,9 @@ esp_err_t post_dock(httpd_req_t *req)
 
 esp_err_t post_deck_reconnect(httpd_req_t *req)
 {
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
     db_deck_reconnect();
     return send_json(req, "{\"ok\":true}");
 }
@@ -479,12 +506,18 @@ static size_t screen_json(char *buf, size_t cap)
 
 esp_err_t get_screen(httpd_req_t *req)
 {
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
     return send_built(req, SCREEN_JSON_MAX, screen_json);
 }
 
 /* An image never changes under its id, so browsers may keep it. */
 esp_err_t get_screen_image(httpd_req_t *req)
 {
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
     unsigned long id = strtoul(req->uri + strlen("/api/screen/"), NULL, 10);
     uint8_t *data = NULL;
     size_t len = 0;
@@ -505,6 +538,9 @@ esp_err_t get_screen_image(httpd_req_t *req)
 /* The picture on the deck as one JPEG, for a camera in Home Assistant. */
 esp_err_t get_screen_jpg(httpd_req_t *req)
 {
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
     uint8_t *jpeg = NULL;
     size_t len = 0;
     esp_err_t err = db_ui_snapshot(&jpeg, &len);

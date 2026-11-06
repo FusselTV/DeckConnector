@@ -23,17 +23,40 @@ The web UI logs in with `POST /api/login`, the header `X-Deckbridge: 1` and `{"p
 session cookie for 12 hours. `POST /api/logout` ends it. After five wrong passwords from one address, that address
 waits a few seconds, up to a minute, for both kinds of login.
 
+## For integrations
+
+Home Assistant and other programs use a token instead of the password. Make one in the web UI under System, or
+with the password:
+
+```
+curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -d '{"name":"home-assistant"}' http://192.168.1.214/api/tokens
+curl -H 'Authorization: Bearer TOKEN' http://192.168.1.214/api/status
+```
+
+The reply shows the token once. The Deck-Connector keeps only its SHA-256, and a settings backup never holds it. A
+token needs no `X-Deckbridge` header. It reaches the routes that `GET /api` lists with `"access": "control"`:
+status, screen, metrics, input, menu, reconnect and the web socket without changing settings. Everything else
+answers 403 to a token. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
+the old one. Up to 8 tokens exist at a time.
+
+A page from another origin may call the API with a token when its origin is in `cors_origins` (comma separated).
+It is empty, so off, by default. Cookies never work across origins.
+
 Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login required"}`.
 
 ## Endpoints
 
 | Method and path | What it does |
 |---|---|
+| `GET /` | The web UI, gzip only |
+| `GET /api` | Every route with `method`, `path` and `access` (`open`, `control` for tokens, `admin` for the password) |
+| `OPTIONS /api/...` | CORS preflight, see "For integrations" |
 | `GET /api/status` | State of the Deck-Connector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
 | `PUT /api/config` | Change settings. Send only the keys you change |
 | `GET /api/screen` | What the deck shows right now, see below |
 | `GET /api/screen/<id>.jpg` | One image of that picture |
+| `GET /api/screen.jpg` | The whole picture as one JPEG, for a camera in Home Assistant |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
@@ -46,7 +69,13 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/reboot` | Restart |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
+| `GET /api/tokens` | The names of the API tokens |
+| `POST /api/tokens` | `{"name": "..."}` makes a token and shows it once |
+| `DELETE /api/tokens/<name>` | Ends that token |
 | `GET /api/ws` | Web socket with live changes, see below |
+
+The routes that act on a deck (screen, input, menu, reconnect) take `?deck=<serial>` from `decks` in the status.
+Without it they act on the first deck. A deck that is not attached gets a 404.
 
 ## Who controls the deck
 
@@ -86,7 +115,7 @@ work at once. Every other change restarts the Deck-Connector, and the reply says
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
  "servers": ["ws://192.168.1.128:8765/deckbridge", "wss://example.org/deckbridge", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_pin": "",
- "https_only": false, "token_set": false}
+ "https_only": false, "cors_origins": "", "token_set": false}
 ```
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
@@ -130,7 +159,7 @@ it restores the settings. The web UI does this under System.
   over its Satellite API.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
 - `id` is the Deck-Connector's MAC address. It stays when the name changes.
-- `device` is `null` without a Stream Deck.
+- `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields.
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router

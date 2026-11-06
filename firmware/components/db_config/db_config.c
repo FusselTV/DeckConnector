@@ -190,6 +190,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     }
     db_json_arr_close(&j);
     db_json_str(&j, "satellite_pin", cfg->satellite_pin);
+    db_json_str(&j, "cors_origins", cfg->cors_origins);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) {
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -380,6 +381,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "token", cfg->token, sizeof(cfg->token), err, err_cap) &&
               take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
               take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
+              take_str(root, "cors_origins", cfg->cors_origins, sizeof(cfg->cors_origins), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
