@@ -42,6 +42,8 @@ static struct {
     bool auto_speed;
     volatile bool full; /* the root port runs at full speed */
     esp_timer_handle_t check;
+    esp_timer_handle_t in_retry;
+    uint32_t in_backoff_ms;
     int64_t replug_until; /* our own replug empties the port for a moment */
 } s;
 
@@ -60,12 +62,11 @@ static void out_done(usb_transfer_t *t)
     xSemaphoreGive(s.out_free);
 }
 
+static void in_resubmit(usb_transfer_t *t);
+
 static void in_done(usb_transfer_t *t)
 {
-    /* At full speed a report comes one 64 byte packet per transfer; the rest of a longer report is its zero
-     * padding and must not reach a dock host as a report of its own. */
-    bool padding = s.full && t->data_buffer[0] == 0;
-    if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0 && !padding) {
+    if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
         s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
     count_error(t->status);
@@ -73,8 +74,20 @@ static void in_done(usb_transfer_t *t)
         return;
     }
     if (t->status != USB_TRANSFER_STATUS_COMPLETED) {
-        ESP_LOGW(TAG, "input transfer ended with status %d", t->status);
+        /* an error that repeats would otherwise spin the client task: wait longer each time, up to 1 s */
+        s.in_backoff_ms = s.in_backoff_ms ? (s.in_backoff_ms * 2 > 1000 ? 1000 : s.in_backoff_ms * 2) : 100;
+        if (s.in_backoff_ms < 1000) {
+            ESP_LOGW(TAG, "input transfer ended with status %d", t->status);
+        }
+        esp_timer_start_once(s.in_retry, s.in_backoff_ms * 1000);
+        return;
     }
+    s.in_backoff_ms = 0;
+    in_resubmit(t);
+}
+
+static void in_resubmit(usb_transfer_t *t)
+{
     /* Without a pending IN transfer no key or encoder would ever arrive again. An error halts the endpoint. */
     if (usb_host_transfer_submit(t) != ESP_OK &&
         (usb_host_endpoint_clear(s.dev, s.ep_in) != ESP_OK || usb_host_transfer_submit(t) != ESP_OK)) {
@@ -262,6 +275,13 @@ esp_err_t usb_port_replug(uint8_t address)
     return err;
 }
 
+static void in_retry(void *arg)
+{
+    if (s.open && s.in) {
+        in_resubmit(s.in);
+    }
+}
+
 /* auto: a USB device is there (a hub counts) but no deck came up at high speed, so try full speed. Back to high
  * speed once the port is empty, so a deck plugged in directly afterwards gets it. */
 static void check_speed(void *arg)
@@ -299,6 +319,8 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
     s.full = full_only;
     esp_timer_create_args_t ta = {.callback = check_speed, .name = "usb_speed"};
     ESP_RETURN_ON_ERROR(esp_timer_create(&ta, &s.check), TAG, "timer");
+    esp_timer_create_args_t ra = {.callback = in_retry, .name = "usb_in_retry"};
+    ESP_RETURN_ON_ERROR(esp_timer_create(&ra, &s.in_retry), TAG, "timer");
     s.out_free = xSemaphoreCreateCounting(OUT_SLOTS, OUT_SLOTS);
     s.ctrl_done = xSemaphoreCreateBinary();
     s.ctrl_lock = xSemaphoreCreateMutex();
@@ -355,16 +377,16 @@ static esp_err_t find_endpoints(const usb_config_desc_t *cd)
     return ESP_ERR_NOT_FOUND;
 }
 
-/* At full speed the Stream Deck still declares 1024 and 512 byte interrupt endpoints. Full speed allows 64, and
- * the host stack never opens such a pipe; Linux clamps them the same way. Reports keep their size, split into
- * 64 byte packets. */
-static void clamp_fs_interrupt_mps(const usb_config_desc_t *cd)
+/* At full speed the Stream Deck declares 512 byte interrupt endpoints. IN works at 512 (at 64 every poll
+ * overflows), but the deck stalls OUT packets above 64, so output reports go out in 64 byte packets. */
+static void clamp_fs_out_mps(const usb_config_desc_t *cd)
 {
     int off = 0;
     const usb_standard_desc_t *d = (const usb_standard_desc_t *)cd;
     while ((d = usb_parse_next_descriptor_of_type(d, cd->wTotalLength, USB_B_DESCRIPTOR_TYPE_ENDPOINT, &off))) {
         usb_ep_desc_t *ep = (usb_ep_desc_t *)d;
-        if (USB_EP_DESC_GET_XFERTYPE(ep) == USB_TRANSFER_TYPE_INTR && USB_EP_DESC_GET_MPS(ep) > 64) {
+        if (!(ep->bEndpointAddress & 0x80) && USB_EP_DESC_GET_XFERTYPE(ep) == USB_TRANSFER_TYPE_INTR &&
+            USB_EP_DESC_GET_MPS(ep) > 64) {
             ep->wMaxPacketSize = 64;
         }
     }
@@ -402,7 +424,7 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     ESP_LOGI(TAG, "device %04x:%04x, %s speed", *vid, *pid, info.speed == USB_SPEED_HIGH ? "high" : "full");
     esp_err_t err = find_endpoints(cd);
     if (info.speed != USB_SPEED_HIGH) {
-        clamp_fs_interrupt_mps(cd);
+        clamp_fs_out_mps(cd);
     }
     if (err == ESP_OK) {
         err = usb_host_interface_claim(s.client, s.dev, s.intf, 0);
@@ -432,9 +454,6 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     s.in->callback = in_done;
     s.io.out_report_size = s.mps_out;
     s.next_out = 0;
-    if (info.speed != USB_SPEED_HIGH) {
-        s.in->num_bytes = 64; /* the clamped packet size: every packet completes on its own */
-    }
     s.open = true;
     if (usb_host_transfer_submit(s.in) != ESP_OK) {
         ESP_LOGE(TAG, "input transfer could not be queued, the device will show images but send no input");
