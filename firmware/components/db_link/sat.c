@@ -536,31 +536,18 @@ static bool end_old_session(void)
     }
     esp_err_t err = nvs_get_blob(h, "old", &o, &len);
     nvs_close(h);
-    db_net_status_t n;
-    db_net_status(&n);
-    bool up =
-        (n.lan_up && inet_addr(n.lan_ip) == o.local_ip) || (n.wlan_up && inet_addr(n.wlan_ip) == o.local_ip);
     if (err != ESP_OK || !o.ip) {
         return true;
     }
-    if (!up) {
+    if (!db_net_has_ip(o.local_ip)) {
         return esp_timer_get_time() > BOOT_LAN_US; /* lwIP would send the SYN from the wrong address */
     }
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        return true;
-    }
-    int one = 1;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-    fcntl(sock, F_SETFL, O_NONBLOCK);
-    struct sockaddr_in local = {.sin_family = AF_INET, .sin_port = o.local, .sin_addr.s_addr = o.local_ip};
-    struct sockaddr_in peer = {.sin_family = AF_INET, .sin_port = o.port, .sin_addr.s_addr = o.ip};
-    if (bind(sock, (struct sockaddr *)&local, sizeof(local)) == 0) {
-        connect(sock, (struct sockaddr *)&peer, sizeof(peer));
+    int sock = db_net_syn_from(o.local_ip, o.local, o.ip, o.port);
+    if (sock >= 0) {
         vTaskDelay(pdMS_TO_TICKS(300));
         ESP_LOGI(TAG, "ended the session of the last boot");
+        close(sock);
     }
-    close(sock);
     return true;
 }
 
@@ -600,11 +587,7 @@ static void client_task(void *arg)
         }
         char ifname[6];
         bool wlan = via_wlan;
-        bool bound = db_net_ifname(wlan, ifname);
-        if (!bound) {
-            wlan = !wlan;
-            bound = db_net_ifname(wlan, ifname);
-        }
+        bool bound = db_net_pick(&wlan, ifname);
         int sock = -1;
         if (s.ws_mode) {
             uint8_t pin[32];

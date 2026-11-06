@@ -1,6 +1,7 @@
 #include "db_net.h"
 #include "db_log.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -322,6 +323,41 @@ bool db_net_ifname(bool wlan, char name[6])
 {
     bool up = wlan ? s.st.wlan_up : s.st.lan_up;
     return up && esp_netif_get_netif_impl_name(wlan ? s.wlan : s.lan, name) == ESP_OK;
+}
+
+bool db_net_pick(bool *wlan, char name[6])
+{
+    if (db_net_ifname(*wlan, name)) {
+        return true;
+    }
+    *wlan = !*wlan;
+    return db_net_ifname(*wlan, name);
+}
+
+bool db_net_has_ip(uint32_t ip)
+{
+    db_net_status_t n;
+    db_net_status(&n);
+    return (n.lan_up && inet_addr(n.lan_ip) == ip) || (n.wlan_up && inet_addr(n.wlan_ip) == ip);
+}
+
+int db_net_syn_from(uint32_t local_ip, uint16_t local_port, uint32_t ip, uint16_t port)
+{
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        return -1;
+    }
+    int one = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    fcntl(sock, F_SETFL, O_NONBLOCK);
+    struct sockaddr_in local = {.sin_family = AF_INET, .sin_port = local_port, .sin_addr.s_addr = local_ip};
+    struct sockaddr_in peer = {.sin_family = AF_INET, .sin_port = port, .sin_addr.s_addr = ip};
+    if (bind(sock, (struct sockaddr *)&local, sizeof(local)) != 0) {
+        close(sock);
+        return -1;
+    }
+    connect(sock, (struct sockaddr *)&peer, sizeof(peer));
+    return sock;
 }
 
 bool db_net_online(void)

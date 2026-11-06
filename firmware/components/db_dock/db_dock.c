@@ -328,38 +328,22 @@ static void reset_old_peers(void *arg)
      * old address is up again, LAN can take 10 s */
     for (int round = 0; round < 100; round++) {
         bool waiting = false;
-        db_net_status_t net;
-        db_net_status(&net);
         for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
             if (!peers[i].ip) {
                 continue;
             }
-            bool up = (net.lan_up && inet_addr(net.lan_ip) == peers[i].local_ip) ||
-                      (net.wlan_up && inet_addr(net.wlan_ip) == peers[i].local_ip);
+            bool up = db_net_has_ip(peers[i].local_ip);
             /* an address can be up before the switch port forwards (a fixed or restored one), and a SYN sent
              * then is lost: the host's ARP answer shows the path works */
             if (!up || !answers_arp(peers[i].ip, peers[i].local_ip)) {
                 waiting = true;
                 continue;
             }
-            int sock = socket(AF_INET, SOCK_STREAM, 0);
-            if (sock < 0) {
-                continue;
-            }
-            int one = 1;
-            setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-            fcntl(sock, F_SETFL, O_NONBLOCK);
-            struct sockaddr_in local = {.sin_family = AF_INET,
-                                        .sin_port = htons(peers[i].local),
-                                        .sin_addr.s_addr = peers[i].local_ip};
-            struct sockaddr_in peer = {
-                .sin_family = AF_INET, .sin_port = peers[i].port, .sin_addr.s_addr = peers[i].ip};
-            if (bind(sock, (struct sockaddr *)&local, sizeof(local)) == 0) {
-                connect(sock, (struct sockaddr *)&peer, sizeof(peer));
+            int sock = db_net_syn_from(peers[i].local_ip, htons(peers[i].local), peers[i].ip, peers[i].port);
+            if (sock >= 0) {
                 socks[n++] = sock;
                 peers[i].ip = 0;
             } else {
-                close(sock);
                 waiting = true;
             }
         }

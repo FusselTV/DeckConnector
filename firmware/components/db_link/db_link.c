@@ -411,11 +411,7 @@ static void link_task(void *arg)
             continue;
         }
         bool wlan = via_wlan;
-        bool bound = db_net_ifname(wlan, ifname);
-        if (!bound) {
-            wlan = !wlan;
-            bound = db_net_ifname(wlan, ifname);
-        }
+        bool bound = db_net_pick(&wlan, ifname);
         const char *over = bound ? (wlan ? "WLAN" : "LAN") : "the default route";
         /* the token only goes to a server the user set, never to one that announced itself over mDNS */
         bool set = strcmp(url, db_config_server_of(db_config(), l->index)) == 0;

@@ -28,6 +28,15 @@ bool db_net_online(void);
 /* lwIP name of the WLAN or LAN interface while it has an address, for SO_BINDTODEVICE. False otherwise. */
 bool db_net_ifname(bool wlan, char name[6]);
 
+/* The interface `*wlan` names if it has an address, else the other one (and `*wlan` says which). */
+bool db_net_pick(bool *wlan, char name[6]);
+/* True while the LAN or the WLAN has this address (network order). */
+bool db_net_has_ip(uint32_t ip);
+/* A SYN from an old local address and port to a peer (all network order), to end a session of the last boot: the
+ * peer's stack answers with an ACK, ours with a reset. The non-blocking socket, or -1 when the old port cannot be
+ * bound; the caller closes it once the reset is out. */
+int db_net_syn_from(uint32_t local_ip, uint16_t local_port, uint32_t ip, uint16_t port);
+
 /* Called from the event task whenever an address or link changes. One listener. */
 void db_net_on_change(void (*cb)(void));
 
