@@ -1,4 +1,4 @@
-# Deck-Connector
+# DeckConnector
 
 Firmware for an ESP32-P4 board that drives an Elgato Stream Deck over USB and puts it on the network. Your own
 server renders the images and gets every key press, encoder turn and touch. The board also acts like an Elgato

@@ -1,14 +1,14 @@
 # Home Assistant
 
-What a Home Assistant integration finds in the Deck-Connector's API, and how it maps to entities. The API itself is
+What a Home Assistant integration finds in the DeckConnector's API, and how it maps to entities. The API itself is
 in [api.md](api.md).
 
 ## Finding and logging in
 
-The config flow finds the Deck-Connector over zeroconf as `_deckbridge-api._tcp`. It asks for a token, made in
+The config flow finds the DeckConnector over zeroconf as `_deckbridge-api._tcp`. It asks for a token, made in
 the web UI under System. Requests send it as `Authorization: Bearer`. `id` in `/api/status` is the
 `unique_id`. It is the MAC address and stays when the name changes. With `https_only` on, the integration has
-to use `https://` on port 443 and accept the Deck-Connector's own certificate.
+to use `https://` on port 443 and accept the DeckConnector's own certificate.
 
 ## Live data
 

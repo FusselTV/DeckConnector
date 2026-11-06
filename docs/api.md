@@ -1,10 +1,10 @@
 # Web API
 
 Everything the web UI does goes through this JSON API on port 80, and the same over HTTPS on port 443. Scripts
-can use it the same way. The Deck-Connector announces it over mDNS as `_deckbridge-api._tcp`, with `path` and
+can use it the same way. The DeckConnector announces it over mDNS as `_deckbridge-api._tcp`, with `path` and
 `fw` in the TXT record.
 
-The Deck-Connector makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
+The DeckConnector makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
 `https_fingerprint` in the status is its SHA-256, to compare with what the browser shows. With `https_only` set,
 plain HTTP answers the page with a redirect to HTTPS and everything else with 403, so no password goes over the
 network unencrypted. The setup access point stays on plain HTTP.
@@ -33,7 +33,7 @@ curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -d '{"name":"home-assistant"}' http:
 curl -H 'Authorization: Bearer TOKEN' http://192.168.1.214/api/status
 ```
 
-The reply shows the token once. The Deck-Connector keeps only its SHA-256, and a settings backup never holds it. A
+The reply shows the token once. The DeckConnector keeps only its SHA-256, and a settings backup never holds it. A
 token needs no `X-Deckbridge` header. It reaches the routes that `GET /api` lists with `"access": "control"`:
 status, screen, metrics, input, menu, reconnect and the web socket without changing settings. Everything else
 answers 403 to a token. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
@@ -51,7 +51,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /` | The web UI, gzip only |
 | `GET /api` | Every route with `method`, `path` and `access` (`open`, `control` for tokens, `admin` for the password) |
 | `OPTIONS /api/...` | CORS preflight, see "For integrations" |
-| `GET /api/status` | State of the Deck-Connector, see below |
+| `GET /api/status` | State of the DeckConnector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
 | `PUT /api/config` | Change settings. Send only the keys you change |
 | `GET /api/screen` | What the deck shows right now, see below |
@@ -65,10 +65,10 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckbridge.elf` with the ELF of the same build |
 | `DELETE /api/coredump` | Clear it |
 | `GET /api/boot` | The bootloader (`version`, `idf`, `built`, `sha256`) and the partition table (`partitions`, `md5`, `sha256`). `?raw=bootloader` or `?raw=ptable` gives the region itself. Both are replaced with `POST /api/ota`, see [ota.md](ota.md) |
-| `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the Deck-Connector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
+| `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the DeckConnector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
 | `GET /api/slots` | The firmware slots: `slot`, `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
-| `POST /api/ota/url` | Send `{"url": "http://..."}` and the Deck-Connector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
+| `POST /api/ota/url` | Send `{"url": "http://..."}` and the DeckConnector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart. A new firmware that has not confirmed itself yet counts as confirmed, so it stays |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api` (the firmware's API version), and for a page from the partition its `version`, `api_min` and `size` |
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
@@ -110,14 +110,14 @@ others keep drawing into their own picture in the background and get no input. O
 row of the home screen and the menu.
 
 `brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin`, `https_only`,
-`cors_origins`, `menu_chord` and `menu_hold_ms` also work at once. Every other change restarts the Deck-Connector,
+`cors_origins`, `menu_chord` and `menu_hold_ms` also work at once. Every other change restarts the DeckConnector,
 and the reply says so:
 `{"ok": true, "restart": true}`.
 
 ## Settings
 
 ```json
-{"name": "deck-connector-a1b2c3", "controller": "companion", "host": "192.168.1.15", "brightness": 80,
+{"name": "deckconnector-a1b2c3", "controller": "companion", "host": "192.168.1.15", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
@@ -145,7 +145,7 @@ a proxy in front of it. Empty turns it off.
 A `wss://` address must show a certificate from one of the 41 most used public CAs, made out to its host name.
 For any other certificate, put its SHA-256 into `server_pins` (same position as the URL in `servers`) or
 `satellite_pin`. Then only that certificate counts, and the name in it does not matter. `openssl x509 -noout
--fingerprint -sha256` prints it, colons are fine. The Deck-Connector never talks TLS to a host it cannot check.
+-fingerprint -sha256` prints it, colons are fine. The DeckConnector never talks TLS to a host it cannot check.
 
 The secret keys never come out of `GET /api/config`. So its reply is a backup without passwords, and a `PUT` of
 it restores the settings. The web UI does this under System.
@@ -153,7 +153,7 @@ it restores the settings. The web UI does this under System.
 ## Status
 
 ```json
-{"id": "a0b1c2a1b2c3", "name": "deck-connector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
+{"id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
  "controller": "companion", "writer": "dock2",
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
@@ -177,7 +177,7 @@ it restores the settings. The web UI does this under System.
   LAN link, each address, Companion, the Stream Deck app, a server, the first picture of a host, and Companion
   over its Satellite API.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
-- `id` is the Deck-Connector's MAC address. It stays when the name changes.
+- `id` is the DeckConnector's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields.
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
@@ -215,7 +215,7 @@ are missing and `images` is empty.
 Companion, the Stream Deck app and the Satellite connection get the input only with `"real"`, because their
 buttons switch real devices. `"real": true` is for a person who pressed something, as the web UI does. A script
 names the host instead, `"real": "192.168.1.20"`, and the press goes out only if that host draws at that moment.
-Without `"real"`, only the Deck-Connector's own screens and your own servers get the input.
+Without `"real"`, only the DeckConnector's own screens and your own servers get the input.
 `simulated_input: "local"` in the status says the firmware works this way.
 
 ```json
@@ -235,7 +235,7 @@ deck in between ends the simulated hold, because the deck always reports all key
 
 ## Pairing
 
-Companion and the Stream Deck app connect without a password. The Deck-Connector lists every host that connected,
+Companion and the Stream Deck app connect without a password. The DeckConnector lists every host that connected,
 by its MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
 the settings, only listed hosts get in. A new host is then let in and listed while none is known and while pairing
 is open. So the first host gets in by itself, and later ones need pairing. Otherwise it is turned away, and the deck

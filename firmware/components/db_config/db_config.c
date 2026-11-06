@@ -67,7 +67,7 @@ static void defaults(db_config_t *c)
                        .usb_speed = "auto",
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
-    snprintf(c->name, sizeof(c->name), "deck-connector-%02x%02x%02x", mac[3], mac[4], mac[5]);
+    snprintf(c->name, sizeof(c->name), "deckconnector-%02x%02x%02x", mac[3], mac[4], mac[5]);
     db_config_random_password(c->admin_pass, 9);
 }
 

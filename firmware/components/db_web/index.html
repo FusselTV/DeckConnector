@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deck-Connector</title>
+<title>DeckConnector</title>
 <script>/* before the first paint, so the page never flashes in the wrong theme */
 let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {}
 document.documentElement.dataset.theme = theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');</script>
@@ -85,7 +85,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </svg>
 <main>
 <form id="login" class="card" hidden style="max-width:380px;margin:12vh auto 0">
-<div class="card-h"><h1>Deck-Connector</h1><p class="muted">Anmelden, um den Deck-Connector einzurichten.</p></div>
+<div class="card-h"><h1>DeckConnector</h1><p class="muted">Anmelden, um den DeckConnector einzurichten.</p></div>
 <div class="card-b stack">
 <div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password" autofocus>
 <p class="hint">Steht auf dem Stream Deck im Menü unter Web-Zugang.</p></div>
@@ -95,7 +95,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 
 <div id="app" hidden>
 <header class="row between">
-<div class="row"><h1 id="title">Deck-Connector</h1><span id="online" class="badge warn"><span class="dot"></span>verbinde …</span></div>
+<div class="row"><h1 id="title">DeckConnector</h1><span id="online" class="badge warn"><span class="dot"></span>verbinde …</span></div>
 <div class="row"><button id="theme" type="button" class="btn ghost sm" aria-label="Hell oder dunkel" title="Hell oder dunkel"><svg class="i" aria-hidden="true"><use href="#i-moon"/></svg></button><button id="logout" class="btn ghost sm" aria-label="Abmelden" title="Abmelden"><svg class="i" aria-hidden="true"><use href="#i-out"/></svg><span class="wide">Abmelden</span></button></div>
 </header>
 
@@ -133,11 +133,11 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div><label for="usbspeed">USB <span id="usbnow" class="muted"></span></label><select id="usbspeed"><option value="auto">automatisch</option><option value="full">immer Full-Speed (langsamer, für schwierige Hubs)</option></select></div>
 </div>
 <p class="section-t">Companion über die Satellite-API</p>
-<p class="hint">Der Deck-Connector verbindet sich selbst mit Companion. Ohne Port nimmt er 16622. Eine ws:// oder wss:// Adresse geht über den WebSocket-Port von Companion (16623) oder einen Proxy davor. Leer lassen, wenn Companion den Deck-Connector als Network Dock findet.</p>
+<p class="hint">Der DeckConnector verbindet sich selbst mit Companion. Ohne Port nimmt er 16622. Eine ws:// oder wss:// Adresse geht über den WebSocket-Port von Companion (16623) oder einen Proxy davor. Leer lassen, wenn Companion den DeckConnector als Network Dock findet.</p>
 <div class="grid"><div><label for="satellite">Adresse von Companion</label><input id="satellite" placeholder="192.168.1.10 oder wss://…" maxlength="63"><div id="found" class="hint"></div></div>
 <div><label for="satpin">SHA-256 des Zertifikats (optional, wss://)</label><input id="satpin" maxlength="95"></div></div>
 <p class="section-t">Eigene Server</p>
-<p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht der Deck-Connector einen im Netz.</p>
+<p class="hint">Server fügst du in der Übersicht hinzu. Ohne eingetragenen Server sucht der DeckConnector einen im Netz.</p>
 <div class="grid"><div><label for="token">Token</label><input id="token" type="password" placeholder="unverändert" maxlength="47"></div></div>
 <p class="section-t">WLAN</p>
 <div class="grid">
@@ -150,20 +150,20 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 </div>
 <p class="section-t">Web-Zugang</p>
 <div class="grid"><div><label for="apass">Neues Passwort für admin</label><input id="apass" type="password" placeholder="unverändert" minlength="6" maxlength="23"></div></div>
-<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Über http:// leitet der Deck-Connector den Browser um und beantwortet sonst nichts, auch Home Assistant nicht. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
-<div class="row"><button class="btn">Speichern</button><span class="hint" style="margin:0">Netz, Server und Name starten den Deck-Connector neu.</span></div>
+<label class="row small" style="font-weight:400;flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="httpsonly" style="width:auto;height:auto;margin-top:3px;flex:none"> <span>Nur HTTPS. Über http:// leitet der DeckConnector den Browser um und beantwortet sonst nichts, auch Home Assistant nicht. <a id="tohttps" hidden>Zur HTTPS-Seite</a></span></label>
+<div class="row"><button class="btn">Speichern</button><span class="hint" style="margin:0">Netz, Server und Name starten den DeckConnector neu.</span></div>
 </div></form>
 </section>
 
 <section data-panel="system" class="stack" hidden>
 <div class="card"><div class="card-h"><h2>Auslastung</h2><p class="muted">Die letzten 10 Minuten, alle 5 Sekunden gemessen. Liegt nur im Arbeitsspeicher.</p></div>
 <div class="card-b stack"><div class="meters" id="meters"></div><div class="meters" id="storage"></div></div></div>
-<div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für den Deck-Connector, den WLAN-Chip oder die Oberfläche.</p></div>
+<div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für den DeckConnector, den WLAN-Chip oder die Oberfläche.</p></div>
 <div class="card-b stack"><div id="slots" class="stack" style="gap:8px"></div>
 <div class="row"><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><select id="slot" style="width:auto"></select><button id="up" class="btn" disabled>Installieren</button></div>
 <form id="otaurl" class="row" style="flex-wrap:nowrap"><input id="url" type="url" placeholder="oder Adresse: http://…/deckbridge.dbfw"><button class="btn outline">Laden</button></form>
 <p id="upmsg" class="small"></p></div></div>
-<div class="card"><div class="card-h"><h2>Einstellungen sichern</h2><p class="muted">Passwörter bleiben auf dem Deck-Connector und stehen nicht in der Datei.</p></div>
+<div class="card"><div class="card-h"><h2>Einstellungen sichern</h2><p class="muted">Passwörter bleiben auf dem DeckConnector und stehen nicht in der Datei.</p></div>
 <div class="card-b row"><button id="backup" class="btn outline"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg>Herunterladen</button><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Wiederherstellen<input id="restore" type="file" accept=".json,application/json" hidden></label></div></div>
 <div class="card"><div class="card-h"><h2>Gerät</h2></div><div class="card-b"><div class="kv" id="sys"></div></div></div>
 <div class="card"><div class="card-h row between"><h2>Protokoll</h2><div class="row"><button id="logbtn" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-refresh"/></svg>Aktualisieren</button><button id="reboot" class="btn outline sm"><svg class="i" aria-hidden="true"><use href="#i-power"/></svg>Neu starten</button></div></div>
@@ -203,15 +203,15 @@ function toast(text, bad) {
 }
 async function put(body, quiet) {
   const r = await api('/api/config', {method: 'PUT', body: JSON.stringify(body)}).catch(() => null);
-  const j = r ? await r.json().catch(() => ({ok: false, error: 'HTTP ' + r.status})) : {ok: false, error: 'Deck-Connector nicht erreichbar'};
+  const j = r ? await r.json().catch(() => ({ok: false, error: 'HTTP ' + r.status})) : {ok: false, error: 'DeckConnector nicht erreichbar'};
   if (!j.ok) toast(j.error, true);
-  else if (!quiet || j.restart) toast(j.restart ? 'Gespeichert. Der Deck-Connector startet neu.' : 'Gespeichert.');
+  else if (!quiet || j.restart) toast(j.restart ? 'Gespeichert. Der DeckConnector startet neu.' : 'Gespeichert.');
   return j;
 }
 
 $('backup').onclick = async () => {
   const r = await api('/api/config').catch(() => null);
-  if (!r || !r.ok) return toast('Deck-Connector nicht erreichbar', true);
+  if (!r || !r.ok) return toast('DeckConnector nicht erreichbar', true);
   const cfg = await r.json();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(cfg, null, 2)], {type: 'application/json'}));
@@ -225,7 +225,7 @@ $('restore').onchange = async e => {
   let cfg;
   try { cfg = JSON.parse(await file.text()); } catch { return toast('Keine Einstellungsdatei.', true); }
   if (typeof cfg !== 'object' || !cfg.controller) return toast('Keine Einstellungsdatei.', true);
-  if (confirm(`Einstellungen aus „${file.name}“ übernehmen? Ändert sich das Netz, startet der Deck-Connector neu.`)) put(cfg);
+  if (confirm(`Einstellungen aus „${file.name}“ übernehmen? Ändert sich das Netz, startet der DeckConnector neu.`)) put(cfg);
 };
 
 const kinds = {companion: 'Companion', app: 'Stream Deck App', server: 'Server'};
@@ -241,7 +241,7 @@ const what = (x) => [kinds[x.kind], proto(x)].filter(Boolean).join(' · ');
 const hostName = (x) => x.name || shortHost(x.host);
 const pick = (x) => put({controller: x.kind, host: x.via === 'satellite' ? 'satellite' : x.host}, true);
 function writerName(id) {
-  if (id === 'ui') return 'der Deck-Connector selbst';
+  if (id === 'ui') return 'der DeckConnector selbst';
   const x = state?.sources.find((y) => y.drawing);
   return x ? `${hostName(x)} · ${what(x)}` : id;
 }
@@ -309,9 +309,9 @@ $('addsrv').onsubmit = (e) => {
 function howto(s) {
   const ip = s.network.lan.ip || s.network.wlan.ip;
   if (hostAt(s, s.controller)) return '';
-  if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces den Deck-Connector unter Discover hinzufügen, oder eine Remote Surface mit der Adresse ${ip} anlegen. Oder unter Einstellungen die Adresse von Companion für die Satellite-API eintragen.`;
-  if (s.controller === 'app') return 'Die Stream Deck Software findet den Deck-Connector selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
-  return 'Die Adresse des Servers unter Einstellungen eintragen. Leer gelassen sucht der Deck-Connector einen Server im Netz.';
+  if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces den DeckConnector unter Discover hinzufügen, oder eine Remote Surface mit der Adresse ${ip} anlegen. Oder unter Einstellungen die Adresse von Companion für die Satellite-API eintragen.`;
+  if (s.controller === 'app') return 'Die Stream Deck Software findet den DeckConnector selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
+  return 'Die Adresse des Servers unter Einstellungen eintragen. Leer gelassen sucht der DeckConnector einen Server im Netz.';
 }
 function renderStatus() {
   const s = state;
@@ -411,7 +411,7 @@ let hold = 2;
 const menuHow = () => chord === 'off' ? 'Am Deck selbst ist der Weg ins Menü aus.' : chord ? `Am Deck selbst: ${chord} gleichzeitig ${String(hold).replace('.', ',')} Sekunden halten.` : 'Kein Stream Deck angeschlossen.';
 async function openMenu() {
   const r = await api('/api/menu', {method: 'POST'}).catch(() => null);
-  if (!r) toast('Deck-Connector nicht erreichbar.', true);
+  if (!r) toast('DeckConnector nicht erreichbar.', true);
   else if (r.status === 409) toast('Kein Stream Deck angeschlossen.', true);
   else if (!r.ok) toast('Menü ging nicht auf: ' + ((await r.json().catch(() => ({}))).error || r.status), true);
 }
@@ -601,7 +601,7 @@ $('up').onclick = async () => {
   $('up').disabled = false;
   $('upmsg').textContent = '';
   const bad = r.ok === false;
-  toast(bad ? 'Update fehlgeschlagen: ' + r.error : web ? 'Neue Oberfläche installiert. Lade die Seite neu.' : slot ? `In Slot ${slot} installiert.` : 'Installiert. Der Deck-Connector startet neu.', bad);
+  toast(bad ? 'Update fehlgeschlagen: ' + r.error : web ? 'Neue Oberfläche installiert. Lade die Seite neu.' : slot ? `In Slot ${slot} installiert.` : 'Installiert. Der DeckConnector startet neu.', bad);
   if (!bad && (slot || web)) loadSlots();
 };
 const slotNote = {pending: 'ungeprüft', invalid: 'ungültig', unknown: 'unbekannt'};
@@ -617,23 +617,23 @@ async function loadSlots() {
 }
 $('slots').onclick = async (e) => {
   if (e.target.closest('[data-web-reset]')) {
-    const r = await api('/api/frontend', {method: 'DELETE'}).then((x) => x.json()).catch(() => ({ok: false, error: 'Deck-Connector nicht erreichbar'}));
+    const r = await api('/api/frontend', {method: 'DELETE'}).then((x) => x.json()).catch(() => ({ok: false, error: 'DeckConnector nicht erreichbar'}));
     toast(r.ok === false ? r.error : 'Oberfläche aus der Firmware. Lade die Seite neu.', r.ok === false);
     return loadSlots();
   }
   const n = e.target.closest('[data-boot]')?.dataset.boot;
-  if (n === undefined || !confirm(`Slot ${n} starten? Der Deck-Connector startet neu.`)) return;
-  const r = await api(`/api/slots/${n}/boot`, {method: 'POST'}).then((x) => x.json()).catch(() => ({ok: false, error: 'Deck-Connector nicht erreichbar'}));
+  if (n === undefined || !confirm(`Slot ${n} starten? Der DeckConnector startet neu.`)) return;
+  const r = await api(`/api/slots/${n}/boot`, {method: 'POST'}).then((x) => x.json()).catch(() => ({ok: false, error: 'DeckConnector nicht erreichbar'}));
   toast(r.ok ? `Startet Slot ${n} …` : r.error, !r.ok);
 };
 $('otaurl').onsubmit = async (e) => {
   e.preventDefault();
-  const r = await api('/api/ota/url', {method: 'POST', body: JSON.stringify({url: $('url').value})}).then((x) => x.json()).catch(() => ({ok: false, error: 'Deck-Connector nicht erreichbar'}));
-  toast(r.ok ? 'Update läuft. Der Fortschritt steht auf dem Deck, danach startet der Deck-Connector neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
+  const r = await api('/api/ota/url', {method: 'POST', body: JSON.stringify({url: $('url').value})}).then((x) => x.json()).catch(() => ({ok: false, error: 'DeckConnector nicht erreichbar'}));
+  toast(r.ok ? 'Update läuft. Der Fortschritt steht auf dem Deck, danach startet der DeckConnector neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
 };
 $('logbtn').onclick = loadLog;
 $('openmenu').onclick = openMenu;
-$('reboot').onclick = async () => { if (confirm('Deck-Connector jetzt neu starten?')) { await api('/api/reboot', {method: 'POST'}); toast('Startet neu …'); } };
+$('reboot').onclick = async () => { if (confirm('DeckConnector jetzt neu starten?')) { await api('/api/reboot', {method: 'POST'}); toast('Startet neu …'); } };
 
 /* ---- tabs ---- */
 function showTab(name) {
@@ -648,14 +648,14 @@ for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { his
 let step = 0;
 let picked = null;
 const steps = [
-  {title: 'Willkommen', text: 'Der Deck-Connector bringt dein Stream Deck ins Netz. Ein paar kurze Schritte, alles lässt sich später ändern.',
+  {title: 'Willkommen', text: 'Der DeckConnector bringt dein Stream Deck ins Netz. Ein paar kurze Schritte, alles lässt sich später ändern.',
     body: () => '<p class="small">Das Stream Deck zeigt dieselben Schritte. Du kannst sie dort oder hier erledigen.</p>'},
   {title: 'Wer soll das Deck steuern?', text: 'Das Programm, das die Tasten zeichnet und die Drücke bekommt. Es erscheint hier, sobald es verbunden ist.',
     body: () => {
       const rows = state.sources.filter((x) => x.connected && kinds[x.kind]);
       return rows.length ? '<div class="choice" id="wctrl">' + rows.map((x, i) =>
         `<button type="button" data-i="${i}" aria-pressed="${picked === x.host}"><b>${esc(hostName(x))}</b><span class="small muted">${what(x)}</span></button>`).join('') + '</div>'
-        : '<p class="small">Noch nichts verbunden. In Companion unter Surfaces den Deck-Connector unter Discover hinzufügen. Die Stream Deck App findet ihn selbst.</p>';
+        : '<p class="small">Noch nichts verbunden. In Companion unter Surfaces den DeckConnector unter Discover hinzufügen. Die Stream Deck App findet ihn selbst.</p>';
     },
     after: () => { for (const b of $('wctrl')?.querySelectorAll('button') || []) b.onclick = () => { picked = state.sources.filter((x) => x.connected && kinds[x.kind])[+b.dataset.i].host; render(); }; },
     save: () => { const x = state.sources.find((y) => y.connected && y.host === picked); return x ? pick(x) : null; }},
@@ -667,7 +667,7 @@ const steps = [
       if ($('wwpass').value) b.wifi_pass = $('wwpass').value;
       return b.wifi_ssid === config.wifi_ssid && !b.wifi_pass ? null : put(b);
     }},
-  {title: 'Fertig', text: 'Der Deck-Connector ist eingerichtet.',
+  {title: 'Fertig', text: 'Der DeckConnector ist eingerichtet.',
     body: () => `<p class="small">${esc(howto(state)) || 'Das Programm übernimmt das Deck gleich.'}</p><p class="small muted">Das Menü auf dem Deck öffnet der Knopf „Menü öffnen“ in der Übersicht. ${esc(chord ? menuHow() : '')}</p>`,
     save: () => put({setup_done: true}, true)},
 ];

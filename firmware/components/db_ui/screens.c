@@ -253,7 +253,7 @@ static void home_status(page_t *p)
         status_message(p, ICON_ALERT, C_WARN, "Companion", "Warte auf Companion", sub, "Companion", "wartet");
     } else if (md->controller == UI_CTRL_APP) {
         status_message(p, ICON_ALERT, C_WARN, "Stream Deck App", "Warte auf die Stream Deck App",
-                       "Die Stream Deck App findet den Deck-Connector im Netz selbst", "SD App", "wartet");
+                       "Die Stream Deck App findet den DeckConnector im Netz selbst", "SD App", "wartet");
     } else {
         snprintf(sub, sizeof(sub), "%s", md->server_url[0] ? md->server_url : "Sucht einen Server im Netz");
         status_message(p, ICON_ALERT, C_WARN, "Server",
@@ -626,7 +626,7 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
     snprintf(v, sizeof(v), "Update %s: %d %%", md->update_what, md->update_pct);
     if (l->strip) {
         segment(&sc->seg[0], 4, ICON_UPDATE, C_EDIT, "Update", v,
-                "Nicht vom Strom trennen, der Deck-Connector startet danach neu");
+                "Nicht vom Strom trennen, der DeckConnector startet danach neu");
     }
     char pct[12];
     snprintf(pct, sizeof(pct), "%d %%", md->update_pct);

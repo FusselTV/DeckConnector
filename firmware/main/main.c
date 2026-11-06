@@ -346,7 +346,7 @@ void app_main(void)
     db_log_start();
     init_nvs();
     ESP_ERROR_CHECK(db_config_load());
-    ESP_LOGI(TAG, "Deck-Connector %s, controller %s", esp_app_get_description()->version,
+    ESP_LOGI(TAG, "DeckConnector %s, controller %s", esp_app_get_description()->version,
              db_controller_name(db_config()->controller));
 
     ESP_ERROR_CHECK(db_ui_start());

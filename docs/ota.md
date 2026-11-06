@@ -1,6 +1,6 @@
 # Updates
 
-The Deck-Connector takes signed `.dbfw` files for its own firmware (P4), for the WLAN chip (C6), for its web
+The DeckConnector takes signed `.dbfw` files for its own firmware (P4), for the WLAN chip (C6), for its web
 page, and for its bootloader and partition table. A file comes from a server (`{"t": "ota", "url": ...}`), from
 the web UI, or for the page from `PUT /api/frontend`.
 
@@ -20,10 +20,10 @@ A 144 byte header, then the image.
 | 76 | 64 | ECDSA P-256 signature (r, s) over bytes 0 to 75 |
 | 140 | 4 | reserved |
 
-## What the Deck-Connector checks
+## What the DeckConnector checks
 
 1. Header and signature, before it writes anything.
-   A file whose security level is below the Deck-Connector's own is refused, so a signed old firmware with a known
+   A file whose security level is below the DeckConnector's own is refused, so a signed old firmware with a known
    hole cannot go back on. `SECURITY_LEVEL` in `db_ota.c` sets the level, and `dbfw pack` reads it from there.
    Raise it with a security fix. USB flashing still works for any version.
 2. The SHA-256 of the whole image, before it switches over.
@@ -35,16 +35,16 @@ The C6 gets its image over the P4. A C6 update restarts both chips.
 ## Web page
 
 The page lives in the `www` partition, apart from the firmware, so it can change without a firmware update. Its
-image is `index.html` gzipped. At start the Deck-Connector reads it into PSRAM and checks the key, the hash and
+image is `index.html` gzipped. At start the DeckConnector reads it into PSRAM and checks the key, the hash and
 `api_min` against its own API version (`DB_WEB_API` in `db_web.h`). If one of them fails, or the partition is
 empty, it serves the page built into the firmware. Raise `DB_WEB_API` when a route or field a page relies on
 changes.
 
 ## Bootloader and partition table
 
-They go through `POST /api/ota` like a firmware and never restart the Deck-Connector. The file is first written
+They go through `POST /api/ota` like a firmware and never restart the DeckConnector. The file is first written
 into the slot an update would use next, so that slot is empty afterwards. Then ESP-IDF checks it (a valid
-bootloader image, or a table with a correct MD5) and copies it into place, and the Deck-Connector reads it back.
+bootloader image, or a table with a correct MD5) and copies it into place, and the DeckConnector reads it back.
 A new table is refused when a data partition moves or changes size, when the running slot moves, when an app slot
 is too small for the running firmware, or when partitions overlap. A new table takes effect at the next start.
 
@@ -58,7 +58,7 @@ current ones first.
 The flash holds four firmware slots. An update goes into the slot after the running one, so the slot before it
 keeps the last firmware. Slots 2 and 3 are the bench slots for `dbtools.fw`. A slot started by choice has to
 confirm itself the same way as a new update. A slot whose image is older than the security level does not start
-by choice, because its image does not carry the level. The Deck-Connector notes the level when a file is written
+by choice, because its image does not carry the level. The DeckConnector notes the level when a file is written
 and when a firmware runs.
 
 ## On the bench
@@ -77,7 +77,7 @@ uv run python -m dbtools.fw boot bootloader # write firmware/build/bootloader/bo
 
 ## Recovery over USB
 
-When the Deck-Connector no longer starts, connect its USB-C port and run `tools/flash.sh all`. It writes the
+When the DeckConnector no longer starts, connect its USB-C port and run `tools/flash.sh all`. It writes the
 bootloader, the partition table, the boot data and the firmware in the build folder into slot 0, and takes about
 90 seconds. Settings and paired hosts stay. The other slots keep their firmware and read `unknown`, and each can
 still be started by choice. Without `all`, `tools/flash.sh` writes only the firmware.
@@ -90,5 +90,5 @@ uv run python -m dbtools.dbfw keygen        # once; key in ~/.config/deckbridge/
 uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckbridge.bin out.dbfw
 ```
 
-`keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A Deck-Connector only accepts files
+`keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A DeckConnector only accepts files
 signed with the key it was built with. Losing the private key means the next firmware has to go on over USB.
