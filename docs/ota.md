@@ -56,7 +56,7 @@ current ones first.
 ## Slots
 
 The flash holds four firmware slots. An update goes into the slot after the running one, so the slot before it
-keeps the last firmware. Slots 2 and 3 are the bench slots for `dbtools.fw`. A slot started by choice has to
+keeps the last firmware. Slots count from 1. Slots 3 and 4 are the bench slots for `dbtools.fw`. A slot started by choice has to
 confirm itself the same way as a new update. A slot whose image is older than the security level does not start
 by choice, because its image does not carry the level. The DeckConnector notes the level when a file is written
 and when a firmware runs.
@@ -78,7 +78,7 @@ uv run python -m dbtools.fw boot bootloader # write firmware/build/bootloader/bo
 ## Recovery over USB
 
 When the DeckConnector no longer starts, connect its USB-C port and run `tools/flash.sh all`. It writes the
-bootloader, the partition table, the boot data and the firmware in the build folder into slot 0, and takes about
+bootloader, the partition table, the boot data and the firmware in the build folder into slot 1, and takes about
 90 seconds. Settings and paired hosts stay. The other slots keep their firmware and read `unknown`, and each can
 still be started by choice. Without `all`, `tools/flash.sh` writes only the firmware.
 

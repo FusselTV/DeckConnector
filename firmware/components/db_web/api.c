@@ -359,7 +359,7 @@ esp_err_t post_ota(httpd_req_t *req)
     bool boot = true;
     if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
         if (httpd_query_key_value(q, "slot", v, sizeof(v)) == ESP_OK) {
-            slot = atoi(v);
+            slot = atoi(v) - 1; /* the API counts slots from 1 */
         }
         if (httpd_query_key_value(q, "boot", v, sizeof(v)) == ESP_OK) {
             boot = strcmp(v, "0") != 0;
@@ -426,7 +426,7 @@ static size_t slots_json(char *buf, size_t cap)
     db_json_arr_open(&j, NULL);
     for (int i = 0; i < n; i++) {
         db_json_obj_open(&j, NULL);
-        db_json_int(&j, "slot", i);
+        db_json_int(&j, "slot", i + 1);
         db_json_str(&j, "label", slots[i].label);
         db_json_str(&j, "state", slots[i].state);
         if (slots[i].version[0]) {
@@ -595,7 +595,7 @@ esp_err_t post_slot_boot(httpd_req_t *req)
     if (sscanf(req->uri, "/api/slots/%d/%7s", &slot, tail) != 2 || strcmp(tail, "boot") != 0) {
         return send_error(req, "404 Not Found", "use /api/slots/<n>/boot");
     }
-    esp_err_t err = db_ota_boot_slot(slot);
+    esp_err_t err = db_ota_boot_slot(slot - 1);
     if (err != ESP_OK) {
         return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict",
                           err == ESP_ERR_INVALID_VERSION ? "slot below the security level"

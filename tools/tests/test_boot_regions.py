@@ -114,7 +114,7 @@ def test_refused_and_nothing_changes(image, why):
 def test_a_refused_image_leaves_every_firmware_slot_alone(refused):
     """Checked before the slot it would be staged in, the one after the running one, is erased."""
     slots = json.loads(api("GET", "/api/slots")[1])
-    staging = (next(x["slot"] for x in slots if x["running"]) + 1) % len(slots)
+    staging = next(x["slot"] for x in slots if x["running"]) % len(slots)  # 0-based index of the next slot
     if slots[staging]["state"] == "empty":
         pytest.skip("the staging slot holds no firmware to lose; tests never write one there")
     assert upload(refused()) == 400

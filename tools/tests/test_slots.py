@@ -13,7 +13,7 @@ def slots() -> list[dict]:
 
 def test_one_running_slot_and_it_is_valid():
     s = slots()
-    assert len(s) == 4 and [x["slot"] for x in s] == [0, 1, 2, 3]
+    assert len(s) == 4 and [x["slot"] for x in s] == [1, 2, 3, 4]
     running = [x for x in s if x["running"]]
     assert len(running) == 1 and running[0]["state"] == "valid" and running[0]["version"]
 

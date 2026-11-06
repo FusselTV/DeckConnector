@@ -10,7 +10,7 @@ uv run python -m dbtools.fw boot bootloader|ptable        write the built bootlo
                                                           USB if power fails while it is written; the table is
                                                           refused when it would move data or the running slot
 
-Slots 2 and 3 are the bench slots, so the firmware in 0 and 1 stays as it is. Switching back from a firmware
+Slots 3 and 4 are the bench slots, so the firmware in 1 and 2 stays as it is. Switching back from a firmware
 older than the slots API needs a deploy, because it cannot boot a slot by choice. tools/flash.sh stays for
 serial recovery.
 """
@@ -31,7 +31,7 @@ from dbtools.load import basic_auth
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = Path.home() / ".cache/deckbridge"
-BENCH_SLOTS = (3, 2)
+BENCH_SLOTS = (4, 3)
 HOST = os.environ.get("DB_HOST", "192.168.1.214")
 AUTH = basic_auth()
 
@@ -77,7 +77,7 @@ def bench_slot(avoid: set) -> int:
     code, slots = api("GET", "/api/slots")
     if code != 200:
         raise SystemExit(f"/api/slots answered {code}: firmware without slots, deploy with tools/flash.sh")
-    free = [s for s in BENCH_SLOTS if s not in avoid and not slots[s]["running"]]
+    free = [s for s in BENCH_SLOTS if s not in avoid and not slots[s - 1]["running"]]
     if not free:
         raise SystemExit(f"no bench slot left among {BENCH_SLOTS} (avoiding {sorted(avoid)})")
     return free[0]
@@ -118,7 +118,8 @@ def use(slot: int) -> None:
     code, r = api("POST", f"/api/slots/{slot}/boot")
     if code != 200:
         raise SystemExit(f"slot {slot} not booted: {r} (a firmware older than the slots API needs a deploy)")
-    print(f"slot {slot} ({slots[slot]['version']}) up in {wait_version(slots[slot]['version']):.1f} s")
+    version = slots[slot - 1]["version"]
+    print(f"slot {slot} ({version}) up in {wait_version(version):.1f} s")
 
 
 def build(rev: str) -> bytes:
