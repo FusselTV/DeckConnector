@@ -257,6 +257,7 @@ static void model(ui_model_t *md)
         .brightness = s.brightness >= 0 ? s.brightness : c->brightness,
         .update_pct = s.update_pct,
         .setup_done = c->setup_done,
+        .picked = c->host[0] || c->controller != DB_CTRL_COMPANION,
         .menu_hold_ms = c->menu_hold_ms,
     };
     snprintf(md->menu_chord, sizeof(md->menu_chord), "%s", c->menu_chord);

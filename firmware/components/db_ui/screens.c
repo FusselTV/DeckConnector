@@ -860,7 +860,8 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
 
 bool ui_first_source(const ui_model_t *md, ui_action_t *act)
 {
-    if (md->setup_done || md->request[0] || md->offer_addr[0] || !md->source_count) {
+    /* picked: a choice made before (a re-run setup, the web wizard) is not taken away */
+    if (md->setup_done || md->picked || md->request[0] || md->offer_addr[0] || !md->source_count) {
         return false;
     }
     *act = (ui_action_t){.what = UI_DO_SOURCE, .value = 0};

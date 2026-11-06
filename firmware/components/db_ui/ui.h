@@ -114,6 +114,7 @@ typedef struct {
     int update_pct; /* < 0: no update running */
     char update_what[24];
     bool setup_done;
+    bool picked; /* the config names a host or a program other than the default: someone chose */
 } ui_model_t;
 
 typedef enum {

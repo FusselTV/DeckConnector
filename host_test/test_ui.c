@@ -424,7 +424,10 @@ static void test_without_the_web_ui(void)
         TEST_ASSERT_TRUE_MESSAGE(chord, decks[d].name);
         ui_action_t act;
         TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* nobody there yet */
-        md.source_count = 1;                            /* the Stream Deck app or Companion connects */
+        md.source_count = 1; /* the Stream Deck app or Companion connects */
+        md.picked = true;
+        TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* a choice made before stays, e.g. a re-run setup */
+        md.picked = false;
         TEST_ASSERT_TRUE(ui_first_source(&md, &act));
         TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
         TEST_ASSERT_EQUAL_INT(0, act.value);
