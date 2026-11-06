@@ -75,7 +75,12 @@ uv run python -m dbtools.fw boot ptable     # write firmware/build/partition_tab
 uv run python -m dbtools.fw boot bootloader # write firmware/build/bootloader/bootloader.bin
 ```
 
-`tools/flash.sh` writes over USB and is for recovery.
+## Recovery over USB
+
+When the Deck-Connector no longer starts, connect its USB-C port and run `tools/flash.sh all`. It writes the
+bootloader, the partition table, the boot data and the firmware in the build folder into slot 0, and takes about
+90 seconds. Settings and paired hosts stay. The other slots keep their firmware and read `unknown`, and each can
+still be started by choice. Without `all`, `tools/flash.sh` writes only the firmware.
 
 ## Signing
 
