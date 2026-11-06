@@ -53,6 +53,7 @@ typedef struct {
                              */
     char menu_chord[10];   /* which two controls open the menu: auto, keys, encoders or off */
     uint16_t menu_hold_ms;
+    char usb_speed[6]; /* auto: high speed, full speed when no deck comes up behind a hub; full: always */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

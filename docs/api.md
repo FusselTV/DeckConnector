@@ -123,12 +123,18 @@ and the reply says so:
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
  "servers": ["ws://192.168.1.128:8765/deckbridge", "wss://example.org/deckbridge", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_pin": "",
- "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "token_set": false}
+ "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "usb_speed": "auto",
+ "token_set": false}
 ```
 
 `menu_chord` says which two controls open the menu on the deck when held together for `menu_hold_ms` (500 to
 10000): `auto` (the outer encoders, or the first and last key on a deck without encoders), `keys` (first and last
 key), `encoders` (the outer encoders, like `auto`), or `off`.
+
+`usb_speed` is `auto` or `full`. `auto` starts at high speed. When a USB device is there but no deck comes up,
+for example behind a hub that drops it, the port switches to full speed until the next restart. `full` always
+uses full speed. Full speed moves about 64 KB of pictures per second instead of several MB, so a full page takes
+up to a second.
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
 needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
@@ -157,7 +163,8 @@ it restores the settings. The web UI does this under System.
               "chosen": false, "drawing": false},
              {"kind": "companion", "host": "192.168.1.15", "name": "studio", "connected": true, "chosen": true,
               "drawing": true}],
- "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "inputs": 0, "inputs_dropped": 0},
+ "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "usb_speed": "high", "inputs": 0,
+ "inputs_dropped": 0},
  "boot_ms": {"deck": 537, "lan_link": 2688, "wlan_ip": 5724, "lan_ip": 6692, "companion": 7439, "host_draws": 7665},
  "memory": {"heap_free": 353203, "heap_min_free": 290191, "psram_free": 32211772, "heap_largest": 208896,
             "psram_largest": 30932992, "tasks": 37, "sockets": 9, "sockets_max": 32}}
@@ -179,6 +186,7 @@ it restores the settings. The web UI does this under System.
   covers it.
 - `superseded` counts images that a newer one replaced before they were drawn.
 - `usb_errors` counts failed USB transfers. Transfers that an unplug ends are not counted.
+- `usb_speed` is `high` or `full`, the speed the USB port runs at now.
 
 ## What the deck shows
 

@@ -226,8 +226,7 @@ static void replug_task(void *arg);
 static void handle_attach(uint8_t address)
 {
     /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen at
-     * 16, 32 and 48, never in between). Plugged in again it gets the next one.
-     * Behind a hub only its own hub port goes off. */
+     * 16, 32 and 48, never in between). Plugged in again it gets the next one. */
     if ((address & 0x0f) == 0) {
         ESP_LOGW(TAG, "USB address %u, plugging the deck in again", address);
         xTaskCreate(replug_task, "deck_replug", 3072, (void *)(uintptr_t)address, 5, NULL);
@@ -410,6 +409,11 @@ size_t db_deck_input_space(void)
     return uxQueueSpacesAvailable(s.events);
 }
 
+bool db_deck_full_speed(void)
+{
+    return usb_port_full_speed();
+}
+
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     _Static_assert(sizeof(db_input_t) <= INPUT_REPORT, "input does not fit the event");
@@ -421,7 +425,7 @@ esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
     return xQueueSend(s.events, &ev, pdMS_TO_TICKS(100)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
-esp_err_t db_deck_start(void)
+esp_err_t db_deck_start(bool full_speed)
 {
     s.lock = xSemaphoreCreateMutex();
     s.io_lock = xSemaphoreCreateMutex();
@@ -435,7 +439,7 @@ esp_err_t db_deck_start(void)
     xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, NULL, 8, &s.writer_task, 1);
     xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1);
     usb_port_cb_t cb = {.attached = on_attached, .detached = on_detached, .input = on_input};
-    return usb_port_start(&cb);
+    return usb_port_start(&cb, full_speed);
 }
 
 void db_deck_add_listener(const db_deck_listener_t *listener)

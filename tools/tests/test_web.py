@@ -138,6 +138,12 @@ def test_menu_chord_settings_are_checked():
 
 
 @pytest.mark.sim
+def test_usb_speed_is_checked():
+    assert api("PUT", "/api/config", b'{"usb_speed": "high"}')[0] == 400
+    assert json.loads(api("GET", "/api/config")[1])["usb_speed"] == "auto"
+
+
+@pytest.mark.sim
 @pytest.mark.skipif(TARGET != "sim", reason="the simulator runs no HTTPS; the bridge does")
 def test_https_only_is_refused_while_https_does_not_run():
     """Turned on without HTTPS, it would lock everyone out: plain refused, and nothing on port 443."""

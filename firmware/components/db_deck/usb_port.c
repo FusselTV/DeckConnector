@@ -8,6 +8,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "soc/usb_dwc_struct.h"
 #include "usb/usb_host.h"
 
 #define OUT_SLOTS          3 /* output reports in flight; more does not help, the device is the limit */
@@ -38,6 +39,9 @@ static struct {
     SemaphoreHandle_t ctrl_lock;
     volatile uint32_t errors;
     db_hid_io_t io;
+    bool auto_speed;
+    volatile bool full; /* the root port runs at full speed */
+    esp_timer_handle_t check;
 } s;
 
 /* An unplug ends every transfer in flight; only other endings are errors. */
@@ -174,6 +178,16 @@ static void client_event(const usb_host_client_event_msg_t *msg, void *arg)
     }
 }
 
+/* Full speed only: some hubs drop a high speed Stream Deck right after the handshake, and full speed behind a
+ * high speed hub would need a transaction translator the host stack lacks. IDF 6.0's HAL cannot do esp-usb's
+ * fsls_only, so the bit is set by hand; a recovery soft reset clears it, hence after every round of events. */
+static void keep_full_speed(void)
+{
+    if (s.full) {
+        USB_DWC_HS.hcfg_reg.fslssupp = 1;
+    }
+}
+
 static void lib_task(void *arg)
 {
     /* The Stream Deck has a 1024 byte interrupt OUT endpoint. The default FIFO split caps periodic OUT at
@@ -184,10 +198,12 @@ static void lib_task(void *arg)
         .fifo_settings_custom = {.rx_fifo_lines = 260, .ptx_fifo_lines = 572, .nptx_fifo_lines = 64},
     };
     ESP_ERROR_CHECK(usb_host_install(&cfg));
+    keep_full_speed();
     xTaskNotifyGive((TaskHandle_t)arg);
     for (;;) {
         uint32_t flags;
         usb_host_lib_handle_events(portMAX_DELAY, &flags);
+        keep_full_speed();
         if (flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) {
             usb_host_device_free_all();
         }
@@ -201,66 +217,25 @@ static void client_task(void *arg)
     }
 }
 
-/* SET_FEATURE or CLEAR_FEATURE(PORT_POWER) on a port of the hub the device hangs on (USB 2.0 11.24.2). */
-static esp_err_t hub_port_power(const usb_parent_dev_info_t *parent, bool on)
-{
-    usb_device_info_t hub_info;
-    usb_device_handle_t hub;
-    ESP_RETURN_ON_ERROR(usb_host_device_info(parent->dev_hdl, &hub_info), TAG, "hub info");
-    ESP_RETURN_ON_ERROR(usb_host_device_open(s.client, hub_info.dev_addr, &hub), TAG, "hub open");
-    usb_transfer_t *t;
-    esp_err_t err = usb_host_transfer_alloc(sizeof(usb_setup_packet_t), 0, &t);
-    if (err == ESP_OK) {
-        *(usb_setup_packet_t *)t->data_buffer = (usb_setup_packet_t){
-            .bmRequestType = 0x23, .bRequest = on ? 3 : 1, .wValue = 8, .wIndex = parent->port_num};
-        t->num_bytes = sizeof(usb_setup_packet_t);
-        t->device_handle = hub;
-        t->callback = ctrl_done;
-        xSemaphoreTake(s.ctrl_lock, portMAX_DELAY); /* ctrl_done is shared with the deck's control transfers */
-        xSemaphoreTake(s.ctrl_done, 0);
-        err = usb_host_transfer_submit_control(s.client, t);
-        if (err == ESP_OK && xSemaphoreTake(s.ctrl_done, pdMS_TO_TICKS(CTRL_TIMEOUT_MS)) != pdTRUE) {
-            err = ESP_ERR_TIMEOUT; /* t is still in flight: leak it rather than free it under the stack */
-            t = NULL;
-        } else if (err == ESP_OK && t->status != USB_TRANSFER_STATUS_COMPLETED) {
-            err = ESP_FAIL;
-        }
-        xSemaphoreGive(s.ctrl_lock);
-        if (t) {
-            usb_host_transfer_free(t);
-        }
-    }
-    usb_host_device_close(s.client, hub);
-    return err;
-}
-
-static esp_err_t port_power(const usb_parent_dev_info_t *hub, bool on)
-{
-    return hub->dev_hdl ? hub_port_power(hub, on) : usb_host_lib_set_root_port_power(on);
-}
-
 esp_err_t usb_port_replug(uint8_t address)
 {
-    usb_device_info_t info = {0};
-    usb_device_handle_t dev = address ? NULL : s.dev; /* with an address only that device, never ours instead */
-    bool opened = address && usb_host_device_open(s.client, address, &dev) == ESP_OK;
-    if (address && !opened) {
+    usb_device_handle_t dev;
+    if (address && usb_host_device_open(s.client, address, &dev) != ESP_OK) {
         return ESP_ERR_NOT_FOUND;
     }
-    if (dev) { /* none: the root port, which also wakes a deck that never came up */
-        usb_host_device_info(dev, &info);
-    }
-    if (opened) {
+    if (address) {
         usb_host_device_close(s.client, dev);
     }
-    /* a port without power is a pulled cable to the host stack: the device goes, and comes back enumerated anew.
-     * Behind a hub only the deck's own port, so other decks on that hub stay. */
-    ESP_LOGI(TAG, "power cycling %s port %u", info.parent.dev_hdl ? "hub" : "root", info.parent.port_num);
-    ESP_RETURN_ON_ERROR(port_power(&info.parent, false), TAG, "port off");
+    /* A port without power is a pulled cable to the host stack: the device goes, and comes back enumerated anew.
+     * Always the root port, so behind a hub everything on it goes too: switching a hub port from here (CLEAR_FEATURE
+     * on the hub) tripped an assert in esp-usb's ext_hub.c:512 and restarted the bridge. */
+    ESP_LOGI(TAG, "power cycling the root port");
+    ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
     vTaskDelay(pdMS_TO_TICKS(500));
+    keep_full_speed();
     esp_err_t err = ESP_FAIL;
     for (int i = 0; i < 3 && err != ESP_OK; i++) { /* off and never on again: the deck stays dark until a reboot */
-        err = port_power(&info.parent, true);
+        err = usb_host_lib_set_root_port_power(true);
         if (err != ESP_OK) {
             vTaskDelay(pdMS_TO_TICKS(200));
         }
@@ -272,9 +247,31 @@ esp_err_t usb_port_replug(uint8_t address)
     return err;
 }
 
-esp_err_t usb_port_start(const usb_port_cb_t *cb)
+/* auto: a USB device is there (a hub counts) but no deck came up at high speed, so try full speed, once. */
+static void check_speed(void *arg)
+{
+    uint8_t addrs[8];
+    int n = 0;
+    if (s.full || s.dev || usb_host_device_addr_list_fill(sizeof(addrs), addrs, &n) != ESP_OK || n == 0) {
+        return;
+    }
+    ESP_LOGW(TAG, "no deck at high speed with %d USB device(s) present: trying full speed", n);
+    s.full = true;
+    usb_port_replug(0);
+}
+
+bool usb_port_full_speed(void)
+{
+    return s.full;
+}
+
+esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
 {
     s.cb = *cb;
+    s.auto_speed = !full_only;
+    s.full = full_only;
+    esp_timer_create_args_t ta = {.callback = check_speed, .name = "usb_speed"};
+    ESP_RETURN_ON_ERROR(esp_timer_create(&ta, &s.check), TAG, "timer");
     s.out_free = xSemaphoreCreateCounting(OUT_SLOTS, OUT_SLOTS);
     s.ctrl_done = xSemaphoreCreateBinary();
     s.ctrl_lock = xSemaphoreCreateMutex();
@@ -290,6 +287,9 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb)
     ESP_RETURN_ON_ERROR(usb_host_transfer_alloc(CTRL_BUF, 0, &s.ctrl), TAG, "ctrl alloc");
     s.ctrl->callback = ctrl_done;
     xTaskCreatePinnedToCore(client_task, "usb_client", 4096, NULL, 9, NULL, 1);
+    if (s.auto_speed) {
+        esp_timer_start_once(s.check, 6000000);
+    }
     return ESP_OK;
 }
 
@@ -328,6 +328,21 @@ static esp_err_t find_endpoints(const usb_config_desc_t *cd)
     return ESP_ERR_NOT_FOUND;
 }
 
+/* At full speed the Stream Deck still declares 1024 and 512 byte interrupt endpoints. Full speed allows 64, and
+ * the host stack never opens such a pipe; Linux clamps them the same way. Reports keep their size, split into
+ * 64 byte packets. */
+static void clamp_fs_interrupt_mps(const usb_config_desc_t *cd)
+{
+    int off = 0;
+    const usb_standard_desc_t *d = (const usb_standard_desc_t *)cd;
+    while ((d = usb_parse_next_descriptor_of_type(d, cd->wTotalLength, USB_B_DESCRIPTOR_TYPE_ENDPOINT, &off))) {
+        usb_ep_desc_t *ep = (usb_ep_desc_t *)d;
+        if (USB_EP_DESC_GET_XFERTYPE(ep) == USB_TRANSFER_TYPE_INTR && USB_EP_DESC_GET_MPS(ep) > 64) {
+            ep->wMaxPacketSize = 64;
+        }
+    }
+}
+
 static void free_transfers(void)
 {
     for (int i = 0; i < OUT_SLOTS; i++) {
@@ -359,6 +374,9 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     *pid = dd->idProduct;
     ESP_LOGI(TAG, "device %04x:%04x, %s speed", *vid, *pid, info.speed == USB_SPEED_HIGH ? "high" : "full");
     esp_err_t err = find_endpoints(cd);
+    if (info.speed != USB_SPEED_HIGH) {
+        clamp_fs_interrupt_mps(cd);
+    }
     if (err == ESP_OK) {
         err = usb_host_interface_claim(s.client, s.dev, s.intf, 0);
     }
@@ -372,6 +390,10 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     }
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "no usable HID interface: %s", esp_err_to_name(err));
+        if (s.auto_speed) { /* a dock's own device came up; the deck behind it may not */
+            esp_timer_stop(s.check);
+            esp_timer_start_once(s.check, 3000000);
+        }
         free_transfers();
         usb_host_device_close(s.client, s.dev);
         s.dev = NULL;

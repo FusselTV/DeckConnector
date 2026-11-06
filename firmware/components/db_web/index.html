@@ -130,6 +130,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div><label for="brightness">Helligkeit <span id="bval" class="muted"></span></label><input id="brightness" type="range" min="0" max="100" style="height:36px;padding:0;border:0;margin:0"></div>
 <div><label for="chord">Menü am Deck öffnen mit</label><select id="chord"><option value="auto">den äußeren Reglern, sonst Tasten</option><option value="keys">der ersten und letzten Taste</option><option value="encoders">den äußeren Reglern</option><option value="off">nichts (nur aus dem Web)</option></select></div>
 <div><label for="hold">gehalten für Sekunden</label><input id="hold" type="number" min="0.5" max="10" step="0.5"></div>
+<div><label for="usbspeed">USB <span id="usbnow" class="muted"></span></label><select id="usbspeed"><option value="auto">automatisch</option><option value="full">immer Full-Speed (langsamer, für schwierige Hubs)</option></select></div>
 </div>
 <p class="section-t">Companion über die Satellite-API</p>
 <p class="hint">Der Deck-Connector verbindet sich selbst mit Companion. Ohne Port nimmt er 16622. Eine ws:// oder wss:// Adresse geht über den WebSocket-Port von Companion (16623) oder einen Proxy davor. Leer lassen, wenn Companion den Deck-Connector als Network Dock findet.</p>
@@ -508,6 +509,7 @@ async function loadConfig() {
   $('satellite').value = config.satellite;
   $('satpin').value = config.satellite_pin;
   $('chord').value = config.menu_chord; $('hold').value = config.menu_hold_ms / 1000;
+  $('usbspeed').value = config.usb_speed;
   showFound(); setTimeout(showFound, 2500); /* the first call starts the search */
   if (state) renderSources(state);
   for (const key of ['lan', 'wlan']) {
@@ -523,7 +525,7 @@ $('cfg').onsubmit = async (e) => {
   const ip = (key) => Object.fromEntries([['dhcp', $(key + '_dhcp').checked], ...ipFields.map((f) => [f, $(key + '_' + f).value])]);
   const body = {name: $('name').value, brightness: +$('brightness').value,
     wifi_ssid: $('ssid').value, satellite: $('satellite').value.trim(), satellite_pin: $('satpin').value.trim(), lan: ip('lan'), wlan: ip('wlan'),
-    menu_chord: $('chord').value, menu_hold_ms: Math.round($('hold').value * 1000)};
+    menu_chord: $('chord').value, menu_hold_ms: Math.round($('hold').value * 1000), usb_speed: $('usbspeed').value};
   for (const [id, key] of [['wpass', 'wifi_pass'], ['token', 'token'], ['apass', 'admin_pass']]) if ($(id).value) body[key] = $(id).value;
   await put(body);
   loadScreen(); /* the chord in the overview's hint */
@@ -557,6 +559,7 @@ async function loadMetrics() {
 function renderSystem(s) {
   const m = s.memory;
   const c = s.counters;
+  $('usbnow').textContent = c?.usb_speed === 'full' ? '(läuft gerade mit Full-Speed)' : '';
   $('sys').innerHTML = kv('Firmware', s.firmware) + kv('WLAN-Chip', s.wlan_firmware) +
     (s.https_fingerprint ? kv('HTTPS-Fingerabdruck (SHA-256)', s.https_fingerprint) : '') +
     (s.device ? kv('Stream Deck', `${s.device.model}, Firmware ${s.device.firmware ?? '–'}`) : '') +

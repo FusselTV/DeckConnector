@@ -46,7 +46,10 @@ typedef struct {
     uint32_t inputs_dropped;
 } db_deck_stats_t;
 
-esp_err_t db_deck_start(void);
+/* full_speed: run the USB port at full speed only (config usb_speed "full"); else high speed, and full speed
+ * once when no deck comes up while a USB device is there. */
+esp_err_t db_deck_start(bool full_speed);
+bool db_deck_full_speed(void);
 void db_deck_add_listener(const db_deck_listener_t *listener);
 void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg);
 
