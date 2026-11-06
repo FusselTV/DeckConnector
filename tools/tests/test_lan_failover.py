@@ -6,15 +6,17 @@ not see a link-down event and has to notice the dead path by itself.
 
 import asyncio
 import json
-import subprocess
+import ssl
 import time
+import urllib.request
 from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.unifi
 KEY = Path.home() / ".config/deckbridge/unifi-api-key"
-SWITCH = "https://unifi.example/proxy/network/api/s/default/rest/device/000000000000000000000000"
+SITE = "https://unifi.example/proxy/network/api/s/default"
+SWITCH_ID = "000000000000000000000000"
 PORT = 4
 LAN_IP = "192.168.1.214"
 
@@ -28,32 +30,36 @@ async def answers(ip: str) -> bool:
     return True
 
 
-def set_port(overrides: list) -> None:
-    subprocess.run(
-        [
-            "curl",
-            "-sk",
-            "-o",
-            "/dev/null",
-            "-H",
-            f"X-API-KEY: {KEY.read_text().strip()}",
-            "-X",
-            "PUT",
-            "-H",
-            "Content-Type: application/json",
-            "-d",
-            json.dumps({"port_overrides": overrides}),
-            SWITCH,
-        ],
-        check=True,
-    )
+def unifi(method: str, path: str, body: dict | None = None) -> list:
+    req = urllib.request.Request(SITE + path, data=json.dumps(body).encode() if body else None, method=method)
+    req.add_header("X-API-KEY", KEY.read_text().strip())
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, context=ssl._create_unverified_context(), timeout=15) as r:
+        return json.loads(r.read())["data"]
+
+
+def overrides() -> list:
+    switch = next(d for d in unifi("GET", "/stat/device") if d["_id"] == SWITCH_ID)
+    return switch.get("port_overrides", [])
+
+
+def set_port(ports: list) -> None:
+    unifi("PUT", f"/rest/device/{SWITCH_ID}", {"port_overrides": ports})
+
+
+def blocked(ports: list) -> list:
+    """The port's other settings (STP off on port 4, for one) stay: PUT replaces the whole list."""
+    own = next((o for o in ports if o["port_idx"] == PORT), {"port_idx": PORT})
+    rest = [o for o in ports if o["port_idx"] != PORT]
+    return [*rest, {**own, "port_security_enabled": True, "port_security_mac_address": []}]
 
 
 async def test_dead_lan_falls_back_to_wlan(servers):
     first, _ = servers
     bridge = next(iter(first.bridges.values()), None) or await first.wait_bridge(60)
     assert bridge.ws.remote_address[0] == LAN_IP, "starts on LAN"
-    set_port([{"port_idx": PORT, "port_security_enabled": True, "port_security_mac_address": []}])
+    before = overrides()
+    set_port(blocked(before))
     try:
         back = asyncio.ensure_future(first.wait_bridge(90))
         # the switch takes 5 to 20 s to apply the block, so the clock starts when the LAN stops answering
@@ -63,7 +69,7 @@ async def test_dead_lan_falls_back_to_wlan(servers):
         back = await back
         took = time.monotonic() - t0
     finally:
-        set_port([])
+        set_port(before)
     print(f"back over WLAN {took:.1f} s after the LAN went dead")
     assert back.ws.remote_address[0] != LAN_IP
     assert took < 12
@@ -71,3 +77,4 @@ async def test_dead_lan_falls_back_to_wlan(servers):
     home = await first.wait_bridge(60)
     print(f"back on LAN {time.monotonic() - t1:.1f} s after the port was opened again")
     assert home.ws.remote_address[0] == LAN_IP
+    assert overrides() == before, "the switch port is back as it was"
