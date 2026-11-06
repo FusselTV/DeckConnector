@@ -277,12 +277,17 @@ static void save_peers(void) /* from both listen tasks: under info_lock */
     if (memcmp(now, saved, sizeof(now)) == 0) {
         return; /* a write only when a host connected anew */
     }
-    memcpy(saved, now, sizeof(now));
     nvs_handle_t h;
-    if (nvs_open("dock", NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_blob(h, NVS_PEERS, now, sizeof(now));
-        nvs_commit(h);
+    esp_err_t err = nvs_open("dock", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(h, NVS_PEERS, now, sizeof(now));
+        err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
+    }
+    if (err == ESP_OK) {
+        memcpy(saved, now, sizeof(now)); /* only then: a failed write is tried again with the next change */
+    } else {
+        ESP_LOGW(TAG, "hosts for the power-cut reset not saved: %s", esp_err_to_name(err));
     }
 }
 
@@ -356,7 +361,11 @@ static void reset_old_peers(void *arg)
     for (int i = 0; i < n; i++) {
         close(socks[i]);
     }
-    ESP_LOGI(TAG, "ended %d connections of the last boot", n);
+    int missed = 0;
+    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+        missed += peers[i].ip != 0;
+    }
+    ESP_LOGI(TAG, "ended %d connections of the last boot, %d hosts not reached", n, missed);
     if (n) {
         announce_anew();
     }
