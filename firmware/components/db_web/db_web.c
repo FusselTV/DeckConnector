@@ -27,6 +27,7 @@
 #include "esp_timer.h"
 #include "events.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 #include "mdns.h"
@@ -48,8 +49,8 @@ extern const char index_gz_end[] asm("_binary_index_html_gz_end");
 
 static size_t (*status_json)(char *buf, size_t cap);
 
-/* Every route but the web socket runs through timed(): the login check, and the time for /api/profile. The
- * server runs one handler at a time, so no lock. */
+/* Every route but the web socket runs through timed(): the login check, and the time for /api/profile. Ports 80
+ * and 443 are two server tasks, and the handlers share static buffers, so timed() runs one handler at a time. */
 typedef struct {
     esp_err_t (*handler)(httpd_req_t *req);
     bool open; /* no login needed */
@@ -61,6 +62,17 @@ typedef struct {
 static httpd_uri_t uris[24];
 static route_t routes[24];
 static size_t route_count;
+static SemaphoreHandle_t handler_lock;
+
+void web_lock(void)
+{
+    xSemaphoreTake(handler_lock, portMAX_DELAY);
+}
+
+void web_unlock(void)
+{
+    xSemaphoreGive(handler_lock);
+}
 
 esp_err_t send_json(httpd_req_t *req, const char *json)
 {
@@ -413,7 +425,7 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
 
 static size_t screen_json(char *buf, size_t cap)
 {
-    static db_device_info_t dev; /* too big for the stack; one handler at a time */
+    static db_device_info_t dev; /* too big for the stack; timed() runs one handler at a time */
     static db_shot_t shots[DB_SCREEN_MAX];
     db_source_t writer;
     size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
@@ -548,12 +560,19 @@ static esp_err_t timed(httpd_req_t *req)
         return refuse_plain(req);
     }
     route_t *r = req->user_ctx;
+    bool lock = r->handler != post_ota; /* an upload takes seconds and shares nothing */
+    if (lock) {
+        web_lock();
+    }
     int64_t start = esp_timer_get_time();
     esp_err_t err = r->open || auth_check(req) ? r->handler(req) : ESP_OK;
     uint32_t us = (uint32_t)(esp_timer_get_time() - start);
     r->count++;
     r->total_us += us;
     r->max_us = us > r->max_us ? us : r->max_us;
+    if (lock) {
+        web_unlock();
+    }
     return err;
 }
 
@@ -852,6 +871,7 @@ const char *db_web_fingerprint(void)
 esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(char *buf, size_t cap))
 {
     status_json = status;
+    handler_lock = xSemaphoreCreateMutex();
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
     cfg.max_uri_handlers = sizeof(uris) / sizeof(uris[0]);

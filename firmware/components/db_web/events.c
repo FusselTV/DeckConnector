@@ -187,8 +187,10 @@ static void command(httpd_handle_t server, int fd, const char *text)
         cJSON_DeleteItemFromObjectCaseSensitive(root, "t");
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
+        web_lock();
         code = body ? (set ? api_config(body, reply, sizeof(reply)) : api_input(body, reply, sizeof(reply)))
                     : 500;
+        web_unlock();
         free(body);
     }
     char out[224];

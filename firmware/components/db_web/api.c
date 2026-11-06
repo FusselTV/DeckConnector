@@ -138,7 +138,7 @@ static const char *read_input(const cJSON *root, const db_device_info_t *dev, db
 
 int api_input(const char *body, char *reply, size_t cap)
 {
-    static db_device_info_t dev; /* too big for the caller's stack; one request at a time per caller */
+    static db_device_info_t dev; /* too big for the caller's stack; callers hold web_lock() */
     if (!db_deck_info(&dev)) {
         return fail(reply, cap, 409, "no Stream Deck attached");
     }
