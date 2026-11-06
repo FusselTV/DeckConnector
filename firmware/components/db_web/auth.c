@@ -385,6 +385,7 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     strlcpy(t.name, wanted, sizeof(t.name));
     sha256(token, t.sha);
     int slot = -1;
+    api_token_t before = {0};
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
         if (strcmp(tokens[i].name, wanted) == 0 || (slot < 0 && !tokens[i].name[0])) {
@@ -392,6 +393,7 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
         }
     }
     if (slot >= 0) {
+        before = tokens[slot];
         tokens[slot] = t;
     }
     portEXIT_CRITICAL(&mux);
@@ -399,6 +401,9 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
         return send_error(req, "409 Conflict", "8 tokens already, remove one first");
     }
     if (save_tokens() != ESP_OK) {
+        portENTER_CRITICAL(&mux);
+        tokens[slot] = before; /* the old token keeps working, the new one was never shown */
+        portEXIT_CRITICAL(&mux);
         return send_error(req, "500 Internal Server Error", "not saved: the token would be gone after a restart");
     }
     char reply[160];
