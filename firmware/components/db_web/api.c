@@ -34,8 +34,8 @@
 #define CHUNK           4096
 #define JSON_MAX        2048
 #define SCREEN_JSON_MAX 8192
-#define STATUS_JSON_MAX 4096
 
+static db_device_info_t dev; /* too big for a stack; handlers run one at a time (web_lock) */
 static const char *TAG = "api";
 
 size_t (*api_status_json)(char *buf, size_t cap);
@@ -172,7 +172,6 @@ static const char *read_input(const cJSON *root, const db_device_info_t *dev, db
 
 int api_input(const char *body, char *reply, size_t cap)
 {
-    static db_device_info_t dev; /* too big for the caller's stack; callers hold web_lock() */
     if (!db_deck_info(&dev)) {
         return fail(reply, cap, 409, "no Stream Deck attached");
     }
@@ -268,7 +267,6 @@ static bool deck_refused(httpd_req_t *req)
         httpd_query_key_value(query, "deck", want, sizeof(want)) != ESP_OK) {
         return false;
     }
-    static db_device_info_t dev; /* too big for the stack; callers hold web_lock() */
     if (db_deck_info(&dev) && strcmp(dev.serial, want) == 0) {
         return false;
     }
@@ -657,7 +655,6 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
 
 static size_t screen_json(char *buf, size_t cap)
 {
-    static db_device_info_t dev; /* too big for the stack; timed() runs one handler at a time */
     static db_shot_t shots[DB_SCREEN_MAX];
     db_source_t writer;
     size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);

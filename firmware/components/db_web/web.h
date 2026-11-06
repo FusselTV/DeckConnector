@@ -17,6 +17,8 @@
 #include "lwip/sockets.h"
 #endif
 
+#define STATUS_JSON_MAX 4096
+
 /* Who may call a route: anyone, a Bearer token or the password (cookie or basic auth), or the password only.
  */
 typedef enum { WEB_OPEN, WEB_CONTROL, WEB_ADMIN } web_level_t;

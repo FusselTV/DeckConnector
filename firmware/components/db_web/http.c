@@ -26,12 +26,6 @@
 #include "mdns.h"
 #endif
 
-#define BODY_MAX        2048
-#define CHUNK           4096
-#define JSON_MAX        2048
-#define SCREEN_JSON_MAX 8192
-#define STATUS_JSON_MAX 4096
-
 static const char *TAG = "web";
 
 extern const char index_gz_start[] asm("_binary_index_html_gz_start");

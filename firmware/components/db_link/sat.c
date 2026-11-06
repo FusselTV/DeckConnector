@@ -388,7 +388,7 @@ static bool handle(char *line)
     } else if (strcmp(m.cmd, "CAPS") == 0) {
         s.png = (v = db_sat_get(&m, "BITMAP_FORMATS")) && strstr(v, "png");
         s.rotary_amount = (v = db_sat_get(&m, "ROTARY_AMOUNT")) && strcmp(v, "1") == 0;
-        if (CACHE_BUDGET && (v = db_sat_get(&m, "BITMAP_CACHE")) && strcmp(v, "1") == 0) {
+        if ((v = db_sat_get(&m, "BITMAP_CACHE")) && strcmp(v, "1") == 0) {
             send_line("BITMAP-CACHE BYTES=%u\n", (unsigned)CACHE_BUDGET);
         }
         apply_device();

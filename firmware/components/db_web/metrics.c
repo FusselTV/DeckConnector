@@ -11,7 +11,6 @@
 #include "nvs.h"
 #include "web.h"
 
-#define STATUS_JSON_MAX 4096
 
 /* Per mille of all CPU time (both cores, idle included) since the previous call; since boot on the first call
  * and for a new task. */
