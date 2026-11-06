@@ -26,6 +26,7 @@ def test_setup_wlan_qr_code():
     press(setup)
     try:
         time.sleep(2)
+        assert b"WIFI:T" not in api("GET", "/api/log")[1], "the setup WLAN password is in the log"
         name = json.loads(api("GET", "/api/config")[1])["name"]
 
         def wlan_code(picture) -> bool:
@@ -37,5 +38,5 @@ def test_setup_wlan_qr_code():
             assert wlan_code(screen), "no WLAN code on the deck"
             pytest.skip("the camera cannot read the code (light in the room); the deck's own picture holds it")
     finally:
-        press(setup)  # Beenden
+        press(setup)
         api("POST", "/api/input", json.dumps({"key": cols - 1}).encode())  # and close the menu
