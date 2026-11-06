@@ -1,6 +1,7 @@
 """Web UI login. The lockout test is last because it leaves the login locked for a moment."""
 
 import base64
+import gzip
 import http.cookiejar
 import json
 import time
@@ -29,8 +30,8 @@ def login(op, password):
 
 def test_page_is_public_and_never_asks_the_browser():
     op = opener()
-    code, body, _ = call(op, "GET", "/")
-    assert code == 200 and b'id="login"' in body
+    code, body, headers = call(op, "GET", "/")
+    assert code == 200 and headers["Content-Encoding"] == "gzip" and b'id="login"' in gzip.decompress(body)
     code, _, headers = call(op, "GET", "/api/status")
     assert code == 401 and "WWW-Authenticate" not in headers
 

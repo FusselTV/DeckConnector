@@ -42,8 +42,6 @@
 
 static const char *TAG = "web";
 
-extern const char index_html_start[] asm("_binary_index_html_start");
-extern const char index_html_end[] asm("_binary_index_html_end");
 extern const char index_gz_start[] asm("_binary_index_html_gz_start");
 extern const char index_gz_end[] asm("_binary_index_html_gz_end");
 
@@ -118,32 +116,25 @@ void restart_soon(void)
 }
 
 /* The page itself is public; it shows the login form until /api/status answers. It only changes with the
- * firmware, so its ETag is the firmware's hash and a browser that has it gets 304. */
+ * firmware, so its ETag is the firmware's hash and a browser that has it gets 304. Only the gzip copy is kept:
+ * every browser takes it. */
 static esp_err_t page(httpd_req_t *req)
 {
-    char accept[64] = {0};
-    httpd_req_get_hdr_value_str(req, "Accept-Encoding", accept, sizeof(accept));
-    bool gz = strstr(accept, "gzip") != NULL;
-    char etag[24];
+    char etag[20];
     const uint8_t *sha = esp_app_get_description()->app_elf_sha256;
-    snprintf(etag, sizeof(etag), "\"%02x%02x%02x%02x%02x%02x%02x%02x%s\"", sha[0], sha[1], sha[2], sha[3],
-             sha[4], sha[5], sha[6], sha[7], gz ? "-gz" : ""); /* each encoding is its own body */
+    snprintf(etag, sizeof(etag), "\"%02x%02x%02x%02x%02x%02x%02x%02x\"", sha[0], sha[1], sha[2], sha[3], sha[4],
+             sha[5], sha[6], sha[7]);
     char given[sizeof(etag)] = {0};
     httpd_req_get_hdr_value_str(req, "If-None-Match", given, sizeof(given));
     httpd_resp_set_hdr(req, "ETag", etag);
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-    httpd_resp_set_hdr(req, "Vary", "Accept-Encoding");
     if (strcmp(given, etag) == 0) {
         httpd_resp_set_status(req, "304 Not Modified");
         return httpd_resp_send(req, NULL, 0);
     }
     httpd_resp_set_type(req, "text/html; charset=utf-8");
-    if (gz) {
-        httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-        return httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
-    }
-    return httpd_resp_send(req, index_html_start,
-                           index_html_end - index_html_start - 1); /* EMBED_TXTFILES adds a NUL */
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    return httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
 }
 
 /* A reply built into a heap buffer; build returns 0 when it does not fit. */
