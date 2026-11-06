@@ -156,7 +156,8 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div class="card"><div class="card-h"><h2>Auslastung</h2><p class="muted">Die letzten 10 Minuten, alle 5 Sekunden gemessen. Nur im Arbeitsspeicher, nichts davon wird gespeichert.</p></div>
 <div class="card-b stack"><div class="meters" id="meters"></div><div class="meters" id="storage"></div></div></div>
 <div class="card"><div class="card-h"><h2>Firmware-Update</h2><p class="muted">Signierte .dbfw-Datei für den Deck-Connector oder den WLAN-Chip.</p></div>
-<div class="card-b stack"><div class="row"><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><button id="up" class="btn" disabled>Installieren</button></div>
+<div class="card-b stack"><div id="slots" class="stack" style="gap:8px"></div>
+<div class="row"><label class="btn outline" style="margin:0"><svg class="i" aria-hidden="true"><use href="#i-upload"/></svg>Datei wählen<input id="fw" type="file" accept=".dbfw" hidden></label><span id="fname" class="small muted">keine Datei</span><select id="slot" style="width:auto"></select><button id="up" class="btn" disabled>Installieren</button></div>
 <form id="otaurl" class="row" style="flex-wrap:nowrap"><input id="url" type="url" placeholder="oder Adresse: http://…/deckbridge.dbfw"><button class="btn outline">Laden</button></form>
 <p id="upmsg" class="small"></p></div></div>
 <div class="card"><div class="card-h"><h2>Einstellungen sichern</h2><p class="muted">Passwörter bleiben auf dem Deck-Connector und stehen nicht in der Datei.</p></div>
@@ -543,12 +544,30 @@ let sysPoll = null;
 async function loadLog() { $('log').textContent = await (await api('/api/log')).text(); $('log').scrollTop = 1e9; }
 $('fw').onchange = () => { $('fname').textContent = $('fw').files[0]?.name || 'keine Datei'; $('up').disabled = !$('fw').files[0]; };
 $('up').onclick = async () => {
+  const slot = $('slot').value;
   $('up').disabled = true;
   $('upmsg').textContent = 'Lade hoch …';
-  const r = await api('/api/ota', {method: 'POST', body: $('fw').files[0]}).then((x) => x.json()).catch(() => ({ok: false, error: 'Verbindung verloren'}));
+  const r = await api('/api/ota' + (slot ? `?slot=${slot}&boot=0` : ''), {method: 'POST', body: $('fw').files[0]}).then((x) => x.json()).catch(() => ({ok: false, error: 'Verbindung verloren'}));
   $('up').disabled = false;
   $('upmsg').textContent = '';
-  toast(r.ok ? 'Installiert. Der Deck-Connector startet neu.' : 'Update fehlgeschlagen: ' + r.error, !r.ok);
+  toast(!r.ok ? 'Update fehlgeschlagen: ' + r.error : slot ? `In Slot ${slot} installiert.` : 'Installiert. Der Deck-Connector startet neu.', !r.ok);
+  if (r.ok && slot) loadSlots();
+};
+const slotNote = {pending: 'ungeprüft', invalid: 'ungültig'};
+async function loadSlots() {
+  const list = await api('/api/slots').then((x) => x.json()).catch(() => []);
+  $('slots').innerHTML = list.map((x) => `<div class="row between"><span class="small"><b>Slot ${x.slot}</b> · ${esc(x.version ?? 'leer')}${x.built ? ' · ' + esc(x.built) : ''}
+    ${x.running ? '<span class="badge ok"><span class="dot"></span>läuft</span>' : x.next ? '<span class="badge">startet als Nächstes</span>' : ''}
+    ${slotNote[x.state] ? `<span class="badge warn">${slotNote[x.state]}</span>` : ''}</span>
+    ${!x.running && x.state === 'valid' && x.level !== undefined ? `<button class="btn outline sm" data-boot="${x.slot}">Starten</button>` : ''}</div>`).join('');
+  $('slot').innerHTML = '<option value="">nächster Slot, danach starten</option>' +
+    list.filter((x) => !x.running).map((x) => `<option value="${x.slot}">nur in Slot ${x.slot} schreiben</option>`).join('');
+}
+$('slots').onclick = async (e) => {
+  const n = e.target.closest('[data-boot]')?.dataset.boot;
+  if (n === undefined || !confirm(`Slot ${n} starten? Der Deck-Connector startet neu.`)) return;
+  const r = await api(`/api/slots/${n}/boot`, {method: 'POST'}).then((x) => x.json()).catch(() => ({ok: false, error: 'Deck-Connector nicht erreichbar'}));
+  toast(r.ok ? `Startet Slot ${n} …` : r.error, !r.ok);
 };
 $('otaurl').onsubmit = async (e) => {
   e.preventDefault();
@@ -564,7 +583,7 @@ function showTab(name) {
   for (const t of document.querySelectorAll('[data-tab]')) t.setAttribute('aria-selected', t.dataset.tab === name);
   for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
   clearInterval(sysPoll);
-  if (name === 'system') { loadStatus(); loadLog(); loadMetrics(); sysPoll = setInterval(() => { loadStatus(); loadMetrics(); }, 5000); }
+  if (name === 'system') { loadStatus(); loadLog(); loadMetrics(); loadSlots(); sysPoll = setInterval(() => { loadStatus(); loadMetrics(); }, 5000); }
 }
 for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { history.replaceState(null, '', '#' + b.dataset.tab); showTab(b.dataset.tab); };
 

@@ -11,9 +11,11 @@
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "nvs.h"
 #include "ota_pubkey.h"
 #include "psa/crypto.h"
 
@@ -33,6 +35,9 @@ static struct {
     SemaphoreHandle_t lock;
     db_ota_progress_cb_t progress;
     bool busy;
+    int slot;
+    bool boot;
+    uint16_t level;
     uint8_t header[HEADER_LEN];
     size_t header_got;
     uint8_t target;
@@ -64,7 +69,7 @@ void db_ota_set_progress_cb(db_ota_progress_cb_t cb)
     s.progress = cb;
 }
 
-esp_err_t db_ota_begin(size_t total)
+esp_err_t db_ota_begin(size_t total, int slot, bool boot)
 {
     if (!s.lock) {
         s.lock = xSemaphoreCreateMutex();
@@ -77,6 +82,8 @@ esp_err_t db_ota_begin(size_t total)
         return ESP_ERR_INVALID_SIZE;
     }
     s.busy = true;
+    s.slot = slot;
+    s.boot = boot;
     s.header_got = 0;
     s.written = 0;
     s.last_pct = -1;
@@ -127,6 +134,37 @@ static bool signature_ok(void)
     return st == PSA_SUCCESS;
 }
 
+static const esp_partition_t *slot_partition(int slot)
+{
+    return slot >= 0 && slot < 16 ? esp_partition_find_first(ESP_PARTITION_TYPE_APP,
+                                                             ESP_PARTITION_SUBTYPE_APP_OTA_MIN + slot, NULL)
+                                  : NULL;
+}
+
+/* A slot's image does not carry the security level of its .dbfw file, so it is noted here: at upload, and by
+ * each firmware for its own slot when it runs. A slot without a note is never booted by choice. */
+static void remember_level(const esp_partition_t *part, uint16_t level)
+{
+    nvs_handle_t h;
+    if (nvs_open("ota", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u16(h, part->label, level);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+static int known_level(const esp_partition_t *part)
+{
+    nvs_handle_t h;
+    uint16_t level = 0;
+    bool found = false;
+    if (nvs_open("ota", NVS_READONLY, &h) == ESP_OK) {
+        found = nvs_get_u16(h, part->label, &level) == ESP_OK;
+        nvs_close(h);
+    }
+    return found ? level : -1;
+}
+
 /* Header layout: docs/ota.md. */
 static esp_err_t start_payload(void)
 {
@@ -141,9 +179,8 @@ static esp_err_t start_payload(void)
     if (!signature_ok()) {
         return ESP_ERR_INVALID_CRC;
     }
-    uint16_t level;
-    memcpy(&level, s.header + 6, 2);
-    if (level < SECURITY_LEVEL) {
+    memcpy(&s.level, s.header + 6, 2);
+    if (s.level < SECURITY_LEVEL) {
         return ESP_ERR_INVALID_VERSION;
     }
     s.hash = psa_hash_operation_init();
@@ -151,8 +188,14 @@ static esp_err_t start_payload(void)
     ESP_LOGI(TAG, "signed %s image %.32s, %lu bytes", target_name(), (const char *)s.header + 12,
              (unsigned long)s.payload_len);
     if (s.target == TARGET_P4) {
-        s.partition = esp_ota_get_next_update_partition(NULL);
-        return s.partition ? esp_ota_begin(s.partition, s.payload_len, &s.p4) : ESP_ERR_NOT_FOUND;
+        s.partition = s.slot < 0 ? esp_ota_get_next_update_partition(NULL) : slot_partition(s.slot);
+        if (!s.partition || s.partition == esp_ota_get_running_partition()) {
+            return ESP_ERR_NOT_FOUND;
+        }
+        int64_t t = esp_timer_get_time();
+        esp_err_t err = esp_ota_begin(s.partition, s.payload_len, &s.p4);
+        ESP_LOGI(TAG, "slot %s erased in %lld ms", s.partition->label, (esp_timer_get_time() - t) / 1000);
+        return err;
     }
     s.c6_buf = heap_caps_malloc(C6_CHUNK, MALLOC_CAP_INTERNAL);
     s.c6_fill = 0;
@@ -233,7 +276,10 @@ static esp_err_t commit(void)
     if (s.target == TARGET_P4) {
         esp_err_t err = esp_ota_end(s.p4);
         s.p4 = 0;
-        return err == ESP_OK ? esp_ota_set_boot_partition(s.partition) : err;
+        if (err == ESP_OK) {
+            remember_level(s.partition, s.level);
+        }
+        return err == ESP_OK && s.boot ? esp_ota_set_boot_partition(s.partition) : err;
     }
     if (s.c6_fill && esp_hosted_slave_ota_write(s.c6_buf, s.c6_fill) != ESP_OK) {
         return ESP_FAIL;
@@ -268,11 +314,14 @@ esp_err_t db_ota_end(void)
         db_ota_abort(esp_err_to_name(err));
         return err;
     }
-    ESP_LOGW(TAG, "%s update installed, restarting", target_name());
+    bool restart = s.target == TARGET_C6 || s.boot;
+    ESP_LOGW(TAG, "%s update installed%s", target_name(), restart ? ", restarting" : "");
     report("done", 100, NULL);
     finish();
     /* After a C6 update the host restarts too, so both sides start their link again. */
-    xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL);
+    if (restart) {
+        xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL);
+    }
     return ESP_OK;
 }
 
@@ -284,7 +333,8 @@ static void url_task(void *arg)
     uint8_t *buf = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL);
     esp_err_t err = buf && c ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
     int64_t len = err == ESP_OK ? esp_http_client_fetch_headers(c) : -1;
-    if (len <= 0 || esp_http_client_get_status_code(c) != 200 || db_ota_begin((size_t)len) != ESP_OK) {
+    if (len <= 0 || esp_http_client_get_status_code(c) != 200 ||
+        db_ota_begin((size_t)len, -1, true) != ESP_OK) {
         ESP_LOGE(TAG, "download of %s failed (status %d)", url, esp_http_client_get_status_code(c));
         if (s.progress) {
             s.progress("unknown", "error", -1, "download");
@@ -342,6 +392,7 @@ static void confirm_task(void *arg)
 
 void db_ota_confirm_when(bool (*healthy)(void))
 {
+    remember_level(esp_ota_get_running_partition(), SECURITY_LEVEL);
     esp_ota_img_states_t state;
     if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) == ESP_OK &&
         state == ESP_OTA_IMG_PENDING_VERIFY) {
@@ -360,4 +411,56 @@ const char *db_ota_c6_version(void)
         }
     }
     return s.c6_version[0] ? s.c6_version : NULL;
+}
+
+int db_ota_slots(db_ota_slot_t *out, int max)
+{
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    const esp_partition_t *next = esp_ota_get_boot_partition();
+    int n = 0;
+    for (const esp_partition_t *p; n < max && (p = slot_partition(n)); n++) {
+        db_ota_slot_t *o = &out[n];
+        memset(o, 0, sizeof(*o));
+        snprintf(o->label, sizeof(o->label), "%s", p->label);
+        o->running = p == running;
+        o->next = p == next;
+        o->level = known_level(p);
+        esp_app_desc_t d;
+        esp_ota_img_states_t st;
+        if (esp_ota_get_partition_description(p, &d) != ESP_OK) {
+            o->state = "empty";
+            continue;
+        }
+        snprintf(o->version, sizeof(o->version), "%s", d.version);
+        snprintf(o->built, sizeof(o->built), "%s %s", d.date, d.time);
+        o->state = esp_ota_get_state_partition(p, &st) != ESP_OK ? "valid" /* flashed over USB */
+                   : st == ESP_OTA_IMG_PENDING_VERIFY || st == ESP_OTA_IMG_NEW ? "pending"
+                   : st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED    ? "invalid"
+                                                                               : "valid";
+    }
+    return n;
+}
+
+esp_err_t db_ota_boot_slot(int slot)
+{
+    const esp_partition_t *p = slot_partition(slot);
+    esp_ota_img_states_t st;
+    if (!p) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    /* The bootloader would abort an image left before it confirmed itself. */
+    if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &st) == ESP_OK &&
+        st == ESP_OTA_IMG_PENDING_VERIFY) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (known_level(p) < SECURITY_LEVEL || (esp_ota_get_state_partition(p, &st) == ESP_OK &&
+                                            (st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED))) {
+        return ESP_ERR_INVALID_VERSION;
+    }
+    esp_err_t err = esp_ota_set_boot_partition(p); /* checks the image; the new start must confirm itself */
+    if (err == ESP_OK) {
+        ESP_LOGW(TAG, "booting slot %s", p->label);
+        xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL);
+    }
+    return err;
 }

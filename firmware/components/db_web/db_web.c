@@ -241,17 +241,36 @@ static esp_err_t post_deck_reconnect(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+/* `?slot=N` writes into that app slot, `?boot=0` keeps the running firmware. */
 static esp_err_t post_ota(httpd_req_t *req)
 {
-    if (db_ota_begin(req->content_len) != ESP_OK) {
+    char q[32] = "", v[8];
+    int slot = -1;
+    bool boot = true;
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+        if (httpd_query_key_value(q, "slot", v, sizeof(v)) == ESP_OK) {
+            slot = atoi(v);
+        }
+        if (httpd_query_key_value(q, "boot", v, sizeof(v)) == ESP_OK) {
+            boot = strcmp(v, "0") != 0;
+        }
+    }
+    if (db_ota_begin(req->content_len, slot, boot) != ESP_OK) {
         return send_error(req, "409 Conflict", "an update is already running or the file is empty");
     }
-    uint8_t *buf = heap_caps_malloc(CHUNK, MALLOC_CAP_INTERNAL);
-    size_t left = req->content_len;
+    /* Flash writes stall the network between chunks, so the whole file comes in first when PSRAM allows:
+     * 1.5 MB took 28 s streamed. */
+    size_t cap = req->content_len;
+    uint8_t *buf = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
+    if (!buf) {
+        cap = CHUNK;
+        buf = heap_caps_malloc(cap, MALLOC_CAP_INTERNAL);
+    }
+    size_t left = req->content_len, have = 0;
     esp_err_t err = buf ? ESP_OK : ESP_ERR_NO_MEM;
     int timeouts = 0;
     while (err == ESP_OK && left > 0) {
-        int n = httpd_req_recv(req, (char *)buf, left < CHUNK ? left : CHUNK);
+        int n = httpd_req_recv(req, (char *)buf + have, left < cap - have ? left : cap - have);
         if (n == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts < 3) {
             continue; /* a vanished client must not hold the update lock forever */
         }
@@ -260,8 +279,12 @@ static esp_err_t post_ota(httpd_req_t *req)
             db_ota_abort("upload interrupted");
             break;
         }
-        err = db_ota_write(buf, (size_t)n);
+        have += (size_t)n;
         left -= (size_t)n;
+        if (have == cap || left == 0) {
+            err = db_ota_write(buf, have);
+            have = 0;
+        }
     }
     heap_caps_free(buf);
     if (err == ESP_OK) {
@@ -270,6 +293,56 @@ static esp_err_t post_ota(httpd_req_t *req)
     if (err != ESP_OK) {
         db_ota_abort(esp_err_to_name(err));
         return send_error(req, "400 Bad Request", esp_err_to_name(err));
+    }
+    return send_json(req, boot ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
+}
+
+static size_t slots_json(char *buf, size_t cap)
+{
+    db_ota_slot_t slots[16];
+    int n = db_ota_slots(slots, 16);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_arr_open(&j, NULL);
+    for (int i = 0; i < n; i++) {
+        db_json_obj_open(&j, NULL);
+        db_json_int(&j, "slot", i);
+        db_json_str(&j, "label", slots[i].label);
+        db_json_str(&j, "state", slots[i].state);
+        if (slots[i].version[0]) {
+            db_json_str(&j, "version", slots[i].version);
+            db_json_str(&j, "built", slots[i].built);
+        }
+        db_json_bool(&j, "running", slots[i].running);
+        db_json_bool(&j, "next", slots[i].next);
+        if (slots[i].level >= 0) {
+            db_json_int(&j, "level", slots[i].level);
+        }
+        db_json_obj_close(&j);
+    }
+    db_json_arr_close(&j);
+    return db_json_end(&j);
+}
+
+static esp_err_t get_slots(httpd_req_t *req)
+{
+    return send_built(req, 2048, slots_json);
+}
+
+/* POST /api/slots/<n>/boot */
+static esp_err_t post_slot_boot(httpd_req_t *req)
+{
+    int slot;
+    char tail[8] = "";
+    if (sscanf(req->uri, "/api/slots/%d/%7s", &slot, tail) != 2 || strcmp(tail, "boot") != 0) {
+        return send_error(req, "404 Not Found", "use /api/slots/<n>/boot");
+    }
+    esp_err_t err = db_ota_boot_slot(slot);
+    if (err != ESP_OK) {
+        return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict",
+                          err == ESP_ERR_INVALID_VERSION ? "slot not bootable"
+                          : err == ESP_ERR_INVALID_STATE ? "the running firmware has not confirmed itself yet"
+                                                         : esp_err_to_name(err));
     }
     return send_json(req, "{\"ok\":true,\"restart\":true}");
 }
@@ -816,6 +889,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {.uri = "/api/dock", .method = HTTP_POST, .handler = post_dock},
         {.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg},
         {.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url},
+        {.uri = "/api/slots", .method = HTTP_GET, .handler = get_slots},
+        {.uri = "/api/slots/*", .method = HTTP_POST, .handler = post_slot_boot},
         {.uri = "/api/ws",
          .method = HTTP_GET,
          .handler = events_handler,

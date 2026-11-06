@@ -39,7 +39,9 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text |
-| `POST /api/ota` | Upload a signed `.dbfw` file as the body. The Deck-Connector restarts when it is done |
+| `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the Deck-Connector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
+| `GET /api/slots` | The firmware slots: `slot`, `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
+| `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
 | `POST /api/ota/url` | Send `{"url": "http://..."}` and the Deck-Connector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |

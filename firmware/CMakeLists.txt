@@ -10,6 +10,9 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_L
 # whose Kconfig options 3.0.10 lacks, and that fails the configure step.
 set(ENV{IDF_COMPONENT_CHECK_NEW_VERSION} 0)
 
+# ccache when it is installed. A plain variable, because idf.py always sets the cache entry, to off by default.
+set(CCACHE_ENABLE 1)
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(deckbridge)
 

@@ -31,6 +31,25 @@ A 144 byte header, then the image.
 
 The C6 gets its image over the P4. A C6 update restarts both chips.
 
+## Slots
+
+The flash holds four firmware slots. An update goes into the slot after the running one, so the slot before it
+keeps the last firmware. Slots 2 and 3 are the bench slots for `dbtools.fw`. A slot started by choice has to
+confirm itself the same way as a new update. A slot whose image is older than the security level does not start
+by choice, because its image does not carry the level. The Deck-Connector notes the level when a file is written
+and when a firmware runs.
+
+## On the bench
+
+```
+cd tools
+uv run python -m dbtools.fw deploy          # sign firmware/build/deckbridge.bin, upload into a bench slot, start it
+uv run python -m dbtools.fw use 2           # start slot 2
+uv run python -m dbtools.fw ab REV_A REV_B  # build both (cached), start A in one bench slot, B waits in the other
+```
+
+`tools/flash.sh` writes over USB and is for recovery and for a new partition table (`flash.sh all`).
+
 ## Signing
 
 ```
