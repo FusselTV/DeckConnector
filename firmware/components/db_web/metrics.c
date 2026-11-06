@@ -46,6 +46,12 @@ static void write_cpu(db_json_t *j)
         db_json_int(j, now[i].pcTaskName, (int64_t)(ran[i] * 1000 / total));
     }
     db_json_obj_close(j);
+    /* smallest free stack each task ever had, to size the stacks: a stack scan, too slow for the status */
+    db_json_obj_open(j, "stack_free");
+    for (UBaseType_t i = 0; i < n; i++) {
+        db_json_int(j, now[i].pcTaskName, now[i].usStackHighWaterMark);
+    }
+    db_json_obj_close(j);
     free(ran);
     free(last);
     last = now;

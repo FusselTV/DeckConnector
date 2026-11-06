@@ -225,23 +225,6 @@ static size_t link_status(char *buf, size_t cap)
     return tagged_status(buf, cap, "status", true);
 }
 
-/* Smallest free stack each task ever had, to size the stacks from measurements. */
-static void write_tasks(db_json_t *j)
-{
-    UBaseType_t n = uxTaskGetNumberOfTasks();
-    TaskStatus_t *tasks = malloc(n * sizeof(*tasks));
-    if (!tasks) {
-        return;
-    }
-    n = uxTaskGetSystemState(tasks, n, NULL);
-    db_json_obj_open(j, "stack_free");
-    for (UBaseType_t i = 0; i < n; i++) {
-        db_json_int(j, tasks[i].pcTaskName, tasks[i].usStackHighWaterMark);
-    }
-    db_json_obj_close(j);
-    free(tasks);
-}
-
 /* lwIP numbers its sockets from LWIP_SOCKET_OFFSET; a closed one answers EBADF. */
 static int open_sockets(void)
 {
@@ -276,7 +259,6 @@ static size_t web_status(char *buf, size_t cap)
     db_json_int(&j, "tasks", uxTaskGetNumberOfTasks());
     db_json_int(&j, "sockets", open_sockets());
     db_json_int(&j, "sockets_max", CONFIG_LWIP_MAX_SOCKETS);
-    write_tasks(&j);
     db_json_obj_close(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);

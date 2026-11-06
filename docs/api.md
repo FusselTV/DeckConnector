@@ -75,7 +75,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN; enter its address by hand |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
-| `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
+| `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call, and the smallest free stack each task ever had (`stack_free`) |
 | `GET /api/tokens` | The names of the API tokens |
 | `POST /api/tokens` | `{"name": "..."}` makes a token and shows it once |
 | `DELETE /api/tokens/<name>` | Ends that token |
@@ -160,7 +160,7 @@ it restores the settings. The web UI does this under System.
  "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "inputs": 0, "inputs_dropped": 0},
  "boot_ms": {"deck": 537, "lan_link": 2688, "wlan_ip": 5724, "lan_ip": 6692, "companion": 7439, "host_draws": 7665},
  "memory": {"heap_free": 353203, "heap_min_free": 290191, "psram_free": 32211772, "heap_largest": 208896,
-            "psram_largest": 30932992, "tasks": 37, "sockets": 9, "sockets_max": 32, "stack_free": {"ui": 3688}}}
+            "psram_largest": 30932992, "tasks": 37, "sockets": 9, "sockets_max": 32}}
 ```
 
 - `writer` is who draws at this moment: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. The
