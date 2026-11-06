@@ -512,9 +512,12 @@ static void confirm_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(1000));
         good = healthy() ? good + 1 : 0;
         if (good >= CONFIRM_AFTER) {
-            ESP_LOGI(TAG, "new firmware confirmed");
-            esp_ota_mark_app_valid_cancel_rollback();
-            vTaskDelete(NULL);
+            esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+            if (err == ESP_OK) {
+                ESP_LOGI(TAG, "new firmware confirmed");
+                vTaskDelete(NULL);
+            }
+            ESP_LOGE(TAG, "confirming the new firmware failed: %s, trying again", esp_err_to_name(err));
         }
     }
     ESP_LOGE(TAG, "new firmware never became healthy, rolling back");
