@@ -793,6 +793,8 @@ static void sha_hex(uint8_t target, char *out)
         for (int i = 0; i < 32; i++) {
             snprintf(out + 2 * i, 3, "%02x", sha[i]);
         }
+    } else {
+        ESP_LOGW(TAG, "%s region not read, no hash", target == TARGET_BOOT ? "bootloader" : "partition table");
     }
     heap_caps_free(buf);
 }
