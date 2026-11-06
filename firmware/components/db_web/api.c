@@ -191,6 +191,10 @@ int api_input(const char *body, char *reply, size_t cap)
     if (err) {
         return fail(reply, cap, 400, err);
     }
+    /* a press is down and up or nothing: a lone down would leave the key held */
+    if (then.kind && db_deck_input_space() < 2) {
+        return fail(reply, cap, 503, "input queue full");
+    }
     esp_err_t sent = db_deck_simulate(&ev, real, only_ip);
     if (sent == ESP_OK && then.kind) {
         sent = db_deck_simulate(&then, real, only_ip);

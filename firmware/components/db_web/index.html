@@ -329,7 +329,15 @@ function renderStatus() {
 /* ---- live deck ---- */
 /* one at a time, so an up never overtakes its down */
 let inputs = Promise.resolve();
-const input = (body) => (inputs = inputs.then(() => api('/api/input', {method: 'POST', body: JSON.stringify({...body, real: true})})).catch(() => null));
+/* a lost up leaves the key held in Companion, whose buttons switch real things: retry it, then say so */
+const send = async (body) => {
+  for (let i = 0; i < (body.action === 'up' ? 4 : 1); i++) {
+    if (i) await new Promise((r) => setTimeout(r, 250 * i));
+    try { if ((await api('/api/input', {method: 'POST', body: JSON.stringify({...body, real: true})})).ok) return; } catch {}
+  }
+  toast(body.action === 'up' ? 'Taste hängt eventuell, Verbindung prüfen' : 'Eingabe nicht angekommen', true);
+};
+const input = (body) => (inputs = inputs.then(() => send(body)));
 function holdable(el, body) {
   let held = false;
   el.onpointerdown = (e) => { if (e.button) return; held = true; if (e.pointerId) el.setPointerCapture(e.pointerId); el.classList.add('down'); input({...body, action: 'down'}); };

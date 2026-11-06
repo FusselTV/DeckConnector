@@ -382,6 +382,11 @@ static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
     }
 }
 
+size_t db_deck_input_space(void)
+{
+    return uxQueueSpacesAvailable(s.events);
+}
+
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     _Static_assert(sizeof(db_input_t) <= INPUT_REPORT, "input does not fit the event");

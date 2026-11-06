@@ -73,6 +73,7 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
 
+size_t db_deck_input_space(void);
 /* Handle `in` as if the device had sent it. External listeners get it only when `real`; with `only_ip` set, only
  * the host at that address gets it, and only if it draws when the press goes out. */
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip);

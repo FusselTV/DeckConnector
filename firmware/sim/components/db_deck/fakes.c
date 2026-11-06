@@ -55,6 +55,11 @@ bool db_deck_input_real_for(uint32_t peer_ip)
     return input_real;
 }
 
+size_t db_deck_input_space(void)
+{
+    return 64;
+}
+
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     input_real = real;
