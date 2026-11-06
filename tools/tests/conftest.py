@@ -40,20 +40,23 @@ def _start_sim() -> tuple[str, str]:
     """One simulator per worker, on its own port (firmware/sim, built with idf.py)."""
     worker = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
     port, password = 18080 + 2 * worker, "simulator-pass"
+    log = Path(f"/tmp/deckbridge-sim-{port}.log")
     sim = subprocess.Popen(
         [SIM],
         env={**os.environ, "DB_SIM_PORT": str(port), "DB_SIM_PASSWORD": password},
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log.open("w"),
+        stderr=subprocess.STDOUT,
     )
     atexit.register(sim.kill)
     for _ in range(100):
         try:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
-            break
+            return f"127.0.0.1:{port}", password
         except OSError:
+            if sim.poll() is not None:
+                break
             time.sleep(0.05)
-    return f"127.0.0.1:{port}", password
+    raise RuntimeError(f"the simulator did not start, see {log}")
 
 
 if TARGET == "sim":

@@ -189,3 +189,4 @@ def test_wrong_tokens_lock_out_with_a_wait(token):
     assert code == 429 and json.loads(body)["retry"] > 0
     assert call("GET", "/api/status", token)[0] == 429, "a good token must wait too, not hear 'unknown token'"
     time.sleep(json.loads(body)["retry"] + 1)
+    assert call("GET", "/api/status", token)[0] == 200  # a good try ends the count for the next tests

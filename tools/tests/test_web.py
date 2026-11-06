@@ -74,7 +74,7 @@ def test_wrong_passwords_lock_the_login():
     assert codes[:5] == [403] * 5
     assert codes[5] == 429 or login(op, "wrong")[0] == 429
     assert login(op, PASSWORD)[0] == 429  # even the right password waits out the lock
-    assert api("GET", "/api/status")[0] == 401  # basic auth shares the lock, else it would allow endless guessing
+    assert api("GET", "/api/status")[0] == 429  # basic auth shares the lock, else it would allow endless guessing
     time.sleep(3)
     assert login(op, PASSWORD)[0] == 200
 
