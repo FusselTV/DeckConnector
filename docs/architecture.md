@@ -17,6 +17,7 @@ firmware/
     db_dock/         Network Dock emulation
     db_log/          log ring buffer for the web UI
 host_test/           Unity tests for db_core, built with the host compiler
+firmware/sim/        db_web and db_config on Linux with fakes for the chip, for the API tests
 tools/dbtools/       reference server, benchmarks, signing, font generator, serial log
 ```
 

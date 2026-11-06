@@ -4,6 +4,10 @@ except through dbtools.safety.real_input_target, which allows only a host on thi
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.sim
+
 TOOLS = Path(__file__).resolve().parents[1]
 
 

@@ -1,7 +1,13 @@
-idf_component_register(SRCS http.c api.c metrics.c auth.c events.c cert.c INCLUDE_DIRS include
-                       REQUIRES esp_common
-                       PRIV_REQUIRES app_update bootloader_support nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_https_server esp_timer lwip mbedtls)
-
+# On Linux (firmware/sim) there is no HTTPS server and no chip: no cert.c and metrics.c, no TLS, no mDNS.
+if(${IDF_TARGET} STREQUAL "linux")
+    idf_component_register(SRCS http.c api.c auth.c events.c INCLUDE_DIRS include
+                           REQUIRES esp_common
+                           PRIV_REQUIRES nvs_flash db_config db_core db_deck db_dock db_ui db_log db_net db_ota esp_http_server esp_timer mbedtls)
+else()
+    idf_component_register(SRCS http.c api.c metrics.c auth.c events.c cert.c INCLUDE_DIRS include
+                           REQUIRES esp_common
+                           PRIV_REQUIRES app_update bootloader_support nvs_flash db_config db_core db_deck db_dock db_ui esp_app_format db_log db_net db_ota esp_http_server esp_https_server esp_timer lwip mbedtls)
+endif()
 idf_build_get_property(python PYTHON)
 set(page_gz ${CMAKE_CURRENT_BINARY_DIR}/index.html.gz)
 add_custom_command(OUTPUT ${page_gz}

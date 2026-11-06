@@ -12,7 +12,6 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "lwip/sockets.h"
 #include "mbedtls/base64.h"
 #include "nvs.h"
 #include "psa/crypto.h"
@@ -86,7 +85,9 @@ static uint32_t peer_ip(httpd_req_t *req)
     if (addr.sin6_family == AF_INET) {
         return ((struct sockaddr_in *)&addr)->sin_addr.s_addr;
     }
-    return addr.sin6_addr.un.u32_addr[3];
+    uint32_t v4;
+    memcpy(&v4, (const uint8_t *)&addr.sin6_addr + 12, 4); /* the last 4 bytes of ::ffff:a.b.c.d */
+    return v4;
 }
 
 /* The entry of this client, made when missing. Under mux. */

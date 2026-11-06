@@ -162,6 +162,7 @@ def test_web_api_brightness_applies_without_restart():
     assert status()["uptime_s"] >= before
 
 
+@pytest.mark.sim
 def test_web_api_unknown_endpoint_answers_json():
     code, reply = api("GET", "/api/nope")
     assert code == 404 and json.loads(reply)["ok"] is False

@@ -9,18 +9,21 @@
 #include "db_config.h"
 #include "db_json.h"
 #include "db_net.h"
-#include "esp_app_desc.h"
 #include "esp_http_server.h"
-#include "esp_https_server.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "events.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "lwip/sockets.h"
-#include "mdns.h"
+#include "sdkconfig.h"
 #include "web.h"
+#if !CONFIG_IDF_TARGET_LINUX /* the simulator has no TLS, no mDNS and no app image */
+#include "esp_app_desc.h"
+#include "esp_https_server.h"
+#include "mdns.h"
+#endif
 
 #define BODY_MAX        2048
 #define CHUNK           4096
@@ -97,7 +100,11 @@ void restart_soon(void)
 static esp_err_t page(httpd_req_t *req)
 {
     char etag[20];
+#if CONFIG_IDF_TARGET_LINUX
+    static const uint8_t sha[8] = {0}; /* the simulator restarts with every build */
+#else
     const uint8_t *sha = esp_app_get_description()->app_elf_sha256;
+#endif
     snprintf(etag, sizeof(etag), "\"%02x%02x%02x%02x%02x%02x%02x%02x\"", sha[0], sha[1], sha[2], sha[3],
              sha[4], sha[5], sha[6], sha[7]);
     char given[sizeof(etag)] = {0};
@@ -250,6 +257,7 @@ static esp_err_t no_delay(httpd_handle_t hd, int fd)
     return ESP_OK;
 }
 
+#if !CONFIG_IDF_TARGET_LINUX
 /* Home Assistant and scripts find the bridge's API by this. */
 static void announce_api(void)
 {
@@ -260,6 +268,8 @@ static void announce_api(void)
         ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
     }
 }
+
+#endif
 
 /* Phones probe some URL when they join a WLAN; sending them to the page opens it by itself. */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
@@ -292,6 +302,7 @@ static esp_err_t wrong_method(httpd_req_t *req, httpd_err_code_t code)
     return send_error(req, "404 Not Found", "no such endpoint");
 }
 
+#if !CONFIG_IDF_TARGET_LINUX
 static void start_tls(void)
 {
     char *cert, *key;
@@ -323,6 +334,7 @@ static void start_tls(void)
     httpd_register_err_handler(tls_server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(tls_server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
 }
+#endif
 
 const char *db_web_fingerprint(void)
 {
@@ -336,6 +348,11 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     handler_lock = xSemaphoreCreateMutex();
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
+#if CONFIG_IDF_TARGET_LINUX
+    const char *port = getenv("DB_SIM_PORT"); /* one simulator per test worker */
+    cfg.server_port = port ? (uint16_t)atoi(port) : 8080;
+    cfg.ctrl_port = cfg.server_port + 10000;
+#endif
     cfg.max_uri_handlers = sizeof(web_uris) / sizeof(web_uris[0]);
     /* several Home Assistants hold a socket and a web socket each; with the dock and the links this stays
      * under CONFIG_LWIP_MAX_SOCKETS */
@@ -410,9 +427,15 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
     events_start(state);
+#if CONFIG_IDF_TARGET_LINUX
+    (void)fingerprint;
+#else
     start_tls();
+#endif
     metrics_start();
+#if !CONFIG_IDF_TARGET_LINUX
     announce_api();
+#endif
     ESP_LOGI(TAG, "web UI on port 80%s", tls_server ? " and 443" : "");
     return ESP_OK;
 }

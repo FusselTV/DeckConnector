@@ -8,6 +8,8 @@ import pytest
 from conftest import HOST, api
 from websockets.asyncio.client import connect
 
+pytestmark = pytest.mark.sim
+
 DOCS = Path(__file__).resolve().parents[2] / "docs/api.md"
 
 

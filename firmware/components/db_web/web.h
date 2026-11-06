@@ -5,6 +5,17 @@
 
 #include "esp_err.h"
 #include "esp_http_server.h"
+#include "sdkconfig.h"
+
+/* Sockets: lwIP on the chip, the host's own in the simulator (firmware/sim). */
+#if CONFIG_IDF_TARGET_LINUX
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#else
+#include "lwip/sockets.h"
+#endif
 
 /* Who may call a route: anyone, a Bearer token or the password (cookie or basic auth), or the password only.
  */

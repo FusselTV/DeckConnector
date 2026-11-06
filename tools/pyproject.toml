@@ -29,12 +29,18 @@ markers = [
     "ota: restarts the bridge, slow",
     "unifi: changes the switch config",
     "boot: cuts the power through the serial bridge, slow",
+    "sim: needs only the API, so it also runs on firmware/sim (--target sim)",
 ]
 addopts = "-m 'not ota and not unifi and not boot'"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest-xdist>=3.8.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["dbtools"]

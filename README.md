@@ -92,6 +92,15 @@ cd tools && uv run pytest tests            # end to end, needs the bench
 cd tools && uv run pytest tests -m ota     # updates, restarts the board
 ```
 
+The API tests also run without a board, against the real web code built for Linux (`firmware/sim`):
+
+```
+cd firmware/sim && idf.py build
+cd tools && uv run pytest tests --target sim -n auto
+```
+
+Building for Linux needs `libbsd-dev`. Only tests marked `sim` run there.
+
 ## Limits
 
 - The ESP32-C6 has no 5 GHz radio.

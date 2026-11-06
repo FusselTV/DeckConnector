@@ -7,6 +7,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -18,10 +19,62 @@ from PIL import Image
 from dbtools.safety import UnsafeBridge, real_input_target, require_input_gate
 from dbtools.server import Server
 
-HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
+
+def _target() -> str:
+    """--target sim|device. Read here, because HOST must be known when the tests import it; the environment carries
+    it on to pytest-xdist workers."""
+    argv = sys.argv
+    for i, a in enumerate(argv):
+        if a == "--target" and i + 1 < len(argv):
+            return argv[i + 1]
+        if a.startswith("--target="):
+            return a.split("=", 1)[1]
+    return os.environ.get("DECKBRIDGE_TARGET", "device")
+
+
+TARGET = os.environ["DECKBRIDGE_TARGET"] = _target()
+SIM = Path(__file__).resolve().parents[2] / "firmware/sim/build/deckbridge_sim.elf"
+
+
+def _start_sim() -> tuple[str, str]:
+    """One simulator per worker, on its own port (firmware/sim, built with idf.py)."""
+    worker = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
+    port, password = 18080 + 2 * worker, "simulator-pass"
+    sim = subprocess.Popen(
+        [SIM],
+        env={**os.environ, "DB_SIM_PORT": str(port), "DB_SIM_PASSWORD": password},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    atexit.register(sim.kill)
+    for _ in range(100):
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
+            break
+        except OSError:
+            time.sleep(0.05)
+    return f"127.0.0.1:{port}", password
+
+
+if TARGET == "sim":
+    HOST, PASSWORD = _start_sim()
+else:
+    HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
+    PASSWORD = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
 CAMERA = os.environ.get("DECKBRIDGE_CAMERA", "rtsp://192.168.1.163:8554/stream")
-PASSWORD = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
 PORTS = (8765, 8766)
+
+
+def pytest_addoption(parser):
+    parser.addoption("--target", default="device", choices=("device", "sim"), help="the bridge, or firmware/sim")
+
+
+def pytest_collection_modifyitems(config, items):
+    """On the simulator only the tests marked `sim` run: everything else needs the deck, the camera or the bench."""
+    if TARGET == "sim":
+        for item in items:
+            if not item.get_closest_marker("sim"):
+                item.add_marker(pytest.mark.skip(reason="needs the device"))
 
 
 def api(method: str, path: str, body: bytes | None = None, auth: bool = True, timeout: float = 30):

@@ -7,6 +7,7 @@ import json
 import time
 import urllib.request
 
+import pytest
 from conftest import HOST, PASSWORD, api
 
 
@@ -28,6 +29,7 @@ def login(op, password):
     return call(op, "POST", "/api/login", json.dumps({"password": password}).encode())
 
 
+@pytest.mark.sim
 def test_page_is_public_and_never_asks_the_browser():
     op = opener()
     code, body, headers = call(op, "GET", "/")
@@ -36,6 +38,7 @@ def test_page_is_public_and_never_asks_the_browser():
     assert code == 401 and "WWW-Authenticate" not in headers
 
 
+@pytest.mark.sim
 def test_session_cookie():
     op = opener()
     assert login(op, PASSWORD + "x")[0] == 403
@@ -51,6 +54,7 @@ def test_session_cookie():
     assert call(op, "GET", "/api/status")[0] == 401
 
 
+@pytest.mark.sim
 def test_basic_auth_needs_the_marker_for_changes():
     assert api("PUT", "/api/config", b'{"brightness": 80}')[0] == 200  # api() sends the marker
     token = base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
@@ -63,6 +67,7 @@ def test_basic_auth_needs_the_marker_for_changes():
     assert code == 401
 
 
+@pytest.mark.sim
 def test_wrong_passwords_lock_the_login():
     op = opener()
     codes = [login(op, "wrong")[0] for _ in range(6)]

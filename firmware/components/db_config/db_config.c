@@ -13,7 +13,6 @@
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "lwip/ip4_addr.h"
 #include "nvs.h"
 
 #define CONFIG_VERSION 3 /* 2: setup_done, 3: four servers and host */
@@ -216,8 +215,10 @@ static bool take_str(const cJSON *obj, const char *key, char *dst, size_t cap, c
 
 static bool valid_ip(const char *s)
 {
-    ip4_addr_t a;
-    return s[0] == '\0' || ip4addr_aton(s, &a);
+    unsigned a, b, c, d;
+    char end;
+    return s[0] == '\0' ||
+           (sscanf(s, "%3u.%3u.%3u.%3u%c", &a, &b, &c, &d, &end) == 4 && (a | b | c | d) < 256);
 }
 
 static bool take_ip(const cJSON *root, const char *key, db_ip_config_t *ip, char *err, size_t err_cap)

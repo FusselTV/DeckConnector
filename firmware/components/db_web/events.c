@@ -15,7 +15,6 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "lwip/sockets.h"
 
 #define CLIENTS   8
 #define STATE_MAX 2048

@@ -16,7 +16,6 @@
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
-#include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "web.h"
 

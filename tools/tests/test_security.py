@@ -5,6 +5,7 @@ import subprocess
 import time
 import urllib.request
 
+import pytest
 from conftest import HOST, PASSWORD, api, status
 from cryptography.hazmat.primitives import serialization
 
@@ -19,6 +20,7 @@ def post_raw(path: str, body: bytes, headers: dict) -> int:
         return e.code
 
 
+@pytest.mark.sim
 def test_deep_json_does_not_crash_the_bridge():
     before = status()["uptime_s"]
     code = post_raw("/api/login", b"[" * 127, {"X-Deckbridge": "1"})
@@ -27,11 +29,13 @@ def test_deep_json_does_not_crash_the_bridge():
     assert status()["uptime_s"] >= before, "the bridge restarted"
 
 
+@pytest.mark.sim
 def test_login_needs_the_marker_header():
     """A page on another site cannot add it, so it cannot guess passwords through a browser on the LAN."""
     assert post_raw("/api/login", json.dumps({"password": PASSWORD}).encode(), {}) == 403
 
 
+@pytest.mark.sim
 def test_a_long_origin_is_no_way_around_the_origin_check():
     origin = "http://" + "a" * 100 + ".example"
     out = subprocess.run(
