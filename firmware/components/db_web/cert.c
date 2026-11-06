@@ -85,14 +85,22 @@ bool web_cert(const char *name, char **cert, char **key, char fp[96])
         size_t cl = PEM_MAX, kl = PEM_MAX;
         if (nvs_get_str(h, "cert", *cert, &cl) != ESP_OK || nvs_get_str(h, "key", *key, &kl) != ESP_OK) {
             uint32_t t = esp_log_timestamp();
-            ok = make(name, *cert, *key) && nvs_set_str(h, "cert", *cert) == ESP_OK &&
-                 nvs_set_str(h, "key", *key) == ESP_OK && nvs_commit(h) == ESP_OK;
+            ok = make(name, *cert, *key);
+            bool saved = ok && nvs_set_str(h, "cert", *cert) == ESP_OK && nvs_set_str(h, "key", *key) == ESP_OK &&
+                         nvs_commit(h) == ESP_OK;
             ESP_LOGI(TAG, "new certificate in %lu ms: %s", (unsigned long)(esp_log_timestamp() - t), ok ? "ok" : "failed");
+            if (ok && !saved) {
+                ESP_LOGE(TAG, "certificate not saved: its fingerprint changes at the next restart");
+            }
         }
         nvs_close(h);
     }
     if (ok) {
         fingerprint(*cert, fp);
+    } else {
+        heap_caps_free(*cert);
+        heap_caps_free(*key);
+        *cert = *key = NULL;
     }
     return ok;
 }
