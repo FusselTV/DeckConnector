@@ -10,6 +10,8 @@ import time
 import pytest
 from conftest import api, status
 
+from dbtools.safety import real_input_target
+
 SATELLITE = os.environ.get("DECKBRIDGE_SATELLITE", "192.168.1.128:16622")
 
 
@@ -70,7 +72,8 @@ def test_companion_draws_keys_and_strip_parts(drawing):
 
 def test_a_swipe_turns_the_page_and_back(drawing):
     before = wait(lambda: (p := pictures()) and len(p) >= 12 and p)
-    swipe = {"touch": "swipe", "x": 700, "y": 430, "x2": 100, "y2": 430}
+    real_input_target(status())  # the test Companion on this machine draws, nobody's real one
+    swipe = {"touch": "swipe", "x": 700, "y": 430, "x2": 100, "y2": 430, "real": True}
     api("POST", "/api/input", json.dumps(swipe).encode())
     after = wait(lambda: (p := pictures()) != before and p, 5)
     assert after, "the page did not change"

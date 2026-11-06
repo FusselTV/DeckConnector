@@ -146,13 +146,14 @@ int api_input(const char *body, char *reply, size_t cap)
     db_input_t ev;
     db_input_t then = {.kind = 0};
     const char *err = root ? read_input(root, &dev, &ev, &then) : "invalid JSON";
+    bool real = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "real"));
     cJSON_Delete(root);
     if (err) {
         return fail(reply, cap, 400, err);
     }
-    esp_err_t sent = db_deck_simulate(&ev);
+    esp_err_t sent = db_deck_simulate(&ev, real);
     if (sent == ESP_OK && then.kind) {
-        sent = db_deck_simulate(&then);
+        sent = db_deck_simulate(&then, real);
     }
     if (sent == ESP_ERR_INVALID_STATE) {
         return fail(reply, cap, 409, "no Stream Deck attached");

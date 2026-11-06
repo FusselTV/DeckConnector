@@ -1027,7 +1027,7 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
         s.info.device = &s.attached;
         device_service(&now);
     }
-    db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input};
+    db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input, .external = true};
     db_deck_add_listener(&l);
     xTaskCreatePinnedToCore(listen_task, "dock_port", 3072, NULL, 6, NULL, 0);
     xTaskCreatePinnedToCore(listen_task, "dock_dev_port", 3072, (void *)1, 7, NULL, 0);

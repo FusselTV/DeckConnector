@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from dbtools.safety import UnsafeBridge, real_input_target, require_input_gate
 from dbtools.server import Server
 
 HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
@@ -24,6 +25,8 @@ PORTS = (8765, 8766)
 
 
 def api(method: str, path: str, body: bytes | None = None, auth: bool = True, timeout: float = 30):
+    if path.startswith("/api/input") and body and b'"real"' in body:
+        real_input_target(status())  # only a test Companion on this machine may get them
     req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-Deckbridge": "1"})
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())
@@ -36,6 +39,19 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
 
 def status() -> dict:
     return json.loads(api("GET", "/api/status")[1])
+
+
+@pytest.fixture(autouse=True)
+def input_gate():
+    """Before every test: a bridge whose firmware passes simulated presses on to Companion ends the whole run."""
+    try:
+        current = json.loads(api("GET", "/api/status", timeout=5)[1])
+    except OSError:
+        return  # not reachable: nothing can be pressed either
+    try:
+        require_input_gate(current)
+    except UnsafeBridge as e:
+        pytest.exit(str(e), returncode=3)
 
 
 def wait_for_bridge(timeout: float = 60) -> dict:

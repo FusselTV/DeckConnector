@@ -29,6 +29,9 @@ typedef struct {
     void (*device_changed)(const db_device_info_t *info);
     void (*input)(const db_input_t *ev);
     void (*raw_input)(const uint8_t *report, size_t len);
+    /* A host whose presses act in the real world (Companion, the Stream Deck app). It gets simulated input only
+     * when the request says a person sent it: a test once pressed real buttons in someone's home. */
+    bool external;
 } db_deck_listener_t;
 
 typedef void (*db_deck_ack_cb_t)(db_ack_result_t result, uint8_t display, uint32_t seq, uint64_t t_recv,
@@ -70,8 +73,8 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
 
-/* Handle `in` as if the device had sent it: the writer gets it exactly like a real press. */
-esp_err_t db_deck_simulate(const db_input_t *in);
+/* Handle `in` as if the device had sent it. External listeners get it only when `real`. */
+esp_err_t db_deck_simulate(const db_input_t *in, bool real);
 
 /* Raw access for the dock emulation. Writes of a source that is not the writer only update its kept picture.
  */

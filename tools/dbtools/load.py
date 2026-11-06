@@ -198,6 +198,9 @@ async def drawing(host: str, auth: str, n: int) -> dict:
         c.conn.request(method, path, json.dumps(body), {"Authorization": auth, "X-Deckbridge": "1"})
         c.conn.getresponse().read()
 
+    from .safety import require_input_gate
+
+    require_input_gate(json.loads(c.get("/api/status")[2]))
     cfg = json.loads(c.get("/api/config")[2])
     server = await Server(8765, "load", ping=False).start()
     await asyncio.to_thread(send, "PUT", "/api/config", {"controller": "server", "host": server.url})

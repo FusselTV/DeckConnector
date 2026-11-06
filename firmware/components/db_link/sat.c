@@ -748,7 +748,7 @@ esp_err_t db_satellite_start(void (*changed)(void))
     if (!s.line || !s.cache) {
         return ESP_ERR_NO_MEM;
     }
-    db_deck_listener_t dl = {.input = on_input, .device_changed = on_device};
+    db_deck_listener_t dl = {.input = on_input, .device_changed = on_device, .external = true};
     db_deck_add_listener(&dl);
     /* tinfl, which inflates the PNGs, keeps 11 KB of state on the stack */
     xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, NULL, 0);

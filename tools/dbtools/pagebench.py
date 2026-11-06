@@ -1,5 +1,6 @@
-"""Page switching through the host that draws (Companion, the Elgato app): turn the page encoder fast and see how
-long the keys keep changing after the last turn. Turns back as far afterwards, so the page is where it was.
+"""Page switching through the host that draws, which must be a test Companion on this machine (dbtools.safety): turn
+the page encoder fast and see how long the keys keep changing after the last turn. Turns back as far afterwards, so
+the page is where it was.
 
 Only the keys count: a clock on the touch strip or on a key redraws every second, so the end of a page switch is
 the last key change before a pause of PAUSE_S.
@@ -15,6 +16,7 @@ import time
 from pathlib import Path
 
 from dbtools.load import Client
+from dbtools.safety import real_input_target
 
 PAUSE_S = 0.4
 WATCH_S = 2.5
@@ -37,7 +39,7 @@ def run(c: Client, encoder: int, turns: int, gap_ms: int, ticks: int) -> int:
     """Milliseconds from the last turn to the last key change of the switch."""
     time.sleep(1.2)  # let the page before settle
     for _ in range(turns):
-        post(c, "/api/input", {"encoder": encoder, "action": "turn", "ticks": ticks})
+        post(c, "/api/input", {"encoder": encoder, "action": "turn", "ticks": ticks, "real": True})
         time.sleep(gap_ms / 1000)
     last_turn = time.time() - gap_ms / 1000
     seen, changes = keys(c), []
@@ -63,7 +65,9 @@ def main() -> None:
     a = ap.parse_args()
     pw = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
     c = Client(a.host, "Basic " + base64.b64encode(f"admin:{pw}".encode()).decode())
-    print(f"writer {json.loads(c.get('/api/status')[2])['writer']}, encoder {a.encoder + 1}, {a.gap_ms} ms apart")
+    status = json.loads(c.get("/api/status")[2])
+    real_input_target(status)  # refuses unless a host on this machine draws
+    print(f"writer {status['writer']}, encoder {a.encoder + 1}, {a.gap_ms} ms apart")
     for turns in (1, 5, 10, 20):
         late = []
         for _ in range(a.rounds):

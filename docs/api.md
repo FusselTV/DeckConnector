@@ -160,8 +160,13 @@ are missing and `images` is empty.
 
 ## Input
 
-`POST /api/input` acts as if you used the deck. Whoever draws gets it exactly like a real press. Keys and encoders
-count from 0. Coordinates are those of `/api/screen`.
+`POST /api/input` acts as if you used the deck. Keys and encoders count from 0. Coordinates are those of
+`/api/screen`.
+
+Companion, the Stream Deck app and the Satellite connection get the input only with `"real": true`, because their
+buttons switch real devices. Send it only for a person who pressed something, as the web UI does. Without it, only
+the Deck-Connector's own screens and your own servers get the input. `simulated_input: "local"` in the status says
+the firmware works this way.
 
 ```json
 {"key": 3}

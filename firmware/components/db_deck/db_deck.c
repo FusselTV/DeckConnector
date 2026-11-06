@@ -29,6 +29,7 @@ typedef struct {
     ev_kind_t kind;
     uint8_t address;
     uint8_t len;
+    bool real;
     uint64_t t_us;
     uint8_t report[INPUT_REPORT];
 } ev_t;
@@ -285,7 +286,7 @@ static void handle_input(const ev_t *ev)
 {
     s.stats.inputs++;
     for (int i = 0; i < s.listener_count; i++) {
-        if (s.listeners[i].raw_input) {
+        if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
             s.listeners[i].raw_input(ev->report, ev->len);
         }
     }
@@ -293,7 +294,7 @@ static void handle_input(const ev_t *ev)
     size_t n = s.dev.driver->parse_input(&s.dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
     for (size_t e = 0; e < n; e++) {
         for (int i = 0; i < s.listener_count; i++) {
-            if (s.listeners[i].input) {
+            if (s.listeners[i].input && (ev->real || !s.listeners[i].external)) {
                 s.listeners[i].input(&out[e]);
             }
         }
@@ -347,20 +348,20 @@ static void on_detached(void)
 
 static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
 {
-    ev_t ev = {.kind = EV_INPUT, .t_us = t_us, .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
+    ev_t ev = {.kind = EV_INPUT, .real = true, .t_us = t_us, .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
     memcpy(ev.report, report, ev.len);
     if (xQueueSend(s.events, &ev, 0) != pdTRUE) {
         s.stats.inputs_dropped++;
     }
 }
 
-esp_err_t db_deck_simulate(const db_input_t *in)
+esp_err_t db_deck_simulate(const db_input_t *in, bool real)
 {
     _Static_assert(sizeof(db_input_t) <= INPUT_REPORT, "input does not fit the event");
     if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
-    ev_t ev = {.kind = EV_SIMULATE, .t_us = (uint64_t)esp_timer_get_time()};
+    ev_t ev = {.kind = EV_SIMULATE, .real = real, .t_us = (uint64_t)esp_timer_get_time()};
     memcpy(ev.report, in, sizeof(*in));
     return xQueueSend(s.events, &ev, pdMS_TO_TICKS(100)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
 }

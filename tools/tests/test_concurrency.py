@@ -46,8 +46,13 @@ def test_config_changes_on_both_ports_are_never_lost():
 async def test_live_sockets_on_both_ports_while_presses_go_out(bridges):
     """A wss listener sends presses: its replies come from the server task, the press events from another task,
     both on one TLS session. Meanwhile listeners on port 80 come and go, and each must start with its own state."""
-    # the presses must reach the test server: while nobody draws they would walk the bridge's own menu
-    assert json.loads(api("GET", "/api/status")[1])["writer"].startswith("server")
+    # the presses must reach the test server: while the bridge draws they would walk its own menu
+    for _ in range(30):
+        writer = json.loads((await asyncio.to_thread(api, "GET", "/api/status"))[1])["writer"]
+        if writer.startswith("server"):
+            break
+        await asyncio.sleep(0.5)
+    assert writer.startswith("server"), f"{writer} draws"
     login = {"Authorization": AUTH["Authorization"]}
 
     async def presses():
