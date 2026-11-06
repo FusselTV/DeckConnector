@@ -23,14 +23,16 @@ async def test_unplug_and_plug_in_again(servers, bridges):
     ack = await active.send_image(FULL, jpeg((220, 20, 20)))
     assert ack.result.name == "SHOWN"
     await asyncio.sleep(0.5)
-    assert max(range(3), key=lambda i: strip_color()[i]) == 0
+    seen = await asyncio.to_thread(strip_color)
+    assert max(range(3), key=lambda i: seen[i]) == 0
     before = json.loads((await asyncio.to_thread(api, "GET", "/api/screen"))[1])["images"]
     assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect"))[0] == 200
     await wait_device(False, 5)
     back = await wait_device(True, 20)
     assert back < 10, f"the deck took {back:.1f} s to come back"
     for _ in range(50):  # the server's kept picture is drawn again, without the server sending it
-        if max(range(3), key=lambda i: strip_color()[i]) == 0:
+        seen = await asyncio.to_thread(strip_color)
+        if max(range(3), key=lambda i: seen[i]) == 0:
             break
         await asyncio.sleep(0.2)
     seen = await asyncio.to_thread(strip_color)

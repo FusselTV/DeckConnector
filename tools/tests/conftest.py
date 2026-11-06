@@ -169,9 +169,25 @@ def jpeg(color, size=(800, 480), quality=80) -> bytes:
     return buf.getvalue()
 
 
+_loop: asyncio.AbstractEventLoop | None = None
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pyfunc_call(pyfuncitem):
+    """A plain test runs in a thread while the session loop goes on: the test servers must keep answering the
+    bridge's pings, or it ends their sessions after 6 s and the next tests find them gone."""
+    if _loop is None or pyfuncitem.get_closest_marker("asyncio"):  # pytest-asyncio marks and wraps async tests
+        return None
+    args = {name: pyfuncitem.funcargs[name] for name in pyfuncitem._fixtureinfo.argnames}
+    _loop.run_until_complete(asyncio.to_thread(pyfuncitem.obj, **args))
+    return True
+
+
 @pytest.fixture(scope="session")
 async def servers():
     """Two servers on this machine; the bridge is set to use them, first one preferred."""
+    global _loop
+    _loop = asyncio.get_running_loop()
     # No server pings: the tests check that the bridge notices dead links by itself.
     first, second = Server(PORTS[0], "e2e-1", ping=False), Server(PORTS[1], "e2e-2", ping=False)
     await first.start()

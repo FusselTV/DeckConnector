@@ -1,10 +1,11 @@
 import asyncio
+import itertools
 import json
 import statistics
 import time
 
 import pytest
-from conftest import api, jpeg, status, strip_color
+from conftest import api, jpeg, newest, status, strip_color
 
 from dbtools.protocol import AckResult
 
@@ -58,13 +59,17 @@ def noise_jpeg(seed: int) -> bytes:
 
 async def test_newest_image_wins(bridges):
     active, _ = bridges
-    images = [noise_jpeg(i) for i in range(20)]
+    images = await asyncio.to_thread(lambda: [noise_jpeg(i) for i in range(20)])  # seconds of CPU: off the loop
     futures = [await active.post_image(FULL, img) for img in images]
     acks = await asyncio.wait_for(asyncio.gather(*futures), 10)
     results = [a.result for a in acks]
     assert results[-1] == AckResult.SHOWN
-    assert AckResult.SUPERSEDED in results, "a burst should drop images that were never sent"
     assert set(results) <= {AckResult.SHOWN, AckResult.SUPERSEDED}
+    # whether a queue builds depends on the path (a fresh link may run over WLAN): what counts is that no image
+    # starts on the deck once a newer one has arrived
+    for older, newer in itertools.pairwise(acks):
+        if older.result == AckResult.SHOWN:
+            assert older.t_start <= newer.t_recv, f"image {older.seq} was drawn after {newer.seq} arrived"
 
 
 async def test_partial_strip_and_keys(bridges):
@@ -116,6 +121,8 @@ async def test_failover_and_return(servers, bridges):
     assert b.active
     assert (await b.send_image(FULL, jpeg((0, 150, 0)))).result == AckResult.SHOWN
 
+    while not first.connected.empty():
+        first.connected.get_nowait()
     await first.start()
     back = await first.wait_bridge(30)
     for _ in range(100):
@@ -163,7 +170,9 @@ def test_web_api_unknown_endpoint_answers_json():
 async def test_stalled_frame_ends_the_session(servers):
     """A frame that stops halfway (dead switch port) must not hang the link: the bridge reconnects."""
     first, _ = servers
-    active = next(iter(first.bridges.values()), None) or await first.wait_bridge(30)
+    active = await newest(first)
+    while not first.connected.empty():  # earlier connects, the active one among them
+        first.connected.get_nowait()
     size = 100_000
     header = bytes([0x82, 127]) + size.to_bytes(8, "big")
     active.ws.transport.write(header + bytes([0x01]) + bytes(1000))
