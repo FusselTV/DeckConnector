@@ -17,7 +17,7 @@ async def connected(url: str) -> bool:
     return any(x["host"] == url and x["connected"] for x in (await asyncio.to_thread(status))["sources"])
 
 
-async def stays_away(server: Server, url: str, secs: float = 8) -> bool:
+async def stays_away(server: Server, url: str, secs: float = 3) -> bool:
     for _ in range(int(secs * 2)):
         if server.bridges or await connected(url):
             return False

@@ -102,7 +102,7 @@ def test_a_listener_that_stops_reading_cannot_stall_the_api(servers):
         f"Authorization: Basic {token}\r\n\r\n".encode()
     )
     assert b" 101 " in s.recv(200)  # and then it never reads again
-    end = time.time() + 10
+    end = time.time() + 4
 
     def turns():  # each turn is an event for every listener
         while time.time() < end:

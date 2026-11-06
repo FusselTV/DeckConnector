@@ -199,13 +199,23 @@ STRIP_IN_CAMERA = (700, 700, 1500, 790)
 _stream: CameraStream | None = None
 
 
-def strip_color() -> tuple[int, int, int]:
-    """The strip as the camera shows it now: the first frame from a running stream after the camera's delay. A new
-    connection per call costs about 6 s, waiting for a key frame."""
+def camera() -> CameraStream:
+    """One running stream for the whole run: a new connection costs about 6 s, waiting for a key frame."""
     global _stream
     if _stream is None or _stream.proc.poll() is not None:
         _stream = CameraStream()
         atexit.register(_stream.close)
+    return _stream
+
+
+@pytest.fixture(scope="session", autouse=True)
+def camera_warm():
+    camera()  # its first frame arrives while the first tests run
+
+
+def strip_color() -> tuple[int, int, int]:
+    """The strip as the camera shows it now: the first frame from the running stream after the camera's delay."""
+    _stream = camera()
     since = time.monotonic() + 0.4
     end = since + 10
     while time.monotonic() < end:

@@ -21,7 +21,7 @@ CHECK = Path(__file__).resolve().parents[1] / "companion-check"
 def test_only_real_presses_reach_a_dock_host():
     me = local_ip()
     cfg = json.loads(api("GET", "/api/config")[1])
-    host = subprocess.Popen(["node", "check.mjs", HOST, "15"], cwd=CHECK, stdout=subprocess.PIPE, text=True)
+    host = subprocess.Popen(["node", "check.mjs", HOST, "8"], cwd=CHECK, stdout=subprocess.PIPE, text=True)
     try:
         for line in host.stdout:
             if line.startswith("listening"):

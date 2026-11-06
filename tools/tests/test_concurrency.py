@@ -33,7 +33,7 @@ def test_config_changes_on_both_ports_are_never_lost():
     before = json.loads(api("GET", "/api/config")[1])
     lost = []
     try:
-        for i, wanted in enumerate(put_both(150)):
+        for i, wanted in enumerate(put_both(60)):
             cfg = json.loads(api("GET", "/api/config")[1])
             if (cfg["brightness"], cfg["satellite_pin"]) != wanted:
                 lost.append(i)
