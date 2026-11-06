@@ -597,7 +597,7 @@ $('up').onclick = async () => {
   const web = new Uint8Array(await file.slice(5, 6).arrayBuffer())[0] === 3; /* target byte, docs/ota.md */
   $('up').disabled = true;
   $('upmsg').textContent = 'Lade hoch …';
-  const r = await api(web ? '/api/frontend' : '/api/ota' + (slot ? `?slot=${slot}&boot=0` : ''), {method: web ? 'PUT' : 'POST', body: file}).then((x) => x.json()).catch(() => ({ok: false, error: 'Verbindung verloren'}));
+  const r = await api(web ? '/api/frontend' : '/api/ota' + (slot ? `?slot=${slot}&boot=0` : ''), {method: web ? 'PUT' : 'POST', body: file}).then((x) => x.json().catch(() => ({ok: false, error: `HTTP ${x.status}`}))).catch(() => ({ok: false, error: 'Verbindung verloren'}));
   $('up').disabled = false;
   $('upmsg').textContent = '';
   const bad = r.ok === false;
