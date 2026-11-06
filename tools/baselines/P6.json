@@ -1,0 +1,352 @@
+{
+ "runs": [
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 7
+    },
+    "tcpip": {
+     "cpu_busy": 1
+    }
+   },
+   "memory_before": {
+    "heap_free": 238159,
+    "heap_min_free": 221027,
+    "psram_free": 31024252,
+    "heap_largest": 155648,
+    "psram_largest": 30932992,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 2.0,
+     "p95": 2.14
+    },
+    "/api/config": {
+     "p50": 1.12,
+     "p95": 1.19
+    },
+    "/api/screen": {
+     "p50": 1.54,
+     "p95": 1.71
+    },
+    "/api/screen.jpg": {
+     "p50": 6.19,
+     "p95": 8.45
+    },
+    "/api/metrics": {
+     "p50": 1.14,
+     "p95": 1.37
+    },
+    "/api/slots": {
+     "p50": 2.41,
+     "p95": 2.57
+    },
+    "/": {
+     "p50": 3.04,
+     "p95": 3.14
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.24,
+     "p95": 1.39
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 491.5,
+     "errors": 0,
+     "p50": 2.0,
+     "p95": 2.2
+    },
+    "/api/status x4": {
+     "rps": 579.4,
+     "errors": 0,
+     "p50": 6.35,
+     "p95": 10.61
+    },
+    "/api/status x8": {
+     "rps": 598.9,
+     "errors": 0,
+     "p50": 13.16,
+     "p95": 15.12
+    },
+    "/api/screen x1": {
+     "rps": 649.3,
+     "errors": 0,
+     "p50": 1.52,
+     "p95": 1.66
+    },
+    "/api/screen x4": {
+     "rps": 774.7,
+     "errors": 0,
+     "p50": 4.01,
+     "p95": 7.94
+    },
+    "/api/screen x8": {
+     "rps": 795.4,
+     "errors": 0,
+     "p50": 9.04,
+     "p95": 17.57
+    },
+    "/api/screen.jpg x1": {
+     "rps": 146.1,
+     "errors": 0,
+     "p50": 6.26,
+     "p95": 6.57
+    },
+    "/api/screen.jpg x4": {
+     "rps": 207.0,
+     "errors": 0,
+     "p50": 9.19,
+     "p95": 21.52
+    },
+    "/api/screen.jpg x8": {
+     "rps": 207.7,
+     "errors": 0,
+     "p50": 9.34,
+     "p95": 53.92
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 4.36,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 79.15,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 79.53,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 85.85,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.67,
+    "p95": 3.3
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.73,
+     "p95": 4.2
+    },
+    "input_event": {
+     "p50": 3.73,
+     "p95": 5.14
+    }
+   },
+   "memory_after": {
+    "heap_free": 237699,
+    "heap_min_free": 154135,
+    "psram_free": 30992032,
+    "heap_largest": 155648,
+    "psram_largest": 29360128,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40
+   },
+   "size": {
+    "app": 1491920,
+    "ram_static": 173175
+   },
+   "firmware": "v0.1.0-74-g6ff5c28-dirty",
+   "at": "2026-11-06 10:08:50"
+  },
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 7
+    },
+    "tcpip": {
+     "cpu_busy": 1
+    }
+   },
+   "memory_before": {
+    "heap_free": 237703,
+    "heap_min_free": 154135,
+    "psram_free": 30995488,
+    "heap_largest": 155648,
+    "psram_largest": 29360128,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 2.05,
+     "p95": 2.42
+    },
+    "/api/config": {
+     "p50": 1.12,
+     "p95": 1.2
+    },
+    "/api/screen": {
+     "p50": 1.52,
+     "p95": 1.73
+    },
+    "/api/screen.jpg": {
+     "p50": 6.22,
+     "p95": 7.71
+    },
+    "/api/metrics": {
+     "p50": 1.4,
+     "p95": 1.51
+    },
+    "/api/slots": {
+     "p50": 2.41,
+     "p95": 2.77
+    },
+    "/": {
+     "p50": 3.03,
+     "p95": 3.13
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.26,
+     "p95": 1.39
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 480.8,
+     "errors": 0,
+     "p50": 2.04,
+     "p95": 2.29
+    },
+    "/api/status x4": {
+     "rps": 572.4,
+     "errors": 0,
+     "p50": 6.68,
+     "p95": 10.83
+    },
+    "/api/status x8": {
+     "rps": 588.0,
+     "errors": 0,
+     "p50": 13.42,
+     "p95": 15.11
+    },
+    "/api/screen x1": {
+     "rps": 650.0,
+     "errors": 0,
+     "p50": 1.52,
+     "p95": 1.65
+    },
+    "/api/screen x4": {
+     "rps": 780.8,
+     "errors": 0,
+     "p50": 3.96,
+     "p95": 7.86
+    },
+    "/api/screen x8": {
+     "rps": 798.0,
+     "errors": 0,
+     "p50": 9.09,
+     "p95": 17.46
+    },
+    "/api/screen.jpg x1": {
+     "rps": 148.0,
+     "errors": 0,
+     "p50": 6.12,
+     "p95": 6.84
+    },
+    "/api/screen.jpg x4": {
+     "rps": 212.9,
+     "errors": 0,
+     "p50": 8.7,
+     "p95": 16.16
+    },
+    "/api/screen.jpg x8": {
+     "rps": 201.9,
+     "errors": 0,
+     "p50": 9.04,
+     "p95": 26.26
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 7.57,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 78.23,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 77.89,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 85.67,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.67,
+    "p95": 3.36
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.76,
+     "p95": 3.69
+    },
+    "input_event": {
+     "p50": 3.79,
+     "p95": 5.34
+    }
+   },
+   "memory_after": {
+    "heap_free": 232595,
+    "heap_min_free": 144375,
+    "psram_free": 30989616,
+    "heap_largest": 151552,
+    "psram_largest": 29360128,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40
+   },
+   "size": {
+    "app": 1491920,
+    "ram_static": 173175
+   },
+   "firmware": "v0.1.0-74-g6ff5c28-dirty",
+   "at": "2026-11-06 10:12:00"
+  }
+ ],
+ "e2e": {
+  "suite": "uv run pytest tests (addopts)",
+  "wall_s": [
+   139,
+   126,
+   136
+  ],
+  "runs": 3,
+  "failed": {},
+  "passed": 85,
+  "skipped": 8,
+  "sim_suite_s": 5.4,
+  "sim_passed": 18
+ },
+ "soak": {
+  "minutes": 4.5,
+  "rounds": 355,
+  "failed_rounds": 0,
+  "heap_free_trend_kb_per_h": 0.7,
+  "heap_largest_trend_kb_per_h": -5.1,
+  "tasks_trend_per_h": 0.0,
+  "heap_min_free_kb": 140,
+  "coredump": false
+ }
+}
