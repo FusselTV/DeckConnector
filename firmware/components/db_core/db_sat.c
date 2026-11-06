@@ -235,33 +235,38 @@ static uint8_t paeth(int a, int b, int c)
     return (uint8_t)(pa <= pb && pa <= pc ? a : (pb <= pc ? b : c));
 }
 
-/* Undo the filter of one row in place. `prev` is the row above, already undone, or NULL for the first. */
+/* Undo the filter of one row in place. `prev` is the row above, already undone, all zero for the first. */
 static db_err_t unfilter(uint8_t type, uint8_t *row, const uint8_t *prev, size_t n, size_t bpp)
 {
-    for (size_t i = 0; i < n; i++) {
-        int left = i >= bpp ? row[i - bpp] : 0;
-        int up = prev ? prev[i] : 0;
-        int corner = prev && i >= bpp ? prev[i - bpp] : 0;
-        switch (type) {
-        case 0:
-            return DB_OK;
-        case 1:
-            row[i] = (uint8_t)(row[i] + left);
-            break;
-        case 2:
-            row[i] = (uint8_t)(row[i] + up);
-            break;
-        case 3:
-            row[i] = (uint8_t)(row[i] + (left + up) / 2);
-            break;
-        case 4:
-            row[i] = (uint8_t)(row[i] + paeth(left, up, corner));
-            break;
-        default:
-            return DB_ERR_PROTO;
+    switch (type) {
+    case 0:
+        return DB_OK;
+    case 1:
+        for (size_t i = bpp; i < n; i++) {
+            row[i] = (uint8_t)(row[i] + row[i - bpp]);
         }
+        return DB_OK;
+    case 2:
+        for (size_t i = 0; i < n; i++) {
+            row[i] = (uint8_t)(row[i] + prev[i]);
+        }
+        return DB_OK;
+    case 3:
+        for (size_t i = 0; i < n; i++) {
+            row[i] = (uint8_t)(row[i] + ((i >= bpp ? row[i - bpp] : 0) + prev[i]) / 2);
+        }
+        return DB_OK;
+    case 4:
+        for (size_t i = 0; i < bpp; i++) {
+            row[i] = (uint8_t)(row[i] + prev[i]); /* paeth(0, up, 0) is up */
+        }
+        for (size_t i = bpp; i < n; i++) {
+            row[i] = (uint8_t)(row[i] + paeth(row[i - bpp], prev[i], prev[i - bpp]));
+        }
+        return DB_OK;
+    default:
+        return DB_ERR_PROTO;
     }
-    return DB_OK;
 }
 
 db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, uint8_t *bgr, uint8_t *work,
@@ -315,19 +320,30 @@ db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, u
                       h * stride) {
         return DB_ERR_PROTO;
     }
-    for (size_t y = 0; y < h; y++) {
-        uint8_t *row = work + y * stride;
-        if (unfilter(row[0], row + 1, y ? row + 1 - stride : NULL, stride - 1, bpp) != DB_OK) {
-            return DB_ERR_PROTO;
-        }
+    /* rows are unfiltered in internal RAM: byte by byte in `work`, which is in PSRAM, it takes a third longer */
+    size_t n = stride - 1;
+    uint8_t *prev = calloc(2, n);
+    if (!prev) {
+        return DB_ERR_NOMEM;
     }
-    for (size_t y = 0; y < h; y++) {
-        const uint8_t *px = work + y * stride + 1;
-        for (size_t x = 0; x < w; x++, px += bpp, bgr += 3) {
-            bgr[0] = px[2];
-            bgr[1] = px[1];
-            bgr[2] = px[0];
+    uint8_t *cur = prev + n;
+    db_err_t err = DB_OK;
+    for (size_t y = 0; y < h && err == DB_OK; y++) {
+        const uint8_t *row = work + y * stride;
+        memcpy(cur, row + 1, n);
+        err = unfilter(row[0], cur, prev, n, bpp);
+        for (size_t x = 0; x < n; x += bpp, bgr += 3) {
+            bgr[0] = cur[x + 2];
+            bgr[1] = cur[x + 1];
+            bgr[2] = cur[x];
         }
+        uint8_t *t = prev;
+        prev = cur;
+        cur = t;
+    }
+    free(prev < cur ? prev : cur);
+    if (err != DB_OK) {
+        return err;
     }
     return DB_OK;
 }
