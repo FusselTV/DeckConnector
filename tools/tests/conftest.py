@@ -96,6 +96,13 @@ def status() -> dict:
     return json.loads(api("GET", "/api/status")[1])
 
 
+def put_config(body: dict) -> None:
+    """A refused change must not go unnoticed: a refused restore leaves the owner's deck on a test controller."""
+    code, reply = api("PUT", "/api/config", json.dumps(body).encode())
+    if code != 200:
+        raise RuntimeError(f"PUT /api/config {body} refused: {code} {reply[:200]!r}")
+
+
 @pytest.fixture(autouse=True)
 def input_gate():
     """Before every test: a bridge whose firmware passes simulated presses on to Companion ends the whole run."""
@@ -260,14 +267,14 @@ async def servers():
     wanted = [first.url, second.url]
     cfg = json.loads(api("GET", "/api/config")[1])
     if [u for u in cfg["servers"] if u] != wanted:
-        api("PUT", "/api/config", json.dumps({"servers": wanted}).encode())  # applies without a restart
+        put_config({"servers": wanted})  # applies without a restart
     if cfg["controller"] != "server" or cfg.get("host"):
-        api("PUT", "/api/config", json.dumps({"controller": "server", "host": ""}).encode())
+        put_config({"controller": "server", "host": ""})
     yield first, second
     await first.stop()
     await second.stop()
     if cfg["controller"] != "server" or cfg.get("host"):
-        api("PUT", "/api/config", json.dumps({"controller": cfg["controller"], "host": cfg.get("host", "")}).encode())
+        put_config({"controller": cfg["controller"], "host": cfg.get("host", "")})
 
 
 async def newest(server):

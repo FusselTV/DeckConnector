@@ -44,6 +44,17 @@ const char *db_config_server_of(const db_config_t *cfg, int i)
     return db_config_server((db_config_t *)cfg, i);
 }
 
+static bool known_chord(const char *chord)
+{
+    const char *chords[] = {"auto", "keys", "encoders", "off"};
+    for (int i = 0; i < 4; i++) {
+        if (strcmp(chord, chords[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void defaults(db_config_t *c)
 {
     uint8_t mac[6];
@@ -83,6 +94,16 @@ esp_err_t db_config_load(void)
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
                 current.controller = DB_CTRL_SERVER;
+            }
+            /* An older blob ends in the struct's padding, which lands in the first appended fields: menu_chord
+             * came back empty once, and then every settings change without it was refused. */
+            db_config_t fresh;
+            defaults(&fresh);
+            if (!known_chord(current.menu_chord)) {
+                strcpy(current.menu_chord, fresh.menu_chord);
+            }
+            if (current.menu_hold_ms < 500 || current.menu_hold_ms > 10000) {
+                current.menu_hold_ms = fresh.menu_hold_ms;
             }
         }
         free(blob);
@@ -405,12 +426,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
         snprintf(err, err_cap, "satellite: host, host:port, or a ws:// or wss:// URL expected");
         ok = false;
     }
-    const char *chords[] = {"auto", "keys", "encoders", "off"};
-    bool known = false;
-    for (int i = 0; i < 4; i++) {
-        known |= strcmp(cfg->menu_chord, chords[i]) == 0;
-    }
-    if (ok && !known) {
+    if (ok && !known_chord(cfg->menu_chord)) {
         snprintf(err, err_cap, "menu_chord: auto, keys, encoders or off expected");
         ok = false;
     }

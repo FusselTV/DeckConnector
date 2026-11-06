@@ -10,7 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from conftest import HOST, api, status
+from conftest import HOST, api, put_config, status
 
 from dbtools.safety import real_input_target
 from dbtools.server import local_ip
@@ -26,7 +26,7 @@ def test_only_real_presses_reach_a_dock_host():
         for line in host.stdout:
             if line.startswith("listening"):
                 break
-        api("PUT", "/api/config", json.dumps({"controller": "companion", "host": me}).encode())
+        put_config({"controller": "companion", "host": me})
         for _ in range(20):
             try:
                 real_input_target(status())
@@ -42,6 +42,6 @@ def test_only_real_presses_reach_a_dock_host():
         out = host.communicate(timeout=30)[0]
     finally:
         host.kill()
-        api("PUT", "/api/config", json.dumps({"controller": cfg["controller"], "host": cfg["host"]}).encode())
+        put_config({"controller": cfg["controller"], "host": cfg["host"]})
     seen = json.loads(re.search(r"^input (.*)$", out, re.M)[1])
     assert seen.get("button-down") == 1, f"the dock host saw {seen}, expected only the one real press"

@@ -196,7 +196,10 @@ async def drawing(host: str, auth: str, n: int) -> dict:
     def send(method: str, path: str, body: dict) -> None:
         c.get("/api/status")
         c.conn.request(method, path, json.dumps(body), {"Authorization": auth, "X-Deckbridge": "1"})
-        c.conn.getresponse().read()
+        r = c.conn.getresponse()
+        reply = r.read()
+        if r.status != 200:
+            raise RuntimeError(f"{path} refused: {r.status} {reply[:200]!r}")
 
     from .safety import require_input_gate
 

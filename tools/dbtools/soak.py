@@ -107,7 +107,10 @@ async def main_async(a) -> None:
         c.conn.request(
             "PUT", "/api/config", body=json.dumps(body), headers={"Authorization": auth, "X-Deckbridge": "1"}
         )
-        c.conn.getresponse().read()
+        r = c.conn.getresponse()
+        reply = r.read()
+        if r.status != 200:
+            raise RuntimeError(f"PUT /api/config refused: {r.status} {reply[:200]!r}")
 
     def post(path: str) -> None:
         c.get("/api/status")
