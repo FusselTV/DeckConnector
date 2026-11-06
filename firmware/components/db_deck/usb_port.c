@@ -40,11 +40,18 @@ static struct {
     db_hid_io_t io;
 } s;
 
-static void out_done(usb_transfer_t *t)
+/* An unplug ends every transfer in flight; only other endings are errors. */
+static void count_error(usb_transfer_status_t status)
 {
-    if (t->status != USB_TRANSFER_STATUS_COMPLETED) {
+    if (status != USB_TRANSFER_STATUS_COMPLETED && status != USB_TRANSFER_STATUS_NO_DEVICE &&
+        status != USB_TRANSFER_STATUS_CANCELED) {
         s.errors++;
     }
+}
+
+static void out_done(usb_transfer_t *t)
+{
+    count_error(t->status);
     xSemaphoreGive(s.out_free);
 }
 
@@ -53,9 +60,7 @@ static void in_done(usb_transfer_t *t)
     if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
         s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
-    if (t->status != USB_TRANSFER_STATUS_COMPLETED) {
-        s.errors++;
-    }
+    count_error(t->status);
     /* Without a pending IN transfer no key or encoder would ever arrive again. */
     if (s.open && t->status != USB_TRANSFER_STATUS_NO_DEVICE && t->status != USB_TRANSFER_STATUS_CANCELED &&
         usb_host_transfer_submit(t) != ESP_OK) {

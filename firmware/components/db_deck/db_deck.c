@@ -217,6 +217,14 @@ static void notify_device(const db_device_info_t *info)
 
 static void handle_attach(uint8_t address)
 {
+    /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen at
+     * 16, 32 and 48, never in between). Plugged in again it gets the next one.
+     * ponytail: this powers the whole root port, so behind a hub every deck replugs; skip per hub port then. */
+    if ((address & 0x0f) == 0) {
+        ESP_LOGW(TAG, "USB address %u, plugging the deck in again", address);
+        db_deck_reconnect();
+        return;
+    }
     uint16_t vid;
     uint16_t pid;
     if (usb_port_open(address, &vid, &pid) != ESP_OK) {

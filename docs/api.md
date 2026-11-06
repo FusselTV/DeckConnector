@@ -137,6 +137,7 @@ it restores the settings. The web UI does this under System.
   calls the host, empty when it has no name or is a server. `chosen` marks the one that draws whenever no menu
   covers it.
 - `superseded` counts images that a newer one replaced before they were drawn.
+- `usb_errors` counts failed USB transfers. Transfers that an unplug ends are not counted.
 
 ## What the deck shows
 
