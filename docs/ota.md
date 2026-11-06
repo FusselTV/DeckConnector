@@ -1,7 +1,7 @@
 # Updates
 
-The Deck-Connector takes signed `.dbfw` files for its own firmware (P4) and for the WLAN chip (C6). A file comes from
-a server (`{"t": "ota", "url": ...}`) or from the web UI.
+The Deck-Connector takes signed `.dbfw` files for its own firmware (P4), for the WLAN chip (C6) and for its web page.
+A file comes from a server (`{"t": "ota", "url": ...}`), from the web UI, or for the page from `PUT /api/frontend`.
 
 ## File format
 
@@ -11,8 +11,8 @@ A 144 byte header, then the image.
 |---|---|---|
 | 0 | 4 | `DBFW` |
 | 4 | 1 | format, `1` |
-| 5 | 1 | target, `1` P4, `2` C6 |
-| 6 | 2 | security level |
+| 5 | 1 | target, `1` P4, `2` C6, `3` web page |
+| 6 | 2 | security level; for a web page `api_min`, the oldest firmware API it works with |
 | 8 | 4 | image length |
 | 12 | 32 | version text |
 | 44 | 32 | SHA-256 of the image |
@@ -31,6 +31,14 @@ A 144 byte header, then the image.
 
 The C6 gets its image over the P4. A C6 update restarts both chips.
 
+## Web page
+
+The page lives in the `www` partition, apart from the firmware, so it can change without a firmware update. Its
+image is `index.html` gzipped. At start the Deck-Connector reads it into PSRAM and checks the key, the hash and
+`api_min` against its own API version (`DB_WEB_API` in `db_web.h`). If one of them fails, or the partition is
+empty, it serves the page built into the firmware. Raise `DB_WEB_API` when a route or field a page relies on
+changes.
+
 ## Slots
 
 The flash holds four firmware slots. An update goes into the slot after the running one, so the slot before it
@@ -47,6 +55,8 @@ cd tools
 uv run python -m dbtools.fw deploy          # sign firmware/build/deckbridge.bin, upload into a bench slot, start it
 uv run python -m dbtools.fw use 2           # start slot 2
 uv run python -m dbtools.fw ab REV_A REV_B  # build both (cached), start A in one bench slot, B waits in the other
+uv run python -m dbtools.fw web             # sign firmware/components/db_web/index.html and serve it from www
+uv run python -m dbtools.fw web --erase     # back to the page in the firmware
 ```
 
 `tools/flash.sh` writes over USB and is for recovery and for a new partition table (`flash.sh all`).

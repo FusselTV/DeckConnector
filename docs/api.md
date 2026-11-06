@@ -66,7 +66,10 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/slots` | The firmware slots: `slot`, `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
 | `POST /api/ota/url` | Send `{"url": "http://..."}` and the Deck-Connector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
-| `POST /api/reboot` | Restart |
+| `POST /api/reboot` | Restart. A new firmware that has not confirmed itself yet counts as confirmed, so it stays |
+| `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api` (the firmware's API version), and for a page from the partition its `version`, `api_min` and `size` |
+| `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
+| `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call |
 | `GET /api/tokens` | The names of the API tokens |

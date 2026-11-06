@@ -13,6 +13,7 @@
 #include "db_ota.h"
 #include "db_screen.h"
 #include "db_ui.h"
+#include "db_web.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -391,6 +392,63 @@ static size_t slots_json(char *buf, size_t cap)
 esp_err_t get_slots(httpd_req_t *req)
 {
     return send_built(req, 2048, slots_json);
+}
+
+static size_t frontend_json(char *buf, size_t cap)
+{
+    db_ota_web_t web;
+    bool own = db_ota_web(&web);
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_int(&j, "api", DB_WEB_API);
+    db_json_str(&j, "source", own ? "partition" : "builtin");
+    if (own) {
+        db_json_str(&j, "version", web.version);
+        db_json_int(&j, "api_min", web.api_min);
+        db_json_int(&j, "size", (int64_t)web.len);
+    }
+    db_json_obj_close(&j);
+    return db_json_end(&j);
+}
+
+esp_err_t get_frontend(httpd_req_t *req)
+{
+    return send_built(req, 256, frontend_json);
+}
+
+#define FRONTEND_MAX (1024 * 1024) /* the www partition */
+
+esp_err_t put_frontend(httpd_req_t *req)
+{
+    size_t len = req->content_len;
+    uint8_t *img = len && len <= FRONTEND_MAX ? heap_caps_malloc(len, MALLOC_CAP_SPIRAM) : NULL;
+    if (!img) {
+        return send_error(req, len > FRONTEND_MAX ? "413 Content Too Large" : "400 Bad Request",
+                          "a .dbfw file expected");
+    }
+    for (size_t have = 0; have < len;) {
+        int n = httpd_req_recv(req, (char *)img + have, len - have);
+        if (n <= 0) {
+            heap_caps_free(img);
+            return send_error(req, "400 Bad Request", "upload interrupted");
+        }
+        have += (size_t)n;
+    }
+    esp_err_t err = db_ota_web_store(img, len, DB_WEB_API);
+    if (err != ESP_OK) {
+        heap_caps_free(img);
+        return send_error(req, "400 Bad Request",
+                          err == ESP_ERR_INVALID_VERSION ? "needs a newer firmware" : esp_err_to_name(err));
+    }
+    return send_built(req, 256, frontend_json);
+}
+
+esp_err_t delete_frontend(httpd_req_t *req)
+{
+    esp_err_t err = db_ota_web_erase();
+    return err == ESP_OK ? send_built(req, 256, frontend_json)
+                         : send_error(req, "500 Internal Server Error", esp_err_to_name(err));
 }
 
 /* POST /api/slots/<n>/boot */

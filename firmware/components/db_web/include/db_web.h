@@ -10,6 +10,10 @@
  * the bridge so phones open the page by themselves.
  */
 
+/* Version of the API a page in the `www` partition may ask for (api_min in its .dbfw header). Raise it when a
+ * route or field the page relies on changes. */
+#define DB_WEB_API 1
+
 /* `status_json` writes the body of /api/status; `state_json` the web socket's state message, which leaves out
  * what changes all the time. */
 esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap),

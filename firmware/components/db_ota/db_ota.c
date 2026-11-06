@@ -24,6 +24,7 @@
 #define C6_CHUNK      1400
 #define TARGET_P4     1
 #define TARGET_C6     2
+#define TARGET_WEB    3
 #define CONFIRM_WAIT  120
 #define CONFIRM_AFTER 20
 /* Raise it with a security fix: files with a lower level are refused even when signed. dbfw.py reads it. */
@@ -114,7 +115,7 @@ void db_ota_abort(const char *why)
     finish();
 }
 
-static bool signature_ok(void)
+static bool signature_ok(const uint8_t *header)
 {
     if (psa_crypto_init() != PSA_SUCCESS) {
         return false;
@@ -128,8 +129,8 @@ static bool signature_ok(void)
     if (psa_import_key(&attr, db_ota_pubkey, sizeof(db_ota_pubkey), &key) != PSA_SUCCESS) {
         return false;
     }
-    psa_status_t st = psa_verify_message(key, PSA_ALG_ECDSA(PSA_ALG_SHA_256), s.header, SIGNED_LEN,
-                                         s.header + SIGNED_LEN, 64);
+    psa_status_t st =
+        psa_verify_message(key, PSA_ALG_ECDSA(PSA_ALG_SHA_256), header, SIGNED_LEN, header + SIGNED_LEN, 64);
     psa_destroy_key(key);
     return st == PSA_SUCCESS;
 }
@@ -176,7 +177,7 @@ static esp_err_t start_payload(void)
     if (s.target != TARGET_P4 && s.target != TARGET_C6) {
         return ESP_ERR_NOT_SUPPORTED;
     }
-    if (!signature_ok()) {
+    if (!signature_ok(s.header)) {
         return ESP_ERR_INVALID_CRC;
     }
     memcpy(&s.level, s.header + 6, 2);
@@ -447,8 +448,8 @@ int db_ota_slots(db_ota_slot_t *out, int max)
         }
         snprintf(o->version, sizeof(o->version), "%s", d.version);
         snprintf(o->built, sizeof(o->built), "%s %s", d.date, d.time);
-        /* not in otadata (flashed over USB, or written before the last USB flash): only the running one is known
-         * to work */
+        /* not in otadata (flashed over USB, or written before the last USB flash): only the running one is
+         * known to work */
         o->state = esp_ota_get_state_partition(p, &st) != ESP_OK ? (o->running ? "valid" : "unknown")
                    : st == ESP_OTA_IMG_PENDING_VERIFY || st == ESP_OTA_IMG_NEW ? "pending"
                    : st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED    ? "invalid"
@@ -479,4 +480,105 @@ esp_err_t db_ota_boot_slot(int slot)
         xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL);
     }
     return err;
+}
+
+/* The web page: a whole .dbfw image with target web, kept in PSRAM. Readers and db_ota_web_store run one at a
+ * time (the web server's lock). */
+static uint8_t *web_img;
+
+static const esp_partition_t *www(void)
+{
+    return esp_partition_find_first(ESP_PARTITION_TYPE_DATA, 0x40, "www");
+}
+
+static esp_err_t check_web(const uint8_t *img, size_t len, uint16_t api)
+{
+    uint32_t n;
+    uint16_t api_min;
+    if (len <= HEADER_LEN || memcmp(img, "DBFW", 4) != 0 || img[4] != 1 || img[5] != TARGET_WEB) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    memcpy(&n, img + 8, 4);
+    memcpy(&api_min, img + 6, 2);
+    uint8_t sha[32];
+    size_t sha_len;
+    if (n != len - HEADER_LEN) {
+        return ESP_ERR_INVALID_SIZE;
+    }
+    if (!signature_ok(img) ||
+        psa_hash_compute(PSA_ALG_SHA_256, img + HEADER_LEN, n, sha, sizeof(sha), &sha_len) != PSA_SUCCESS ||
+        memcmp(sha, img + 44, sizeof(sha)) != 0) {
+        return ESP_ERR_INVALID_CRC;
+    }
+    return api_min > api ? ESP_ERR_INVALID_VERSION : ESP_OK;
+}
+
+void db_ota_web_load(uint16_t api)
+{
+    const esp_partition_t *part = www();
+    uint8_t head[HEADER_LEN];
+    uint32_t n = 0;
+    if (!part || esp_partition_read(part, 0, head, sizeof(head)) != ESP_OK || memcmp(head, "DBFW", 4) != 0) {
+        return; /* empty: the page built into the firmware */
+    }
+    memcpy(&n, head + 8, 4);
+    uint8_t *img = n <= part->size - HEADER_LEN ? heap_caps_malloc(HEADER_LEN + n, MALLOC_CAP_SPIRAM) : NULL;
+    esp_err_t err = img ? esp_partition_read(part, 0, img, HEADER_LEN + n) : ESP_ERR_INVALID_SIZE;
+    if (err == ESP_OK) {
+        err = check_web(img, HEADER_LEN + n, api);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "web page in the partition not used: %s", esp_err_to_name(err));
+        heap_caps_free(img);
+        return;
+    }
+    web_img = img;
+    ESP_LOGI(TAG, "web page %.32s from the partition", (const char *)img + 12);
+}
+
+esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api)
+{
+    const esp_partition_t *part = www();
+    esp_err_t err = part ? check_web(img, len, api) : ESP_ERR_NOT_FOUND;
+    if (err == ESP_OK && len > part->size) {
+        err = ESP_ERR_INVALID_SIZE;
+    }
+    if (err == ESP_OK) {
+        err = esp_partition_erase_range(part, 0, (len + 4095) & ~4095u);
+    }
+    if (err == ESP_OK) {
+        err = esp_partition_write(part, 0, img, len);
+    }
+    if (err != ESP_OK) {
+        return err;
+    }
+    heap_caps_free(web_img);
+    web_img = img;
+    return ESP_OK;
+}
+
+esp_err_t db_ota_web_erase(void)
+{
+    const esp_partition_t *part = www();
+    esp_err_t err = part ? esp_partition_erase_range(part, 0, 4096) : ESP_ERR_NOT_FOUND;
+    if (err == ESP_OK) {
+        heap_caps_free(web_img);
+        web_img = NULL;
+    }
+    return err;
+}
+
+bool db_ota_web(db_ota_web_t *out)
+{
+    if (!web_img) {
+        return false;
+    }
+    memcpy(&out->api_min, web_img + 6, 2);
+    uint32_t n;
+    memcpy(&n, web_img + 8, 4);
+    out->len = n;
+    out->gz = web_img + HEADER_LEN;
+    out->sha = web_img + 44;
+    out->version = (const char *)web_img + 12;
+    return true;
 }

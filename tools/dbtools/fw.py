@@ -4,6 +4,8 @@ uv run python -m dbtools.fw deploy [--slot N] [--no-boot]   sign firmware/build/
 uv run python -m dbtools.fw use N                         boot slot N and wait until it answers
 uv run python -m dbtools.fw build REV                     build REV in a cached worktree, keep the signed image
 uv run python -m dbtools.fw ab REV_A REV_B                A into one bench slot and started, B into the other
+uv run python -m dbtools.fw web [--erase]                 sign db_web/index.html into the www partition, served
+                                                          at once; --erase goes back to the page in the firmware
 
 Slots 2 and 3 are the bench slots, so the firmware in 0 and 1 stays as it is. Switching back from a firmware
 older than the slots API needs a deploy, because it cannot boot a slot by choice. tools/flash.sh stays for
@@ -150,6 +152,7 @@ def main() -> None:
     ab = sub.add_parser("ab")
     ab.add_argument("a")
     ab.add_argument("b")
+    sub.add_parser("web").add_argument("--erase", action="store_true")
     a = ap.parse_args()
     if a.cmd == "deploy":
         signed = sign((ROOT / "firmware/build/deckbridge.bin").read_bytes())
@@ -158,6 +161,11 @@ def main() -> None:
         use(a.slot)
     elif a.cmd == "build":
         build(a.rev)
+    elif a.cmd == "web":
+        key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
+        start = time.time()
+        print(*(api("DELETE", "/api/frontend") if a.erase else api("PUT", "/api/frontend", dbfw.web_image(key))))
+        print(f"{time.time() - start:.1f} s")
     else:
         images = build(a.a), build(a.b)
         first = bench_slot(set())

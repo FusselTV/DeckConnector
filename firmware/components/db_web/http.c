@@ -9,6 +9,7 @@
 #include "db_config.h"
 #include "db_json.h"
 #include "db_net.h"
+#include "db_ota.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -36,8 +37,8 @@ static const char *TAG = "web";
 extern const char index_gz_start[] asm("_binary_index_html_gz_start");
 extern const char index_gz_end[] asm("_binary_index_html_gz_end");
 
-httpd_uri_t web_uris[32];
-route_t web_routes[32];
+httpd_uri_t web_uris[36];
+route_t web_routes[36];
 size_t web_route_count;
 static SemaphoreHandle_t handler_lock;
 
@@ -94,17 +95,20 @@ void restart_soon(void)
     xTaskCreate(restart_task, "web_restart", 2048, NULL, 5, NULL);
 }
 
-/* The page itself is public; it shows the login form until /api/status answers. It only changes with the
- * firmware, so its ETag is the firmware's hash and a browser that has it gets 304. Only the gzip copy is
- * kept: every browser takes it. */
+/* The page itself is public; it shows the login form until /api/status answers. It comes from the `www`
+ * partition when one is there, else from the firmware; its ETag is that copy's hash, so a browser that has it
+ * gets 304. Only the gzip copy is kept: every browser takes it. */
 static esp_err_t page(httpd_req_t *req)
 {
     char etag[20];
+    db_ota_web_t web;
+    bool own = db_ota_web(&web);
 #if CONFIG_IDF_TARGET_LINUX
-    static const uint8_t sha[8] = {0}; /* the simulator restarts with every build */
+    static const uint8_t app_sha[8] = {0}; /* the simulator restarts with every build */
 #else
-    const uint8_t *sha = esp_app_get_description()->app_elf_sha256;
+    const uint8_t *app_sha = esp_app_get_description()->app_elf_sha256;
 #endif
+    const uint8_t *sha = own ? web.sha : app_sha;
     snprintf(etag, sizeof(etag), "\"%02x%02x%02x%02x%02x%02x%02x%02x\"", sha[0], sha[1], sha[2], sha[3],
              sha[4], sha[5], sha[6], sha[7]);
     char given[sizeof(etag)] = {0};
@@ -117,7 +121,8 @@ static esp_err_t page(httpd_req_t *req)
     }
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-    return httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
+    return own ? httpd_resp_send(req, (const char *)web.gz, web.len)
+               : httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
 }
 
 /* A reply built into a heap buffer; build returns 0 when it does not fit. */
@@ -367,6 +372,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     cfg.lru_purge_enable = true;
     cfg.recv_wait_timeout =
         2; /* a client that stops halfway through its headers blocks the server this long */
+    db_ota_web_load(DB_WEB_API);
     httpd_handle_t server;
     esp_err_t err = httpd_start(&server, &cfg);
     if (err != ESP_OK) {
@@ -410,6 +416,9 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout}, WEB_OPEN},
         {{.uri = "/api/profile", .method = HTTP_GET, .handler = get_profile}, WEB_ADMIN},
         {{.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics}, WEB_CONTROL},
+        {{.uri = "/api/frontend", .method = HTTP_GET, .handler = get_frontend}, WEB_CONTROL},
+        {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_ADMIN},
+        {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_ADMIN},
     };
     _Static_assert(sizeof(list) / sizeof(list[0]) <= sizeof(web_uris) / sizeof(web_uris[0]),
                    "more routes than slots");

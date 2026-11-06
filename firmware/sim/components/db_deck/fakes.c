@@ -137,6 +137,21 @@ esp_err_t db_ota_boot_slot(int slot)
 {
     return ESP_ERR_NOT_SUPPORTED;
 }
+void db_ota_web_load(uint16_t api)
+{
+}
+esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api)
+{
+    return ESP_ERR_NOT_SUPPORTED; /* no partition: the device tests cover it */
+}
+esp_err_t db_ota_web_erase(void)
+{
+    return ESP_OK;
+}
+bool db_ota_web(db_ota_web_t *out)
+{
+    return false;
+}
 
 size_t db_log_read(char *buf, size_t cap)
 {

@@ -52,3 +52,24 @@ int db_ota_slots(db_ota_slot_t *out, int max);
 
 /* Start slot `slot` after a restart. Refused for an invalid image or one below the security level. */
 esp_err_t db_ota_boot_slot(int slot);
+
+/*
+ * The web page from the `www` partition: a signed .dbfw image with target web. It is used only when its key,
+ * hash and api_min (at most `api`) fit; otherwise the page built into the firmware is served.
+ */
+typedef struct {
+    const uint8_t *gz; /* gzip of index.html */
+    size_t len;
+    const uint8_t *sha; /* SHA-256 of gz */
+    const char *version;
+    uint16_t api_min;
+} db_ota_web_t;
+
+/* Read the partition at start. */
+void db_ota_web_load(uint16_t api);
+/* Check a whole image and write it to the partition. On ESP_OK it is served from now on and owns `img`
+ * (heap_caps_malloc). Callers run one at a time with db_ota_web(). */
+esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api);
+esp_err_t db_ota_web_erase(void);
+/* The page in use from the partition; false for the built-in one. */
+bool db_ota_web(db_ota_web_t *out);

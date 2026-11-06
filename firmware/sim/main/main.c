@@ -18,6 +18,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_str(&j, "t", t);
     db_json_str(&j, "firmware", "sim");
     db_json_str(&j, "controller", "companion");
+    db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
     db_json_int(&j, "uptime_s", 0);

@@ -18,12 +18,29 @@ from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 MAGIC = b"DBFW"
 FORMAT = 1
-TARGETS = {"p4": 1, "c6": 2}
+TARGETS = {"p4": 1, "c6": 2, "web": 3}  # web: the page for the www partition, level holds api_min
 HEADER = struct.Struct("<4sBBHI32s32s")  # signed part, 76 bytes
 HEADER_LEN = 144
 KEY = Path.home() / ".config/deckbridge/ota_key.pem"
 PUBKEY_C = Path(__file__).resolve().parents[2] / "firmware/components/db_ota/ota_pubkey.c"
 OTA_C = PUBKEY_C.with_name("db_ota.c")
+
+
+def web_api() -> int:
+    """The API version of the firmware in this tree: a page packed here needs at least that one."""
+    text = (OTA_C.parents[1] / "db_web/include/db_web.h").read_text()
+    return int(re.search(r"#define DB_WEB_API (\d+)", text)[1])
+
+
+def web_image(key) -> bytes:
+    """index.html gzipped as the firmware build does it, signed for the www partition."""
+    import gzip
+    import subprocess
+
+    page = (OTA_C.parents[1] / "db_web/index.html").read_bytes()
+    rev = subprocess.run(["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=OTA_C.parent)
+    version = f"web {rev.stdout.strip()} {hashlib.sha256(page).hexdigest()[:6]}"
+    return build("web", gzip.compress(page, 9, mtime=0), version, key, web_api())
 
 
 def security_level() -> int:
