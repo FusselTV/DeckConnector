@@ -61,6 +61,7 @@ static struct {
         size_t len;
     } feature[DB_SOURCE_COUNT]; /* last feature report (brightness) of a source that was not the writer */
     bool replay;
+    uint8_t waiting; /* a second device that came while the deck was open */
 } s;
 
 static void *psram_realloc(void *ptr, size_t size)
@@ -234,7 +235,11 @@ static void handle_attach(uint8_t address)
     }
     uint16_t vid;
     uint16_t pid;
-    if (usb_port_open(address, &vid, &pid) != ESP_OK) {
+    esp_err_t opened = usb_port_open(address, &vid, &pid);
+    if (opened != ESP_OK) {
+        if (opened == ESP_ERR_INVALID_STATE) {
+            s.waiting = address; /* ponytail: one waiting device, a list when several decks work */
+        }
         return;
     }
     const db_driver_t *driver = db_driver_find(vid, pid);
@@ -276,6 +281,8 @@ static void handle_attach(uint8_t address)
     }
 }
 
+static void on_attached(uint8_t address);
+
 static void handle_detach(void)
 {
     ESP_LOGW(TAG, "device unplugged");
@@ -287,6 +294,10 @@ static void handle_detach(void)
     usb_port_close();
     xSemaphoreGive(s.io_lock);
     notify_device(NULL); /* the kept pictures stay: the same deck plugged in again shows them at once */
+    if (s.waiting) {
+        on_attached(s.waiting);
+        s.waiting = 0;
+    }
 }
 
 static bool input_real;
