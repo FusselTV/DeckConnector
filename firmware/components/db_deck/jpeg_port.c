@@ -18,7 +18,9 @@ static SemaphoreHandle_t lock; /* the UI and the Satellite client encode, the we
 
 void jpeg_port_init(void)
 {
-    lock = xSemaphoreCreateMutex();
+    if (!lock) {
+        lock = xSemaphoreCreateMutex();
+    }
 }
 
 uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h)

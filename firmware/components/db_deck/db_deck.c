@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
+#include "jpeg_port.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -69,6 +70,36 @@ static void *psram_realloc(void *ptr, size_t size)
     return heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM);
 }
 
+/* One display behind all keys: a host that draws only its keys leaves the pixels around them as the last
+ * writer painted them, so the whole display goes black first. */
+static void clear_display(void)
+{
+    const db_display_t *d = &s.dev.info.displays[0];
+    const db_target_t *full = NULL;
+    for (uint8_t i = 0; i < d->target_count && !full; i++) {
+        full = d->targets[i].kind == DB_TARGET_FULL ? &d->targets[i] : NULL;
+    }
+    if (!full) {
+        return;
+    }
+    static uint8_t *black;
+    static size_t black_len;
+    if (!black) {
+        uint8_t *rgb = jpeg_port_alloc_rgb(full->rect.w, full->rect.h);
+        if (rgb) {
+            memset(rgb, 0, (size_t)full->rect.w * full->rect.h * 3);
+            jpeg_port_init();
+            jpeg_port_encode(rgb, full->rect.w, full->rect.h, 80, &black, &black_len);
+            heap_caps_free(rgb);
+        }
+    }
+    if (black) {
+        xSemaphoreTake(s.io_lock, portMAX_DELAY);
+        s.dev.driver->write_image(&s.dev, full, full->rect, black, black_len);
+        xSemaphoreGive(s.io_lock);
+    }
+}
+
 /* Draw again everything the new writer had on the deck, before anything new it sends. The UI is left out: it
  * draws a fresh screen whenever it takes over. */
 /* Runs in the writer task, so images that arrive meanwhile are drawn after it. Each image is copied out: the
@@ -92,6 +123,7 @@ static void replay(void)
     if (!present) {
         return;
     }
+    clear_display();
     if (feature_len) {
         xSemaphoreTake(s.io_lock, portMAX_DELAY);
         usb_port_io()->set_feature(feature, feature_len);
