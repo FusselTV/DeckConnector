@@ -234,12 +234,20 @@ static esp_err_t hub_port_power(const usb_parent_dev_info_t *parent, bool on)
     return err;
 }
 
+static esp_err_t port_power(const usb_parent_dev_info_t *hub, bool on)
+{
+    return hub->dev_hdl ? hub_port_power(hub, on) : usb_host_lib_set_root_port_power(on);
+}
+
 esp_err_t usb_port_replug(uint8_t address)
 {
     usb_device_info_t info = {0};
-    usb_device_handle_t dev = s.dev;
+    usb_device_handle_t dev = address ? NULL : s.dev; /* with an address only that device, never ours instead */
     bool opened = address && usb_host_device_open(s.client, address, &dev) == ESP_OK;
-    if (dev) {
+    if (address && !opened) {
+        return ESP_ERR_NOT_FOUND;
+    }
+    if (dev) { /* none: the root port, which also wakes a deck that never came up */
         usb_host_device_info(dev, &info);
     }
     if (opened) {
@@ -247,15 +255,21 @@ esp_err_t usb_port_replug(uint8_t address)
     }
     /* a port without power is a pulled cable to the host stack: the device goes, and comes back enumerated anew.
      * Behind a hub only the deck's own port, so other decks on that hub stay. */
-    if (info.parent.dev_hdl) {
-        ESP_LOGI(TAG, "power cycling hub port %u", info.parent.port_num);
-        ESP_RETURN_ON_ERROR(hub_port_power(&info.parent, false), TAG, "hub port off");
-        vTaskDelay(pdMS_TO_TICKS(500));
-        return hub_port_power(&info.parent, true);
-    }
-    ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
+    ESP_LOGI(TAG, "power cycling %s port %u", info.parent.dev_hdl ? "hub" : "root", info.parent.port_num);
+    ESP_RETURN_ON_ERROR(port_power(&info.parent, false), TAG, "port off");
     vTaskDelay(pdMS_TO_TICKS(500));
-    return usb_host_lib_set_root_port_power(true);
+    esp_err_t err = ESP_FAIL;
+    for (int i = 0; i < 3 && err != ESP_OK; i++) { /* off and never on again: the deck stays dark until a reboot */
+        err = port_power(&info.parent, true);
+        if (err != ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+    }
+    if (err != ESP_OK) {
+        s.errors++;
+        ESP_LOGE(TAG, "the deck's port stays without power: %s", esp_err_to_name(err));
+    }
+    return err;
 }
 
 esp_err_t usb_port_start(const usb_port_cb_t *cb)
