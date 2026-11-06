@@ -1,5 +1,5 @@
-"""Boot and connection times after a power cut, as regression tests. A hardware reset over the serial bridge
-stands in for the power cut, so these run only on the bench: `pytest -m boot`.
+"""Boot and connection times after a power cut, as regression tests, only on the bench: `pytest -m boot`. The cut
+is a reset over the serial bridge, or a real one over PoE (DECKBRIDGE_POWER_CUT=poe, DECKBRIDGE_USB_UNPLUGGED=1).
 
 The bridge records each milestone itself (`boot_ms` in /api/status, ms since the app started; the bootloader
 before that takes about 1.3 s). Budgets are about 1.5 times what the bench measured.
@@ -18,11 +18,12 @@ pytestmark = pytest.mark.boot
 
 TOOLS = Path(__file__).resolve().parents[1]
 BUDGET_MS = {
-    "deck": 1500,
+    "deck": 3500,  # a real cut starts the deck cold: 2.3 s, against 1 s after a serial reset
     "lan_link": 4000,
     "wlan_ip": 9000,
     "lan_ip": 11000,
     "companion": 13000,
+    "satellite": 13000,
     "host_draws": 13000,
     "app": 16000,
 }
@@ -64,12 +65,13 @@ def boot_marks(wait_for: set, secs: float = 45) -> dict:
 
 @pytest.mark.parametrize("run", range(3))
 def test_power_cut_to_the_hosts_picture(run):
-    time.sleep(8)  # the hosts of the run before may still be connecting
+    # the hosts of the run before may still be connecting; real cuts stay a minute apart for the hardware
+    time.sleep(60 if os.environ.get("DECKBRIDGE_POWER_CUT") == "poe" else 8)
     status = json.loads(api("GET", "/api/status")[1])
     assert status["controller"] == "companion", "the budgets are for Companion drawing"
     # a host counts when it was there before the cut: it must come back
-    there = {x["kind"] for x in status["sources"] if x["connected"]}
-    wanted = {k: v for k, v in BUDGET_MS.items() if k not in ("companion", "app") or k in there}
+    there = {x.get("via") or x["kind"] for x in status["sources"] if x["connected"]}
+    wanted = {k: v for k, v in BUDGET_MS.items() if k not in ("companion", "satellite", "app") or k in there}
     power_cut()
     time.sleep(3)
     marks = boot_marks(set(wanted))
