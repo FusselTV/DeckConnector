@@ -1,0 +1,740 @@
+{
+ "runs": [
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 7
+    },
+    "tcpip": {
+     "cpu_busy": 1
+    },
+    "sdio_read": {
+     "cpu_busy": 1
+    }
+   },
+   "memory_before": {
+    "heap_free": 243055,
+    "heap_min_free": 147591,
+    "psram_free": 30991748,
+    "heap_largest": 155648,
+    "psram_largest": 29360128,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40,
+    "stack_free": {
+     "httpd": 9340,
+     "IDLE0": 1152,
+     "IDLE1": 1152,
+     "satellite": 15444,
+     "tcpip": 1996,
+     "link0": 2348,
+     "mdns": 2924,
+     "link1": 4168,
+     "dock_ka": 1668,
+     "link_sup": 2936,
+     "dock_host": 2028,
+     "dock_dev": 1788,
+     "link2": 4996,
+     "link3": 4992,
+     "events": 1720,
+     "dock_dev_port": 1680,
+     "usb_lib": 3336,
+     "deck_events": 2876,
+     "ipc0": 660,
+     "ipc1": 644,
+     "ui": 4220,
+     "eh_rpc_tx": 3152,
+     "sdio_write": 3148,
+     "eh_rpc_rx": 1336,
+     "link_tx": 3244,
+     "sdio_read": 3116,
+     "sdio_rx_buf": 3324,
+     "sdio_process_rx": 2892,
+     "usb_client": 3676,
+     "deck_writer": 2416,
+     "esp_timer": 1908,
+     "Tmr Svc": 1648,
+     "emac_rx": 3532,
+     "sys_evt": 1764,
+     "dns": 1628,
+     "dock_port": 1640
+    }
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 3.36,
+     "p95": 3.56
+    },
+    "/api/config": {
+     "p50": 1.06,
+     "p95": 1.25
+    },
+    "/api/screen": {
+     "p50": 1.45,
+     "p95": 1.6
+    },
+    "/api/screen.jpg": {
+     "p50": 5.82,
+     "p95": 6.89
+    },
+    "/api/metrics": {
+     "p50": 1.21,
+     "p95": 1.36
+    },
+    "/api/slots": {
+     "p50": 2.4,
+     "p95": 2.65
+    },
+    "/": {
+     "p50": 6.2,
+     "p95": 6.72
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.18,
+     "p95": 1.31
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 294.7,
+     "errors": 0,
+     "p50": 3.3,
+     "p95": 3.71
+    },
+    "/api/status x4": {
+     "rps": 325.4,
+     "errors": 0,
+     "p50": 9.33,
+     "p95": 18.71
+    },
+    "/api/status x8": {
+     "rps": 328.4,
+     "errors": 0,
+     "p50": 24.02,
+     "p95": 41.7
+    },
+    "/api/screen x1": {
+     "rps": 665.3,
+     "errors": 0,
+     "p50": 1.45,
+     "p95": 1.63
+    },
+    "/api/screen x4": {
+     "rps": 786.3,
+     "errors": 0,
+     "p50": 3.99,
+     "p95": 7.82
+    },
+    "/api/screen x8": {
+     "rps": 802.0,
+     "errors": 0,
+     "p50": 8.98,
+     "p95": 17.39
+    },
+    "/api/screen.jpg x1": {
+     "rps": 155.2,
+     "errors": 0,
+     "p50": 5.81,
+     "p95": 6.7
+    },
+    "/api/screen.jpg x4": {
+     "rps": 219.6,
+     "errors": 0,
+     "p50": 8.01,
+     "p95": 16.76
+    },
+    "/api/screen.jpg x8": {
+     "rps": 201.0,
+     "errors": 0,
+     "p50": 8.15,
+     "p95": 55.37
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 5.75,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 79.29,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 84.48,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 103.04,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.42,
+    "p95": 3.09
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.69,
+     "p95": 2.8
+    },
+    "input_event": {
+     "p50": 5.05,
+     "p95": 6.74
+    }
+   },
+   "memory_after": {
+    "heap_free": 243035,
+    "heap_min_free": 127623,
+    "psram_free": 30985088,
+    "heap_largest": 155648,
+    "psram_largest": 29360128,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40,
+    "stack_free": {
+     "httpd": 9340,
+     "IDLE1": 1152,
+     "IDLE0": 1152,
+     "tcpip": 1996,
+     "link2": 4980,
+     "link3": 4992,
+     "satellite": 15444,
+     "events": 1720,
+     "link0": 2348,
+     "deck_writer": 2416,
+     "mdns": 2852,
+     "link1": 4168,
+     "link_sup": 2872,
+     "dock_ka": 1668,
+     "dock_host": 2028,
+     "dock_dev": 1892,
+     "ui": 4220,
+     "sdio_read": 3116,
+     "sdio_rx_buf": 3324,
+     "sdio_process_rx": 2892,
+     "dns": 1628,
+     "dock_port": 1640,
+     "dock_dev_port": 1680,
+     "esp_timer": 1892,
+     "usb_lib": 3336,
+     "Tmr Svc": 1648,
+     "ipc0": 628,
+     "deck_events": 2876,
+     "eh_rpc_tx": 3152,
+     "ipc1": 628,
+     "link_tx": 3244,
+     "emac_rx": 3532,
+     "sys_evt": 1764,
+     "usb_client": 3676,
+     "sdio_write": 3148,
+     "eh_rpc_rx": 1288
+    }
+   },
+   "size": {
+    "app": 1500656,
+    "ram_static": 169476
+   },
+   "firmware": "v0.1.0-50-g332aa70",
+   "at": "2026-11-06 02:15:53"
+  },
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 7
+    },
+    "tcpip": {
+     "cpu_busy": 1
+    }
+   },
+   "memory_before": {
+    "heap_free": 243043,
+    "heap_min_free": 127623,
+    "psram_free": 30989936,
+    "heap_largest": 155648,
+    "psram_largest": 29360128,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40,
+    "stack_free": {
+     "httpd": 9340,
+     "IDLE0": 1152,
+     "IDLE1": 1152,
+     "events": 1720,
+     "link_sup": 2872,
+     "dock_ka": 1668,
+     "mdns": 2852,
+     "link1": 4168,
+     "link2": 4980,
+     "link3": 4992,
+     "satellite": 15444,
+     "link0": 2348,
+     "dock_host": 2028,
+     "dock_dev": 1772,
+     "tcpip": 1996,
+     "Tmr Svc": 1648,
+     "ipc0": 628,
+     "deck_events": 2876,
+     "ipc1": 628,
+     "link_tx": 3244,
+     "ui": 4220,
+     "eh_rpc_tx": 3152,
+     "sdio_write": 3148,
+     "eh_rpc_rx": 1288,
+     "usb_client": 3676,
+     "deck_writer": 2416,
+     "sdio_read": 3116,
+     "sdio_rx_buf": 3324,
+     "sdio_process_rx": 2892,
+     "dns": 1628,
+     "esp_timer": 1892,
+     "dock_port": 1640,
+     "emac_rx": 3532,
+     "sys_evt": 1764,
+     "dock_dev_port": 1680,
+     "usb_lib": 3336
+    }
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 3.34,
+     "p95": 3.83
+    },
+    "/api/config": {
+     "p50": 1.04,
+     "p95": 1.17
+    },
+    "/api/screen": {
+     "p50": 1.44,
+     "p95": 1.66
+    },
+    "/api/screen.jpg": {
+     "p50": 5.87,
+     "p95": 39.27
+    },
+    "/api/metrics": {
+     "p50": 1.47,
+     "p95": 1.63
+    },
+    "/api/slots": {
+     "p50": 2.42,
+     "p95": 2.57
+    },
+    "/": {
+     "p50": 6.25,
+     "p95": 7.18
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.19,
+     "p95": 1.55
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 255.1,
+     "errors": 0,
+     "p50": 3.31,
+     "p95": 3.57
+    },
+    "/api/status x4": {
+     "rps": 324.6,
+     "errors": 0,
+     "p50": 9.34,
+     "p95": 18.69
+    },
+    "/api/status x8": {
+     "rps": 328.5,
+     "errors": 0,
+     "p50": 23.99,
+     "p95": 42.02
+    },
+    "/api/screen x1": {
+     "rps": 675.4,
+     "errors": 0,
+     "p50": 1.44,
+     "p95": 1.61
+    },
+    "/api/screen x4": {
+     "rps": 790.8,
+     "errors": 0,
+     "p50": 3.98,
+     "p95": 7.79
+    },
+    "/api/screen x8": {
+     "rps": 805.0,
+     "errors": 0,
+     "p50": 8.87,
+     "p95": 17.34
+    },
+    "/api/screen.jpg x1": {
+     "rps": 156.8,
+     "errors": 0,
+     "p50": 5.75,
+     "p95": 6.42
+    },
+    "/api/screen.jpg x4": {
+     "rps": 195.7,
+     "errors": 0,
+     "p50": 7.97,
+     "p95": 18.97
+    },
+    "/api/screen.jpg x8": {
+     "rps": 206.4,
+     "errors": 0,
+     "p50": 8.46,
+     "p95": 54.34
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 11.47,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 84.98,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 89.53,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 94.55,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.41,
+    "p95": 2.9
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.75,
+     "p95": 2.73
+    },
+    "input_event": {
+     "p50": 5.0,
+     "p95": 6.32
+    }
+   },
+   "memory_after": {
+    "heap_free": 238803,
+    "heap_min_free": 127623,
+    "psram_free": 30984944,
+    "heap_largest": 155648,
+    "psram_largest": 30408704,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40,
+    "stack_free": {
+     "deck_writer": 2400,
+     "httpd": 9340,
+     "IDLE1": 1152,
+     "IDLE0": 1152,
+     "tcpip": 1996,
+     "events": 1672,
+     "link0": 2348,
+     "mdns": 2852,
+     "link3": 4992,
+     "link2": 4980,
+     "satellite": 15444,
+     "link1": 4168,
+     "dock_ka": 1668,
+     "link_sup": 2872,
+     "dock_dev": 1892,
+     "dock_host": 2028,
+     "ui": 4220,
+     "eh_rpc_rx": 1288,
+     "dock_port": 1640,
+     "dock_dev_port": 1680,
+     "usb_lib": 3336,
+     "sdio_read": 3116,
+     "sdio_rx_buf": 3324,
+     "sdio_process_rx": 2892,
+     "Tmr Svc": 1648,
+     "dns": 1628,
+     "deck_events": 2876,
+     "esp_timer": 1892,
+     "ipc0": 628,
+     "ipc1": 628,
+     "link_tx": 3244,
+     "emac_rx": 3532,
+     "sys_evt": 1764,
+     "usb_client": 3676,
+     "eh_rpc_tx": 3152,
+     "sdio_write": 3148
+    }
+   },
+   "size": {
+    "app": 1500656,
+    "ram_static": 169476
+   },
+   "firmware": "v0.1.0-50-g332aa70",
+   "at": "2026-11-06 02:19:01"
+  },
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 6
+    },
+    "tcpip": {
+     "cpu_busy": 1
+    }
+   },
+   "memory_before": {
+    "heap_free": 243039,
+    "heap_min_free": 127623,
+    "psram_free": 30989968,
+    "heap_largest": 155648,
+    "psram_largest": 30408704,
+    "tasks": 39,
+    "sockets": 14,
+    "sockets_max": 40,
+    "stack_free": {
+     "httpd": 9340,
+     "IDLE1": 1152,
+     "IDLE0": 1152,
+     "mdns": 2852,
+     "events": 1672,
+     "link1": 4168,
+     "tcpip": 1996,
+     "dock_ka": 1668,
+     "link0": 2348,
+     "link_sup": 2872,
+     "dock_host": 2028,
+     "dock_dev": 1772,
+     "link3": 4992,
+     "link2": 4980,
+     "satellite": 15444,
+     "dns": 1628,
+     "deck_events": 2876,
+     "ipc0": 628,
+     "ipc1": 628,
+     "link_tx": 3244,
+     "ui": 4220,
+     "eh_rpc_tx": 3152,
+     "sdio_write": 3148,
+     "eh_rpc_rx": 1288,
+     "sdio_read": 3116,
+     "sdio_rx_buf": 3324,
+     "sdio_process_rx": 2892,
+     "usb_client": 3676,
+     "deck_writer": 2400,
+     "esp_timer": 1892,
+     "dock_port": 1640,
+     "dock_dev_port": 1680,
+     "emac_rx": 3532,
+     "sys_evt": 1764,
+     "usb_lib": 3336,
+     "Tmr Svc": 1648
+    }
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 3.29,
+     "p95": 3.91
+    },
+    "/api/config": {
+     "p50": 1.05,
+     "p95": 1.51
+    },
+    "/api/screen": {
+     "p50": 1.44,
+     "p95": 1.61
+    },
+    "/api/screen.jpg": {
+     "p50": 5.94,
+     "p95": 7.3
+    },
+    "/api/metrics": {
+     "p50": 1.69,
+     "p95": 1.86
+    },
+    "/api/slots": {
+     "p50": 2.4,
+     "p95": 2.62
+    },
+    "/": {
+     "p50": 6.19,
+     "p95": 6.72
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.19,
+     "p95": 1.31
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 295.5,
+     "errors": 0,
+     "p50": 3.31,
+     "p95": 3.62
+    },
+    "/api/status x4": {
+     "rps": 326.8,
+     "errors": 0,
+     "p50": 9.26,
+     "p95": 18.53
+    },
+    "/api/status x8": {
+     "rps": 328.1,
+     "errors": 0,
+     "p50": 24.01,
+     "p95": 41.86
+    },
+    "/api/screen x1": {
+     "rps": 671.9,
+     "errors": 0,
+     "p50": 1.44,
+     "p95": 1.62
+    },
+    "/api/screen x4": {
+     "rps": 788.7,
+     "errors": 0,
+     "p50": 4.01,
+     "p95": 7.84
+    },
+    "/api/screen x8": {
+     "rps": 802.8,
+     "errors": 0,
+     "p50": 8.95,
+     "p95": 17.4
+    },
+    "/api/screen.jpg x1": {
+     "rps": 152.3,
+     "errors": 0,
+     "p50": 5.88,
+     "p95": 6.8
+    },
+    "/api/screen.jpg x4": {
+     "rps": 215.8,
+     "errors": 0,
+     "p50": 8.2,
+     "p95": 48.36
+    },
+    "/api/screen.jpg x8": {
+     "rps": 212.0,
+     "errors": 0,
+     "p50": 8.41,
+     "p95": 61.33
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 11.59,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 82.28,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 78.97,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 96.78,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.43,
+    "p95": 3.13
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.64,
+     "p95": 2.76
+    },
+    "input_event": {
+     "p50": 5.04,
+     "p95": 6.95
+    }
+   },
+   "memory_after": {
+    "heap_free": 247763,
+    "heap_min_free": 127623,
+    "psram_free": 31055388,
+    "heap_largest": 159744,
+    "psram_largest": 30932992,
+    "tasks": 38,
+    "sockets": 13,
+    "sockets_max": 40,
+    "stack_free": {
+     "deck_writer": 2400,
+     "httpd": 9340,
+     "mdns": 2852,
+     "IDLE1": 1152,
+     "IDLE0": 1152,
+     "link0": 2348,
+     "link3": 4992,
+     "link2": 4980,
+     "satellite": 15444,
+     "link1": 4168,
+     "link_sup": 2872,
+     "dock_ka": 1668,
+     "dock_dev": 1772,
+     "dock_host": 2028,
+     "ui": 4220,
+     "events": 1672,
+     "tcpip": 1996,
+     "sdio_write": 3148,
+     "eh_rpc_rx": 1240,
+     "sdio_read": 3116,
+     "sdio_rx_buf": 3324,
+     "sdio_process_rx": 2892,
+     "dock_port": 1640,
+     "dock_dev_port": 1680,
+     "usb_lib": 3336,
+     "Tmr Svc": 1648,
+     "dns": 1628,
+     "ipc0": 628,
+     "deck_events": 2876,
+     "ipc1": 628,
+     "link_tx": 3244,
+     "emac_rx": 3532,
+     "esp_timer": 1892,
+     "usb_client": 3676,
+     "sys_evt": 1764,
+     "eh_rpc_tx": 3152
+    }
+   },
+   "size": {
+    "app": 1500656,
+    "ram_static": 169476
+   },
+   "firmware": "v0.1.0-50-g332aa70",
+   "at": "2026-11-06 02:22:09"
+  }
+ ],
+ "e2e": {
+  "suite": "-m \"not ota and not boot and not unifi\"",
+  "wall_s": [
+   193,
+   178,
+   173
+  ],
+  "runs": 3,
+  "failed": {
+   "test_preview::test_preview_matches_the_deck": 3,
+   "test_setup_qr::test_setup_wlan_qr_code": 3,
+   "test_e2e::test_newest_image_wins": 2,
+   "test_e2e::test_stalled_frame_ends_the_session": 1,
+   "test_e2e::test_partial_strip_and_keys": 1,
+   "test_e2e::test_clock_sync": 1,
+   "test_replug::test_unplug_and_plug_in_again": 1,
+   "test_replug::test_every_usb_address_keeps_the_deck_working": 1
+  }
+ }
+}
