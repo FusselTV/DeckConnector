@@ -1,6 +1,7 @@
 """Input simulated over the web API reaches the server like a real press."""
 
 import asyncio
+import contextlib
 import json
 
 import pytest
@@ -36,17 +37,22 @@ async def test_key_encoder_and_touch_reach_the_server(servers):
     down, up = await next_input(active), await next_input(active)
     assert (down.kind, down.index, up.kind, up.index) == (InputKind.KEY_DOWN, 3, InputKind.KEY_UP, 3)
 
-    assert (await post({"key": 1, "action": "down"}))[0] == 200
-    assert (await post({"key": 6, "action": "down"}))[0] == 200
-    assert (await post({"key": 1, "action": "up"}))[0] == 200
-    got = [await next_input(active) for _ in range(3)]
-    assert [(e.kind, e.index) for e in got] == [
-        (InputKind.KEY_DOWN, 1),
-        (InputKind.KEY_DOWN, 6),
-        (InputKind.KEY_UP, 1),
-    ], "key 6 stays held while key 1 goes up"
-    await post({"key": 6, "action": "up"})
-    await next_input(active)
+    try:
+        assert (await post({"key": 1, "action": "down"}))[0] == 200
+        assert (await post({"key": 6, "action": "down"}))[0] == 200
+        assert (await post({"key": 1, "action": "up"}))[0] == 200
+        got = [await next_input(active) for _ in range(3)]
+        assert [(e.kind, e.index) for e in got] == [
+            (InputKind.KEY_DOWN, 1),
+            (InputKind.KEY_DOWN, 6),
+            (InputKind.KEY_UP, 1),
+        ], "key 6 stays held while key 1 goes up"
+    finally:  # a held key stays held until a reboot and breaks later tests
+        await post({"key": 1, "action": "up"})
+        await post({"key": 6, "action": "up"})
+    with contextlib.suppress(TimeoutError):  # the releases above, until none comes
+        while True:
+            await asyncio.wait_for(active.inputs.get(), 0.5)
 
     assert (await post({"encoder": 2, "action": "turn", "ticks": -3}))[0] == 200
     turn = await next_input(active)
