@@ -352,7 +352,8 @@ static void browse_task(void *arg)
     mdns_result_t *results = NULL;
     db_net_found_t found[FOUND_MAX];
     size_t n = 0;
-    if (mdns_query_ptr("_companion-satellite-tcp", "_tcp", 2000, FOUND_MAX, &results) == ESP_OK) {
+    esp_err_t err = mdns_query_ptr("_companion-satellite-tcp", "_tcp", 2000, FOUND_MAX, &results);
+    if (err == ESP_OK) {
         for (mdns_result_t *r = results; r && n < FOUND_MAX; r = r->next) {
             /* a host also announces its Docker and VPN addresses: one in our subnet first */
             const esp_ip4_addr_t *pick = NULL;
@@ -369,9 +370,14 @@ static void browse_task(void *arg)
         }
         mdns_query_results_free(results);
     }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Companion search failed: %s", esp_err_to_name(err)); /* the last list stays */
+    }
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    memcpy(s.found, found, sizeof(found));
-    s.found_count = n;
+    if (err == ESP_OK) {
+        memcpy(s.found, found, sizeof(found));
+        s.found_count = n;
+    }
     s.browsing = false;
     xSemaphoreGive(s.lock);
     vTaskDelete(NULL);
