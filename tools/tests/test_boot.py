@@ -6,6 +6,7 @@ before that takes about 1.3 s). Budgets are about 1.5 times what the bench measu
 """
 
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -28,7 +29,13 @@ BUDGET_MS = {
 
 
 def power_cut() -> None:
-    """Reset the chip through the serial bridge, and keep logging to /tmp/esp-live.log as tools/flash.sh does."""
+    """A reset through the serial bridge, keeping /tmp/esp-live.log as tools/flash.sh does. With
+    DECKBRIDGE_POWER_CUT=poe a real one over PoE instead, only with the USB serial cable unplugged (poe-test.md)."""
+    if os.environ.get("DECKBRIDGE_POWER_CUT") == "poe":
+        from dbtools.poe import power_cut as poe_cut
+
+        poe_cut()
+        return
     subprocess.run(["pkill", "-f", "[d]btools[.]serlog"], check=False)
     time.sleep(1)
     with open("/tmp/esp-live.log", "w") as log:
