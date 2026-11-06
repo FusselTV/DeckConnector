@@ -334,6 +334,12 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
 }
 
 /* `?slot=N` writes into that app slot, `?boot=0` keeps the running firmware. */
+/* the bridge failed, not the file: the client should not blame its upload */
+static bool device_fault(esp_err_t err)
+{
+    return err == ESP_ERR_NO_MEM || (err >= ESP_ERR_FLASH_BASE && err < ESP_ERR_FLASH_BASE + 0x100);
+}
+
 esp_err_t post_ota(httpd_req_t *req)
 {
     char q[32] = "", v[8];
@@ -392,7 +398,7 @@ esp_err_t post_ota(httpd_req_t *req)
                           "written incompletely: do not power off, write it again or flash over USB");
     }
     if (err != ESP_OK) {
-        return send_error(req, "400 Bad Request", esp_err_to_name(err));
+        return send_error(req, device_fault(err) ? "500 Internal Server Error" : "400 Bad Request", esp_err_to_name(err));
     }
     return send_json(req, db_ota_restarts() ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
 }
@@ -554,7 +560,7 @@ esp_err_t put_frontend(httpd_req_t *req)
         if (err == ESP_FAIL) {
             return send_error(req, "500 Internal Server Error", "page not saved, the built-in one is used after a restart");
         }
-        return send_error(req, "400 Bad Request",
+        return send_error(req, device_fault(err) ? "500 Internal Server Error" : "400 Bad Request",
                           err == ESP_ERR_INVALID_VERSION ? "needs a newer firmware" : esp_err_to_name(err));
     }
     return send_built(req, 256, frontend_json);

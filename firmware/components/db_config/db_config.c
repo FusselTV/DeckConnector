@@ -353,7 +353,9 @@ bool db_config_pin(const char *hex, uint8_t out[32])
 {
     for (int i = 0; hex[0] && i < 32; i++) {
         unsigned b;
-        sscanf(hex + 2 * i, "%2x", &b);
+        if (sscanf(hex + 2 * i, "%2x", &b) != 1) {
+            return false; /* a short or broken pin from newer firmware's blob: no pin rather than garbage */
+        }
         out[i] = (uint8_t)b;
     }
     return hex[0] != '\0';
