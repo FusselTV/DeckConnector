@@ -41,6 +41,8 @@ static struct {
     QueueHandle_t events;
     TaskHandle_t writer_task;
     db_dev_t dev;
+    db_dev_t sim; /* simulated input has its own key states, or a test's held key would turn a person's next
+                   * real report into a release nobody made */
     bool present;
     db_regions_t pending;
     db_source_t writer;
@@ -243,6 +245,7 @@ static void handle_attach(uint8_t address)
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
     s.dev = (db_dev_t){.driver = driver, .io = usb_port_io()};
     db_err_t err = driver->open(&s.dev, vid, pid);
+    s.sim = s.dev;
     xSemaphoreGive(s.io_lock);
     if (err != DB_OK) {
         ESP_LOGW(TAG, "driver %s failed to open the device: %d", driver->name, err);
@@ -298,7 +301,7 @@ bool db_deck_input_real_for(uint32_t peer_ip)
     return input_real && (!input_only_ip || input_only_ip == peer_ip);
 }
 
-static void handle_input(const ev_t *ev)
+static void handle_input(const ev_t *ev, db_dev_t *dev)
 {
     s.stats.inputs++;
     input_real = ev->real;
@@ -309,7 +312,7 @@ static void handle_input(const ev_t *ev)
         }
     }
     db_input_t out[EVENTS_PER_RPT];
-    size_t n = s.dev.driver->parse_input(&s.dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
+    size_t n = dev->driver->parse_input(dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
     for (size_t e = 0; e < n; e++) {
         for (int i = 0; i < s.listener_count; i++) {
             if (s.listeners[i].input && (ev->real || !s.listeners[i].external)) {
@@ -333,17 +336,17 @@ static void event_task(void *arg)
             break;
         case EV_INPUT:
             if (s.present) {
-                handle_input(&ev);
+                handle_input(&ev, &s.dev);
             }
             break;
         case EV_SIMULATE: {
             /* built here, so it starts from the key states every earlier report left */
             db_input_t in;
             memcpy(&in, ev.report, sizeof(in));
-            size_t len = s.present ? s.dev.driver->build_input(&s.dev, &in, ev.report, sizeof(ev.report)) : 0;
+            size_t len = s.present ? s.sim.driver->build_input(&s.sim, &in, ev.report, sizeof(ev.report)) : 0;
             if (len) {
                 ev.len = (uint8_t)len;
-                handle_input(&ev);
+                handle_input(&ev, &s.sim);
             }
             break;
         }

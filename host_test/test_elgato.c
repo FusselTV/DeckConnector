@@ -256,6 +256,20 @@ static void test_builds_what_the_deck_would_send(void)
         0, dev.driver->build_input(&dev, &(db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = 8}, r, sizeof(r)));
 }
 
+/* db_deck keeps simulated presses on a copy of the device, as here: a test's held key must not turn a person's
+ * next real report into a release, or swallow their press of the same key. */
+static void test_a_simulated_hold_leaves_the_real_key_states_alone(void)
+{
+    db_dev_t real = dev;
+    simulate((db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = 3}); /* held, never released */
+    uint8_t r[12] = {0x01, 0x00, 8, 0};
+    r[4 + 3] = 1; /* the person presses key 3 too */
+    db_input_t out[8];
+    TEST_ASSERT_EQUAL_size_t(1, real.driver->parse_input(&real, r, sizeof(r), 42, out, 8));
+    TEST_ASSERT_EQUAL_INT(DB_INPUT_KEY_DOWN, out[0].kind);
+    TEST_ASSERT_EQUAL_UINT8(3, out[0].index);
+}
+
 static void test_ignores_garbage(void)
 {
     uint8_t junk[3] = {0x01, 0x00, 0};
@@ -285,6 +299,7 @@ int main(void)
     RUN_TEST(test_encoder_turn_and_press);
     RUN_TEST(test_touch_in_display_coordinates);
     RUN_TEST(test_builds_what_the_deck_would_send);
+    RUN_TEST(test_a_simulated_hold_leaves_the_real_key_states_alone);
     RUN_TEST(test_ignores_garbage);
     RUN_TEST(test_brightness_clamps);
     return UNITY_END();
