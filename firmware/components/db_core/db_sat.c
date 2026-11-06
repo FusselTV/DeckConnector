@@ -298,12 +298,12 @@ db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, u
             if (idats++ == 0) {
                 zdata = data;
             } else {
+                if (zlen + clen > (size_t)w * h * 3) {
+                    return DB_ERR_NOMEM;
+                }
                 if (idats == 2) {
                     memcpy(bgr, zdata, zlen);
                     zdata = bgr;
-                }
-                if (zlen + clen > (size_t)w * h * 3) {
-                    return DB_ERR_NOMEM;
                 }
                 memcpy(bgr + zlen, data, clen);
             }

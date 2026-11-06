@@ -223,6 +223,31 @@ static void test_png_decodes_to_bgr(void)
     }
 }
 
+/* A peer chooses the chunk sizes: a first IDAT bigger than the picture must not be copied anywhere. */
+static void test_png_refuses_a_first_chunk_bigger_than_the_picture(void)
+{
+    enum { W = 20, H = 11 };
+    size_t big = W * H * 3 * 2;
+    uint8_t *png = calloc(1, big + 200);
+    static const uint8_t sig[8] = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};
+    memcpy(png, sig, 8);
+    uint8_t ihdr[13] = {0};
+    put_be32(ihdr, W);
+    put_be32(ihdr + 4, H);
+    ihdr[8] = 8;
+    ihdr[9] = 2;
+    size_t n = 8 + chunk(png + 8, "IHDR", ihdr, 13);
+    uint8_t *zeros = calloc(1, big);
+    n += chunk(png + n, "IDAT", zeros, big);
+    n += chunk(png + n, "IDAT", zeros, 4);
+    free(zeros);
+    uint8_t *bgr = malloc(W * H * 3);
+    uint8_t work[H * (1 + 3 * W)];
+    TEST_ASSERT_EQUAL_INT(DB_ERR_NOMEM, db_png_decode(png, n, W, H, bgr, work, sizeof(work)));
+    free(bgr);
+    free(png);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -231,5 +256,6 @@ int main(void)
     RUN_TEST(test_decks_without_a_strip_are_a_grid_of_keys);
     RUN_TEST(test_base64);
     RUN_TEST(test_png_decodes_to_bgr);
+    RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
     return UNITY_END();
 }
