@@ -42,6 +42,7 @@ static struct {
     bool auto_speed;
     volatile bool full; /* the root port runs at full speed */
     esp_timer_handle_t check;
+    int64_t replug_until; /* our own replug empties the port for a moment */
 } s;
 
 /* An unplug ends every transfer in flight; only other endings are errors. */
@@ -61,13 +62,22 @@ static void out_done(usb_transfer_t *t)
 
 static void in_done(usb_transfer_t *t)
 {
-    if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
+    /* At full speed a report comes one 64 byte packet per transfer; the rest of a longer report is its zero
+     * padding and must not reach a dock host as a report of its own. */
+    bool padding = s.full && t->data_buffer[0] == 0;
+    if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0 && !padding) {
         s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
     count_error(t->status);
-    /* Without a pending IN transfer no key or encoder would ever arrive again. */
-    if (s.open && t->status != USB_TRANSFER_STATUS_NO_DEVICE && t->status != USB_TRANSFER_STATUS_CANCELED &&
-        usb_host_transfer_submit(t) != ESP_OK) {
+    if (!s.open || t->status == USB_TRANSFER_STATUS_NO_DEVICE || t->status == USB_TRANSFER_STATUS_CANCELED) {
+        return;
+    }
+    if (t->status != USB_TRANSFER_STATUS_COMPLETED) {
+        ESP_LOGW(TAG, "input transfer ended with status %d", t->status);
+    }
+    /* Without a pending IN transfer no key or encoder would ever arrive again. An error halts the endpoint. */
+    if (usb_host_transfer_submit(t) != ESP_OK &&
+        (usb_host_endpoint_clear(s.dev, s.ep_in) != ESP_OK || usb_host_transfer_submit(t) != ESP_OK)) {
         s.errors++;
         ESP_LOGE(TAG, "input transfer could not be queued again, input stops until the device is replugged");
     }
@@ -175,6 +185,10 @@ static void client_event(const usb_host_client_event_msg_t *msg, void *arg)
     } else if (msg->event == USB_HOST_CLIENT_EVENT_DEV_GONE && msg->dev_gone.dev_hdl == s.dev) {
         s.open = false;
         s.cb.detached();
+        if (s.full && s.auto_speed) { /* the hub may have gone with it: check_speed goes back to high speed */
+            esp_timer_stop(s.check);
+            esp_timer_start_once(s.check, 1500000);
+        }
     }
 }
 
@@ -230,6 +244,7 @@ esp_err_t usb_port_replug(uint8_t address)
      * Always the root port, so behind a hub everything on it goes too: switching a hub port from here (CLEAR_FEATURE
      * on the hub) tripped an assert in esp-usb's ext_hub.c:512 and restarted the bridge. */
     ESP_LOGI(TAG, "power cycling the root port");
+    s.replug_until = esp_timer_get_time() + 5000000;
     ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
     vTaskDelay(pdMS_TO_TICKS(500));
     keep_full_speed();
@@ -247,12 +262,24 @@ esp_err_t usb_port_replug(uint8_t address)
     return err;
 }
 
-/* auto: a USB device is there (a hub counts) but no deck came up at high speed, so try full speed, once. */
+/* auto: a USB device is there (a hub counts) but no deck came up at high speed, so try full speed. Back to high
+ * speed once the port is empty, so a deck plugged in directly afterwards gets it. */
 static void check_speed(void *arg)
 {
     uint8_t addrs[8];
     int n = 0;
-    if (s.full || s.dev || usb_host_device_addr_list_fill(sizeof(addrs), addrs, &n) != ESP_OK || n == 0) {
+    if (s.dev || usb_host_device_addr_list_fill(sizeof(addrs), addrs, &n) != ESP_OK) {
+        return;
+    }
+    if (s.full) {
+        if (n == 0 && s.auto_speed && esp_timer_get_time() > s.replug_until) {
+            ESP_LOGI(TAG, "nothing on the USB port any more: back to high speed");
+            s.full = false;
+            USB_DWC_HS.hcfg_reg.fslssupp = 0;
+        }
+        return;
+    }
+    if (n == 0) {
         return;
     }
     ESP_LOGW(TAG, "no deck at high speed with %d USB device(s) present: trying full speed", n);
@@ -405,6 +432,9 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     s.in->callback = in_done;
     s.io.out_report_size = s.mps_out;
     s.next_out = 0;
+    if (info.speed != USB_SPEED_HIGH) {
+        s.in->num_bytes = 64; /* the clamped packet size: every packet completes on its own */
+    }
     s.open = true;
     if (usb_host_transfer_submit(s.in) != ESP_OK) {
         ESP_LOGE(TAG, "input transfer could not be queued, the device will show images but send no input");
