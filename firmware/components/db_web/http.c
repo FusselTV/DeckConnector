@@ -173,7 +173,7 @@ static esp_err_t refuse_plain(httpd_req_t *req)
     return send_error(req, "403 Forbidden", "HTTPS only");
 }
 
-static const char *const LEVELS[] = {"open", "control", "admin"};
+static const char *const LEVELS[] = {"open", "control", "full", "admin"};
 
 /* Every route and who may call it, for scripts and other frontends. */
 static size_t api_json(char *buf, size_t cap)
@@ -385,21 +385,21 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api", .method = HTTP_GET, .handler = get_api}, WEB_CONTROL},
         {{.uri = "/api/*", .method = HTTP_OPTIONS, .handler = cors_preflight}, WEB_OPEN},
         {{.uri = "/api/status", .method = HTTP_GET, .handler = get_status}, WEB_CONTROL},
-        {{.uri = "/api/config", .method = HTTP_GET, .handler = get_config}, WEB_ADMIN},
-        {{.uri = "/api/config", .method = HTTP_PUT, .handler = put_config}, WEB_ADMIN},
-        {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_ADMIN},
-        {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_ADMIN},
-        {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_ADMIN},
+        {{.uri = "/api/config", .method = HTTP_GET, .handler = get_config}, WEB_FULL},
+        {{.uri = "/api/config", .method = HTTP_PUT, .handler = put_config}, WEB_FULL},
+        {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
+        {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
+        {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_FULL},
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},
         {{.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image}, WEB_CONTROL},
         {{.uri = "/api/input", .method = HTTP_POST, .handler = post_input}, WEB_CONTROL},
         {{.uri = "/api/menu", .method = HTTP_POST, .handler = post_menu}, WEB_CONTROL},
         {{.uri = "/api/deck/reconnect", .method = HTTP_POST, .handler = post_deck_reconnect}, WEB_CONTROL},
-        {{.uri = "/api/dock", .method = HTTP_POST, .handler = post_dock}, WEB_ADMIN},
+        {{.uri = "/api/dock", .method = HTTP_POST, .handler = post_dock}, WEB_FULL},
         {{.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg}, WEB_CONTROL},
-        {{.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url}, WEB_ADMIN},
-        {{.uri = "/api/slots", .method = HTTP_GET, .handler = get_slots}, WEB_ADMIN},
-        {{.uri = "/api/slots/*", .method = HTTP_POST, .handler = post_slot_boot}, WEB_ADMIN},
+        {{.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url}, WEB_FULL},
+        {{.uri = "/api/slots", .method = HTTP_GET, .handler = get_slots}, WEB_FULL},
+        {{.uri = "/api/slots/*", .method = HTTP_POST, .handler = post_slot_boot}, WEB_FULL},
         {{.uri = "/api/tokens", .method = HTTP_GET, .handler = auth_tokens_list}, WEB_ADMIN},
         {{.uri = "/api/tokens", .method = HTTP_POST, .handler = auth_tokens_add}, WEB_ADMIN},
         {{.uri = "/api/tokens/*", .method = HTTP_DELETE, .handler = auth_tokens_remove}, WEB_ADMIN},
@@ -413,15 +413,15 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
          WEB_CONTROL},
         {{.uri = "/api/login", .method = HTTP_POST, .handler = auth_login}, WEB_OPEN},
         {{.uri = "/api/logout", .method = HTTP_POST, .handler = auth_logout}, WEB_OPEN},
-        {{.uri = "/api/profile", .method = HTTP_GET, .handler = get_profile}, WEB_ADMIN},
+        {{.uri = "/api/profile", .method = HTTP_GET, .handler = get_profile}, WEB_FULL},
         {{.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics}, WEB_CONTROL},
         {{.uri = "/api/frontend", .method = HTTP_GET, .handler = get_frontend}, WEB_CONTROL},
-        {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_ADMIN},
-        {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_ADMIN},
-        {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_ADMIN},
-        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_ADMIN},
-        {{.uri = "/api/boot", .method = HTTP_GET, .handler = get_boot}, WEB_ADMIN},
-        {{.uri = "/api/coredump", .method = HTTP_DELETE, .handler = delete_coredump}, WEB_ADMIN},
+        {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_FULL},
+        {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_FULL},
+        {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_FULL},
+        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_FULL},
+        {{.uri = "/api/boot", .method = HTTP_GET, .handler = get_boot}, WEB_FULL},
+        {{.uri = "/api/coredump", .method = HTTP_DELETE, .handler = delete_coredump}, WEB_FULL},
 #ifdef DB_DEBUG_CRASH
         {{.uri = "/api/debug/crash", .method = HTTP_POST, .handler = post_debug_crash}, WEB_ADMIN},
 #endif

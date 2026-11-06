@@ -9,6 +9,7 @@
  * the HTTP status. Not reentrant: the web server runs one handler at a time.
  */
 int api_config(const char *body, char *reply, size_t cap);
+int api_config_token(const char *body, char *reply, size_t cap);
 int api_input(const char *body, char *reply, size_t cap);
 
 /* The HTTP handlers of the API; http.c routes to them. */

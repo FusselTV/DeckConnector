@@ -46,6 +46,7 @@ typedef struct {
     uint8_t sha[32];
 } api_token_t;
 static api_token_t tokens[API_TOKENS]; /* in NVS "auth", not in the settings: a backup must not carry them */
+static uint8_t full_rights;             /* bit i: token i reaches WEB_FULL, else WEB_CONTROL only */
 
 /* Compare without an early exit, so the time does not tell how many characters were right. */
 static bool equal(const char *a, const char *b)
@@ -167,26 +168,36 @@ bool auth_by_token(httpd_req_t *req)
     return strncmp(given, "Bearer ", 7) == 0;
 }
 
-static bool token_ok(httpd_req_t *req)
+/* The index of the request's token, or -1. */
+static int token_index(httpd_req_t *req)
 {
     char given[96] = {0};
     if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK || locked_s(req)) {
-        return false;
+        return -1;
     }
     uint8_t sha[32];
     sha256(given + 7, sha);
-    unsigned diff = 1;
+    int found = -1;
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
         unsigned d = tokens[i].name[0] ? 0 : 1;
         for (int k = 0; k < 32; k++) {
             d |= tokens[i].sha[k] ^ sha[k];
         }
-        diff &= d;
+        found = d == 0 ? i : found;
     }
     portEXIT_CRITICAL(&mux);
-    count_try(req, diff == 0);
-    return diff == 0;
+    count_try(req, found >= 0);
+    return found;
+}
+
+bool auth_full(httpd_req_t *req)
+{
+    if (!auth_by_token(req)) {
+        return true;
+    }
+    int i = token_index(req);
+    return i >= 0 && (full_rights >> i & 1);
 }
 
 /* true when the client is locked out after wrong guesses; then it has its 429 with the wait. */
@@ -209,12 +220,17 @@ bool auth_check(httpd_req_t *req, web_level_t need)
         return false; /* a token client must not take the lockout for an unknown token and drop it */
     }
     if (auth_by_token(req)) {
-        if (!token_ok(req)) {
+        int i = token_index(req);
+        if (i < 0) {
             send_error(req, "401 Unauthorized", "unknown token");
             return false;
         }
         if (need == WEB_ADMIN) {
             send_error(req, "403 Forbidden", "needs the password, not a token");
+            return false;
+        }
+        if (need == WEB_FULL && !(full_rights >> i & 1)) {
+            send_error(req, "403 Forbidden", "this token may only control the deck");
             return false;
         }
         return true;
@@ -316,6 +332,7 @@ static esp_err_t save_tokens(void)
     esp_err_t err = nvs_open("auth", NVS_READWRITE, &h);
     if (err == ESP_OK) {
         err = nvs_set_blob(h, "tokens", tokens, sizeof(tokens));
+        err = err == ESP_OK ? nvs_set_u8(h, "rights", full_rights) : err;
         err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
@@ -331,6 +348,7 @@ void auth_start(void)
     size_t len = sizeof(tokens);
     if (nvs_open("auth", NVS_READONLY, &h) == ESP_OK) {
         esp_err_t err = nvs_get_blob(h, "tokens", tokens, &len);
+        nvs_get_u8(h, "rights", &full_rights); /* missing: every older token stays control-only */
         if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
             ESP_LOGE(TAG, "API tokens not read: %s", esp_err_to_name(err));
         }
@@ -340,7 +358,7 @@ void auth_start(void)
 
 esp_err_t auth_tokens_list(httpd_req_t *req)
 {
-    char buf[API_TOKENS * 40 + 16];
+    char buf[API_TOKENS * 60 + 16];
     db_json_t j;
     db_json_begin(&j, buf, sizeof(buf));
     db_json_arr_open(&j, NULL);
@@ -348,6 +366,7 @@ esp_err_t auth_tokens_list(httpd_req_t *req)
         if (tokens[i].name[0]) {
             db_json_obj_open(&j, NULL);
             db_json_str(&j, "name", tokens[i].name);
+            db_json_str(&j, "right", full_rights >> i & 1 ? "full" : "control");
             db_json_obj_close(&j);
         }
     }
@@ -362,6 +381,9 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     char body[96];
     cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
     const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, "name");
+    const cJSON *right = cJSON_GetObjectItemCaseSensitive(root, "right");
+    bool full = cJSON_IsString(right) && strcmp(right->valuestring, "full") == 0;
+    bool right_ok = !right || (cJSON_IsString(right) && (full || strcmp(right->valuestring, "control") == 0));
     bool ok =
         cJSON_IsString(name) && name->valuestring[0] && strlen(name->valuestring) < sizeof(tokens[0].name);
     for (const char *c = ok ? name->valuestring : ""; *c; c++) {
@@ -375,6 +397,9 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     if (!ok) {
         return send_error(req, "400 Bad Request", "name: 1 to 23 letters, digits, - or _");
     }
+    if (!right_ok) {
+        return send_error(req, "400 Bad Request", "right: control or full");
+    }
     char token[TOKEN_BYTES * 2 + 1];
     uint8_t raw[TOKEN_BYTES];
     esp_fill_random(raw, sizeof(raw));
@@ -386,6 +411,7 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     sha256(token, t.sha);
     int slot = -1;
     api_token_t before = {0};
+    uint8_t rights_before = full_rights;
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
         if (strcmp(tokens[i].name, wanted) == 0 || (slot < 0 && !tokens[i].name[0])) {
@@ -395,6 +421,7 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     if (slot >= 0) {
         before = tokens[slot];
         tokens[slot] = t;
+        full_rights = (uint8_t)((full_rights & ~(1u << slot)) | (unsigned)full << slot);
     }
     portEXIT_CRITICAL(&mux);
     if (slot < 0) {
@@ -403,11 +430,13 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     if (save_tokens() != ESP_OK) {
         portENTER_CRITICAL(&mux);
         tokens[slot] = before; /* the old token keeps working, the new one was never shown */
+        full_rights = rights_before;
         portEXIT_CRITICAL(&mux);
         return send_error(req, "500 Internal Server Error", "not saved: the token would be gone after a restart");
     }
-    char reply[160];
-    snprintf(reply, sizeof(reply), "{\"name\":\"%s\",\"token\":\"%s\"}", wanted, token);
+    char reply[180];
+    snprintf(reply, sizeof(reply), "{\"name\":\"%s\",\"right\":\"%s\",\"token\":\"%s\"}", wanted,
+             full ? "full" : "control", token);
     return send_json(req, reply);
 }
 
@@ -419,6 +448,7 @@ esp_err_t auth_tokens_remove(httpd_req_t *req)
     for (int i = 0; i < API_TOKENS; i++) {
         if (tokens[i].name[0] && strcmp(tokens[i].name, name) == 0) {
             memset(&tokens[i], 0, sizeof(tokens[i]));
+            full_rights &= (uint8_t)~(1u << i);
             found = true;
         }
     }

@@ -29,14 +29,20 @@ Home Assistant and other programs use a token instead of the password. Make one 
 with the password:
 
 ```
-curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -d '{"name":"home-assistant"}' http://192.168.1.214/api/tokens
+curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -d '{"name":"home-assistant","right":"full"}' http://192.168.1.214/api/tokens
 curl -H 'Authorization: Bearer TOKEN' http://192.168.1.214/api/status
 ```
 
 The reply shows the token once. The DeckConnector keeps only its SHA-256, and a settings backup never holds it. A
-token needs no `X-Deckbridge` header. It reaches the routes that `GET /api` lists with `"access": "control"`:
-status, screen, metrics, input, menu, reconnect and the web socket without changing settings. Everything else
-answers 403 to a token. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
+token needs no `X-Deckbridge` header. Each token has one right:
+
+| `right` | Reaches |
+|---|---|
+| `control` (default) | The routes `GET /api` lists with `"access": "control"`: status, screen, metrics, input, menu, reconnect, and the web socket without changing settings |
+| `full` | Also the `"access": "full"` routes: settings, restart, updates, slots, log, pairing |
+
+No token reaches the `"access": "admin"` routes (the tokens themselves), and no token changes `admin_pass`. Those
+answer 403. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
 the old one. Up to 8 tokens exist at a time.
 
 A page from another origin may call the API with a token when its origin is in `cors_origins` (comma separated).
@@ -49,7 +55,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | Method and path | What it does |
 |---|---|
 | `GET /` | The web UI, gzip only |
-| `GET /api` | Every route with `method`, `path` and `access` (`open`, `control` for tokens, `admin` for the password) |
+| `GET /api` | Every route with `method`, `path` and `access` (`open`, `control`, `full`, or `admin` for the password only) |
 | `OPTIONS /api/...` | CORS preflight, see "For integrations" |
 | `GET /api/status` | State of the DeckConnector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
@@ -76,8 +82,8 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call, and the smallest free stack each task ever had (`stack_free`) |
-| `GET /api/tokens` | The names of the API tokens |
-| `POST /api/tokens` | `{"name": "..."}` makes a token and shows it once |
+| `GET /api/tokens` | The API tokens: `name` and `right` |
+| `POST /api/tokens` | `{"name": "...", "right": "control"\|"full"}` makes a token and shows it once |
 | `DELETE /api/tokens/<name>` | Ends that token |
 | `GET /api/ws` | Web socket with live changes, see below |
 
@@ -273,5 +279,5 @@ To change something, send `{"t": "set", "id": 1, ...}` with the keys of `PUT /ap
 `{"t": "input", "id": 2, ...}` with the keys of `POST /api/input`. The answer is
 `{"t": "result", "id": 1, "status": 200, "reply": {...}}`.
 
-`{"t": "log", "id": 3}` starts the log on this connection. It needs the password. A token gets 403.
+`{"t": "log", "id": 3}` starts the log on this connection. It needs the password or a `full` token.
 `uv run python -m dbtools.netlog --secs 60` follows it from a shell.

@@ -35,7 +35,8 @@ static struct {
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
     int fds[CLIENTS];
     httpd_handle_t servers[CLIENTS]; /* HTTP or HTTPS: each fd belongs to one of them */
-    bool by_token[CLIENTS];          /* a token may press, but not change settings */
+    bool by_token[CLIENTS];          /* an integration: no simulated presses are sent to it */
+    bool limited[CLIENTS];           /* a control token: may press, but not change settings or read the log */
     bool log[CLIENTS];               /* asked for the log with {"t":"log"} */
     uint64_t log_pos[CLIENTS];
     char *state;                     /* the last state sent, to send only changes */
@@ -280,7 +281,7 @@ static void command(httpd_handle_t server, int fd, const char *text)
         snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"needs the password, not a token\"}");
         xSemaphoreTake(e.lock, portMAX_DELAY);
         for (int i = 0; i < CLIENTS; i++) {
-            if (e.fds[i] == fd && e.servers[i] == server && !e.by_token[i]) {
+            if (e.fds[i] == fd && e.servers[i] == server && !e.limited[i]) {
                 e.log[i] = true; /* from the oldest line still kept: a new listener sees the boot too */
                 e.log_pos[i] = 0;
                 code = 200;
@@ -291,9 +292,11 @@ static void command(httpd_handle_t server, int fd, const char *text)
     } else if (cJSON_IsString(t) && (strcmp(t->valuestring, "set") == 0 || strcmp(t->valuestring, "input") == 0)) {
         bool set = t->valuestring[0] == 's';
         bool token = false;
+        bool any_token = false;
         xSemaphoreTake(e.lock, portMAX_DELAY);
         for (int i = 0; i < CLIENTS; i++) {
-            token |= e.fds[i] == fd && e.servers[i] == server && e.by_token[i];
+            token |= e.fds[i] == fd && e.servers[i] == server && e.limited[i];
+            any_token |= e.fds[i] == fd && e.servers[i] == server && e.by_token[i];
         }
         xSemaphoreGive(e.lock);
         cJSON_DeleteItemFromObjectCaseSensitive(root, "t");
@@ -305,7 +308,8 @@ static void command(httpd_handle_t server, int fd, const char *text)
         } else {
             web_lock();
             code =
-                body ? (set ? api_config(body, reply, sizeof(reply)) : api_input(body, reply, sizeof(reply)))
+                body ? (set ? (any_token ? api_config_token : api_config)(body, reply, sizeof(reply))
+                           : api_input(body, reply, sizeof(reply)))
                      : 500;
             web_unlock();
         }
@@ -355,6 +359,7 @@ esp_err_t events_open(httpd_req_t *req)
     e.fds[slot] = fd;
     e.servers[slot] = req->handle;
     e.by_token[slot] = auth_by_token(req);
+    e.limited[slot] = !auth_full(req);
     e.log[slot] = false;
     char *buf = heap_caps_malloc(STATE_MAX, MALLOC_CAP_SPIRAM);
     if (buf && e.state_json(buf, STATE_MAX)) {

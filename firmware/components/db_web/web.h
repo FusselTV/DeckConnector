@@ -19,9 +19,9 @@
 
 #define STATUS_JSON_MAX 4096
 
-/* Who may call a route: anyone, a Bearer token or the password (cookie or basic auth), or the password only.
- */
-typedef enum { WEB_OPEN, WEB_CONTROL, WEB_ADMIN } web_level_t;
+/* Who may call a route: anyone; any token or the password (cookie or basic auth); a full-rights token or the
+ * password; the password only. */
+typedef enum { WEB_OPEN, WEB_CONTROL, WEB_FULL, WEB_ADMIN } web_level_t;
 
 /* Every route but the web socket runs through timed(): the login check, and the time for /api/profile. Ports
  * 80 and 443 are two server tasks, and the handlers share static buffers, so timed() runs one handler at a

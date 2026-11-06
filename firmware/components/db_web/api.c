@@ -1,4 +1,5 @@
 #include "api.h"
+#include "auth.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -227,6 +228,10 @@ static const char *status_line(int code)
         return "200 OK";
     case 400:
         return "400 Bad Request";
+    case 403:
+        return "403 Forbidden";
+    case 404:
+        return "404 Not Found";
     case 409:
         return "409 Conflict";
     case 503:
@@ -253,9 +258,16 @@ static esp_err_t body_api(httpd_req_t *req, int (*api)(const char *body, char *r
     return reply_with(req, api(body, reply, sizeof(reply)), reply);
 }
 
+/* A token, even with full rights, never changes the password. */
+int api_config_token(const char *body, char *reply, size_t cap)
+{
+    return strstr(body, "\"admin_pass\"") ? fail(reply, cap, 403, "needs the password, not a token")
+                                           : api_config(body, reply, cap);
+}
+
 esp_err_t put_config(httpd_req_t *req)
 {
-    return body_api(req, api_config);
+    return body_api(req, auth_by_token(req) ? api_config_token : api_config);
 }
 
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. */

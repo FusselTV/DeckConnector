@@ -46,7 +46,7 @@ def test_a_token_reaches_control_routes_and_no_admin_route(token):
         if r["access"] == "control" and r["method"] == "GET" and "*" not in r["path"] and r["path"] != "/api/ws":
             assert call("GET", r["path"], token)[0] == 200, r
             assert call("GET", r["path"])[0] == 401, r
-        if r["access"] == "admin":
+        if r["access"] in ("full", "admin"):
             path = r["path"].replace("*", "x")
             assert call(r["method"], path, token)[0] == 403, r  # refused before the handler runs
     assert call("GET", "/api/status", "0" * 64)[0] == 401
@@ -121,11 +121,10 @@ async def test_a_simulated_press_reaches_no_integration(token):
             pass
 
 
-# Written out, not read from GET /api: a route moved down to control by mistake must fail here.
-ADMIN = [
+# Written out, not read from GET /api: a route moved down a level by mistake must fail here.
+FULL = [
     ("DELETE", "/api/coredump"),
     ("DELETE", "/api/frontend"),
-    ("DELETE", "/api/tokens/x"),
     ("GET", "/api/boot"),
     ("GET", "/api/companion/found"),
     ("GET", "/api/config"),
@@ -133,21 +132,47 @@ ADMIN = [
     ("GET", "/api/log"),
     ("GET", "/api/profile"),
     ("GET", "/api/slots"),
-    ("GET", "/api/tokens"),
     ("POST", "/api/dock"),
     ("POST", "/api/ota"),
     ("POST", "/api/ota/url"),
     ("POST", "/api/reboot"),
-    ("POST", "/api/slots/0/boot"),
-    ("POST", "/api/tokens"),
+    ("POST", "/api/slots/1/boot"),
     ("PUT", "/api/config"),
     ("PUT", "/api/frontend"),
 ]
+PASSWORD_ONLY = [("DELETE", "/api/tokens/x"), ("GET", "/api/tokens"), ("POST", "/api/tokens")]
 
 
-@pytest.mark.parametrize(("method", "path"), ADMIN)
-def test_a_token_may_not_use_an_admin_route(token, method, path):
+@pytest.fixture
+def full_token():
+    code, body = api("POST", "/api/tokens", json.dumps({"name": "pytest-full", "right": "full"}).encode())
+    assert code == 200 and json.loads(body)["right"] == "full"
+    yield json.loads(body)["token"]
+    api("DELETE", "/api/tokens/pytest-full")
+
+
+@pytest.mark.parametrize(("method", "path"), FULL + PASSWORD_ONLY)
+def test_a_control_token_may_not_use_a_full_route(token, method, path):
     assert call(method, path, token, body=b"{}" if method != "GET" else None)[0] == 403
+
+
+@pytest.mark.parametrize(("method", "path"), PASSWORD_ONLY)
+def test_a_full_token_may_not_manage_tokens(full_token, method, path):
+    assert call(method, path, full_token, body=b"{}" if method != "GET" else None)[0] == 403
+
+
+def test_a_full_token_reads_and_changes_settings_but_not_the_password(full_token):
+    for method, path in FULL:
+        if method == "GET":
+            assert call(method, path, full_token)[0] != 403, path
+    assert call("PUT", "/api/config", full_token, body=b"{}")[0] == 200
+    assert call("PUT", "/api/config", full_token, body=b'{"admin_pass":"hijacked"}')[0] == 403
+    listed = {t["name"]: t["right"] for t in json.loads(api("GET", "/api/tokens")[1])}
+    assert listed["pytest-full"] == "full"
+
+
+def test_a_token_right_is_control_or_full():
+    assert api("POST", "/api/tokens", json.dumps({"name": "x", "right": "admin"}).encode())[0] == 400
 
 
 def test_the_same_name_replaces_its_token(token):
