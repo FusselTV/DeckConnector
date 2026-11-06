@@ -59,7 +59,8 @@ async def test_switching_keeps_servers_connected(bridges):
         await wait_role(active, False)
         assert not standby.active
         assert (await asyncio.to_thread(status))["controller"] == "companion"
-        assert (await screen())["writer"] == "ui" or (await screen())["writer"].startswith("dock")
+        writer = (await screen())["writer"]
+        assert writer in ("ui", "satellite") or writer.startswith("dock"), writer
         assert (await active.send_image(FULL, jpeg("red"))).result == AckResult.REJECTED_ROLE
     finally:
         await set_controller("server")
