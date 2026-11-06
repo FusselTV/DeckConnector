@@ -313,14 +313,15 @@ bool db_deck_input_real_for(uint32_t peer_ip)
     return input_real && (!input_only_ip || input_only_ip == peer_ip);
 }
 
-static void handle_input(const ev_t *ev)
+/* `raw` is what dock hosts get, `ev->report` what the edges are parsed from: they differ for a simulated press. */
+static void handle_input(const ev_t *ev, const uint8_t *raw)
 {
     s.stats.inputs++;
     input_real = ev->real;
     input_only_ip = ev->only_ip;
     for (int i = 0; i < s.listener_count; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
-            s.listeners[i].raw_input(ev->report, ev->len);
+            s.listeners[i].raw_input(raw, ev->len);
         }
     }
     db_input_t out[EVENTS_PER_RPT];
@@ -348,7 +349,7 @@ static void event_task(void *arg)
             break;
         case EV_INPUT:
             if (s.present) {
-                handle_input(&ev);
+                handle_input(&ev, ev.report);
             }
             break;
         case EV_SIMULATE: {
@@ -359,9 +360,20 @@ static void event_task(void *arg)
             memcpy(real_state, s.dev.state, sizeof(real_state));
             memcpy(s.dev.state, s.sim_state, sizeof(real_state));
             size_t len = s.present ? s.dev.driver->build_input(&s.dev, &in, ev.report, sizeof(ev.report)) : 0;
+            /* dock hosts get whole-deck reports: with the keys a person holds on the deck as well */
+            uint8_t raw[sizeof(ev.report)];
+            memcpy(s.dev.state, real_state, sizeof(real_state));
+            if (len && s.dev.driver->build_input(&s.dev, &in, raw, sizeof(raw)) == len) {
+                for (size_t i = 0; i < len; i++) {
+                    raw[i] |= ev.report[i];
+                }
+            } else {
+                memcpy(raw, ev.report, sizeof(raw));
+            }
+            memcpy(s.dev.state, s.sim_state, sizeof(real_state));
             if (len) {
                 ev.len = (uint8_t)len;
-                handle_input(&ev);
+                handle_input(&ev, raw);
             }
             memcpy(s.sim_state, s.dev.state, sizeof(real_state));
             memcpy(s.dev.state, real_state, sizeof(real_state));
