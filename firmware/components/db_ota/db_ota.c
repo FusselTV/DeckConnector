@@ -374,17 +374,21 @@ static esp_err_t commit_boot(void)
     }
     uint8_t *staged = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
     uint8_t *placed = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
+    uint8_t *old = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
     if (err == ESP_OK) {
-        err = staged && placed ? esp_partition_read(s.partition, 0, staged, final->size) : ESP_ERR_NO_MEM;
+        err = staged && placed && old ? esp_partition_read(s.partition, 0, staged, final->size) : ESP_ERR_NO_MEM;
+    }
+    if (err == ESP_OK) {
+        err = esp_partition_read(final, 0, old, s.payload_len);
     }
     if (err == ESP_OK) {
         ESP_LOGW(TAG, "writing the %s", target_name());
         err = esp_ota_end(s.p4);
         s.p4 = 0;
-        if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-            ESP_LOGE(TAG, "%s refused by IDF before the copy", target_name());
-        } else if (err != ESP_OK || esp_partition_read(final, 0, placed, s.payload_len) != ESP_OK ||
-            memcmp(placed, staged, s.payload_len)) {
+        bool read = esp_partition_read(final, 0, placed, s.payload_len) == ESP_OK;
+        if (err != ESP_OK && read && memcmp(placed, old, s.payload_len) == 0) {
+            ESP_LOGE(TAG, "%s refused before the copy: %s", target_name(), esp_err_to_name(err));
+        } else if (err != ESP_OK || !read || memcmp(placed, staged, s.payload_len)) {
             /* the region may be half written: the board may not start again until it is written again */
             ESP_LOGE(TAG, "the %s at 0x%lx is written incompletely (%s): do not power off, write it again",
                      target_name(), (unsigned long)final->address, esp_err_to_name(err));
@@ -393,6 +397,7 @@ static esp_err_t commit_boot(void)
     }
     heap_caps_free(staged);
     heap_caps_free(placed);
+    heap_caps_free(old);
     return err;
 }
 
@@ -442,7 +447,7 @@ esp_err_t db_ota_end(void)
     }
     esp_err_t err = commit();
     if (err != ESP_OK) {
-        db_ota_abort(esp_err_to_name(err));
+        db_ota_abort(err == DB_OTA_ERR_HALF_WRITTEN ? "written incompletely" : esp_err_to_name(err));
         return err;
     }
     bool restart = s.target == TARGET_C6 || (s.target == TARGET_P4 && s.boot);
