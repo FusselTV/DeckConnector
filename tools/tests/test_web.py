@@ -128,3 +128,10 @@ def test_status_has_a_stable_id():
 def test_found_companions_have_name_host_and_port():
     found = json.loads(api("GET", "/api/companion/found")[1])
     assert all(set(c) == {"name", "host", "port"} for c in found)
+
+
+@pytest.mark.sim
+def test_menu_chord_settings_are_checked():
+    for body in ({"menu_chord": "corners"}, {"menu_chord": "auto keys"}, {"menu_hold_ms": 100}):
+        assert api("PUT", "/api/config", json.dumps(body).encode())[0] == 400, body
+    assert json.loads(api("GET", "/api/config")[1])["menu_chord"] == "auto"

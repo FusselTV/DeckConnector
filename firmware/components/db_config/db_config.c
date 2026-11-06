@@ -51,6 +51,8 @@ static void defaults(db_config_t *c)
     *c = (db_config_t){.version = CONFIG_VERSION,
                        .controller = DB_CTRL_COMPANION, /* Companion over Satellite or as a dock host */
                        .brightness = 80,
+                       .menu_chord = "auto",
+                       .menu_hold_ms = 2000,
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
     snprintf(c->name, sizeof(c->name), "deck-connector-%02x%02x%02x", mac[3], mac[4], mac[5]);
@@ -190,6 +192,8 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_arr_close(&j);
     db_json_str(&j, "satellite_pin", cfg->satellite_pin);
     db_json_str(&j, "cors_origins", cfg->cors_origins);
+    db_json_str(&j, "menu_chord", cfg->menu_chord);
+    db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) {
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -365,6 +369,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->brightness = (uint8_t)b->valueint;
     }
+    const cJSON *hold = cJSON_GetObjectItemCaseSensitive(root, "menu_hold_ms");
+    if (hold) {
+        if (!cJSON_IsNumber(hold) || hold->valueint < 500 || hold->valueint > 10000) {
+            snprintf(err, err_cap, "menu_hold_ms: 500 to 10000 expected");
+            return false;
+        }
+        cfg->menu_hold_ms = (uint16_t)hold->valueint;
+    }
     return true;
 }
 
@@ -383,6 +395,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
               take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
               take_str(root, "cors_origins", cfg->cors_origins, sizeof(cfg->cors_origins), err, err_cap) &&
+              take_str(root, "menu_chord", cfg->menu_chord, sizeof(cfg->menu_chord), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
@@ -390,6 +403,15 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     bool url = strncmp(cfg->satellite, "ws://", 5) == 0 || strncmp(cfg->satellite, "wss://", 6) == 0;
     if (ok && strpbrk(cfg->satellite, url ? " \"" : " \"/")) {
         snprintf(err, err_cap, "satellite: host, host:port, or a ws:// or wss:// URL expected");
+        ok = false;
+    }
+    const char *chords[] = {"auto", "keys", "encoders", "off"};
+    bool known = false;
+    for (int i = 0; i < 4; i++) {
+        known |= strcmp(cfg->menu_chord, chords[i]) == 0;
+    }
+    if (ok && !known) {
+        snprintf(err, err_cap, "menu_chord: auto, keys, encoders or off expected");
         ok = false;
     }
     if (ok && strlen(cfg->admin_pass) < 6) {

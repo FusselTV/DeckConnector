@@ -818,3 +818,13 @@ bool ui_menu_tick(ui_menu_t *m, const ui_model_t *md)
     }
     return redraw || m->restart_down; /* the countdown on the restart key */
 }
+
+bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders, int *last)
+{
+    if (strcmp(chord, "off") == 0) {
+        return false;
+    }
+    *on_encoders = encoders >= 2 && strcmp(chord, "keys") != 0; /* encoders: auto's choice when there are some */
+    *last = (*on_encoders ? encoders : keys) - 1;
+    return *last >= 1;
+}

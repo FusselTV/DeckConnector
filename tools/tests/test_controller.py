@@ -126,3 +126,35 @@ async def test_picking_one_of_two_servers(servers, bridges):
     finally:
         await put_config({"controller": "server", "host": ""})
     await wait_role(first, True)
+
+
+async def test_the_menu_chord_and_hold_time_are_settings(bridges):
+    keys = len((await screen())["keys"])
+    hold = lambda action: [  # noqa: E731
+        http("POST", "/api/input", json.dumps({"key": k, "action": action}).encode()) for k in (0, keys - 1)
+    ]
+    try:
+        await put_config({"menu_chord": "keys", "menu_hold_ms": 800})
+        assert (await screen())["menu_chord"] == {"on": "keys", "first": 0, "last": keys - 1, "hold_ms": 800}
+        for r in hold("down"):
+            assert (await r)[0] == 200
+        await asyncio.sleep(0.4)
+        assert (await screen())["writer"].startswith("server"), "the menu opened before the hold time"
+        await wait_writer("ui")
+        for r in hold("up"):
+            await r
+        top = min(r["y"] for r in (await screen())["keys"])
+        close = max((r["x"], i) for i, r in enumerate((await screen())["keys"]) if r["y"] == top)[1]
+        assert (await http("POST", "/api/input", json.dumps({"key": close}).encode()))[0] == 200
+        await wait_writer("server")
+
+        await put_config({"menu_chord": "off"})
+        assert (await screen())["menu_chord"] == {"on": "off"}
+        for r in hold("down"):
+            await r
+        await asyncio.sleep(1.2)
+        assert (await screen())["writer"].startswith("server"), "off still opened the menu"
+        for r in hold("up"):
+            await r
+    finally:
+        await put_config({"menu_chord": "auto", "menu_hold_ms": 2000})

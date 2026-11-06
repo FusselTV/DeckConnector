@@ -37,8 +37,8 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
-/* Brightness, controller, host, servers and their pins, satellite, dock pairing, https_only, cors_origins and
- * setup_done apply at once; everything else needs a restart to take effect cleanly. */
+/* Brightness, controller, host, servers and their pins, satellite, dock pairing, https_only, cors_origins, the
+ * menu chord and setup_done apply at once; everything else needs a restart to take effect cleanly. */
 int api_config(const char *body, char *reply, size_t cap)
 {
     static db_config_t old; /* two of them would crowd the caller's stack */
@@ -65,6 +65,8 @@ int api_config(const char *body, char *reply, size_t cap)
     live.dock_paired_only = old.dock_paired_only;
     live.https_only = old.https_only;
     memcpy(live.cors_origins, old.cors_origins, sizeof(old.cors_origins));
+    memcpy(live.menu_chord, old.menu_chord, sizeof(old.menu_chord));
+    live.menu_hold_ms = old.menu_hold_ms;
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);
@@ -549,11 +551,15 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_arr_close(j);
     db_json_int(j, "encoders", dev->encoder_count);
     int last;
-    bool on_encoders = db_ui_menu_chord(dev->encoder_count, dev->key_count, &last);
+    bool on_encoders;
+    bool any = db_ui_menu_chord(dev->encoder_count, dev->key_count, &on_encoders, &last);
     db_json_obj_open(j, "menu_chord");
-    db_json_str(j, "on", on_encoders ? "encoders" : "keys");
-    db_json_int(j, "first", 0);
-    db_json_int(j, "last", last);
+    db_json_str(j, "on", !any ? "off" : on_encoders ? "encoders" : "keys");
+    if (any) {
+        db_json_int(j, "first", 0);
+        db_json_int(j, "last", last);
+        db_json_int(j, "hold_ms", db_config()->menu_hold_ms);
+    }
     db_json_obj_close(j);
 }
 

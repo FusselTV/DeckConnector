@@ -25,7 +25,6 @@
 
 #define QUALITY       85
 #define REDRAW_DELAY  10 /* ms: the events of one turn or press come in a burst */
-#define MENU_HOLD_US  2000000
 #define FULL_ABOVE    5       /* more changed areas than this go out as one full image, measured faster */
 #define SAVE_AFTER_US 1500000 /* brightness goes to flash once it rests */
 
@@ -474,11 +473,9 @@ static void ui_task(void *arg)
     }
 }
 
-bool db_ui_menu_chord(int encoders, int keys, int *last)
+bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
 {
-    bool on_encoders = encoders >= 2;
-    *last = (on_encoders ? encoders : keys) - 1;
-    return on_encoders;
+    return ui_menu_chord(db_config()->menu_chord, encoders, keys, on_encoders, last);
 }
 
 static void open_menu(int64_t now)
@@ -507,16 +504,17 @@ esp_err_t db_ui_open_menu(void)
 static void check_menu_chord(void)
 {
     int last;
-    bool on_encoders = db_ui_menu_chord(s.dev.encoder_count, s.dev.key_count, &last);
+    bool on_encoders;
+    bool any = db_ui_menu_chord(s.dev.encoder_count, s.dev.key_count, &on_encoders, &last);
     const bool *down = on_encoders ? s.enc_down : s.key_down;
     int size = on_encoders ? sizeof(s.enc_down) : sizeof(s.key_down);
-    bool held = last > 0 && last < size && down[0] && down[last];
+    bool held = any && last < size && down[0] && down[last];
     int64_t now = esp_timer_get_time();
     if (!held) {
         s.chord_since = 0;
     } else if (!s.chord_since) {
         s.chord_since = now;
-    } else if (now - s.chord_since >= MENU_HOLD_US) {
+    } else if (now - s.chord_since >= (int64_t)db_config()->menu_hold_ms * 1000) {
         s.chord_since = 0;
         open_menu(now);
     }

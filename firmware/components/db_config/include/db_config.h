@@ -51,6 +51,8 @@ typedef struct {
     char satellite_pin[65];
     char cors_origins[128]; /* origins whose pages may call the API with a token, comma separated; empty: none
                              */
+    char menu_chord[10];   /* which two controls open the menu: auto, keys, encoders or off */
+    uint16_t menu_hold_ms; /* how long they are held */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

@@ -163,6 +163,9 @@ ui_layout_t ui_layout_of(const db_device_info_t *info);
 /* The menu is open (anything but the home screen and the welcome pages). */
 bool ui_menu_open(const ui_menu_t *m);
 void ui_menu_open_main(ui_menu_t *m, int64_t now);
+/* The menu controls for `chord` (auto, keys, encoders, off; anything else counts as auto): index 0 and *last of the
+ * encoders or keys. False for off or when the deck has fewer than two. */
+bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders, int *last);
 /* True when the screen changed; `act` says what the bridge has to do. Not reentrant. */
 bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, const db_input_t *ev,
                    ui_action_t *act);

@@ -348,6 +348,25 @@ static void test_flows_without_encoders(void)
     TEST_ASSERT_FALSE(ui_menu_open(&m));
 }
 
+/* auto takes the outer encoders when there are some, else the outer keys; keys and off as named */
+static void test_menu_chord_on_every_deck(void)
+{
+    for (size_t i = 0; i < sizeof(decks) / sizeof(decks[0]); i++) {
+        db_device_info_t dev = open_deck(decks[i].pid);
+        bool enc;
+        int last;
+        TEST_ASSERT_TRUE(ui_menu_chord("auto", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_EQUAL(dev.encoder_count >= 2, enc);
+        TEST_ASSERT_EQUAL((enc ? dev.encoder_count : dev.key_count) - 1, last);
+        TEST_ASSERT_TRUE(ui_menu_chord("encoders", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_EQUAL(dev.encoder_count >= 2, enc);
+        TEST_ASSERT_TRUE(ui_menu_chord("keys", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_FALSE(enc);
+        TEST_ASSERT_EQUAL(dev.key_count - 1, last);
+        TEST_ASSERT_FALSE(ui_menu_chord("off", dev.encoder_count, dev.key_count, &enc, &last));
+    }
+}
+
 static void test_welcome(void)
 {
     db_device_info_t dev = open_deck(0x0084);
@@ -381,5 +400,6 @@ int main(void)
     RUN_TEST(test_neo_keeps_brightness_and_password);
     RUN_TEST(test_flows_without_encoders);
     RUN_TEST(test_welcome);
+    RUN_TEST(test_menu_chord_on_every_deck);
     return UNITY_END();
 }

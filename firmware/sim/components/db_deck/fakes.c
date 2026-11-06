@@ -99,10 +99,11 @@ esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len)
     return ESP_OK;
 }
 
-bool db_ui_menu_chord(int encoders, int keys, int *last)
+bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
 {
+    *on_encoders = false;
     *last = keys - 1;
-    return false;
+    return *last >= 1;
 }
 
 esp_err_t db_ui_open_menu(void)

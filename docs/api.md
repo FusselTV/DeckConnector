@@ -106,8 +106,9 @@ The change works at once. All hosts stay connected, and the deck shows the picke
 others keep drawing into their own picture in the background and get no input. On the device the hosts are the top
 row of the home screen and the menu.
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin` and `https_only` also
-work at once. Every other change restarts the Deck-Connector, and the reply says so:
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin`, `https_only`,
+`cors_origins`, `menu_chord` and `menu_hold_ms` also work at once. Every other change restarts the Deck-Connector,
+and the reply says so:
 `{"ok": true, "restart": true}`.
 
 ## Settings
@@ -119,8 +120,12 @@ work at once. Every other change restarts the Deck-Connector, and the reply says
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
  "servers": ["ws://192.168.1.128:8765/deckbridge", "wss://example.org/deckbridge", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_pin": "",
- "https_only": false, "cors_origins": "", "token_set": false}
+ "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "token_set": false}
 ```
+
+`menu_chord` says which two controls open the menu on the deck when held together for `menu_hold_ms` (500 to
+10000): `auto` (the outer encoders, or the first and last key on a deck without encoders), `keys` (first and last
+key), `encoders` (the outer encoders, like `auto`), or `off`.
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
 needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
@@ -177,14 +182,14 @@ it restores the settings. The web UI does this under System.
 ```json
 {"writer": "dock2", "width": 800, "height": 480,
  "keys": [{"x": 13, "y": 12, "w": 120, "h": 120}, ...], "touch": [{"x": 0, "y": 380, "w": 800, "h": 100}],
- "encoders": 4, "menu_chord": {"on": "encoders", "first": 0, "last": 3},
+ "encoders": 4, "menu_chord": {"on": "encoders", "first": 0, "last": 3, "hold_ms": 2000},
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"},
             {"x": 232, "y": 12, "w": 120, "h": 120, "url": "/api/screen/10.jpg"}]}
 ```
 
 `keys` lists the keys in index order, `touch` the touch strips. `menu_chord` names the two encoders or keys
-(`on` is `encoders` or `keys`) that open the menu when held together for 2 seconds. `last` below 1 means
-there is no such pair.
+(`on` is `encoders` or `keys`) that open the menu when held together for `hold_ms`. `on` is `off` when no
+pair opens it.
 
 Draw the JPEGs in this order at their place to get the picture. On the Stream Deck + the keys are at their place
 on the 800 x 480 screen, and the touch strip is the bottom 100 pixels. An image keeps its URL until something
@@ -213,7 +218,7 @@ the firmware works this way.
 ```
 
 `action` is `press` (down and up, the default), `down`, `up`, or `turn` for encoders. Positive ticks turn right.
-The menu opens with `down` on the two controls in `menu_chord` and `up` after 2 s. A press on the real deck in
+The menu opens with `down` on the two controls in `menu_chord` and `up` after its `hold_ms`. A press on the real deck in
 between ends the simulated hold, because the deck always reports all keys at once.
 
 ## Pairing
