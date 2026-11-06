@@ -73,10 +73,13 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
 
-/* Handle `in` as if the device had sent it. External listeners get it only when `real`. */
-esp_err_t db_deck_simulate(const db_input_t *in, bool real);
+/* Handle `in` as if the device had sent it. External listeners get it only when `real`; with `only_ip` set, only
+ * the host at that address gets it, and only if it draws when the press goes out. */
+esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip);
 /* Inside an input listener: whether the event came from the deck or a request that a person sent it. */
 bool db_deck_input_real(void);
+/* Inside an external listener: whether the host at `peer_ip` may get this event. */
+bool db_deck_input_real_for(uint32_t peer_ip);
 
 /* Raw access for the dock emulation. Writes of a source that is not the writer only update its kept picture.
  */

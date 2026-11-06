@@ -869,7 +869,7 @@ static void on_raw_input(const uint8_t *report, size_t len)
     db_source_t writer = db_deck_writer();
     for (int i = 0; i < DB_DOCK_HOSTS; i++) {
         if (s.devices[i].sock >= 0 && s.devices[i].kind != DB_CTRL_SERVER &&
-            source_of(&s.devices[i]) == writer) {
+            source_of(&s.devices[i]) == writer && db_deck_input_real_for(s.devices[i].ip)) {
             send_frame(&s.devices[i], DB_CORA_FLAG_VERBATIM, 0, 0, buf, sizeof(buf));
         }
     }

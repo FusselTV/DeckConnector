@@ -30,6 +30,7 @@ typedef struct {
     uint8_t address;
     uint8_t len;
     bool real;
+    uint32_t only_ip;
     uint64_t t_us;
     uint8_t report[INPUT_REPORT];
 } ev_t;
@@ -285,16 +286,23 @@ static void handle_detach(void)
 }
 
 static bool input_real;
+static uint32_t input_only_ip;
 
 bool db_deck_input_real(void)
 {
     return input_real;
 }
 
+bool db_deck_input_real_for(uint32_t peer_ip)
+{
+    return input_real && (!input_only_ip || input_only_ip == peer_ip);
+}
+
 static void handle_input(const ev_t *ev)
 {
     s.stats.inputs++;
     input_real = ev->real;
+    input_only_ip = ev->only_ip;
     for (int i = 0; i < s.listener_count; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
             s.listeners[i].raw_input(ev->report, ev->len);
@@ -365,13 +373,13 @@ static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
     }
 }
 
-esp_err_t db_deck_simulate(const db_input_t *in, bool real)
+esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     _Static_assert(sizeof(db_input_t) <= INPUT_REPORT, "input does not fit the event");
     if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
-    ev_t ev = {.kind = EV_SIMULATE, .real = real, .t_us = (uint64_t)esp_timer_get_time()};
+    ev_t ev = {.kind = EV_SIMULATE, .real = real, .only_ip = only_ip, .t_us = (uint64_t)esp_timer_get_time()};
     memcpy(ev.report, in, sizeof(*in));
     return xQueueSend(s.events, &ev, pdMS_TO_TICKS(100)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
 }

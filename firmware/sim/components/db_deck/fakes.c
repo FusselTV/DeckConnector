@@ -50,7 +50,12 @@ bool db_deck_input_real(void)
     return input_real;
 }
 
-esp_err_t db_deck_simulate(const db_input_t *in, bool real)
+bool db_deck_input_real_for(uint32_t peer_ip)
+{
+    return input_real;
+}
+
+esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     input_real = real;
     for (int i = 0; i < listener_count; i++) {

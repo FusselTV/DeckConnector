@@ -35,11 +35,11 @@ def keys(c: Client) -> tuple:
     return tuple(i["url"] for i in sc["images"] if (i["x"], i["y"], i["w"], i["h"]) in rects)
 
 
-def run(c: Client, encoder: int, turns: int, gap_ms: int, ticks: int) -> int:
+def run(c: Client, encoder: int, turns: int, gap_ms: int, ticks: int, target: str) -> int:
     """Milliseconds from the last turn to the last key change of the switch."""
     time.sleep(1.2)  # let the page before settle
     for _ in range(turns):
-        post(c, "/api/input", {"encoder": encoder, "action": "turn", "ticks": ticks, "real": True})
+        post(c, "/api/input", {"encoder": encoder, "action": "turn", "ticks": ticks, "real": target})
         time.sleep(gap_ms / 1000)
     last_turn = time.time() - gap_ms / 1000
     seen, changes = keys(c), []
@@ -66,13 +66,13 @@ def main() -> None:
     pw = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
     c = Client(a.host, "Basic " + base64.b64encode(f"admin:{pw}".encode()).decode())
     status = json.loads(c.get("/api/status")[2])
-    real_input_target(status)  # refuses unless a host on this machine draws
+    target = real_input_target(status)  # refuses unless a host on this machine draws; the bridge checks each turn
     print(f"writer {status['writer']}, encoder {a.encoder + 1}, {a.gap_ms} ms apart")
     for turns in (1, 5, 10, 20):
         late = []
         for _ in range(a.rounds):
-            late.append(run(c, a.encoder, turns, a.gap_ms, 1))
-            run(c, a.encoder, turns, 150, -1)  # back to where it was, slowly
+            late.append(run(c, a.encoder, turns, a.gap_ms, 1, target))
+            run(c, a.encoder, turns, 150, -1, target)  # back to where it was, slowly
         late.sort()
         print(f"{turns:2} turns: keys done {late[len(late) // 2]:4} ms after the last turn (worst {late[-1]} ms)")
 

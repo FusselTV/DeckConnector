@@ -1,5 +1,6 @@
-"""Simulated presses reach Companion and the Stream Deck app only with "real": true. Nothing in tools/ may send it
-except through dbtools.safety.real_input_target, which allows only a host on this machine (see dbtools/safety.py)."""
+"""Simulated presses reach Companion and the Stream Deck app only with "real". `true` is for a person at the web UI.
+Tools name the host instead, from dbtools.safety.real_input_target, which allows only a host on this machine, and
+the bridge forwards a press only while that host draws (see dbtools/safety.py)."""
 
 import re
 from pathlib import Path
@@ -21,3 +22,15 @@ def test_nothing_sends_real_presses_without_the_check():
         if real.search(text) and "real_input_target(" not in text:
             offenders.append(str(f.relative_to(TOOLS)))
     assert not offenders, f"sends real presses without dbtools.safety.real_input_target: {offenders}"
+
+
+def test_tools_never_send_real_true():
+    true = re.compile(r"""["']real["']\s*:\s*(True|true)\b""")
+    offenders = [
+        str(f.relative_to(TOOLS))
+        for f in TOOLS.rglob("*.py")
+        if ".venv" not in f.parts
+        and f.name not in (Path(__file__).name, "safety.py", "conftest.py")  # the guards themselves
+        and true.search(f.read_text())
+    ]
+    assert not offenders, f"tools name the host, true is for a person at the web UI: {offenders}"

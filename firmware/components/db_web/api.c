@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <arpa/inet.h>
+
 #include "cJSON.h"
 #include "db_config.h"
 #include "db_deck.h"
@@ -175,14 +177,20 @@ int api_input(const char *body, char *reply, size_t cap)
     db_input_t ev;
     db_input_t then = {.kind = 0};
     const char *err = root ? read_input(root, &dev, &ev, &then) : "invalid JSON";
-    bool real = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "real"));
+    /* true: a person at the web UI. A tool names the host that may get it, and the deck task checks per press */
+    const cJSON *r = cJSON_GetObjectItemCaseSensitive(root, "real");
+    bool real = cJSON_IsTrue(r) || cJSON_IsString(r);
+    uint32_t only_ip = cJSON_IsString(r) ? inet_addr(r->valuestring) : 0;
+    if (cJSON_IsString(r) && (only_ip == INADDR_NONE || !only_ip)) {
+        err = "real: true or the IPv4 address of the host that draws";
+    }
     cJSON_Delete(root);
     if (err) {
         return fail(reply, cap, 400, err);
     }
-    esp_err_t sent = db_deck_simulate(&ev, real);
+    esp_err_t sent = db_deck_simulate(&ev, real, only_ip);
     if (sent == ESP_OK && then.kind) {
-        sent = db_deck_simulate(&then, real);
+        sent = db_deck_simulate(&then, real, only_ip);
     }
     if (sent == ESP_ERR_INVALID_STATE) {
         return fail(reply, cap, 409, "no Stream Deck attached");

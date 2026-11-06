@@ -686,7 +686,7 @@ static const db_sat_control_t *control_of(db_sat_kind_t kind, uint8_t index)
  * the page, an upward or downward one turns the part. */
 static void on_input(const db_input_t *ev)
 {
-    if (!s.added || db_deck_writer() != DB_SOURCE_SAT) {
+    if (!s.added || db_deck_writer() != DB_SOURCE_SAT || !db_deck_input_real_for(s.peer)) {
         return;
     }
     xSemaphoreTake(s.lock, portMAX_DELAY);

@@ -33,10 +33,12 @@ def test_only_real_presses_reach_a_dock_host():
                 break
             except Exception:
                 time.sleep(0.5)
-        real_input_target(status())  # never press while anyone else's host draws
+        target = real_input_target(status())  # never press while anyone else's host draws
         for key in (0, 1, 2, 3):
             assert api("POST", "/api/input", json.dumps({"key": key}).encode())[0] == 200
-        assert api("POST", "/api/input", json.dumps({"key": 4, "real": True}).encode())[0] == 200
+        # bound to another address, which does not draw: the bridge keeps it, though this host draws
+        assert api("POST", "/api/input", json.dumps({"key": 5, "real": "192.0.2.1"}).encode())[0] == 200
+        assert api("POST", "/api/input", json.dumps({"key": 4, "real": target}).encode())[0] == 200
         out = host.communicate(timeout=30)[0]
     finally:
         host.kill()
