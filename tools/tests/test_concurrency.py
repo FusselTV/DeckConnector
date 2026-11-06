@@ -1,11 +1,13 @@
 """Requests on port 80 and 443 at the same time: two server tasks share the handlers."""
 
+import asyncio
 import http.client
 import json
 import threading
 
 from conftest import HOST, api
 from test_https import AUTH, TLS
+from websockets.asyncio.client import connect
 
 
 def put_both(rounds: int):
@@ -39,3 +41,27 @@ def test_config_changes_on_both_ports_are_never_lost():
         body = {"brightness": before["brightness"], "satellite_pin": before["satellite_pin"]}
         api("PUT", "/api/config", json.dumps(body).encode())
     assert not lost, f"a change was lost in rounds {lost}"
+
+
+async def test_live_sockets_on_both_ports_while_presses_go_out(bridges):
+    """A wss listener sends presses: its replies come from the server task, the press events from another task,
+    both on one TLS session. Meanwhile listeners on port 80 come and go, and each must start with its own state."""
+    # the presses must reach the test server: while nobody draws they would walk the bridge's own menu
+    assert json.loads(api("GET", "/api/status")[1])["writer"].startswith("server")
+    login = {"Authorization": AUTH["Authorization"]}
+
+    async def presses():
+        async with connect(f"wss://{HOST}/api/ws", ssl=TLS, additional_headers=login) as ws:
+            results = 0
+            for i in range(150):
+                await ws.send(json.dumps({"t": "input", "id": i, "key": i % 8}))
+            while results < 150:
+                msg = json.loads(await asyncio.wait_for(ws.recv(), 10))
+                results += msg["t"] == "result"
+
+    async def listeners():
+        for _ in range(60):
+            async with connect(f"ws://{HOST}/api/ws", additional_headers=login) as ws:
+                assert json.loads(await asyncio.wait_for(ws.recv(), 5))["t"] == "state"
+
+    await asyncio.gather(presses(), listeners())

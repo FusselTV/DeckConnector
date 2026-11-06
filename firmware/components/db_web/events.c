@@ -68,24 +68,57 @@ static void send_locked(httpd_handle_t server, int fd, const char *json)
     xSemaphoreGive(e.lock);
 }
 
+typedef struct {
+    httpd_handle_t server;
+    char json[];
+} job_t;
+
+/* In the server's own task: a socket checked here cannot close and come back as another connection before the
+ * send, and a TLS session is never written while the server reads it. */
+static void send_job(void *arg)
+{
+    job_t *job = arg;
+    xSemaphoreTake(e.lock, portMAX_DELAY);
+    for (int i = 0; i < CLIENTS; i++) {
+        int fd = e.fds[i];
+        if (fd < 0 || e.servers[i] != job->server) {
+            continue;
+        }
+        if (httpd_ws_get_fd_info(job->server, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
+            e.fds[i] = -1; /* gone */
+            continue;
+        }
+        send_to(job->server, fd, job->json);
+    }
+    xSemaphoreGive(e.lock);
+    free(job);
+}
+
 static void broadcast(const char *json)
 {
     if (!e.lock) {
         return; /* before db_web_start */
     }
+    httpd_handle_t servers[2] = {0};
     xSemaphoreTake(e.lock, portMAX_DELAY);
     for (int i = 0; i < CLIENTS; i++) {
-        int fd = e.fds[i];
-        if (fd < 0) {
-            continue;
+        if (e.fds[i] >= 0 && servers[0] != e.servers[i]) {
+            servers[servers[0] != NULL] = e.servers[i];
         }
-        if (httpd_ws_get_fd_info(e.servers[i], fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
-            e.fds[i] = -1; /* gone */
-            continue;
-        }
-        send_to(e.servers[i], fd, json);
     }
     xSemaphoreGive(e.lock);
+    size_t len = strlen(json) + 1;
+    for (int k = 0; k < 2 && servers[k]; k++) {
+        job_t *job = malloc(sizeof(*job) + len);
+        if (!job) {
+            continue;
+        }
+        job->server = servers[k];
+        memcpy(job->json, json, len);
+        if (httpd_queue_work(job->server, send_job, job) != ESP_OK) {
+            free(job);
+        }
+    }
 }
 
 static bool anyone(void)
@@ -236,11 +269,11 @@ esp_err_t events_open(httpd_req_t *req)
     }
     e.fds[slot] = fd;
     e.servers[slot] = req->handle;
-    xSemaphoreGive(e.lock);
     char *buf = malloc(STATE_MAX);
     if (buf && e.state_json(buf, STATE_MAX)) {
-        send_locked(req->handle, fd, buf); /* the current state at once, then only changes */
+        send_to(req->handle, fd, buf); /* under the lock: the current state comes before any change */
     }
+    xSemaphoreGive(e.lock);
     free(buf);
     return ESP_OK;
 }
