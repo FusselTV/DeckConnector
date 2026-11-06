@@ -455,11 +455,20 @@ static void url_task(void *arg)
     uint8_t *buf = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL);
     esp_err_t err = buf && c ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
     int64_t len = err == ESP_OK ? esp_http_client_fetch_headers(c) : -1;
-    if (len <= 0 || esp_http_client_get_status_code(c) != 200 ||
-        db_ota_begin((size_t)len, -1, true) != ESP_OK) {
-        ESP_LOGE(TAG, "download of %s failed (status %d)", url, esp_http_client_get_status_code(c));
+    int status = err == ESP_OK ? esp_http_client_get_status_code(c) : 0;
+    char why[32] = "no Content-Length";
+    if (err != ESP_OK) {
+        snprintf(why, sizeof(why), "%s", esp_err_to_name(err));
+    } else if (status != 200) {
+        snprintf(why, sizeof(why), "HTTP %d", status);
+    }
+    esp_err_t begun = err == ESP_OK && status == 200 && len > 0 ? db_ota_begin((size_t)len, -1, true) : ESP_FAIL;
+    if (begun == ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "download of %s skipped: an update is already running", url); /* its state stays as it is */
+    } else if (begun != ESP_OK) {
+        ESP_LOGE(TAG, "download of %s failed: %s", url, why);
         if (s.progress) {
-            s.progress("unknown", "error", -1, "download");
+            s.progress("unknown", "error", -1, why);
         }
     } else {
         int n;
