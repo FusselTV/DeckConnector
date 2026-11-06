@@ -42,6 +42,7 @@ and when a firmware runs.
 ## On the bench
 
 ```
+tools/build.sh                              # incremental build, plain ninja without idf.py and export.sh
 cd tools
 uv run python -m dbtools.fw deploy          # sign firmware/build/deckbridge.bin, upload into a bench slot, start it
 uv run python -m dbtools.fw use 2           # start slot 2
