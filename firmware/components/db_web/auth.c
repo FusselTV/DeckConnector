@@ -189,8 +189,25 @@ static bool token_ok(httpd_req_t *req)
     return diff == 0;
 }
 
+/* true when the client is locked out after wrong guesses; then it has its 429 with the wait. */
+static bool locked(httpd_req_t *req)
+{
+    int wait = locked_s(req);
+    if (wait) {
+        char msg[80];
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"locked\",\"retry\":%d}", wait);
+        httpd_resp_set_status(req, "429 Too Many Requests");
+        send_json(req, msg);
+    }
+    return wait;
+}
+
 bool auth_check(httpd_req_t *req, web_level_t need)
 {
+    char given[8];
+    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_ERR_NOT_FOUND && locked(req)) {
+        return false; /* a token client must not take the lockout for an unknown token and drop it */
+    }
     if (auth_by_token(req)) {
         if (!token_ok(req)) {
             send_error(req, "401 Unauthorized", "unknown token");
@@ -259,12 +276,8 @@ esp_err_t auth_login(httpd_req_t *req)
     if (httpd_req_get_hdr_value_str(req, "X-Deckbridge", marker, sizeof(marker)) != ESP_OK) {
         return send_error(req, "403 Forbidden", "X-Deckbridge header missing");
     }
-    int wait = locked_s(req);
-    if (wait) {
-        char msg[80];
-        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"locked\",\"retry\":%d}", wait);
-        httpd_resp_set_status(req, "429 Too Many Requests");
-        return send_json(req, msg);
+    if (locked(req)) {
+        return ESP_OK;
     }
     bool ok = password_matches(req);
     count_try(req, ok);
@@ -317,7 +330,10 @@ void auth_start(void)
     nvs_handle_t h;
     size_t len = sizeof(tokens);
     if (nvs_open("auth", NVS_READONLY, &h) == ESP_OK) {
-        nvs_get_blob(h, "tokens", tokens, &len);
+        esp_err_t err = nvs_get_blob(h, "tokens", tokens, &len);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGE(TAG, "API tokens not read: %s", esp_err_to_name(err));
+        }
         nvs_close(h);
     }
 }
