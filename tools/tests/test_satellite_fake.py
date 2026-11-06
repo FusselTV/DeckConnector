@@ -38,10 +38,14 @@ class Fake(socketserver.StreamRequestHandler):
         self.server.conn = None
 
 
+class Server(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True  # read while binding: set on the instance it comes too late
+    daemon_threads = True
+
+
 @pytest.fixture
 def fake():
-    srv = socketserver.ThreadingTCPServer(("0.0.0.0", PORT), Fake)
-    srv.daemon_threads, srv.allow_reuse_address = True, True
+    srv = Server(("0.0.0.0", PORT), Fake)
     srv.lines, srv.device, srv.conn = [], None, None
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     cfg = json.loads(api("GET", "/api/config")[1])
