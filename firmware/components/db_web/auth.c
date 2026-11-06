@@ -297,14 +297,19 @@ esp_err_t auth_logout(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-static void save_tokens(void)
+static esp_err_t save_tokens(void)
 {
     nvs_handle_t h;
-    if (nvs_open("auth", NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_blob(h, "tokens", tokens, sizeof(tokens));
-        nvs_commit(h);
+    esp_err_t err = nvs_open("auth", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(h, "tokens", tokens, sizeof(tokens));
+        err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "tokens not saved: %s", esp_err_to_name(err));
+    }
+    return err;
 }
 
 void auth_start(void)
@@ -377,7 +382,9 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     if (slot < 0) {
         return send_error(req, "409 Conflict", "8 tokens already, remove one first");
     }
-    save_tokens();
+    if (save_tokens() != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "not saved: the token would be gone after a restart");
+    }
     char reply[160];
     snprintf(reply, sizeof(reply), "{\"name\":\"%s\",\"token\":\"%s\"}", wanted, token);
     return send_json(req, reply);
@@ -398,6 +405,8 @@ esp_err_t auth_tokens_remove(httpd_req_t *req)
     if (!found) {
         return send_error(req, "404 Not Found", "no such token");
     }
-    save_tokens();
+    if (save_tokens() != ESP_OK) { /* gone until the next restart, then it works again */
+        return send_error(req, "500 Internal Server Error", "not saved: the token works again after a restart");
+    }
     return send_json(req, "{\"ok\":true}");
 }

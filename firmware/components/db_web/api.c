@@ -304,16 +304,20 @@ esp_err_t post_dock(httpd_req_t *req)
     const cJSON *pairing = cJSON_GetObjectItemCaseSensitive(root, "pairing");
     const cJSON *forget = cJSON_GetObjectItemCaseSensitive(root, "forget");
     bool ok = true;
+    esp_err_t saved = ESP_OK;
     if (cJSON_IsBool(accept)) {
-        db_dock_answer(cJSON_IsTrue(accept));
+        saved = db_dock_answer(cJSON_IsTrue(accept));
     } else if (cJSON_IsNumber(pairing) && pairing->valueint >= 0 && pairing->valueint <= 3600) {
         db_dock_pairing(pairing->valueint);
     } else if (cJSON_IsTrue(forget) || cJSON_IsString(forget)) {
-        db_dock_forget(cJSON_IsString(forget) ? forget->valuestring : NULL);
+        saved = db_dock_forget(cJSON_IsString(forget) ? forget->valuestring : NULL);
     } else {
         ok = false;
     }
     cJSON_Delete(root);
+    if (saved != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "not saved: the list is as before after a restart");
+    }
     return ok ? send_json(req, "{\"ok\":true}")
               : send_error(req, "400 Bad Request", "accept, pairing (0 to 3600 s) or forget expected");
 }

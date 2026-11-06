@@ -93,14 +93,16 @@ esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
     return ESP_ERR_NOT_FOUND;
 }
 
-void db_dock_answer(bool accept)
+esp_err_t db_dock_answer(bool accept)
 {
+    return ESP_OK;
 }
 void db_dock_pairing(int seconds)
 {
 }
-void db_dock_forget(const char *ip)
+esp_err_t db_dock_forget(const char *ip)
 {
+    return ESP_OK;
 }
 
 esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len)

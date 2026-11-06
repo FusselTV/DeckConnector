@@ -583,7 +583,7 @@ static bool answers_arp(uint32_t ip, uint32_t local_ip)
     return tcpip_api_call(arp_probe, &q.call) == ERR_OK;
 }
 
-static void save_known(void)
+static esp_err_t save_known(void)
 {
     db_dock_peer_t copy[KNOWN_MAX];
     taskENTER_CRITICAL(&pair.mux);
@@ -591,11 +591,16 @@ static void save_known(void)
     int n = pair.count;
     taskEXIT_CRITICAL(&pair.mux);
     nvs_handle_t h;
-    if (nvs_open("dock", NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_blob(h, "hosts", copy, (size_t)n * sizeof(copy[0]));
-        nvs_commit(h);
+    esp_err_t err = nvs_open("dock", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(h, "hosts", copy, (size_t)n * sizeof(copy[0]));
+        err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "paired hosts not saved: %s", esp_err_to_name(err));
+    }
+    return err;
 }
 
 static void load_known(void)
@@ -704,19 +709,18 @@ bool db_dock_request(char ip[16])
     return r != 0;
 }
 
-void db_dock_answer(bool accept)
+esp_err_t db_dock_answer(bool accept)
 {
     taskENTER_CRITICAL(&pair.mux);
     uint32_t r = pair.request;
     pair.request = 0;
     bool added = accept && r && find(r, pair.request_mac) < 0 && remember(r, pair.request_mac, false);
     taskEXIT_CRITICAL(&pair.mux);
-    if (added) {
-        save_known();
-    }
+    esp_err_t err = added ? save_known() : ESP_OK;
     if (s.hosts_changed) {
         s.hosts_changed();
     }
+    return err;
 }
 
 void db_dock_pairing(int seconds)
@@ -755,7 +759,7 @@ bool db_dock_peer_connected(const db_dock_peer_t *p)
     return false;
 }
 
-void db_dock_forget(const char *ip)
+esp_err_t db_dock_forget(const char *ip)
 {
     uint32_t addr = ip ? inet_addr(ip) : 0;
     taskENTER_CRITICAL(&pair.mux);
@@ -767,7 +771,7 @@ void db_dock_forget(const char *ip)
     }
     pair.count = kept;
     taskEXIT_CRITICAL(&pair.mux);
-    save_known();
+    return save_known();
 }
 
 static void listen_task(void *arg)

@@ -30,7 +30,7 @@ size_t db_dock_hosts(db_dock_host_t *out, size_t max);
 /* A host that is not paired asked to connect in the last minute: its address. */
 bool db_dock_request(char ip[16]);
 /* Let the requesting host in from now on, or not. */
-void db_dock_answer(bool accept);
+esp_err_t db_dock_answer(bool accept); /* an error: in RAM only, gone after a restart */
 /* New hosts get in and are remembered for `seconds`; 0 ends it, also the minutes after a boot. */
 void db_dock_pairing(int seconds);
 int db_dock_pairing_left(void);
@@ -46,4 +46,4 @@ bool db_dock_peer_connected(const db_dock_peer_t *p);
 /* The name its router knows it by, "" until the lookup answered or when there is none. `ip` in network order. */
 void db_dock_name(uint32_t ip, char name[40]);
 /* NULL forgets every paired host. */
-void db_dock_forget(const char *ip);
+esp_err_t db_dock_forget(const char *ip);
