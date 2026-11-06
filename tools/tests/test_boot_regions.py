@@ -43,6 +43,12 @@ def shrink_nvs(t, rows):
     t[rows[0] + 8 : rows[0] + 12] = struct.pack("<I", 0x5000)
 
 
+def other_chip() -> bytes:
+    b = bytearray((BUILD / "bootloader/bootloader.bin").read_bytes())
+    b[12:14] = b"\x00\x00"  # chip id 0: the ESP32
+    return bytes(b)
+
+
 def move_running(t, rows):
     t[rows[3] + 4 : rows[3] + 8] = struct.pack("<I", 0x30000)  # ota_0 at 0x20000
 
@@ -55,6 +61,7 @@ def move_running(t, rows):
         pytest.param(lambda: dbfw.build("ptable", b"\xaa\x50" + bytes(3070), "x", KEY), id="table-without-md5"),
         pytest.param(lambda: dbfw.build("bootloader", b"\x00" * 4096, "x", KEY), id="not-a-bootloader"),
         pytest.param(lambda: dbfw.build("bootloader", b"\xe9" * 30000, "x", KEY), id="bootloader-too-big"),
+        pytest.param(lambda: dbfw.build("bootloader", other_chip(), "x", KEY), id="bootloader-for-another-chip"),
         pytest.param(
             lambda: (
                 dbfw.build("ptable", (BUILD / "partition_table/partition-table.bin").read_bytes(), "x", KEY)[:-1]
@@ -70,14 +77,21 @@ def test_refused_and_nothing_changes(image):
     assert regions() == before
 
 
-def test_a_refused_table_leaves_every_firmware_slot_alone():
-    """The table is checked before the slot it would be staged in, the one after the running one, is erased."""
+@pytest.mark.parametrize(
+    "refused",
+    [
+        pytest.param(lambda: dbfw.build("ptable", table(shrink_nvs), "x", KEY), id="table"),
+        pytest.param(lambda: dbfw.build("bootloader", other_chip(), "x", KEY), id="bootloader"),
+    ],
+)
+def test_a_refused_image_leaves_every_firmware_slot_alone(refused):
+    """Checked before the slot it would be staged in, the one after the running one, is erased."""
     slots = json.loads(api("GET", "/api/slots")[1])
     staging = (next(x["slot"] for x in slots if x["running"]) + 1) % len(slots)
     if slots[staging]["state"] == "empty":  # give it a firmware to lose
         assert upload_to(staging, fw.sign((BUILD / "deckbridge.bin").read_bytes())) == 200
         slots = json.loads(api("GET", "/api/slots")[1])
-    assert upload(dbfw.build("ptable", table(shrink_nvs), "x", KEY)) == 400
+    assert upload(refused()) == 400
     assert json.loads(api("GET", "/api/slots")[1]) == slots
 
 

@@ -226,15 +226,12 @@ static esp_err_t start_payload(void)
         if (!final || !s.partition || s.partition == esp_ota_get_boot_partition() || s.payload_len > final->size) {
             return ESP_ERR_INVALID_SIZE;
         }
-        if (s.target == TARGET_TABLE) { /* kept until it is checked: a refused table must not erase the slot */
-            s.table = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
-            if (s.table) {
-                memset(s.table, 0xff, final->size);
-            }
-            return s.table ? ESP_OK : ESP_ERR_NO_MEM;
+        /* kept until it is checked: a refused image must not erase the slot */
+        s.table = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
+        if (s.table) {
+            memset(s.table, 0xff, final->size);
         }
-        esp_err_t err = esp_ota_begin(s.partition, final->size, &s.p4); /* the whole size: the copy takes it all */
-        return err == ESP_OK ? esp_ota_set_final_partition(s.p4, final, true) : err;
+        return s.table ? ESP_OK : ESP_ERR_NO_MEM;
     }
     if (s.target == TARGET_P4) {
         s.partition = s.slot < 0 ? esp_ota_get_next_update_partition(NULL) : slot_partition(s.slot);
@@ -277,7 +274,7 @@ static esp_err_t write_payload(const uint8_t *p, size_t n)
     }
     psa_hash_update(&s.hash, p, n);
     esp_err_t err = ESP_OK;
-    if (s.target == TARGET_TABLE) {
+    if (s.table) {
         memcpy(s.table + s.written, p, n);
     } else {
         err = s.target == TARGET_C6 ? write_c6(p, n) : esp_ota_write(s.p4, p, n);
@@ -350,18 +347,20 @@ static esp_err_t check_table(const uint8_t *next)
 static esp_err_t commit_boot(void)
 {
     const esp_partition_t *final = primary(s.target);
-    esp_err_t err = ESP_OK;
-    if (s.target == TARGET_TABLE) {
-        err = check_table(s.table);
-        if (err == ESP_OK) {
-            err = esp_ota_begin(s.partition, final->size, &s.p4);
-        }
-        if (err == ESP_OK) {
-            err = esp_ota_set_final_partition(s.p4, final, true);
-        }
-        if (err == ESP_OK) {
-            err = esp_ota_write(s.p4, s.table, s.payload_len);
-        }
+    /* a bootloader: its image header (0xE9) and chip id, IDF checks the rest after the copy */
+    uint16_t chip;
+    memcpy(&chip, s.table + 12, 2);
+    esp_err_t err = s.target == TARGET_TABLE                         ? check_table(s.table)
+                    : s.table[0] == 0xE9 && chip == ESP_CHIP_ID_ESP32P4 ? ESP_OK
+                                                                         : ESP_ERR_INVALID_ARG;
+    if (err == ESP_OK) {
+        err = esp_ota_begin(s.partition, final->size, &s.p4); /* the whole size: the copy takes it all */
+    }
+    if (err == ESP_OK) {
+        err = esp_ota_set_final_partition(s.p4, final, true);
+    }
+    if (err == ESP_OK) {
+        err = esp_ota_write(s.p4, s.table, s.payload_len);
     }
     uint8_t *staged = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
     uint8_t *placed = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
@@ -372,7 +371,9 @@ static esp_err_t commit_boot(void)
         ESP_LOGW(TAG, "writing the %s", target_name());
         err = esp_ota_end(s.p4);
         s.p4 = 0;
-        if (err != ESP_OK || esp_partition_read(final, 0, placed, s.payload_len) != ESP_OK ||
+        if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+            ESP_LOGE(TAG, "%s refused by IDF before the copy", target_name());
+        } else if (err != ESP_OK || esp_partition_read(final, 0, placed, s.payload_len) != ESP_OK ||
             memcmp(placed, staged, s.payload_len)) {
             /* the region may be half written: the board may not start again until it is written again */
             ESP_LOGE(TAG, "the %s at 0x%lx is written incompletely (%s): do not power off, write it again",
