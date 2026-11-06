@@ -31,7 +31,8 @@ def test_nothing_sends_real_presses_without_the_check():
 
 
 def test_tools_never_send_real_true():
-    true = re.compile(r"""["']real["']\s*:\s*(True|true)\b""")
+    # as a dict literal, a keyword (dict(real=True), json(real=...)) or JSON text
+    true = re.compile(r"""["']real["']\s*:\s*(True|true)\b|\breal\s*=\s*True\b""")
     offenders = [
         str(f.relative_to(TOOLS))
         for f in TOOLS.rglob("*.py")

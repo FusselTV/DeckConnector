@@ -81,10 +81,11 @@ def pytest_collection_modifyitems(config, items):
 
 
 def api(method: str, path: str, body: bytes | None = None, auth: bool = True, timeout: float = 30):
-    if path.startswith("/api/input") and body and b'"real"' in body:
-        if b'"real": true' in body:
-            raise UnsafeBridge('"real": true is for a person at the web UI: tests name the host')
-        if ipaddress.ip_address(json.loads(body)["real"]) not in NOBODY:
+    real = json.loads(body).get("real") if path.startswith("/api/input") and body else None
+    if real is not None:
+        if not isinstance(real, str):
+            raise UnsafeBridge('"real" other than a host address is for a person at the web UI: tests name the host')
+        if ipaddress.ip_address(real) not in NOBODY:
             real_input_target(status())  # only a test Companion on this machine may get them
     req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-Deckbridge": "1"})
     if auth:
