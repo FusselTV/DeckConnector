@@ -105,11 +105,12 @@ def put_config(body: dict) -> None:
 
 @pytest.fixture(autouse=True)
 def input_gate():
-    """Before every test: a bridge whose firmware passes simulated presses on to Companion ends the whole run."""
+    """Before every test: a bridge whose firmware passes simulated presses on to Companion ends the whole run.
+    One still starting (a slot switch, a deploy) is waited for: the test after it may press at once."""
     try:
-        current = json.loads(api("GET", "/api/status", timeout=5)[1])
-    except OSError:
-        return  # not reachable: nothing can be pressed either
+        current = wait_for_bridge(90)
+    except TimeoutError:
+        pytest.exit("the bridge does not answer, so its firmware cannot be checked before pressing", returncode=3)
     try:
         require_input_gate(current)
     except UnsafeBridge as e:
