@@ -20,12 +20,11 @@ import socket
 import statistics
 import time
 import traceback
-from pathlib import Path
 
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
-from dbtools.load import Client
+from dbtools.load import Client, basic_auth
 from dbtools.server import Server
 
 KEYS = [(13 + 219 * (i % 4), 12 + 160 * (i // 4), 120, 120) for i in range(8)]
@@ -98,8 +97,7 @@ def _logout(host: str, cookie: str) -> None:
 
 
 async def main_async(a) -> None:
-    pw = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
-    auth = "Basic " + base64.b64encode(f"admin:{pw}".encode()).decode()
+    auth = basic_auth()
     c = Client(a.host, auth)
 
     def put(body: dict) -> None:

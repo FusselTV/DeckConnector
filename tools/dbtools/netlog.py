@@ -10,9 +10,10 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
 
 from websockets.sync.client import connect
+
+from dbtools.load import password
 
 
 def follow(host: str, password: str, secs: float, out=sys.stdout) -> None:
@@ -37,7 +38,7 @@ def main() -> None:
     ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
     ap.add_argument("--secs", type=float, default=10)
     a = ap.parse_args()
-    follow(a.host, (Path.home() / ".config/deckbridge/admin_pass").read_text().strip(), a.secs)
+    follow(a.host, password(), a.secs)
 
 
 if __name__ == "__main__":

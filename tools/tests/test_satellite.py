@@ -8,7 +8,7 @@ import socket
 import time
 
 import pytest
-from conftest import api, status
+from conftest import api, put_config, status
 
 from dbtools.safety import real_input_target
 
@@ -25,10 +25,6 @@ def reachable(addr: str) -> bool:
 
 
 pytestmark = pytest.mark.skipif(not reachable(SATELLITE), reason=f"no Companion at {SATELLITE}")
-
-
-def put(body: dict) -> None:
-    assert api("PUT", "/api/config", json.dumps(body).encode())[0] == 200
 
 
 def satellite_source() -> dict | None:
@@ -53,12 +49,12 @@ def pictures() -> dict:
 @pytest.fixture
 def drawing():
     cfg = json.loads(api("GET", "/api/config")[1])
-    put({"satellite": SATELLITE, "controller": "companion", "host": "satellite"})
+    put_config({"satellite": SATELLITE, "controller": "companion", "host": "satellite"})
     try:
         assert wait(lambda: (x := satellite_source()) and x["drawing"]), "Companion did not take the deck"
         yield
     finally:
-        put({"satellite": cfg["satellite"], "controller": cfg["controller"], "host": cfg["host"]})
+        put_config({"satellite": cfg["satellite"], "controller": cfg["controller"], "host": cfg["host"]})
 
 
 def test_companion_draws_keys_and_strip_parts(drawing):
@@ -83,13 +79,13 @@ def test_a_swipe_turns_the_page_and_back(drawing):
 
 def test_without_an_address_the_source_goes():
     cfg = json.loads(api("GET", "/api/config")[1])
-    put({"satellite": SATELLITE})
+    put_config({"satellite": SATELLITE})
     try:
         assert wait(lambda: (x := satellite_source()) and x["connected"])
-        put({"satellite": ""})
+        put_config({"satellite": ""})
         assert wait(lambda: satellite_source() is None, 10)
     finally:
-        put({"satellite": cfg["satellite"]})
+        put_config({"satellite": cfg["satellite"]})
 
 
 def tls_proxy(port: int, to: tuple[str, int]) -> str:
@@ -133,19 +129,19 @@ def test_over_the_websocket_port(scheme):
         pin = tls_proxy(16633, (host, 16623))
         addr = f"wss://{local_ip()}:16633"
     cfg = json.loads(api("GET", "/api/config")[1])
-    put({"satellite": ""})  # the session before must end, or its pictures would pass for this one
+    put_config({"satellite": ""})  # the session before must end, or its pictures would pass for this one
     assert wait(lambda: status()["writer"] != "satellite", 10)
-    put({"satellite": addr, "satellite_pin": pin, "controller": "companion", "host": "satellite"})
+    put_config({"satellite": addr, "satellite_pin": pin, "controller": "companion", "host": "satellite"})
     try:
         assert wait(lambda: (x := satellite_source()) and x["drawing"]), "Companion did not take the deck"
         assert wait(lambda: (p := pictures()) and len(p) >= 12 and p), "no full picture from Companion"
         if scheme == "wss":  # another certificate: no session
-            put({"satellite_pin": "00" * 32})
+            put_config({"satellite_pin": "00" * 32})
             assert wait(lambda: not satellite_source()["connected"], 10)
             time.sleep(6)
             assert not satellite_source()["connected"]
     finally:
-        put({**{k: cfg[k] for k in ("satellite", "satellite_pin", "controller", "host")}})
+        put_config({**{k: cfg[k] for k in ("satellite", "satellite_pin", "controller", "host")}})
 
 
 def test_the_local_companion_is_found_by_mdns():

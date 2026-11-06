@@ -40,6 +40,14 @@ def report_failures() -> str:
     return f"failed attempts: {text}"
 
 
+def password() -> str:
+    return (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
+
+
+def basic_auth(pw: str | None = None) -> str:
+    return "Basic " + base64.b64encode(f"admin:{pw or password()}".encode()).decode()
+
+
 class Client:
     """One keep-alive connection, like the session of one Home Assistant instance."""
 
@@ -313,8 +321,7 @@ def main() -> None:
     a = ap.parse_args()
     if a.compare:
         raise SystemExit(compare(*a.compare))
-    pw = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
-    auth = "Basic " + base64.b64encode(f"admin:{pw}".encode()).decode()
+    auth = basic_auth()
     probe = Client(a.host, auth)
 
     def status():

@@ -16,7 +16,6 @@ serial recovery.
 """
 
 import argparse
-import base64
 import json
 import os
 import subprocess
@@ -28,15 +27,13 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 
 from dbtools import dbfw
+from dbtools.load import basic_auth
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = Path.home() / ".cache/deckbridge"
 BENCH_SLOTS = (3, 2)
 HOST = os.environ.get("DB_HOST", "192.168.1.214")
-AUTH = (
-    "Basic "
-    + base64.b64encode(f"admin:{(Path.home() / '.config/deckbridge/admin_pass').read_text().strip()}".encode()).decode()
-)
+AUTH = basic_auth()
 
 
 def api(method: str, path: str, body: bytes | None = None, timeout: float = 120):

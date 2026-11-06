@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from dbtools.load import password
 from dbtools.safety import UnsafeBridge, real_input_target, require_input_gate
 from dbtools.server import Server
 
@@ -63,7 +64,7 @@ if TARGET == "sim":
     HOST, PASSWORD = _start_sim()
 else:
     HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
-    PASSWORD = (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
+    PASSWORD = password()
 CAMERA = os.environ.get("DECKBRIDGE_CAMERA", "rtsp://192.168.1.163:8554/stream")
 PORTS = (8765, 8766)
 
