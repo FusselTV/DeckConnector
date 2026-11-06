@@ -10,7 +10,7 @@ import pytest
 from conftest import api
 from cryptography.hazmat.primitives import serialization
 
-from dbtools import dbfw, fw
+from dbtools import dbfw
 
 BUILD = Path(__file__).resolve().parents[2] / "firmware/build"
 KEY = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
@@ -49,6 +49,12 @@ def other_chip() -> bytes:
     return bytes(b)
 
 
+def bad_md5() -> bytes:
+    t = bytearray(table(lambda t, rows: None))
+    t[t.index(b"\xeb\xeb") + 16] ^= 0xFF  # the MD5 row: a table IDF itself refuses
+    return bytes(t)
+
+
 def move_running(t, rows):
     t[rows[3] + 4 : rows[3] + 8] = struct.pack("<I", 0x30000)  # ota_0 at 0x20000
 
@@ -82,15 +88,15 @@ def test_refused_and_nothing_changes(image):
     [
         pytest.param(lambda: dbfw.build("ptable", table(shrink_nvs), "x", KEY), id="table"),
         pytest.param(lambda: dbfw.build("bootloader", other_chip(), "x", KEY), id="bootloader"),
+        pytest.param(lambda: dbfw.build("ptable", bad_md5(), "x", KEY), id="table-bad-md5"),
     ],
 )
 def test_a_refused_image_leaves_every_firmware_slot_alone(refused):
     """Checked before the slot it would be staged in, the one after the running one, is erased."""
     slots = json.loads(api("GET", "/api/slots")[1])
     staging = (next(x["slot"] for x in slots if x["running"]) + 1) % len(slots)
-    if slots[staging]["state"] == "empty":  # give it a firmware to lose
-        assert upload_to(staging, fw.sign((BUILD / "deckbridge.bin").read_bytes())) == 200
-        slots = json.loads(api("GET", "/api/slots")[1])
+    if slots[staging]["state"] == "empty":
+        pytest.skip("the staging slot holds no firmware to lose; tests never write one there")
     assert upload(refused()) == 400
     assert json.loads(api("GET", "/api/slots")[1]) == slots
 

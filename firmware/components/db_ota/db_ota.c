@@ -175,11 +175,15 @@ static const esp_partition_t *slot_partition(int slot)
 
 /* A slot's image does not carry the security level of its .dbfw file, so it is noted here: at upload, and by
  * each firmware for its own slot when it runs. A slot without a note is never booted by choice. */
-static void remember_level(const esp_partition_t *part, uint16_t level)
+static void remember_level(const esp_partition_t *part, int level)
 {
     nvs_handle_t h;
     if (nvs_open("ota", NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_u16(h, part->label, level);
+        if (level < 0) {
+            nvs_erase_key(h, part->label); /* the slot is about to be erased: its old note would lie */
+        } else {
+            nvs_set_u16(h, part->label, (uint16_t)level);
+        }
         nvs_commit(h);
         nvs_close(h);
     }
@@ -239,6 +243,7 @@ static esp_err_t start_payload(void)
             return ESP_ERR_NOT_FOUND;
         }
         int64_t t = esp_timer_get_time();
+        remember_level(s.partition, -1);
         esp_err_t err = esp_ota_begin(s.partition, s.payload_len, &s.p4);
         ESP_LOGI(TAG, "slot %s erased in %lld ms", s.partition->label, (esp_timer_get_time() - t) / 1000);
         return err;
@@ -331,7 +336,10 @@ static esp_err_t check_table(const uint8_t *next)
     esp_partition_pos_t pos = {.offset = run->address, .size = run->size};
     uint32_t flash = 0;
     esp_flash_get_size(NULL, &flash);
+    int count = 0;
     const char *why = !now                                                               ? "memory"
+                      : esp_partition_table_verify((const esp_partition_info_t *)next, false, &count) != ESP_OK
+                          ? "not a valid table (MD5)"
                       : esp_partition_read(primary(TARGET_TABLE), 0, now, ESP_PARTITION_TABLE_SIZE) != ESP_OK
                           ? "read"
                       : esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &pos, &meta) != ESP_OK ? "running image"
@@ -347,13 +355,15 @@ static esp_err_t check_table(const uint8_t *next)
 static esp_err_t commit_boot(void)
 {
     const esp_partition_t *final = primary(s.target);
-    /* a bootloader: its image header (0xE9) and chip id, IDF checks the rest after the copy */
+    /* a bootloader: its image header (0xE9) and chip id here, IDF checks the rest in esp_ota_end, after staging
+     * erased the slot and before the copy */
     uint16_t chip;
     memcpy(&chip, s.table + 12, 2);
     esp_err_t err = s.target == TARGET_TABLE                         ? check_table(s.table)
                     : s.table[0] == 0xE9 && chip == ESP_CHIP_ID_ESP32P4 ? ESP_OK
                                                                          : ESP_ERR_INVALID_ARG;
     if (err == ESP_OK) {
+        remember_level(s.partition, -1);
         err = esp_ota_begin(s.partition, final->size, &s.p4); /* the whole size: the copy takes it all */
     }
     if (err == ESP_OK) {
