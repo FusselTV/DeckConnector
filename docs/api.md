@@ -256,7 +256,7 @@ refused. Every message is one JSON object, and `t` says what it is.
 |---|---|
 | `state` | At once on connect, then on every change. The status without uptime, signal and counters |
 | `screen` | The picture changed. `GET /api/screen` or `/api/screen.jpg` has the new one |
-| `input` | Someone used the deck: `kind`, `index`, `value`, `x`, `y`, `x2`, `y2` and the `writer` that got it |
+| `input` | Someone used the deck: `kind`, `index`, `value`, `x`, `y`, `x2`, `y2`, the `writer` that got it, and `simulated` (an API press without `"real"`). A token never gets simulated presses |
 | `ota` | Progress of an update: `target`, `state`, `pct`, and `error` when it failed |
 | `ping` | Every 5 s. Without any message for 12 s the connection is dead, so connect again |
 | `log` | Only after `{"t": "log"}`: new log text in `text`. The first ones carry everything still kept, the boot included |

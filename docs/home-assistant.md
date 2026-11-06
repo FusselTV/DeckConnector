@@ -31,7 +31,8 @@ so 12 s without a message means the link is dead and the integration connects ag
 | Buttons | `POST /api/menu`, `POST /api/reboot`, `POST /api/deck/reconnect` |
 | Update | `firmware` in the status as the installed version, `POST /api/ota/url` to install, `ota` messages for progress |
 
-Key presses go to the host that draws, and Home Assistant sees them as events too. To press a key from an
+Key presses go to the host that draws, and Home Assistant sees them as events too. Presses that a test or script sends
+without `"real"` never reach a token, so automations only run on real ones. To press a key from an
 automation, send `{"t": "input", "key": 3}` over the web socket or `POST /api/input`.
 
 ## Not there yet

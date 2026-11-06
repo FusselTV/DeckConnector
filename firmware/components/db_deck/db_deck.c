@@ -284,9 +284,17 @@ static void handle_detach(void)
     notify_device(NULL); /* the kept pictures stay: the same deck plugged in again shows them at once */
 }
 
+static bool input_real;
+
+bool db_deck_input_real(void)
+{
+    return input_real;
+}
+
 static void handle_input(const ev_t *ev)
 {
     s.stats.inputs++;
+    input_real = ev->real;
     for (int i = 0; i < s.listener_count; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
             s.listeners[i].raw_input(ev->report, ev->len);

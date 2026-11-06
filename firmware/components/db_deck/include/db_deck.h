@@ -75,6 +75,8 @@ esp_err_t db_deck_set_brightness(uint8_t pct);
 
 /* Handle `in` as if the device had sent it. External listeners get it only when `real`. */
 esp_err_t db_deck_simulate(const db_input_t *in, bool real);
+/* Inside an input listener: whether the event came from the deck or a request that a person sent it. */
+bool db_deck_input_real(void);
 
 /* Raw access for the dock emulation. Writes of a source that is not the writer only update its kept picture.
  */

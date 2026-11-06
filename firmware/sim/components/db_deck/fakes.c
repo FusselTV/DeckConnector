@@ -43,8 +43,16 @@ bool db_deck_info(db_device_info_t *out)
     return true;
 }
 
+static bool input_real;
+
+bool db_deck_input_real(void)
+{
+    return input_real;
+}
+
 esp_err_t db_deck_simulate(const db_input_t *in, bool real)
 {
+    input_real = real;
     for (int i = 0; i < listener_count; i++) {
         if (listeners[i].input && (real || !listeners[i].external)) {
             listeners[i].input(in);

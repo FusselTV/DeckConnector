@@ -75,7 +75,8 @@ static void send_locked(httpd_handle_t server, int fd, const char *json)
 
 typedef struct {
     httpd_handle_t server;
-    int fd; /* -1: every listener of this server */
+    int fd;         /* -1: every listener of this server */
+    bool no_tokens; /* simulated presses: an integration must not act on them */
     char json[];
 } job_t;
 
@@ -87,7 +88,8 @@ static void send_job(void *arg)
     xSemaphoreTake(e.lock, portMAX_DELAY);
     for (int i = 0; i < CLIENTS; i++) {
         int fd = e.fds[i];
-        if (fd < 0 || e.servers[i] != job->server || (job->fd >= 0 && fd != job->fd)) {
+        if (fd < 0 || e.servers[i] != job->server || (job->fd >= 0 && fd != job->fd) ||
+            (job->no_tokens && e.by_token[i])) {
             continue;
         }
         if (httpd_ws_get_fd_info(job->server, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
@@ -100,7 +102,7 @@ static void send_job(void *arg)
     free(job);
 }
 
-static void queue_job(httpd_handle_t server, int fd, const char *json)
+static void queue_job(httpd_handle_t server, int fd, const char *json, bool no_tokens)
 {
     size_t len = strlen(json) + 1;
     job_t *job = malloc(sizeof(*job) + len);
@@ -109,13 +111,14 @@ static void queue_job(httpd_handle_t server, int fd, const char *json)
     }
     job->server = server;
     job->fd = fd;
+    job->no_tokens = no_tokens;
     memcpy(job->json, json, len);
     if (httpd_queue_work(server, send_job, job) != ESP_OK) {
         free(job);
     }
 }
 
-static void broadcast(const char *json)
+static void broadcast_to(const char *json, bool no_tokens)
 {
     if (!e.lock) {
         return; /* before db_web_start */
@@ -129,8 +132,13 @@ static void broadcast(const char *json)
     }
     xSemaphoreGive(e.lock);
     for (int k = 0; k < 2 && servers[k]; k++) {
-        queue_job(servers[k], -1, json);
+        queue_job(servers[k], -1, json, no_tokens);
     }
+}
+
+static void broadcast(const char *json)
+{
+    broadcast_to(json, false);
 }
 
 /* New log text to each listener that asked for it, from where it left off. */
@@ -154,7 +162,7 @@ static void send_log(char *chunk)
         char *json = cJSON_PrintUnformatted(msg);
         cJSON_Delete(msg);
         if (json) {
-            queue_job(server, fd, json);
+            queue_job(server, fd, json, false);
             free(json);
         }
         xSemaphoreTake(e.lock, portMAX_DELAY);
@@ -188,9 +196,9 @@ static void on_input(const db_input_t *ev)
     snprintf(
         json, sizeof(json),
         "{\"t\":\"input\",\"kind\":\"%s\",\"index\":%u,\"value\":%d,\"x\":%u,\"y\":%u,\"x2\":%u,\"y2\":%u,"
-        "\"writer\":\"%s\"}",
+        "\"writer\":\"%s\",\"simulated\":%s}",
         kinds[ev->kind], ev->index, ev->value, ev->x, ev->y, ev->x2, ev->y2,
-        db_deck_source_name(db_deck_writer()));
+        db_deck_source_name(db_deck_writer()), db_deck_input_real() ? "false" : "true");
     xQueueSend(e.inputs, json, 0); /* full: the press is dropped for listeners, never for the deck */
 }
 
@@ -207,7 +215,7 @@ static void poll_task(void *arg)
     TickType_t ping = polled;
     for (;;) {
         if (xQueueReceive(e.inputs, input, pdMS_TO_TICKS(POLL_MS)) == pdTRUE) {
-            broadcast(input);
+            broadcast_to(input, strstr(input, "\"simulated\":true") != NULL);
         }
         if (xTaskGetTickCount() - ping >= pdMS_TO_TICKS(PING_MS) && anyone()) {
             ping = xTaskGetTickCount();
