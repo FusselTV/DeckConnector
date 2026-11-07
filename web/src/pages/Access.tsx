@@ -66,7 +66,6 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
       <Modal
         icon={Key}
         title={t('api.made', { name })}
-        close={close}
         foot={
           <Btn kind="pri" onClick={close}>
             {t('c.done')}

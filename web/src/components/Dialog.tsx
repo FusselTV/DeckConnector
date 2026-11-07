@@ -68,7 +68,8 @@ export function Modal(p: {
   icon: LucideIcon
   children: ReactNode
   foot?: ReactNode
-  close: () => void
+  /** Without it the dialog has no close button and ignores Escape and the backdrop: the foot must close it. */
+  close?: () => void
 }) {
   const { t } = useUi()
   const I = p.icon
@@ -76,15 +77,23 @@ export function Modal(p: {
     <Dialog
       className="modal"
       title={p.title}
-      close={p.close}
+      close={p.close ?? (() => undefined)}
       head={(h) => (
         <div className="mhead">
           <I size={18} className="ic" aria-hidden />
           {h}
           <span className="sp" />
-          <button type="button" className="ibtn ghost" aria-label={t('c.close')} title={t('c.close')} onClick={p.close}>
-            <X size={18} aria-hidden />
-          </button>
+          {p.close && (
+            <button
+              type="button"
+              className="ibtn ghost"
+              aria-label={t('c.close')}
+              title={t('c.close')}
+              onClick={p.close}
+            >
+              <X size={18} aria-hidden />
+            </button>
+          )}
         </div>
       )}
     >
