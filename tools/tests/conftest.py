@@ -88,8 +88,8 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
     if real is not None:
         if not isinstance(real, str):
             raise UnsafeBridge('"real" other than a host address is for a person at the web UI: tests name the host')
-        if ipaddress.ip_address(real) not in NOBODY:
-            real_input_target(status())  # only a test Companion on this machine may get them
+        if ipaddress.ip_address(real) not in NOBODY and real != real_input_target(status()):
+            raise UnsafeBridge(f'"real": {real} is not the host on this machine that draws')
     req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-DeckConnector": "1"})
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())
