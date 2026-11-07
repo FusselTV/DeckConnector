@@ -41,7 +41,7 @@ token needs no `X-DeckConnector` header. Each token has one right:
 | `control` (default) | The routes `GET /api` lists with `"access": "control"`: status, screen, metrics, input, menu, reconnect, and the web socket without changing settings |
 | `full` | Also the `"access": "full"` routes: settings, restart, updates, slots, log, pairing |
 
-No token reaches the `"access": "admin"` routes (the tokens themselves), and no token changes `admin_pass`. Those
+No token reaches the `"access": "admin"` routes (the tokens themselves and the crash dump), and no token changes `admin_pass`, `setup_done` or `qr_login`. Those
 answer 403. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
 the old one. Up to 8 tokens exist at a time.
 

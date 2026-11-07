@@ -14,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "mbedtls/base64.h"
+#include "mbedtls/platform_util.h"
 #include "nvs.h"
 #include "psa/crypto.h"
 #include "web.h"
@@ -159,6 +160,10 @@ static bool basic_auth_ok(httpd_req_t *req)
     mbedtls_base64_encode(expected, sizeof(expected) - 1, &n, (const unsigned char *)plain, (size_t)len);
     expected[n] = '\0';
     bool ok = equal(given + 6, (const char *)expected);
+    /* a crash dump carries this stack */
+    mbedtls_platform_zeroize(given, sizeof(given));
+    mbedtls_platform_zeroize(plain, sizeof(plain));
+    mbedtls_platform_zeroize(expected, sizeof(expected));
     count_try(req, ok);
     return ok;
 }
@@ -186,6 +191,7 @@ static int token_index(httpd_req_t *req)
     }
     uint8_t sha[32];
     sha256(given + 7, sha);
+    mbedtls_platform_zeroize(given, sizeof(given));
     int found = -1;
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
@@ -289,6 +295,7 @@ static bool password_matches(httpd_req_t *req)
     const cJSON *pw = cJSON_GetObjectItemCaseSensitive(root, "password");
     bool ok = cJSON_IsString(pw) && equal(pw->valuestring, db_config()->admin_pass);
     cJSON_Delete(root);
+    mbedtls_platform_zeroize(body, sizeof(body));
     return ok;
 }
 

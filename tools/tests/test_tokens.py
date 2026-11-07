@@ -135,7 +135,6 @@ FULL = [
     ("GET", "/api/boot"),
     ("GET", "/api/companion/found"),
     ("GET", "/api/config"),
-    ("GET", "/api/coredump"),
     ("GET", "/api/log"),
     ("GET", "/api/profile"),
     ("GET", "/api/slots"),
@@ -151,7 +150,14 @@ FULL = [
     ("PUT", "/api/frontend"),
     ("PUT", "/api/setup"),
 ]
-PASSWORD_ONLY = [("DELETE", "/api/tokens/x"), ("GET", "/api/backup"), ("GET", "/api/tokens"), ("POST", "/api/tokens")]
+# a crash dump holds task stacks, where the password can linger
+PASSWORD_ONLY = [
+    ("DELETE", "/api/tokens/x"),
+    ("GET", "/api/backup"),
+    ("GET", "/api/coredump"),
+    ("GET", "/api/tokens"),
+    ("POST", "/api/tokens"),
+]
 
 
 @pytest.fixture

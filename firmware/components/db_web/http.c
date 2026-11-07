@@ -455,7 +455,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/wifi/join", .method = HTTP_POST, .handler = post_wifi_join}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_FULL},
-        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_FULL},
+        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_ADMIN}, /* stacks can hold the password */
         {{.uri = "/api/boot", .method = HTTP_GET, .handler = get_boot}, WEB_FULL},
         {{.uri = "/api/coredump", .method = HTTP_DELETE, .handler = delete_coredump}, WEB_FULL},
 #ifdef DB_DEBUG_CRASH
