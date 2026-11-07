@@ -1,16 +1,15 @@
 """A browser asks on the deck to log in without the password; someone at the deck accepts or denies it."""
 
+import asyncio
 import json
-import os
 import re
-import subprocess
 import time
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 import pytest
-from conftest import HOST, SIM, TARGET, api, status
+from conftest import HOST, TARGET, WORKER, api, start_sim, status
+from websockets.asyncio.client import connect
 
 ZEROS = "0" * 32
 
@@ -108,26 +107,11 @@ def test_closing_the_menu_denies_a_request(deck):
 @pytest.fixture
 def accepting_sim():
     """A second simulator where someone at the deck accepts every request after 1 s."""
-    worker = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
-    port = 28080 + worker
-    log = Path(f"/tmp/deckbridge-sim-accept-{port}.log")
-    sim = subprocess.Popen(
-        [SIM],
-        env={**os.environ, "DB_SIM_PORT": str(port), "DB_SIM_LOGIN_ACCEPT": "1"},
-        stdout=log.open("w"),
-        stderr=subprocess.STDOUT,
-    )
-    try:
-        for _ in range(100):
-            try:
-                urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
-                break
-            except OSError:
-                time.sleep(0.05)
-        yield f"127.0.0.1:{port}"
-    finally:
-        sim.kill()
-        sim.wait()
+    port = 28080 + WORKER
+    sim = start_sim(port, DB_SIM_LOGIN_ACCEPT="1")
+    yield f"127.0.0.1:{port}"
+    sim.kill()
+    sim.wait()
 
 
 @pytest.mark.sim
@@ -144,3 +128,55 @@ def test_an_accepted_request_logs_in_once(accepting_sim):
     assert call("GET", "/api/status", host=host, cookie=session)[0] == 200
     code, reply, cookie = call("GET", f"/api/login/request/{rid}", host=host)
     assert (reply["state"], cookie) == ("used", "")
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="takes over the deck for a minute")
+def test_an_unanswered_request_expires():
+    rid = ask()
+    try:
+        time.sleep(61)
+        code, reply, cookie = call("GET", f"/api/login/request/{rid}")
+        assert (code, reply, cookie) == (200, {"state": "expired", "s": 0}, "")
+    finally:
+        call("DELETE", f"/api/login/request/{rid}")
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="accepting takes a person at the deck")
+def test_a_denied_request_stays_denied_when_the_deck_accepts_later(accepting_sim):
+    host = accepting_sim
+    rid = ask(host)
+    assert call("DELETE", f"/api/login/request/{rid}", host=host)[0] == 200
+    time.sleep(1.5)  # the simulated person accepts after 1 s
+    code, reply, cookie = call("GET", f"/api/login/request/{rid}", host=host)
+    assert (code, reply["state"], cookie) == (200, "denied", "")
+
+
+@pytest.mark.sim
+async def test_a_token_cannot_accept_a_login_request(deck):
+    """A control token may press keys: the login page must take its answer only from the deck itself."""
+    code, body = api("POST", "/api/tokens", json.dumps({"name": "pytest-login"}).encode())
+    assert code == 200
+    bearer = {"Authorization": f"Bearer {json.loads(body)['token']}"}
+    keys = len(json.loads(api("GET", "/api/screen")[1])["keys"])
+    rid = ask()
+    try:
+        for key in range(keys):
+            req = urllib.request.Request(
+                f"http://{HOST}/api/input", data=json.dumps({"key": key}).encode(), method="POST", headers=bearer
+            )
+            with urllib.request.urlopen(req, timeout=10) as r:
+                assert r.status == 200
+        async with connect(f"ws://{HOST}/api/ws", additional_headers=bearer) as ws:
+            for key in range(keys):
+                await ws.send(json.dumps({"t": "input", "id": key, "key": key}))
+            results = 0
+            while results < keys:
+                results += json.loads(await asyncio.wait_for(ws.recv(), 5))["t"] == "result"
+        await asyncio.sleep(0.5)
+        code, reply, cookie = call("GET", f"/api/login/request/{rid}")
+        assert (code, reply["state"], cookie) == (200, "pending", "")
+    finally:
+        call("DELETE", f"/api/login/request/{rid}")
+        api("DELETE", "/api/tokens/pytest-login")

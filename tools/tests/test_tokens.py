@@ -5,6 +5,7 @@ import base64
 import json
 import time
 import urllib.request
+from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
@@ -149,9 +150,15 @@ FULL = [
     ("PUT", "/api/config"),
     ("PUT", "/api/frontend"),
     ("PUT", "/api/setup"),
+    ("PUT", "/api/tls"),
+    ("DELETE", "/api/tls"),
+    ("POST", "/api/wifi/join"),
+    ("GET", "/api/wifi/scan"),
+    ("DELETE", "/api/pairing/denied/192.0.2.1"),
 ]
 # a crash dump holds task stacks, where the password can linger
 PASSWORD_ONLY = [
+    ("POST", "/api/debug/crash"),
     ("DELETE", "/api/tokens/x"),
     ("GET", "/api/backup"),
     ("GET", "/api/coredump"),
@@ -168,13 +175,21 @@ def full_token():
     api("DELETE", "/api/tokens/pytest-full")
 
 
+def built(method: str, path: str) -> None:
+    """Some routes exist only on the device (TLS) or in a debug build (crash)."""
+    if not any(r["method"] == method and fnmatch(path, r["path"]) for r in routes()):
+        pytest.skip(f"{method} {path} is not in this build")
+
+
 @pytest.mark.parametrize(("method", "path"), FULL + PASSWORD_ONLY)
 def test_a_control_token_may_not_use_a_full_route(token, method, path):
+    built(method, path)
     assert call(method, path, token, body=b"{}" if method != "GET" else None)[0] == 403
 
 
 @pytest.mark.parametrize(("method", "path"), PASSWORD_ONLY)
 def test_a_full_token_may_not_manage_tokens(full_token, method, path):
+    built(method, path)
     assert call(method, path, full_token, body=b"{}" if method != "GET" else None)[0] == 403
 
 
@@ -283,3 +298,30 @@ def test_a_backup_that_must_escape_much_stays_whole():
     assert r[0] == 200, r
     code, body = api("GET", "/api/backup?secrets=1")
     assert code == 200 and json.loads(body)["admin_pass"] == PASSWORD, body[-80:]
+
+
+@pytest.mark.xfail(
+    TARGET == "sim", reason="firmware/sim: db_ui_login_shown does not count the password page", strict=True
+)
+async def test_deck_pictures_are_for_the_password_while_the_password_shows(token):
+    """The password page draws the password on the deck: a token reading the pictures would read it."""
+    login = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}
+    async with (
+        connect(f"ws://{HOST}/api/ws", additional_headers={"Authorization": f"Bearer {token}"}) as ha,
+        connect(f"ws://{HOST}/api/ws", additional_headers=login) as ui,
+    ):
+        await ha.recv()
+        await ui.recv()
+        assert call("POST", "/api/password/show", headers={"X-DeckConnector": "1"}, body=b"")[0] == 200
+        try:
+            for path in ("/api/screen", "/api/screen.jpg"):
+                assert call("GET", path, token)[0] == 403, path
+                assert api("GET", path)[0] == 200, path
+            try:
+                for _ in range(20):
+                    msg = json.loads(await asyncio.wait_for(ha.recv(), 0.5))
+                    assert not (msg["t"] == "screen" and "screen" in msg), "a token got the picture list"
+            except TimeoutError:
+                pass
+        finally:
+            api("DELETE", "/api/menu")

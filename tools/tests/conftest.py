@@ -45,26 +45,32 @@ REACT_PAGE = (Path(__file__).resolve().parents[2] / "web/dist/index.html").exist
 SIM = Path(__file__).resolve().parents[2] / "firmware/sim/build/deckbridge_sim.elf"
 
 
-def _start_sim() -> tuple[str, str]:
-    worker = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
-    port, password = 18080 + 2 * worker, "simulator-pass"
+WORKER = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
+
+
+def start_sim(port: int, **env: str) -> subprocess.Popen:
+    """A simulator on 127.0.0.1:port that answers; DB_SIM_* settings come in `env`."""
     log = Path(f"/tmp/deckbridge-sim-{port}.log")
     sim = subprocess.Popen(
-        [SIM],
-        env={**os.environ, "DB_SIM_PORT": str(port), "DB_SIM_PASSWORD": password},
-        stdout=log.open("w"),
-        stderr=subprocess.STDOUT,
+        [SIM], env={**os.environ, "DB_SIM_PORT": str(port), **env}, stdout=log.open("w"), stderr=subprocess.STDOUT
     )
     atexit.register(sim.kill)
     for _ in range(100):
         try:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
-            return f"127.0.0.1:{port}", password
+            return sim
         except OSError:
             if sim.poll() is not None:
                 break
             time.sleep(0.05)
+    sim.kill()
     raise RuntimeError(f"the simulator did not start, see {log}")
+
+
+def _start_sim() -> tuple[str, str]:
+    port, password = 18080 + 2 * WORKER, "simulator-pass"
+    start_sim(port, DB_SIM_PASSWORD=password)
+    return f"127.0.0.1:{port}", password
 
 
 if TARGET == "sim":

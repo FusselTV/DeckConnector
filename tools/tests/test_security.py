@@ -6,7 +6,7 @@ import time
 import urllib.request
 
 import pytest
-from conftest import HOST, PASSWORD, api, status
+from conftest import HOST, PASSWORD, TARGET, WORKER, api, start_sim, status
 from cryptography.hazmat.primitives import serialization
 
 from dbtools import dbfw
@@ -85,3 +85,57 @@ def test_a_signed_file_below_the_security_level_is_refused():
 def test_a_login_needs_the_marker_header_old_or_new(headers, code):
     body = json.dumps({"password": PASSWORD}).encode()
     assert post_raw("/api/login", body, {**headers, "Content-Type": "application/json"}) == code
+
+
+def get(url: str, cookie: str = "") -> int:
+    req = urllib.request.Request(url, headers={"Cookie": cookie} if cookie else {})
+    try:
+        return urllib.request.urlopen(req, timeout=5).status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+@pytest.fixture
+def own_sim(request):
+    """A simulator of this test's own, so what it changes cannot touch the other tests."""
+    port = 28180 + WORKER
+    sim = start_sim(port, DB_SIM_PASSWORD=PASSWORD, **getattr(request, "param", {}))
+    yield port
+    sim.kill()
+    sim.wait()
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="the setup WLAN of the simulator")
+@pytest.mark.parametrize("own_sim", [{"DB_SIM_VIA_AP": "1"}], indirect=True)
+def test_only_requests_to_the_setup_wlan_address_skip_the_password(own_sim):
+    assert get(f"http://127.0.0.1:{own_sim}/api/config") == 200, "the AP address (here 127.0.0.1) lets a phone in"
+    assert get(f"http://127.0.0.2:{own_sim}/api/config") == 401, "another address of the bridge does not"
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="changes the password")
+@pytest.mark.xfail(
+    reason="firmware: other sessions end only with the restart a new password asks for, and work until then "
+    "(the simulator never restarts)",
+    strict=True,
+)
+def test_a_new_password_ends_the_other_sessions(own_sim):
+    base = f"http://127.0.0.1:{own_sim}"
+
+    def login() -> str:
+        req = urllib.request.Request(
+            f"{base}/api/login", data=json.dumps({"password": PASSWORD}).encode(), headers={"X-DeckConnector": "1"}
+        )
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.headers["Set-Cookie"].split(";")[0]
+
+    other, mine = login(), login()
+    req = urllib.request.Request(
+        f"{base}/api/config",
+        data=b'{"admin_pass": "another-pass"}',
+        method="PUT",
+        headers={"X-DeckConnector": "1", "Cookie": mine},
+    )
+    assert urllib.request.urlopen(req, timeout=5).status == 200
+    assert get(f"{base}/api/status", other) == 401
