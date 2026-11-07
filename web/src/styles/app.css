@@ -950,9 +950,9 @@
   .steps-ol {
     margin: 0;
     padding-left: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  }
+  .steps-ol > li + li {
+    margin-top: 6px;
   }
   /* meter */
   .meter {
@@ -1479,6 +1479,7 @@
   .center {
     min-height: 100dvh;
     display: grid;
+    grid-template-columns: minmax(0, 1fr); /* an auto track grows to a nowrap line's full width */
     place-items: center;
     padding-block: 24px 80px;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -1819,7 +1820,9 @@
   }
   .steps-ol.big {
     font-size: 17px;
-    gap: 10px;
+  }
+  .steps-ol.big > li + li {
+    margin-top: 10px;
   }
   .steps-ol .addr {
     margin-top: 6px;
