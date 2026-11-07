@@ -255,7 +255,9 @@ static bool take_str(const cJSON *obj, const char *key, char *dst, size_t cap, c
         return true;
     }
     if (!cJSON_IsString(v) || strlen(v->valuestring) >= cap) {
-        snprintf(err, err_cap, "%s: text expected, at most %u characters", key, (unsigned)(cap - 1));
+        snprintf(err, err_cap,
+                 strcmp(key, "admin_pass") ? "%s: text expected, at most %u characters" : "%s: 6 to %u characters",
+                 key, (unsigned)(cap - 1));
         return false;
     }
     strcpy(dst, v->valuestring);
@@ -289,6 +291,44 @@ static bool valid_ip(const char *s)
            (sscanf(s, "%3u.%3u.%3u.%3u%c", &a, &b, &c, &d, &end) == 4 && (a | b | c | d) < 256);
 }
 
+bool db_config_wifi_pass_ok(const char *p)
+{
+    size_t n = strlen(p);
+    return n == 0 || (n >= 8 && n <= 63) || (n == 64 && p[strspn(p, "0123456789abcdefABCDEF")] == '\0');
+}
+
+/* A name that works as host name and mDNS name: letters, digits and inner dashes. */
+static bool name_ok(const char *s)
+{
+    size_t n = strlen(s);
+    return n && s[0] != '-' && s[n - 1] != '-' &&
+           s[strspn(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-")] == '\0';
+}
+
+static uint32_t ip_bits(const char *s)
+{
+    unsigned a = 0, b = 0, c = 0, d = 0;
+    sscanf(s, "%u.%u.%u.%u", &a, &b, &c, &d);
+    return a << 24 | b << 16 | c << 8 | d;
+}
+
+/* A fixed address that leaves the bridge reachable: a /1 to /30 mask, the address no network or broadcast
+ * address, the gateway in the same network and not the address itself. */
+static const char *fixed_ip_problem(const db_ip_config_t *ip)
+{
+    uint32_t addr = ip_bits(ip->ip), mask = ip_bits(ip->mask), gw = ip_bits(ip->gateway);
+    if (!mask || mask > 0xfffffffc || (~mask & (~mask + 1))) {
+        return "mask: 128.0.0.0 to 255.255.255.252 expected";
+    }
+    if (!(addr & ~mask) || (addr & ~mask) == ~mask) {
+        return "ip: the network or broadcast address";
+    }
+    if (ip->gateway[0] && ((gw & mask) != (addr & mask) || gw == addr)) {
+        return "gateway: another address in the same network expected";
+    }
+    return NULL;
+}
+
 static bool take_ip(const cJSON *root, const char *key, db_ip_config_t *ip, char *err, size_t err_cap)
 {
     const cJSON *obj = cJSON_GetObjectItemCaseSensitive(root, key);
@@ -313,6 +353,11 @@ static bool take_ip(const cJSON *root, const char *key, db_ip_config_t *ip, char
         snprintf(err, err_cap, "%s: a fixed address needs ip and mask", key);
         return false;
     }
+    const char *problem = ip->dhcp ? NULL : fixed_ip_problem(ip);
+    if (problem) {
+        snprintf(err, err_cap, "%s %s", key, problem);
+        return false;
+    }
     return true;
 }
 
@@ -335,7 +380,8 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
     {
         if (!cJSON_IsString(v) || strlen(v->valuestring) >= sizeof(cfg->servers_first[0]) ||
             (v->valuestring[0] && strncmp(v->valuestring, "ws://", 5) != 0 &&
-             strncmp(v->valuestring, "wss://", 6) != 0)) {
+             strncmp(v->valuestring, "wss://", 6) != 0) ||
+            strpbrk(v->valuestring, " \"\\")) {
             snprintf(err, err_cap, "servers: ws:// or wss:// URL expected");
             return false;
         }
@@ -477,6 +523,14 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
               take_pins(root, cfg, err, err_cap) && take_scalars(root, cfg, err, err_cap);
+    if (ok && cJSON_GetObjectItemCaseSensitive(root, "name") && !name_ok(cfg->name)) {
+        snprintf(err, err_cap, "name: letters, digits and dashes, no dash at the start or end");
+        ok = false;
+    }
+    if (ok && cJSON_GetObjectItemCaseSensitive(root, "wifi_pass") && !db_config_wifi_pass_ok(cfg->wifi_pass)) {
+        snprintf(err, err_cap, "wifi_pass: 8 to 63 characters, 64 hex digits, or empty for an open network");
+        ok = false;
+    }
     bool url = strncmp(cfg->satellite, "ws://", 5) == 0 || strncmp(cfg->satellite, "wss://", 6) == 0;
     if (ok && strpbrk(cfg->satellite, url ? " \"" : " \"/")) {
         snprintf(err, err_cap, "satellite: host, host:port, or a ws:// or wss:// URL expected");
@@ -500,7 +554,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
         ok = false;
     }
     if (ok && strlen(cfg->admin_pass) < 6) {
-        snprintf(err, err_cap, "admin_pass: at least 6 characters");
+        snprintf(err, err_cap, "admin_pass: 6 to 23 characters");
         ok = false;
     }
     cJSON_Delete(root);

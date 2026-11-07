@@ -462,7 +462,14 @@ esp_err_t post_dock(httpd_req_t *req)
     const cJSON *forget = cJSON_GetObjectItemCaseSensitive(root, "forget");
     bool ok = true;
     esp_err_t saved = ESP_OK;
+    const cJSON *ip = cJSON_GetObjectItemCaseSensitive(root, "ip");
+    char asking[16];
     if (cJSON_IsBool(accept)) {
+        /* the answer names the host: a second click must not answer a request that came in between */
+        if (!cJSON_IsString(ip) || !db_dock_request(asking) || strcmp(asking, ip->valuestring) != 0) {
+            cJSON_Delete(root);
+            return send_error(req, "409 Conflict", "accept needs the ip of the host that asks now");
+        }
         saved = db_dock_answer(cJSON_IsTrue(accept));
     } else if (cJSON_IsNumber(pairing) && pairing->valueint >= 0 && pairing->valueint <= 3600) {
         db_dock_pairing(pairing->valueint);
@@ -905,13 +912,15 @@ esp_err_t post_wifi_join(httpd_req_t *req)
     const cJSON *ssid = cJSON_GetObjectItemCaseSensitive(root, "ssid");
     const cJSON *pass = cJSON_GetObjectItemCaseSensitive(root, "pass");
     const cJSON *bssid = cJSON_GetObjectItemCaseSensitive(root, "bssid");
-    esp_err_t err = cJSON_IsString(ssid) && (!pass || cJSON_IsString(pass)) && (!bssid || cJSON_IsString(bssid))
+    bool pass_ok = !pass || (cJSON_IsString(pass) && db_config_wifi_pass_ok(pass->valuestring));
+    esp_err_t err = cJSON_IsString(ssid) && pass_ok && (!bssid || cJSON_IsString(bssid))
                         ? db_net_wifi_join(ssid->valuestring, pass ? pass->valuestring : "",
                                            bssid ? bssid->valuestring : "")
                         : ESP_ERR_INVALID_ARG;
     cJSON_Delete(root);
     if (err == ESP_ERR_INVALID_ARG) {
-        return send_error(req, "400 Bad Request", "ssid (1 to 32), pass (up to 64) and an optional bssid expected");
+        return send_error(req, "400 Bad Request",
+                          "ssid (1 to 32), pass (8 to 63, 64 hex digits or empty) and an optional bssid expected");
     }
     if (err != ESP_OK) {
         return send_error(req, "409 Conflict", err == ESP_ERR_INVALID_STATE ? "a test is running" : esp_err_to_name(err));

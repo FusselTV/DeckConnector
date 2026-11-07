@@ -348,3 +348,8 @@ bool db_ui_login_take(const char *token)
 void db_ui_setup_step(int step)
 {
 }
+
+bool db_dock_request(char ip[16])
+{
+    return false; /* no host asks in the simulator */
+}

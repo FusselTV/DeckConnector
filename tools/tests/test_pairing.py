@@ -58,7 +58,9 @@ def test_pairing():
             "named as the router knows it"
         )
         assert status()["writer"] == "ui", "the deck shows the request"
-        dock({"accept": False})
+        assert api("POST", "/api/dock", b'{"accept": false}')[0] == 409, "an answer names the host"
+        assert api("POST", "/api/dock", b'{"accept": false, "ip": "192.0.2.1"}')[0] == 409
+        dock({"accept": False, "ip": me})
         p = status()["pairing"]
         assert p["request"] is None
         assert [d["ip"] for d in p["denied"]][-1] == me, "listed as refused"
@@ -73,5 +75,5 @@ def test_pairing():
         assert api("DELETE", f"/api/pairing/denied/{me}")[0] == 404
         assert admitted()
     finally:
-        dock({"accept": False})
+        api("POST", "/api/dock", json.dumps({"accept": False, "ip": me}).encode())  # 409 when nothing asks
         strict(False)

@@ -174,8 +174,12 @@ once, without the password. A code is good for 10 minutes and for one login; the
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
-needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
-address needs `ip` and `mask`. `satellite` is the address of Companion for its Satellite API, `host` or
+has 6 to 23 characters (bytes, so fewer for letters outside ASCII). `wifi_pass` has 8 to 63 characters, or 64 hex
+digits, or is empty for an open network. `name` has 1 to 31 letters, digits and dashes, with no dash at the start
+or end, because it is also the host name and the mDNS name. `servers` holds up to 4 `ws://` or `wss://` URLs
+without spaces. An empty list finds a server over mDNS. A fixed address needs `ip` and `mask`. The mask is
+`128.0.0.0` to `255.255.255.252`, `ip` is not the network or broadcast address, and `gateway` is empty or another
+address in the same network. A refused value gets 400 with the reason, and nothing is saved. `satellite` is the address of Companion for its Satellite API, `host` or
 `host:port`, port 16622 when left out. A `ws://` or `wss://` URL goes to Companion's WebSocket port 16623, or to
 a proxy in front of it. Empty turns it off.
 
@@ -300,11 +304,12 @@ and the web UI ask whether to let it in. Up to 8 hosts are listed. A refused hos
 `open_s` how long still, `denied` with the hosts refused since the start (`ip`, `name`, `since_s`, at most 4,
 newest last) and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and
 `request_name` for the waiting host, is what the router's DNS answers for the address, empty when it does not
-know one. `POST /api/dock` takes one of these:
+know one. An answer names the host that asks (`request`). When another host asks by then, or none, it gets 409.
+`POST /api/dock` takes one of these:
 
 ```json
-{"accept": true}
-{"accept": false}
+{"accept": true, "ip": "192.168.1.15"}
+{"accept": false, "ip": "192.168.1.15"}
 {"pairing": 300}
 {"pairing": 0}
 {"forget": "192.168.1.15"}
