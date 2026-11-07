@@ -28,6 +28,7 @@
 #define IDLE_US     (12LL * 3600 * 1000000)
 #define FREE_TRIES  5
 #define MAX_LOCK_S  60
+#define ALL_TRIES   30 /* wrong passwords per minute from all clients together */
 #define COOKIE      "db_session"
 #define API_TOKENS  8
 
@@ -55,6 +56,8 @@ static struct {
     int failures;
     int64_t locked_until;
 } triers[TRIERS];
+static int64_t all_since; /* the minute ALL_TRIES counts in: one guesser on many addresses */
+static int all_failures;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 typedef struct {
@@ -158,6 +161,9 @@ static int locked_s(httpd_req_t *req)
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     int64_t until = triers[trier(ip)].locked_until;
+    if (all_failures >= ALL_TRIES && all_since + 60000000 > until) {
+        until = all_since + 60000000;
+    }
     portEXIT_CRITICAL(&mux);
     return now < until ? (int)((until - now) / 1000000 + 1) : 0;
 }
@@ -166,7 +172,13 @@ static int locked_s(httpd_req_t *req)
 static void count_try(httpd_req_t *req, bool ok)
 {
     uint32_t ip = peer_ip(req);
+    int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
+    if (!ok && now - all_since >= 60000000) {
+        all_since = now;
+        all_failures = 0;
+    }
+    all_failures += !ok;
     int i = trier(ip);
     int failures = ok ? 0 : ++triers[i].failures;
     triers[i].failures = failures;
@@ -174,7 +186,7 @@ static void count_try(httpd_req_t *req, bool ok)
         int shift = failures - FREE_TRIES < 6 ? failures - FREE_TRIES : 6;
         int secs = 1 << shift;
         triers[i].locked_until =
-            esp_timer_get_time() + (int64_t)(secs < MAX_LOCK_S ? secs : MAX_LOCK_S) * 1000000;
+            now + (int64_t)(secs < MAX_LOCK_S ? secs : MAX_LOCK_S) * 1000000;
     }
     portEXIT_CRITICAL(&mux);
     if (!ok) {
@@ -238,7 +250,9 @@ static int token_index(httpd_req_t *req)
         found = d == 0 ? i : found;
     }
     portEXIT_CRITICAL(&mux);
-    count_try(req, found >= 0);
+    if (found < 0) {
+        count_try(req, false); /* a hit must not reset the count: only the password does */
+    }
     return found;
 }
 
