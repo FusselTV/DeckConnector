@@ -34,7 +34,6 @@ export const dismissToast = (id: number) => toastsAtom.set((x) => x.filter((y) =
 export const ARM_MS = 60_000
 export const armAtom = atom(0)
 export const nudgeAtom = atom(0)
-/** Why the login page shows, for its one line. */
 export const loginReasonAtom = atom<'logout' | 'pw' | 'expired' | null>(null)
 /** Presses go out with force past input_lock, confirmed for this arm only. */
 export const forceAtom = atom(false)
@@ -48,7 +47,6 @@ export interface Draft {
   check: () => boolean
   /** Only the fields the person changed. */
   patch: ConfigPatch
-  /** What the restart confirm says for this draft. */
   confirm?: { title: string; body: ReactNode }
   /** Runs before the PUT (a Wi-Fi join test); false stops the save. */
   prepare?: () => Promise<boolean>

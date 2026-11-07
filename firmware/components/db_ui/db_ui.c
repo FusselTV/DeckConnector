@@ -268,7 +268,7 @@ void db_ui_setup_step(int step)
 static void model_login(ui_model_t *md, const db_config_t *c)
 {
     const char *ip = md->lan_up ? md->lan_ip : (md->wlan_up ? md->wlan_ip : "");
-    bool want = !c->setup_done && !c->qr_login_off && ip[0];
+    bool want = login_wanted() && ip[0];
     char fresh[17];
     uint8_t raw[8];
     esp_fill_random(raw, sizeof(raw));

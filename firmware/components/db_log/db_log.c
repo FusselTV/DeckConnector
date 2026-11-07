@@ -23,7 +23,7 @@ static RTC_NOINIT_ATTR uint32_t magic;
 static char *prev;
 static size_t prev_len;
 static vprintf_like_t serial;
-static db_event_t *events; /* PSRAM ring, made at the first event */
+static db_event_t *events; /* PSRAM ring, made in db_log_start() */
 static uint32_t n_events;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 

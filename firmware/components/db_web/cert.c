@@ -188,11 +188,6 @@ bool web_cert_custom(void)
     return custom;
 }
 
-const char *web_cert_active(void)
-{
-    return active;
-}
-
 esp_err_t web_cert_store(const char *cert, const char *key)
 {
     nvs_handle_t h;
