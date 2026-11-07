@@ -39,8 +39,6 @@
 #define CACHE_SLOTS  2048
 #define CACHE_BUDGET (4 * 1024 * 1024)
 #define PNG_PREFIX   "data:image/png;base64,"
-#define BLACK_HOLD_MS 250 /* Companion sends a key black for a moment while it loads the key's image again */
-#define HELD_MAX      8
 
 static const char *TAG = "satellite";
 
@@ -48,15 +46,7 @@ typedef struct {
     char id[24];
     uint8_t *jpeg; /* NULL: free slot */
     size_t len;
-    bool black;
 } cached_t;
-
-typedef struct {
-    db_sat_control_t c;
-    uint8_t *jpeg; /* NULL: free slot */
-    size_t len;
-    int64_t at_ms;
-} held_t;
 
 static struct {
     void (*changed)(void);
@@ -88,7 +78,6 @@ static struct {
     char serial[32];
     char model[32];
     db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
-    held_t held[HELD_MAX];
     size_t nctl;
     uint8_t *line;
     size_t fill;
@@ -191,7 +180,7 @@ static cached_t *cache_find(const char *id)
 
 /* Companion keeps the books of what the bridge holds and tells it what to drop. Each entry is reported at
  * no less than its share of the budget, so the slots never run out before the budget does. */
-static bool cache_put(const char *id, const uint8_t *jpeg, size_t len, bool black)
+static bool cache_put(const char *id, const uint8_t *jpeg, size_t len)
 {
     cached_t *c = cache_find(id);
     for (int i = 0; i < CACHE_SLOTS && !c; i++) {
@@ -203,7 +192,7 @@ static bool cache_put(const char *id, const uint8_t *jpeg, size_t len, bool blac
     }
     memcpy(copy, jpeg, len);
     heap_caps_free(c->jpeg);
-    *c = (cached_t){.jpeg = copy, .len = len, .black = black};
+    *c = (cached_t){.jpeg = copy, .len = len};
     strcpy(c->id, id);
     size_t cost = len > CACHE_BUDGET / CACHE_SLOTS ? len : CACHE_BUDGET / CACHE_SLOTS;
     send_line("BITMAP-COST BITMAP_ID=\"%s\" BYTES=%u\n", id, (unsigned)cost);
@@ -269,70 +258,6 @@ static void draw(const db_sat_control_t *c, uint8_t *jpeg, size_t len)
     db_deck_submit(DB_SOURCE_SAT, 0, c->rect, ++s.seq, jpeg, len, (uint64_t)esp_timer_get_time());
 }
 
-static bool all_black(db_rect_t r)
-{
-    for (size_t i = 0; i < (size_t)r.w * r.h * 3; i++) {
-        if (s.rgb[i] > 4) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static held_t *held_for(db_rect_t r)
-{
-    for (int i = 0; i < HELD_MAX; i++) {
-        if (s.held[i].jpeg && memcmp(&s.held[i].c.rect, &r, sizeof(r)) == 0) {
-            return &s.held[i];
-        }
-    }
-    return NULL;
-}
-
-static void drop_held(held_t *h)
-{
-    heap_caps_free(h->jpeg);
-    h->jpeg = NULL;
-}
-
-/* A black picture waits BLACK_HOLD_MS: if the real one follows, the deck never shows the black. */
-static void hold_black(const db_sat_control_t *c, uint8_t *jpeg, size_t len)
-{
-    held_t *h = held_for(c->rect);
-    for (int i = 0; i < HELD_MAX && !h; i++) {
-        h = s.held[i].jpeg ? NULL : &s.held[i];
-    }
-    if (!h) {
-        draw(c, jpeg, len);
-        return;
-    }
-    if (h->jpeg) {
-        drop_held(h);
-    }
-    *h = (held_t){.c = *c, .jpeg = jpeg, .len = len, .at_ms = now_ms()};
-}
-
-static void drop_all_held(void)
-{
-    for (int i = 0; i < HELD_MAX; i++) {
-        if (s.held[i].jpeg) {
-            drop_held(&s.held[i]);
-        }
-    }
-}
-
-static void draw_held(void)
-{
-    int64_t now = now_ms();
-    for (int i = 0; i < HELD_MAX; i++) {
-        held_t *h = &s.held[i];
-        if (h->jpeg && now - h->at_ms >= BLACK_HOLD_MS) {
-            draw(&h->c, h->jpeg, h->len);
-            h->jpeg = NULL;
-        }
-    }
-}
-
 /* false: the picture cannot be drawn as Companion thinks, and only a new session puts that right. */
 static bool key_state(const db_sat_msg_t *m)
 {
@@ -344,15 +269,13 @@ static bool key_state(const db_sat_msg_t *m)
     const char *id = db_sat_get(m, "BITMAP_ID");
     uint8_t *jpeg = NULL;
     size_t len = 0;
-    bool black = false;
     if (bitmap && bitmap[0]) {
         esp_err_t err = to_jpeg(bitmap, c.rect, &jpeg, &len);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "bitmap for %u/%u not drawn: %s", c.row, c.col, esp_err_to_name(err));
             return true;
         }
-        black = all_black(c.rect);
-        if (id && s.caching && !cache_put(id, jpeg, len, black)) {
+        if (id && s.caching && !cache_put(id, jpeg, len)) {
             ESP_LOGW(TAG, "bitmap %s not cached", id);
             heap_caps_free(jpeg);
             return false;
@@ -366,19 +289,8 @@ static bool key_state(const db_sat_msg_t *m)
         }
         memcpy(jpeg, hit->jpeg, hit->len);
         len = hit->len;
-        black = hit->black;
     } else {
         return true;
-    }
-    held_t *h = held_for(c.rect);
-    if (black) {
-        hold_black(&c, jpeg, len);
-        return true;
-    }
-    if (h) {
-        ESP_LOGI(TAG, "black picture for %u/%u replaced after %d ms, not shown", c.row, c.col,
-                 (int)(now_ms() - h->at_ms));
-        drop_held(h);
     }
     draw(&c, jpeg, len);
     return true;
@@ -386,7 +298,6 @@ static bool key_state(const db_sat_msg_t *m)
 
 static void clear_keys(void)
 {
-    drop_all_held();
     for (size_t i = 0; i < s.nctl; i++) {
         const db_sat_control_t *c = &s.ctl[i];
         uint8_t *jpeg = NULL;
@@ -565,7 +476,6 @@ static void session(void)
             db_log_event(TAG, "source", "Companion silent for %d s", SILENT_MS / 1000);
             return;
         }
-        draw_held();
         if (now - last_ping >= PING_MS) {
             last_ping = now;
             send_line("PING\n");
@@ -720,7 +630,6 @@ static void client_task(void *arg)
         s.peer = peer.sin_addr.s_addr;
         s.sock = sock;
         session();
-        drop_all_held();
         s.peer = 0;
         xSemaphoreTake(s.tx, portMAX_DELAY);
         s.sock = -1;

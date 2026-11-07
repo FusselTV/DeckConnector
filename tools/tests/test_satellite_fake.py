@@ -113,15 +113,3 @@ def test_only_presses_bound_to_this_host_reach_satellite(fake):
     assert api("POST", "/api/input", json.dumps({"key": 0, "real": me}).encode())[0] == 200
     assert wait(lambda: len(presses(fake)) == 2, 5), f"the real press did not arrive: {presses(fake)}"
     assert [p.rsplit("PRESSED=", 1)[1] for p in presses(fake)] == ["1", "0"]
-
-
-def test_a_black_picture_that_is_replaced_at_once_never_shows(fake):
-    key_state(fake, bytes([220, 20, 20]) * 120 * 120)
-    assert wait(lambda: reddish(key0_color()), 5)
-    key_state(fake, bytes(3 * 120 * 120))
-    time.sleep(0.05)
-    key_state(fake, bytes([20, 20, 220]) * 120 * 120)
-    seen = [key0_color() for _ in range(40)]
-    assert not [c for c in seen if max(c) < 30], f"the black picture reached the deck: {seen}"
-    key_state(fake, bytes(3 * 120 * 120))  # black that stays: drawn after the short wait
-    assert wait(lambda: max(key0_color()) < 30, 3), "a black picture that was not replaced never showed"
