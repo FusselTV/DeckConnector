@@ -414,9 +414,9 @@ export function Firmware() {
                 {p.rows.map((r) => (
                   <tr key={r.key}>
                     <td className="mono">{r.key}</td>
-                    <td className="mono">{show(r.now)}</td>
+                    <td className="mono">{r.secret ? (r.now ? t('fw.secret_set') : '–') : show(r.now)}</td>
                     <td className="mono" style={{ color: 'var(--fg)', fontWeight: 600 }}>
-                      {show(r.file)}
+                      {r.secret ? (r.file ? t('fw.secret_set') : '–') : show(r.file)}
                     </td>
                   </tr>
                 ))}

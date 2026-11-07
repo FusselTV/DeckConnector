@@ -202,6 +202,7 @@ export const de: Dict = {
   'fw.restore': 'Aus Datei wiederherstellen',
   'fw.restore_bad': 'Die Datei ist kein gültiges JSON.',
   'fw.restore_same': 'Keine Änderungen in der Datei.',
+  'fw.secret_set': '(gesetzt)',
   'fw.restored': 'Einstellungen übernommen',
   'fw.boot_file':
     'Diese Datei ist ein Bootloader oder eine Partitionstabelle. Das geht nur unter Diagnose › Bootloader.',

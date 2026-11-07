@@ -1,6 +1,10 @@
 import type { Config, ConfigPatch } from '../api/types'
 import { ipErrors, NAME_RE } from './validate'
 
+// GET /api/config leaves these out, so a full backup's values cannot be compared and always go back.
+export const SECRETS = ['admin_pass', 'wifi_pass', 'token'] as const
+const isSecret = (k: string) => (SECRETS as readonly string[]).includes(k)
+
 type Flat = Record<string, unknown>
 export const flat = (o: object, p = ''): Flat =>
   Object.fromEntries(
@@ -10,7 +14,7 @@ export const flat = (o: object, p = ''): Flat =>
   )
 
 // Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device.
-const WRITABLE = new Set<keyof Config>([
+const WRITABLE = new Set<keyof ConfigPatch>([
   'name',
   'controller',
   'host',
@@ -29,12 +33,16 @@ const WRITABLE = new Set<keyof Config>([
   'menu_hold_ms',
   'usb_speed',
   'dock_paired_only',
+  'qr_login',
+  'ntp_server',
+  ...SECRETS,
 ])
-const RESTARTS = new Set(['name', 'lan', 'wlan', 'wifi_ssid', 'wifi_bssid', 'usb_speed'])
+const RESTARTS = new Set(['name', 'lan', 'wlan', 'wifi_ssid', 'wifi_bssid', 'usb_speed', 'ntp_server'])
 
 export interface RestorePlan {
   patch: ConfigPatch
-  rows: { key: string; now: unknown; file: unknown }[]
+  /** For a secret, `now` and `file` say only whether it is set. */
+  rows: { key: string; now: unknown; file: unknown; secret?: boolean }[]
   restart: boolean
   errors: string[]
 }
@@ -46,7 +54,9 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
     return { patch: {}, rows: [], restart: false, errors: ['not an object'] }
   const obj = file as Record<string, unknown>
   const top = Object.keys(obj).filter(
-    (k) => WRITABLE.has(k as keyof Config) && JSON.stringify(obj[k]) !== JSON.stringify(cfg[k as keyof Config]),
+    (k) =>
+      WRITABLE.has(k as keyof ConfigPatch) &&
+      (isSecret(k) || JSON.stringify(obj[k]) !== JSON.stringify(cfg[k as keyof Config])),
   )
   const patch = Object.fromEntries(top.map((k) => [k, obj[k]])) as ConfigPatch
   for (const k of ['lan', 'wlan'] as const) {
@@ -56,12 +66,19 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
   if (patch.name !== undefined && !NAME_RE.test(patch.name)) errors.push('name')
   if (patch.brightness !== undefined && !(patch.brightness >= 0 && patch.brightness <= 100))
     errors.push('brightness: 0-100')
+  for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push(`${k}: text`)
+  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, token: !!cfg.token_set }
   const fc = flat(cfg)
   const fo = flat(patch)
   const rows = Object.keys(fo)
-    .filter((k) => JSON.stringify(fo[k]) !== JSON.stringify(fc[k]))
-    .map((key) => ({ key, now: fc[key], file: fo[key] }))
-  return { patch, rows, restart: top.some((k) => RESTARTS.has(k)), errors }
+    .filter((k) => isSecret(k) || JSON.stringify(fo[k]) !== JSON.stringify(fc[k]))
+    .map((key) =>
+      isSecret(key)
+        ? { key, now: isSet[key as (typeof SECRETS)[number]], file: !!fo[key], secret: true }
+        : { key, now: fc[key], file: fo[key] },
+    )
+  // The firmware restarts when a secret differs from the stored one, which the page cannot see.
+  return { patch, rows, restart: top.some((k) => RESTARTS.has(k) || isSecret(k)), errors }
 }
 
 /** GET /api/config holds no secrets, so it is the backup as it is. */

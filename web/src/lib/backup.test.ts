@@ -47,4 +47,15 @@ describe('planRestore', () => {
     expect(planRestore(cfg, { brightness: 200 }).errors).toEqual(['brightness: 0-100'])
     expect(planRestore(cfg, [1]).errors).toEqual(['not an object'])
   })
+  it('takes the secrets of a full backup back and shows only whether they are set', () => {
+    const p = planRestore(cfg, { ...cfg, admin_pass: 'hunter22', wifi_pass: 'wlan-secret', token: '' })
+    expect(p.patch).toMatchObject({ admin_pass: 'hunter22', wifi_pass: 'wlan-secret', token: '' })
+    expect(p.rows).toEqual([
+      { key: 'admin_pass', now: true, file: true, secret: true },
+      { key: 'wifi_pass', now: false, file: true, secret: true },
+      { key: 'token', now: false, file: false, secret: true },
+    ])
+    expect(JSON.stringify(p.rows)).not.toMatch(/hunter22|wlan-secret/)
+    expect(p.restart).toBe(true)
+  })
 })

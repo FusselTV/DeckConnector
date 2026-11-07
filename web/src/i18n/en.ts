@@ -201,6 +201,7 @@ export const en = {
   'fw.restore': 'Restore from file',
   'fw.restore_bad': 'The file is not valid JSON.',
   'fw.restore_same': 'The file changes nothing.',
+  'fw.secret_set': '(set)',
   'fw.restored': 'Settings applied',
   'fw.boot_file': 'This file is a bootloader or partition table. That only works under Diagnostics › Bootloader.',
   'tgt.p4': 'Firmware',
