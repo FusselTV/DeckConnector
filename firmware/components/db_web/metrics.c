@@ -191,7 +191,7 @@ esp_err_t get_metrics(httpd_req_t *req)
 
 esp_err_t get_profile(httpd_req_t *req)
 {
-    return send_built(req, STATUS_JSON_MAX, profile_json);
+    return send_built(req, 8192, profile_json);
 }
 
 void metrics_start(void)
