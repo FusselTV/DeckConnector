@@ -88,11 +88,11 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
-| `GET /api/cert` | The certificate HTTPS serves, as a PEM file, without the key. Open to everyone: import it into a trust store, or pin its SHA-256 (`https_fingerprint` in the status) |
+| `GET /api/cert` | The certificate HTTPS serves, as a PEM file, without the key. Open to everyone. Import it into a trust store, or pin its SHA-256 (`https_fingerprint` in the status) |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate (its chain may follow it) and key, and answers `subject`, `issuer`, `not_after` and `sha256`. With `"apply": true` it is kept and the DeckConnector restarts. A key with a password is refused. `https_custom` in the status says it is in use |
 | `DELETE /api/tls` | Back to the DeckConnector's own certificate, with a restart |
 | `GET /api/input/log` | The last 200 inputs, oldest first: `seq`, `at_ms` (after the start), `origin` (`deck` pressed on the deck, `web` a person over the network, `tool` a script or test), `kind`, `index`, `value`, `x`, `y`, and the `writer` that got it. `?since=<seq>` returns only newer ones. Kept in RAM, gone at a restart |
-| `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address: connect now instead of after the wait. 404 for anything else; dock hosts connect by themselves |
+| `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. The DeckConnector connects to it now instead of after the wait. 404 for anything else; dock hosts connect by themselves |
 | `GET /api/wifi/scan` | Networks in reach, one entry per access point, strongest first: `ssid`, `bssid`, `rssi` (dBm), `channel`, `open`. Only 2.4 GHz. Hidden networks and the setup network are left out. Takes 2 to 3 s |
 | `POST /api/wifi/join` | `{"ssid": "...", "pass": "...", "bssid": "..."}` tries that network and answers 202 at once. `network.wlan.join` in the status goes from `testing` to `ok` or `failed` (with `join_error`) within 15 s. Only a network that gives an address is saved, otherwise the old one comes back. `bssid` is optional and locks the DeckConnector to that access point |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
@@ -166,7 +166,7 @@ up to a second.
 with 423. A request with `"force": true` still gets through. The deck itself is never locked.
 `PUT /api/input/arm` opens the lock for some seconds for every client, and `input_armed_s` in the status counts
 them down (only in `GET /api/status`, not in the web socket state). A restart shuts the lock again.
-The lock guards against accidents, not against a client: any token may send `"force"` or open it.
+The lock guards against accidents, not against a client. Any token may send `"force"` or open it.
 
 Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
 once, without the password. A code is good for 10 minutes and for one login; then the deck shows a new one.
@@ -191,8 +191,8 @@ For any other certificate, put its SHA-256 into `server_pins` (same position as 
 
 The secret keys never come out of `GET /api/config`. So its reply is a backup without passwords, and a `PUT` of
 it restores the settings. `GET /api/backup?secrets=1` (password only) adds `admin_pass`, `wifi_pass` and `token`, so
-a `PUT` of it restores those too. API tokens, paired hosts and the TLS key are never in it: make new tokens, pair
-again, upload the key again.
+a `PUT` of it restores those too. API tokens, paired hosts and the TLS key are never in it. Make new tokens, pair
+again and upload the key again.
 
 ## Status
 
@@ -298,7 +298,7 @@ Companion and the Stream Deck app connect without a password. The DeckConnector 
 by its MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
 the settings, only listed hosts get in. A new host is then let in and listed while none is known and while pairing
 is open. So the first host gets in by itself, and later ones need pairing. Otherwise it is turned away, and the deck
-and the web UI ask whether to let it in. Up to 8 hosts are listed. A refused host is not remembered: its next try asks again, so a restarted app gets a new question.
+and the web UI ask whether to let it in. Up to 8 hosts are listed. A refused host is not remembered. Its next try asks again, so a restarted app gets a new question.
 
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
 `auto_open` while no host is listed yet (the first one gets in without pairing),

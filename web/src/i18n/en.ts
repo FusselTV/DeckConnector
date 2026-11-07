@@ -468,7 +468,7 @@ export const en = {
   'pal.setup': 'Run setup again',
   'pal.arm': 'Turn on remote control',
   'cf.setup': 'Run setup again?',
-  'cf.setup_b': 'Your settings stay. You just go through the steps again.',
+  'cf.setup_b': 'Your settings stay. You go through the steps again.',
   'wiz.step': 'Step {n} of {all}: {name}',
   'cf.skip': 'Skip setup?',
   'cf.skip_b':

@@ -12,8 +12,8 @@ npm run dev     # the page on http://localhost:5173, /api goes to the simulator
 ```
 
 Log in with `simulator-pass`. To look at the real device, start the dev server with
-`DC_TARGET=http://192.168.1.214 npm run dev`. Against anything but the local simulator the dev server is read-only:
-it refuses every request that changes the device, and remote control stays off.
+`DC_TARGET=http://192.168.1.214 npm run dev`. Against anything but the local simulator the dev server is read-only.
+It refuses every request that changes the device, and remote control stays off.
 
 ## Check and build
 
