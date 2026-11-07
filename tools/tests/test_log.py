@@ -1,5 +1,6 @@
 """The log over the web socket: the kept backlog first, then new lines as they happen. Only with the password."""
 
+import asyncio
 import base64
 import contextlib
 import json
@@ -56,11 +57,15 @@ def test_the_timeline_starts_with_the_boot():
 async def test_a_server_that_connects_and_goes_is_on_the_timeline(servers):
     first, _ = servers
     bridge = list(first.bridges.values())[-1] if first.bridges else await first.wait_bridge(60)
-    before = len(json.loads(api("GET", "/api/events")[1]))
+    since = json.loads(api("GET", "/api/status")[1])["uptime_s"]
     await bridge.ws.close()  # the bridge connects again by itself
-    await first.wait_bridge(30)
-    events = json.loads(api("GET", "/api/events")[1])
+    for _ in range(60):
+        events = json.loads(api("GET", "/api/events")[1])
+        news = [e["text"] for e in events if e["kind"] == "source" and e["since_s"] >= since]
+        if any(" lost" in t for t in news) and any(" connected" in t for t in news):
+            break
+        await asyncio.sleep(0.5)
+    else:
+        raise AssertionError(f"no lost and connected on the timeline: {news}")
     assert all({"since_s", "at", "kind", "text"} <= e.keys() for e in events)
     assert len(events) <= 32, "a bounded ring"
-    news = [e for e in events[-max(1, len(events) - before + 2) :] if e["kind"] == "source"]
-    assert any("server 0 lost" in e["text"] for e in news) and any("server 0 connected" in e["text"] for e in news)

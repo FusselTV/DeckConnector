@@ -146,7 +146,7 @@ def test_web_api_needs_login():
     [
         ({"lan": {"dhcp": False, "ip": "300.1.1.1", "mask": "255.255.255.0"}}, "invalid IPv4"),
         ({"lan": {"dhcp": False, "ip": "", "mask": ""}}, "fixed address needs"),
-        ({"admin_pass": "abc"}, "at least 6"),
+        ({"admin_pass": "abc"}, "6 to 23"),
         ({"servers": ["http://x"]}, "ws://"),
         ({"brightness": 101}, "0 to 100"),
         ({"controller": "fast"}, "server, app or companion"),
