@@ -193,11 +193,36 @@ const char *db_controller_name(db_controller_t c)
     return c < DB_CTRL_COUNT ? controller_names[c] : "server";
 }
 
+static esp_err_t erase(const char *ns, const char *key)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(ns, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = key ? nvs_erase_key(h, key) : nvs_erase_all(h);
+        err = err == ESP_ERR_NVS_NOT_FOUND ? ESP_OK : err;
+        err = err == ESP_OK ? nvs_commit(h) : err;
+        nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "reset: %s %s not erased: %s", ns, key ? key : "", esp_err_to_name(err));
+    }
+    return err;
+}
+
 esp_err_t db_config_reset(void)
 {
+    /* "ota" stays (each slot's security level), and so does the bridge's own HTTPS certificate */
+    const char *const wipe[][2] = {{"auth", NULL},  {"dock", NULL},  {"satellite", NULL},
+                                   {"web", "ccert"}, {"web", "ckey"}, {"web", "step"}};
+    esp_err_t err = ESP_OK;
+    for (size_t i = 0; i < sizeof(wipe) / sizeof(wipe[0]); i++) {
+        esp_err_t e = erase(wipe[i][0], wipe[i][1]);
+        err = err == ESP_OK ? e : err;
+    }
     db_config_t c;
     defaults(&c);
-    return db_config_save(&c);
+    esp_err_t saved = db_config_save(&c);
+    return err == ESP_OK ? saved : err;
 }
 
 static void ip_to_json(db_json_t *j, const char *key, const db_ip_config_t *ip)

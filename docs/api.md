@@ -31,7 +31,7 @@ answer 409 when no deck is attached. A second call within 3 seconds changes noth
 | Method and path | What it does |
 |---|---|
 | `POST /api/password/show` | The deck shows the user and the password for 30 seconds. Any key on the deck hides it earlier. Answers `{"ok": true, "decks": 1}` |
-| `POST /api/password/reset` | The deck asks for 60 seconds whether to reset all settings. Two taps on "Zurücksetzen" on the deck itself reset it and restart it. Presses sent over the API do not count. Answers `{"ok": true, "s": 60}` with the seconds left |
+| `POST /api/password/reset` | The deck asks for 60 seconds whether to reset all settings. Two taps on "Zurücksetzen" on the deck itself reset it and restart it. A reset also removes the API tokens, the paired hosts and an uploaded HTTPS certificate. Presses sent over the API do not count. Answers `{"ok": true, "s": 60}` with the seconds left |
 | `DELETE /api/password/reset` | Ends the question. Answers `{"ok": true}` |
 
 While the deck shows the password or the setup WLAN is open, a token gets 403 for the pictures of the deck.

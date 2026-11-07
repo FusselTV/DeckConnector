@@ -76,6 +76,7 @@ esp_err_t db_config_save(const db_config_t *cfg);
 /* Around a copy, change and save that must not overwrite another task's save made in between. */
 void db_config_edit_begin(void);
 void db_config_edit_end(void);
+/* Factory settings, without API tokens, paired hosts and an uploaded HTTPS certificate. */
 esp_err_t db_config_reset(void);
 /* Called after every successful save, from the saving task. */
 void db_config_on_save(void (*cb)(void));

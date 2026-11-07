@@ -465,6 +465,33 @@ static void changed(void)
     xTaskNotifyGive(s.task);
 }
 
+/* Under the edit lock, like a change from the web, so neither overwrites a save made in between. */
+static void edit_begin(db_config_t *c)
+{
+    db_config_edit_begin();
+    db_config_copy(c);
+}
+
+static esp_err_t edit_end(const db_config_t *c, const char *what)
+{
+    esp_err_t err = db_config_save(c);
+    db_config_edit_end();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "%s not saved: %s", what, esp_err_to_name(err));
+    }
+    return err;
+}
+
+static void note(const char *text, bool to_main)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    if (to_main) {
+        ui_menu_open_main(&s.menu, esp_timer_get_time());
+    }
+    snprintf(s.menu.note, sizeof(s.menu.note), "%s", text);
+    xSemaphoreGive(s.lock);
+}
+
 static void save_brightness(void *arg)
 {
     int b = s.brightness;
@@ -472,10 +499,9 @@ static void save_brightness(void *arg)
         return;
     }
     db_config_t c;
-    db_config_copy(&c);
+    edit_begin(&c);
     c.brightness = (uint8_t)b;
-    db_config_save(&c);
-    if (s.brightness == b) { /* a turn during the save keeps its value for the next save */
+    if (edit_end(&c, "brightness") == ESP_OK && s.brightness == b) { /* a turn during the save keeps its value */
         s.brightness = -1;
     }
 }
@@ -483,15 +509,17 @@ static void save_brightness(void *arg)
 static void save_lan(const ui_action_t *act)
 {
     db_config_t c;
-    db_config_copy(&c);
+    edit_begin(&c);
     c.lan.dhcp = act->dhcp;
     char *fields[] = {c.lan.ip, c.lan.mask, c.lan.gateway, c.lan.dns};
     for (int f = 0; f < 4; f++) {
         const uint8_t *o = act->octets[f];
         snprintf(fields[f], 16, "%u.%u.%u.%u", o[0], o[1], o[2], o[3]);
     }
-    if (db_config_save(&c) == ESP_OK) {
+    if (edit_end(&c, "LAN") == ESP_OK) {
         db_ota_restart(800);
+    } else {
+        note("Nicht gespeichert", false);
     }
 }
 
@@ -503,11 +531,11 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         db_dock_answer(act->value);
         break;
     case UI_DO_SOURCE:
-        db_config_copy(&c);
+        edit_begin(&c);
         c.controller = (db_controller_t)md->sources[act->value].kind;
         snprintf(c.host, sizeof(c.host), "%s", md->sources[act->value].id);
         c.setup_done = true;
-        db_config_save(&c);
+        edit_end(&c, "host choice");
         break;
     case UI_DO_OFFER:
         if (!act->value) {
@@ -516,13 +544,13 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
                      (int)strcspn(md->offer_addr, ":"), md->offer_addr);
             break;
         }
-        db_config_copy(&c);
+        edit_begin(&c);
         snprintf(c.satellite, sizeof(c.satellite), "%s", md->offer_addr);
         c.controller = DB_CTRL_COMPANION;
         snprintf(c.host, sizeof(c.host), "satellite");
         c.setup_done = true;
         ESP_LOGI(TAG, "Companion %s over Satellite, chosen on the deck", md->offer_addr);
-        db_config_save(&c);
+        edit_end(&c, "Companion address");
         break;
     case UI_DO_BRIGHTNESS: {
         int b = md->brightness + act->value;
@@ -540,8 +568,15 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_RESET:
         ESP_LOGW(TAG, "factory reset from the deck");
-        db_config_reset();
-        db_ota_restart(800);
+        if (db_config_reset() == ESP_OK) {
+            db_ota_restart(800);
+            break;
+        }
+        ESP_LOGE(TAG, "factory reset failed, no restart");
+        portENTER_CRITICAL(&login_mux);
+        reset_until = 0;
+        portEXIT_CRITICAL(&login_mux);
+        note("Löschen fehlgeschlagen", true);
         break;
     case UI_DO_RESTART:
         db_ota_restart(800);
@@ -572,9 +607,9 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         }
         break;
     case UI_DO_SETUP_DONE:
-        db_config_copy(&c);
+        edit_begin(&c);
         c.setup_done = true;
-        db_config_save(&c);
+        edit_end(&c, "setup done");
         break;
     default:
         break;
@@ -658,7 +693,7 @@ static void render(const ui_screen_t *sc)
 
 static void ui_task(void *arg)
 {
-    static ui_screen_t sc; /* 2 KB, kept off the task stack */
+    static ui_screen_t sc; /* 5 KB, kept off the task stack */
     static ui_model_t md;
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
