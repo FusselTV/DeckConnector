@@ -15,7 +15,6 @@ import asyncio
 import base64
 import contextlib
 import json
-import os
 import signal
 import socket
 import statistics
@@ -26,7 +25,7 @@ import traceback
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
-from dbtools.load import Client, basic_auth
+from dbtools.load import HOST, Client, basic_auth
 from dbtools.safety import settings_to_restore
 from dbtools.server import Server
 
@@ -103,35 +102,30 @@ async def main_async(a) -> None:
     auth = basic_auth()
     c = Client(a.host, auth)
 
-    def put(body: dict) -> None:
+    def send(method: str, path: str, body: dict | None = None) -> None:
         c.get("/api/status")
         c.conn.request(
-            "PUT", "/api/config", body=json.dumps(body), headers={"Authorization": auth, "X-DeckConnector": "1"}
+            method,
+            path,
+            body=json.dumps(body) if body else None,
+            headers={"Authorization": auth, "X-DeckConnector": "1"},
         )
         r = c.conn.getresponse()
         reply = r.read()
         if r.status != 200:
-            raise RuntimeError(f"PUT /api/config refused: {r.status} {reply[:200]!r}")
-
-    def post(path: str) -> None:
-        c.get("/api/status")
-        c.conn.request("POST", path, headers={"Authorization": auth, "X-DeckConnector": "1"})
-        c.conn.getresponse().read()
+            raise RuntimeError(f"{method} {path} refused: {r.status} {reply[:200]!r}")
 
     cfg = json.loads(c.get("/api/config")[2])
     server = Server(8765, "soak", ping=False)
-    await server.start()
-    put({"controller": "server", "host": server.url, "servers": [server.url]})
-    c.conn.request(
-        "POST",
-        "/api/dock",
-        body=json.dumps({"pairing": int(a.minutes * 60) + 60}),
-        headers={"Authorization": auth, "X-DeckConnector": "1"},
-    )  # its dock churn comes from a new host
-    c.conn.getresponse().read()
     samples = []
     failures: list[str] = []
-    try:
+    async with contextlib.AsyncExitStack() as undo:  # runs every step back, also when one of them fails
+        undo.push_async_callback(server.stop)
+        undo.callback(send, "POST", "/api/dock", {"pairing": 0})
+        undo.callback(send, "PUT", "/api/config", {**settings_to_restore(cfg), "servers": cfg["servers"]})
+        await server.start()
+        send("PUT", "/api/config", {"controller": "server", "host": server.url, "servers": [server.url]})
+        send("POST", "/api/dock", {"pairing": int(a.minutes * 60) + 60})  # its dock churn comes from a new host
         bridge = await server.wait_bridge(60)
         start = time.time()
         n = 0
@@ -151,7 +145,7 @@ async def main_async(a) -> None:
                 print(f"round {n} failed: {type(e).__name__} at {where}", flush=True)
                 c = Client(a.host, auth)
             if n % 5 == 0:
-                await asyncio.to_thread(post, "/api/deck/reconnect")
+                await asyncio.to_thread(send, "POST", "/api/deck/reconnect")
                 await asyncio.sleep(3)
             m = json.loads(c.get("/api/status")[2])["memory"]
             samples.append((time.time() - start, m))
@@ -162,9 +156,8 @@ async def main_async(a) -> None:
                     f"tasks {m['tasks']}",
                     flush=True,
                 )
-    finally:
-        put({**settings_to_restore(cfg), "servers": [u for u in cfg["servers"] if u]})
-        await server.stop()
+    if not samples:
+        raise SystemExit(f"no round finished: {failures[:5]}")
     half = samples[len(samples) // 4 :]  # after the first quarter: caches and pools have filled
     t = [s[0] for s in half]
     print(f"\n{len(samples)} rounds in {samples[-1][0] / 60:.1f} min. Trend per hour after the first quarter:")
@@ -182,7 +175,7 @@ async def main_async(a) -> None:
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # `timeout` still restores the settings
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
+    ap.add_argument("--host", default=HOST)
     ap.add_argument("--minutes", type=float, default=5)
     asyncio.run(main_async(ap.parse_args()))
 
