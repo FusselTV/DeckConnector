@@ -9,12 +9,10 @@ import { UiProvider, type AskOpts } from './ui'
 
 function Body() {
   const auth = useStore((s) => s.auth)
-  const setupDone = useStore((s) => s.config?.setup_done)
   const wizard = useStore((s) => s.status.setup?.active)
   if (auth === 'checking') return null
   if (auth === 'login') return <Login />
-  // Old firmware without setup_done counts as set up; the wizard is only for a device that says it is fresh.
-  if (setupDone === false || wizard) return <Wizard />
+  if (wizard) return <Wizard />
   return <Shell />
 }
 

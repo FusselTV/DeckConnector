@@ -4,7 +4,7 @@ import { api } from '../api/client'
 import type { IpConf } from '../api/types'
 import { refreshConfig, refreshStatus } from '../app/connection'
 import { reachList, sigWord } from '../app/derive'
-import { getState, useRoute, useStore } from '../app/store'
+import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { describedBy, Field, Seg, SIcon, Switch } from '../components/controls'
@@ -93,7 +93,6 @@ export function Network() {
   const { t, go } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
-  const canJoin = useRoute('POST', '/api/wifi/join')
   const n = st.network
   const base = {
     name: cfg?.name ?? '',
@@ -114,9 +113,6 @@ export function Network() {
     ...(d.name !== undefined && v.name !== base.name ? { name: v.name } : {}),
     ...(d.lan && !same(v.lan, base.lan) ? { lan: v.lan } : {}),
     ...(d.wlan && !same(v.wlan, base.wlan) ? { wlan: v.wlan } : {}),
-    ...(wifiChanged && !canJoin
-      ? { wifi_ssid: v.wifi.ssid, wifi_bssid: v.wifi.bssid, ...(v.wifi.pass ? { wifi_pass: v.wifi.pass } : {}) }
-      : {}),
   }
   const restart = Object.keys(patch).length > 0
   const where = reachList(st, !!cfg?.https_only, v.name)
@@ -152,11 +148,10 @@ export function Network() {
         </>
       ),
     },
-    where,
     patch,
-    // A new Wi-Fi is tested first where the firmware can; a failed test keeps the old network (api-gaps #1).
+    // POST /api/wifi/join tests a new Wi-Fi and saves it only when it works, so a typo keeps the old network.
     prepare: async () => {
-      if (!wifiChanged || !canJoin || !v.wifi.ssid) return true
+      if (!wifiChanged || !v.wifi.ssid) return true
       setJoinErr(null)
       const e = await joinWifi(v.wifi)
       if (e === null) {

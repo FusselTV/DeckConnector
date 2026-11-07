@@ -48,8 +48,6 @@ export interface Draft {
   confirm?: { title: string; body: ReactNode }
   /** Runs before the PUT (a Wi-Fi join test); false stops the save. */
   prepare?: () => Promise<boolean>
-  /** Where the page guesses the device is after a restart, for firmware without `reach`. */
-  where?: string[]
   saved: () => void
   reset: () => void
 }

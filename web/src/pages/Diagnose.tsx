@@ -29,11 +29,11 @@ import {
 } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, coredumpRawUrl } from '../api/client'
-import type { DeviceEvent, InputEvent, Metrics, Profile } from '../api/types'
+import type { DeviceEvent, InputEvent, Metrics, Profile, Route } from '../api/types'
 import { followLog } from '../app/connection'
 import { decksOf } from '../app/derive'
 import { crashAtom, tabAtom, toast } from '../app/state'
-import { useRoute, useStore } from '../app/store'
+import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, Help, IconBtn, Seg } from '../components/controls'
@@ -404,12 +404,11 @@ const EV_ICON: Record<string, typeof Power> = {
 /** GET /api/events: what happened on the device since the start, newest first. */
 function Events() {
   const { t, fmt } = useUi()
-  const has = useRoute('GET', '/api/events')
   const bootAt = useStore((s) => s.bootAt)
   const visible = tabAtom.use() === 'diagnose'
   const [list, setList] = useState<DeviceEvent[] | null>(null)
   useEffect(() => {
-    if (!has || !visible) return
+    if (!visible) return
     let off = false
     const load = () =>
       api.events().then(
@@ -422,8 +421,7 @@ function Events() {
       off = true
       clearInterval(id)
     }
-  }, [has, visible])
-  if (!has) return null
+  }, [visible])
   const rows = [...(list ?? [])].reverse()
   return (
     <Row group="dia" id="dia-events" icon={History} title={t('ev.title')}>
@@ -468,7 +466,8 @@ function Events() {
 function Details() {
   const { t, fmt, act, ask, lang } = useUi()
   const st = useStore((s) => s.status)
-  const routes = useStore((s) => s.routes)
+  const [routes, setRoutes] = useState<Route[]>([])
+  useEffect(() => void api.routes().then(setRoutes, () => undefined), [])
   const crash = crashAtom.use()
   const [prof, setProf] = useState<Profile | null>(null)
   const loadProf = () => void api.profile().then(setProf, () => setProf(null))

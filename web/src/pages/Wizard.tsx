@@ -29,7 +29,7 @@ import { refreshConfig, refreshStatus } from '../app/connection'
 import { decksOf, hostLabel, reachList } from '../app/derive'
 import { langAtom, loginReasonAtom } from '../app/state'
 import { RestartOverlay } from '../app/Shell'
-import { getState, useRoute, useStore } from '../app/store'
+import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Btn, Choice, describedBy, Field, SIcon, Switch } from '../components/controls'
 import { CopyField, PwInput } from '../components/InputAction'
@@ -58,9 +58,8 @@ const STEPS = ['lang', 'pw', 'net', 'src', 'done'] as const
 type Step = (typeof STEPS)[number] | 'find' | 'moving'
 const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', find: 'net', src: 'net', done: 'src' }
 
-// The device keeps the step as 1 to 6 (lang, login, password, network, source, done), so a refresh or a second
-// browser resumes; sessionStorage covers firmware without PUT /api/setup. `moving` is stored as the source step,
-// so the page opened from the new QR code goes on there.
+// The device keeps the step (see FROM_NUM), so a refresh or a second browser resumes. `moving` is stored as the
+// source step, so the page opened from the new QR code goes on there.
 const FROM_NUM: Step[] = ['lang', 'lang', 'pw', 'pw', 'net', 'src', 'done']
 const num = (s: Step) => (s === 'find' ? 4 : s === 'moving' ? 5 : FROM_NUM.lastIndexOf(s))
 const viaAp = () => getState().status.via_ap ?? !!getState().status.network?.ap?.on
@@ -69,8 +68,7 @@ const viaAp = () => getState().status.via_ap ?? !!getState().status.network?.ap?
 const PW_PENDING = 'dc.wizpw'
 const NAME_PENDING = 'dc.wizname'
 const resumed = (): Step => {
-  const n = getState().status.setup?.step
-  const s = n ? (FROM_NUM[n] ?? 'lang') : ss.get<Step>('dc.wiz', 'lang')
+  const s = FROM_NUM[getState().status.setup?.step ?? 0] ?? 'lang'
   // Back on the setup Wi-Fi after the move: joining the network failed, so the network step again.
   if ((s === 'src' || s === 'moving') && viaAp()) return 'net'
   return (s === 'net' || s === 'find') && ss.get<boolean>(PW_PENDING, false) ? 'pw' : s
@@ -78,16 +76,14 @@ const resumed = (): Step => {
 
 function useStep() {
   const [step, setStep] = useState<Step>(resumed)
-  const hasSetup = useRoute('PUT', '/api/setup')
   const wentBack = useRef(false)
   useEffect(() => {
-    ss.set('dc.wiz', step)
     // Next never moves the device's step back, so a second, older tab cannot undo the first one.
-    if (hasSetup && (wentBack.current || num(step) >= (getState().status.setup?.step ?? 0)))
+    if (wentBack.current || num(step) >= (getState().status.setup?.step ?? 0))
       void api.setup(num(step)).catch(() => undefined)
     wentBack.current = false
     document.getElementById('wz-step')?.focus()
-  }, [step, hasSetup])
+  }, [step])
   const set = useCallback((s: Step, back = false) => {
     wentBack.current = back
     setStep(s)
@@ -113,8 +109,7 @@ export function Wizard() {
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const restarting = useStore((s) => !!s.restarting)
-  const canJoin = useRoute('POST', '/api/wifi/join')
-  const canProbe = useRoute('POST', '/api/sources/probe')
+  const reach = useStore((s) => s.restarting?.reach)
   const cable = !!st.network?.lan?.cable
   const onAp = st.via_ap ?? !!st.network?.ap?.on
   const rerun = !onAp && !!cfg?.wifi_ssid
@@ -183,7 +178,6 @@ export function Wizard() {
       setWErr(t(e))
       return false
     }
-    if (!canJoin) return true
     setTest('run')
     setWErr(null)
     const r = await joinWifi(wifi).catch(() => 'failed')
@@ -213,21 +207,15 @@ export function Wizard() {
   const saveNet = async () => {
     const ok = await act(async () => {
       // A joined Wi-Fi is already saved by the test; everything else goes in one PUT, the password last of all.
-      await putConfig(
-        {
-          name,
-          ...(editNet && {
-            lan,
-            wlan: useWlan ? wlan : EMPTY,
-            ...(!canJoin && useWlan
-              ? { wifi_ssid: wifi.ssid, wifi_bssid: wifi.bssid, ...(wifi.pass ? { wifi_pass: wifi.pass } : {}) }
-              : {}),
-            ...(!useWlan ? { wifi_ssid: '' } : {}),
-          }),
-          ...(pw ? { admin_pass: pw } : {}),
-        },
-        where,
-      )
+      await putConfig({
+        name,
+        ...(editNet && {
+          lan,
+          wlan: useWlan ? wlan : EMPTY,
+          ...(!useWlan ? { wifi_ssid: '' } : {}),
+        }),
+        ...(pw ? { admin_pass: pw } : {}),
+      })
       return true
     })
     if (!ok) return
@@ -242,10 +230,8 @@ export function Wizard() {
     setMErr(null)
     setBusy(target)
     try {
-      if (canProbe) {
-        const r = await api.probe(target, normPin(p)).catch(() => ({ ok: false, error: undefined }))
-        if (!r.ok) return setMErr(r.error ?? t('wiz.no_answer', { a: target }))
-      }
+      const r = await api.probe(target, normPin(p)).catch(() => ({ ok: false, error: undefined }))
+      if (!r.ok) return setMErr(r.error ?? t('wiz.no_answer', { a: target }))
       await act(() =>
         putConfig({
           satellite: target,
@@ -273,7 +259,6 @@ export function Wizard() {
   const finish = async () => {
     const ok = await act(() => putConfig({ setup_done: true }))
     if (ok === undefined) return
-    ss.set('dc.wiz', undefined)
     await api.setup(0).catch(() => undefined)
     await Promise.all([refreshConfig(), refreshStatus()])
   }
@@ -508,7 +493,7 @@ export function Wizard() {
           <li>{t('wiz.mv_2')}</li>
         </ol>
         <p className="muted">{t('wiz.mv_fallback')}</p>
-        {where.map((u) => (
+        {(reach ?? where).map((u) => (
           <CopyField key={u} value={u} link />
         ))}
         <p className="warnline">

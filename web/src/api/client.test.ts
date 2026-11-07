@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiError, onAuthLost, optional, pressReal, request } from './client'
+import { api, ApiError, onAuthLost, pressReal, request } from './client'
 
 const reply = (status: number, body: unknown, type = 'application/json') =>
   new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': type } })
@@ -53,17 +53,6 @@ describe('request', () => {
     await api.login('x').catch(() => undefined)
     off()
     expect(seen).toEqual([])
-  })
-})
-
-describe('optional', () => {
-  it('maps a missing route to null', async () => {
-    mockFetch(reply(404, { ok: false, error: 'no coredump' }))
-    expect(await optional(api.inputLog())).toBeNull()
-  })
-  it('passes other errors on', async () => {
-    mockFetch(reply(500, { ok: false, error: 'boom' }))
-    await expect(optional(api.inputLog())).rejects.toMatchObject({ status: 500 })
   })
 })
 

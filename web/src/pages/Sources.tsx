@@ -23,7 +23,7 @@ import { refreshStatus } from '../app/connection'
 import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
-import { getState, useRoute, useStore } from '../app/store'
+import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, type Tone } from '../components/controls'
@@ -125,7 +125,6 @@ function CompanionForm({ close }: { close: () => void }) {
     },
     [],
   )
-  const canProbe = useRoute('POST', '/api/sources/probe')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
   const save = async (addr: string, p: string) => {
@@ -137,7 +136,7 @@ function CompanionForm({ close }: { close: () => void }) {
       return
     }
     // A failed test is shown once; saving the same address again keeps it anyway (Companion may start later).
-    if (canProbe && failed !== addr) {
+    if (failed !== addr) {
       setBusy(true)
       const r = await api
         .probe(addr, normPin(p))
@@ -242,7 +241,6 @@ function AppForm({ close }: { close: () => void }) {
   const P = useStore((s) => s.status.pairing)
   const ip = useStore((s) => s.status.network?.lan?.ip || s.status.network?.wlan?.ip || location.hostname)
   const a = usePairing()
-  const canUndeny = useRoute('DELETE', '/api/pairing/denied/x')
   return (
     <>
       <p className="small muted">{t('src.app_what')}</p>
@@ -293,15 +291,13 @@ function AppForm({ close }: { close: () => void }) {
               d.since_s !== undefined && bootAt
                 ? `${t('wiz.denied_at', { time: fmt.time(bootAt + d.since_s * 1000) })} ${t('wiz.denied_h')}`
                 : t('wiz.denied_h'),
-            acts: canUndeny
-              ? [
-                  {
-                    label: t('wiz.ask_again'),
-                    icon: RefreshCw,
-                    run: () => act(() => api.undeny(d.ip).then(refreshStatus)),
-                  },
-                ]
-              : [],
+            acts: [
+              {
+                label: t('wiz.ask_again'),
+                icon: RefreshCw,
+                run: () => act(() => api.undeny(d.ip).then(refreshStatus)),
+              },
+            ],
           }}
         />
       ))}

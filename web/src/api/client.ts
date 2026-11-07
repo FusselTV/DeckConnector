@@ -33,10 +33,6 @@ export class ApiError extends Error {
     this.status = status
     this.code = code
   }
-  /** The firmware does not know this route yet: the caller hides the feature instead of showing an error. */
-  get missing() {
-    return this.status === 404 || this.status === 405 || this.status === 501
-  }
 }
 
 type Listener = (status: number) => void
@@ -97,16 +93,6 @@ const list = <T>(p: Promise<T[]>) =>
     return x
   })
 
-/** Resolves to null when the firmware lacks the route, so a card can say "needs newer firmware". */
-export async function optional<R>(p: Promise<R>): Promise<R | null> {
-  try {
-    return await p
-  } catch (e) {
-    if (e instanceof ApiError && e.missing) return null
-    throw e
-  }
-}
-
 const enc = encodeURIComponent
 const q = (deck?: string) => (deck ? `?deck=${enc(deck)}` : '')
 
@@ -146,7 +132,8 @@ export const api = {
   dock: (body: { accept: boolean; ip: string } | { pairing: number } | { forget: string | true }) =>
     request<{ ok: boolean }>('/api/dock', { body }),
   log: (prev = false) => request<string>('/api/log' + (prev ? '?boot=prev' : '')),
-  coredump: () => optional(request<Coredump>('/api/coredump')),
+  /** 404 when there is no crash report. */
+  coredump: () => request<Coredump>('/api/coredump'),
   clearCoredump: () => request<{ ok: boolean }>('/api/coredump', { method: 'DELETE' }),
   slots: () => list(request<Slot[]>('/api/slots')),
   bootSlot: (n: number) => request<{ ok: boolean }>(`/api/slots/${n}/boot`, { method: 'POST' }),
@@ -170,7 +157,6 @@ export const api = {
   makeToken: (name: string, right: 'control' | 'full') =>
     request<Token & { token: string }>('/api/tokens', { body: { name, right } }),
   dropToken: (name: string) => request<{ ok: boolean }>('/api/tokens/' + enc(name), { method: 'DELETE' }),
-  // Newer routes: callers check useRoute() first, or use optional().
   inputLog: (since = 0) => list(request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : ''))),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>

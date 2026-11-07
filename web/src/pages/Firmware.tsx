@@ -23,7 +23,7 @@ import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { toast } from '../app/state'
-import { useRoute, useStore } from '../app/store'
+import { useStore } from '../app/store'
 import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, Choice, describedBy, Field, Help, Seg, SIcon, type Tone } from '../components/controls'
@@ -34,10 +34,10 @@ import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
 import type { TKey } from '../i18n'
 import { backupOf, planRestore } from '../lib/backup'
-import { dbfwTarget, download, roam } from '../lib/util'
+import { download, roam } from '../lib/util'
 import { httpUrlError } from '../lib/validate'
 
-type Target = Awaited<ReturnType<typeof dbfwTarget>>
+type Target = 'p4' | 'c6' | 'page' | 'bootloader' | 'ptable' | null
 
 function slotState(s: Slot): [Tone, TKey] {
   if (s.running) return ['ok', 'slot.running']
@@ -55,7 +55,6 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
   const [url, setUrl] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [version, setVersion] = useState<string | null>(null)
-  const canInspect = useRoute('POST', '/api/ota/inspect')
   // Only the reply for the file picked last counts; an earlier, slower one is dropped.
   const picked = useRef<File | null>(null)
   const pickFile = (f: File | null) => {
@@ -65,18 +64,16 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
     setErr(null)
     setVersion(null)
     if (!f) return
-    // The device reads the header itself where it can, and says whether it would take the file.
-    if (canInspect)
-      api.inspect(f).then(
-        (r) => {
-          if (picked.current !== f) return
-          if (!r.ok) return setErr(r.error ?? t('fw.bad_header'))
-          setTg(r.target === 'web' ? 'page' : (r.target ?? null))
-          setVersion(r.version ?? null)
-        },
-        (e: unknown) => picked.current === f && setErr(errText(e, t)),
-      )
-    else void dbfwTarget(f).then((x) => picked.current === f && (x ? setTg(x) : setErr(t('fw.bad_header'))))
+    // The device reads the header and says whether it would take the file.
+    api.inspect(f).then(
+      (r) => {
+        if (picked.current !== f) return
+        if (!r.ok) return setErr(r.error ?? t('fw.bad_header'))
+        setTg(r.target === 'web' ? 'page' : (r.target ?? null))
+        setVersion(r.version ?? null)
+      },
+      (e: unknown) => picked.current === f && setErr(errText(e, t)),
+    )
   }
   const what =
     mode === 'url'
@@ -187,7 +184,7 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
   )
 }
 
-function SaveModal({ close, cfg, full }: { close: () => void; cfg: Config; full: boolean }) {
+function SaveModal({ close, cfg }: { close: () => void; cfg: Config }) {
   const { t, act } = useUi()
   const [what, setWhat] = useState<'cfg' | 'full'>('cfg')
   const go = () =>
@@ -221,15 +218,13 @@ function SaveModal({ close, cfg, full }: { close: () => void; cfg: Config; full:
           hint={t('fw.save_cfg_h')}
           onPick={() => setWhat('cfg')}
         />
-        {full && (
-          <Choice
-            on={what === 'full'}
-            icon={KeyRound}
-            label={t('fw.save_full')}
-            hint={t('fw.save_full_h')}
-            onPick={() => setWhat('full')}
-          />
-        )}
+        <Choice
+          on={what === 'full'}
+          icon={KeyRound}
+          label={t('fw.save_full')}
+          hint={t('fw.save_full_h')}
+          onPick={() => setWhat('full')}
+        />
       </div>
       {what === 'full' && <p className="warnline">{t('fw.save_full_warn')}</p>}
     </Modal>
@@ -312,8 +307,6 @@ export function Firmware() {
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const ota = useStore((s) => s.ota)
-  const canCheck = useRoute('GET', '/api/update/check')
-  const canBackup = useRoute('GET', '/api/backup')
   const [slots, setSlots] = useState<Slot[] | null>(null)
   const [front, setFront] = useState<Frontend | null>(null)
   const [upd, setUpd] = useState(false)
@@ -345,7 +338,9 @@ export function Firmware() {
   const writeSlot = async (file: File) => {
     const s = slotTarget
     if (!s) return
-    if ((await dbfwTarget(file)) !== 'p4') return toast(t('fw.bad_header'), { bad: true })
+    const r = await act(() => api.inspect(file))
+    if (!r) return
+    if (!r.ok || r.target !== 'p4') return toast(r.error ?? t('fw.bad_header'), { bad: true })
     if (
       !(await ask({
         title: t('cf.write', { slot: s.slot }),
@@ -498,7 +493,7 @@ export function Firmware() {
             </div>
           </div>
         )}
-        {canCheck ? <UpdateCheckBox lead={install} /> : <div className="row acts">{install}</div>}
+        <UpdateCheckBox lead={install} />
         <Row
           id="slots"
           icon={Layers}
@@ -615,7 +610,7 @@ export function Firmware() {
         />
       </Card>
       {upd && <UpdateModal close={() => setUpd(false)} target={target} />}
-      {save && cfg && <SaveModal close={() => setSave(false)} cfg={cfg} full={canBackup} />}
+      {save && cfg && <SaveModal close={() => setSave(false)} cfg={cfg} />}
     </div>
   )
 }

@@ -166,8 +166,6 @@ export interface DeviceEvent {
 export interface PutReply {
   ok: boolean
   restart?: boolean
-  /** The settings as stored, from firmware that echoes them. */
-  config?: Config
   reach?: string[]
 }
 

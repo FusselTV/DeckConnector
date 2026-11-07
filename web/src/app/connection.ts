@@ -1,7 +1,7 @@
-import { api, ApiError, onAuthLost, optional, READONLY } from '../api/client'
+import { api, ApiError, onAuthLost, READONLY } from '../api/client'
 import type { Status, WsMsg } from '../api/types'
 import { crashAtom, loginReasonAtom } from './state'
-import { dispatch, fromLog, getState, hasRoute } from './store'
+import { dispatch, fromLog, getState } from './store'
 
 // One WebSocket for the whole page. The status poll fills what ws `state` leaves out (uptime, counters, signal)
 // and is how a dead socket is told apart from an ended session.
@@ -18,20 +18,6 @@ let started = false
 // What the last ws `state` said, so a poll reply that left before it cannot undo it.
 let stateGen = 0
 let lastState: Partial<Status> = {}
-
-// Without GET /api/input/log the page logs its own presses and drops the echo the firmware sends back. Each
-// echo consumes one entry, so a real deck press on the same control right after is still shown.
-let ownPresses: { kind: string; index: number; at: number }[] = []
-export function noteWebPress(kind: string, index: number) {
-  const now = Date.now()
-  ownPresses = [...ownPresses.filter((p) => now - p.at < 1500), { kind, index, at: now }]
-}
-function isEcho(kind: string, index: number | undefined) {
-  const i = ownPresses.findIndex((p) => p.kind === kind && p.index === (index ?? 0) && Date.now() - p.at < 1500)
-  if (i < 0) return false
-  ownPresses.splice(i, 1)
-  return true
-}
 
 let upAtRestart = 0
 let restartSawDown = false
@@ -77,7 +63,7 @@ export async function refreshConfig() {
   }
 }
 
-// With GET /api/input/log the firmware's ring is the one list; each ws `input` asks it for what is new.
+// The firmware's input ring is the one list; each ws `input` asks it for what is new. A failed fetch waits for the next.
 let inputSeq = 0
 let inputTimer = 0
 let inputBusy = false
@@ -88,8 +74,8 @@ async function loadInputs() {
   try {
     if (!getState().bootAt) await refreshStatus()
     const since = inputSeq
-    const list = await optional(api.inputLog(since)).catch(() => null)
-    if (!Array.isArray(list)) return
+    const list = await api.inputLog(since).catch(() => null)
+    if (!list) return
     const fresh = list.filter((e) => e.seq > since)
     if (!fresh.length && since) return
     dispatch({ type: 'inputs', list: fromLog(fresh, getState().bootAt || Date.now()), replace: !since })
@@ -102,8 +88,7 @@ async function loadInputs() {
     }
   }
 }
-export function scheduleInputs() {
-  if (!getState().inputLogApi) return
+function scheduleInputs() {
   clearTimeout(inputTimer)
   inputTimer = window.setTimeout(() => void loadInputs(), 250)
 }
@@ -132,7 +117,6 @@ function openWs() {
     } catch {
       return
     }
-    if (m.t === 'input' && !getState().inputLogApi && isEcho(m.kind, m.index)) return
     if (m.t === 'state') {
       stateGen++
       const { t: _t, ...rest } = m
@@ -195,16 +179,10 @@ export function startSession() {
   openWs()
   void refreshStatus()
   void refreshConfig()
+  void loadInputs()
   api.coredump().then(
-    (c) => crashAtom.set(c && typeof c === 'object' && 'pc' in c ? c : null),
-    () => undefined,
-  )
-  api.routes().then(
-    (routes) => {
-      dispatch({ type: 'routes', routes })
-      if (hasRoute(routes, 'GET', '/api/input/log')) void loadInputs()
-    },
-    () => undefined,
+    (c) => crashAtom.set(c.size > 0 ? c : null),
+    () => crashAtom.set(null),
   )
   poll()
   document.addEventListener('visibilitychange', poll)

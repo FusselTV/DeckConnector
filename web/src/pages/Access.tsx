@@ -20,7 +20,7 @@ import type { Right, TlsInfo, Token } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { loginReasonAtom, toast } from '../app/state'
-import { getState, useRoute, useStore } from '../app/store'
+import { getState, useStore } from '../app/store'
 import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, Tag } from '../components/controls'
@@ -208,8 +208,6 @@ export function Access() {
   const { t, act, ask, go } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
-  const hasCert = useRoute('GET', '/api/cert')
-  const hasTls = useRoute('PUT', '/api/tls')
   const [pw, setPw] = useState('')
   const [cors, setCors] = useState<string | null>(null)
   const [tokens, setTokens] = useState<Token[] | null>(null)
@@ -338,26 +336,21 @@ export function Access() {
             <span className="flabel">{t('cert.title')}</span>
             <span className="small">{st.https_custom ? t('cert.applied') : t('cert.own')}</span>
           </div>
-          {(hasCert || hasTls) && (
-            <div className="row">
-              {hasCert && (
-                <a className="btn" id="cert-dl" href={certUrl} download={`${st.name ?? 'deckconnector'}.pem`}>
-                  <Download size={16} aria-hidden />
-                  {t('cert.dl')}
-                </a>
-              )}
-              {hasTls &&
-                (st.https_custom ? (
-                  <Btn icon={Undo2} onClick={() => void act(async () => (await api.resetTls(), expectRestart()))}>
-                    {t('cert.reset')}
-                  </Btn>
-                ) : (
-                  <Btn id="cert-up" icon={FileBadge} onClick={() => setCm(true)}>
-                    {t('cert.upload')}
-                  </Btn>
-                ))}
-            </div>
-          )}
+          <div className="row">
+            <a className="btn" id="cert-dl" href={certUrl} download={`${st.name ?? 'deckconnector'}.pem`}>
+              <Download size={16} aria-hidden />
+              {t('cert.dl')}
+            </a>
+            {st.https_custom ? (
+              <Btn icon={Undo2} onClick={() => void act(async () => (await api.resetTls(), expectRestart()))}>
+                {t('cert.reset')}
+              </Btn>
+            ) : (
+              <Btn id="cert-up" icon={FileBadge} onClick={() => setCm(true)}>
+                {t('cert.upload')}
+              </Btn>
+            )}
+          </div>
         </Card>
       </div>
       <Card

@@ -11,14 +11,12 @@ import { useUi } from './ui'
 /** The source being handed the deck, until the next status shows it drawing. */
 export const pendingAtom = atom<string | null>(null)
 
-/** PUT /api/config, then the stored values: the page never claims more than the device confirmed (api-gaps #11).
- *  After a restart the device's own `reach` list says where to find it; `where` is the page's guess for older
- *  firmware. */
-export async function putConfig(patch: ConfigPatch, where?: string[]) {
+/** PUT /api/config, then the stored values: the page never claims more than the device confirmed. After a restart
+ *  the reply's `reach` list says where to find the device. */
+export async function putConfig(patch: ConfigPatch) {
   const r = await api.putConfig(patch)
-  if (r.config) dispatch({ type: 'config', config: r.config })
-  if (r.restart) expectRestart(r.reach?.length ? r.reach : where)
-  else await Promise.all([r.config ? undefined : refreshConfig(), refreshStatus()])
+  if (r.restart) expectRestart(r.reach)
+  else await Promise.all([refreshConfig(), refreshStatus()])
   return r
 }
 

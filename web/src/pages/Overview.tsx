@@ -24,11 +24,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, pressReal, READONLY } from '../api/client'
 import type { InputBody, InputEvent, Rect, Screen, Source } from '../api/types'
 import { pendingAtom, useActions } from '../app/actions'
-import { noteWebPress, retryNow } from '../app/connection'
+import { retryNow } from '../app/connection'
 import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, toast, type Tab } from '../app/state'
-import { dispatch, getState, useStore } from '../app/store'
+import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Help, Led, Seg, SIcon, type Tone } from '../components/controls'
@@ -403,31 +403,27 @@ const LiveDeck = memo(function LiveDeck() {
     nudgeAtom.set(Date.now())
     setTimeout(() => nudgeAtom.set(0), 1400)
   }, [])
-  const ctx = useLatest({ act, serial, sel })
+  const ctx = useLatest({ act, serial })
   const send = useCallback(
     (b: InputBody, auto?: boolean) => {
-      const { act, serial, sel } = ctx.current
+      const { act, serial } = ctx.current
       const up = 'key' in b && b.action === 'up'
       // Every press by the person keeps remote control on for another minute.
       if (!up && !auto) armAtom.set(Date.now())
-      const kind =
-        'key' in b ? (b.action ?? 'press') : 'encoder' in b ? (b.action === 'turn' ? 'turn' : 'encoder') : b.touch
-      const key = 'key' in b ? b.key : 'encoder' in b ? b.encoder : undefined
-      if (kind === 'press') noteWebPress('down', key ?? 0)
-      noteWebPress(kind === 'press' ? 'up' : kind, key ?? 0)
-      if (!getState().inputLogApi)
-        dispatch({
-          type: 'input',
-          ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
-        })
       pressChain = pressChain.then(async () => {
         if (!up) return act(() => pressReal(b, serial))
         if (await release(b, serial)) return
         const st = getState().status
         const host = st.sources?.find((x) => x.drawing)
-        toast(t('ov.stuck', { n: (key ?? 0) + 1, host: host ? hostName(host) : (st.name ?? 'DeckConnector') }), {
-          bad: true,
-        })
+        toast(
+          t('ov.stuck', {
+            n: ('key' in b ? b.key : 0) + 1,
+            host: host ? hostName(host) : (st.name ?? 'DeckConnector'),
+          }),
+          {
+            bad: true,
+          },
+        )
       })
     },
     [ctx, t],

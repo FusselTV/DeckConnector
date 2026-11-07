@@ -2,7 +2,6 @@ import {
   Bug,
   Cable,
   Check,
-  Cpu,
   EthernetPort,
   LayoutGrid,
   Link2,
@@ -20,7 +19,7 @@ import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
 import { bootAckAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
 import { ls } from '../lib/util'
-import { useRoute, useStore } from './store'
+import { useStore } from './store'
 import { useUi } from './ui'
 
 interface Issues {
@@ -40,7 +39,6 @@ function useIssueList(): Issues {
   const st = useStore((s) => s.status)
   const bootAt = useStore((s) => s.bootAt)
   const satellite = useStore((s) => s.config?.satellite)
-  const canRetry = useRoute('POST', '/api/sources/retry')
   const crash = crashAtom.use()
   const bootAck = bootAckAtom.use()
   const ack = crashAckAtom.use()
@@ -79,7 +77,7 @@ function useIssueList(): Issues {
           .filter(Boolean)
           .join(' · '),
         acts: [
-          ...(canRetry ? [{ label: t('act.retry'), icon: RefreshCw, run: () => void a.retry(chosen) }] : []),
+          { label: t('act.retry'), icon: RefreshCw, run: () => void a.retry(chosen) },
           { label: t('act.check'), icon: Search, run: () => jump('sources', 'card-src') },
         ],
       })
@@ -129,15 +127,6 @@ function useIssueList(): Issues {
         title: t('is.compdock', { name: s.name || s.host }),
         text: t('is.compdock_h'),
         acts: [{ label: t('act.to_sat'), icon: Radio, run: () => void a.toSatellite(s) }],
-      })
-    if ((st.api ?? 1) < 2)
-      list.push({
-        id: 'oldfw',
-        icon: Cpu,
-        lvl: 'warn',
-        title: t('is.oldfw'),
-        text: t('is.oldfw_h', { need: 2, have: st.api ?? 0 }),
-        acts: [{ label: t('act.firmware'), icon: Cpu, run: () => go('firmware') }],
       })
     const P = st.pairing
     if (P?.request) {
@@ -197,5 +186,5 @@ function useIssueList(): Issues {
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
     return { list, notes }
-  }, [st, bootAt, satellite, canRetry, crash, crashed, bootAck, t, fmt, go, jump, a])
+  }, [st, bootAt, satellite, crash, crashed, bootAck, t, fmt, go, jump, a])
 }
