@@ -231,7 +231,8 @@ export function Wizard() {
     setMErr(null)
     setBusy(target)
     try {
-      const r = await api.probe(target, normPin(p)).catch(() => ({ ok: false, error: undefined }))
+      const r = await api.probe(target, normPin(p)).catch((x: unknown) => setMErr(errText(x, t)))
+      if (!r) return
       if (!r.ok) return setMErr(r.error ?? t('wiz.no_answer', { a: target }))
       await act(() =>
         putConfig({

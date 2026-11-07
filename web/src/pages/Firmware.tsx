@@ -309,15 +309,22 @@ export function Firmware() {
   const ota = useStore((s) => s.ota)
   const [slots, setSlots] = useState<Slot[] | null>(null)
   const [front, setFront] = useState<Frontend | null>(null)
+  const [loadErr, setLoadErr] = useState<string | null>(null)
   const [upd, setUpd] = useState(false)
   const [save, setSave] = useState(false)
   const rsRef = useRef<HTMLInputElement>(null)
   const slotRef = useRef<HTMLInputElement>(null)
   const [slotTarget, setSlotTarget] = useState<Slot | null>(null)
   const load = useCallback(() => {
-    api.slots().then(setSlots, () => setSlots([]))
-    api.frontend().then(setFront, () => setFront(null))
-  }, [])
+    Promise.all([api.slots(), api.frontend()]).then(
+      ([s, f]) => {
+        setSlots(s)
+        setFront(f)
+        setLoadErr(null)
+      },
+      (e: unknown) => setLoadErr(errText(e, t)),
+    )
+  }, [t])
   useEffect(load, [load])
   const running = slots?.find((s) => s.running)
   const target = slots?.find((s) => !s.running && !s.next && s.state !== 'pending') ?? slots?.find((s) => !s.running)
@@ -480,6 +487,15 @@ export function Firmware() {
             [t('dia.api'), st.api, true],
           ]}
         />
+        {loadErr && (
+          <div className="warnline" role="alert">
+            <TriangleAlert size={16} aria-hidden />
+            {loadErr}
+            <Btn sm kind="ghost" icon={RefreshCw} onClick={load}>
+              {t('ban.retry')}
+            </Btn>
+          </div>
+        )}
         {ota && (
           <div className="prog" role="status">
             <div className="row">

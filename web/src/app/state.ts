@@ -56,6 +56,9 @@ export const draftsAtom = atom<Partial<Record<Tab, { dirty: boolean; restart: bo
 /** The last Wi-Fi scan, so search can offer the networks without scanning again. */
 export const wifiScanAtom = atom<WifiAp[]>([])
 
+/** Why GET /api/status failed last with a reply (a lost network shows as the connection state instead). */
+export const statusErrAtom = atom<unknown>(null)
+
 /** Why GET /api/config failed last, null once it answers. connection.ts retries with a growing pause. */
 export const configErrAtom = atom<unknown>(null)
 
@@ -63,4 +66,4 @@ export const configErrAtom = atom<unknown>(null)
 export const crashAtom = atom<Coredump | null>(null)
 export const bootAckAtom = atom<number>(ls.get('dc.bootAck', 0))
 export const crashAckAtom = atom<string>(ls.get('dc.crashAck', ''))
-export const crashKey = (c: Coredump) => `${c.elf_sha256}:${c.pc}:${c.size}`
+export const crashKey = (c: Coredump) => `${c.elf_sha256 ?? ''}:${c.pc ?? ''}:${c.size}`

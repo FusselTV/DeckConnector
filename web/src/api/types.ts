@@ -264,15 +264,17 @@ export interface Profile {
   stack_free?: Record<string, number>
 }
 
+/** The summary fields are missing (or `summary` is false) when the firmware cannot read the dump. */
 export interface Coredump {
-  task: string
-  pc: string
-  ra: string
-  sp: string
-  mcause: number
-  mtval: string
-  elf_sha256: string
   size: number
+  summary?: boolean
+  task?: string
+  pc?: string
+  ra?: string
+  sp?: string
+  mcause?: number
+  mtval?: string
+  elf_sha256?: string
   firmware?: string
   at?: string
 }

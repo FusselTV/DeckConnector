@@ -482,7 +482,7 @@ function Details() {
   const bootMax = Math.max(1, ...boot.map((b) => b[1]))
   const mem = st.memory ?? {}
   const cdName = crash
-    ? `${st.name ?? 'deckconnector'}-${st.firmware ?? ''}-${crash.elf_sha256.slice(0, 8)}-coredump.elf`
+    ? `${st.name ?? 'deckconnector'}-${st.firmware ?? ''}-${(crash.elf_sha256 ?? '').slice(0, 8)}-coredump.elf`
     : ''
   return (
     <Card id="card-dev" live icon={HardDrive} title={t('dia.details')}>
@@ -507,7 +507,7 @@ function Details() {
           crash ? (
             <span className="tag warn">
               <TriangleAlert size={12} aria-hidden />
-              {crash.task}
+              {crash.task ?? fmt.bytes(crash.size)}
             </span>
           ) : (
             <span className="tag ok">{t('meter.none')}</span>
@@ -518,11 +518,20 @@ function Details() {
           <>
             <KeyValue
               rows={[
-                [t('dia.cause'), crash.mcause === 7 ? t('dia.cause_7') : `mcause ${crash.mcause}`],
+                [
+                  t('dia.cause'),
+                  crash.mcause === undefined
+                    ? t('dia.no_sum')
+                    : crash.mcause === 7
+                      ? t('dia.cause_7')
+                      : `mcause ${crash.mcause}`,
+                ],
                 [t('dia.when'), crash.at],
                 [
                   t('dia.regs'),
-                  `pc ${crash.pc} · ra ${crash.ra} · sp ${crash.sp} · mtval ${crash.mtval} · ${fmt.bytes(crash.size)}`,
+                  crash.pc
+                    ? `pc ${crash.pc} · ra ${crash.ra ?? ''} · sp ${crash.sp ?? ''} · mtval ${crash.mtval ?? ''} · ${fmt.bytes(crash.size)}`
+                    : undefined,
                   true,
                 ],
               ]}

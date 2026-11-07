@@ -24,7 +24,7 @@ import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
 import { getState, useStore } from '../app/store'
-import { useUi } from '../app/ui'
+import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
@@ -137,11 +137,10 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
     // A failed test is shown once; saving the same address again keeps it anyway (Companion may start later).
     if (failed !== addr) {
       setBusy(true)
-      const r = await api
-        .probe(addr, normPin(p))
-        .catch((x: unknown) => ({ ok: false, error: x instanceof Error ? x.message : '' }))
+      const r = await api.probe(addr, normPin(p)).catch((x: unknown) => errText(x, t))
       if (gone.current) return
       setBusy(false)
+      if (typeof r === 'string') return setErr({ sat: r })
       if (!r.ok) {
         setFailed(addr)
         setErr({ sat: `${t('wiz.no_answer', { a: addr })}${r.error ? ` (${r.error})` : ''}` })

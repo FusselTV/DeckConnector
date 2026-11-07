@@ -748,4 +748,8 @@ export const de: Dict = {
   'boot.brownout': 'Spannungseinbruch',
   'boot.other': 'anderer Grund',
   'fw.file_v': 'Datei: {v}',
+  'login.req_gone': 'Der Connector kennt die Anfrage nicht mehr. Frag noch einmal an.',
+  'logout.fail': 'Abmelden hat nicht geklappt. Die Sitzung ist evtl. noch gültig.',
+  'is.status': 'Der Status konnte nicht gelesen werden',
+  'dia.no_sum': 'Der Bericht hat keine Zusammenfassung. Lade ihn herunter.',
 }

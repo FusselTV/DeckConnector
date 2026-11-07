@@ -6,7 +6,7 @@ import { expectRestart, refreshConfig, refreshStatus, stopSession } from './conn
 import { hk, hostKey, hostLabel, hostName } from './derive'
 import { loginReasonAtom, toast } from './state'
 import { dispatch, getState } from './store'
-import { useUi } from './ui'
+import { errText, useUi } from './ui'
 
 /** The source being handed the deck, until the next status shows it drawing. */
 export const pendingAtom = atom<string | null>(null)
@@ -108,7 +108,12 @@ export function useActions() {
           toast(t('src.to_sat_done', { host: s.host }))
         }),
       logout: async () => {
-        await api.logout().catch(() => undefined)
+        try {
+          await api.logout()
+        } catch (e) {
+          toast(`${t('logout.fail')} ${errText(e, t)}`, { bad: true })
+          return
+        }
         stopSession()
         loginReasonAtom.set('logout')
         dispatch({ type: 'auth', auth: 'login' })

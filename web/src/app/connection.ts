@@ -1,6 +1,6 @@
 import { api, ApiError, onAuthLost, READONLY } from '../api/client'
 import type { Status, WsMsg } from '../api/types'
-import { configErrAtom, crashAtom, loginReasonAtom } from './state'
+import { configErrAtom, crashAtom, loginReasonAtom, statusErrAtom } from './state'
 import { dispatch, fromLog, getState } from './store'
 
 // One WebSocket for the whole page. The status poll fills what ws `state` leaves out (uptime, counters, signal)
@@ -47,10 +47,12 @@ export async function refreshStatus() {
       dispatch({ type: 'restart', on: false, now: Date.now() })
       live()
     }
+    statusErrAtom.set(null)
     return true
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) return false
-    lost()
+    if (e instanceof ApiError && e.status === 0) lost()
+    else statusErrAtom.set(e)
     return false
   }
 }
@@ -147,7 +149,6 @@ function openWs() {
     if (ws === sock) ws = null
     if (!started) return
     void refreshStatus().then((ok) => {
-      if (!ok && getState().auth === 'app') lost()
       wsTimer = window.setTimeout(openWs, ok ? 200 : backoff)
       backoff = Math.min(backoff * 2, 8000)
     })

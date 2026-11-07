@@ -13,7 +13,7 @@ import { api, ApiError } from '../api/client'
 import { startSession } from '../app/connection'
 import { langAtom, loginReasonAtom } from '../app/state'
 import { dispatch, useStore } from '../app/store'
-import { useUi } from '../app/ui'
+import { errText, useUi } from '../app/ui'
 import { Btn, describedBy, Field } from '../components/controls'
 import { PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
@@ -46,8 +46,10 @@ function useLogin() {
       if (x instanceof ApiError && (x.status === 429 || x.message === 'locked')) {
         setLock(12)
         setErr(null)
-      } else if (x instanceof ApiError && x.status === 0) setErr(t('login.offline'))
-      else setErr(t('login.wrong'))
+      } else if (x instanceof ApiError && x.status === 0 && x.code !== 'timeout') setErr(t('login.offline'))
+      else if (x instanceof ApiError && (x.status === 401 || (x.status === 403 && x.message === 'wrong password')))
+        setErr(t('login.wrong'))
+      else setErr(errText(x, t))
     } finally {
       setBusy(false)
     }
@@ -73,16 +75,23 @@ function useDeckLogin(why: (x: unknown) => void, done: () => void) {
   const [msg, setMsg] = useState<string | null>(null)
   useEffect(() => {
     if (!id) return
+    let fails = 0
     const tick = setInterval(() => {
       api.loginState(id).then(
         (r) => {
+          fails = 0
           setLeft(r.s)
           if (r.state === 'pending') return
           setId(null)
           if (r.state === 'accepted') done()
           else setMsg(t(r.state === 'denied' ? 'login.req_denied' : 'login.req_expired'))
         },
-        () => undefined,
+        (x: unknown) => {
+          // A restart forgets the request (404); a few lost polls in a row mean the device is gone.
+          if (!(x instanceof ApiError && x.status === 404) && ++fails < 5) return
+          setId(null)
+          setMsg(x instanceof ApiError && x.status === 404 ? t('login.req_gone') : errText(x, t))
+        },
       )
     }, 1000)
     return () => clearInterval(tick)
@@ -146,7 +155,16 @@ function Forgot() {
             lvl: 'warn',
             title: t('login.reset_wait', { s: reset }),
             text: t('login.reset_wait_h'),
-            acts: [{ label: t('c.cancel'), run: () => void api.cancelReset().finally(() => setReset(0)) }],
+            acts: [
+              {
+                label: t('c.cancel'),
+                run: () =>
+                  void api.cancelReset().then(
+                    () => setReset(0),
+                    (x: unknown) => setErr(errText(x, t)),
+                  ),
+              },
+            ],
           }}
         />
       ) : (

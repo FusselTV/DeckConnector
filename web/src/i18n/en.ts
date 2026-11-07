@@ -737,4 +737,8 @@ export const en = {
   'boot.brownout': 'brownout',
   'boot.other': 'other',
   'fw.file_v': 'File: {v}',
-} as const
+  'login.req_gone': 'The connector no longer knows this request. Ask again.',
+  'logout.fail': 'Logging out did not work. The session may still be valid.',
+  'is.status': 'The status could not be read',
+  'dia.no_sum': 'The report has no summary. Download it.',
+}

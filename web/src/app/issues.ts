@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bug,
   Cable,
   Check,
@@ -18,7 +19,7 @@ import { createContext, createElement, useContext, useMemo, type ReactNode } fro
 import type { NoticeData } from '../components/Notice'
 import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
-import { bootAckAtom, configErrAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
+import { bootAckAtom, configErrAtom, statusErrAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
 import { ls } from '../lib/util'
 import { useStore } from './store'
 import { errText, useUi } from './ui'
@@ -42,6 +43,7 @@ function useIssueList(): Issues {
   const bootAt = useStore((s) => s.bootAt)
   const satellite = useStore((s) => s.config?.satellite)
   const cfgErr = configErrAtom.use()
+  const stErr = statusErrAtom.use()
   const crash = crashAtom.use()
   const bootAck = bootAckAtom.use()
   const ack = crashAckAtom.use()
@@ -62,6 +64,14 @@ function useIssueList(): Issues {
         title: t('is.cfg'),
         text: errText(cfgErr, t),
         acts: [{ label: t('ban.retry'), icon: RefreshCw, run: () => void refreshConfig() }],
+      })
+    if (stErr)
+      list.push({
+        id: 'status',
+        icon: Activity,
+        lvl: 'warn',
+        title: t('is.status'),
+        text: errText(stErr, t),
       })
     if (!decks.length)
       list.push({
@@ -182,7 +192,7 @@ function useIssueList(): Issues {
         icon: Bug,
         lvl: 'info',
         title: t('is.crash'),
-        text: crash.task,
+        text: crash.task ?? t('dia.no_sum'),
         acts: [
           { label: t('is.view_crash'), ghost: true, run: () => jump('diagnose', 'dia-crash') },
           {
@@ -198,5 +208,5 @@ function useIssueList(): Issues {
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
     return { list, notes }
-  }, [st, bootAt, satellite, cfgErr, crash, crashed, bootAck, t, fmt, go, jump, a])
+  }, [st, bootAt, satellite, cfgErr, stErr, crash, crashed, bootAck, t, fmt, go, jump, a])
 }

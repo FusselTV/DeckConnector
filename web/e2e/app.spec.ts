@@ -359,3 +359,40 @@ test('settings that fail to load disable editing, say so, and load on a later tr
   await expect(page.locator('#src-add')).toBeEnabled()
   errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 503')))
 })
+
+test('a failed logout keeps the page and says the session may still be valid', async ({ app: page, errors }) => {
+  await page.route('**/api/logout', (r) => r.fulfill({ status: 500, json: { ok: false, error: 'busy' } }))
+  if (await page.locator('.side').isVisible()) await page.getByRole('button', { name: 'Log out' }).click()
+  else {
+    await page.locator('.tabbar').getByRole('button', { name: /More/ }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Log out' }).click()
+  }
+  await expect(page.getByRole('alert').filter({ hasText: 'may still be valid' })).toBeVisible()
+  await expect(page.locator('#lpw')).toHaveCount(0)
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 500')))
+})
+
+test('a login that fails for another reason than the password says why', async ({ page, errors }) => {
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: true })
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await page.goto('/')
+  await page.route('**/api/login', (r) => r.fulfill({ status: 500, json: { ok: false, error: 'flash busy' } }))
+  await page.locator('#lpw').fill('anything')
+  await page.keyboard.press('Enter')
+  await expect(page.getByText('The connector refused it: flash busy')).toBeVisible()
+  await expect(page.getByText('Wrong password.')).toHaveCount(0)
+  await page.unroute('**/api/login')
+  await page.locator('#lpw').fill('not-the-password')
+  await page.keyboard.press('Enter')
+  await expect(page.getByText('Wrong password.')).toBeVisible()
+  errors.splice(0, errors.length, ...errors.filter((e) => !/status of (500|403)/.test(e)))
+})
+
+test('a status reply with an error is shown and does not count as offline', async ({ app: page, errors }) => {
+  await page.route('**/api/status', (r) => r.fulfill({ status: 500, json: { ok: false, error: 'oops' } }))
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.getByText('The status could not be read').first()).toBeVisible()
+  await expect(page.getByText(/not reachable|Reconnecting/i)).toHaveCount(0)
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 500')))
+})
