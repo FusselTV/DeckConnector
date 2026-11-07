@@ -428,7 +428,7 @@ function Banners() {
   )
 }
 
-function RestartOverlay() {
+export function RestartOverlay() {
   const { t } = useUi()
   const r = useStore((s) => s.restarting)
   const [el, setEl] = useState(0)
