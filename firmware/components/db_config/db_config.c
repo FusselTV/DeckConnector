@@ -117,6 +117,9 @@ esp_err_t db_config_load(void)
                 !db_config_ntp_ok(current.ntp_server)) {
                 current.ntp_server[0] = '\0';
             }
+            uint8_t lock;
+            memcpy(&lock, &current.input_lock, 1); /* padding of an older blob: neither 0 nor 1 is no bool */
+            current.input_lock = lock == 1;
         }
         free(blob);
     }
@@ -229,6 +232,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "usb_speed", cfg->usb_speed);
     db_json_str(&j, "wifi_bssid", cfg->wifi_bssid);
     db_json_str(&j, "ntp_server", cfg->ntp_server);
+    db_json_bool(&j, "input_lock", cfg->input_lock);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) {
@@ -406,9 +410,9 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->controller = (db_controller_t)found;
     }
-    const char *flags[] = {"setup_done", "dock_paired_only", "https_only"};
-    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only};
-    for (int i = 0; i < 3; i++) {
+    const char *flags[] = {"setup_done", "dock_paired_only", "https_only", "input_lock"};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->input_lock};
+    for (int i = 0; i < 4; i++) {
         const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
         if (v && !cJSON_IsBool(v)) {
             snprintf(err, err_cap, "%s: true or false expected", flags[i]);

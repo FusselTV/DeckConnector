@@ -59,7 +59,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `OPTIONS /api/...` | CORS preflight, see "For integrations" |
 | `GET /api/status` | State of the DeckConnector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
-| `PUT /api/config` | Change settings. Send only the keys you change |
+| `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config`, the settings as the DeckConnector stored them |
 | `GET /api/screen` | What the deck shows right now, see below |
 | `GET /api/screen/<id>.jpg` | One image of that picture |
 | `GET /api/screen.jpg` | The whole picture as one JPEG, for a camera in Home Assistant |
@@ -154,6 +154,9 @@ key), `encoders` (the outer encoders, like `auto`), or `off`.
 for example behind a hub that drops it, the port switches to full speed until the next restart. `full` always
 uses full speed. Full speed moves about 64 KB of pictures per second instead of several MB, so a full page takes
 up to a second.
+
+`input_lock` stops presses over `POST /api/input` and the web socket, and changes of `controller` or `host`,
+with 423. A request with `"force": true` still gets through. The deck itself is never locked.
 
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
 

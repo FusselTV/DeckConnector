@@ -63,6 +63,13 @@ int api_config(const char *body, char *reply, size_t cap)
     if (db_config_from_json(&cfg, body, err, sizeof(err)) != ESP_OK) {
         return fail(reply, cap, 400, err);
     }
+    cJSON *root = cJSON_Parse(body);
+    bool force = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "force"));
+    cJSON_Delete(root);
+    if (old.input_lock && cfg.input_lock && !force &&
+        (cfg.controller != old.controller || strcmp(cfg.host, old.host) != 0)) {
+        return fail(reply, cap, 423, "input is locked: send \"force\": true or unlock first");
+    }
     if (cfg.https_only && !old.https_only && !web_tls_running()) {
         return fail(reply, cap, 409, "HTTPS is not running, so plain HTTP must stay");
     }
@@ -80,6 +87,7 @@ int api_config(const char *body, char *reply, size_t cap)
     memcpy(live.server_pins, old.server_pins, sizeof(old.server_pins));
     memcpy(live.satellite_pin, old.satellite_pin, sizeof(old.satellite_pin));
     live.dock_paired_only = old.dock_paired_only;
+    live.input_lock = old.input_lock;
     live.https_only = old.https_only;
     memcpy(live.cors_origins, old.cors_origins, sizeof(old.cors_origins));
     memcpy(live.menu_chord, old.menu_chord, sizeof(old.menu_chord));
@@ -191,7 +199,11 @@ int api_input(const char *body, char *reply, size_t cap)
     if (cJSON_IsString(r) && (only_ip == INADDR_NONE || !only_ip)) {
         err = "real: true or the IPv4 address of the host that draws";
     }
+    bool force = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "force"));
     cJSON_Delete(root);
+    if (!err && db_config()->input_lock && !force) {
+        return fail(reply, cap, 423, "input is locked: send \"force\": true or unlock first");
+    }
     if (err) {
         return fail(reply, cap, 400, err);
     }
@@ -231,6 +243,8 @@ static const char *status_line(int code)
     switch (code) {
     case 200:
         return "200 OK";
+    case 423:
+        return "423 Locked";
     case 400:
         return "400 Bad Request";
     case 403:
@@ -270,9 +284,22 @@ int api_config_token(const char *body, char *reply, size_t cap)
                                            : api_config(body, reply, cap);
 }
 
+/* The reply carries the stored settings, so a page shows what the bridge keeps, not what it sent. */
 esp_err_t put_config(httpd_req_t *req)
 {
-    return body_api(req, auth_by_token(req) ? api_config_token : api_config);
+    char body[BODY_MAX];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    static char reply[JSON_MAX + 64]; /* handlers run under web_lock() */
+    int code = (auth_by_token(req) ? api_config_token : api_config)(body, reply, 160);
+    if (code == 200) {
+        size_t n = strlen(reply) - 1; /* over the closing brace */
+        n += snprintf(reply + n, sizeof(reply) - n, ",\"config\":");
+        n += db_config_to_json(db_config(), false, reply + n, sizeof(reply) - n - 1);
+        snprintf(reply + n, sizeof(reply) - n, "}");
+    }
+    return reply_with(req, code, reply);
 }
 
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. */
