@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,7 @@ static size_t state_json(char *buf, size_t cap)
 /* The password comes from DB_SIM_PASSWORD, so tests know it without reading a device. */
 void app_main(void)
 {
+    signal(SIGPIPE, SIG_IGN); /* a browser that drops a socket mid-write would end the simulator */
     nvs_flash_init();
     esp_event_loop_create_default(); /* esp_http_server posts its events there */
     db_config_load();

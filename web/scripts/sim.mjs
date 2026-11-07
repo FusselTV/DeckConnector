@@ -11,8 +11,7 @@ const elf = new URL('../../firmware/sim/build/deckbridge_sim.elf', import.meta.u
 const copy = join(tmpdir(), `deckconnector-sim-${port}.elf`)
 copyFileSync(elf, copy)
 console.log(`simulator on http://127.0.0.1:${port}, password "${password}"`)
-// The simulator dies of SIGPIPE when a browser drops a socket mid-write; an ignored signal survives the exec.
-const sim = spawn('sh', ['-c', 'trap "" PIPE; exec "$0"', copy], {
+const sim = spawn(copy, [], {
   env: { ...process.env, DB_SIM_PORT: port, DB_SIM_PASSWORD: password },
   stdio: ['ignore', 'inherit', 'inherit'],
 })
