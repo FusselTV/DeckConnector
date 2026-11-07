@@ -46,6 +46,7 @@ typedef struct {
     uint16_t peer_port;   /* network order */
     db_controller_t kind; /* DB_CTRL_SERVER until the first message tells */
     SemaphoreHandle_t tx;
+    uint8_t out[DB_CORA_HDR_LEN + DB_CORA_REPORT_LEN]; /* under tx */
 } conn_t;
 
 static struct {
@@ -62,12 +63,14 @@ static bool satellite_host(uint32_t ip);
 
 static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
 {
+    configASSERT(len <= DB_CORA_REPORT_LEN);
     xSemaphoreTake(c->tx, portMAX_DELAY);
     int sock = c->sock;
     if (sock >= 0) {
-        uint8_t hdr[DB_CORA_HDR_LEN];
-        db_cora_write_hdr(hdr, &(db_cora_hdr_t){.flags = flags, .op = op, .id = id, .len = (uint32_t)len});
-        if (send(sock, hdr, sizeof(hdr), 0) != (ssize_t)sizeof(hdr) || send(sock, payload, len, 0) != (ssize_t)len) {
+        /* one send: header and data in one TCP segment */
+        db_cora_write_hdr(c->out, &(db_cora_hdr_t){.flags = flags, .op = op, .id = id, .len = (uint32_t)len});
+        memcpy(c->out + DB_CORA_HDR_LEN, payload, len);
+        if (send(sock, c->out, DB_CORA_HDR_LEN + len, 0) != (ssize_t)(DB_CORA_HDR_LEN + len)) {
             shutdown(sock, SHUT_RDWR);
         }
     }
