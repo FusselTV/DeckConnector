@@ -44,7 +44,10 @@ def wait_join(secs: float) -> dict:
 
 @pytest.mark.skipif(TARGET == "sim", reason="needs the radio")
 def test_a_network_that_is_not_there_fails_and_the_old_one_comes_back():
-    before = status()["network"]["wlan"]
+    net = status()["network"]
+    if not net["lan"]["ip"] or net["lan"]["dead"]:
+        pytest.skip("the bridge talks over WLAN: the join would drop it for 15 s")
+    before = net["wlan"]
     assert api("POST", "/api/wifi/join", json.dumps({"ssid": "no-such-net-x7", "pass": "12345678"}).encode())[0] == 202
     wlan = wait_join(25)
     assert wlan["join"] == "failed" and wlan["join_error"], wlan

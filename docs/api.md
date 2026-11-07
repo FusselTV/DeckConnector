@@ -166,6 +166,7 @@ up to a second.
 with 423. A request with `"force": true` still gets through. The deck itself is never locked.
 `PUT /api/input/arm` opens the lock for some seconds for every client, and `input_armed_s` in the status counts
 them down (only in `GET /api/status`, not in the web socket state). A restart shuts the lock again.
+The lock guards against accidents, not against a client: any token may send `"force"` or open it.
 
 Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
 once, without the password. A code is good for 10 minutes and for one login; then the deck shows a new one.
