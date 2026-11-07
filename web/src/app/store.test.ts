@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { InputEvent } from '../api/types'
-import { addInput, hasRoute, INPUT_CAP, initial, reduce } from './store'
+import { addInput, hasRoute, INPUT_CAP, initial, reduce, share } from './store'
 
 const ev = (o: Partial<InputEvent>): InputEvent => ({ at: 0, origin: 'deck', kind: 'down', key: 0, ...o })
 
@@ -65,5 +65,18 @@ describe('hasRoute', () => {
     expect(hasRoute(r, 'GET', '/api/screen/3.jpg')).toBe(true)
     expect(hasRoute(r, 'POST', '/api/screen/3.jpg')).toBe(false)
     expect(hasRoute([], 'GET', '/api/input/log')).toBe(false)
+  })
+})
+
+describe('share', () => {
+  it('keeps unchanged parts by reference and the whole when nothing changed', () => {
+    const a = { network: { lan: { ip: '1' } }, decks: [{ serial: 'x' }], uptime_s: 1 }
+    const b = share(a, { network: { lan: { ip: '1' } }, decks: [{ serial: 'x' }], uptime_s: 2 })
+    expect(b).not.toBe(a)
+    expect(b.network).toBe(a.network)
+    expect(b.decks).toBe(a.decks)
+    expect(b.uptime_s).toBe(2)
+    expect(share(a, structuredClone(a))).toBe(a)
+    expect(share(a, { ...a, decks: [] }).decks).toEqual([])
   })
 })

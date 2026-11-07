@@ -1,7 +1,7 @@
 import { CircleHelp, type LucideIcon } from 'lucide-react'
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useUi } from '../app/ui'
-import { cx } from '../lib/util'
+import { cx, roam } from '../lib/util'
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'acc' | ''
 
@@ -153,18 +153,8 @@ export function Seg<V extends string>(p: {
   options: readonly (readonly [V, ReactNode, LucideIcon?])[]
   onChange: (v: V) => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const keys = p.options.map((o) => o[0])
-  const onKey = (e: KeyboardEvent) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return
-    e.preventDefault()
-    const i = keys.indexOf(p.value)
-    const j = (i + (e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : keys.length - 1)) % keys.length
-    p.onChange(keys[j] as V)
-    setTimeout(() => ref.current?.querySelectorAll('button')[j]?.focus(), 0)
-  }
   return (
-    <div ref={ref} className="seg" role="radiogroup" aria-label={p.label} id={p.id} onKeyDown={onKey} tabIndex={-1}>
+    <div className="seg" role="radiogroup" aria-label={p.label} id={p.id} onKeyDown={roam} tabIndex={-1}>
       {p.options.map(([k, l, I]) => (
         <button
           key={k}

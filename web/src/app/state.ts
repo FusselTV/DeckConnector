@@ -59,10 +59,10 @@ export interface Draft {
 }
 export const draftsAtom = atom<Partial<Record<Tab, { dirty: boolean; restart: boolean; ref: { current: Draft } }>>>({})
 
-/** The last crash report, null when none or when the firmware has no coredump route. */
 /** The last Wi-Fi scan, so search can offer the networks without scanning again. */
 export const wifiScanAtom = atom<WifiAp[]>([])
 
+/** The last crash report, null when none or when the firmware has no coredump route. */
 export const crashAtom = atom<Coredump | null>(null)
 export const bootAckAtom = atom<number>(ls.get('dc.bootAck', 0))
 export const crashAckAtom = atom<string>(ls.get('dc.crashAck', ''))

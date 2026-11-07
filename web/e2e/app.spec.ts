@@ -113,6 +113,17 @@ test('a dialog closed with Escape gives focus back to the button that opened it'
   await expect(btn).toBeFocused()
 })
 
+test('the menu chord cards are one tab stop and arrow keys move the choice', async ({ app: page }) => {
+  await openTab(page, 'Deck')
+  const auto = page.locator('#chord').getByRole('radio', { name: /Automatic/ })
+  await auto.focus()
+  await page.keyboard.press('ArrowRight')
+  const keys = page.locator('#chord').getByRole('radio', { name: /Two keys/ })
+  await expect(keys).toBeFocused()
+  await expect(keys).toHaveAttribute('aria-checked', 'true')
+  await expect(auto).toHaveAttribute('tabindex', '-1')
+})
+
 test('dialogs confirm, cancel and create', async ({ app: page }) => {
   await page
     .getByRole('button', { name: /Restart/ })

@@ -10,7 +10,7 @@ import { describedBy, Field, Help, Seg, SIcon, Switch } from '../components/cont
 import { useDraft } from '../components/SaveBar'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
 import type { T } from '../i18n'
-import { cx } from '../lib/util'
+import { cx, roam } from '../lib/util'
 
 type Chord = Config['menu_chord']
 interface Hl {
@@ -212,7 +212,14 @@ export function DeckTab() {
           <span className="flabel" id="chord-l">
             {t('deck.chord')}
           </span>
-          <div className="choices chordopts" role="radiogroup" id="chord" aria-labelledby="chord-l">
+          <div
+            className="choices chordopts"
+            role="radiogroup"
+            id="chord"
+            aria-labelledby="chord-l"
+            onKeyDown={roam}
+            tabIndex={-1}
+          >
             {(['auto', 'keys', 'encoders', 'off'] as const).map((o) => {
               const dis = o === 'encoders' && !anyDials
               return (
@@ -222,6 +229,7 @@ export function DeckTab() {
                   role="radio"
                   className="choice"
                   aria-checked={v.chord === o}
+                  tabIndex={v.chord === o ? 0 : -1}
                   disabled={dis}
                   onClick={() => set({ chord: o })}
                 >

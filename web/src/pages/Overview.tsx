@@ -19,7 +19,7 @@ import {
   Usb,
   Wifi,
 } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, pressReal, READONLY } from '../api/client'
 import type { InputBody, InputEvent, Screen, Source } from '../api/types'
 import { pendingAtom, useActions } from '../app/actions'
@@ -352,14 +352,20 @@ export async function release(b: InputBody, deck: string | undefined, wait = REL
 
 const LiveDeck = memo(function LiveDeck() {
   const { t, act } = useUi()
-  const st = useStore((s) => s.status)
+  // Only the parts the deck picture needs, so the 10 s status poll does not redraw it.
+  const decksRaw = useStore((s) => s.status.decks)
+  const device = useStore((s) => s.status.device)
+  const usb = useStore((s) => s.status.counters?.usb_speed)
   const sel = deckSelAtom.use()
   const armedAt = armAtom.use()
   const live = useStore((s) => s.conn === 'live')
   const bri = useStore((s) => s.config?.brightness ?? 80)
   const last = useStore((s) => s.inputs[0])
   const nudge = nudgeAtom.use() > 0
-  const decks = decksOf(st)
+  const decks = useMemo(
+    () => decksOf({ decks: decksRaw, device, counters: usb ? { usb_speed: usb } : undefined }),
+    [decksRaw, device, usb],
+  )
   const deck = decks[Math.min(sel, decks.length - 1)]
   const serial = decks.length > 1 ? deck?.serial : undefined
   const screen = useScreen(deck ? serial : undefined)

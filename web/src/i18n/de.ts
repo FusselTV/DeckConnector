@@ -310,7 +310,6 @@ export const de: Dict = {
   'c.next': 'Weiter',
   'c.back': 'Zurück',
   'c.downloaded': '{file} gespeichert',
-  'ban.offline': 'Nicht erreichbar seit {time}. Alles ist gesperrt, bis der Connector antwortet.',
   'ban.retry': 'Jetzt versuchen',
   'ban.update': '{target} wird installiert: {state}',
   'ban.paired': '„{name}“ ist gekoppelt.',

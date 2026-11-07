@@ -305,7 +305,6 @@ export const en = {
   'c.next': 'Next',
   'c.back': 'Back',
   'c.downloaded': '{file} saved',
-  'ban.offline': 'Not reachable since {time}. Everything is locked until the connector answers.',
   'ban.retry': 'Try now',
   'ban.update': '{target} is installing: {state}',
   'ban.paired': '"{name}" is paired.',

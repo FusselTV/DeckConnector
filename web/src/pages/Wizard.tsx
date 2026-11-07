@@ -21,7 +21,7 @@ import {
   Wifi,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import type { IpConf } from '../api/types'
 import { putConfig, useActions } from '../app/actions'
@@ -37,7 +37,7 @@ import { Row } from '../components/Row'
 import { WifiPicker, type WifiChoice } from '../components/WifiPicker'
 import { Logo } from '../deck/DeckFront'
 import type { TKey } from '../i18n'
-import { ss, useLatest } from '../lib/util'
+import { roam, ss, useLatest } from '../lib/util'
 import {
   companionError,
   ipErrors,
@@ -125,18 +125,6 @@ function Choice(p: {
     </button>
   )
 }
-
-const radioKeys =
-  <K extends string>(keys: readonly K[], cur: K | null, set: (k: K) => void) =>
-  (e: KeyboardEvent<HTMLElement>) => {
-    if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
-    e.preventDefault()
-    const i = cur ? keys.indexOf(cur) : -1
-    const j = (i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : keys.length - 1)) % keys.length
-    set(keys[j] as K)
-    const el = e.currentTarget
-    setTimeout(() => el.querySelectorAll<HTMLElement>('[role=radio]')[j]?.focus(), 0)
-  }
 
 export function Wizard() {
   const { t, fmt, act, ask, lang } = useUi()
@@ -339,13 +327,7 @@ export function Wizard() {
     body = pane(
       t('wiz.lang_q'),
       <>
-        <div
-          className="langpick"
-          role="radiogroup"
-          aria-label={t('wiz.lang_q')}
-          onKeyDown={radioKeys(['de', 'en'] as const, lang, (k) => langAtom.set(k))}
-          tabIndex={-1}
-        >
+        <div className="langpick" role="radiogroup" aria-label={t('wiz.lang_q')} onKeyDown={roam} tabIndex={-1}>
           <Choice on={lang === 'de'} icon={Circle} label="Deutsch" onPick={() => langAtom.set('de')} />
           <Choice on={lang === 'en'} icon={Circle} label="English" onPick={() => langAtom.set('en')} />
         </div>
@@ -537,13 +519,7 @@ export function Wizard() {
     body = pane(
       t('wiz.src_q'),
       <>
-        <div
-          className="choices"
-          role="radiogroup"
-          aria-label={t('wiz.src_q')}
-          onKeyDown={radioKeys(['app', 'comp', 'srv'] as const, src, (k) => (setSrc(k), setSrcErr(null)))}
-          tabIndex={-1}
-        >
+        <div className="choices" role="radiogroup" aria-label={t('wiz.src_q')} onKeyDown={roam} tabIndex={-1}>
           <Choice
             on={src === 'app'}
             first={!src}

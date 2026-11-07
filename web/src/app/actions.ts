@@ -123,4 +123,3 @@ export function useActions() {
     }
   }, [t, act, ask])
 }
-export type Actions = ReturnType<typeof useActions>

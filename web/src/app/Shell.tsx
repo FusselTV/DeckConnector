@@ -36,7 +36,7 @@ import { LoginBar } from '../pages/Login'
 import { Palette } from '../pages/Palette'
 import { useActions } from './actions'
 import { clearOta, retryNow } from './connection'
-import { useIssues } from './issues'
+import { IssuesProvider, useIssues } from './issues'
 import { langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
 import { useStore } from './store'
 import { useTheme, useUi } from './ui'
@@ -382,7 +382,7 @@ function Banners() {
             icon: Unplug,
             lvl: 'bad',
             title: t('hero.off'),
-            text: !navigator.onLine ? t('hero.off_me') : t('ban.offline', { time: asOf ? fmt.time(asOf) : '–' }),
+            text: navigator.onLine ? t('hero.off_sub', { time: asOf ? fmt.time(asOf) : '–' }) : t('hero.off_me'),
             acts: [{ label: t('ban.retry'), icon: RefreshCw, run: retryNow }],
           }}
         />
@@ -499,7 +499,7 @@ export function Shell() {
   const [seen, setSeen] = useState<Tab[]>([tab])
   if (!seen.includes(tab)) setSeen([...seen, tab])
   return (
-    <>
+    <IssuesProvider>
       <a className="skip" href="#panel">
         {t('c.skip')}
       </a>
@@ -571,6 +571,6 @@ export function Shell() {
       <RestartOverlay />
       {pal && <Palette close={() => setPal(false)} />}
       {more && <MoreSheet close={() => setMore(false)} />}
-    </>
+    </IssuesProvider>
   )
 }

@@ -87,19 +87,37 @@ export function addInput(list: InputEvent[], ev: InputEvent): InputEvent[] {
   return [ev, ...list].slice(0, INPUT_CAP)
 }
 
+/** The new value, but with every part that did not change kept by reference, so a selector of an unchanged part
+ *  (and React's memo) sees the same object and skips the render. */
+export function share<T>(a: T, b: T): T {
+  if (Object.is(a, b) || !a || !b || typeof a !== 'object' || typeof b !== 'object') return b
+  if (Array.isArray(a) !== Array.isArray(b)) return b
+  const x = a as Record<string, unknown>
+  const y = b as Record<string, unknown>
+  const out: Record<string, unknown> = Array.isArray(b) ? ([] as unknown as Record<string, unknown>) : {}
+  let same = Object.keys(x).length === Object.keys(y).length
+  for (const k of Object.keys(y)) {
+    out[k] = share(x[k], y[k])
+    if (out[k] !== x[k]) same = false
+  }
+  return same ? a : (out as T)
+}
+
 export function reduce(s: State, a: Action): State {
   switch (a.type) {
     case 'status':
       return {
         ...s,
-        status: a.status,
+        status: share(s.status, a.status),
         bootAt: a.status.uptime_s === undefined ? s.bootAt : a.now - a.status.uptime_s * 1000,
       }
     case 'ws': {
       const m = a.msg
       if (m.t === 'state') {
         // `state` leaves out uptime, signal and counters: keep the values from the last full status.
-        return { ...s, status: { ...s.status, ...m } }
+        const { t: _t, ...rest } = m
+        const status = share(s.status, { ...s.status, ...rest })
+        return status === s.status ? s : { ...s, status }
       }
       if (m.t === 'screen') return { ...s, screenRev: s.screenRev + 1 }
       if (m.t === 'ota')

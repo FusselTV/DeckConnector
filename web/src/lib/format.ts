@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import type { Lang } from '../i18n'
 
 export function makeFmt(lang: Lang) {
@@ -28,6 +27,5 @@ export function makeFmt(lang: Lang) {
   }
 }
 export type Fmt = ReturnType<typeof makeFmt>
-export const useFmtFor = (lang: Lang) => useMemo(() => makeFmt(lang), [lang])
 
 export const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`

@@ -14,7 +14,7 @@ import {
   Usb,
   X,
 } from 'lucide-react'
-import { useMemo } from 'react'
+import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react'
 import type { NoticeData } from '../components/Notice'
 import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
@@ -23,8 +23,18 @@ import { ls } from '../lib/util'
 import { useRoute, useStore } from './store'
 import { useUi } from './ui'
 
+interface Issues {
+  list: NoticeData[]
+  notes: NoticeData[]
+}
+const Ctx = createContext<Issues>({ list: [], notes: [] })
 /** Need-attention items for the top of Overview and the banner on other tabs (rule 13), worst first. */
-export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
+export const useIssues = () => useContext(Ctx)
+/** Works the issues out once for every reader; its children are passed in, so they do not re-render with it. */
+export const IssuesProvider = ({ children }: { children: ReactNode }) =>
+  createElement(Ctx.Provider, { value: useIssueList() }, children)
+
+function useIssueList(): Issues {
   const { t, go, jump, fmt } = useUi()
   const a = useActions()
   const st = useStore((s) => s.status)

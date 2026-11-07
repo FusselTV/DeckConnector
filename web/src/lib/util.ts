@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ')
 
@@ -59,13 +59,17 @@ export async function dbfwTarget(file: Blob): Promise<'p4' | 'c6' | 'page' | 'bo
 }
 
 /** Moves focus between `[data-roam]` children with the arrow keys. */
-export function roam(e: React.KeyboardEvent<HTMLElement>) {
-  if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
-  const b = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-roam]')]
-  const i = b.indexOf(document.activeElement as HTMLElement)
-  if (i < 0) return
+/** Arrow keys in a radio group: focus moves to the next enabled radio and, as in any radio group, picks it. */
+export function roam(e: KeyboardEvent<HTMLElement>) {
+  const d = ({ ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 } as Record<string, number>)[e.key]
+  if (!d) return
+  const b = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role=radio]:not(:disabled)')]
+  if (!b.length) return
   e.preventDefault()
-  b[(i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : b.length - 1)) % b.length]?.focus()
+  const i = b.indexOf(document.activeElement as HTMLButtonElement)
+  const n = b[(i + d + b.length) % b.length]
+  n?.focus()
+  n?.click()
 }
 
 /** A ref that always holds the latest value, for listeners and timers set up once. */
