@@ -34,8 +34,10 @@ import { Card } from '../components/Card'
 import { Help, Led, Seg, SIcon, type Tone } from '../components/controls'
 import { Notice, type NoticeData } from '../components/Notice'
 import { DeckFront } from '../deck/DeckFront'
+import { MODELS } from '../deck/models'
 import type { T } from '../i18n'
-import { cx, ls, roam, useLatest } from '../lib/util'
+import { cx, ls, useLatest } from '../lib/util'
+import { chordSentence } from './DeckTab'
 
 export function Hero() {
   const { t, fmt } = useUi()
@@ -500,17 +502,7 @@ function DeckCard() {
   )
 }
 
-function HostRow({
-  s,
-  first,
-  pending,
-  onPick,
-}: {
-  s: Source
-  first: boolean
-  pending: string | null
-  onPick: (s: Source) => void
-}) {
+function HostRow({ s, pending, onPick }: { s: Source; pending: string | null; onPick: (s: Source) => void }) {
   const { t } = useUi()
   const locked = useStore((x) => x.conn !== 'live')
   const unk = s.kind === 'unknown'
@@ -520,10 +512,8 @@ function HostRow({
   return (
     <button
       type="button"
-      data-roam
       aria-pressed={s.chosen}
       className={cx('host', bad && 'warnrow', s.chosen && 'chosen')}
-      tabIndex={first ? 0 : -1}
       aria-disabled={unk || pending ? true : undefined}
       title={unk ? t('st.unknown_hint') : undefined}
       onClick={() => onPick(s)}
@@ -570,15 +560,10 @@ export function Hosts({ limit }: { limit?: boolean }) {
         </div>
       </div>
     )
-  const first = Math.max(
-    0,
-    list.findIndex((s) => s.chosen),
-  )
   return (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys move between the row buttons inside
-    <div className="hosts" role="group" aria-label={t('ov.who')} onKeyDown={roam}>
-      {list.map((s, i) => (
-        <HostRow key={hk(s)} s={s} first={i === first} pending={pending} onPick={(x) => void a.pick(x)} />
+    <div className="hosts" role="group" aria-label={t('ov.who')}>
+      {list.map((s) => (
+        <HostRow key={hk(s)} s={s} pending={pending} onPick={(x) => void a.pick(x)} />
       ))}
       {limit && (sources.length > list.length || all) && (
         <button type="button" className="btn ghost sm morebtn" onClick={() => setAll(!all)}>
@@ -634,6 +619,7 @@ function Controls() {
   const st = useStore((s) => s.status)
   const sel = deckSelAtom.use()
   const hold = useStore((s) => s.config?.menu_hold_ms ?? 2000)
+  const chord = useStore((s) => s.config?.menu_chord ?? 'auto')
   const decks = decksOf(st)
   const deck = decks[Math.min(sel, decks.length - 1)]
   return (
@@ -645,7 +631,7 @@ function Controls() {
           type="button"
           className="btn"
           disabled={!deck}
-          title={t('ov.chord', { a: 1, b: deck?.encoders ?? 4, s: fmt.dec(hold / 1000) })}
+          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000))}
           aria-pressed={!!st.menu_open}
           onClick={() => void a.menu(decks.length > 1 ? deck?.serial : undefined)}
         >

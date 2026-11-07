@@ -37,6 +37,7 @@ import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
 import { WifiPicker, type WifiChoice } from '../components/WifiPicker'
 import { Logo } from '../deck/DeckFront'
+import { MODELS } from '../deck/models'
 import type { TKey } from '../i18n'
 import { roam, ss, useLatest } from '../lib/util'
 import {
@@ -49,6 +50,7 @@ import {
   wifiError,
   wsUrlError,
 } from '../lib/validate'
+import { chordSentence } from './DeckTab'
 import { EMPTY, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
 
@@ -760,7 +762,9 @@ export function Wizard() {
         {where.slice(0, 2).map((u) => (
           <CopyField key={u} value={u} link />
         ))}
-        <p className="muted">{t('wiz.done_menu', { a: 1, b: decks[0]?.encoders ?? 4, s: fmt.dec(hold) })}</p>
+        {decks[0] && (
+          <p className="muted">{chordSentence(t, cfg?.menu_chord ?? 'auto', MODELS[decks[0].kind], fmt.dec(hold))}</p>
+        )}
         <p className="small muted">{t('wiz.https_hint')}</p>
       </>,
       <>

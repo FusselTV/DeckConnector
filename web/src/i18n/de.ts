@@ -87,12 +87,11 @@ export const de: Dict = {
   'ov.menu_close': 'Menü schließen',
   'ov.menu_closed': 'Menü am Deck geschlossen',
   'ov.menu_done': 'Menü am Deck geöffnet',
-  'ov.chord': 'Am Deck: Drehregler {a} und {b} zusammen {s} s lang halten.',
   'src.intro':
     'Drei Wege, wie ein Programm aufs Deck zeichnet. Mehrere dürfen verbunden sein, eine Quelle ist gewählt.',
   'src.comp_what': 'Companion holt sich das Deck über das Netz, als wäre es per USB angesteckt (Satellite).',
   'src.app_what':
-    'Die Elgato-App sieht den Connector als Netzwerk-Deck (Dock). Beim ersten Mal bestätigst du die Kopplung.',
+    'Die Elgato App sieht den Connector als Netzwerk-Deck (Dock). Beim ersten Mal bestätigst du die Kopplung.',
   'src.srv_what': 'Für eigene Programme, die per WebSocket zeichnen.',
   'src.found': 'Im Netz gefunden',
   'src.searching': 'Suche Companion…',
@@ -379,7 +378,6 @@ export const de: Dict = {
   'wiz.app_wait': 'Warte auf die App…',
   'wiz.connected': '{host} ist verbunden und zeichnet.',
   'wiz.done_q': 'Dein Deck ist bereit',
-  'wiz.done_menu': 'Das Deck-Menü öffnest du, wenn du Drehregler {a} und {b} zusammen {s} s lang hältst.',
   'wiz.go': 'Zur Übersicht',
   'wiz.skip': 'Einrichtung überspringen',
   'pal.ph': 'Suchen: WLAN, Token, Helligkeit 50, Neustart…',
@@ -657,8 +655,8 @@ export const de: Dict = {
   'wiz.no_answer': 'Unter {a} antwortet kein Companion. Läuft Companion dort, und ist Satellite auf Port 16622 an?',
   'wiz.docker':
     'Companion in Docker oder in einem anderen Netz meldet sich nicht von selbst. Trag dann seine Adresse ein. Companion braucht dafür den Satellite-Port 16622.',
-  'wiz.surfaces_one': '{n} Gerät verbunden',
-  'wiz.surfaces_other': '{n} Geräte verbunden',
+  'wiz.surfaces_one': '{n} Oberfläche verbunden',
+  'wiz.surfaces_other': '{n} Oberflächen verbunden',
   'wiz.srv_h': 'Dein Programm spricht ws:// oder wss://. Bei wss:// brauchst du den Fingerabdruck.',
   'wiz.denied': 'Abgelehnt',
   'wiz.denied_at': 'Abgelehnt um {time}.',

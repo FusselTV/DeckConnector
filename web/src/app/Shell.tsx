@@ -432,6 +432,10 @@ export function RestartOverlay() {
   const { t } = useUi()
   const r = useStore((s) => s.restarting)
   const [el, setEl] = useState(0)
+  const on = !!r
+  useEffect(() => {
+    if (on) document.getElementById('rs-t')?.focus()
+  }, [on])
   useEffect(() => {
     if (!r) return
     const id = setInterval(() => setEl(Math.floor((Date.now() - r.t0) / 1000)), 250)
@@ -443,7 +447,9 @@ export function RestartOverlay() {
       <div className="ovbox">
         <div className="row">
           <Power size={22} aria-hidden />
-          <h2 id="rs-t">{t('rs.title')}</h2>
+          <h2 id="rs-t" tabIndex={-1}>
+            {t('rs.title')}
+          </h2>
         </div>
         <div className="big" aria-hidden>
           {mmss(el)}
