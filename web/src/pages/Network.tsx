@@ -107,7 +107,7 @@ export function Network() {
   const v = { ...base, ...d }
   const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
-  const err = { lan: ipErrors(v.lan), wlan: ipErrors(v.wlan), name: nameError(v.name) }
+  const err = { lan: ipErrors(v.lan), wlan: ipErrors(v.wlan), name: cfg ? nameError(v.name) : null }
   const wifiChanged = v.wifi.ssid !== base.wifi.ssid || v.wifi.bssid !== base.wifi.bssid || !!v.wifi.pass
   const patch = {
     ...(d.name !== undefined && v.name !== base.name ? { name: v.name } : {}),
@@ -193,7 +193,7 @@ export function Network() {
     t('arm.off')
   )
   return (
-    <div className="cards">
+    <fieldset className="cards gate" disabled={!cfg}>
       <Card id="card-conn" icon={NetIcon} title={t('net.conn')}>
         <Row
           id="row-lan"
@@ -274,6 +274,6 @@ export function Network() {
           ))
         })()}
       </Card>
-    </div>
+    </fieldset>
   )
 }

@@ -413,6 +413,7 @@ export function Access() {
               {...describedBy('cors', corsE, true)}
               className="in mono"
               value={corsV}
+              disabled={!cfg}
               onChange={(e) => setCors(e.target.value)}
               spellCheck={false}
             />

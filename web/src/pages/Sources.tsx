@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { Found, Source } from '../api/types'
+import type { Config, Found, Source } from '../api/types'
 import { pendingAtom, putConfig, useActions } from '../app/actions'
 import { refreshStatus } from '../app/connection'
 import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
@@ -109,12 +109,11 @@ export function useFound(on = true) {
   return found
 }
 
-function CompanionForm({ close }: { close: () => void }) {
+function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
   const { t, act } = useUi()
-  const cfg = useStore((s) => s.config)
   const found = useFound()
-  const [sat, setSat] = useState(cfg?.satellite ?? '')
-  const [pin, setPin] = useState(cfg?.satellite_pin ?? '')
+  const [sat, setSat] = useState(cfg.satellite)
+  const [pin, setPin] = useState(cfg.satellite_pin)
   const [err, setErr] = useState<{ sat?: string; pin?: string }>({})
   const [showPin, setShowPin] = useState(!!pin)
   // Cancel or Escape while the address is tested abandons the save.
@@ -149,7 +148,7 @@ function CompanionForm({ close }: { close: () => void }) {
         return
       }
     }
-    const prev = { satellite: cfg?.satellite ?? '', satellite_pin: cfg?.satellite_pin ?? '' }
+    const prev = { satellite: cfg.satellite, satellite_pin: cfg.satellite_pin }
     const ok = await act(async () => {
       await putConfig({ satellite: addr, satellite_pin: addr.startsWith('wss://') ? normPin(p) : '' })
       toast(t('c.saved'), { undo: () => void act(() => putConfig(prev)) })
@@ -172,7 +171,7 @@ function CompanionForm({ close }: { close: () => void }) {
         <div className="list">
           {found.map((x) => {
             const v = x.port === 16622 ? x.host : `${x.host}:${x.port}`
-            const cur = cfg?.satellite === v
+            const cur = cfg.satellite === v
             return (
               <div key={`${x.host}:${x.port}`} className="li">
                 <SIcon icon={Radio} tone={cur ? 'ok' : ''} />
@@ -318,11 +317,10 @@ function AppForm({ close }: { close: () => void }) {
   )
 }
 
-function ServerForm({ src, close }: { src?: Source; close: () => void }) {
+function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () => void }) {
   const { t, act } = useUi()
-  const cfg = useStore((s) => s.config)
-  const servers = cfg?.servers ?? ['', '', '', '']
-  const pins = cfg?.server_pins ?? ['', '', '', '']
+  const servers = cfg.servers
+  const pins = cfg.server_pins
   const old = src?.kind === 'server' ? servers.indexOf(src.host) : -1
   const [url, setUrl] = useState(src?.kind === 'server' ? src.host : '')
   const [pin, setPin] = useState(old >= 0 ? (pins[old] ?? '') : '')
@@ -385,7 +383,17 @@ function ServerForm({ src, close }: { src?: Source; close: () => void }) {
 }
 
 /** Add or edit a source; commits with its own button, never the save bar (rule 15). */
-export function SourceModal({ type: type0, src, close }: { type?: SrcType; src?: Source; close: () => void }) {
+function SourceModal({
+  cfg,
+  type: type0,
+  src,
+  close,
+}: {
+  cfg: Config
+  type?: SrcType
+  src?: Source
+  close: () => void
+}) {
   const { t } = useUi()
   const [type, setType] = useState<SrcType>(type0 ?? 'comp')
   return (
@@ -404,11 +412,11 @@ export function SourceModal({ type: type0, src, close }: { type?: SrcType; src?:
         />
       )}
       {type === 'comp' ? (
-        <CompanionForm close={close} />
+        <CompanionForm cfg={cfg} close={close} />
       ) : type === 'app' ? (
         <AppForm close={close} />
       ) : (
-        <ServerForm src={src} close={close} />
+        <ServerForm cfg={cfg} src={src} close={close} />
       )}
     </Modal>
   )
@@ -480,91 +488,97 @@ export function Sources() {
   return (
     <>
       {pair && <Notice n={{ ...pair, id: 'src-pair' }} />}
-      <Card
-        id="card-src"
-        icon={Cable}
-        title={t('src.table')}
-        right={
-          <>
-            {rows.length > 0 && addBtn}
-            <Help right label={t('src.table')} text={t('src.intro')} />
-          </>
-        }
-      >
-        {rows.length === 0 ? (
-          <Empty icon={Cable}>
-            <p>{t('src.empty')}</p>
-            {addBtn}
-          </Empty>
-        ) : (
-          <div className="srctbl" role="table" aria-label={t('src.table')}>
-            <div className="srow head" role="row">
-              <span role="columnheader">{t('src.col_type')}</span>
-              <span role="columnheader">{t('src.col_host')}</span>
-              <span role="columnheader">{t('src.col_conn')}</span>
-              <span role="columnheader">{t('src.col_state')}</span>
-              <span role="columnheader" className="sr-acts">
-                <span className="sr">{t('th.action')}</span>
-              </span>
-            </div>
-            {rows.map((s) => {
-              const unk = s.kind === 'unknown'
-              const bad = cd.some((x) => x.host === s.host)
-              const canCtl = !unk && s.connected && !s.chosen && (s.kind !== 'companion' || s.via === 'satellite')
-              return (
-                <div key={s.key} className={s.chosen ? 'srow chosen' : 'srow'} role="row">
-                  <span role="cell" className="sr-type">
-                    <SIcon icon={KIND_ICON[s.kind]} tone={bad ? 'warn' : stTone(s)} />
-                    <span>{t(`prog.${s.kind}`)}</span>
-                  </span>
-                  <span role="cell" className="sr-host">
-                    <b className={s.name ? '' : 'mono'}>{hostName(s)}</b>
-                    {s.name && <span className="mono small muted">{s.host}</span>}
-                  </span>
-                  <span role="cell" className="sr-conn">
-                    <span className="small">
-                      {s.via === 'satellite' ? 'Satellite' : s.kind === 'server' ? 'WebSocket' : 'Dock'}
+      <fieldset className="gate" disabled={!cfg}>
+        <Card
+          id="card-src"
+          icon={Cable}
+          title={t('src.table')}
+          right={
+            <>
+              {rows.length > 0 && addBtn}
+              <Help right label={t('src.table')} text={t('src.intro')} />
+            </>
+          }
+        >
+          {rows.length === 0 ? (
+            <Empty icon={Cable}>
+              <p>{t('src.empty')}</p>
+              {addBtn}
+            </Empty>
+          ) : (
+            <div className="srctbl" role="table" aria-label={t('src.table')}>
+              <div className="srow head" role="row">
+                <span role="columnheader">{t('src.col_type')}</span>
+                <span role="columnheader">{t('src.col_host')}</span>
+                <span role="columnheader">{t('src.col_conn')}</span>
+                <span role="columnheader">{t('src.col_state')}</span>
+                <span role="columnheader" className="sr-acts">
+                  <span className="sr">{t('th.action')}</span>
+                </span>
+              </div>
+              {rows.map((s) => {
+                const unk = s.kind === 'unknown'
+                const bad = cd.some((x) => x.host === s.host)
+                const canCtl = !unk && s.connected && !s.chosen && (s.kind !== 'companion' || s.via === 'satellite')
+                return (
+                  <div key={s.key} className={s.chosen ? 'srow chosen' : 'srow'} role="row">
+                    <span role="cell" className="sr-type">
+                      <SIcon icon={KIND_ICON[s.kind]} tone={bad ? 'warn' : stTone(s)} />
+                      <span>{t(`prog.${s.kind}`)}</span>
                     </span>
-                    {s.error && <span className="warnline small">{s.error}</span>}
-                    {bad && (
-                      <span className="warnline small">
-                        <TriangleAlert size={13} aria-hidden />
-                        {t('is.compdock_h')}
+                    <span role="cell" className="sr-host">
+                      <b className={s.name ? '' : 'mono'}>{hostName(s)}</b>
+                      {s.name && <span className="mono small muted">{s.host}</span>}
+                    </span>
+                    <span role="cell" className="sr-conn">
+                      <span className="small">
+                        {s.via === 'satellite' ? 'Satellite' : s.kind === 'server' ? 'WebSocket' : 'Dock'}
                       </span>
-                    )}
-                  </span>
-                  <span role="cell" className="sr-state">
-                    <span className={`tag ${bad ? 'warn' : stTone(s)}`}>
-                      {s.chosen && <Check size={12} aria-hidden />}
-                      {t(stateKey(s, pending))}
+                      {s.error && <span className="warnline small">{s.error}</span>}
+                      {bad && (
+                        <span className="warnline small">
+                          <TriangleAlert size={13} aria-hidden />
+                          {t('is.compdock_h')}
+                        </span>
+                      )}
                     </span>
-                  </span>
-                  <span role="cell" className="sr-acts">
-                    {bad && (
-                      <Btn sm icon={Radio} onClick={() => void a.toSatellite(s)}>
-                        {t('act.to_sat')}
-                      </Btn>
-                    )}
-                    {canCtl && !bad && (
+                    <span role="cell" className="sr-state">
+                      <span className={`tag ${bad ? 'warn' : stTone(s)}`}>
+                        {s.chosen && <Check size={12} aria-hidden />}
+                        {t(stateKey(s, pending))}
+                      </span>
+                    </span>
+                    <span role="cell" className="sr-acts">
+                      {bad && (
+                        <Btn sm icon={Radio} onClick={() => void a.toSatellite(s)}>
+                          {t('act.to_sat')}
+                        </Btn>
+                      )}
+                      {canCtl && !bad && (
+                        <IconBtn
+                          icon={Crown}
+                          label={t('src.make_ctl', { name: hostName(s) })}
+                          onClick={() => void a.pick(s)}
+                        />
+                      )}
                       <IconBtn
-                        icon={Crown}
-                        label={t('src.make_ctl', { name: hostName(s) })}
-                        onClick={() => void a.pick(s)}
+                        icon={Pencil}
+                        label={t('src.edit', { name: hostName(s) })}
+                        onClick={() => setModal({ type: typeOf(s), src: s })}
                       />
-                    )}
-                    <IconBtn
-                      icon={Pencil}
-                      label={t('src.edit', { name: hostName(s) })}
-                      onClick={() => setModal({ type: typeOf(s), src: s })}
-                    />
-                    <IconBtn icon={Trash2} label={`${t('c.remove')}: ${hostName(s)}`} onClick={() => void remove(s)} />
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </Card>
+                      <IconBtn
+                        icon={Trash2}
+                        label={`${t('c.remove')}: ${hostName(s)}`}
+                        onClick={() => void remove(s)}
+                      />
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+      </fieldset>
       {(st.pairing?.hosts?.length ?? 0) > 1 && (
         <div>
           <Btn
@@ -583,7 +597,7 @@ export function Sources() {
           </Btn>
         </div>
       )}
-      {modal && <SourceModal type={modal.type} src={modal.src} close={() => setModal(null)} />}
+      {modal && cfg && <SourceModal cfg={cfg} type={modal.type} src={modal.src} close={() => setModal(null)} />}
     </>
   )
 }

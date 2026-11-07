@@ -56,6 +56,9 @@ export const draftsAtom = atom<Partial<Record<Tab, { dirty: boolean; restart: bo
 /** The last Wi-Fi scan, so search can offer the networks without scanning again. */
 export const wifiScanAtom = atom<WifiAp[]>([])
 
+/** Why GET /api/config failed last, null once it answers. connection.ts retries with a growing pause. */
+export const configErrAtom = atom<unknown>(null)
+
 /** The last crash report, null when none or when the firmware has no coredump route. */
 export const crashAtom = atom<Coredump | null>(null)
 export const bootAckAtom = atom<number>(ls.get('dc.bootAck', 0))

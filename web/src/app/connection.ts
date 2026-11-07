@@ -1,6 +1,6 @@
 import { api, ApiError, onAuthLost, READONLY } from '../api/client'
 import type { Status, WsMsg } from '../api/types'
-import { crashAtom, loginReasonAtom } from './state'
+import { configErrAtom, crashAtom, loginReasonAtom } from './state'
 import { dispatch, fromLog, getState } from './store'
 
 // One WebSocket for the whole page. The status poll fills what ws `state` leaves out (uptime, counters, signal)
@@ -55,11 +55,18 @@ export async function refreshStatus() {
   }
 }
 
+let cfgTimer = 0
+let cfgBackoff = 2000
 export async function refreshConfig() {
+  clearTimeout(cfgTimer)
   try {
     dispatch({ type: 'config', config: await api.config() })
-  } catch {
-    /* the cards that need settings show their own error */
+    configErrAtom.set(null)
+    cfgBackoff = 2000
+  } catch (e) {
+    configErrAtom.set(e)
+    if (started) cfgTimer = window.setTimeout(() => void refreshConfig(), cfgBackoff)
+    cfgBackoff = Math.min(cfgBackoff * 2, 30_000)
   }
 }
 
@@ -201,6 +208,7 @@ export function stopSession() {
   document.removeEventListener('visibilitychange', poll)
   clearInterval(pollTimer)
   clearTimeout(wsTimer)
+  clearTimeout(cfgTimer)
   ws?.close()
   ws = null
 }

@@ -35,6 +35,7 @@ export const de: Dict = {
   'st.unknown_hint': 'Hat sich noch nicht gemeldet. Wählbar nach der Kopplung.',
   'hero.off': 'Diese Seite hat den Connector verloren',
   'hero.off_sub': 'Deck und Companion laufen vielleicht weiter. Schau aufs Deck. Letzter Stand {time}.',
+  'is.cfg': 'Einstellungen konnten nicht geladen werden. Ändern geht erst danach.',
   'is.nodeck': 'Kein Stream Deck angeschlossen',
   'is.nodeck_h': 'USB-Kabel prüfen. Neu verbinden schaltet den USB-Strom kurz aus.',
   'is.chosen_off': '{host} ist getrennt',

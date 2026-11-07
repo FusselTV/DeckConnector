@@ -158,7 +158,7 @@ export function DeckTab() {
             })}
           </div>
         )}
-        <div className="field">
+        <fieldset className="gate field" disabled={!cfg}>
           <span className="flabel">
             {t('deck.speed')}
             <Help label={t('deck.speed')} text={`${t('deck.speed_h')} ${t('is.full_h')}`} />
@@ -174,73 +174,75 @@ export function DeckTab() {
             ]}
           />
           {multi && <span className="hint">{t('deck.settings_for')}</span>}
-        </div>
+        </fieldset>
       </Card>
-      <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
-        <div className="chordnow">
-          <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind])} />
-          <p>
-            {chordSentence(t, v.chord, MODELS[kind], fmt.dec(v.hold))}
-            {multi && deck && (
-              <>
-                <br />
-                <span className="small muted">
-                  {t('deck.chord_all', { deck: deckName(deck, sel, decks.length, t) })}
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-        <div className="field">
-          <span className="flabel" id="chord-l">
-            {t('deck.chord')}
-          </span>
-          <div
-            className="choices chordopts"
-            role="radiogroup"
-            id="chord"
-            aria-labelledby="chord-l"
-            onKeyDown={roam}
-            tabIndex={-1}
-          >
-            {(['auto', 'keys', 'encoders', 'off'] as const).map((o) => {
-              const dis = o === 'encoders' && !anyDials
-              return (
-                <button
-                  key={o}
-                  type="button"
-                  role="radio"
-                  className="choice"
-                  aria-checked={v.chord === o}
-                  tabIndex={v.chord === o ? 0 : -1}
-                  disabled={dis}
-                  onClick={() => set({ chord: o })}
-                >
-                  <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind])} />
-                  <div>
-                    <b>{t(`chord.${o}`)}</b>
-                    <span>{dis ? t('deck.no_dials') : t(`chord.d_${o}`)}</span>
-                  </div>
-                </button>
-              )
-            })}
+      <fieldset className="gate" disabled={!cfg}>
+        <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
+          <div className="chordnow">
+            <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind])} />
+            <p>
+              {chordSentence(t, v.chord, MODELS[kind], fmt.dec(v.hold))}
+              {multi && deck && (
+                <>
+                  <br />
+                  <span className="small muted">
+                    {t('deck.chord_all', { deck: deckName(deck, sel, decks.length, t) })}
+                  </span>
+                </>
+              )}
+            </p>
           </div>
-        </div>
-        {v.chord !== 'off' && (
-          <Field id="hold" label={`${t('deck.hold')} (s)`} err={holdErr}>
-            <input
-              {...describedBy('hold', holdErr)}
-              className="in mono short"
-              type="number"
-              min={0.5}
-              max={10}
-              step={0.5}
-              value={v.hold}
-              onChange={(e) => set({ hold: Number(e.target.value) })}
-            />
-          </Field>
-        )}
-      </Card>
+          <div className="field">
+            <span className="flabel" id="chord-l">
+              {t('deck.chord')}
+            </span>
+            <div
+              className="choices chordopts"
+              role="radiogroup"
+              id="chord"
+              aria-labelledby="chord-l"
+              onKeyDown={roam}
+              tabIndex={-1}
+            >
+              {(['auto', 'keys', 'encoders', 'off'] as const).map((o) => {
+                const dis = o === 'encoders' && !anyDials
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    role="radio"
+                    className="choice"
+                    aria-checked={v.chord === o}
+                    tabIndex={v.chord === o ? 0 : -1}
+                    disabled={dis}
+                    onClick={() => set({ chord: o })}
+                  >
+                    <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind])} />
+                    <div>
+                      <b>{t(`chord.${o}`)}</b>
+                      <span>{dis ? t('deck.no_dials') : t(`chord.d_${o}`)}</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          {v.chord !== 'off' && (
+            <Field id="hold" label={`${t('deck.hold')} (s)`} err={holdErr}>
+              <input
+                {...describedBy('hold', holdErr)}
+                className="in mono short"
+                type="number"
+                min={0.5}
+                max={10}
+                step={0.5}
+                value={v.hold}
+                onChange={(e) => set({ hold: Number(e.target.value) })}
+              />
+            </Field>
+          )}
+        </Card>
+      </fieldset>
     </div>
   )
 }

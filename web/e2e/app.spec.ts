@@ -1,4 +1,4 @@
-import { expect, sim, test } from './fixtures.ts'
+import { expect, login, sim, test } from './fixtures.ts'
 
 const TABS = ['Overview', 'Sources', 'Deck', 'Network', 'Access', 'Firmware', 'Diagnostics']
 
@@ -339,4 +339,23 @@ test('an error toast shows above an open dialog and can be read and used there',
   expect(onTop).toBe(true)
   await page.screenshot({ path: 'test-results/toast-over-dialog.png' })
   errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('500')))
+})
+
+test('settings that fail to load disable editing, say so, and load on a later try', async ({ page, errors }) => {
+  await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: true })
+  let fail = 2
+  await page.route('**/api/config', (r) =>
+    r.request().method() === 'GET' && fail-- > 0 ? r.fulfill({ status: 503, json: { ok: false } }) : r.fallback(),
+  )
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await page.goto('/#sources')
+  await login(page)
+  const notice = page.getByText('Settings could not be loaded.').first()
+  await expect(notice).toBeVisible()
+  await expect(page.locator('#src-add')).toBeDisabled()
+  await expect(notice).toHaveCount(0, { timeout: 15_000 })
+  await expect(page.locator('#src-add')).toBeEnabled()
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 503')))
 })

@@ -27,10 +27,10 @@ import type { IpConf } from '../api/types'
 import { putConfig, useActions } from '../app/actions'
 import { refreshConfig, refreshStatus } from '../app/connection'
 import { decksOf, hostLabel, reachList } from '../app/derive'
-import { langAtom, loginReasonAtom } from '../app/state'
+import { configErrAtom, langAtom, loginReasonAtom } from '../app/state'
 import { RestartOverlay } from '../app/Shell'
 import { getState, useStore } from '../app/store'
-import { useUi } from '../app/ui'
+import { errText, useUi } from '../app/ui'
 import { Btn, Choice, describedBy, Field, SIcon, Switch } from '../components/controls'
 import { CopyField, PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
@@ -110,6 +110,7 @@ export function Wizard() {
   const cfg = useStore((s) => s.config)
   const restarting = useStore((s) => !!s.restarting)
   const reach = useStore((s) => s.restarting?.reach)
+  const cfgErr = configErrAtom.use()
   const cable = !!st.network?.lan?.cable
   const onAp = st.via_ap ?? !!st.network?.ap?.on
   const rerun = !onAp && !!cfg?.wifi_ssid
@@ -247,9 +248,10 @@ export function Wizard() {
   const srvConnect = async () => {
     const e = wsUrlError(url) ?? (url.startsWith('wss://') ? pinError(uPin) : null)
     if (e) return setUErr(t(e))
+    if (!cfg) return setUErr(t('is.cfg'))
     setUErr(null)
-    const servers = [...(cfg?.servers ?? ['', '', '', ''])]
-    const pins = [...(cfg?.server_pins ?? ['', '', '', ''])]
+    const servers = [...cfg.servers]
+    const pins = [...cfg.server_pins]
     const i = servers.findIndex((x) => !x || x === url)
     if (i < 0) return setUErr(t('src.srv_full'))
     servers[i] = url
@@ -799,6 +801,11 @@ export function Wizard() {
               {t('wiz.step', { n: idx + 1, all: STEPS.length, name: t(`wiz.s_${STEPS[idx] ?? 'lang'}`) })}
             </p>
           </div>
+          {cfgErr !== null && (
+            <p className="warnline" role="alert">
+              {t('is.cfg')} {errText(cfgErr, t)}
+            </p>
+          )}
           {body}
           {idx >= 1 && !['moving', 'src', 'done'].includes(step) && (
             <button type="button" className="linkbtn" onClick={() => void (rerun ? finish() : skip())}>

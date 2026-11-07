@@ -34,6 +34,7 @@ export const en = {
   'st.unknown_hint': 'Has not asked yet. Can be picked after pairing.',
   'hero.off': 'This page lost the connector',
   'hero.off_sub': 'The deck and Companion may still be working. Look at the deck. Last data from {time}.',
+  'is.cfg': 'Settings could not be loaded. Changes wait until they are.',
   'is.nodeck': 'No Stream Deck attached',
   'is.nodeck_h': 'Check the USB cable. Reconnect cuts USB power briefly.',
   'is.chosen_off': '{host} is disconnected',

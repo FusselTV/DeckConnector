@@ -9,6 +9,7 @@ import {
   Radio,
   RefreshCw,
   Search,
+  Settings,
   Unplug,
   Usb,
   X,
@@ -17,10 +18,11 @@ import { createContext, createElement, useContext, useMemo, type ReactNode } fro
 import type { NoticeData } from '../components/Notice'
 import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
-import { bootAckAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
+import { bootAckAtom, configErrAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
 import { ls } from '../lib/util'
 import { useStore } from './store'
-import { useUi } from './ui'
+import { errText, useUi } from './ui'
+import { refreshConfig } from './connection'
 
 interface Issues {
   list: NoticeData[]
@@ -39,6 +41,7 @@ function useIssueList(): Issues {
   const st = useStore((s) => s.status)
   const bootAt = useStore((s) => s.bootAt)
   const satellite = useStore((s) => s.config?.satellite)
+  const cfgErr = configErrAtom.use()
   const crash = crashAtom.use()
   const bootAck = bootAckAtom.use()
   const ack = crashAckAtom.use()
@@ -51,6 +54,15 @@ function useIssueList(): Issues {
     const chosen = sources.find((s) => s.chosen)
     const lan = st.network?.lan
     const lanDead = !!lan?.cable && !!lan.dead
+    if (cfgErr)
+      list.push({
+        id: 'cfg',
+        icon: Settings,
+        lvl: 'bad',
+        title: t('is.cfg'),
+        text: errText(cfgErr, t),
+        acts: [{ label: t('ban.retry'), icon: RefreshCw, run: () => void refreshConfig() }],
+      })
     if (!decks.length)
       list.push({
         id: 'nodeck',
@@ -186,5 +198,5 @@ function useIssueList(): Issues {
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
     return { list, notes }
-  }, [st, bootAt, satellite, crash, crashed, bootAck, t, fmt, go, jump, a])
+  }, [st, bootAt, satellite, cfgErr, crash, crashed, bootAck, t, fmt, go, jump, a])
 }
