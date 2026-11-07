@@ -268,6 +268,7 @@ again and upload the key again.
   it loses the DeckConnector when the setup network closes.
 - `superseded` counts images that a newer one replaced before they were drawn.
 - `usb_errors` counts failed USB transfers. Transfers that an unplug ends are not counted.
+- `inputs_dropped` counts inputs lost in a full queue, on the way from the deck or to a server.
 - `usb_speed` is `high` or `full`, the speed the USB port runs at now.
 
 ## What the deck shows

@@ -34,8 +34,8 @@ static inline void db_health_ok(db_health_t *h, bool over_wlan)
 }
 
 /*
- * Connections to the deckbridge servers (docs/protocol.md). The first connected server is active and may
- * draw; the other one waits as standby.
+ * Connections to the deckbridge servers (docs/protocol.md). The server the config names in `host` is active while it
+ * is connected, else the first connected one; only the active one may draw, the others wait as standby.
  */
 
 /* All hooks are required. */
@@ -59,8 +59,8 @@ void db_link_set_enabled(bool enabled);
 /* Take server URLs the config changed: those links connect again to the new address. */
 void db_link_reload(void);
 
-/* Index of the active server, or -1. */
-int db_link_active(void);
+/* Inputs for the active server dropped from a full send queue. */
+uint32_t db_link_inputs_dropped(void);
 bool db_link_connected(int index);
 db_health_t db_link_health(int index);
 /* Try again now instead of after the wait. */

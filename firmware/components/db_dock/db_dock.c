@@ -64,7 +64,7 @@ static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const
     if (sock >= 0) {
         uint8_t hdr[DB_CORA_HDR_LEN];
         db_cora_write_hdr(hdr, &(db_cora_hdr_t){.flags = flags, .op = op, .id = id, .len = (uint32_t)len});
-        if (send(sock, hdr, sizeof(hdr), 0) < 0 || send(sock, payload, len, 0) < 0) {
+        if (send(sock, hdr, sizeof(hdr), 0) != (ssize_t)sizeof(hdr) || send(sock, payload, len, 0) != (ssize_t)len) {
             shutdown(sock, SHUT_RDWR);
         }
     }

@@ -72,6 +72,7 @@ static struct {
     volatile int active;
     volatile bool enabled;
     QueueHandle_t tx;
+    uint32_t inputs_dropped;
     SemaphoreHandle_t role_lock;
     char headers[96];
 } s = {.active = -1};
@@ -81,11 +82,12 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
-static void send_inline(int link, uint8_t op, const void *data, size_t len)
+/* An ack or time reply in a full queue is dropped; the server times out or asks again. */
+static bool send_inline(int link, uint8_t op, const void *data, size_t len, TickType_t wait)
 {
     tx_t m = {.link = (int8_t)link, .op = op, .len = (uint16_t)len};
     memcpy(m.data, data, len);
-    xQueueSend(s.tx, &m, 0); /* a full queue drops the message; the server times out or retries */
+    return xQueueSend(s.tx, &m, wait) == pdTRUE;
 }
 
 static void send_text(int link, const char *json, size_t len)
@@ -111,8 +113,9 @@ static void tx_task(void *arg)
         xQueueReceive(s.tx, &m, portMAX_DELAY);
         for (int i = 0; i < DB_MAX_SERVERS; i++) {
             link_t *l = &s.links[i];
-            if ((m.link == ALL_LINKS || m.link == i) && l->connected) {
-                ws_send(&l->ws, m.op, m.heap ? (const void *)m.heap : m.data, m.len);
+            if ((m.link == ALL_LINKS || m.link == i) && l->connected &&
+                ws_send(&l->ws, m.op, m.heap ? (const void *)m.heap : m.data, m.len) != 0) {
+                l->reconnect = "send failed";
             }
         }
         free(m.heap);
@@ -182,8 +185,7 @@ static void send_status(void)
 /* Returns true when the active server changed; every connected server then got a role message. */
 static bool recompute_active(void)
 {
-    xSemaphoreTake(s.role_lock,
-                   portMAX_DELAY); /* both link tasks call this; hooks must see changes in order */
+    xSemaphoreTake(s.role_lock, portMAX_DELAY); /* every link task calls this; hooks must see changes in order */
     /* the chosen server when it is up, else the first one that is */
     int next = -1;
     const char *host = db_config()->host;
@@ -269,7 +271,7 @@ static int read_image(link_t *l, uint64_t len)
         /* The server waits for this ack before it sends to the area again. */
         uint8_t out[DB_ACK_LEN];
         db_proto_write_ack(out, refuse, h.display, h.seq, 0, 0, 0);
-        send_inline(l->index, WS_OP_BINARY, out, sizeof(out));
+        send_inline(l->index, WS_OP_BINARY, out, sizeof(out), 0);
         return ws_skip(&l->ws, n);
     }
     err = ws_read(&l->ws, img, n);
@@ -302,7 +304,7 @@ static int read_binary(link_t *l, uint64_t len)
         if (!err && db_proto_parse_time(msg, sizeof(msg), &server) == DB_OK) {
             uint8_t out[DB_TIME_REPLY_LEN];
             db_proto_write_time_reply(out, server, (uint64_t)esp_timer_get_time());
-            send_inline(l->index, WS_OP_BINARY, out, sizeof(out));
+            send_inline(l->index, WS_OP_BINARY, out, sizeof(out), 0);
         }
         return err;
     }
@@ -405,6 +407,7 @@ static void link_task(void *arg)
         }
         char ifname[6];
         char url[sizeof(l->url)];
+        l->reconnect = NULL; /* asked for while not connected: this connect takes the new address anyway */
         strlcpy(url, l->url, sizeof(url)); /* discover() may rewrite l->url meanwhile */
         db_net_status_t n;
         db_net_status(&n);
@@ -461,7 +464,7 @@ static void on_ack(db_ack_result_t result, uint8_t display, uint32_t seq, uint64
 {
     uint8_t out[DB_ACK_LEN];
     db_proto_write_ack(out, result, display, seq, t_recv, t_start, t_done);
-    send_inline((int)(intptr_t)arg, WS_OP_BINARY, out, sizeof(out));
+    send_inline((int)(intptr_t)arg, WS_OP_BINARY, out, sizeof(out), 0);
 }
 
 static void on_input(const db_input_t *ev)
@@ -470,7 +473,9 @@ static void on_input(const db_input_t *ev)
     if (a >= 0 && db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + a)) {
         uint8_t out[DB_INPUT_LEN];
         db_proto_write_input(out, ev);
-        send_inline(a, WS_OP_BINARY, out, sizeof(out));
+        if (!send_inline(a, WS_OP_BINARY, out, sizeof(out), pdMS_TO_TICKS(20))) {
+            s.inputs_dropped++;
+        }
     }
 }
 
@@ -551,6 +556,9 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
     s.hooks = *hooks;
     s.tx = xQueueCreate(TX_QUEUE, sizeof(tx_t));
     s.role_lock = xSemaphoreCreateMutex();
+    if (!s.tx || !s.role_lock) {
+        return ESP_ERR_NO_MEM;
+    }
     const db_config_t *c = db_config();
     if (c->token[0]) {
         snprintf(s.headers, sizeof(s.headers), "Authorization: Bearer %s\r\n", c->token);
@@ -560,17 +568,21 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         link_t *l = &s.links[i];
         l->index = i;
-        ws_init(&l->ws);
+        if (ws_init(&l->ws)) {
+            return ESP_ERR_NO_MEM;
+        }
         strlcpy(l->url, db_config_server_of(c, i), sizeof(l->url));
         db_deck_set_ack_handler((db_source_t)(DB_SOURCE_LINK0 + i), on_ack, (void *)(intptr_t)i);
         char name[12];
         snprintf(name, sizeof(name), "link%d", i);
-        xTaskCreatePinnedToCore(link_task, name, 6144, l, 6, &l->task, 0);
+        if (xTaskCreatePinnedToCore(link_task, name, 6144, l, 6, &l->task, 0) != pdPASS) {
+            return ESP_ERR_NO_MEM;
+        }
     }
     db_link_reload(); /* takes note of the pins, before any link is up */
-    xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
-    xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0);
-    return ESP_OK;
+    bool ok = xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0) == pdPASS &&
+              xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0) == pdPASS;
+    return ok ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
 void db_link_reload(void)
@@ -611,9 +623,9 @@ void db_link_resend_role(void)
     }
 }
 
-int db_link_active(void)
+uint32_t db_link_inputs_dropped(void)
 {
-    return s.active;
+    return s.inputs_dropped;
 }
 
 bool db_link_connected(int index)
