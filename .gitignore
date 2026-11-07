@@ -7,3 +7,10 @@ __pycache__/
 .venv/
 *.dbfw
 node_modules/
+
+# test_ui output
+host_test/ui/
+# keys and local env
+*.pem
+*.key
+.env*

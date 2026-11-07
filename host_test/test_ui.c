@@ -85,7 +85,7 @@ static ui_model_t base_model(void)
     strcpy(md.wlan_ip, "192.168.1.237");
     strcpy(md.wifi_ssid, "deckbridge");
     strcpy(md.ap_ssid, "deckbridge-a1b2c3");
-    strcpy(md.ap_pass, "k7m2p9xq");
+    strcpy(md.ap_pass, "k3t9m2xq");
     strcpy(md.ap_ip, "192.168.4.1");
     strcpy(md.server_url, "ws://192.168.1.128:8765/deckbridge");
     strcpy(md.web_pass, "bench-pass-12");
@@ -107,11 +107,11 @@ static ui_model_t variant(int v)
     case 1: /* long everything */
         strcpy(md.wifi_ssid, "FRITZ!Box 7590 XY Gast");
         strcpy(md.server_url, "ws://a-very-long-server-name.int.example.com:65535/deckbridge/path/x");
-        strcpy(md.web_pass, "abcdefghijklmnopqrstuvw");
+        strcpy(md.web_pass, "bench-pass-12");
         strcpy(md.lan_ip, "255.255.255.255");
         strcpy(md.wlan_ip, "255.255.255.255");
         strcpy(md.ap_ssid, "deckbridge-ffffff");
-        strcpy(md.ap_pass, "abcdefghijklmno");
+        strcpy(md.ap_pass, "k3t9m2xq");
         strcpy(md.fw, "v10.20.300-4000-gabcdef0-dirty");
         strcpy(md.wlan_fw, "10.20.300");
         md.brightness = 100;
