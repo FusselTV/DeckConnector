@@ -1,6 +1,5 @@
 #include "ws.h"
 
-#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,13 +31,27 @@ typedef struct {
     bool pin_ok;
 } tls_t;
 
-void ws_init(ws_t *ws)
+int ws_init(ws_t *ws)
 {
     ws->sock = -1;
     ws->tls = NULL;
     ws->tx = xSemaphoreCreateMutex();
     ws->frame = malloc(SEND_MAX + 8);
-    assert(ws->frame); /* boot time, internal RAM */
+    if (!ws->tx || !ws->frame) {
+        ws_deinit(ws);
+        return -ENOMEM;
+    }
+    return 0;
+}
+
+void ws_deinit(ws_t *ws)
+{
+    if (ws->tx) {
+        vSemaphoreDelete(ws->tx);
+        ws->tx = NULL;
+    }
+    free(ws->frame);
+    ws->frame = NULL;
 }
 
 static int parse_url(const char *url, char *host, size_t host_cap, unsigned *port, const char **path,

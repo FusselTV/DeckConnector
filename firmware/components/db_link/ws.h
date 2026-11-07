@@ -29,7 +29,10 @@ typedef struct {
     void *tls;            /* NULL for ws:// */
 } ws_t;
 
-void ws_init(ws_t *ws);
+/* 0 or -ENOMEM. */
+int ws_init(ws_t *ws);
+/* After ws_close, for a ws_t that is not used again. */
+void ws_deinit(ws_t *ws);
 /*
  * `extra_headers` is a list of "Name: value\r\n" lines or NULL. `ifname` forces the interface (lwIP name),
  * NULL uses the routing table. A wss:// server must show the certificate whose SHA-256 is `pin`, or with no

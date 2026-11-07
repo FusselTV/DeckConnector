@@ -298,7 +298,7 @@ static bool key_state(const db_sat_msg_t *m)
 
 static void clear_keys(void)
 {
-    for (size_t i = 0; i < s.nctl; i++) {
+    for (size_t i = 0; s.rgb && i < s.nctl; i++) {
         const db_sat_control_t *c = &s.ctl[i];
         uint8_t *jpeg = NULL;
         size_t len = 0;
@@ -317,6 +317,7 @@ static void add_device(void)
     char *b64 = malloc(2800);
     char *line = malloc(3200);
     size_t n = 0;
+    bool sent = false;
     xSemaphoreTake(s.lock, portMAX_DELAY);
     size_t len = json ? db_sat_manifest(s.ctl, s.nctl, json, 2048) : 0;
     xSemaphoreGive(s.lock);
@@ -330,10 +331,14 @@ static void add_device(void)
         xSemaphoreTake(s.tx, portMAX_DELAY);
         if (k > 0 && k < 3200) {
             raw_send(line, (size_t)k);
-            s.add_sent_ms = now_ms();
+            sent = true;
         }
         xSemaphoreGive(s.tx);
     }
+    if (!sent) {
+        ESP_LOGW(TAG, "deck not offered to Companion (no memory), trying again");
+    }
+    s.add_sent_ms = now_ms(); /* without an answer session() sends it again */
     free(json);
     free(b64);
     free(line);
@@ -342,6 +347,11 @@ static void add_device(void)
 /* The deck came, went or changed: Companion gets the new layout, and the buffers fit its largest control. */
 static void apply_device(void)
 {
+    db_device_info_t *dev = malloc(sizeof(*dev));
+    if (!dev) {
+        s.device_dirty = true; /* the next round tries again: a missing deck would take it from Companion */
+        return;
+    }
     s.device_dirty = false;
     s.add_sent_ms = 0;
     if (s.added) {
@@ -349,8 +359,7 @@ static void apply_device(void)
         s.added = false;
         s.changed();
     }
-    db_device_info_t *dev = malloc(sizeof(*dev));
-    bool present = dev && db_deck_info(dev);
+    bool present = db_deck_info(dev);
     xSemaphoreTake(s.lock, portMAX_DELAY);
     s.nctl = present ? db_sat_controls(dev, s.ctl, DB_SAT_MAX_CONTROLS) : 0;
     xSemaphoreGive(s.lock);
@@ -370,7 +379,10 @@ static void apply_device(void)
     s.rgb = px ? jpeg_port_alloc_rgb(px, 1) : NULL;
     s.work_cap = px * 4 + 1024; /* rows of RGBA plus a filter byte each */
     s.work = px ? heap_caps_malloc(s.work_cap, MALLOC_CAP_SPIRAM) : NULL;
-    if (s.nctl && s.rgb && s.work) {
+    if (s.nctl && (!s.rgb || !s.work)) {
+        ESP_LOGW(TAG, "no memory for the deck's pictures, trying again");
+        s.device_dirty = true;
+    } else if (s.nctl) {
         add_device();
     }
 }
@@ -743,17 +755,16 @@ esp_err_t db_satellite_start(void (*changed)(void))
     s.changed = changed;
     s.lock = xSemaphoreCreateMutex();
     s.tx = xSemaphoreCreateMutex();
-    ws_init(&s.ws);
     s.line = heap_caps_malloc(LINE_CAP, MALLOC_CAP_SPIRAM);
     s.cache = heap_caps_calloc(CACHE_SLOTS, sizeof(cached_t), MALLOC_CAP_SPIRAM);
-    if (!s.line || !s.cache) {
+    if (!s.lock || !s.tx || ws_init(&s.ws) || !s.line || !s.cache) {
         return ESP_ERR_NO_MEM;
     }
     db_deck_listener_t dl = {.input = on_input, .device_changed = on_device, .external = true};
     db_deck_add_listener(&dl);
     /* tinfl, which inflates the PNGs, keeps 11 KB of state on the stack */
-    xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, &s.task, 0);
-    return ESP_OK;
+    return xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, &s.task, 0) == pdPASS ? ESP_OK
+                                                                                                : ESP_ERR_NO_MEM;
 }
 
 bool db_satellite_connected(void)
@@ -784,10 +795,10 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
     size_t n = 0;
     if (strncmp(addr, "ws://", 5) == 0 || strncmp(addr, "wss://", 6) == 0) {
         ws_t *w = calloc(1, sizeof(*w));
-        if (!w) {
+        if (!w || ws_init(w)) {
+            free(w);
             return "no memory";
         }
-        ws_init(w);
         uint8_t pin[32];
         bool pinned = db_config_pin(pin_hex, pin);
         uint8_t op;
@@ -798,6 +809,7 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
         n = len < sizeof(line) - 1 ? (size_t)len : sizeof(line) - 1;
         err = err ? err : ws_read(w, line, n);
         ws_close(w);
+        ws_deinit(w);
         free(w);
         if (err) {
             return err == -ETIMEDOUT ? "no answer within 3 s" : "no connection";
