@@ -814,7 +814,8 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
         if (sock < 0) {
             return strerror(-sock);
         }
-        for (int r; n < sizeof(line) - 1 && !memchr(line, '\n', n); n += (size_t)r) {
+        int64_t end = esp_timer_get_time() + CONNECT_MS * 1000LL; /* a byte at a time must not hold the web lock */
+        for (int r; n < sizeof(line) - 1 && !memchr(line, '\n', n) && esp_timer_get_time() < end; n += (size_t)r) {
             if ((r = recv(sock, line + n, sizeof(line) - 1 - n, 0)) <= 0) {
                 break;
             }

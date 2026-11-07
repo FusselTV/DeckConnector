@@ -56,6 +56,7 @@ void db_log_start(void)
     total = 0;
     magic = MAGIC;
     serial = esp_log_set_vprintf(capture);
+    events = heap_caps_calloc(DB_EVENTS, sizeof(*events), MALLOC_CAP_SPIRAM);
 }
 
 size_t db_log_prev(char *buf, size_t cap)
@@ -127,7 +128,7 @@ void db_log_event(const char *tag, const char *kind, const char *fmt, ...)
     vsnprintf(e.text, sizeof(e.text), fmt, args);
     va_end(args);
     ESP_LOGI(tag, "%s", e.text);
-    if (!events && !(events = heap_caps_calloc(DB_EVENTS, sizeof(*events), MALLOC_CAP_SPIRAM))) {
+    if (!events) {
         return;
     }
     portENTER_CRITICAL(&mux);

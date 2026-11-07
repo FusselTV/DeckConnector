@@ -34,6 +34,7 @@ static const char *TAG = "ui";
 static struct {
     TaskHandle_t task;
     SemaphoreHandle_t lock; /* menu, between the deck's event task and the UI task */
+    SemaphoreHandle_t qr_lock; /* the QR buffers, which model() fills on both tasks */
     int active_link;
     int update_pct;
     char update_what[24];
@@ -352,8 +353,10 @@ static void model(ui_model_t *md)
     snprintf(md->ap_ssid, sizeof(md->ap_ssid), "%s", n.ap_ssid);
     snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
     snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
+    xSemaphoreTake(s.qr_lock, portMAX_DELAY);
     model_qr(md);
     model_login(md, c);
+    xSemaphoreGive(s.qr_lock);
     if (db_dock_request(md->request)) {
         db_dock_name(ipaddr_addr(md->request), md->request_name);
     }
@@ -746,6 +749,7 @@ static void tick(void *arg)
 esp_err_t db_ui_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
+    s.qr_lock = xSemaphoreCreateMutex();
     jpeg_port_init();
     xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0);
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
