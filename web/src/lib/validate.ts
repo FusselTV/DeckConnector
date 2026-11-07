@@ -73,7 +73,7 @@ export const wsUrlError = (v: string): Key | null => {
   }
 }
 
-export const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
+export const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9\x2d]{0,29}[A-Za-z0-9])?$/ // \x2d: a bare "-" is invalid in the v-mode pattern attribute
 export const nameError = (v: string): Key | null => (NAME_RE.test(v) ? null : 'net.bad_name')
 
 /** Companion address: IP, host, host:port, or a ws(s):// URL. */

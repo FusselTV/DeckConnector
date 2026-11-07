@@ -477,7 +477,7 @@ export function Sources() {
   )
   return (
     <>
-      {pair && <Notice n={pair} />}
+      {pair && <Notice n={{ ...pair, id: 'src-pair' }} />}
       <Card
         id="card-src"
         icon={Cable}

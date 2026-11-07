@@ -130,13 +130,13 @@ function useIssueList(): Issues {
         text: t('is.compdock_h'),
         acts: [{ label: t('act.to_sat'), icon: Radio, run: () => void a.toSatellite(s) }],
       })
-    if ((st.api ?? 1) < 1)
+    if ((st.api ?? 1) < 2)
       list.push({
         id: 'oldfw',
         icon: Cpu,
         lvl: 'warn',
         title: t('is.oldfw'),
-        text: t('is.oldfw_h', { need: 1, have: st.api ?? 0 }),
+        text: t('is.oldfw_h', { need: 2, have: st.api ?? 0 }),
         acts: [{ label: t('act.firmware'), icon: Cpu, run: () => go('firmware') }],
       })
     const P = st.pairing

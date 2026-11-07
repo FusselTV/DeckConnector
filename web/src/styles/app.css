@@ -2722,6 +2722,8 @@
   .actlist .btn {
     justify-content: flex-start;
     width: 100%;
+    white-space: normal;
+    text-align: left;
   }
   .wifi {
     display: flex;
@@ -3033,7 +3035,13 @@
     gap: 6px;
     flex-wrap: wrap;
     flex-basis: 100%;
+    min-width: 0;
     padding-left: 28px;
+  }
+  .slotacts .btn {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
   }
   @media (max-width: 1199px) {
     .meter {
@@ -3062,7 +3070,7 @@
     }
     .tabbar {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       position: fixed;
       z-index: 30;
       left: 0;

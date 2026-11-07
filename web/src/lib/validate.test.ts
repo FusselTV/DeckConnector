@@ -6,6 +6,7 @@ import {
   ipErrors,
   isIP,
   isMask,
+  NAME_RE,
   nameError,
   passwordError,
   pinError,
@@ -100,6 +101,11 @@ describe('values the firmware refuses or that lock the device out', () => {
     for (const n of ['', 'my deck', '...', 'a'.repeat(32), '😀', '-deck', 'deck-'])
       expect(nameError(n)).toBe('net.bad_name')
     expect(nameError('a')).toBeNull()
+  })
+  it('keeps the name pattern valid for the input pattern attribute, which compiles it in v mode', () => {
+    const re = new RegExp(`^(?:${NAME_RE.source})$`, 'v')
+    expect(re.test('studio-deck')).toBe(true)
+    expect(re.test('-deck')).toBe(false)
   })
   it('says when a password is too long instead of cutting it', () => {
     expect(passwordError('p'.repeat(24), 'p'.repeat(24)).pw).toBe('access.pw_long')
