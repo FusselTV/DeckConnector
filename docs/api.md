@@ -74,6 +74,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the DeckConnector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
 | `GET /api/slots` | The firmware slots: `slot` (1 to 4), `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
+| `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, "error": "no releases yet"}`. There are no releases to check yet |
 | `POST /api/ota/url` | Send `{"url": "http://..."}` and the DeckConnector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart. A new firmware that has not confirmed itself yet counts as confirmed, so it stays |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api` (the firmware's API version), and for a page from the partition its `version`, `api_min` and `size` |
@@ -271,6 +272,7 @@ is open. So the first host gets in by itself, and later ones need pairing. Other
 and the web UI ask whether to let it in. Up to 8 hosts are listed.
 
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
+`auto_open` while no host is listed yet (the first one gets in without pairing),
 `open_s` how long still, and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and
 `request_name` for the waiting host, is what the router's DNS answers for the address, empty when it does not
 know one. `POST /api/dock` takes one of these:

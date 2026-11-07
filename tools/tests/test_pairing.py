@@ -40,6 +40,7 @@ def test_open_by_default_and_hosts_listed_with_mac():
     me = socket.create_connection((HOST, 80), timeout=3).getsockname()[0]
     host = next(h for h in status()["pairing"]["hosts"] if h["ip"] == me)
     assert len(host["mac"]) == 17, "a host on the same network is known by its MAC, so a new DHCP address is no issue"
+    assert status()["pairing"]["auto_open"] is False, "a host is listed: the next one needs pairing"
 
 
 def test_pairing():

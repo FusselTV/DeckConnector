@@ -162,6 +162,7 @@ static void write_sources(db_json_t *j, bool live)
         db_json_null(j, "request");
     }
     db_json_bool(j, "open", db_dock_pairing_left() > 0);
+    db_json_bool(j, "auto_open", n_known == 0); /* db_dock lets the first host in without pairing */
     if (live) { /* counts down every second: not in the web socket's state, which goes out on changes */
         db_json_int(j, "open_s", db_dock_pairing_left());
     }
