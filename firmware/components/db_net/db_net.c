@@ -301,8 +301,9 @@ static esp_err_t start_eth(const db_board_t *b)
 static wifi_config_t sta_config(const char *ssid, const char *pass, const char *bssid)
 {
     wifi_config_t cfg = {0};
-    strlcpy((char *)cfg.sta.ssid, ssid, sizeof(cfg.sta.ssid));
-    strlcpy((char *)cfg.sta.password, pass, sizeof(cfg.sta.password));
+    /* both fields take their full length without a NUL: a 32-byte SSID, a 64-hex-digit key */
+    memcpy(cfg.sta.ssid, ssid, strnlen(ssid, sizeof(cfg.sta.ssid)));
+    memcpy(cfg.sta.password, pass, strnlen(pass, sizeof(cfg.sta.password)));
     cfg.sta.bssid_set = db_config_bssid(bssid, cfg.sta.bssid);
     return cfg;
 }
