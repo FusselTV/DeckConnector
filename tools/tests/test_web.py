@@ -154,8 +154,7 @@ def test_https_only_is_refused_while_https_does_not_run():
     assert json.loads(api("GET", "/api/config")[1])["https_only"] is False
 
 
-@pytest.mark.sim
-def test_the_profile_answers():
+def test_the_profile_answers():  # the simulator's profile is a stand-in
     code, body = api("GET", "/api/profile")
     assert code == 200, body  # it outgrew its buffer once and answered 500, which the load test read as 100 % busy
     assert "cpu_permille" in json.loads(body)
