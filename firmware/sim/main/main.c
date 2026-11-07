@@ -22,6 +22,10 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
     db_json_int(&j, "uptime_s", 0);
+    db_json_obj_open(&j, "boot");
+    db_json_str(&j, "reason", "power");
+    db_json_null(&j, "at");
+    db_json_obj_close(&j);
     db_json_arr_open(&j, "decks");
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "model", "Stream Deck +");

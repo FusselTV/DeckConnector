@@ -9,6 +9,8 @@ void db_log_start(void);
 size_t db_log_read(char *buf, size_t cap);
 /* Copy up to `cap` bytes written since `*pos` (0: the oldest still kept) and move `*pos` on. */
 size_t db_log_since(uint64_t *pos, char *buf, size_t cap);
+/* The end of the log the boot before this one left, 0 bytes after a power cut. */
+size_t db_log_prev(char *buf, size_t cap);
 
 /* The milestones of this boot: the first time each one happened, in ms since boot. For boot time tests. */
 typedef enum {

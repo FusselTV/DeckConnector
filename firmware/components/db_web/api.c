@@ -716,7 +716,14 @@ esp_err_t get_log(httpd_req_t *req)
     if (!buf) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
-    size_t n = db_log_read(buf, 16 * 1024);
+    char q[16], v[8];
+    bool prev = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+                httpd_query_key_value(q, "boot", v, sizeof(v)) == ESP_OK && strcmp(v, "prev") == 0;
+    size_t n = prev ? db_log_prev(buf, 16 * 1024) : db_log_read(buf, 16 * 1024);
+    if (prev && !n) {
+        heap_caps_free(buf);
+        return send_error(req, "404 Not Found", "no log from the boot before: it started from power off");
+    }
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
     esp_err_t err = httpd_resp_send(req, buf, (ssize_t)n);
     heap_caps_free(buf);

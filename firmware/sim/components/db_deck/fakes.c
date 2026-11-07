@@ -305,3 +305,8 @@ const char *db_satellite_address(void)
 void db_satellite_retry(void)
 {
 }
+
+size_t db_log_prev(char *buf, size_t cap)
+{
+    return 0;
+}

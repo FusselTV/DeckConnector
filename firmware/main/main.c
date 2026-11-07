@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "db_config.h"
 #include "db_deck.h"
@@ -17,6 +18,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -188,6 +190,28 @@ static void write_sources(db_json_t *j, bool live)
 
 /* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
  * out what changes all the time (uptime, signal, counters), so a change in it is worth telling. */
+static void write_boot(db_json_t *j)
+{
+    static const char *const reasons[] = {
+        [ESP_RST_POWERON] = "power",  [ESP_RST_EXT] = "pin",        [ESP_RST_SW] = "restart",
+        [ESP_RST_PANIC] = "crash",    [ESP_RST_INT_WDT] = "watchdog", [ESP_RST_TASK_WDT] = "watchdog",
+        [ESP_RST_WDT] = "watchdog",   [ESP_RST_BROWNOUT] = "brownout",
+    };
+    esp_reset_reason_t r = esp_reset_reason();
+    db_json_obj_open(j, "boot");
+    db_json_str(j, "reason", r < sizeof(reasons) / sizeof(*reasons) && reasons[r] ? reasons[r] : "other");
+    static int64_t at; /* worked out once: now minus uptime jitters by a second, and the state would change */
+    if (!at && time(NULL) > 1700000000) { /* before SNTP sets the clock it counts from 1970 */
+        at = time(NULL) - esp_timer_get_time() / 1000000;
+    }
+    if (at) {
+        db_json_int(j, "at", at);
+    } else {
+        db_json_null(j, "at");
+    }
+    db_json_obj_close(j);
+}
+
 static void write_status(db_json_t *j, bool live)
 {
     db_deck_stats_t st;
@@ -212,6 +236,7 @@ static void write_status(db_json_t *j, bool live)
     if (live) {
         db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
     }
+    write_boot(j);
     db_json_str(j, "controller", db_controller_name(db_config()->controller));
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
     write_device(j);

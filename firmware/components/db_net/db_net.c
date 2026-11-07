@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "db_board.h"
 #include "db_config.h"
@@ -13,6 +14,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -383,6 +385,24 @@ static void dns_task(void *arg)
     }
 }
 
+static void on_time(struct timeval *tv)
+{
+    char at[32];
+    strftime(at, sizeof(at), "%Y-%m-%d %H:%M:%S UTC", gmtime(&tv->tv_sec));
+    ESP_LOGI(TAG, "clock set: %s", at);
+}
+
+static void start_sntp(void)
+{
+    const char *own = db_config()->ntp_server;
+    esp_sntp_config_t sc = ESP_NETIF_SNTP_DEFAULT_CONFIG(own[0] ? own : "pool.ntp.org");
+    sc.server_from_dhcp = !own[0];
+    sc.index_of_first_server = own[0] ? 0 : 1; /* the DHCP server's NTP server takes slot 0 */
+    sc.wait_for_sync = false;
+    sc.sync_cb = on_time;
+    esp_netif_sntp_init(&sc);
+}
+
 esp_err_t db_net_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
@@ -402,6 +422,7 @@ esp_err_t db_net_start(void)
         }
     }
     start_mdns();
+    start_sntp();
     xTaskCreate(dns_task, "dns", 3072, NULL, 3, NULL);
     return ESP_OK;
 }

@@ -67,7 +67,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
-| `GET /api/log` | The last 16 KB of the log, as text |
+| `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckbridge.elf` with the ELF of the same build |
 | `DELETE /api/coredump` | Clear it |
 | `GET /api/boot` | The bootloader (`version`, `idf`, `built`, `sha256`) and the partition table (`partitions`, `md5`, `sha256`). `?raw=bootloader` or `?raw=ptable` gives the region itself. Both are replaced with `POST /api/ota`, see [ota.md](ota.md) |
@@ -153,6 +153,8 @@ for example behind a hub that drops it, the port switches to full speed until th
 uses full speed. Full speed moves about 64 KB of pictures per second instead of several MB, so a full page takes
 up to a second.
 
+`ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
+
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
 needs at least 6 characters. `servers` holds up to 4 URLs. An empty list finds a server over mDNS. A fixed
 address needs `ip` and `mask`. `satellite` is the address of Companion for its Satellite API, `host` or
@@ -171,7 +173,7 @@ it restores the settings. The web UI does this under System.
 
 ```json
 {"id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
- "controller": "companion", "writer": "dock2",
+ "boot": {"reason": "restart", "at": 1794012139}, "controller": "companion", "writer": "dock2",
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.214"},
@@ -195,6 +197,8 @@ it restores the settings. The web UI does this under System.
 - `boot_ms` says when each step of this boot happened first, in ms after the firmware started: the deck, the
   LAN link, each address, Companion, the Stream Deck app, a server, the first picture of a host, and Companion
   over its Satellite API.
+- `boot.reason` says why the DeckConnector started: `power`, `pin` (the reset button), `restart`, `crash`,
+  `watchdog`, `brownout` or `other`. `boot.at` is the start time in Unix seconds, `null` until the clock is set.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
 - `id` is the DeckConnector's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields, its `number`

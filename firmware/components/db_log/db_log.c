@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_attr.h"
 #include "esp_timer.h"
 
 #include "esp_heap_caps.h"
@@ -10,9 +11,15 @@
 #include "freertos/FreeRTOS.h"
 
 #define RING_SIZE (16 * 1024)
+#define MAGIC 0x64626c67
 
-static char *ring;
-static uint64_t total; /* bytes ever written: byte p sits at ring[p % RING_SIZE] while it is in the window */
+/* In LP RAM, which no cache sits in front of and no restart clears: the next boot still reads it, also after a
+ * panic. HP RAM sits behind the L1 cache, and a panic loses what has not been written back. */
+static RTC_NOINIT_ATTR char ring[RING_SIZE];
+static RTC_NOINIT_ATTR uint64_t total; /* bytes ever written: byte p sits at ring[p % RING_SIZE] while kept */
+static RTC_NOINIT_ATTR uint32_t magic;
+static char *prev;
+static size_t prev_len;
 static vprintf_like_t serial;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -36,17 +43,26 @@ static int capture(const char *fmt, va_list args)
 
 void db_log_start(void)
 {
-    ring = heap_caps_malloc(RING_SIZE, MALLOC_CAP_SPIRAM);
-    if (ring) {
-        serial = esp_log_set_vprintf(capture);
+    if (magic == MAGIC && total && (prev = heap_caps_malloc(RING_SIZE, MALLOC_CAP_SPIRAM))) {
+        prev_len = total < RING_SIZE ? (size_t)total : RING_SIZE;
+        for (size_t i = 0; i < prev_len; i++) {
+            prev[i] = ring[(total - prev_len + i) % RING_SIZE];
+        }
     }
+    total = 0;
+    magic = MAGIC;
+    serial = esp_log_set_vprintf(capture);
+}
+
+size_t db_log_prev(char *buf, size_t cap)
+{
+    size_t n = prev_len < cap ? prev_len : cap;
+    memcpy(buf, prev + prev_len - n, n);
+    return n;
 }
 
 size_t db_log_since(uint64_t *pos, char *buf, size_t cap)
 {
-    if (!ring) {
-        return 0;
-    }
     portENTER_CRITICAL(&mux);
     uint64_t oldest = total > RING_SIZE ? total - RING_SIZE : 0;
     uint64_t from = *pos < oldest ? oldest : *pos;

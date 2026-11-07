@@ -55,9 +55,12 @@ typedef struct {
     uint16_t menu_hold_ms;
     char usb_speed[6]; /* auto: high speed, full speed when no deck comes up behind a hub; full: always */
     char wifi_bssid[18]; /* "aa:bb:cc:dd:ee:ff" joins only that access point; empty: any with wifi_ssid */
+    char ntp_server[64]; /* empty: the one DHCP names, else pool.ntp.org */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
+/* A host name or address without spaces, quotes or slashes; empty is fine. */
+bool db_config_ntp_ok(const char *s);
 char *db_config_server(db_config_t *cfg, int i);
 const char *db_config_server_of(const db_config_t *cfg, int i);
 
