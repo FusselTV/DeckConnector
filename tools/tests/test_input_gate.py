@@ -10,6 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import pytest
 from conftest import HOST, api, put_config, status
 
 from dbtools.safety import real_input_target
@@ -26,6 +27,8 @@ def test_only_real_presses_reach_a_dock_host():
         for line in host.stdout:
             if line.startswith("listening"):
                 break
+        else:
+            pytest.fail(f"companion-check ended with {host.wait()} before it listened")
         put_config({"controller": "companion", "host": me})
         for _ in range(20):
             try:

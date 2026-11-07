@@ -1,4 +1,4 @@
-"""Web UI login. The lockout test is last because it leaves the login locked for a moment."""
+"""Web UI login."""
 
 import base64
 import gzip
@@ -83,6 +83,7 @@ def test_basic_auth_needs_the_marker_for_changes():
 
 
 @pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="locks this machine out of the bridge, and with it the next tests")
 def test_wrong_passwords_lock_the_login():
     op = opener()
     codes = [login(op, "wrong")[0] for _ in range(6)]
@@ -90,8 +91,12 @@ def test_wrong_passwords_lock_the_login():
     assert codes[5] == 429 or login(op, "wrong")[0] == 429
     assert login(op, PASSWORD)[0] == 429  # even the right password waits out the lock
     assert api("GET", "/api/status")[0] == 429  # basic auth shares the lock, else it would allow endless guessing
-    time.sleep(3)
-    assert login(op, PASSWORD)[0] == 200
+    for _ in range(40):
+        if (code := login(op, PASSWORD)[0]) != 429:
+            break
+        time.sleep(0.25)
+    assert code == 200
+    call(op, "POST", "/api/logout")
 
 
 def test_metrics_are_percentages():
