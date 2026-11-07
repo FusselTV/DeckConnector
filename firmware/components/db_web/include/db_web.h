@@ -12,7 +12,7 @@
 
 /* Version of the API a page in the `www` partition may ask for (api_min in its .dbfw header). Raise it when a
  * route or field the page relies on changes. */
-#define DB_WEB_API 1
+#define DB_WEB_API 2 /* 2: slots count from 1, a pairing accept names its "ip" */
 
 /* `status_json` writes the body of /api/status; `state_json` the web socket's state message, which leaves out
  * what changes all the time. */

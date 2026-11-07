@@ -30,6 +30,12 @@ def test_a_slot_that_cannot_start_is_refused():
         assert x["bootable"] is (not x["running"] and "why_not" not in x)
 
 
+def test_slot_zero_is_refused_not_taken_as_the_next_slot():
+    """API 1 clients counted from 0; their slot 0 must not quietly become "the slot after the running one"."""
+    assert json.loads(api("GET", "/api/status")[1])["api"] >= 2
+    assert api("POST", "/api/ota?slot=0", b"tiny")[0] == 400
+
+
 @pytest.mark.parametrize("region", ["bootloader", "ptable"])
 def test_a_region_download_matches_its_hash(region):
     code, raw = api("GET", f"/api/boot?raw={region}")

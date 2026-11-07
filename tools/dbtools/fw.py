@@ -76,6 +76,11 @@ def wait_version(version: str, secs: float = 90) -> float:
     raise SystemExit(f"{version} did not come up within {secs:.0f} s")
 
 
+def their(slot: int, slots: list[dict]) -> int:
+    """Slot n (counted from 1 here) as the running firmware numbers it: firmware before f42a4fe counts from 0."""
+    return slots[slot - 1]["slot"]
+
+
 def bench_slot(avoid: set) -> int:
     code, slots = api("GET", "/api/slots")
     if code != 200:
@@ -107,7 +112,7 @@ def deploy(signed: bytes, slot: int, boot: bool) -> None:
     version = dbfw.parse(signed)["version"]
     confirmed()
     start = time.time()
-    code, r = api("POST", f"/api/ota?slot={slot}&boot={int(boot)}", signed)
+    code, r = api("POST", f"/api/ota?slot={their(slot, api('GET', '/api/slots')[1])}&boot={int(boot)}", signed)
     if code != 200:
         raise SystemExit(f"upload into slot {slot} failed: {r}")
     print(f"{version} into slot {slot}: upload {time.time() - start:.1f} s", flush=True)
@@ -118,7 +123,7 @@ def deploy(signed: bytes, slot: int, boot: bool) -> None:
 def use(slot: int) -> None:
     confirmed()
     _, slots = api("GET", "/api/slots")
-    code, r = api("POST", f"/api/slots/{slot}/boot")
+    code, r = api("POST", f"/api/slots/{their(slot, slots)}/boot")
     if code != 200:
         raise SystemExit(f"slot {slot} not booted: {r} (a firmware older than the slots API needs a deploy)")
     version = slots[slot - 1]["version"]
