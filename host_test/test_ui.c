@@ -144,9 +144,9 @@ static ui_model_t variant(int v)
 
 static void save_ppm(const ui_canvas_t *c, const char *name)
 {
-    mkdir("ui", 0755);
-    char path[96];
-    snprintf(path, sizeof(path), "ui/%s.ppm", name);
+    mkdir(UI_OUT, 0755);
+    char path[256];
+    snprintf(path, sizeof(path), UI_OUT "/%s.ppm", name);
     FILE *f = fopen(path, "wb");
     TEST_ASSERT_NOT_NULL(f);
     fprintf(f, "P6\n%u %u\n255\n", c->w, c->h);

@@ -246,7 +246,6 @@ static void write_status(db_json_t *j, bool live)
     db_json_bool(j, "https_custom", db_web_cert_custom());
     db_json_int(j, "api", DB_WEB_API);
     db_json_str(j, "simulated_input", "local"); /* tests refuse to press keys on firmware without the gate */
-    db_json_int(j, "input_armed_s", db_web_input_armed_s());
     db_json_str(j, "name", db_config()->name);
     db_json_str(j, "firmware", esp_app_get_description()->version);
     if (c6) {
@@ -256,6 +255,7 @@ static void write_status(db_json_t *j, bool live)
     }
     if (live) {
         db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
+        db_json_int(j, "input_armed_s", db_web_input_armed_s()); /* counts down, as uptime_s */
     }
     write_boot(j);
     db_json_obj_open(j, "setup");

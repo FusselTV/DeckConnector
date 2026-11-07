@@ -328,7 +328,7 @@ static void command(httpd_handle_t server, int fd, const char *text)
     const cJSON *t = cJSON_GetObjectItemCaseSensitive(root, "t");
     const cJSON *id_item = cJSON_GetObjectItemCaseSensitive(root, "id");
     int id = cJSON_IsNumber(id_item) ? id_item->valueint : 0; /* read before the item is deleted below */
-    char reply[160] = "{\"ok\":false,\"error\":\"t: set, input or log expected\"}";
+    char reply[320] = "{\"ok\":false,\"error\":\"t: set, input or log expected\"}";
     int code = 400;
     if (cJSON_IsString(t) && strcmp(t->valuestring, "log") == 0) {
         code = 403;
@@ -369,7 +369,7 @@ static void command(httpd_handle_t server, int fd, const char *text)
         }
         free(body);
     }
-    char out[224];
+    char out[384];
     snprintf(out, sizeof(out), "{\"t\":\"result\",\"id\":%d,\"status\":%d,\"reply\":%s}", id, code, reply);
     cJSON_Delete(root);
     send_locked(server, fd, out);

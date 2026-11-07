@@ -135,9 +135,10 @@ others keep drawing into their own picture in the background and get no input. O
 row of the home screen and the menu.
 
 `brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin`, `https_only`,
-`cors_origins`, `menu_chord` and `menu_hold_ms` also work at once. Every other change restarts the DeckConnector,
-and the reply says so:
-`{"ok": true, "restart": true}`.
+`cors_origins`, `menu_chord`, `menu_hold_ms`, `input_lock` and `qr_login` also work at once. Every other change restarts the DeckConnector,
+and the reply says so. `reach` lists where the page finds it after the restart: a fixed LAN address as saved,
+the WLAN address while the network stays the same, and the name in `.local`:
+`{"ok": true, "restart": true, "reach": ["http://192.168.1.214", "http://deckconnector-a1b2c3.local"]}`.
 
 ## Settings
 
@@ -164,7 +165,7 @@ up to a second.
 `input_lock` stops presses over `POST /api/input` and the web socket, and changes of `controller` or `host`,
 with 423. A request with `"force": true` still gets through. The deck itself is never locked.
 `PUT /api/input/arm` opens the lock for some seconds for every client, and `input_armed_s` in the status counts
-them down. A restart shuts the lock again.
+them down (only in `GET /api/status`, not in the web socket state). A restart shuts the lock again.
 
 Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
 once, without the password. A code is good for 10 minutes and for one login; then the deck shows a new one.

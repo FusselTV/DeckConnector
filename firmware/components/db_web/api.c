@@ -111,11 +111,37 @@ int api_config(const char *body, char *reply, size_t cap)
     if (cfg.brightness != old.brightness) {
         db_deck_set_brightness(cfg.brightness);
     }
-    snprintf(reply, cap, "{\"ok\":true,\"restart\":%s}", restart ? "true" : "false");
-    if (restart) {
-        ESP_LOGW(TAG, "config changed, restarting");
-        restart_soon();
+    if (!restart) {
+        snprintf(reply, cap, "{\"ok\":true,\"restart\":false}");
+        return 200;
     }
+    /* where the page finds the bridge after the restart: a fixed LAN address as saved, the others as they are */
+    db_net_status_t n;
+    db_net_status(&n);
+    const char *lan = !cfg.lan.dhcp && cfg.lan.ip[0] ? cfg.lan.ip : (n.lan_up ? n.lan_ip : "");
+    const char *wlan = cfg.wifi_ssid[0] && strcmp(cfg.wifi_ssid, old.wifi_ssid) == 0 && n.wlan_up ? n.wlan_ip : "";
+    const char *scheme = cfg.https_only ? "https" : "http";
+    db_json_t j;
+    db_json_begin(&j, reply, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_bool(&j, "ok", true);
+    db_json_bool(&j, "restart", true);
+    db_json_arr_open(&j, "reach");
+    char url[96];
+    const char *hosts[] = {lan, wlan};
+    for (int i = 0; i < 2; i++) {
+        if (hosts[i][0]) {
+            snprintf(url, sizeof(url), "%s://%s", scheme, hosts[i]);
+            db_json_str(&j, NULL, url);
+        }
+    }
+    snprintf(url, sizeof(url), "%s://%s.local", scheme, cfg.name);
+    db_json_str(&j, NULL, url);
+    db_json_arr_close(&j);
+    db_json_obj_close(&j);
+    db_json_end(&j);
+    ESP_LOGW(TAG, "config changed, restarting");
+    restart_soon();
     return 200;
 }
 
@@ -355,7 +381,7 @@ esp_err_t put_config(httpd_req_t *req)
     if (!reply && !(reply = heap_caps_malloc(REPLY_MAX, MALLOC_CAP_SPIRAM))) {
         return send_error(req, "500 Internal Server Error", "out of memory");
     }
-    int code = (auth_by_token(req) ? api_config_token : api_config)(body, reply, 160);
+    int code = (auth_by_token(req) ? api_config_token : api_config)(body, reply, 320);
     if (code == 200) {
         size_t n = strlen(reply) - 1; /* over the closing brace */
         n += snprintf(reply + n, REPLY_MAX - n, ",\"config\":");
