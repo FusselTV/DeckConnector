@@ -130,6 +130,11 @@ def use(slot: int) -> None:
     print(f"slot {slot} ({version}) up in {wait_version(version):.1f} s")
 
 
+def app_image(tree: Path) -> bytes:
+    build = tree / "firmware/build"
+    return (build / json.loads((build / "project_description.json").read_text())["app_bin"]).read_bytes()
+
+
 def build(rev: str) -> bytes:
     sha = subprocess.check_output(["git", "-C", ROOT, "rev-parse", rev], text=True).strip()
     out = CACHE / "fw" / f"{sha}.dbfw"
@@ -142,15 +147,18 @@ def build(rev: str) -> bytes:
     else:
         subprocess.run(["git", "-C", ROOT, "worktree", "add", "-q", "--detach", wt, sha], check=True)
     start = time.time()
+    # web/dist is untracked: a page left from another revision must not be embedded, so each revision builds its own
+    subprocess.run(["rm", "-rf", wt / "web/dist"], check=True)
+    page = "cd web && npm ci --silent && npm run build >/dev/null && cd .. && " if (wt / "web/package.json").exists() else ""
     r = subprocess.run(
-        ["bash", "-c", ". ~/esp/esp-idf/export.sh >/dev/null 2>&1 && idf.py -C firmware build"],
+        ["bash", "-c", f"{page}. ~/esp/esp-idf/export.sh >/dev/null 2>&1 && idf.py -C firmware reconfigure build"],
         cwd=wt,
         capture_output=True,
         text=True,
     )
     if r.returncode:
         raise SystemExit(f"build of {rev} failed:\n{r.stdout[-3000:]}{r.stderr[-3000:]}")
-    signed = sign((wt / "firmware/build/deckconnector.bin").read_bytes())
+    signed = sign(app_image(wt))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(signed)
     print(f"{rev}: built in {time.time() - start:.0f} s, {out}")
@@ -172,7 +180,7 @@ def main() -> None:
     sub.add_parser("boot").add_argument("what", choices=("bootloader", "ptable"))
     a = ap.parse_args()
     if a.cmd == "deploy":
-        signed = sign((ROOT / "firmware/build/deckconnector.bin").read_bytes())
+        signed = sign(app_image(ROOT))
         deploy(signed, a.slot if a.slot is not None else bench_slot(set()), not a.no_boot)
     elif a.cmd == "use":
         use(a.slot)

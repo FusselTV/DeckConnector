@@ -18,6 +18,7 @@ set(page ${CMAKE_CURRENT_SOURCE_DIR}/../../../web/dist/index.html)
 if(NOT EXISTS ${page})
     set(page ${CMAKE_CURRENT_SOURCE_DIR}/index.html)
 endif()
+message(STATUS "Web page embedded: ${page}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../../web/dist)
 set(page_gz ${CMAKE_CURRENT_BINARY_DIR}/index.html.gz)
 add_custom_command(OUTPUT ${page_gz}
