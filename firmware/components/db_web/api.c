@@ -102,6 +102,7 @@ int api_config(const char *body, char *reply, size_t cap)
     memcpy(live.satellite_pin, old.satellite_pin, sizeof(old.satellite_pin));
     live.dock_paired_only = old.dock_paired_only;
     live.input_lock = old.input_lock;
+    live.qr_login_off = old.qr_login_off;
     live.https_only = old.https_only;
     memcpy(live.cors_origins, old.cors_origins, sizeof(old.cors_origins));
     memcpy(live.menu_chord, old.menu_chord, sizeof(old.menu_chord));
@@ -790,6 +791,7 @@ esp_err_t put_setup(httpd_req_t *req)
         return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
     }
     setup_step = n;
+    db_ui_setup_step(n);
     return send_json(req, "{\"ok\":true}");
 }
 

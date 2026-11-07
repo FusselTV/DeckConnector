@@ -31,5 +31,9 @@ esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len);
 /* The two controls that open the menu (config `menu_chord`): index 0 and *last of the encoders or the keys.
  * False when there are none. */
 bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last);
+/* True once for the token the welcome pages show as a QR code, while it is shown and not 10 min old. */
+bool db_ui_login_take(const char *token);
+/* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
+void db_ui_setup_step(int step);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */
 esp_err_t db_ui_open_menu(void);

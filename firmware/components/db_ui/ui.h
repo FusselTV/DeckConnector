@@ -114,6 +114,9 @@ typedef struct {
     int update_pct; /* < 0: no update running */
     char update_what[24];
     bool setup_done;
+    uint8_t setup_step; /* the web wizard's step, 0 when it does not run */
+    char login_token[17]; /* one login for whoever scans login_qr; empty: none */
+    ui_qr_t login_qr;
     bool picked; /* the config names a host or a program other than the default: someone chose */
 } ui_model_t;
 

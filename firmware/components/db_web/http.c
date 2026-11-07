@@ -10,6 +10,7 @@
 #include "db_json.h"
 #include "db_net.h"
 #include "db_ota.h"
+#include "db_ui.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -94,6 +95,12 @@ void restart_soon(void)
  * gets 304. */
 static esp_err_t page(httpd_req_t *req)
 {
+    char query[48];
+    char token[20];
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+        httpd_query_key_value(query, "t", token, sizeof(token)) == ESP_OK) {
+        return auth_qr_login(req, token);
+    }
     char etag[20];
     db_ota_web_t web;
     bool own = db_ota_web(&web);
@@ -360,6 +367,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
 {
     api_status_json = status;
     auth_start();
+    db_ui_setup_step(db_web_setup_step());
     handler_lock = xSemaphoreCreateMutex();
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;

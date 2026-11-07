@@ -336,3 +336,15 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
 {
     return "the simulator reaches no Companion";
 }
+
+bool db_ui_login_take(const char *token)
+{
+    static bool used; /* the simulator has no deck to show a code: this one works once */
+    bool ok = !used && strcmp(token, "0123456789abcdef") == 0;
+    used |= ok;
+    return ok;
+}
+
+void db_ui_setup_step(int step)
+{
+}

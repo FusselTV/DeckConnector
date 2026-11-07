@@ -440,6 +440,23 @@ static void chord_words(const page_t *p, char *which, size_t cap, char *hold, si
     snprintf(hold, hold_cap, ms % 1000 ? "%d,%d s halten" : "%d s halten", ms / 1000, ms % 1000 / 100);
 }
 
+/* A one-time web login for the phone that scans it, and the web wizard's step while it runs. */
+static void setup_keys(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    if (md->login_qr.size && at(p, 1, 2) >= 0) {
+        ui_tile_t *qr = put(p, at(p, 1, 2), K_NONE);
+        *qr = (ui_tile_t){.kind = TILE_QR};
+        snprintf(qr->value, sizeof(qr->value), "%s", md->login_token);
+        p->sc->qr = md->login_qr;
+    }
+    if (md->setup_step) {
+        char step[8];
+        snprintf(step, sizeof(step), "%u/6", md->setup_step);
+        card(put(p, at(p, 1, -1), K_NONE), ICON_WEB, "Setup", step, fit(p, "im Browser", ""));
+    }
+}
+
 /* A new deck: the address to type into Companion or the Stream Deck app, and how to reach the menu. The first
  * host that connects draws by itself (ui_first_source). */
 static void welcome(page_t *p)
@@ -454,6 +471,7 @@ static void welcome(page_t *p)
     char hold[24];
     chord_words(p, which, sizeof(which), hold, sizeof(hold));
     const char *ip = ip_of(md);
+    setup_keys(p);
     if (p->l->strip) {
         if (ip) {
             segment(&p->sc->seg[0], 2, ICON_WEB, C_EDIT, "Diese Adresse eintragen", ip,
@@ -487,6 +505,7 @@ static void welcome_net(page_t *p)
     card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz",
          fit(p, "Benutzer admin", "admin"));
     card(put(p, at(p, 1, 1), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, fit(p, "fürs Web", ""));
+    setup_keys(p);
     if (p->l->strip) {
         char sub[112];
         if (ip_of(md)) {

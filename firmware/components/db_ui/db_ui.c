@@ -13,6 +13,7 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -169,6 +170,8 @@ static void wifi_qr_text(char *out, size_t cap, const char *ssid, const char *pa
     out[n] = '\0';
 }
 
+static void changed(void);
+
 static ui_qr_t *qr_target;
 
 static void take_qr(esp_qrcode_handle_t code)
@@ -188,6 +191,18 @@ static void take_qr(esp_qrcode_handle_t code)
     }
 }
 
+static bool make_qr(ui_qr_t *qr, const char *text)
+{
+    qr_target = qr;
+    esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
+    cfg.display_func = take_qr;
+    cfg.max_qrcode_version = 6;
+    cfg.qrcode_ecc_level = ESP_QRCODE_ECC_LOW;
+    qr->size = 0;
+    esp_log_level_set("QRCODE", ESP_LOG_WARN); /* it logs the text it encodes: a password or a login */
+    return esp_qrcode_generate(&cfg, text) == ESP_OK;
+}
+
 /* Made again only when the setup WLAN's name or password changed. */
 static void model_qr(ui_model_t *md)
 {
@@ -195,19 +210,69 @@ static void model_qr(ui_model_t *md)
     static ui_qr_t qr;
     char text[sizeof(made_for)];
     wifi_qr_text(text, sizeof(text), md->ap_ssid, md->ap_pass);
-    if (md->ap_on && strcmp(text, made_for) != 0) {
-        qr_target = &qr;
-        esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
-        cfg.display_func = take_qr;
-        cfg.max_qrcode_version = 6;
-        cfg.qrcode_ecc_level = ESP_QRCODE_ECC_LOW;
-        qr.size = 0;
-        esp_log_level_set("QRCODE", ESP_LOG_WARN); /* it logs the text it encodes: the WLAN password */
-        if (esp_qrcode_generate(&cfg, text) == ESP_OK) {
-            strcpy(made_for, text);
-        }
+    if (md->ap_on && strcmp(text, made_for) != 0 && make_qr(&qr, text)) {
+        strcpy(made_for, text);
     }
     md->ap_qr = md->ap_on ? qr : (ui_qr_t){0};
+}
+
+#define LOGIN_US (10 * 60 * 1000000LL)
+static portMUX_TYPE login_mux = portMUX_INITIALIZER_UNLOCKED;
+static char login_token[17];
+static int64_t login_made;
+static uint8_t setup_step;
+
+bool db_ui_login_take(const char *token)
+{
+    portENTER_CRITICAL(&login_mux);
+    uint8_t diff = strlen(token) != 16 || !login_token[0] || esp_timer_get_time() - login_made >= LOGIN_US;
+    for (int i = 0; i < 16 && token[i]; i++) {
+        diff |= (uint8_t)(token[i] ^ login_token[i]);
+    }
+    if (!diff) {
+        login_token[0] = '\0';
+    }
+    portEXIT_CRITICAL(&login_mux);
+    if (!diff) {
+        changed(); /* the next code */
+    }
+    return !diff;
+}
+
+void db_ui_setup_step(int step)
+{
+    setup_step = (uint8_t)step;
+    changed();
+}
+
+/* While setup is not done: http://<ip>/?t=<token>, a new token after each use and every 10 min. */
+static void model_login(ui_model_t *md, const db_config_t *c)
+{
+    const char *ip = md->lan_up ? md->lan_ip : (md->wlan_up ? md->wlan_ip : "");
+    bool want = !c->setup_done && !c->qr_login_off && ip[0];
+    char fresh[17];
+    uint8_t raw[8];
+    esp_fill_random(raw, sizeof(raw));
+    for (int i = 0; i < 8; i++) {
+        snprintf(fresh + 2 * i, 3, "%02x", raw[i]);
+    }
+    portENTER_CRITICAL(&login_mux);
+    if (!want) {
+        login_token[0] = '\0';
+    } else if (!login_token[0] || md->now_us - login_made >= LOGIN_US) {
+        strcpy(login_token, fresh);
+        login_made = md->now_us;
+    }
+    strcpy(md->login_token, login_token);
+    portEXIT_CRITICAL(&login_mux);
+    static char made_for[64];
+    static ui_qr_t qr;
+    char url[sizeof(made_for)];
+    snprintf(url, sizeof(url), "%s://%s/?t=%s", c->https_only ? "https" : "http", ip, md->login_token);
+    if (want && strcmp(url, made_for) != 0 && make_qr(&qr, url)) {
+        strcpy(made_for, url);
+    }
+    md->login_qr = want ? qr : (ui_qr_t){0};
 }
 
 #define OFFER_DENIED_MAX 4
@@ -257,6 +322,7 @@ static void model(ui_model_t *md)
         .brightness = s.brightness >= 0 ? s.brightness : c->brightness,
         .update_pct = s.update_pct,
         .setup_done = c->setup_done,
+        .setup_step = setup_step,
         .picked = c->host[0] || c->controller != DB_CTRL_COMPANION,
         .menu_hold_ms = c->menu_hold_ms,
     };
@@ -269,6 +335,7 @@ static void model(ui_model_t *md)
     snprintf(md->ap_pass, sizeof(md->ap_pass), "%s", n.ap_pass);
     snprintf(md->ap_ip, sizeof(md->ap_ip), "%s", n.ap_ip);
     model_qr(md);
+    model_login(md, c);
     if (db_dock_request(md->request)) {
         db_dock_name(ipaddr_addr(md->request), md->request_name);
     }
@@ -640,10 +707,18 @@ static void tick(void *arg)
     }
     if (now >= next) {
         next = now + 1000000;
-        ui_model_t md = {.now_us = now};
+        static ui_model_t md; /* kept off the esp_timer task's small stack */
+        memset(&md, 0, sizeof(md));
+        md.now_us = now;
         xSemaphoreTake(s.lock, portMAX_DELAY);
         bool redraw = ui_menu_tick(&s.menu, &md);
         xSemaphoreGive(s.lock);
+        portENTER_CRITICAL(&login_mux);
+        if (login_token[0] && now - login_made >= LOGIN_US) {
+            login_token[0] = '\0';
+            redraw = true;
+        }
+        portEXIT_CRITICAL(&login_mux);
         if (redraw) {
             changed();
         }

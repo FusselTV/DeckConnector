@@ -397,6 +397,26 @@ static void test_welcome(void)
     TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
 }
 
+static void test_setup_shows_the_login_code_and_the_wizard_step(void)
+{
+    db_device_info_t dev = open_deck(0x0084);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.setup_done = false;
+    md.login_qr = md.ap_qr;
+    strcpy(md.login_token, "0123456789abcdef");
+    md.setup_step = 3;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    static ui_screen_t sc;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_INT(TILE_QR, sc.tiles[l.cols + 2].kind);
+    TEST_ASSERT_EQUAL_STRING("0123456789abcdef", sc.tiles[l.cols + 2].value);
+    TEST_ASSERT_EQUAL_STRING("3/6", sc.tiles[2 * l.cols - 1].value);
+    md.login_qr.size = 0;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_NOT_EQUAL_INT(TILE_QR, sc.tiles[l.cols + 2].kind);
+}
+
 /* No web UI: a new deck shows its address and the menu chord, the first host draws by itself, and a Companion
  * found over mDNS is taken with one key. */
 static void test_without_the_web_ui(void)
@@ -472,6 +492,7 @@ int main(void)
     RUN_TEST(test_neo_keeps_brightness_and_password);
     RUN_TEST(test_flows_without_encoders);
     RUN_TEST(test_welcome);
+    RUN_TEST(test_setup_shows_the_login_code_and_the_wizard_step);
     RUN_TEST(test_menu_chord_on_every_deck);
     RUN_TEST(test_without_the_web_ui);
     return UNITY_END();

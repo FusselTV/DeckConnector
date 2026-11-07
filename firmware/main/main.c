@@ -381,13 +381,12 @@ static void apply_controller(void)
     char now[sizeof(applied)];
     db_controller_t c = db_config()->controller;
     snprintf(now, sizeof(now), "%d %s", c, db_config()->host);
-    if (strcmp(now, applied) == 0) {
-        return;
+    if (strcmp(now, applied) != 0) {
+        strcpy(applied, now);
+        ESP_LOGI(TAG, "controller: %s %s", db_controller_name(c), db_config()->host);
+        db_link_set_enabled(c == DB_CTRL_SERVER);
     }
-    strcpy(applied, now);
-    ESP_LOGI(TAG, "controller: %s %s", db_controller_name(c), db_config()->host);
-    db_link_set_enabled(c == DB_CTRL_SERVER);
-    db_ui_refresh();
+    db_ui_refresh(); /* also for setup_done and qr_login, which change what the deck shows */
 }
 
 /* A bridge without any network opens the setup WLAN by itself. */

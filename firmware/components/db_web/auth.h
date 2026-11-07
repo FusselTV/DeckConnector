@@ -31,4 +31,6 @@ esp_err_t auth_tokens_add(httpd_req_t *req);
 esp_err_t auth_tokens_remove(httpd_req_t *req);
 
 esp_err_t auth_login(httpd_req_t *req);
+/* GET /?t=<token>: the one-time login the deck shows as a QR code, then a redirect to / */
+esp_err_t auth_qr_login(httpd_req_t *req, const char *token);
 esp_err_t auth_logout(httpd_req_t *req);

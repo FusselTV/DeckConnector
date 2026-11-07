@@ -120,6 +120,8 @@ esp_err_t db_config_load(void)
             uint8_t lock;
             memcpy(&lock, &current.input_lock, 1); /* padding of an older blob: neither 0 nor 1 is no bool */
             current.input_lock = lock == 1;
+            memcpy(&lock, &current.qr_login_off, 1);
+            current.qr_login_off = lock == 1;
         }
         free(blob);
     }
@@ -233,6 +235,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "wifi_bssid", cfg->wifi_bssid);
     db_json_str(&j, "ntp_server", cfg->ntp_server);
     db_json_bool(&j, "input_lock", cfg->input_lock);
+    db_json_bool(&j, "qr_login", !cfg->qr_login_off);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
@@ -423,6 +426,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         if (v) {
             *fields[i] = cJSON_IsTrue(v);
         }
+    }
+    const cJSON *qr = cJSON_GetObjectItemCaseSensitive(root, "qr_login");
+    if (qr && !cJSON_IsBool(qr)) {
+        snprintf(err, err_cap, "qr_login: true or false expected");
+        return false;
+    }
+    if (qr) {
+        cfg->qr_login_off = !cJSON_IsTrue(qr);
     }
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "brightness");
     if (b) {

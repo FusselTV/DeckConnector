@@ -57,6 +57,7 @@ typedef struct {
     char wifi_bssid[18]; /* "aa:bb:cc:dd:ee:ff" joins only that access point; empty: any with wifi_ssid */
     char ntp_server[64]; /* empty: the one DHCP names, else pool.ntp.org */
     bool input_lock;     /* the web API takes no presses and no source switch without "force" */
+    bool qr_login_off;   /* JSON qr_login: false; the welcome pages show no one-time login code */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

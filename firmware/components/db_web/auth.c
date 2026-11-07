@@ -7,6 +7,7 @@
 #include "cJSON.h"
 #include "db_config.h"
 #include "db_json.h"
+#include "db_ui.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
@@ -291,6 +292,16 @@ static bool password_matches(httpd_req_t *req)
     return ok;
 }
 
+static void set_session_cookie(httpd_req_t *req)
+{
+    static char cookie[160]; /* the header must live until the reply is sent; handlers run one at a time */
+    char token[TOKEN_BYTES * 2 + 1];
+    new_session(token);
+    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200%s", token,
+             web_tls(req) ? "; Secure" : "");
+    httpd_resp_set_hdr(req, "Set-Cookie", cookie);
+}
+
 esp_err_t auth_login(httpd_req_t *req)
 {
     /* the marker header, as for every change: a page from another site cannot send it, so it cannot guess
@@ -306,13 +317,18 @@ esp_err_t auth_login(httpd_req_t *req)
     if (!ok) {
         return send_error(req, "403 Forbidden", "wrong password");
     }
-    char token[TOKEN_BYTES * 2 + 1];
-    new_session(token);
-    char cookie[160];
-    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200%s", token,
-             web_tls(req) ? "; Secure" : "");
-    httpd_resp_set_hdr(req, "Set-Cookie", cookie);
+    set_session_cookie(req);
     return send_json(req, "{\"ok\":true}");
+}
+
+esp_err_t auth_qr_login(httpd_req_t *req, const char *token)
+{
+    if (db_ui_login_take(token)) {
+        set_session_cookie(req);
+    }
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "/"); /* the token leaves the address bar and the history */
+    return httpd_resp_send(req, NULL, 0);
 }
 
 esp_err_t auth_logout(httpd_req_t *req)

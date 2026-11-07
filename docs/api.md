@@ -79,7 +79,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/slots` | The firmware slots: `slot` (1 to 4), `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known), `bootable` and `why_not` (why `POST /api/slots/N/boot` would refuse it) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
 | `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` connects once, like the `satellite` setting would, and reads Companion's greeting. The answer has `ok`, `error` and Companion's `version`. It takes up to 6 s |
-| `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step (1 to 6) on the DeckConnector, also over a restart. `{"step": 0}` when the wizard ends. `setup` in the status has it |
+| `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step (1 to 6) on the DeckConnector, also over a restart. `{"step": 0}` when the wizard ends. `setup` in the status has it, and the deck shows "Setup 3/6" until setup is done |
 | `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, "error": "no releases yet"}`. There are no releases to check yet |
 | `POST /api/ota/inspect` | Send the first 144 bytes of a `.dbfw` file. The answer has `target`, `version`, `length`, `sha256`, and `ok` with an `error` when an upload would be refused |
 | `POST /api/ota/url` | Send `{"url": "http://..."}` and the DeckConnector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
@@ -165,6 +165,10 @@ up to a second.
 with 423. A request with `"force": true` still gets through. The deck itself is never locked.
 `PUT /api/input/arm` opens the lock for some seconds for every client, and `input_armed_s` in the status counts
 them down. A restart shuts the lock again.
+
+Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
+once, without the password. A code is good for 10 minutes and for one login; then the deck shows a new one.
+`qr_login: false` turns it off.
 
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
 
