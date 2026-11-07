@@ -290,7 +290,15 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
                     (ok) => (ok ? act(() => api.otaUrl(st.u.url)) : undefined),
                   ),
               },
-              { label: t('upd.notes'), icon: ExternalLink, run: () => window.open(st.u.notes, '_blank', 'noopener') },
+              ...(st.u.notes?.startsWith('https://')
+                ? [
+                    {
+                      label: t('upd.notes'),
+                      icon: ExternalLink,
+                      run: () => window.open(st.u.notes, '_blank', 'noopener'),
+                    },
+                  ]
+                : []),
             ],
           }}
         />
