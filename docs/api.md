@@ -59,6 +59,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `OPTIONS /api/...` | CORS preflight, see "For integrations" |
 | `GET /api/status` | State of the DeckConnector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
+| `GET /api/backup` | The settings for a restore; `?secrets=1` adds the passwords and the token. Password only |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config`, the settings as the DeckConnector stored them |
 | `GET /api/screen` | What the deck shows right now, see below |
 | `GET /api/screen/<id>.jpg` | One image of that picture |
@@ -175,7 +176,9 @@ For any other certificate, put its SHA-256 into `server_pins` (same position as 
 -fingerprint -sha256` prints it, colons are fine. The DeckConnector never talks TLS to a host it cannot check.
 
 The secret keys never come out of `GET /api/config`. So its reply is a backup without passwords, and a `PUT` of
-it restores the settings. The web UI does this under System.
+it restores the settings. `GET /api/backup?secrets=1` (password only) adds `admin_pass`, `wifi_pass` and `token`, so
+a `PUT` of it restores those too. API tokens, paired hosts and the TLS key are never in it: make new tokens, pair
+again, upload the key again.
 
 ## Status
 

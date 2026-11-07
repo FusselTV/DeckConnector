@@ -235,8 +235,10 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "input_lock", cfg->input_lock);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
-    if (with_secrets) {
+    if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
+        db_json_str(&j, "wifi_pass", cfg->wifi_pass);
+        db_json_str(&j, "token", cfg->token);
     }
     db_json_obj_close(&j);
     return db_json_end(&j);

@@ -413,6 +413,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/slots", .method = HTTP_GET, .handler = get_slots}, WEB_FULL},
         {{.uri = "/api/slots/*", .method = HTTP_POST, .handler = post_slot_boot}, WEB_FULL},
         {{.uri = "/api/tokens", .method = HTTP_GET, .handler = auth_tokens_list}, WEB_ADMIN},
+        {{.uri = "/api/backup", .method = HTTP_GET, .handler = get_backup}, WEB_ADMIN},
         {{.uri = "/api/tokens", .method = HTTP_POST, .handler = auth_tokens_add}, WEB_ADMIN},
         {{.uri = "/api/tokens/*", .method = HTTP_DELETE, .handler = auth_tokens_remove}, WEB_ADMIN},
         /* its handler runs once per frame and checks the login at the handshake */

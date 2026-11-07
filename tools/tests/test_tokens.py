@@ -144,7 +144,7 @@ FULL = [
     ("PUT", "/api/frontend"),
     ("PUT", "/api/setup"),
 ]
-PASSWORD_ONLY = [("DELETE", "/api/tokens/x"), ("GET", "/api/tokens"), ("POST", "/api/tokens")]
+PASSWORD_ONLY = [("DELETE", "/api/tokens/x"), ("GET", "/api/backup"), ("GET", "/api/tokens"), ("POST", "/api/tokens")]
 
 
 @pytest.fixture
@@ -221,3 +221,12 @@ def test_wrong_tokens_lock_out_with_a_wait(token):
     assert call("GET", "/api/status", token)[0] == 429, "a good token must wait too, not hear 'unknown token'"
     time.sleep(json.loads(body)["retry"] + 1)
     assert call("GET", "/api/status", token)[0] == 200  # a good try ends the count for the next tests
+
+
+@pytest.mark.sim
+def test_a_backup_with_secrets_restores_them_and_needs_the_password():
+    plain = json.loads(api("GET", "/api/backup")[1])
+    full = json.loads(api("GET", "/api/backup?secrets=1")[1])
+    assert "admin_pass" not in plain and {"admin_pass", "wifi_pass", "token"} <= full.keys()
+    assert full["admin_pass"] == PASSWORD
+    assert api("PUT", "/api/config", json.dumps(full).encode())[0] == 200, "the backup goes back in as it is"

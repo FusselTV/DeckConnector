@@ -238,6 +238,20 @@ esp_err_t get_config(httpd_req_t *req)
     return send_json(req, buf);
 }
 
+/* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token, for a
+ * restore through PUT /api/config. Without it the same as GET /api/config. API tokens (only their hashes are kept),
+ * paired hosts and the TLS key stay out: create new tokens, pair again, upload the key again. */
+esp_err_t get_backup(httpd_req_t *req)
+{
+    char query[32] = "";
+    char v[4] = "";
+    bool secrets = httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+                   httpd_query_key_value(query, "secrets", v, sizeof(v)) == ESP_OK && strcmp(v, "1") == 0;
+    char buf[JSON_MAX];
+    db_config_to_json(db_config(), secrets, buf, sizeof(buf));
+    return send_json(req, buf);
+}
+
 static const char *status_line(int code)
 {
     switch (code) {
