@@ -397,7 +397,7 @@ static void link_task(void *arg)
 {
     link_t *l = arg;
     bool via_wlan = false;
-    int64_t next_log = 0;
+    int logged_err = 0; /* a server that stays away logs once, not every retry: the log ring is 16 KB */
     for (;;) {
         if (!l->url[0]) {
             vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
@@ -423,8 +423,8 @@ static void link_task(void *arg)
                              bound ? ifname : NULL, CONNECT_TIMEOUT, pinned ? pin : NULL);
         if (err) {
             db_health_fail(&l->health, strerror(-err));
-            if (now_ms() >= next_log) {
-                next_log = now_ms() + 30000;
+            if (err != logged_err) {
+                logged_err = err;
                 ESP_LOGW(TAG, "server %d over %s: %s", l->index, over, strerror(-err));
             }
             /* A refused connection proves the path works and only the server is missing, so the next try goes
@@ -435,6 +435,7 @@ static void link_task(void *arg)
             continue;
         }
         via_wlan = false; /* next time start with LAN again */
+        logged_err = 0;
         db_log_event(TAG, "source", "server %d connected over %s: %s", l->index, over, l->url);
         l->over_wlan = bound && wlan;
         db_health_ok(&l->health, l->over_wlan);

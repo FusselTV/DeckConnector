@@ -391,6 +391,10 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     cfg.recv_wait_timeout =
         2; /* a client that stops halfway through its headers blocks the server this long */
     db_ota_web_load(DB_WEB_API);
+    /* every closed browser tab logged a dozen "error in send" warnings and pushed real lines out of the log ring */
+    esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
+    esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
+    esp_log_level_set("httpd_ws", ESP_LOG_ERROR);
     httpd_handle_t server;
     esp_err_t err = httpd_start(&server, &cfg);
     if (err != ESP_OK) {
