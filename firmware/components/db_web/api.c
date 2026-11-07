@@ -53,19 +53,6 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
-static int64_t armed_until; /* PUT /api/input/arm opens the input lock until then */
-
-static bool input_locked(void)
-{
-    return db_config()->input_lock && esp_timer_get_time() >= armed_until;
-}
-
-int db_web_input_armed_s(void)
-{
-    int64_t left = armed_until - esp_timer_get_time();
-    return db_config()->input_lock && left > 0 ? (int)((left + 999999) / 1000000) : 0;
-}
-
 /* The fields copied into `live` below apply at once; a change of any other one restarts the bridge. */
 static int config_edit(const char *body, char *reply, size_t cap)
 {
@@ -76,13 +63,6 @@ static int config_edit(const char *body, char *reply, size_t cap)
     char err[96];
     if (db_config_from_json(&cfg, body, err, sizeof(err)) != ESP_OK) {
         return fail(reply, cap, 400, err);
-    }
-    cJSON *root = cJSON_Parse(body);
-    bool force = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "force"));
-    cJSON_Delete(root);
-    if (input_locked() && cfg.input_lock && !force &&
-        (cfg.controller != old.controller || strcmp(cfg.host, old.host) != 0)) {
-        return fail(reply, cap, 423, "input is locked: send \"force\": true or unlock first");
     }
     if (cfg.https_only && !old.https_only && !web_tls_running()) {
         return fail(reply, cap, 409, "HTTPS is not running, so plain HTTP must stay");
@@ -101,7 +81,6 @@ static int config_edit(const char *body, char *reply, size_t cap)
     memcpy(live.server_pins, old.server_pins, sizeof(old.server_pins));
     memcpy(live.satellite_pin, old.satellite_pin, sizeof(old.satellite_pin));
     live.dock_paired_only = old.dock_paired_only;
-    live.input_lock = old.input_lock;
     live.qr_login_off = old.qr_login_off;
     live.https_only = old.https_only;
     memcpy(live.cors_origins, old.cors_origins, sizeof(old.cors_origins));
@@ -248,11 +227,7 @@ int api_input(const char *body, char *reply, size_t cap)
     if (cJSON_IsString(r) && (only_ip == INADDR_NONE || !only_ip)) {
         err = "real: true or the IPv4 address of the host that draws";
     }
-    bool force = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "force"));
     cJSON_Delete(root);
-    if (!err && input_locked() && !force) {
-        return fail(reply, cap, 423, "input is locked: send \"force\": true or unlock first");
-    }
     if (err) {
         return fail(reply, cap, 400, err);
     }
@@ -415,11 +390,11 @@ esp_err_t put_config(httpd_req_t *req)
 }
 
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck shows
- * the one-time login code, its pictures would hand a token a password session. */
+ * the one-time login code or the password, its pictures would hand a token a password session. */
 static bool deck_refused(httpd_req_t *req)
 {
     if (auth_by_token(req) && db_ui_login_shown()) {
-        send_error(req, "403 Forbidden", "the deck shows a login code: for the password only");
+        send_error(req, "403 Forbidden", "the deck shows a login: for the password only");
         return true;
     }
     char query[64];
@@ -441,28 +416,6 @@ esp_err_t post_input(httpd_req_t *req)
         return ESP_OK;
     }
     return body_api(req, api_input);
-}
-
-/* {"s": N} lets presses and source switches past the input lock for N seconds; 0 locks again */
-esp_err_t put_input_arm(httpd_req_t *req)
-{
-    char body[64];
-    if (read_body(req, body, sizeof(body)) < 0) {
-        return send_error(req, "413 Payload Too Large", "body too large");
-    }
-    cJSON *root = cJSON_Parse(body);
-    const cJSON *s = cJSON_GetObjectItemCaseSensitive(root, "s");
-    bool ok = cJSON_IsNumber(s) && s->valueint >= 0 && s->valueint <= 3600;
-    if (ok) {
-        armed_until = s->valueint ? esp_timer_get_time() + (int64_t)s->valueint * 1000000 : 0;
-    }
-    cJSON_Delete(root);
-    if (!ok) {
-        return send_error(req, "400 Bad Request", "s: seconds from 0 to 3600");
-    }
-    char reply[32];
-    snprintf(reply, sizeof(reply), "{\"armed_s\":%d}", db_web_input_armed_s());
-    return send_json(req, reply);
 }
 
 esp_err_t post_menu(httpd_req_t *req)

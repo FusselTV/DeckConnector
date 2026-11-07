@@ -21,7 +21,6 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_str(&j, "controller", "companion");
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
-    db_json_int(&j, "input_armed_s", db_web_input_armed_s());
     db_json_str(&j, "name", db_config()->name);
     db_json_int(&j, "uptime_s", 0);
     db_json_obj_open(&j, "setup");

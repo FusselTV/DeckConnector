@@ -18,7 +18,6 @@ esp_err_t get_status(httpd_req_t *req);
 esp_err_t get_config(httpd_req_t *req);
 esp_err_t put_config(httpd_req_t *req);
 esp_err_t post_input(httpd_req_t *req);
-esp_err_t put_input_arm(httpd_req_t *req);
 esp_err_t post_menu(httpd_req_t *req);
 esp_err_t post_dock(httpd_req_t *req);
 esp_err_t get_backup(httpd_req_t *req);

@@ -118,6 +118,9 @@ typedef struct {
     char login_token[17]; /* one login for whoever scans login_qr; empty: none */
     ui_qr_t login_qr;
     bool picked; /* the config names a host or a program other than the default: someone chose */
+    bool show_pass;
+    bool reset_ask;
+    bool from_deck; /* the input being handled was pressed on the deck, not sent over the network */
 } ui_model_t;
 
 typedef enum {
@@ -132,6 +135,8 @@ typedef enum {
     UI_DO_SAVE_LAN, /* dhcp, octets */
     UI_DO_SETUP_DONE,
     UI_DO_OFFER, /* value: 1 connects to the offered Companion over Satellite, 0 asks no more until a restart */
+    UI_DO_HIDE_PASSWORD,
+    UI_DO_CANCEL_RESET,
 } ui_do_t;
 
 typedef struct {
@@ -148,9 +153,11 @@ typedef enum {
     PAGE_SETUP_AP,
     PAGE_WELCOME,
     PAGE_WELCOME_NET,
-    PAGE_SOURCES, /* every connected host, when the top row has no room for all */
-    PAGE_REQUEST, /* shown over every page while a host that is not paired asks */
-    PAGE_OFFER,   /* instead of home or welcome while a found Companion is offered */
+    PAGE_SOURCES,  /* every connected host, when the top row has no room for all */
+    PAGE_REQUEST,  /* shown over every page while a host that is not paired asks */
+    PAGE_OFFER,    /* instead of home or welcome while a found Companion is offered */
+    PAGE_PASSWORD, /* over every page, below a request and PAGE_RESET */
+    PAGE_RESET,
 } ui_page_t;
 
 typedef struct {

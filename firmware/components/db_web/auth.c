@@ -328,6 +328,38 @@ esp_err_t auth_login(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+esp_err_t auth_password_show(httpd_req_t *req)
+{
+    if (!auth_marked(req)) {
+        return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
+    }
+    int decks = db_ui_show_password();
+    if (!decks) {
+        return send_error(req, "409 Conflict", "no Stream Deck attached");
+    }
+    char reply[32];
+    snprintf(reply, sizeof(reply), "{\"ok\":true,\"decks\":%d}", decks);
+    return send_json(req, reply);
+}
+
+esp_err_t auth_password_reset(httpd_req_t *req)
+{
+    if (!auth_marked(req)) {
+        return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
+    }
+    if (req->method == HTTP_DELETE) {
+        db_ui_cancel_reset();
+        return send_json(req, "{\"ok\":true}");
+    }
+    int left = db_ui_ask_reset();
+    if (left < 0) {
+        return send_error(req, "409 Conflict", "no Stream Deck attached");
+    }
+    char reply[32];
+    snprintf(reply, sizeof(reply), "{\"ok\":true,\"s\":%d}", left);
+    return send_json(req, reply);
+}
+
 esp_err_t auth_qr_login(httpd_req_t *req, const char *token)
 {
     if (db_ui_login_take(token)) {

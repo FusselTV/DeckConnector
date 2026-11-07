@@ -42,6 +42,8 @@ typedef enum {
     K_BRIGHT_STEP,
     K_ACCEPT,
     K_DENY,
+    K_RESET,
+    K_KEEP,
     K_SRC0, /* K_SRC0 + index in ui_model_t.sources; keep it last */
 } key_act_t;
 
@@ -562,6 +564,38 @@ static void offer_page(page_t *p)
     }
 }
 
+/* POST /api/password/show: the web login for whoever stands at the deck. */
+static void password_page(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, "Benutzer", "admin", ip_of(md) ? fit(p, ip_of(md), "") : "");
+    card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+    close_key(put(p, at(p, 0, -1), K_NONE), ICON_CLOSE, "Schließen", ""); /* any key closes the page */
+    if (p->l->strip) {
+        segment(&p->sc->seg[0], 4, ICON_PASSWORD, C_WARN, "Web-Passwort", md->web_pass,
+                "Wird nach 30 s ausgeblendet");
+    }
+}
+
+/* POST /api/password/reset: two taps on the deck itself reset every setting. */
+static void reset_page(page_t *p)
+{
+    int key = at(p, 0, 1);
+    bool asking = confirming(p->m, key, p->md->now_us);
+    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, "Passwort", "vergessen?", fit(p, "alles zurücksetzen", ""));
+    ui_tile_t *reset = put(p, key, K_RESET);
+    button(reset, ICON_RESET, asking ? fit(p, "Nochmal tippen", "Nochmal") : fit(p, "Zurücksetzen", "Reset"),
+           fit(p, "Werkszustand", ""));
+    reset->active = true;
+    reset->color = C_DANGER;
+    close_key(put(p, at(p, 0, -1), K_KEEP), ICON_CLOSE, "Abbrechen", "");
+    if (p->l->strip) {
+        segment(&p->sc->seg[0], 4, ICON_RESET, C_DANGER, "Passwort vergessen?",
+                "Setzt alle Einstellungen zurück",
+                "Zweimal „Zurücksetzen“ tippen. Danach startet das Setup.");
+    }
+}
+
 /* Every host that can draw; at most UI_SOURCES, so even the Neo needs no paging. */
 static void sources_page(page_t *p)
 {
@@ -610,19 +644,29 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_OFFER:
         offer_page(&p);
         break;
+    case PAGE_PASSWORD:
+        password_page(&p);
+        break;
+    case PAGE_RESET:
+        reset_page(&p);
+        break;
     default:
         home(&p);
         break;
     }
 }
 
-/* The page that shows: a connection request comes first, then a found Companion, then the welcome steps until
- * setup is done. */
+/* The page that shows: a connection request comes first, then a reset question, the password, a found
+ * Companion, then the welcome steps until setup is done. */
 static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
 {
     ui_menu_t shown = *m;
     if (md->request[0]) {
         shown.page = PAGE_REQUEST;
+    } else if (md->reset_ask) {
+        shown.page = PAGE_RESET;
+    } else if (md->show_pass) {
+        shown.page = PAGE_PASSWORD;
     } else if (m->page == PAGE_HOME && md->offer_addr[0]) {
         shown.page = PAGE_OFFER;
     } else if (m->page == PAGE_HOME && !md->setup_done) {
@@ -774,14 +818,26 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     if (!pressed_here(m, ev)) {
         return false;
     }
+    ui_menu_t shown = shown_menu(m, md);
+    if (shown.page == PAGE_PASSWORD &&
+        (ev->kind == DB_INPUT_KEY_UP || ev->kind == DB_INPUT_ENCODER_UP || ev->kind == DB_INPUT_TOUCH_TAP)) {
+        act->what = UI_DO_HIDE_PASSWORD;
+        return true;
+    }
+    /* a control token can press keys over the API: it must not be able to wipe the bridge and take admin */
+    if (shown.page == PAGE_RESET && !md->from_deck) {
+        return false;
+    }
     bool key = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP;
+    if (shown.page == PAGE_PASSWORD || (shown.page == PAGE_RESET && !key)) {
+        return false;
+    }
     if (!key) {
         return encoder_input(m, md, l, ev, act);
     }
     static ui_screen_t sc_buf; /* 5 KB: too big for the deck's event task stack; one caller at a time */
     ui_screen_t *sc = &sc_buf;
     uint8_t acts[UI_MAX_KEYS];
-    ui_menu_t shown = shown_menu(m, md);
     build(&shown, md, l, sc, acts);
     key_act_t what = ev->index < UI_MAX_KEYS ? (key_act_t)acts[ev->index] : K_NONE;
     if (what == K_RESTART) {
@@ -809,6 +865,12 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     case K_CLOSE:
         go(m, PAGE_HOME, md->now_us);
+        return true;
+    case K_RESET:
+        act->what = confirmed(m, ev->index, md->now_us) ? UI_DO_RESET : UI_DO_NOTHING;
+        return true;
+    case K_KEEP:
+        act->what = UI_DO_CANCEL_RESET;
         return true;
     case K_LAN:
         lan_load(m, md);

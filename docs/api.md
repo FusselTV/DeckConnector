@@ -23,6 +23,17 @@ The web UI logs in with `POST /api/login`, the header `X-DeckConnector: 1` and `
 session cookie for 12 hours. `POST /api/logout` ends it. After five wrong passwords from one address, that address
 waits a few seconds, up to a minute, for both kinds of login.
 
+Two routes help someone who lost the password. Both need no login, only the header `X-DeckConnector: 1`. They
+answer 409 when no deck is attached. A second call within 3 seconds changes nothing.
+
+| Method and path | What it does |
+|---|---|
+| `POST /api/password/show` | The deck shows the user and the password for 30 seconds. Any key on the deck hides it earlier. Answers `{"ok": true, "decks": 1}` |
+| `POST /api/password/reset` | The deck asks for 60 seconds whether to reset all settings. Two taps on "Zurücksetzen" on the deck itself reset it and restart it. Presses sent over the API do not count. Answers `{"ok": true, "s": 60}` with the seconds left |
+| `DELETE /api/password/reset` | Ends the question. Answers `{"ok": true}` |
+
+While the deck shows the password, a token gets 403 for the pictures of the deck.
+
 ## For integrations
 
 Home Assistant and other programs use a token instead of the password. Make one in the web UI under System, or
@@ -65,7 +76,6 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/screen/<id>.jpg` | One image of that picture |
 | `GET /api/screen.jpg` | The whole picture as one JPEG, for a camera in Home Assistant |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
-| `PUT /api/input/arm` | `{"s": 60}` opens the input lock for 60 seconds, at most 3600. `0` shuts it again. Answers `{armed_s}` |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
@@ -135,7 +145,7 @@ others keep drawing into their own picture in the background and get no input. O
 row of the home screen and the menu.
 
 `brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin`, `https_only`,
-`cors_origins`, `menu_chord`, `menu_hold_ms`, `input_lock` and `qr_login` also work at once. Every other change restarts the DeckConnector,
+`cors_origins`, `menu_chord`, `menu_hold_ms` and `qr_login` also work at once. Every other change restarts the DeckConnector,
 and the reply says so. `reach` lists where the page finds it after the restart: a fixed LAN address as saved,
 the WLAN address while the network stays the same, and the name in `.local`:
 `{"ok": true, "restart": true, "reach": ["http://192.168.1.214", "http://deckconnector-a1b2c3.local"]}`.
@@ -161,12 +171,6 @@ key), `encoders` (the outer encoders, like `auto`), or `off`.
 for example behind a hub that drops it, the port switches to full speed until the next restart. `full` always
 uses full speed. Full speed moves about 64 KB of pictures per second instead of several MB, so a full page takes
 up to a second.
-
-`input_lock` stops presses over `POST /api/input` and the web socket, and changes of `controller` or `host`,
-with 423. A request with `"force": true` still gets through. The deck itself is never locked.
-`PUT /api/input/arm` opens the lock for some seconds for every client, and `input_armed_s` in the status counts
-them down (only in `GET /api/status`, not in the web socket state). A restart shuts the lock again.
-The lock guards against accidents, not against a client. Any token may send `"force"` or open it.
 
 Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
 once, without the password. A code is good for 10 minutes and for one login; then the deck shows a new one.

@@ -28,6 +28,9 @@
 #define REDRAW_DELAY  10 /* ms: the events of one turn or press come in a burst */
 #define FULL_ABOVE    5       /* more changed areas than this go out as one full image, measured faster */
 #define SAVE_AFTER_US 1500000 /* brightness goes to flash once it rests */
+#define PASSWORD_US   30000000
+#define RESET_ASK_US  60000000
+#define AGAIN_US      3000000 /* a second call within this changes nothing */
 
 static const char *TAG = "ui";
 
@@ -222,6 +225,20 @@ static portMUX_TYPE login_mux = portMUX_INITIALIZER_UNLOCKED;
 static char login_token[17];
 static int64_t login_made;
 static uint8_t setup_step;
+static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_mux */
+
+static int64_t until(const int64_t *t)
+{
+    portENTER_CRITICAL(&login_mux);
+    int64_t v = *t;
+    portEXIT_CRITICAL(&login_mux);
+    return v;
+}
+
+static bool overlay(int64_t now)
+{
+    return now < until(&pass_until) || now < until(&reset_until);
+}
 
 /* A code made before setup was done must not outlive it: the model that clears it is only built while the
  * deck shows its own screen, not while a host draws. */
@@ -252,8 +269,9 @@ bool db_ui_login_take(const char *token)
 bool db_ui_login_shown(void)
 {
     bool wanted = login_wanted();
+    int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&login_mux);
-    bool shown = wanted && login_token[0] != '\0';
+    bool shown = (wanted && login_token[0] != '\0') || now < pass_until;
     portEXIT_CRITICAL(&login_mux);
     return shown;
 }
@@ -345,6 +363,8 @@ static void model(ui_model_t *md)
         .picked = c->host[0] || c->controller != DB_CTRL_COMPANION,
         .menu_hold_ms = c->menu_hold_ms,
     };
+    md->show_pass = md->now_us < until(&pass_until);
+    md->reset_ask = md->now_us < until(&reset_until);
     snprintf(md->menu_chord, sizeof(md->menu_chord), "%s", c->menu_chord);
     model_offer(md, c);
     snprintf(md->lan_ip, sizeof(md->lan_ip), "%s", n.lan_ip);
@@ -383,7 +403,7 @@ static db_source_t wanted_writer(void)
 {
     char request[16];
     if (ui_menu_open(&s.menu) || s.update_pct >= 0 || !db_config()->setup_done || db_dock_request(request) ||
-        s.menu.page == PAGE_WELCOME_NET) {
+        s.menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time())) {
         return DB_SOURCE_UI;
     }
     return db_ui_chosen_source();
@@ -499,6 +519,16 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_SAVE_LAN:
         save_lan(act);
+        break;
+    case UI_DO_HIDE_PASSWORD:
+        portENTER_CRITICAL(&login_mux);
+        pass_until = 0;
+        portEXIT_CRITICAL(&login_mux);
+        break;
+    case UI_DO_CANCEL_RESET:
+        portENTER_CRITICAL(&login_mux);
+        reset_until = 0;
+        portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_SETUP_DONE:
         db_config_copy(&c);
@@ -677,6 +707,7 @@ static void on_input(const db_input_t *ev)
     }
     static ui_model_t md; /* only the deck's event task gets here */
     model(&md);
+    md.from_deck = db_deck_input_from_deck();
     ui_layout_t l = ui_layout_of(&s.dev);
     ui_action_t act;
     xSemaphoreTake(s.lock, portMAX_DELAY);
@@ -715,6 +746,12 @@ static void tick(void *arg)
     }
     static int64_t next;
     int64_t now = esp_timer_get_time();
+    /* the password page or the reset question ran out: the deck goes back to who draws */
+    static bool overlaid;
+    if (overlay(now) != overlaid) {
+        overlaid = !overlaid;
+        changed();
+    }
     static int64_t next_look;
     if (now >= next_look && s.present && !db_config()->satellite[0] && db_deck_writer() == DB_SOURCE_UI) {
         next_look = now + 5000000;
@@ -762,6 +799,56 @@ esp_err_t db_ui_start(void)
     const esp_timer_create_args_t save = {.callback = save_brightness, .name = "brightness_save"};
     esp_timer_create(&save, &s.save_timer);
     return ESP_OK;
+}
+
+/* *asked rate-limits: true when this call starts a new `us` long page. */
+static bool start_page(int64_t *asked, int64_t *end, int64_t us)
+{
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&login_mux);
+    bool fresh = now - *asked >= AGAIN_US;
+    if (fresh) {
+        *asked = now;
+        *end = now + us;
+    }
+    portEXIT_CRITICAL(&login_mux);
+    return fresh;
+}
+
+int db_ui_show_password(void)
+{
+    if (!s.present) {
+        return 0;
+    }
+    if (start_page(&pass_asked, &pass_until, PASSWORD_US)) {
+        ESP_LOGI(TAG, "web password shown on the deck");
+        changed();
+    }
+    return 1;
+}
+
+int db_ui_ask_reset(void)
+{
+    if (!s.present) {
+        return -1;
+    }
+    if (start_page(&reset_asked, &reset_until, RESET_ASK_US)) {
+        ESP_LOGI(TAG, "the deck asks for a reset");
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        s.menu.confirm_key = -1; /* a tap armed on another page must not count here */
+        xSemaphoreGive(s.lock);
+        changed();
+    }
+    int64_t left = until(&reset_until) - esp_timer_get_time();
+    return left > 0 ? (int)((left + 999999) / 1000000) : 0;
+}
+
+void db_ui_cancel_reset(void)
+{
+    portENTER_CRITICAL(&login_mux);
+    reset_until = 0;
+    portEXIT_CRITICAL(&login_mux);
+    changed();
 }
 
 void db_ui_set_active_link(int index)

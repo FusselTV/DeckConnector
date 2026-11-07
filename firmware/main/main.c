@@ -255,7 +255,6 @@ static void write_status(db_json_t *j, bool live)
     }
     if (live) {
         db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
-        db_json_int(j, "input_armed_s", db_web_input_armed_s()); /* counts down, as uptime_s */
     }
     write_boot(j);
     db_json_obj_open(j, "setup");

@@ -145,6 +145,20 @@ esp_err_t db_ui_open_menu(void)
     return ESP_OK;
 }
 
+int db_ui_show_password(void)
+{
+    return 1;
+}
+
+int db_ui_ask_reset(void)
+{
+    return 60;
+}
+
+void db_ui_cancel_reset(void)
+{
+}
+
 esp_err_t db_ota_begin(size_t total, int slot, bool boot)
 {
     return ESP_ERR_NOT_SUPPORTED;

@@ -34,3 +34,7 @@ esp_err_t auth_login(httpd_req_t *req);
 /* GET /?t=<token>: the one-time login the deck shows as a QR code, then a redirect to / */
 esp_err_t auth_qr_login(httpd_req_t *req, const char *token);
 esp_err_t auth_logout(httpd_req_t *req);
+/* No login: someone at the deck reads the password there, or resets the bridge with two taps on it. */
+esp_err_t auth_password_show(httpd_req_t *req);
+/* POST asks on the deck, DELETE takes the question back. */
+esp_err_t auth_password_reset(httpd_req_t *req);

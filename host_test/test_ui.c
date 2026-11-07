@@ -229,6 +229,20 @@ static void test_no_page_cuts_a_text(void)
             snprintf(name, sizeof(name), "%s_offer_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             md.offer_addr[0] = '\0';
+            md.show_pass = true;
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_password_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
+            md.show_pass = false;
+            md.reset_ask = true;
+            for (int again = 0; again < 2; again++) {
+                m.confirm_key = again ? 1 : -1;
+                ui_menu_screen(&m, &md, &l, &sc);
+                snprintf(name, sizeof(name), "%s_reset%s_%d", decks[d].name, again ? "_again" : "", v);
+                check_page(&dev, &sc, name);
+            }
+            m.confirm_key = -1;
+            md.reset_ask = false;
             md.source_count = 0; /* a new deck: nobody connected yet */
             md.menu_hold_ms = v == 1 ? 2500 : 2000;
             strcpy(md.menu_chord, v == 2 ? "keys" : (v == 3 ? "off" : "auto"));
@@ -475,6 +489,34 @@ static void test_without_the_web_ui(void)
     }
 }
 
+static void test_password_and_reset_pages(void)
+{
+    db_device_info_t dev = open_deck(0x0084);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+    ui_action_t act;
+    md.show_pass = true;
+    press(&m, &md, &l, 5, &act); /* any key hides the password */
+    TEST_ASSERT_EQUAL_INT(UI_DO_HIDE_PASSWORD, act.what);
+    TEST_ASSERT_EQUAL_INT(PAGE_MAIN, m.page);
+
+    md.reset_ask = true;         /* comes first */
+    press(&m, &md, &l, 1, &act); /* sent over the API: nothing */
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    md.from_deck = true;
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    ui_screen_t sc;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("Nochmal tippen", sc.tiles[1].label);
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_RESET, act.what);
+    press(&m, &md, &l, 3, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_CANCEL_RESET, act.what);
+}
+
 void setUp(void)
 {
     ui_on_cut = print_cut;
@@ -495,5 +537,6 @@ int main(void)
     RUN_TEST(test_setup_shows_the_login_code_and_the_wizard_step);
     RUN_TEST(test_menu_chord_on_every_deck);
     RUN_TEST(test_without_the_web_ui);
+    RUN_TEST(test_password_and_reset_pages);
     return UNITY_END();
 }
