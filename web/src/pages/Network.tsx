@@ -186,11 +186,13 @@ export function Network() {
   const w = n?.wlan
   const wlanSt = w?.ip ? (
     <>
-      <span className="mono">
-        {w.ssid} · {w.ip}
-        {w.rssi ? ` · ${w.rssi} dBm` : ''}
-      </span>
-      {w.rssi ? ` · ${t(sigWord(w.rssi))}` : ''}
+      <span className="mono">{w.ssid}</span>
+      {w.rssi ? (
+        <>
+          {` · ${t(sigWord(w.rssi))}`}
+          <span className="wide mono">{` (${w.rssi} dBm)`}</span>
+        </>
+      ) : null}
     </>
   ) : (
     t('arm.off')

@@ -4,7 +4,7 @@ const TABS = ['Overview', 'Sources', 'Deck', 'Network', 'Access', 'Firmware', 'D
 
 async function openTab(page: import('@playwright/test').Page, name: string) {
   if (await page.locator('.side').isVisible()) await page.getByRole('tab', { name: new RegExp(`^${name}`) }).click()
-  else if (['Overview', 'Sources', 'Diagnostics'].includes(name))
+  else if (['Overview', 'Sources', 'Network'].includes(name))
     await page
       .locator('.tabbar')
       .getByRole('button', { name: new RegExp(name) })
@@ -303,4 +303,14 @@ test('the deck menu button closes the menu it opened', async ({ app: page }) => 
   await expect(btn).toHaveAttribute('aria-pressed', 'true')
   await btn.click()
   await expect(btn).toHaveText('Deck menu')
+})
+
+test('the deck can let a browser in without the password', async ({ page }) => {
+  // The simulator accepts every login request after a second (DB_SIM_LOGIN_ACCEPT).
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ask the Stream Deck to let me in' }).click()
+  await expect(page.getByText(/Accept on the Stream Deck\. \d+ s left/)).toBeVisible()
+  await expect(page.locator('#lpw')).toHaveCount(0, { timeout: 8000 })
+  await expect(page.getByRole('heading', { name: 'Overview' }).first()).toBeAttached()
 })

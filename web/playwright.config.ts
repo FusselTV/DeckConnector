@@ -16,7 +16,7 @@ export default defineConfig({
   webServer: [
     {
       command: `node scripts/sim.mjs`,
-      env: { DC_SIM_PORT: String(SIM) },
+      env: { DC_SIM_PORT: String(SIM), DB_SIM_LOGIN_ACCEPT: '1' },
       url: `http://127.0.0.1:${SIM}/`,
       reuseExistingServer: false,
     },

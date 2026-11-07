@@ -1,5 +1,14 @@
-import { Info, KeyRound, Languages, LockOpen, MonitorSmartphone, RotateCcw, ShieldAlert } from 'lucide-react'
-import { useEffect, useState, type SyntheticEvent } from 'react'
+import {
+  Fingerprint,
+  Info,
+  KeyRound,
+  Languages,
+  LockOpen,
+  MonitorSmartphone,
+  RotateCcw,
+  ShieldAlert,
+} from 'lucide-react'
+import { useCallback, useEffect, useState, type SyntheticEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import { startSession } from '../app/connection'
 import { langAtom, loginReasonAtom } from '../app/state'
@@ -9,6 +18,7 @@ import { Btn, describedBy, Field } from '../components/controls'
 import { PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { Logo } from '../deck/DeckFront'
+import { deviceLabel } from '../lib/util'
 
 function useLogin() {
   const { t } = useUi()
@@ -55,7 +65,43 @@ function useCountdown() {
   return [left, setLeft] as const
 }
 
-/** No password at hand: the deck shows it, or a person at the deck confirms a reset to factory settings. */
+/** Someone at the deck lets this browser in: the page asks, then polls until the deck answers. */
+function useDeckLogin(why: (x: unknown) => void, done: () => void) {
+  const { t } = useUi()
+  const [id, setId] = useState<string | null>(null)
+  const [left, setLeft] = useState(0)
+  const [msg, setMsg] = useState<string | null>(null)
+  useEffect(() => {
+    if (!id) return
+    const tick = setInterval(() => {
+      api.loginState(id).then(
+        (r) => {
+          setLeft(r.s)
+          if (r.state === 'pending') return
+          setId(null)
+          if (r.state === 'accepted') done()
+          else setMsg(t(r.state === 'denied' ? 'login.req_denied' : 'login.req_expired'))
+        },
+        () => undefined,
+      )
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [id, done, t])
+  const start = () => {
+    setMsg(null)
+    api.askLogin(deviceLabel(navigator.userAgent)).then((r) => {
+      setLeft(r.s || 60)
+      setId(r.id)
+    }, why)
+  }
+  const cancel = () => {
+    if (id) void api.cancelLogin(id).catch(() => undefined)
+    setId(null)
+  }
+  return { waiting: !!id, left, msg, start, cancel }
+}
+
+/** No password at hand: the deck lets this browser in, shows the password, or confirms a reset. */
 function Forgot() {
   const { t, ask } = useUi()
   const [shown, setShown] = useCountdown()
@@ -63,6 +109,12 @@ function Forgot() {
   const [err, setErr] = useState<string | null>(null)
   const why = (x: unknown) =>
     setErr(x instanceof ApiError && x.status === 409 ? t('login.no_deck') : t('login.offline'))
+  const done = useCallback(() => {
+    loginReasonAtom.set(null)
+    dispatch({ type: 'auth', auth: 'app' })
+    startSession()
+  }, [])
+  const L = useDeckLogin(why, done)
   const show = () => {
     setErr(null)
     api.showPassword().then(() => setShown(30), why)
@@ -75,7 +127,18 @@ function Forgot() {
   }
   return (
     <div className="forgot">
-      {reset > 0 ? (
+      {L.waiting ? (
+        <Notice
+          n={{
+            id: 'req',
+            icon: Fingerprint,
+            lvl: 'info',
+            title: t('login.req_wait', { s: L.left }),
+            text: t('login.req_wait_h'),
+            acts: [{ label: t('c.cancel'), run: L.cancel }],
+          }}
+        />
+      ) : reset > 0 ? (
         <Notice
           n={{
             id: 'reset',
@@ -88,6 +151,9 @@ function Forgot() {
         />
       ) : (
         <>
+          <Btn icon={Fingerprint} onClick={() => (setErr(null), L.start())}>
+            {t('login.req')}
+          </Btn>
           <Btn icon={MonitorSmartphone} onClick={show} disabled={shown > 0}>
             {shown > 0 ? t('login.shown', { s: shown }) : t('login.show')}
           </Btn>
@@ -96,6 +162,7 @@ function Forgot() {
           </button>
         </>
       )}
+      {L.msg && <p className="warnline">{L.msg}</p>}
       {err && (
         <p className="warnline" role="alert">
           {err}

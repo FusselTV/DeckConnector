@@ -130,6 +130,13 @@ export const api = {
   showPassword: () => request<{ ok: boolean }>('/api/password/show', { method: 'POST', quiet: true }),
   askReset: () => request<{ ok: boolean; s: number }>('/api/password/reset', { method: 'POST', quiet: true }),
   cancelReset: () => request<{ ok: boolean }>('/api/password/reset', { method: 'DELETE', quiet: true }),
+  askLogin: (who: string) =>
+    request<{ id: string; s: number }>('/api/login/request', { method: 'POST', body: { who }, quiet: true }),
+  loginState: (id: string) =>
+    request<{ state: 'pending' | 'accepted' | 'denied' | 'expired' | 'used'; s: number }>(`/api/login/request/${id}`, {
+      quiet: true,
+    }),
+  cancelLogin: (id: string) => request<{ ok: boolean }>(`/api/login/request/${id}`, { method: 'DELETE', quiet: true }),
   config: () => request<Config>('/api/config'),
   putConfig: (patch: ConfigPatch) => request<PutReply>('/api/config', { method: 'PUT', body: patch }),
   screen: (deck?: string) => request<Screen>('/api/screen' + q(deck)),

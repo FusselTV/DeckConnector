@@ -2104,6 +2104,9 @@
   .xrow > summary > .chev {
     flex: none;
   }
+  .xrow .xst:has(> .tag:only-child) {
+    flex: none;
+  }
   .xrow > summary::-webkit-details-marker {
     display: none;
   }
@@ -2375,6 +2378,9 @@
     }
     .acts > .btn {
       flex: 1 1 auto;
+    }
+    .xst .wide {
+      display: none;
     }
   }
   @property --rot {

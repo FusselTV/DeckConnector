@@ -52,7 +52,7 @@ const TAB_META: Record<Tab, { icon: LucideIcon; group: 'run' | 'device' | 'care'
   diagnose: { icon: Stethoscope, group: 'care' },
 }
 const GROUPS = ['run', 'device', 'care'] as const
-const MOBILE: Tab[] = ['overview', 'sources', 'diagnose']
+const MOBILE: Tab[] = ['overview', 'sources', 'network']
 const PANELS: Record<Tab, () => React.JSX.Element> = {
   overview: Overview,
   sources: Sources,

@@ -80,3 +80,30 @@ export function useLatest<V>(v: V) {
   })
   return ref
 }
+
+/** What the deck shows about the browser that asks to log in, e.g. "iPhone · Safari". */
+export function deviceLabel(ua: string) {
+  const os = /iPhone/.test(ua)
+    ? 'iPhone'
+    : /iPad/.test(ua)
+      ? 'iPad'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /Mac OS X/.test(ua)
+          ? 'Mac'
+          : /Windows/.test(ua)
+            ? 'Windows'
+            : /Linux/.test(ua)
+              ? 'Linux'
+              : ''
+  const br = /Edg\//.test(ua)
+    ? 'Edge'
+    : /Firefox|FxiOS/.test(ua)
+      ? 'Firefox'
+      : /Chrome|CriOS/.test(ua)
+        ? 'Chrome'
+        : /Safari/.test(ua)
+          ? 'Safari'
+          : ''
+  return [os, br].filter(Boolean).join(' · ') || 'Browser'
+}

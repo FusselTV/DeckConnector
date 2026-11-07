@@ -321,7 +321,7 @@ export interface TlsInfo {
 
 export type WsMsg =
   | ({ t: 'state' } & Status)
-  | { t: 'screen'; deck?: string }
+  | { t: 'screen'; deck?: string; screen?: Screen }
   | { t: 'input'; kind: string; index?: number; value?: number; writer?: string; simulated?: boolean; deck?: string }
   | { t: 'ota'; target: string; state: string; pct: number; error?: string }
   | { t: 'ping' }

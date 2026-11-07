@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Config, InputEvent, InputLogEntry, Route, Status, WsMsg } from '../api/types'
+import type { Config, InputEvent, InputLogEntry, Route, Screen, Status, WsMsg } from '../api/types'
 
 export type Conn = 'live' | 'reconnecting' | 'offline'
 export type Auth = 'checking' | 'login' | 'app' | 'expired'
@@ -23,6 +23,8 @@ export interface State {
   /** True once the firmware answered GET /api/input/log; until then the page keeps its own ring. */
   inputLogApi: boolean
   screenRev: number
+  /** The picture a ws `screen` carried, so the live deck needs no extra request. */
+  pushed: Screen | null
   /** GET /api: what this firmware offers. Empty until known, so nothing is hidden by mistake on old firmware. */
   routes: Route[]
   /** Wall-clock time of the device's start, from the last full status. Times "after the start" count from it. */
@@ -42,6 +44,7 @@ export const initial: State = {
   inputs: [],
   inputLogApi: false,
   screenRev: 0,
+  pushed: null,
   routes: [],
   bootAt: 0,
 }
@@ -119,7 +122,7 @@ export function reduce(s: State, a: Action): State {
         const status = share(s.status, { ...s.status, ...rest })
         return status === s.status ? s : { ...s, status }
       }
-      if (m.t === 'screen') return { ...s, screenRev: s.screenRev + 1 }
+      if (m.t === 'screen') return { ...s, screenRev: s.screenRev + 1, pushed: m.screen ?? null }
       if (m.t === 'ota')
         return {
           ...s,

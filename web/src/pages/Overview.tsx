@@ -318,7 +318,8 @@ function useScreen(serial: string | undefined) {
       }
       busy.current = true
       try {
-        const s = await api.screen(serial)
+        const pushed = getState().pushed
+        const s = pushed && !serial && !retries.current ? pushed : await api.screen(serial)
         // A new <img> is empty until it loads, so the old picture stays until the new ones are decoded. An image
         // the deck replaced meanwhile is gone (404): its area keeps the picture before, and the list is fetched again.
         const ok = await Promise.all(
