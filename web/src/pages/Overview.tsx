@@ -33,6 +33,7 @@ import { Card } from '../components/Card'
 import { Help, Led, Seg, SIcon, type Tone } from '../components/controls'
 import { Notice, type NoticeData } from '../components/Notice'
 import { DeckFront } from '../deck/DeckFront'
+import type { T } from '../i18n'
 import { cx, ls, roam, useLatest } from '../lib/util'
 
 export function Hero() {
@@ -229,14 +230,20 @@ function ArmSwitch() {
   )
 }
 
-const evText = (e: InputEvent) => {
+const ARROW: Record<string, string> = { down: '↓', up: '↑', press: '↕', encoder: '↕' }
+/** One input in a few words: "Taste 7 ↓", "Regler 4 ↻ +1", "Streifen tippen". */
+export function inputText(e: InputEvent, t: T) {
   const n = (e.key ?? 0) + 1
-  if (e.kind === 'turn') return `encoder ${n} ${(e.delta ?? 0) > 0 ? '+' : ''}${e.delta ?? 0}`
-  if (e.kind === 'encoder') return `encoder ${n} press`
-  if (['tap', 'long', 'swipe', 'touch'].includes(e.kind)) return `touch ${e.kind}`
-  return `key ${n} ${e.kind}`
+  const k = e.kind.replace(/^(key|encoder|touch)_/, '')
+  if (e.kind.startsWith('touch') || ['tap', 'long', 'swipe'].includes(e.kind))
+    return `${t('in.k_strip')} ${t(`in.t_${k === 'touch' ? 'tap' : k}` as 'in.t_tap')}`
+  if (e.kind.startsWith('encoder') || e.kind === 'turn') {
+    const turn = k === 'turn'
+    const d = turn && e.delta ? ` ${e.delta > 0 ? '+' : ''}${e.delta}` : ''
+    return `${t('in.k_dial')} ${n} ${turn ? '↻' : (ARROW[k] ?? '')}${d}`
+  }
+  return `${t('in.k_key')} ${n} ${ARROW[k] ?? ''}`
 }
-export const inputText = evText
 
 function LastInput() {
   const { t, jump } = useUi()
@@ -255,7 +262,7 @@ function LastInput() {
       <span className="sr">
         {t('ov.last')}, {src}:{' '}
       </span>
-      <span className="mono">{evText(last)}</span>
+      <span className="mono">{inputText(last, t)}</span>
     </button>
   )
 }

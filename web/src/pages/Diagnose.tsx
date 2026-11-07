@@ -371,7 +371,7 @@ function InputLog() {
                       </span>
                     </td>
                     {nDecks > 1 && <td className="mono">{x.deck}</td>}
-                    <td className="mono">{inputText(x)}</td>
+                    <td className="mono">{inputText(x, t)}</td>
                     <td className="small">{x.source ?? ''}</td>
                   </tr>
                 )
