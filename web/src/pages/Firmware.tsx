@@ -52,11 +52,25 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
   const [tg, setTg] = useState<Target>(null)
   const [url, setUrl] = useState('')
   const [err, setErr] = useState<string | null>(null)
+  const [version, setVersion] = useState<string | null>(null)
+  const canInspect = useRoute('POST', '/api/ota/inspect')
   const pickFile = (f: File | null) => {
     setFile(f)
     setTg(null)
     setErr(null)
-    if (f) void dbfwTarget(f).then((x) => (x ? setTg(x) : setErr(t('fw.bad_header'))))
+    setVersion(null)
+    if (!f) return
+    // The device reads the header itself where it can, and says whether it would take the file.
+    if (canInspect)
+      api.inspect(f).then(
+        (r) => {
+          if (!r.ok) return setErr(r.error ?? t('fw.bad_header'))
+          setTg(r.target === 'web' ? 'page' : (r.target ?? null))
+          setVersion(r.version ?? null)
+        },
+        (e: unknown) => setErr(e instanceof Error ? e.message : t('fw.bad_header')),
+      )
+    else void dbfwTarget(f).then((x) => (x ? setTg(x) : setErr(t('fw.bad_header'))))
   }
   const what =
     mode === 'url'
@@ -152,7 +166,17 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
           />
         </Field>
       )}
-      {what && <Notice n={{ id: 'what', icon: Cpu, lvl: 'info', title: t('upd.what'), text: what }} />}
+      {what && (
+        <Notice
+          n={{
+            id: 'what',
+            icon: Cpu,
+            lvl: 'info',
+            title: t('upd.what'),
+            text: mode === 'file' ? `${what} ${version ? t('fw.file_v', { v: version }) : t('fw.ver_unknown')}` : what,
+          }}
+        />
+      )}
     </Modal>
   )
 }
@@ -225,6 +249,7 @@ export function Firmware() {
   const cfg = useStore((s) => s.config)
   const ota = useStore((s) => s.ota)
   const canCheck = useRoute('GET', '/api/update/check')
+  const canBackup = useRoute('GET', '/api/backup')
   const [slots, setSlots] = useState<Slot[] | null>(null)
   const [front, setFront] = useState<Frontend | null>(null)
   const [upd, setUpd] = useState(false)
@@ -509,6 +534,21 @@ export function Firmware() {
           >
             {t('fw.dl')}
           </Btn>
+          {canBackup && (
+            <Btn
+              id="bak-full"
+              icon={Download}
+              onClick={() =>
+                void act(async () => {
+                  const name = `${cfg?.name ?? 'deckconnector'}-backup.json`
+                  download(name, JSON.stringify(await api.backup(), null, 1))
+                  toast(t('c.downloaded', { file: name }))
+                })
+              }
+            >
+              {t('fw.dl_full')}
+            </Btn>
+          )}
           <Btn id="bak-restore" icon={ArchiveRestore} disabled={!cfg} onClick={() => rsRef.current?.click()}>
             {t('fw.restore')}
           </Btn>

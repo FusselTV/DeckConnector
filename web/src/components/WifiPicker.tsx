@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
+import { wifiScanAtom } from '../app/state'
 import { useUi } from '../app/ui'
 import { fold } from '../lib/rank'
 import type { WifiAp } from '../api/types'
@@ -47,15 +48,25 @@ export function WifiPicker(p: {
   const rescan = useCallback(() => {
     setScan(null)
     setFailed(false)
-    api.wifiScan().then(setScan, () => {
-      setScan([])
-      setFailed(true)
-    })
+    api.wifiScan().then(
+      (x) => {
+        setScan(x)
+        wifiScanAtom.set(x)
+      },
+      () => {
+        setScan([])
+        setFailed(true)
+      },
+    )
   }, [])
   useEffect(() => {
     let off = false
     api.wifiScan().then(
-      (x) => !off && setScan(x),
+      (x) => {
+        if (off) return
+        setScan(x)
+        wifiScanAtom.set(x)
+      },
       () => {
         if (off) return
         setScan([])

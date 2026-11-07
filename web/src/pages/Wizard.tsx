@@ -1,6 +1,7 @@
 import {
   Cable,
   Check,
+  CircleHelp,
   ChevronLeft,
   ChevronRight,
   Circle,
@@ -158,6 +159,7 @@ export function Wizard() {
   const [uPin, setUPin] = useState('')
   const [uErr, setUErr] = useState<string | null>(null)
   const [srcErr, setSrcErr] = useState<string | null>(null)
+  const [waitS, setWaitS] = useState(0)
   const pwE = passwordError(pw, pw2)
   const where = reachList(st, !!cfg?.https_only, name || (cfg?.name ?? ''))
   const hold = (cfg?.menu_hold_ms ?? 2000) / 1000
@@ -173,8 +175,15 @@ export function Wizard() {
   // While the app path waits, the status shows a pairing request as soon as the app asks.
   useEffect(() => {
     if (step !== 'src' || src !== 'app') return
-    const id = setInterval(() => void refreshStatus(), 2000)
-    return () => clearInterval(id)
+    const t0 = Date.now()
+    const id = setInterval(() => {
+      void refreshStatus()
+      setWaitS(Math.floor((Date.now() - t0) / 1000))
+    }, 2000)
+    return () => {
+      clearInterval(id)
+      setWaitS(0)
+    }
   }, [step, src])
 
   const runTest = async () => {
@@ -597,9 +606,20 @@ export function Wizard() {
               !drawer && (
                 <div className="empty">
                   <LoaderCircle size={18} className="spin" aria-hidden />
-                  {t(st.pairing?.hosts?.length ? 'wiz.app_wait' : 'wiz.app_wait_open')}
+                  {t((st.pairing?.auto_open ?? !st.pairing?.hosts?.length) ? 'wiz.app_wait_open' : 'wiz.app_wait')}
                 </div>
               )
+            )}
+            {!req && !drawer && waitS >= 60 && (
+              <Notice
+                n={{
+                  id: 'nothing',
+                  icon: CircleHelp,
+                  lvl: 'info',
+                  title: t('src.nothing'),
+                  text: [t('src.nothing_1'), t('src.nothing_2'), t('src.nothing_3')].join(' '),
+                }}
+              />
             )}
           </>
         )}

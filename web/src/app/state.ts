@@ -1,4 +1,4 @@
-import type { Coredump } from '../api/types'
+import type { Coredump, WifiAp } from '../api/types'
 import { atom } from '../lib/atom'
 import { ls } from '../lib/util'
 import type { Lang } from '../i18n'
@@ -33,6 +33,10 @@ export const dismissToast = (id: number) => toastsAtom.set((x) => x.filter((y) =
 export const ARM_MS = 60_000
 export const armAtom = atom(0)
 export const nudgeAtom = atom(0)
+/** Why the login page shows, for its one line. */
+export const loginReasonAtom = atom<'logout' | 'pw' | 'expired' | null>(null)
+/** Presses go out with force past input_lock, confirmed for this arm only. */
+export const forceAtom = atom(false)
 export const deckSelAtom = atom(0)
 
 export interface Draft {
@@ -45,6 +49,10 @@ export interface Draft {
 export const draftsAtom = atom<Partial<Record<Tab, Draft>>>({})
 
 /** The last crash report, null when none or when the firmware has no coredump route. */
+/** The last Wi-Fi scan, so search can offer the networks without scanning again. */
+export const wifiScanAtom = atom<WifiAp[]>([])
+
 export const crashAtom = atom<Coredump | null>(null)
+export const bootAckAtom = atom<number>(ls.get('dc.bootAck', 0))
 export const crashAckAtom = atom<string>(ls.get('dc.crashAck', ''))
 export const crashKey = (c: Coredump) => `${c.elf_sha256}:${c.pc}:${c.size}`

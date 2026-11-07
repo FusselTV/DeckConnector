@@ -31,4 +31,5 @@ cd ../tools
 uv run python -m dbtools.fw web
 ```
 
-`fw.py` signs `firmware/components/db_web/index.html`. Copy `dist/index.html` there first.
+It signs `dist/index.html` and uploads it. A firmware build also embeds `dist/index.html` when it exists, so run
+`npm run build` before building the firmware.

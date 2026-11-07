@@ -20,7 +20,7 @@ describe('request', () => {
     const [url, init] = f.mock.calls[0] ?? []
     expect(url).toBe('/api/config')
     expect(init?.method).toBe('PUT')
-    expect((init?.headers as Record<string, string>)['X-Deckbridge']).toBe('1')
+    expect((init?.headers as Record<string, string>)['X-DeckConnector']).toBe('1')
     expect(init?.body).toBe('{"brightness":40}')
   })
 
@@ -74,5 +74,20 @@ describe('pressReal', () => {
     const [url, init] = f.mock.calls[0] ?? []
     expect(url).toBe('/api/input?deck=EL27')
     expect(JSON.parse(init?.body as string)).toEqual({ key: 2, action: 'down', real: true })
+  })
+})
+
+describe('input lock and inspect', () => {
+  it('adds force only when asked and reports a lock as locked', async () => {
+    const f = mockFetch(reply(200, { ok: true }), reply(423, { ok: false, error: 'input locked' }))
+    await pressReal({ key: 1 }, undefined, true)
+    expect(JSON.parse(f.mock.calls[0]?.[1]?.body as string)).toEqual({ key: 1, real: true, force: true })
+    const e = await pressReal({ key: 1 }).catch((x: unknown) => x)
+    expect(e).toMatchObject({ locked: true })
+  })
+  it('sends only the 144-byte header for inspection', async () => {
+    const f = mockFetch(reply(200, { ok: true, target: 'p4', version: 'v1' }))
+    await api.inspect(new Blob([new Uint8Array(4096)]))
+    expect((f.mock.calls[0]?.[1]?.body as Blob).size).toBe(144)
   })
 })

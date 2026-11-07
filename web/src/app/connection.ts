@@ -1,6 +1,6 @@
 import { api, ApiError, onAuthLost, optional } from '../api/client'
 import type { WsMsg } from '../api/types'
-import { crashAtom } from './state'
+import { crashAtom, loginReasonAtom } from './state'
 import { dispatch, fromLog, getState, hasRoute } from './store'
 
 // One WebSocket for the whole page. The status poll fills what ws `state` leaves out (uptime, counters, signal)
@@ -177,8 +177,13 @@ export function stopSession() {
 export async function boot() {
   onAuthLost((code) => {
     if (code === 401 && getState().auth === 'app') {
-      dispatch({ type: 'auth', auth: 'expired' })
       stopSession()
+      // A restart ends every session: back to the login page, which says why. Otherwise keep the page.
+      if (getState().restarting) {
+        dispatch({ type: 'restart', on: false, now: Date.now() })
+        if (loginReasonAtom.get() !== 'pw') loginReasonAtom.set('expired')
+        dispatch({ type: 'auth', auth: 'login' })
+      } else dispatch({ type: 'auth', auth: 'expired' })
     } else if (code === 0) lost()
   })
   try {

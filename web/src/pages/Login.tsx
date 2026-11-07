@@ -1,8 +1,8 @@
-import { KeyRound, Languages, LockOpen, ShieldAlert } from 'lucide-react'
+import { Info, KeyRound, Languages, LockOpen, ShieldAlert } from 'lucide-react'
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import { startSession } from '../app/connection'
-import { langAtom } from '../app/state'
+import { langAtom, loginReasonAtom } from '../app/state'
 import { dispatch, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { describedBy, Field } from '../components/controls'
@@ -29,6 +29,7 @@ function useLogin() {
       await api.login(pw)
       setPw('')
       setErr(null)
+      loginReasonAtom.set(null)
       dispatch({ type: 'auth', auth: 'app' })
       startSession()
     } catch (x) {
@@ -46,6 +47,7 @@ function useLogin() {
 
 export function Login() {
   const { t, lang } = useUi()
+  const reason = loginReasonAtom.use()
   const L = useLogin()
   const plain = location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname)
   return (
@@ -68,6 +70,7 @@ export function Login() {
         <h2 id="login-h" style={{ fontSize: 20 }}>
           {t('login.title')}
         </h2>
+        {reason && !L.lock && <Notice n={{ id: 'why', icon: Info, lvl: 'info', title: t(`login.${reason}`) }} />}
         {L.lock > 0 && (
           <Notice n={{ id: 'lock', icon: ShieldAlert, lvl: 'bad', title: t('login.locked', { n: L.lock }) }} />
         )}

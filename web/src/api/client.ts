@@ -6,6 +6,7 @@ import type {
   Found,
   Frontend,
   InputBody,
+  Inspect,
   InputLogEntry,
   Metrics,
   Profile,
@@ -33,6 +34,10 @@ export class ApiError extends Error {
     this.code = code
   }
   /** The firmware does not know this route yet: the caller hides the feature instead of showing an error. */
+  /** input_lock on the device refused it; a person may confirm and send it again with force. */
+  get locked() {
+    return this.status === 423
+  }
   get missing() {
     return this.status === 404 || this.status === 405 || this.status === 501
   }
@@ -63,7 +68,7 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
     res = await fetch(path, {
       method,
       credentials: 'same-origin',
-      headers: { 'X-Deckbridge': '1', ...(o.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { 'X-DeckConnector': '1', ...(o.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: o.raw ?? (o.body !== undefined ? JSON.stringify(o.body) : undefined),
       signal: o.signal,
     })
@@ -99,8 +104,8 @@ const q = (deck?: string) => (deck ? `?deck=${enc(deck)}` : '')
  * Presses from this page carry "real": true by design, so they reach Companion and the app.
  * Never call this from a test against the bench bridge; the UI only sends it while remote control is on.
  */
-export const pressReal = (body: InputBody, deck?: string) =>
-  request<{ ok: boolean }>('/api/input' + q(deck), { body: { ...body, real: true } })
+export const pressReal = (body: InputBody, deck?: string, force = false) =>
+  request<{ ok: boolean }>('/api/input' + q(deck), { body: { ...body, real: true, ...(force ? { force } : {}) } })
 
 export const api = {
   routes: () => request<Route[]>('/api'),
@@ -130,6 +135,7 @@ export const api = {
       method: 'POST',
       raw: file,
     }),
+  inspect: (file: Blob) => request<Inspect>('/api/ota/inspect', { method: 'POST', raw: file.slice(0, 144) }),
   otaUrl: (url: string) => request<{ ok: boolean }>('/api/ota/url', { body: { url } }),
   frontend: () => request<Frontend>('/api/frontend'),
   putFrontend: (file: Blob) => request<{ ok: boolean }>('/api/frontend', { method: 'PUT', raw: file }),
@@ -144,7 +150,7 @@ export const api = {
   makeToken: (name: string, right: 'control' | 'full') =>
     request<Token & { token: string }>('/api/tokens', { body: { name, right } }),
   dropToken: (name: string) => request<{ ok: boolean }>('/api/tokens/' + enc(name), { method: 'DELETE' }),
-  // Routes from api-gaps.md the firmware may not have yet. Callers use optional() or catch .missing.
+  // Newer routes: callers check useRoute() first, or use optional().
   inputLog: (since = 0) => request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : '')),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>
@@ -156,6 +162,7 @@ export const api = {
   putTls: (cert: string, key: string) =>
     request<TlsInfo>('/api/tls', { method: 'PUT', body: { cert, key, apply: true } }),
   resetTls: () => request<{ ok: boolean }>('/api/tls', { method: 'DELETE' }),
+  backup: () => request<unknown>('/api/backup?secrets=1'),
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
 }
 

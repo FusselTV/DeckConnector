@@ -18,7 +18,7 @@ import { api, certUrl } from '../api/client'
 import type { Right, TlsInfo, Token } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
-import { toast } from '../app/state'
+import { loginReasonAtom, toast } from '../app/state'
 import { useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -251,6 +251,7 @@ export function Access() {
       if (!(await ask({ title: t('cf.pw'), body: t('cf.pw_b'), ok: t('c.save_restart') }))) return false
       const ok = await act(async () => {
         await api.putConfig({ admin_pass: pw })
+        loginReasonAtom.set('pw')
         expectRestart()
         return true
       })

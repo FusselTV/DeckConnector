@@ -18,7 +18,7 @@ import { useMemo } from 'react'
 import type { NoticeData } from '../components/Notice'
 import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
-import { crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
+import { bootAckAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
 import { ls } from '../lib/util'
 import { useRoute, useStore } from './store'
 import { useUi } from './ui'
@@ -32,6 +32,7 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
   const satellite = useStore((s) => s.config?.satellite)
   const canRetry = useRoute('POST', '/api/sources/retry')
   const crash = crashAtom.use()
+  const bootAck = bootAckAtom.use()
   const ack = crashAckAtom.use()
   const crashed = !!crash && crashKey(crash) !== ack
   return useMemo(() => {
@@ -143,6 +144,27 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
         ],
       })
     }
+    // A start the user did not ask for, with no crash report to explain it.
+    const reason = st.boot?.reason
+    const startedAt = st.boot?.at ?? 0
+    if (!crash && startedAt !== bootAck && (reason === 'watchdog' || reason === 'brownout' || reason === 'crash'))
+      notes.push({
+        id: 'boot',
+        icon: Bug,
+        lvl: 'info',
+        title: `${t('dia.boot')}: ${t(`boot.${reason}`)}`,
+        acts: [
+          { label: t('dia.prev'), ghost: true, run: () => jump('diagnose', 'log') },
+          {
+            label: t('is.hide'),
+            ghost: true,
+            run: () => {
+              bootAckAtom.set(startedAt)
+              ls.set('dc.bootAck', startedAt)
+            },
+          },
+        ],
+      })
     if (crash && crashed)
       notes.push({
         id: 'crash',
@@ -165,5 +187,5 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
     return { list, notes }
-  }, [st, bootAt, satellite, canRetry, crash, crashed, t, fmt, go, jump, a])
+  }, [st, bootAt, satellite, canRetry, crash, crashed, bootAck, t, fmt, go, jump, a])
 }

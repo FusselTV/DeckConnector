@@ -369,7 +369,7 @@ function InputLog() {
 }
 
 function Details() {
-  const { t, fmt, act, ask } = useUi()
+  const { t, fmt, act, ask, lang } = useUi()
   const st = useStore((s) => s.status)
   const routes = useStore((s) => s.routes)
   const crash = crashAtom.use()
@@ -390,6 +390,16 @@ function Details() {
     : ''
   return (
     <Card id="card-dev" live icon={HardDrive} title={t('dia.details')}>
+      {st.boot?.reason && (
+        <KeyValue
+          rows={[
+            [
+              t('dia.boot'),
+              `${t(`boot.${st.boot.reason}` as 'boot.other')}${st.boot.at ? ` · ${new Date(st.boot.at * 1000).toLocaleString(lang)}` : ''}`,
+            ],
+          ]}
+        />
+      )}
       <InputLog />
       <Row
         group="dia"

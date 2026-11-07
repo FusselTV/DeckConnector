@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import type { ConfigPatch, Source } from '../api/types'
 import { atom } from '../lib/atom'
 import { expectRestart, refreshConfig, refreshStatus, stopSession } from './connection'
 import { hk, hostKey, hostLabel, hostName } from './derive'
-import { toast } from './state'
+import { loginReasonAtom, toast } from './state'
 import { dispatch, getState } from './store'
 import { useUi } from './ui'
 
@@ -14,8 +14,9 @@ export const pendingAtom = atom<string | null>(null)
 /** PUT /api/config, then the stored values: the page never claims more than the device confirmed (api-gaps #11). */
 export async function putConfig(patch: ConfigPatch, addr?: string) {
   const r = await api.putConfig(patch)
+  if (r.config) dispatch({ type: 'config', config: r.config })
   if (r.restart) expectRestart(addr)
-  else await Promise.all([refreshConfig(), refreshStatus()])
+  else await Promise.all([r.config ? undefined : refreshConfig(), refreshStatus()])
   return r
 }
 
@@ -27,6 +28,11 @@ export function useActions() {
       pendingAtom.set(hk(s))
       try {
         await putConfig({ controller, host: hostKey(s) })
+      } catch (e) {
+        // input_lock refuses source switches too: a person may confirm once and switch anyway.
+        if (!(e instanceof ApiError && e.locked)) throw e
+        if (!(await ask({ title: t('cf.force'), body: t('deck.lock_h'), ok: t('btn.force') }))) return
+        await putConfig({ controller, host: hostKey(s), force: true })
       } finally {
         pendingAtom.set(null)
       }
@@ -101,6 +107,7 @@ export function useActions() {
       logout: async () => {
         await api.logout().catch(() => undefined)
         stopSession()
+        loginReasonAtom.set('logout')
         dispatch({ type: 'auth', auth: 'login' })
       },
     }

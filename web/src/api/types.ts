@@ -130,6 +130,7 @@ export interface Config {
   dock_paired_only?: boolean
   setup_done?: boolean
   token_set?: boolean
+  input_lock?: boolean
 }
 
 /** Keys PUT /api/config takes besides those of Config. */
@@ -139,6 +140,8 @@ export interface ConfigSecrets {
 }
 export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
   ConfigSecrets & {
+    /** Gets past input_lock for a source switch a person confirmed. */
+    force?: boolean
     lan?: Partial<IpConf>
     wlan?: Partial<IpConf>
   }
@@ -146,7 +149,18 @@ export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
 export interface PutReply {
   ok: boolean
   restart?: boolean
+  /** The settings as stored, from firmware that echoes them. */
+  config?: Config
   reach?: string[]
+}
+
+export interface Inspect {
+  ok: boolean
+  error?: string
+  target?: 'p4' | 'c6' | 'web' | 'page' | 'bootloader' | 'ptable'
+  version?: string
+  length?: number
+  sha256?: string
 }
 
 export interface Rect {

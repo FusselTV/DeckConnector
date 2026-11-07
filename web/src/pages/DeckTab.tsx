@@ -7,7 +7,7 @@ import { deckSelAtom, toast } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { describedBy, Field, Help, Seg, SIcon } from '../components/controls'
+import { describedBy, Field, Help, Seg, SIcon, Switch } from '../components/controls'
 import { useDraft } from '../components/SaveBar'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
 import type { T } from '../i18n'
@@ -68,8 +68,11 @@ export function DeckTab() {
     chord: cfg?.menu_chord ?? 'auto',
     hold: (cfg?.menu_hold_ms ?? 2000) / 1000,
     usb: cfg?.usb_speed ?? 'auto',
+    lock: !!cfg?.input_lock,
   }
   const [d, setD] = useState<typeof base | null>(null)
+  // input_lock exists on firmware whose config carries it.
+  const hasLock = cfg?.input_lock !== undefined
   const v = d ?? base
   const dirty = !!d && JSON.stringify(d) !== JSON.stringify(base)
   const restart = dirty && v.usb !== base.usb
@@ -85,7 +88,12 @@ export function DeckTab() {
       }
       if (restart && !(await ask({ title: t('cf.usb'), body: t('cf.usb_b'), ok: t('c.save_restart') }))) return false
       const ok = await act(async () => {
-        await putConfig({ menu_chord: v.chord, menu_hold_ms: Math.round(v.hold * 1000), usb_speed: v.usb })
+        await putConfig({
+          menu_chord: v.chord,
+          menu_hold_ms: Math.round(v.hold * 1000),
+          usb_speed: v.usb,
+          ...(hasLock ? { input_lock: v.lock } : {}),
+        })
         if (!restart) toast(t('c.saved'))
         return true
       })
@@ -174,6 +182,15 @@ export function DeckTab() {
           />
           {multi && <span className="hint">{t('deck.settings_for')}</span>}
         </div>
+        {hasLock && (
+          <Switch
+            id="input-lock"
+            on={v.lock}
+            onChange={(lock) => setD({ ...v, lock })}
+            label={t('deck.lock')}
+            hint={t('deck.lock_h')}
+          />
+        )}
       </Card>
       <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
         <div className="chordnow">

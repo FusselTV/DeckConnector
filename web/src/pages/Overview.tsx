@@ -26,7 +26,7 @@ import { pendingAtom, useActions } from '../app/actions'
 import { noteWebPress, retryNow } from '../app/connection'
 import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
 import { useIssues } from '../app/issues'
-import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, type Tab } from '../app/state'
+import { armAtom, ARM_MS, deckSelAtom, forceAtom, nudgeAtom, type Tab } from '../app/state'
 import { dispatch, getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -184,7 +184,8 @@ function Meter() {
 }
 
 function ArmSwitch() {
-  const { t } = useUi()
+  const { t, ask } = useUi()
+  const inputLock = useStore((s) => !!s.config?.input_lock)
   const armedAt = armAtom.use()
   const nudge = nudgeAtom.use()
   const locked = useStore((s) => s.conn !== 'live' || s.auth !== 'app' || !!s.restarting)
@@ -208,8 +209,16 @@ function ArmSwitch() {
       className={cx('hbtn armpill', armed && 'on', nudge > 0 && 'nudge')}
       title={armed ? real : t('arm.help')}
       onClick={() => {
-        armAtom.set(armed ? 0 : Date.now())
-        setNow(Date.now())
+        if (armed) return armAtom.set(0)
+        // With input_lock on the device, this browser's presses need force, confirmed once per arm.
+        void (
+          inputLock ? ask({ title: t('cf.force'), body: t('cf.force_b'), ok: t('btn.force') }) : Promise.resolve(true)
+        ).then((ok) => {
+          if (!ok) return
+          forceAtom.set(inputLock)
+          armAtom.set(Date.now())
+          setNow(Date.now())
+        })
       }}
       disabled={locked || READONLY}
     >
@@ -356,7 +365,7 @@ const LiveDeck = memo(function LiveDeck() {
           type: 'input',
           ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
         })
-      void act(() => pressReal(b, serial))
+      void act(() => pressReal(b, serial, forceAtom.get()))
     },
     [ctx],
   )

@@ -4,7 +4,7 @@ import { makeT, type Lang, type T } from '../i18n'
 import { makeFmt, type Fmt } from '../lib/format'
 import { ls } from '../lib/util'
 import { getState } from './store'
-import { armAtom, ARM_MS, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
+import { armAtom, ARM_MS, forceAtom, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
 
 export interface AskOpts {
   title: string
@@ -73,7 +73,10 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
   }, [])
   const arm = armAtom.use()
   useEffect(() => {
-    if (!arm) return
+    if (!arm) {
+      forceAtom.set(false)
+      return
+    }
     const id = setTimeout(() => armAtom.set(0), arm + ARM_MS - Date.now())
     const hide = () => document.hidden && armAtom.set(0)
     document.addEventListener('visibilitychange', hide)

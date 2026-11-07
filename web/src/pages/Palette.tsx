@@ -38,12 +38,13 @@ import { Dialog as D } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { putConfig, useActions } from '../app/actions'
 import { decksOf, deckName, hostLabel, KIND_ICON, stateKey } from '../app/derive'
-import { deckSelAtom, langAtom, TABS, themeAtom, type Tab } from '../app/state'
+import { deckSelAtom, langAtom, TABS, themeAtom, wifiScanAtom, type Tab } from '../app/state'
 import { useStore } from '../app/store'
 import { useTheme, useUi } from '../app/ui'
 import type { Key as I18nKey } from '../i18n/types'
 import { fold, rank, remember, type Cmd, type Pick } from '../lib/rank'
 import { cx, ls } from '../lib/util'
+import { groupScan } from '../lib/wifi'
 
 const TAB_KW: Record<Tab, I18nKey> = {
   overview: 'kw.overview',
@@ -60,6 +61,7 @@ function useCommands(): Cmd[] {
   const a = useActions()
   const eff = useTheme()
   const st = useStore((s) => s.status)
+  const scan = wifiScanAtom.use()
   return useMemo(() => {
     const to = (
       id: string,
@@ -240,6 +242,28 @@ function useCommands(): Cmd[] {
             } satisfies Cmd,
           ]
         : []),
+      ...groupScan([
+        ...scan,
+        ...(st.network?.wlan?.ssid
+          ? [
+              {
+                ssid: st.network.wlan.ssid,
+                bssid: st.network.wlan.bssid ?? '',
+                rssi: st.network.wlan.rssi ?? -99,
+                channel: 0,
+                open: false,
+              },
+            ]
+          : []),
+      ]).map((g): Cmd => ({
+        id: `wifi-${g.ssid}`,
+        group: 'pal.set',
+        label: g.ssid,
+        kw: `wlan wifi ssid ${g.aps.map((x) => `${x.bssid} ${x.bssid.replace(/:/g, '')}`).join(' ')}`,
+        icon: Wifi,
+        hint: t('tab.network'),
+        run: () => jump('network', 'row-wlan'),
+      })),
       ...decks.map((d, i): Cmd => ({
         id: `deck-${d.serial}`,
         group: 'pal.set',
@@ -270,7 +294,7 @@ function useCommands(): Cmd[] {
         })),
     ]
     return cmds
-  }, [t, go, jump, lang, a, eff, st])
+  }, [t, go, jump, lang, a, eff, st, scan])
 }
 
 export function Palette({ close }: { close: () => void }) {

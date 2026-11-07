@@ -6,7 +6,7 @@ const AUTH = 'Basic ' + Buffer.from('admin:simulator-pass').toString('base64')
 export async function sim(method: string, path: string, body?: unknown) {
   const r = await fetch(SIM + path, {
     method,
-    headers: { Authorization: AUTH, 'X-Deckbridge': '1', 'Content-Type': 'application/json' },
+    headers: { Authorization: AUTH, 'X-DeckConnector': '1', 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   return r.json() as Promise<unknown>

@@ -21,7 +21,7 @@ import { refreshStatus } from '../app/connection'
 import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
-import { useStore } from '../app/store'
+import { useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, type Tone } from '../components/controls'
@@ -108,6 +108,9 @@ function CompanionForm({ close }: { close: () => void }) {
       off = true
     }
   }, [])
+  const canProbe = useRoute('POST', '/api/sources/probe')
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
   const save = async (addr: string, p: string) => {
     const e1 = companionError(addr)
     const e2 = addr.startsWith('wss://') ? pinError(p) : null
@@ -115,6 +118,19 @@ function CompanionForm({ close }: { close: () => void }) {
       setErr({ sat: e1 ? t(e1) : !addr ? t('src.addr_hint') : undefined, pin: e2 ? t(e2) : undefined })
       document.getElementById(e2 && !e1 ? 'm-satpin' : 'm-sat')?.focus()
       return
+    }
+    // A failed test is shown once; saving the same address again keeps it anyway (Companion may start later).
+    if (canProbe && failed !== addr) {
+      setBusy(true)
+      const r = await api
+        .probe(addr, normPin(p))
+        .catch((x: unknown) => ({ ok: false, error: x instanceof Error ? x.message : '' }))
+      setBusy(false)
+      if (!r.ok) {
+        setFailed(addr)
+        setErr({ sat: `${t('wiz.no_answer', { a: addr })}${r.error ? ` (${r.error})` : ''}` })
+        return
+      }
     }
     const prev = { satellite: cfg?.satellite ?? '', satellite_pin: cfg?.satellite_pin ?? '' }
     const ok = await act(async () => {
@@ -189,8 +205,8 @@ function CompanionForm({ close }: { close: () => void }) {
         <Btn kind="ghost" onClick={close}>
           {t('c.cancel')}
         </Btn>
-        <Btn kind="pri" onClick={() => void save(sat.trim(), pin)}>
-          {t('c.save')}
+        <Btn kind="pri" disabled={busy} onClick={() => void save(sat.trim(), pin)}>
+          {busy ? t('st.connecting') : t('c.save')}
         </Btn>
       </div>
     </>
@@ -215,7 +231,7 @@ function AppForm({ close }: { close: () => void }) {
             </li>
           ))}
       </ol>
-      {!P?.hosts?.length ? (
+      {(P?.auto_open ?? !P?.hosts?.length) ? (
         <Notice n={{ id: 'auto', icon: Link2, lvl: 'info', title: t('pair.auto_t'), text: t('pair.auto') }} />
       ) : (
         <div className="row">

@@ -125,3 +125,29 @@ test('long lists scroll inside their own box', async ({ app: page }) => {
   await openTab(page, 'Diagnostics')
   await expect(page.locator('pre.log')).toHaveCSS('height', '300px')
 })
+
+test('with input lock on the device, arming asks once and presses carry force', async ({ app: page }) => {
+  await sim('PUT', '/api/config', { input_lock: true })
+  await page.reload()
+  const sent: unknown[] = []
+  page.on('request', (r) => r.method() === 'POST' && r.url().includes('/api/input') && sent.push(r.postDataJSON()))
+  const toggle = page.locator('.deckToggle')
+  if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  await page.locator('#arm').click()
+  const dlg = page.getByRole('alertdialog')
+  await expect(dlg).toContainText('Presses are locked on the device')
+  await dlg.getByRole('button', { name: 'Send anyway' }).click()
+  await page.getByRole('button', { name: 'Key 1, row 1' }).click({ force: true })
+  await expect.poll(() => sent.length).toBeGreaterThan(0)
+  expect(sent[0]).toMatchObject({ key: 0, real: true, force: true })
+  await sim('PUT', '/api/config', { input_lock: false })
+})
+
+test('logging out says so on the login page', async ({ app: page }) => {
+  if (await page.locator('.side').isVisible()) await page.getByRole('button', { name: 'Log out' }).click()
+  else {
+    await page.locator('.tabbar').getByRole('button', { name: /More/ }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Log out' }).click()
+  }
+  await expect(page.getByText('You logged out.')).toBeVisible()
+})
