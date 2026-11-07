@@ -389,13 +389,22 @@ static void apply_controller(void)
     db_ui_refresh(); /* also for setup_done and qr_login, which change what the deck shows */
 }
 
-/* A bridge without any network opens the setup WLAN by itself. */
+/* A new bridge without any network opens the setup WLAN by itself. It closes again once the network is there and
+ * no phone is on it: the wizard joins the WLAN over it and still has to save. */
 static void setup_ap_task(void *arg)
 {
     vTaskDelay(pdMS_TO_TICKS(SETUP_AP_AFTER_S * 1000));
-    if (!db_net_online()) {
+    if (!db_config()->setup_done && !db_net_online() && db_net_ap_start() == ESP_OK) {
         ESP_LOGW(TAG, "no network after %d s, opening the setup WLAN", SETUP_AP_AFTER_S);
-        db_net_ap_start();
+        db_net_status_t n;
+        do {
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            db_net_status(&n);
+        } while (n.ap_active && (!db_net_online() || db_net_ap_clients() > 0));
+        if (n.ap_active) {
+            ESP_LOGI(TAG, "network is up, closing the setup WLAN");
+            db_net_ap_stop();
+        }
     }
     vTaskDelete(NULL);
 }

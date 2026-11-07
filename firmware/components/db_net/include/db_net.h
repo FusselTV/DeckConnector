@@ -64,11 +64,13 @@ typedef struct {
  * the background when the last one is older than 5 s, so the next call has fresh results. */
 size_t db_net_companions(db_net_found_t *out, size_t max);
 
-/* Setup access point "<name>" with a fresh random WPA2 password. */
 /* Networks in reach, one entry per access point, strongest first, without the setup AP. -1 while the radio is busy. */
 int db_net_wifi_scan(db_net_ap_t *out, size_t max);
 /* Try a network in the background; it is saved only when it gives an address within 15 s, otherwise the old one
  * comes back. The state shows in db_net_status(). */
 esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid);
+/* Setup access point "<name>" with a fresh random WPA2 password. */
 esp_err_t db_net_ap_start(void);
 esp_err_t db_net_ap_stop(void);
+/* Phones joined to the setup access point. */
+int db_net_ap_clients(void);

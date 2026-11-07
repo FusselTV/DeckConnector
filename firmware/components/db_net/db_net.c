@@ -599,6 +599,12 @@ esp_err_t db_net_ap_stop(void)
     return esp_wifi_set_mode(WIFI_MODE_STA);
 }
 
+int db_net_ap_clients(void)
+{
+    wifi_sta_list_t list;
+    return s.st.ap_active && esp_wifi_ap_get_sta_list(&list) == ESP_OK ? list.num : 0;
+}
+
 int db_net_wifi_scan(db_net_ap_t *out, size_t max)
 {
     if (!s.wifi_started) {

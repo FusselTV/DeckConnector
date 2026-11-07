@@ -403,7 +403,7 @@ esp_err_t put_config(httpd_req_t *req)
 }
 
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck shows
- * the one-time login code or the password, its pictures would hand a token a password session. */
+ * a login code or a password, its pictures would hand a token a password session. */
 static bool deck_refused(httpd_req_t *req)
 {
     if (auth_by_token(req) && db_ui_login_shown()) {

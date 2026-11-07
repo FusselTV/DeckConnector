@@ -279,8 +279,10 @@ bool db_ui_login_shown(void)
 {
     bool wanted = login_wanted();
     int64_t now = esp_timer_get_time();
+    db_net_status_t n;
+    db_net_status(&n);
     portENTER_CRITICAL(&login_mux);
-    bool shown = (wanted && login_token[0] != '\0') || now < pass_until;
+    bool shown = (wanted && login_token[0] != '\0') || now < pass_until || n.ap_active;
     portEXIT_CRITICAL(&login_mux);
     return shown;
 }

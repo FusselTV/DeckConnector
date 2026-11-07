@@ -33,7 +33,7 @@ answer 409 when no deck is attached. A second call within 3 seconds changes noth
 | `POST /api/password/reset` | The deck asks for 60 seconds whether to reset all settings. Two taps on "Zurücksetzen" on the deck itself reset it and restart it. Presses sent over the API do not count. Answers `{"ok": true, "s": 60}` with the seconds left |
 | `DELETE /api/password/reset` | Ends the question. Answers `{"ok": true}` |
 
-While the deck shows the password, a token gets 403 for the pictures of the deck.
+While the deck shows the password or the setup WLAN is open, a token gets 403 for the pictures of the deck.
 
 A browser can also ask to log in without the password. The deck shows its address, the label it sent, its MAC
 address when it is on the same network, and its name when the router knows one. Someone at the deck taps
