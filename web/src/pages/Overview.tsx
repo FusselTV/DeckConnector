@@ -692,10 +692,12 @@ export function Overview() {
 
 function AddSourceBtn() {
   const { t, go } = useUi()
+  const ready = useStore((s) => !!s.config)
   return (
     <button
       type="button"
       className="ibtn"
+      disabled={!ready}
       aria-label={t('src.add')}
       title={t('src.add')}
       onClick={() => {
