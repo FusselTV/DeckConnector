@@ -384,6 +384,36 @@ static bool device_fault(esp_err_t err)
     return err == ESP_ERR_NO_MEM || (err >= ESP_ERR_FLASH_BASE && err < ESP_ERR_FLASH_BASE + 0x100);
 }
 
+/* POST /api/ota/inspect with the first 144 bytes of a .dbfw file: what it is, and whether an upload would pass */
+esp_err_t post_ota_inspect(httpd_req_t *req)
+{
+    static const char *const targets[] = {"", "p4", "c6", "web", "bootloader", "ptable"};
+    uint8_t h[145];
+    if (read_body(req, (char *)h, sizeof(h)) != 144) {
+        return send_error(req, "400 Bad Request", "send the first 144 bytes of the file");
+    }
+    const char *why = db_ota_inspect(h);
+    char version[33], sha[65], body[256];
+    snprintf(version, sizeof(version), "%.32s", (const char *)h + 12);
+    for (int i = 0; i < 32; i++) {
+        snprintf(sha + 2 * i, 3, "%02x", h[44 + i]);
+    }
+    uint32_t len;
+    memcpy(&len, h + 8, 4);
+    db_json_t j;
+    db_json_begin(&j, body, sizeof(body));
+    db_json_obj_open(&j, NULL);
+    db_json_bool(&j, "ok", !why);
+    db_json_str(&j, "error", why ? why : "");
+    db_json_str(&j, "target", h[5] < 6 ? targets[h[5]] : "");
+    db_json_str(&j, "version", version);
+    db_json_int(&j, "length", len);
+    db_json_str(&j, "sha256", sha);
+    db_json_obj_close(&j);
+    db_json_end(&j);
+    return send_json(req, body);
+}
+
 esp_err_t post_ota(httpd_req_t *req)
 {
     char q[32] = "", v[8];

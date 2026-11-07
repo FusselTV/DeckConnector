@@ -175,6 +175,17 @@ static bool signature_ok(const uint8_t *header)
     return st == PSA_SUCCESS;
 }
 
+const char *db_ota_inspect(const uint8_t *h)
+{
+    uint16_t level;
+    memcpy(&level, h + 6, 2);
+    return memcmp(h, "DBFW", 4) != 0 || h[4] != 1          ? "not a .dbfw file"
+           : h[5] < TARGET_P4 || h[5] > TARGET_TABLE         ? "unknown target"
+           : !signature_ok(h)                                ? "not signed for this DeckConnector"
+           : h[5] != TARGET_WEB && level < SECURITY_LEVEL    ? "below the security level, refused"
+                                                             : NULL;
+}
+
 static const esp_partition_t *slot_partition(int slot)
 {
     return slot >= 0 && slot < 16 ? esp_partition_find_first(ESP_PARTITION_TYPE_APP,

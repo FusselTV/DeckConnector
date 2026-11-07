@@ -20,6 +20,8 @@ void db_ota_set_progress_cb(db_ota_progress_cb_t cb);
  * (-1: the one after the running slot, never the running one). With `boot` the device starts it afterwards.
  */
 esp_err_t db_ota_begin(size_t total, int slot, bool boot);
+/* Why the first 144 bytes of a .dbfw file would be refused, or NULL when the upload may go ahead. */
+const char *db_ota_inspect(const uint8_t *header);
 esp_err_t db_ota_write(const uint8_t *data, size_t len);
 /* Verify, and switch over and restart when the begin asked to boot it. */
 esp_err_t db_ota_end(void);

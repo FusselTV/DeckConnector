@@ -135,6 +135,7 @@ FULL = [
     ("GET", "/api/update/check"),
     ("POST", "/api/dock"),
     ("POST", "/api/ota"),
+    ("POST", "/api/ota/inspect"),
     ("POST", "/api/ota/url"),
     ("POST", "/api/reboot"),
     ("POST", "/api/slots/1/boot"),

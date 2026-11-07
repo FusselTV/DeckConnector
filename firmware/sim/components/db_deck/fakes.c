@@ -310,3 +310,8 @@ size_t db_log_prev(char *buf, size_t cap)
 {
     return 0;
 }
+
+const char *db_ota_inspect(const uint8_t *header)
+{
+    return memcmp(header, "DBFW", 4) == 0 ? "the simulator checks no signature" : "not a .dbfw file";
+}

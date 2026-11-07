@@ -76,6 +76,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step (1 to 6) on the DeckConnector, also over a restart. `{"step": 0}` when the wizard ends. `setup` in the status has it |
 | `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, "error": "no releases yet"}`. There are no releases to check yet |
+| `POST /api/ota/inspect` | Send the first 144 bytes of a `.dbfw` file. The answer has `target`, `version`, `length`, `sha256`, and `ok` with an `error` when an upload would be refused |
 | `POST /api/ota/url` | Send `{"url": "http://..."}` and the DeckConnector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart. A new firmware that has not confirmed itself yet counts as confirmed, so it stays |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api` (the firmware's API version), and for a page from the partition its `version`, `api_min` and `size` |
@@ -276,7 +277,7 @@ Companion and the Stream Deck app connect without a password. The DeckConnector 
 by its MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
 the settings, only listed hosts get in. A new host is then let in and listed while none is known and while pairing
 is open. So the first host gets in by itself, and later ones need pairing. Otherwise it is turned away, and the deck
-and the web UI ask whether to let it in. Up to 8 hosts are listed.
+and the web UI ask whether to let it in. Up to 8 hosts are listed. A refused host is not remembered: its next try asks again, so a restarted app gets a new question.
 
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
 `auto_open` while no host is listed yet (the first one gets in without pairing),
