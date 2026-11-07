@@ -433,6 +433,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
 #endif
         {{.uri = "/api/input/log", .method = HTTP_GET, .handler = get_input_log}, WEB_CONTROL},
         {{.uri = "/api/sources/retry", .method = HTTP_POST, .handler = post_source_retry}, WEB_CONTROL},
+        {{.uri = "/api/update/check", .method = HTTP_GET, .handler = get_update_check}, WEB_FULL},
         {{.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = get_wifi_scan}, WEB_FULL},
         {{.uri = "/api/wifi/join", .method = HTTP_POST, .handler = post_wifi_join}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_FULL},

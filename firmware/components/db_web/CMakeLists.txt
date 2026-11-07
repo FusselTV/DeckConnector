@@ -2,7 +2,7 @@
 if(${IDF_TARGET} STREQUAL "linux")
     idf_component_register(SRCS http.c api.c auth.c events.c INCLUDE_DIRS include
                            REQUIRES esp_common
-                           PRIV_REQUIRES nvs_flash db_config db_core db_deck db_dock db_ui db_link db_log db_net db_ota esp_http_server esp_timer mbedtls)
+                           PRIV_REQUIRES nvs_flash db_config db_core db_deck db_dock db_ui db_link db_log db_net db_ota esp_app_format esp_http_server esp_timer mbedtls)
 else()
     idf_component_register(SRCS http.c api.c metrics.c auth.c events.c cert.c INCLUDE_DIRS include
                            REQUIRES esp_common

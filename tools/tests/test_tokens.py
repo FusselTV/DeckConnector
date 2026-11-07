@@ -126,6 +126,7 @@ FULL = [
     ("DELETE", "/api/coredump"),
     ("DELETE", "/api/frontend"),
     ("GET", "/api/boot"),
+    ("GET", "/api/update/check"),
     ("GET", "/api/companion/found"),
     ("GET", "/api/config"),
     ("GET", "/api/coredump"),

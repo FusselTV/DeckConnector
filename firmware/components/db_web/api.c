@@ -24,6 +24,7 @@
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_app_desc.h"
 #include "esp_system.h"
 #include "web.h"
 #include "freertos/FreeRTOS.h"
@@ -581,6 +582,16 @@ static uint32_t log_since;
 static size_t input_log_json(char *buf, size_t cap)
 {
     return events_input_log(buf, cap, log_since);
+}
+
+/* TODO: ask the GitHub releases of FusselTV/deckbridge once there are any, and install the release's .dbfw with
+ * POST /api/ota/url. */
+esp_err_t get_update_check(httpd_req_t *req)
+{
+    char body[96];
+    snprintf(body, sizeof(body), "{\"current\":\"%s\",\"latest\":null,\"error\":\"no releases yet\"}",
+             esp_app_get_description()->version);
+    return send_json(req, body);
 }
 
 /* GET /api/input/log?since=<seq> */
