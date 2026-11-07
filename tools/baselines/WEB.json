@@ -1,0 +1,490 @@
+{
+ "runs": [
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 6
+    }
+   },
+   "memory_before": {
+    "heap_free": 235235,
+    "heap_min_free": 201123,
+    "psram_free": 30858780,
+    "heap_largest": 172032,
+    "heap_lp_free": 15808,
+    "psram_largest": 29360128,
+    "tasks": 36,
+    "sockets": 12,
+    "sockets_max": 40
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 2.07,
+     "p95": 2.5
+    },
+    "/api/config": {
+     "p50": 1.09,
+     "p95": 2.0
+    },
+    "/api/screen": {
+     "p50": 1.99,
+     "p95": 3.06
+    },
+    "/api/screen.jpg": {
+     "p50": 5.86,
+     "p95": 38.46
+    },
+    "/api/metrics": {
+     "p50": 1.25,
+     "p95": 2.98
+    },
+    "/api/slots": {
+     "p50": 3.94,
+     "p95": 5.04
+    },
+    "/": {
+     "p50": 21.59,
+     "p95": 35.81
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.92,
+     "p95": 2.97
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 469.1,
+     "errors": 0,
+     "p50": 2.06,
+     "p95": 2.5
+    },
+    "/api/status x4": {
+     "rps": 545.3,
+     "errors": 0,
+     "p50": 7.07,
+     "p95": 11.48
+    },
+    "/api/status x8": {
+     "rps": 559.6,
+     "errors": 0,
+     "p50": 14.04,
+     "p95": 16.57
+    },
+    "/api/screen x1": {
+     "rps": 588.2,
+     "errors": 0,
+     "p50": 1.53,
+     "p95": 2.12
+    },
+    "/api/screen x4": {
+     "rps": 765.5,
+     "errors": 0,
+     "p50": 4.99,
+     "p95": 8.19
+    },
+    "/api/screen x8": {
+     "rps": 785.4,
+     "errors": 0,
+     "p50": 10.0,
+     "p95": 16.88
+    },
+    "/api/screen.jpg x1": {
+     "rps": 149.7,
+     "errors": 0,
+     "p50": 5.79,
+     "p95": 9.02
+    },
+    "/api/screen.jpg x4": {
+     "rps": 174.6,
+     "errors": 0,
+     "p50": 7.86,
+     "p95": 16.87
+    },
+    "/api/screen.jpg x8": {
+     "rps": 179.5,
+     "errors": 0,
+     "p50": 8.09,
+     "p95": 51.69
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 4.39,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 78.45,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 78.73,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 77.92,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.87,
+    "p95": 15.75
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.77,
+     "p95": 5.51
+    },
+    "input_event": {
+     "p50": 4.23,
+     "p95": 8.73
+    }
+   },
+   "memory_after": {
+    "heap_free": 234767,
+    "heap_min_free": 73639,
+    "psram_free": 30829672,
+    "heap_largest": 167936,
+    "heap_lp_free": 15808,
+    "psram_largest": 29360128,
+    "tasks": 36,
+    "sockets": 12,
+    "sockets_max": 40
+   },
+   "size": {
+    "app": 1700368,
+    "ram_static": 176253
+   },
+   "firmware": "v0.1.0-184-gbd0ecbb-dirty",
+   "at": "2026-11-07 04:31:31"
+  },
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 6
+    }
+   },
+   "memory_before": {
+    "heap_free": 234767,
+    "heap_min_free": 73639,
+    "psram_free": 30829736,
+    "heap_largest": 172032,
+    "heap_lp_free": 15808,
+    "psram_largest": 29360128,
+    "tasks": 36,
+    "sockets": 12,
+    "sockets_max": 40
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 2.1,
+     "p95": 2.23
+    },
+    "/api/config": {
+     "p50": 1.1,
+     "p95": 1.32
+    },
+    "/api/screen": {
+     "p50": 1.51,
+     "p95": 1.74
+    },
+    "/api/screen.jpg": {
+     "p50": 6.06,
+     "p95": 36.43
+    },
+    "/api/metrics": {
+     "p50": 1.47,
+     "p95": 2.67
+    },
+    "/api/slots": {
+     "p50": 3.91,
+     "p95": 4.48
+    },
+    "/": {
+     "p50": 21.64,
+     "p95": 34.99
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.32,
+     "p95": 2.69
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 453.0,
+     "errors": 0,
+     "p50": 2.07,
+     "p95": 2.93
+    },
+    "/api/status x4": {
+     "rps": 538.9,
+     "errors": 0,
+     "p50": 7.15,
+     "p95": 11.34
+    },
+    "/api/status x8": {
+     "rps": 551.8,
+     "errors": 0,
+     "p50": 14.15,
+     "p95": 21.66
+    },
+    "/api/screen x1": {
+     "rps": 588.9,
+     "errors": 0,
+     "p50": 1.53,
+     "p95": 2.19
+    },
+    "/api/screen x4": {
+     "rps": 763.4,
+     "errors": 0,
+     "p50": 5.0,
+     "p95": 8.04
+    },
+    "/api/screen x8": {
+     "rps": 783.5,
+     "errors": 0,
+     "p50": 10.04,
+     "p95": 14.61
+    },
+    "/api/screen.jpg x1": {
+     "rps": 146.8,
+     "errors": 0,
+     "p50": 5.98,
+     "p95": 8.99
+    },
+    "/api/screen.jpg x4": {
+     "rps": 166.5,
+     "errors": 0,
+     "p50": 7.82,
+     "p95": 16.55
+    },
+    "/api/screen.jpg x8": {
+     "rps": 178.1,
+     "errors": 0,
+     "p50": 8.59,
+     "p95": 74.4
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 5.56,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 71.65,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 79.07,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 78.14,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 2.63,
+    "p95": 3.34
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.9,
+     "p95": 3.01
+    },
+    "input_event": {
+     "p50": 4.2,
+     "p95": 6.06
+    }
+   },
+   "memory_after": {
+    "heap_free": 234775,
+    "heap_min_free": 62479,
+    "psram_free": 30829800,
+    "heap_largest": 167936,
+    "heap_lp_free": 15808,
+    "psram_largest": 29360128,
+    "tasks": 36,
+    "sockets": 12,
+    "sockets_max": 40
+   },
+   "size": {
+    "app": 1700368,
+    "ram_static": 176253
+   },
+   "firmware": "v0.1.0-184-gbd0ecbb-dirty",
+   "at": "2026-11-07 04:34:46"
+  },
+  {
+   "cpu_idle": {
+    "total": {
+     "cpu_busy": 7
+    },
+    "tcpip": {
+     "cpu_busy": 1
+    }
+   },
+   "memory_before": {
+    "heap_free": 234763,
+    "heap_min_free": 62479,
+    "psram_free": 30829480,
+    "heap_largest": 172032,
+    "heap_lp_free": 15808,
+    "psram_largest": 29360128,
+    "tasks": 36,
+    "sockets": 12,
+    "sockets_max": 40
+   },
+   "latency": {
+    "/api/status": {
+     "p50": 2.19,
+     "p95": 2.62
+    },
+    "/api/config": {
+     "p50": 1.12,
+     "p95": 1.38
+    },
+    "/api/screen": {
+     "p50": 1.52,
+     "p95": 2.05
+    },
+    "/api/screen.jpg": {
+     "p50": 5.93,
+     "p95": 8.64
+    },
+    "/api/metrics": {
+     "p50": 1.98,
+     "p95": 2.22
+    },
+    "/api/slots": {
+     "p50": 3.96,
+     "p95": 5.7
+    },
+    "/": {
+     "p50": 21.56,
+     "p95": 27.43
+    },
+    "/api/screen/<id>.jpg": {
+     "p50": 1.33,
+     "p95": 1.46
+    }
+   },
+   "hammer": {
+    "/api/status x1": {
+     "rps": 448.5,
+     "errors": 0,
+     "p50": 2.12,
+     "p95": 2.92
+    },
+    "/api/status x4": {
+     "rps": 530.5,
+     "errors": 0,
+     "p50": 7.35,
+     "p95": 11.54
+    },
+    "/api/status x8": {
+     "rps": 547.3,
+     "errors": 0,
+     "p50": 14.41,
+     "p95": 17.77
+    },
+    "/api/screen x1": {
+     "rps": 604.1,
+     "errors": 0,
+     "p50": 1.52,
+     "p95": 2.05
+    },
+    "/api/screen x4": {
+     "rps": 768.3,
+     "errors": 0,
+     "p50": 5.0,
+     "p95": 8.06
+    },
+    "/api/screen x8": {
+     "rps": 784.3,
+     "errors": 0,
+     "p50": 10.0,
+     "p95": 17.31
+    },
+    "/api/screen.jpg x1": {
+     "rps": 136.4,
+     "errors": 0,
+     "p50": 5.93,
+     "p95": 9.7
+    },
+    "/api/screen.jpg x4": {
+     "rps": 142.2,
+     "errors": 0,
+     "p50": 7.47,
+     "p95": 48.34
+    },
+    "/api/screen.jpg x8": {
+     "rps": 180.0,
+     "errors": 0,
+     "p50": 8.8,
+     "p95": 66.39
+    }
+   },
+   "home_assistant": {
+    "x1": {
+     "status_p95": 4.48,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x3": {
+     "status_p95": 74.41,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x5": {
+     "status_p95": 77.94,
+     "errors": 0,
+     "ws_drops": 0
+    },
+    "x8": {
+     "status_p95": 89.7,
+     "errors": 0,
+     "ws_drops": 4
+    }
+   },
+   "ws_connect": {
+    "p50": 4.36,
+    "p95": 11.7
+   },
+   "drawing": {
+    "key_image": {
+     "p50": 0.81,
+     "p95": 4.72
+    },
+    "input_event": {
+     "p50": 4.02,
+     "p95": 6.91
+    }
+   },
+   "memory_after": {
+    "heap_free": 233919,
+    "heap_min_free": 62479,
+    "psram_free": 30829800,
+    "heap_largest": 163840,
+    "heap_lp_free": 15808,
+    "psram_largest": 29360128,
+    "tasks": 36,
+    "sockets": 12,
+    "sockets_max": 40
+   },
+   "size": {
+    "app": 1700368,
+    "ram_static": 176253
+   },
+   "firmware": "v0.1.0-184-gbd0ecbb-dirty",
+   "at": "2026-11-07 04:38:00"
+  }
+ ]
+}
