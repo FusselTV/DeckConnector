@@ -42,11 +42,12 @@ def test_the_downloaded_certificate_matches_the_fingerprint():
     assert fp == status()["https_fingerprint"]
 
 
-def test_an_own_certificate_is_checked_without_being_applied():
-    cert, key = pair("dash.example.org")
+@pytest.mark.parametrize("cn", ["dash.example.org", 'Foo, "Inc."'])
+def test_an_own_certificate_is_checked_without_being_applied(cn):
+    cert, key = pair(cn)
     code, body = api("PUT", "/api/tls", json.dumps({"cert": cert, "key": key}).encode())
     info = json.loads(body)
-    assert code == 200 and info["subject"] == "CN=dash.example.org" and len(info["sha256"]) == 95, info
+    assert code == 200 and info["subject"].startswith("CN=") and len(info["sha256"]) == 95, info
     assert status()["https_custom"] is False
 
 

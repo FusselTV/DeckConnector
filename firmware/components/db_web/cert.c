@@ -5,6 +5,7 @@
 
 #include "esp_heap_caps.h"
 #include "cJSON.h"
+#include "db_json.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "mbedtls/pk.h"
@@ -164,10 +165,18 @@ bool web_cert_check(const char *cert, const char *key, char *info, size_t cap)
         mbedtls_x509_dn_gets(issuer, sizeof(issuer), &crt.issuer);
         fingerprint(cert, fp);
         const mbedtls_x509_time *t = &crt.valid_to;
-        snprintf(info, cap,
-                 "{\"ok\":true,\"subject\":\"%s\",\"issuer\":\"%s\",\"not_after\":\"%04d-%02d-%02d\","
-                 "\"sha256\":\"%s\"}",
-                 subject, issuer, t->year, t->mon, t->day, fp);
+        char date[16];
+        snprintf(date, sizeof(date), "%04d-%02d-%02d", t->year, t->mon, t->day);
+        db_json_t j;
+        db_json_begin(&j, info, cap);
+        db_json_obj_open(&j, NULL);
+        db_json_bool(&j, "ok", true);
+        db_json_str(&j, "subject", subject); /* mbedtls escapes "," in a name with a backslash */
+        db_json_str(&j, "issuer", issuer);
+        db_json_str(&j, "not_after", date);
+        db_json_str(&j, "sha256", fp);
+        db_json_obj_close(&j);
+        db_json_end(&j);
     }
     mbedtls_pk_free(&pk);
     mbedtls_x509_crt_free(&crt);
@@ -229,7 +238,7 @@ esp_err_t put_tls(httpd_req_t *req)
     const cJSON *cert = cJSON_GetObjectItemCaseSensitive(root, "cert");
     const cJSON *key = cJSON_GetObjectItemCaseSensitive(root, "key");
     bool apply = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "apply"));
-    char info[400];
+    char info[640]; /* names with escapes */
     bool sized = cJSON_IsString(cert) && cJSON_IsString(key) &&
                  strlen(cert->valuestring) + strlen(key->valuestring) <= CUSTOM_MAX;
     bool ok = sized && web_cert_check(cert->valuestring, key->valuestring, info, sizeof(info));

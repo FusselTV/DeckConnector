@@ -8,7 +8,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from conftest import HOST, PASSWORD, api
+from conftest import HOST, PASSWORD, TARGET, api
 from websockets.asyncio.client import connect
 
 pytestmark = pytest.mark.sim
@@ -274,3 +274,12 @@ def test_a_backup_with_secrets_restores_them_and_needs_the_password():
     assert "admin_pass" not in plain and {"admin_pass", "wifi_pass", "token"} <= full.keys()
     assert full["admin_pass"] == PASSWORD
     assert api("PUT", "/api/config", json.dumps(full).encode())[0] == 200, "the backup goes back in as it is"
+
+
+@pytest.mark.skipif(TARGET != "sim", reason="fills the settings with characters JSON must escape")
+def test_a_backup_that_must_escape_much_stays_whole():
+    escaped = {"host": "\x01" * 95, "satellite": "\\" * 63, "cors_origins": "\x01" * 127}  # 6 and 2 bytes each
+    r = api("PUT", "/api/config", json.dumps(escaped).encode())
+    assert r[0] == 200, r
+    code, body = api("GET", "/api/backup?secrets=1")
+    assert code == 200 and json.loads(body)["admin_pass"] == PASSWORD, body[-80:]

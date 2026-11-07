@@ -280,11 +280,20 @@ esp_err_t get_status(httpd_req_t *req)
     return send_built(req, STATUS_JSON_MAX, api_status_json);
 }
 
+static size_t config_json(char *buf, size_t cap)
+{
+    return db_config_to_json(db_config(), false, buf, cap);
+}
+
+static size_t backup_json(char *buf, size_t cap)
+{
+    return db_config_to_json(db_config(), true, buf, cap);
+}
+
+/* quotes in the WLAN name or password grow the JSON past JSON_MAX */
 esp_err_t get_config(httpd_req_t *req)
 {
-    char buf[JSON_MAX];
-    db_config_to_json(db_config(), false, buf, sizeof(buf));
-    return send_json(req, buf);
+    return send_built(req, JSON_MAX * 2, config_json);
 }
 
 /* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token, for a
@@ -326,9 +335,7 @@ esp_err_t get_backup(httpd_req_t *req)
     char v[4] = "";
     bool secrets = httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
                    httpd_query_key_value(query, "secrets", v, sizeof(v)) == ESP_OK && strcmp(v, "1") == 0;
-    char buf[JSON_MAX];
-    db_config_to_json(db_config(), secrets, buf, sizeof(buf));
-    return send_json(req, buf);
+    return send_built(req, JSON_MAX * 2, secrets ? backup_json : config_json);
 }
 
 static const char *status_line(int code)
@@ -391,7 +398,7 @@ esp_err_t put_config(httpd_req_t *req)
     if (read_body(req, body, sizeof(body)) < 0) {
         return send_error(req, "413 Payload Too Large", "body too large");
     }
-    enum { REPLY_MAX = JSON_MAX + 64 };
+    enum { REPLY_MAX = JSON_MAX * 2 + 64 };
     static char *reply; /* in PSRAM, made once; handlers run under web_lock() */
     if (!reply && !(reply = heap_caps_malloc(REPLY_MAX, MALLOC_CAP_SPIRAM))) {
         return send_error(req, "500 Internal Server Error", "out of memory");
@@ -400,7 +407,8 @@ esp_err_t put_config(httpd_req_t *req)
     if (code == 200) {
         size_t n = strlen(reply) - 1; /* over the closing brace */
         n += snprintf(reply + n, REPLY_MAX - n, ",\"config\":");
-        n += db_config_to_json(db_config(), false, reply + n, REPLY_MAX - n - 1);
+        size_t len = db_config_to_json(db_config(), false, reply + n, REPLY_MAX - n - 1);
+        n += len ? len : (size_t)snprintf(reply + n, REPLY_MAX - n, "null");
         snprintf(reply + n, REPLY_MAX - n, "}");
     }
     return reply_with(req, code, reply);
