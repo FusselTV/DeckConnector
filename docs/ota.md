@@ -13,7 +13,7 @@ A 144 byte header, then the image.
 | 0 | 4 | `DBFW` |
 | 4 | 1 | format, `1` |
 | 5 | 1 | target, `1` P4, `2` C6, `3` web page, `4` bootloader, `5` partition table |
-| 6 | 2 | security level; for a web page `api_min`, the oldest firmware API it works with |
+| 6 | 2 | security level, or for a web page `api_min`, the oldest firmware API it works with |
 | 8 | 4 | image length |
 | 12 | 32 | version text |
 | 44 | 32 | SHA-256 of the image |
@@ -86,7 +86,7 @@ still be started by choice. Without `all`, `tools/flash.sh` writes only the firm
 
 ```
 cd tools
-uv run python -m dbtools.dbfw keygen        # once; key in ~/.config/deckbridge/ota_key.pem
+uv run python -m dbtools.dbfw keygen        # once, key in ~/.config/deckbridge/ota_key.pem
 uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin out.dbfw
 ```
 

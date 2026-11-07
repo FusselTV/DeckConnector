@@ -425,7 +425,7 @@ static void ap_page(page_t *p)
     }
     if (p->l->strip) {
         segment(&p->sc->seg[0], 4, ICON_SETUP_AP, C_ACTIVE, "Setup-WLAN", "Setup-WLAN ist an",
-                "Den Code mit der Handykamera scannen, oder von Hand verbinden und die Adresse öffnen");
+                "Code mit der Handykamera scannen oder von Hand verbinden und die Adresse öffnen");
     }
 }
 
@@ -547,7 +547,7 @@ static void request_page(page_t *p)
         char who[48];
         snprintf(who, sizeof(who), "%.24s (%s)", md->request_name, md->request);
         segment(&p->sc->seg[0], 4, ICON_ALERT, C_WARN, "Verbindungsanfrage", named ? who : md->request,
-                "Ein Programm, das noch nie verbunden war, will das Deck steuern");
+                "Ein neues Programm will das Deck steuern");
     }
 }
 
@@ -652,7 +652,7 @@ static void sources_page(page_t *p)
     }
     if (p->l->strip) {
         segment(&p->sc->seg[0], 4, ICON_OPEN, C_EDIT, "Wer zeichnet?", "Welcher Rechner?",
-                "Antippen, und dieser Rechner zeichnet auf dem Deck.");
+                "Antippen, dann zeichnet dieser Rechner.");
     }
 }
 

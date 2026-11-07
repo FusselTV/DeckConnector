@@ -22,8 +22,8 @@ tap picks the one that draws, and the deck shows its picture at once.
   once when the connection closes and within 6 s when the server goes silent.
 - The newest image for each area wins, so a slow link never builds a queue.
 - `wss://` for servers and for Companion's WebSocket port, checked against public CAs or a pinned certificate.
-- Signed updates for the firmware and the WLAN chip, with automatic rollback if new firmware does not
-  come up.
+- Signed updates for the firmware and the WLAN chip. New firmware that does not come up rolls back by
+  itself.
 - A status screen and a settings menu on the device itself, and a setup WLAN for first use.
 - A web UI with a live view of the deck. You can click, hold, swipe and scroll it like the real one.
 - A JSON API for all of it, see [docs/api.md](docs/api.md).
@@ -63,7 +63,7 @@ Web-Zugang.
      without host networking, as long as port 16622, or 16623 for `ws://`, is reachable. Without it, the board
      shows up in Companion under Surfaces, Discover, as a Network Dock.
    - Elgato App. It finds the board by itself.
-   - Own servers. Add a server URL (`ws://host:port/deckbridge` or `wss://`). Without one, the board finds
+   - Your own servers. Add a server URL (`ws://host:port/deckbridge` or `wss://`). Without one, the board finds
      servers that announce `_deckconnector._tcp` (or the old `_deckbridge._tcp`) over mDNS.
 
 When nobody draws, the deck shows its home screen. Its top row lists the connected hosts. Tap one twice to let
@@ -74,11 +74,11 @@ open the menu. When it closes, the deck shows the host's picture again at once.
 
 The web UI is optional. Plug in LAN. The deck shows its address and how to open its menu.
 
-- Elgato App: it finds the board by itself.
-- Companion: enter the address under Surfaces as a remote surface. When Companion announces its Satellite API in
+- The Elgato App finds the board by itself.
+- In Companion, enter the address under Surfaces as a remote surface. When Companion announces its Satellite API in
   your network, the deck asks "Companion gefunden, verbinden?" instead. One key connects it over Satellite.
 - The first program that connects takes the deck. Later ones are picked on the deck's home screen.
-- No LAN cable: after a minute the deck shows a QR code for its setup WLAN.
+- Without a LAN cable, the deck shows a QR code for its setup WLAN after a minute.
 
 ## Writing a server
 

@@ -1,11 +1,11 @@
 # DeckConnector protocol, version 1
 
-The DeckConnector connects to one or two servers over WebSocket. The server renders images and handles input. The
-bridge knows the USB protocol of the device and shows the newest image for each area.
+The DeckConnector connects to up to four servers over WebSocket. The server renders images and handles input. The
+DeckConnector knows the USB protocol of the device and shows the newest image for each area.
 
 ## Connection
 
-- The DeckConnector is the client. It opens `ws://<server>/deckbridge` with the subprotocols `deckconnector.v1` and `deckbridge.v1`; the server picks one.
+- The DeckConnector is the client. It opens `ws://<server>/deckbridge` with the subprotocols `deckconnector.v1` and `deckbridge.v1`. The server picks one.
   A `wss://` URL works too. The server's certificate must come from a public CA and name the host, or match the
   SHA-256 set for that server in `server_pins` ([api.md](api.md)).
 - The DeckConnector keeps a connection to every configured server, at most four. The first connected server in
@@ -81,7 +81,7 @@ Touch positions are in display coordinates.
 
 Send the next image for an area only after the ACK of the previous one for that area. The DeckConnector also drops
 covered images, so a fast server never builds a queue, but waiting for the ACK keeps the latency low on slow
-links like WLAN. An ACK can get lost when the link is overloaded; treat an area as free again after 2 s without
+links like WLAN. An ACK can get lost when the link is overloaded. Treat an area as free again after 2 s without
 an ACK.
 
 ## JSON messages, DeckConnector to server
@@ -123,5 +123,5 @@ OTA `state` is one of `download`, `verify`, `done`, `error`. After `done` the De
 {"t": "reboot"}
 ```
 
-The signed `.dbfw` file decides whether it goes to the DeckConnector (P4) or to the WLAN chip (C6); `target` is only
+The signed `.dbfw` file decides whether it goes to the DeckConnector (P4) or to the WLAN chip (C6). `target` is only
 echoed in the progress messages. See [ota.md](ota.md).

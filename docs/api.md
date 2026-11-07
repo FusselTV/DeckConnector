@@ -86,7 +86,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `OPTIONS /api/...` | CORS preflight, see "For integrations" |
 | `GET /api/status` | State of the DeckConnector, see below |
 | `GET /api/config` | Settings. Passwords and the token only show as `wifi_pass_set` and `token_set` |
-| `GET /api/backup` | The settings for a restore; `?secrets=1` adds the passwords and the token. Password only |
+| `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords and the token. Password only |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config`, the settings as the DeckConnector stored them |
 | `GET /api/screen` | What the deck shows right now, see below |
 | `GET /api/screen/<id>.jpg` | One image of that picture |
@@ -119,7 +119,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate (its chain may follow it) and key, and answers `subject`, `issuer`, `not_after` and `sha256`. With `"apply": true` it is kept and the DeckConnector restarts. A key with a password is refused. `https_custom` in the status says it is in use |
 | `DELETE /api/tls` | Back to the DeckConnector's own certificate, with a restart |
 | `GET /api/input/log` | The last 200 inputs, oldest first: `seq`, `at_ms` (after the start), `origin` (`deck` pressed on the deck, `web` a person over the network, `tool` a script or test), `kind`, `index`, `value`, `x`, `y`, and the `writer` that got it. `?since=<seq>` returns only newer ones. Kept in RAM, gone at a restart |
-| `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. The DeckConnector connects to it now instead of after the wait. 404 for anything else; dock hosts connect by themselves |
+| `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. The DeckConnector connects to it now instead of after the wait. 404 for anything else. Dock hosts connect by themselves |
 | `GET /api/wifi/scan` | Networks in reach, one entry per access point, strongest first: `ssid`, `bssid`, `rssi` (dBm), `channel`, `open`. Only 2.4 GHz. Hidden networks and the setup network are left out. Takes 2 to 3 s |
 | `POST /api/wifi/join` | `{"ssid": "...", "pass": "...", "bssid": "..."}` tries that network and answers 202 at once. `network.wlan.join` in the status goes from `testing` to `ok` or `failed` (with `join_error`) within 15 s. Only a network that gives an address is saved, otherwise the old one comes back. `bssid` is optional and locks the DeckConnector to that access point |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
@@ -154,8 +154,7 @@ Companion should use its Satellite API, not the Network Dock emulation. A dock h
 be moved with `PUT /api/config {"satellite": "<its address>", "controller": "companion", "host": "satellite"}` and
 then `POST /api/dock {"forget": "<its address>"}`. When the picked host is not
 connected, the first connected one of the same program draws, for `companion` the Satellite connection first.
-`controller` alone with an empty `host` means exactly that from the start, so settings from older firmware keep
-working.
+`controller` alone with an empty `host` means exactly that from the start.
 
 The change works at once. All hosts stay connected, and the deck shows the picked one's picture right away. The
 others keep drawing into their own picture in the background and get no input. On the device the hosts are the top
@@ -190,7 +189,7 @@ uses full speed. Full speed moves about 64 KB of pictures per second instead of 
 up to a second.
 
 Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
-once, without the password. A code is good for 10 minutes and for one login; then the deck shows a new one.
+once, without the password. A code is good for 10 minutes and for one login. Then the deck shows a new one.
 `qr_login: false` turns it off.
 
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
@@ -247,11 +246,11 @@ again and upload the key again.
   LAN link, each address, Companion, the Elgato App, a server, the first picture of a host, and Companion
   over its Satellite API.
 - `setup.step` is the web wizard's step, 0 when it does not run. `setup.active` is true until setup is done or
-  while the wizard runs; `setup.rerun` is true while it runs again after setup was done.
+  while the wizard runs. `setup.rerun` is true while it runs again after setup was done.
 - `boot.reason` says why the DeckConnector started: `power`, `pin` (the reset button), `restart`, `crash`,
   `watchdog`, `brownout` or `other`. `boot.at` is the start time in Unix seconds, `null` until the clock is set.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
-- `heap_free` includes the LP RAM. `heap_lp_free` is the LP RAM part; the 16 KB log ring that survives a restart
+- `heap_free` includes the LP RAM. `heap_lp_free` is the LP RAM part. The 16 KB log ring that survives a restart
   lives there.
 - `id` is the DeckConnector's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields, its `number`
@@ -260,11 +259,11 @@ again and upload the key again.
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router
   calls the host, empty when it has no name or is a server. Servers and the Satellite address also have `error`
-  (why the last try failed, empty while connected), `since_s` (when this state began, in seconds after the start; compare with `uptime_s`) and `iface` (`lan` or
+  (why the last try failed, empty while connected), `since_s` (when this state began, in seconds after the start, to compare with `uptime_s`) and `iface` (`lan` or
   `wlan` while connected). `chosen` marks the one that draws whenever no menu
   covers it.
 - `network.wlan.lock` is the access point the DeckConnector is locked to (`wifi_bssid`), empty for any. `join`
-  is the state of the last `POST /api/wifi/join`. `network.ap.on` says the setup WLAN is open; a page reached over
+  is the state of the last `POST /api/wifi/join`. `network.ap.on` says the setup WLAN is open. A page reached over
   it loses the DeckConnector when the setup network closes.
 - `superseded` counts images that a newer one replaced before they were drawn.
 - `usb_errors` counts failed USB transfers. Transfers that an unplug ends are not counted.
