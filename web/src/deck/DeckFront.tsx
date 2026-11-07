@@ -306,6 +306,8 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     const L = e.key === 'ArrowLeft'
     const R = e.key === 'ArrowRight'
     const mid = (zone + 0.5) / zones
+    setKf(true)
+    setHint('strip')
     if ((L || R) && !e.shiftKey) {
       e.preventDefault()
       setZone((z) => Math.max(0, Math.min(zones - 1, z + (R ? 1 : -1))))
@@ -402,7 +404,9 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
               onPointerUp={stripUp}
               onPointerCancel={() => (pd.current = null)}
               onKeyDown={stripKey}
-              onFocus={() => {
+              onFocus={(e) => {
+                // A click focuses the strip too; the zone frame and the key help are for the keyboard only.
+                if (!e.currentTarget.matches(':focus-visible')) return
                 setKf(true)
                 setHint('strip')
               }}
@@ -464,7 +468,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
                     aria-describedby="kb-hint"
                     title={t('ov.enc_press', { n: i + 1 })}
                     aria-disabled={armed ? undefined : true}
-                    onFocus={() => setHint('knob')}
+                    onFocus={(e) => e.currentTarget.matches(':focus-visible') && setHint('knob')}
                     onBlur={() => setHint(null)}
                     onPointerDown={(e) => dDown(i, e)}
                     onPointerMove={(e) => dMove(i, e)}
