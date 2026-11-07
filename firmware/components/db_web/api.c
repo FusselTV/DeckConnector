@@ -29,6 +29,7 @@
 #include "web.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs.h"
 #include "sdkconfig.h"
 #if !CONFIG_IDF_TARGET_LINUX
 #include "esp_core_dump.h"
@@ -582,6 +583,47 @@ static uint32_t log_since;
 static size_t input_log_json(char *buf, size_t cap)
 {
     return events_input_log(buf, cap, log_since);
+}
+
+static int setup_step = -1; /* -1: not read from NVS yet */
+
+int db_web_setup_step(void)
+{
+    if (setup_step < 0) {
+        uint8_t v = 0;
+        nvs_handle_t h;
+        if (nvs_open("web", NVS_READONLY, &h) == ESP_OK) {
+            nvs_get_u8(h, "step", &v);
+            nvs_close(h);
+        }
+        setup_step = v;
+    }
+    return setup_step;
+}
+
+/* PUT /api/setup {"step": 0..6}: kept in NVS, because a network change on the way restarts the bridge */
+esp_err_t put_setup(httpd_req_t *req)
+{
+    char body[32];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *step = cJSON_GetObjectItemCaseSensitive(root, "step");
+    int n = cJSON_IsNumber(step) ? step->valueint : -1;
+    cJSON_Delete(root);
+    if (n < 0 || n > 6) {
+        return send_error(req, "400 Bad Request", "step: 0 to 6");
+    }
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, "step", (uint8_t)n);
+        err = err == ESP_OK ? nvs_commit(h) : err;
+        nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
+    }
+    setup_step = n;
+    return send_json(req, "{\"ok\":true}");
 }
 
 /* TODO: ask the GitHub releases of FusselTV/deckbridge once there are any, and install the release's .dbfw with

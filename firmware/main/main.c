@@ -238,6 +238,11 @@ static void write_status(db_json_t *j, bool live)
         db_json_int(j, "uptime_s", esp_timer_get_time() / 1000000);
     }
     write_boot(j);
+    db_json_obj_open(j, "setup");
+    db_json_bool(j, "active", !db_config()->setup_done || db_web_setup_step());
+    db_json_int(j, "step", db_web_setup_step());
+    db_json_bool(j, "rerun", db_config()->setup_done && db_web_setup_step());
+    db_json_obj_close(j);
     db_json_str(j, "controller", db_controller_name(db_config()->controller));
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
     write_device(j);

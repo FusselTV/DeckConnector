@@ -126,13 +126,13 @@ FULL = [
     ("DELETE", "/api/coredump"),
     ("DELETE", "/api/frontend"),
     ("GET", "/api/boot"),
-    ("GET", "/api/update/check"),
     ("GET", "/api/companion/found"),
     ("GET", "/api/config"),
     ("GET", "/api/coredump"),
     ("GET", "/api/log"),
     ("GET", "/api/profile"),
     ("GET", "/api/slots"),
+    ("GET", "/api/update/check"),
     ("POST", "/api/dock"),
     ("POST", "/api/ota"),
     ("POST", "/api/ota/url"),
@@ -140,6 +140,7 @@ FULL = [
     ("POST", "/api/slots/1/boot"),
     ("PUT", "/api/config"),
     ("PUT", "/api/frontend"),
+    ("PUT", "/api/setup"),
 ]
 PASSWORD_ONLY = [("DELETE", "/api/tokens/x"), ("GET", "/api/tokens"), ("POST", "/api/tokens")]
 

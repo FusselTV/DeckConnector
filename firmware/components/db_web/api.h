@@ -29,6 +29,7 @@ esp_err_t get_wifi_scan(httpd_req_t *req);
 esp_err_t post_source_retry(httpd_req_t *req);
 esp_err_t get_input_log(httpd_req_t *req);
 esp_err_t get_update_check(httpd_req_t *req);
+esp_err_t put_setup(httpd_req_t *req);
 esp_err_t post_wifi_join(httpd_req_t *req);
 esp_err_t put_frontend(httpd_req_t *req);
 esp_err_t delete_frontend(httpd_req_t *req);

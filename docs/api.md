@@ -74,6 +74,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the DeckConnector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
 | `GET /api/slots` | The firmware slots: `slot` (1 to 4), `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
+| `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step (1 to 6) on the DeckConnector, also over a restart. `{"step": 0}` when the wizard ends. `setup` in the status has it |
 | `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, "error": "no releases yet"}`. There are no releases to check yet |
 | `POST /api/ota/url` | Send `{"url": "http://..."}` and the DeckConnector loads a signed `.dbfw` file itself. Progress comes over `/api/ws` |
 | `POST /api/reboot` | Restart. A new firmware that has not confirmed itself yet counts as confirmed, so it stays |
@@ -174,7 +175,8 @@ it restores the settings. The web UI does this under System.
 
 ```json
 {"id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
- "boot": {"reason": "restart", "at": 1794012139}, "controller": "companion", "writer": "dock2",
+ "boot": {"reason": "restart", "at": 1794012139},
+ "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "dock2",
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.214"},
@@ -198,6 +200,8 @@ it restores the settings. The web UI does this under System.
 - `boot_ms` says when each step of this boot happened first, in ms after the firmware started: the deck, the
   LAN link, each address, Companion, the Stream Deck app, a server, the first picture of a host, and Companion
   over its Satellite API.
+- `setup.step` is the web wizard's step, 0 when it does not run. `setup.active` is true until setup is done or
+  while the wizard runs; `setup.rerun` is true while it runs again after setup was done.
 - `boot.reason` says why the DeckConnector started: `power`, `pin` (the reset button), `restart`, `crash`,
   `watchdog`, `brownout` or `other`. `boot.at` is the start time in Unix seconds, `null` until the clock is set.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.

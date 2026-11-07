@@ -24,5 +24,8 @@ const char *db_web_fingerprint(void);
 /* HTTPS serves an uploaded certificate, not its own. */
 bool db_web_cert_custom(void);
 
+/* The web wizard's step, 1 to 6, kept over restarts; 0 when it does not run. */
+int db_web_setup_step(void);
+
 /* Send one JSON message to every listener of /api/ws. */
 void db_web_broadcast(const char *json);
