@@ -44,6 +44,7 @@ static struct {
     int64_t rssi_at;
     int64_t link_at;
     esp_timer_handle_t kick;
+    uint64_t kick_us;
     bool wifi_started;
     void (*on_change)(void);
     db_net_found_t found[FOUND_MAX];
@@ -196,16 +197,18 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 
 /* A switch port with spanning tree drops the first seconds of frames after the link comes up, and DHCP
  * retries after 1, 2 and 4 s: the address came up to 6 s late. Asking again every second gets it a second
- * after the port forwards. */
+ * after the port forwards. Without spanning tree the request sent with the link is still lost in about half
+ * of the boots, so the first kicks come sooner. */
 static void dhcp_kick(void *arg)
 {
     int64_t since = esp_timer_get_time() - s.link_at;
     if (s.st.lan_up || !s.st.lan_link || since > DHCP_KICK_US) {
-        esp_timer_stop(s.kick);
         return;
     }
     esp_netif_dhcpc_stop(s.lan);
     esp_netif_dhcpc_start(s.lan);
+    s.kick_us = s.kick_us * 2 < 1000000 ? s.kick_us * 2 : 1000000;
+    esp_timer_start_once(s.kick, s.kick_us);
 }
 
 static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -218,7 +221,8 @@ static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (db_config()->lan.dhcp && s.kick) {
             s.link_at = esp_timer_get_time();
             esp_timer_stop(s.kick);
-            esp_timer_start_periodic(s.kick, 1000000);
+            s.kick_us = 250000;
+            esp_timer_start_once(s.kick, s.kick_us);
         }
     } else if (id == ETHERNET_EVENT_DISCONNECTED) {
         db_log_event(TAG, "lan", "LAN link down");
