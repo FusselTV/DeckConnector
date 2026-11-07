@@ -264,10 +264,8 @@ export function Wizard() {
     setUErr(null)
     const servers = [...(cfg?.servers ?? ['', '', '', ''])]
     const pins = [...(cfg?.server_pins ?? ['', '', '', ''])]
-    const i = Math.max(
-      0,
-      servers.findIndex((x) => !x || x === url),
-    )
+    const i = servers.findIndex((x) => !x || x === url)
+    if (i < 0) return setUErr(t('src.srv_full'))
     servers[i] = url
     pins[i] = url.startsWith('wss://') ? normPin(uPin) : ''
     await act(() => putConfig({ servers, server_pins: pins, controller: 'server', host: url }))

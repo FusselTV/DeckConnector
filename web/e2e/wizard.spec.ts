@@ -130,3 +130,32 @@ test('a re-run over the network keeps it and still saves a new name and password
   await sim('PUT', '/api/setup', { step: 0 })
   await sim('PUT', '/api/config', { setup_done: true })
 })
+
+test('with four servers stored, the wizard refuses a fifth instead of replacing the first', async ({
+  page,
+  errors: _errors,
+}) => {
+  const puts: unknown[] = []
+  const servers = ['ws://a:1/x', 'ws://b:1/x', 'ws://c:1/x', 'ws://d:1/x']
+  await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() !== 'GET') return (puts.push(r.request().postDataJSON()), r.fallback())
+    const res = await r.fetch()
+    await r.fulfill({ response: res, json: { ...((await res.json()) as object), servers } })
+  })
+  await sim('PUT', '/api/setup', { step: 5 })
+  await sim('PUT', '/api/config', { setup_done: false })
+  await page.goto('/')
+  await login(page)
+  await expect(page.locator('#wz-step')).toHaveText('Which program controls your deck?')
+  await page.getByRole('radio', { name: /Own program/ }).click()
+  await page.locator('#w-srv').fill('ws://e:1/x')
+  await page.getByRole('button', { name: 'Connect' }).click()
+  await expect(page.getByText('4 servers at most.')).toBeVisible()
+  expect(puts).toEqual([])
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await page.waitForLoadState('networkidle')
+  await page.close()
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: true })
+})
