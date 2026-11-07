@@ -300,9 +300,6 @@ def test_a_backup_that_must_escape_much_stays_whole():
     assert code == 200 and json.loads(body)["admin_pass"] == PASSWORD, body[-80:]
 
 
-@pytest.mark.xfail(
-    TARGET == "sim", reason="firmware/sim: db_ui_login_shown does not count the password page", strict=True
-)
 async def test_deck_pictures_are_for_the_password_while_the_password_shows(token):
     """The password page draws the password on the deck: a token reading the pictures would read it."""
     login = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}

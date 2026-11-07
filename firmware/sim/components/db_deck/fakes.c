@@ -431,8 +431,8 @@ bool db_ui_login_take(const char *token)
 
 bool db_ui_login_shown(void)
 {
-    const db_config_t *c = db_config(); /* the deck's rule: a code until setup is done, or the setup WLAN */
-    return (!c->setup_done && !c->qr_login_off) || getenv("DB_SIM_VIA_AP");
+    const db_config_t *c = db_config(); /* the deck's rule: a code until setup is done, the password, the setup WLAN */
+    return (!c->setup_done && !c->qr_login_off) || esp_timer_get_time() < pass_until || getenv("DB_SIM_VIA_AP");
 }
 
 void db_ui_setup_step(int step)
