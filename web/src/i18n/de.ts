@@ -135,6 +135,11 @@ export const de: Dict = {
   'deck.speed': 'USB-Geschwindigkeit',
   'deck.speed_h': 'Full Speed nur, wenn das Deck an High Speed Fehler macht. Bilder kommen dann langsamer.',
   'net.name': 'Gerätename',
+  'net.at_lan': 'Über LAN (Kabel)',
+  'net.at_wlan': 'Über WLAN',
+  'net.at_mdns': 'Über den Namen (mDNS)',
+  'net.at_mdns_h':
+    'Der Connector meldet diesen Namen selbst im Netz. Er bleibt gleich, auch wenn sich die IP ändert. Manche Handys finden ihn nicht, dann nimm die IP.',
   'net.name_h': '1 bis 31 Buchstaben, Ziffern und Bindestriche.',
   'net.lan': 'LAN',
   'net.wlan': 'WLAN',

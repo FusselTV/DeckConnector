@@ -132,6 +132,11 @@ export const en = {
   'deck.speed': 'USB speed',
   'deck.speed_h': 'Full speed only when the deck has errors at high speed. Images then arrive slower.',
   'net.name': 'Device name',
+  'net.at_lan': 'Over LAN (cable)',
+  'net.at_wlan': 'Over Wi-Fi',
+  'net.at_mdns': 'By name (mDNS)',
+  'net.at_mdns_h':
+    'The connector announces this name on the network itself. It stays the same when the IP changes. Some phones cannot find it, then use the IP.',
   'net.name_h': '1 to 31 letters, digits and hyphens.',
   'net.lan': 'LAN',
   'net.wlan': 'Wi-Fi',

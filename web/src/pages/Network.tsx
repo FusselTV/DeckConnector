@@ -7,7 +7,7 @@ import { reachList, sigWord } from '../app/derive'
 import { getState, useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { describedBy, Field, Help, Seg, SIcon, Switch } from '../components/controls'
+import { describedBy, Field, Seg, SIcon, Switch } from '../components/controls'
 import { CopyField } from '../components/InputAction'
 import { Row } from '../components/Row'
 import { useDraft } from '../components/SaveBar'
@@ -248,12 +248,7 @@ export function Network() {
           <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} />
         </Row>
       </Card>
-      <Card
-        id="card-names"
-        icon={TagIcon}
-        title={t('net.names')}
-        right={<Help right label={t('net.names')} text={t('net.find_first')} />}
-      >
+      <Card id="card-names" icon={TagIcon} title={t('net.names')}>
         <Field id="name" label={t('net.name')} err={err.name && t(err.name)}>
           <input
             {...describedBy('name', err.name && t(err.name))}
@@ -265,9 +260,24 @@ export function Network() {
             spellCheck={false}
           />
         </Field>
-        {reachList(st, !!cfg?.https_only, base.name).map((u) => (
-          <CopyField key={u} value={u} link />
-        ))}
+        {(() => {
+          const sch = cfg?.https_only ? 'https' : 'http'
+          const n = st.network
+          const rows: [string, string, string?][] = [
+            ...(n?.lan?.cable && n.lan.ip ? [[t('net.at_lan'), `${sch}://${n.lan.ip}`] as [string, string]] : []),
+            ...(n?.wlan?.ip ? [[t('net.at_wlan'), `${sch}://${n.wlan.ip}`] as [string, string]] : []),
+            ...(base.name
+              ? [[t('net.at_mdns'), `${sch}://${base.name}.local`, t('net.at_mdns_h')] as [string, string, string]]
+              : []),
+          ]
+          return rows.map(([label, u, hint]) => (
+            <div key={u} className="field">
+              <span className="flabel">{label}</span>
+              <CopyField value={u} link />
+              {hint && <span className="hint">{hint}</span>}
+            </div>
+          ))
+        })()}
       </Card>
     </div>
   )
