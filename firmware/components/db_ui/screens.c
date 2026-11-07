@@ -160,8 +160,7 @@ static void host_row(page_t *p, bool ask, bool welcome)
     int slot = 0;
     if (!welcome && (n == 0 || !md->sources[order[0]].chosen)) {
         ui_tile_t *t = put(p, at(p, 0, slot++), K_NONE);
-        card(t, controller_icon(md->controller), controller_label(md->controller), "getrennt",
-             fit(p, "zeichnet, wenn da", "wartet"));
+        card(t, controller_icon(md->controller), controller_label(md->controller), "getrennt", "wartet");
         t->active = true;
         t->color = C_WARN;
     } else if (n == 0) {
@@ -244,8 +243,11 @@ static void home_status(page_t *p)
     const ui_model_t *md = p->md;
     char sub[112];
     if (!md->lan_up && !md->wlan_up) {
+        /* the setup WLAN starts by itself only at boot */
         status_message(p, ICON_NO_NETWORK, C_DANGER, "Netzwerk", "Kein Netz",
-                       "LAN-Kabel stecken. Nach 1 min startet das Setup-WLAN.", "Kein Netz", "LAN-Kabel");
+                       md->wlan_chip ? "LAN-Kabel stecken oder im Menü das Setup-WLAN starten"
+                                     : "LAN-Kabel stecken",
+                       "Kein Netz", "LAN-Kabel");
     } else if (md->hosts[md->controller] && md->source_count) { /* connected, but has not drawn yet */
         snprintf(sub, sizeof(sub), "%s verbunden", controller_label(md->controller));
         status_message(p, controller_icon(md->controller), C_ACTIVE, controller_label(md->controller), sub,
@@ -427,7 +429,7 @@ static void ap_page(page_t *p)
     }
 }
 
-/* "Drehregler 1 und 4" / "Tasten 1 und 15" and "2 s halten", or "aus". */
+/* "Drehregler 1 + 4" / "Ecken" and "2 s halten", or "aus". */
 static void chord_words(const page_t *p, char *which, size_t cap, char *hold, size_t hold_cap)
 {
     bool enc;
@@ -437,9 +439,14 @@ static void chord_words(const page_t *p, char *which, size_t cap, char *hold, si
         snprintf(hold, hold_cap, "%s", fit(p, "nur im Web", ""));
         return;
     }
-    snprintf(which, cap, "%s 1 + %d", enc ? fit(p, "Drehregler", "Regler") : "Tasten", last + 1);
+    if (enc) {
+        snprintf(which, cap, "%s 1 + %d", fit(p, "Drehregler", "Regler"), last + 1);
+    } else { /* the first and the last key: holding all four corners works too */
+        snprintf(which, cap, "%s", fit(p, "Tasten in den Ecken", "Ecken"));
+    }
     int ms = p->md->menu_hold_ms;
-    snprintf(hold, hold_cap, ms % 1000 ? "%d,%d s halten" : "%d s halten", ms / 1000, ms % 1000 / 100);
+    snprintf(hold, hold_cap, ms % 1000 ? fit(p, "%d,%d s halten", "%d,%d s") : "%d s halten", ms / 1000,
+             ms % 1000 / 100);
 }
 
 /* A one-time web login for the phone that scans it, and the web wizard's step while it runs. */
@@ -501,7 +508,7 @@ static void welcome_net(page_t *p)
     ap->badge = md->wlan_chip ? BADGE_OPEN : BADGE_NONE;
     ap->dim = !md->wlan_chip;
     ui_tile_t *done = put(p, at(p, 0, -1), K_DONE);
-    button(done, ICON_SAVE, "Fertig", fit(p, "ins Menü", ""));
+    button(done, ICON_SAVE, "Fertig", fit(p, "Setup beenden", ""));
     done->active = true;
     done->color = C_ACTIVE;
     card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz",
@@ -568,8 +575,11 @@ static void offer_page(page_t *p)
 static void password_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, "Benutzer", "admin", ip_of(md) ? fit(p, ip_of(md), "") : "");
+    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, "Benutzer", "admin", "");
     card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+    if (ip_of(md)) {
+        card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, "Adresse", ip_of(md), fit(p, "im Browser", ""));
+    }
     close_key(put(p, at(p, 0, -1), K_NONE), ICON_CLOSE, "Schließen", ""); /* any key closes the page */
     if (p->l->strip) {
         segment(&p->sc->seg[0], 4, ICON_PASSWORD, C_WARN, "Web-Passwort", md->web_pass,
@@ -582,7 +592,8 @@ static void reset_page(page_t *p)
 {
     int key = at(p, 0, 1);
     bool asking = confirming(p->m, key, p->md->now_us);
-    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, "Passwort", "vergessen?", fit(p, "alles zurücksetzen", ""));
+    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, "Passwort", fit(p, "vergessen?", "vergessen"),
+         fit(p, "alles zurücksetzen", ""));
     ui_tile_t *reset = put(p, key, K_RESET);
     button(reset, ICON_RESET, asking ? fit(p, "Nochmal tippen", "Nochmal") : fit(p, "Zurücksetzen", "Reset"),
            fit(p, "Werkszustand", ""));
@@ -691,8 +702,8 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     }
 }
 
-/* The page that shows: a connection request comes first, then a reset question, a login request, the password,
- * a found Companion, then the welcome steps until setup is done. */
+/* The page that shows: a connection request comes first, then a reset question, a login request, the
+ * password, the running setup WLAN, a found Companion, then the welcome steps until setup is done. */
 static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
 {
     ui_menu_t shown = *m;
@@ -704,6 +715,8 @@ static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
         shown.page = PAGE_LOGIN_REQ;
     } else if (md->show_pass) {
         shown.page = PAGE_PASSWORD;
+    } else if (m->page == PAGE_HOME && md->ap_on) { /* also when it started by itself: its password is here */
+        shown.page = PAGE_SETUP_AP;
     } else if (m->page == PAGE_HOME && md->offer_addr[0]) {
         shown.page = PAGE_OFFER;
     } else if (m->page == PAGE_HOME && !md->setup_done) {
@@ -731,6 +744,9 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
     char pct[12];
     snprintf(pct, sizeof(pct), "%d %%", md->update_pct);
     card(&sc->tiles[0], ICON_UPDATE, "Update", pct, l->key_px >= 110 ? md->update_what : "");
+    if (!l->strip) {
+        card(&sc->tiles[1], ICON_ALERT, "Strom", "nicht trennen", "");
+    }
 }
 
 bool ui_menu_open(const ui_menu_t *m)
@@ -928,7 +944,8 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     case K_AP_CLOSE:
         act->what = UI_DO_AP_STOP;
-        go(m, md->setup_done ? PAGE_MAIN : PAGE_WELCOME_NET, md->now_us);
+        go(m, m->page != PAGE_SETUP_AP ? m->page : (md->setup_done ? PAGE_MAIN : PAGE_WELCOME_NET),
+           md->now_us);
         return true;
     case K_DIMMER:
     case K_BRIGHTER:

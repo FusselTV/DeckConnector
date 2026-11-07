@@ -257,6 +257,12 @@ static void test_no_page_cuts_a_text(void)
             ui_menu_screen(&m, &md, &l, &sc);
             snprintf(name, sizeof(name), "%s_new_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
+            md.setup_step = 3; /* the web wizard runs and the deck offers its one-time login */
+            md.login_qr = md.ap_qr;
+            strcpy(md.login_token, "0123456789abcdef");
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_wizard_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
             md.update_pct = 100;
             strcpy(md.update_what, "WLAN-Chip");
             ui_update_screen(&md, &l, &sc);
@@ -419,6 +425,24 @@ static void test_welcome(void)
     TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
 }
 
+/* The setup WLAN, also one that started by itself, shows its password instead of the home page; closing it
+ * goes back there. */
+static void test_a_running_setup_wlan_shows_on_the_deck(void)
+{
+    db_device_info_t dev = open_deck(0x0080);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.ap_on = true;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    ui_screen_t sc;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING(md.ap_pass, sc.tiles[1].value);
+    ui_action_t act;
+    press(&m, &md, &l, (uint8_t)(l.cols + 1), &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_AP_STOP, act.what);
+    TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
+}
+
 static void test_setup_shows_the_login_code_and_the_wizard_step(void)
 {
     db_device_info_t dev = open_deck(0x0084);
@@ -456,11 +480,11 @@ static void test_without_the_web_ui(void)
         bool chord = false;
         for (int i = 0; i < UI_SEGMENTS; i++) {
             address |= strcmp(sc.seg[i].value, "192.168.1.214") == 0;
-            chord |= strstr(sc.seg[i].value, "1 + ") != NULL;
+            chord |= strstr(sc.seg[i].value, "1 + ") || strstr(sc.seg[i].value, "Ecken");
         }
         for (int i = 0; i < UI_MAX_KEYS; i++) {
             address |= strcmp(sc.tiles[i].value, "192.168.1.214") == 0;
-            chord |= strstr(sc.tiles[i].value, "1 + ") != NULL;
+            chord |= strstr(sc.tiles[i].value, "1 + ") || strstr(sc.tiles[i].value, "Ecken");
         }
         TEST_ASSERT_TRUE_MESSAGE(address, decks[d].name);
         TEST_ASSERT_TRUE_MESSAGE(chord, decks[d].name);
@@ -568,6 +592,7 @@ int main(void)
     RUN_TEST(test_flows_without_encoders);
     RUN_TEST(test_welcome);
     RUN_TEST(test_setup_shows_the_login_code_and_the_wizard_step);
+    RUN_TEST(test_a_running_setup_wlan_shows_on_the_deck);
     RUN_TEST(test_menu_chord_on_every_deck);
     RUN_TEST(test_without_the_web_ui);
     RUN_TEST(test_password_and_reset_pages);
