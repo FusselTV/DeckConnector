@@ -61,6 +61,8 @@ typedef struct {
     int64_t last_rx_ms;
     int64_t last_ping_ms;
     char text[TEXT_MAX];
+    db_health_t health;
+    TaskHandle_t task;
 } link_t;
 
 static struct {
@@ -420,6 +422,7 @@ static void link_task(void *arg)
         int err = ws_connect(&l->ws, url, "deckbridge.v1", s.headers[0] && set ? s.headers : NULL,
                              bound ? ifname : NULL, CONNECT_TIMEOUT, pinned ? pin : NULL);
         if (err) {
+            db_health_fail(&l->health, strerror(-err));
             if (now_ms() >= next_log) {
                 next_log = now_ms() + 30000;
                 ESP_LOGW(TAG, "server %d over %s: %s", l->index, over, strerror(-err));
@@ -428,12 +431,13 @@ static void link_task(void *arg)
              * over LAN. */
             bool path_ok = err == -ECONNREFUSED || err == -ECONNRESET;
             via_wlan = path_ok ? false : !wlan;
-            vTaskDelay(pdMS_TO_TICKS(wlan || path_ok ? RETRY_MS : 200));
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wlan || path_ok ? RETRY_MS : 200)); /* or a retry now */
             continue;
         }
         via_wlan = false; /* next time start with LAN again */
         ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, over, l->url);
         l->over_wlan = bound && wlan;
+        db_health_ok(&l->health, l->over_wlan);
         l->connected = true;
         db_log_mark(DB_MARK_SERVER);
         if (!recompute_active()) {
@@ -444,6 +448,7 @@ static void link_task(void *arg)
         /* silent over LAN: a LAN that keeps its link but drops everything would cost a connect timeout */
         via_wlan = session(l) && !l->over_wlan;
         l->connected = false;
+        db_health_fail(&l->health, "connection lost");
         ws_close(&l->ws);
         recompute_active();
         vTaskDelay(pdMS_TO_TICKS(200));
@@ -556,7 +561,7 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
         db_deck_set_ack_handler((db_source_t)(DB_SOURCE_LINK0 + i), on_ack, (void *)(intptr_t)i);
         char name[12];
         snprintf(name, sizeof(name), "link%d", i);
-        xTaskCreatePinnedToCore(link_task, name, 6144, l, 6, NULL, 0);
+        xTaskCreatePinnedToCore(link_task, name, 6144, l, 6, &l->task, 0);
     }
     db_link_reload(); /* takes note of the pins, before any link is up */
     xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0);
@@ -610,6 +615,18 @@ int db_link_active(void)
 bool db_link_connected(int index)
 {
     return index >= 0 && index < DB_MAX_SERVERS && s.links[index].connected;
+}
+
+db_health_t db_link_health(int index)
+{
+    return s.links[index].health;
+}
+
+void db_link_retry(int index)
+{
+    if (s.links[index].task) {
+        xTaskNotifyGive(s.links[index].task);
+    }
 }
 
 const char *db_link_url(int index)

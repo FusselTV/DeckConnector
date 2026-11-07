@@ -80,6 +80,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
+| `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address: connect now instead of after the wait. 404 for anything else; dock hosts connect by themselves |
 | `GET /api/wifi/scan` | Networks in reach, one entry per access point, strongest first: `ssid`, `bssid`, `rssi` (dBm), `channel`, `open`. Only 2.4 GHz. Hidden networks and the setup network are left out. Takes 2 to 3 s |
 | `POST /api/wifi/join` | `{"ssid": "...", "pass": "...", "bssid": "..."}` tries that network and answers 202 at once. `network.wlan.join` in the status goes from `testing` to `ok` or `failed` (with `join_error`) within 15 s. Only a network that gives an address is saved, otherwise the old one comes back. `bssid` is optional and locks the DeckConnector to that access point |
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
@@ -108,7 +109,11 @@ or `satellite`. `controller` is the program behind it.
 | `app` | The Elgato Stream Deck app, as a dock host |
 | `server` | Your own servers |
 
-To pick an entry, send both: `{"controller": "companion", "host": "satellite"}`. When the picked host is not
+To pick an entry, send both: `{"controller": "companion", "host": "satellite"}`.
+
+Companion should use its Satellite API, not the Network Dock emulation. A dock host whose `kind` is `companion` can
+be moved with `PUT /api/config {"satellite": "<its address>", "controller": "companion", "host": "satellite"}` and
+then `POST /api/dock {"forget": "<its address>"}`. When the picked host is not
 connected, the first connected one of the same program draws, for `companion` the Satellite connection first.
 `controller` alone with an empty `host` means exactly that from the start, so settings from older firmware keep
 working.
@@ -192,7 +197,9 @@ it restores the settings. The web UI does this under System.
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router
-  calls the host, empty when it has no name or is a server. `chosen` marks the one that draws whenever no menu
+  calls the host, empty when it has no name or is a server. Servers and the Satellite address also have `error`
+  (why the last try failed, empty while connected), `since_s` (how long this state holds) and `iface` (`lan` or
+  `wlan` while connected). `chosen` marks the one that draws whenever no menu
   covers it.
 - `network.wlan.lock` is the access point the DeckConnector is locked to (`wifi_bssid`), empty for any. `join`
   is the state of the last `POST /api/wifi/join`. `network.ap.on` says the setup WLAN is open; a page reached over

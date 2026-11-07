@@ -4,6 +4,34 @@
 #include <stddef.h>
 
 #include "esp_err.h"
+#include "esp_timer.h"
+
+#include <stdint.h>
+#include <string.h>
+
+/* How a connection the bridge makes is doing, for the status: the last error ("" while connected), since when
+ * that holds, and the interface. Written by its task, copied whole by readers; a torn read shows a mixed error
+ * text at worst. */
+typedef struct {
+    char error[40];
+    int64_t since_us;
+    bool over_wlan;
+} db_health_t;
+
+static inline void db_health_fail(db_health_t *h, const char *why)
+{
+    if (strcmp(h->error, why) != 0) {
+        strlcpy(h->error, why, sizeof(h->error));
+        h->since_us = esp_timer_get_time();
+    }
+}
+
+static inline void db_health_ok(db_health_t *h, bool over_wlan)
+{
+    h->error[0] = '\0';
+    h->over_wlan = over_wlan;
+    h->since_us = esp_timer_get_time();
+}
 
 /*
  * Connections to the deckbridge servers (docs/protocol.md). The first connected server is active and may
@@ -34,6 +62,9 @@ void db_link_reload(void);
 /* Index of the active server, or -1. */
 int db_link_active(void);
 bool db_link_connected(int index);
+db_health_t db_link_health(int index);
+/* Try again now instead of after the wait. */
+void db_link_retry(int index);
 const char *db_link_url(int index);
 
 /* Send a JSON text message to every connected server. */

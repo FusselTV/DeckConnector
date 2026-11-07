@@ -13,7 +13,9 @@
 #include "db_dock.h"
 #include "db_json.h"
 #include "db_log.h"
+#include "db_link.h"
 #include "db_net.h"
+#include "db_satellite.h"
 #include "db_ota.h"
 #include "db_screen.h"
 #include "db_ui.h"
@@ -571,6 +573,30 @@ static size_t scan_json(char *buf, size_t cap)
     db_json_arr_close(&j);
     free(aps);
     return n < 0 ? 0 : db_json_end(&j);
+}
+
+/* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us. */
+esp_err_t post_source_retry(httpd_req_t *req)
+{
+    char body[160];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *host = cJSON_GetObjectItemCaseSensitive(root, "host");
+    bool found = false;
+    if (cJSON_IsString(host) && host->valuestring[0]) {
+        for (int i = 0; i < DB_MAX_SERVERS; i++) {
+            if (strcmp(db_link_url(i), host->valuestring) == 0) {
+                db_link_retry(i);
+                found = true;
+            }
+        }
+        if (strcmp(db_satellite_address(), host->valuestring) == 0) {
+            db_satellite_retry();
+            found = true;
+        }
+    }
+    cJSON_Delete(root);
+    return found ? send_json(req, "{\"ok\":true}")
+                 : send_error(req, "404 Not Found", "no server or Satellite address with that host");
 }
 
 /* Takes 2 to 3 s: the radio listens on every channel. */

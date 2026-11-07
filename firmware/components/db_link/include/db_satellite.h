@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 
+#include "db_link.h"
 #include "esp_err.h"
 
 /*
@@ -13,6 +14,8 @@
 /* `changed` runs when Companion took the deck or let it go. */
 esp_err_t db_satellite_start(void (*changed)(void));
 bool db_satellite_connected(void);
+db_health_t db_satellite_health(void);
+void db_satellite_retry(void);
 /* Companion's IPv4 address in network order while connected, else 0. */
 uint32_t db_satellite_peer(void);
 /* What the client connects to, "" when no address is set. */

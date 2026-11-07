@@ -96,7 +96,7 @@ static void write_network(db_json_t *j, bool live)
 }
 
 static void write_source(db_json_t *j, const char *kind, const char *host, uint32_t ip, bool connected,
-                         int source)
+                         int source, const db_health_t *health)
 {
     char name[40] = "";
     if (ip) {
@@ -110,6 +110,12 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
         db_json_str(j, "via", "satellite");
     }
     db_json_bool(j, "connected", connected);
+    if (health) { /* a connection the bridge makes: why it is down, since when, over which interface */
+        db_json_str(j, "error", connected ? "" : health->error);
+        db_json_int(j, "since_s",
+                    health->since_us ? (int64_t)((esp_timer_get_time() - health->since_us) / 1000000) : 0);
+        db_json_str(j, "iface", connected ? (health->over_wlan ? "wlan" : "lan") : "");
+    }
     db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
     db_json_bool(j, "drawing", source >= 0 && (db_source_t)source == db_deck_writer());
     db_json_obj_close(j);
@@ -121,19 +127,21 @@ static void write_sources(db_json_t *j, bool live)
     db_json_arr_open(j, "sources");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         if (db_link_url(i)[0]) {
+            db_health_t h = db_link_health(i);
             write_source(j, "server", db_link_url(i), 0, db_link_connected(i),
-                         db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1);
+                         db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1, &h);
         }
     }
     if (db_satellite_address()[0]) {
+        db_health_t h = db_satellite_health();
         write_source(j, "companion", db_satellite_address(), db_satellite_peer(), db_satellite_connected(),
-                     DB_SOURCE_SAT);
+                     DB_SOURCE_SAT, &h);
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
     for (size_t i = 0; i < n; i++) {
         const char *kind = hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind);
-        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].source);
+        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].source, NULL);
     }
     db_json_arr_close(j);
     char ip[16];

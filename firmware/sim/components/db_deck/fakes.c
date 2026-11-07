@@ -10,7 +10,9 @@
 #include "db_dock.h"
 #include "db_log.h"
 #include "db_config.h"
+#include "db_link.h"
 #include "db_net.h"
+#include "db_satellite.h"
 #include "db_ota.h"
 #include "db_ui.h"
 #include "esp_http_server.h"
@@ -278,4 +280,23 @@ int64_t esp_timer_get_time(void)
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     return (int64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+}
+
+/* No servers and no Satellite client in the simulator: retries find nothing to wake. */
+const char *db_link_url(int index)
+{
+    return "";
+}
+
+void db_link_retry(int index)
+{
+}
+
+const char *db_satellite_address(void)
+{
+    return "";
+}
+
+void db_satellite_retry(void)
+{
 }

@@ -69,6 +69,8 @@ static struct {
     bool was_writer;
     bool over_wlan;
     bool to_lan;
+    db_health_t health;
+    TaskHandle_t task;
     int64_t add_sent_ms;
     char addr[sizeof(((db_config_t *)0)->satellite)];
     char host[sizeof(((db_config_t *)0)->satellite)];
@@ -600,6 +602,7 @@ static void client_task(void *arg)
             sock = ws_tcp_open(s.host, s.port, bound ? ifname : NULL, CONNECT_MS);
         }
         if (sock < 0) {
+            db_health_fail(&s.health, strerror(-sock));
             if (sock != last_err) {
                 ESP_LOGW(TAG, "%s: no connection (%s)", s.addr, strerror(-sock));
                 last_err = sock;
@@ -607,7 +610,7 @@ static void client_task(void *arg)
             /* right after a start the switch port may not pass traffic yet: LAN again, soon */
             bool early = !wlan && n.lan_link && esp_timer_get_time() < BOOT_LAN_US;
             via_wlan = early ? false : !wlan;
-            vTaskDelay(pdMS_TO_TICKS(early ? 250 : RETRY_MS));
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(early ? 250 : RETRY_MS)); /* or a retry now */
             continue;
         }
         last_err = 0;
@@ -617,6 +620,7 @@ static void client_task(void *arg)
         setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &send_tv, sizeof(send_tv));
         s.broken = false;
         s.over_wlan = bound && wlan;
+        db_health_ok(&s.health, s.over_wlan);
         remember(sock);
         ESP_LOGI(TAG, "connected to %s over %s", s.addr,
                  bound ? (wlan ? "WLAN" : "LAN") : "the default route");
@@ -639,6 +643,7 @@ static void client_task(void *arg)
             s.added = false;
             s.changed();
         }
+        db_health_fail(&s.health, "connection lost");
         db_deck_forget(DB_SOURCE_SAT);
         cache_clear();
         heap_caps_free(s.rgb);
@@ -747,13 +752,25 @@ esp_err_t db_satellite_start(void (*changed)(void))
     db_deck_listener_t dl = {.input = on_input, .device_changed = on_device, .external = true};
     db_deck_add_listener(&dl);
     /* tinfl, which inflates the PNGs, keeps 11 KB of state on the stack */
-    xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, NULL, 0);
+    xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, &s.task, 0);
     return ESP_OK;
 }
 
 bool db_satellite_connected(void)
 {
     return s.added;
+}
+
+db_health_t db_satellite_health(void)
+{
+    return s.health;
+}
+
+void db_satellite_retry(void)
+{
+    if (s.task) {
+        xTaskNotifyGive(s.task);
+    }
 }
 
 uint32_t db_satellite_peer(void)
