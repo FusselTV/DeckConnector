@@ -121,7 +121,6 @@ static esp_err_t page(httpd_req_t *req)
                : httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
 }
 
-/* A reply built into a heap buffer; build returns 0 when it does not fit. */
 esp_err_t send_built(httpd_req_t *req, size_t cap, size_t (*build)(char *buf, size_t cap))
 {
     char *buf = malloc(cap);

@@ -203,8 +203,6 @@ static void write_sources(db_json_t *j, bool live)
     db_json_obj_close(j);
 }
 
-/* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
- * out what changes all the time (uptime, signal, counters), so a change in it is worth telling. */
 static const char *boot_reason(void)
 {
     static const char *const reasons[] = {
@@ -232,6 +230,8 @@ static void write_boot(db_json_t *j)
     db_json_obj_close(j);
 }
 
+/* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
+ * out what changes all the time (uptime, signal, counters), so a change in it is worth telling. */
 static void write_status(db_json_t *j, bool live)
 {
     db_deck_stats_t st;

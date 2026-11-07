@@ -101,9 +101,9 @@ static void clear_display(void)
 }
 
 /* Draw again everything the new writer had on the deck, before anything new it sends. The UI is left out: it
- * draws a fresh screen whenever it takes over. */
-/* Runs in the writer task, so images that arrive meanwhile are drawn after it. Each image is copied out: the
- * kept picture must not stay locked for USB transfers, a fresh deck can take half a second per report. */
+ * draws a fresh screen whenever it takes over. Runs in the writer task, so images that arrive meanwhile are drawn
+ * after it. Each image is copied out: the kept picture must not stay locked for USB transfers, a fresh deck can
+ * take half a second per report. */
 static void replay(void)
 {
     static db_shot_t shots[DB_SCREEN_MAX];

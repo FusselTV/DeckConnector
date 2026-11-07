@@ -26,7 +26,6 @@ static inline bool db_rect_eq(db_rect_t a, db_rect_t b)
     return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
 }
 
-/* True when `inner` lies completely inside `outer`. */
 static inline bool db_rect_contains(db_rect_t outer, db_rect_t inner)
 {
     return inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w &&

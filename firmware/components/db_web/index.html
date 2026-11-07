@@ -327,7 +327,6 @@ function renderStatus() {
   if ($('wizard').open && step === 1) render(); /* a host that just connected shows up to be picked */
 }
 
-/* ---- live deck ---- */
 /* one at a time, so an up never overtakes its down */
 let inputs = Promise.resolve();
 /* a lost up leaves the key held in Companion, whose buttons switch real things: retry it, then say so */
@@ -448,7 +447,6 @@ async function drawScreen() {
   $('pics').innerHTML = sc.images.map((i) => `<img src="${i.url}" alt="" onerror="shown=''" style="${place(i, sc)}">`).join('');
 }
 
-/* ---- live updates over the web socket, polling while it is down ---- */
 let poll = null;
 function online(on) {
   $('online').className = 'badge ' + (on ? 'ok' : 'warn');
@@ -485,7 +483,6 @@ function connect() {
   ws.onclose = dead;
 }
 
-/* ---- settings ---- */
 const ipFields = ['ip', 'mask', 'gateway', 'dns'];
 const ipNames = {ip: 'Adresse', mask: 'Maske', gateway: 'Gateway', dns: 'DNS'};
 function ipForm(box, key) {
@@ -531,7 +528,6 @@ $('cfg').onsubmit = async (e) => {
   loadScreen(); /* the chord in the overview's hint */
 };
 
-/* ---- system ---- */
 function since(sec) {
   const d = Math.floor(sec / 86400);
   const h = Math.floor(sec / 3600) % 24;
@@ -635,7 +631,6 @@ $('logbtn').onclick = loadLog;
 $('openmenu').onclick = openMenu;
 $('reboot').onclick = async () => { if (confirm('DeckConnector jetzt neu starten?')) { await api('/api/reboot', {method: 'POST'}); toast('Startet neu …'); } };
 
-/* ---- tabs ---- */
 function showTab(name) {
   for (const t of document.querySelectorAll('[data-tab]')) t.setAttribute('aria-selected', t.dataset.tab === name);
   for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== name;
@@ -644,7 +639,6 @@ function showTab(name) {
 }
 for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { history.replaceState(null, '', '#' + b.dataset.tab); showTab(b.dataset.tab); };
 
-/* ---- welcome steps on a new bridge ---- */
 let step = 0;
 let picked = null;
 const steps = [
@@ -695,7 +689,6 @@ $('wnext').onclick = async () => {
 };
 $('wskip').onclick = () => { put({setup_done: true}, true); $('wizard').close(); };
 
-/* ---- start ---- */
 async function start() {
   const r = await api('/api/status');
   if (r.status === 401) { $('login').hidden = false; $('app').hidden = true; return; }

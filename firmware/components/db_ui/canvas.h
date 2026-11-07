@@ -20,9 +20,8 @@ void ui_fill(ui_canvas_t *c, db_rect_t r, uint32_t color);
 void ui_round(ui_canvas_t *c, db_rect_t r, int radius, uint32_t color);
 /* ui_round on background `bg`: clears only the corners, not all of `r`. */
 void ui_round_over(ui_canvas_t *c, db_rect_t r, int radius, uint32_t color, uint32_t bg);
-/* Width in pixels of a UTF-8 string. */
 int ui_text_width(const ui_font_t *f, const char *utf8);
-/* The same up to `end` (NULL: the whole string). */
+/* ui_text_width up to `end` (NULL: the whole string). */
 int ui_text_width_n(const ui_font_t *f, const char *utf8, const char *end);
 /* Draw `utf8` centred in `clip` with its baseline at `y`. Text that does not fit is cut. */
 void ui_text(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *utf8);

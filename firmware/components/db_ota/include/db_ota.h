@@ -40,8 +40,8 @@ void db_ota_restart(uint32_t delay_ms);
 esp_err_t db_ota_start_url(const char *url);
 
 /*
- * A new image must confirm itself or the bootloader goes back to the old one. This waits up to two minutes
- * for `healthy()` and then confirms, or rolls back.
+ * A new image must confirm itself or the bootloader goes back to the old one. It confirms once `healthy()` holds
+ * for 20 s in a row (CONFIRM_AFTER) within two minutes, else it rolls back.
  */
 void db_ota_confirm_when(bool (*healthy)(void));
 

@@ -38,7 +38,7 @@ typedef struct {
 } db_dock_denied_t;
 size_t db_dock_denied(db_dock_denied_t *out, size_t max);
 bool db_dock_undeny(uint32_t ip);
-/* New hosts get in and are remembered for `seconds`; 0 ends it, also the minutes after a boot. */
+/* New hosts get in and are remembered for `seconds`; 0 ends it. */
 void db_dock_pairing(int seconds);
 int db_dock_pairing_left(void);
 typedef struct {

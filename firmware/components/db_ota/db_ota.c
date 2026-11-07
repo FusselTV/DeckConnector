@@ -577,7 +577,7 @@ static void confirm_task(void *arg)
 
 static bool (*s_healthy)(void);
 
-/* A restart asked for over the network before the 20 s are up would otherwise make the bootloader go back. */
+/* A restart asked for over the network before CONFIRM_AFTER is up would otherwise make the bootloader go back. */
 static void confirm_on_restart(void)
 {
     esp_ota_img_states_t state;

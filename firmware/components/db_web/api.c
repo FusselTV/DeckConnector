@@ -511,7 +511,6 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-/* `?slot=N` writes into that app slot, `?boot=0` keeps the running firmware. */
 /* the bridge failed, not the file: the client should not blame its upload */
 static bool device_fault(esp_err_t err)
 {
@@ -548,6 +547,7 @@ esp_err_t post_ota_inspect(httpd_req_t *req)
     return send_json(req, body);
 }
 
+/* `?slot=N` writes into that app slot, `?boot=0` keeps the running firmware. */
 esp_err_t post_ota(httpd_req_t *req)
 {
     char q[32] = "", v[8];

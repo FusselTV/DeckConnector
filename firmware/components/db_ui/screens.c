@@ -639,7 +639,7 @@ static void login_page(page_t *p)
     }
 }
 
-/* Every host that can draw; at most UI_SOURCES, so even the Neo needs no paging. */
+/* Every host that can draw, as many as fit beside the back key: 7 on the Neo. */
 static void sources_page(page_t *p)
 {
     const ui_model_t *md = p->md;

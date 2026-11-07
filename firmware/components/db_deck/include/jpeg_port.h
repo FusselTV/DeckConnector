@@ -7,6 +7,8 @@
 
 void jpeg_port_init(void);
 
+/* RGB888 buffers here hold each pixel as B, G, R in memory. */
+
 /* Buffer for RGB888 pixels that the encoder can read directly. */
 uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h);
 

@@ -11,7 +11,7 @@
 /* Who draws on the deck and gets its input. Switching needs no restart. */
 typedef enum {
     DB_CTRL_SERVER = 0,    /* deckbridge servers over WebSocket */
-    DB_CTRL_COMPANION = 1, /* Bitfocus Companion, through the Network Dock emulation; was "dock mode" */
+    DB_CTRL_COMPANION = 1, /* Bitfocus Companion, through the Network Dock emulation */
     DB_CTRL_APP = 2,       /* the Elgato Stream Deck app, through the Network Dock emulation */
     DB_CTRL_COUNT,
 } db_controller_t;
@@ -53,7 +53,7 @@ typedef struct {
                              */
     char menu_chord[10];   /* which two controls open the menu: auto, keys, encoders or off */
     uint16_t menu_hold_ms;
-    char usb_speed[6]; /* auto: high speed, full speed when no deck comes up behind a hub; full: always */
+    char usb_speed[6]; /* auto: high speed, full speed when a USB device is there but no deck comes up; full: always */
     char wifi_bssid[18]; /* "aa:bb:cc:dd:ee:ff" joins only that access point; empty: any with wifi_ssid */
     char ntp_server[64]; /* empty: the one DHCP names, else pool.ntp.org */
     bool input_lock;     /* unused: keeps the layout of blobs saved by older firmware */
