@@ -20,7 +20,7 @@ import {
   Wifi,
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { api, pressReal, READONLY } from '../api/client'
+import { api, ApiError, pressReal, READONLY } from '../api/client'
 import type { InputBody, InputEvent, Screen, Source } from '../api/types'
 import { pendingAtom, useActions } from '../app/actions'
 import { noteWebPress, retryNow } from '../app/connection'
@@ -334,11 +334,28 @@ function useScreen(serial: string | undefined) {
   return screen
 }
 
+const RELEASE_RETRY_MS = [0, 500, 1500, 4000, 10000]
+// A release passes every guard (offline, restart, lock, remote control off), so a key is never left held on the
+// host. force is safe here: it can only let go of a key this page pressed.
+export async function release(b: InputBody, deck: string | undefined, wait = RELEASE_RETRY_MS) {
+  for (const ms of wait) {
+    if (ms) await new Promise((r) => setTimeout(r, ms))
+    try {
+      await pressReal(b, deck, true)
+      return true
+    } catch (e) {
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) return false
+    }
+  }
+  return false
+}
+
 const LiveDeck = memo(function LiveDeck() {
   const { t, act } = useUi()
   const st = useStore((s) => s.status)
   const sel = deckSelAtom.use()
   const armedAt = armAtom.use()
+  const live = useStore((s) => s.conn === 'live')
   const bri = useStore((s) => s.config?.brightness ?? 80)
   const last = useStore((s) => s.inputs[0])
   const nudge = nudgeAtom.use() > 0
@@ -352,10 +369,11 @@ const LiveDeck = memo(function LiveDeck() {
   }, [])
   const ctx = useLatest({ act, serial, sel })
   const send = useCallback(
-    (b: InputBody) => {
+    (b: InputBody, auto?: boolean) => {
       const { act, serial, sel } = ctx.current
-      // Every press keeps remote control on for another minute.
-      armAtom.set(Date.now())
+      const up = 'key' in b && b.action === 'up'
+      // Every press by the person keeps remote control on for another minute.
+      if (!up && !auto) armAtom.set(Date.now())
       const kind =
         'key' in b ? (b.action ?? 'press') : 'encoder' in b ? (b.action === 'turn' ? 'turn' : 'encoder') : b.touch
       const key = 'key' in b ? b.key : 'encoder' in b ? b.encoder : undefined
@@ -365,7 +383,8 @@ const LiveDeck = memo(function LiveDeck() {
           type: 'input',
           ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
         })
-      void act(() => pressReal(b, serial, forceAtom.get()))
+      if (up) void release(b, serial)
+      else void act(() => pressReal(b, serial, forceAtom.get()))
     },
     [ctx],
   )
@@ -390,7 +409,7 @@ const LiveDeck = memo(function LiveDeck() {
         label={deckName(deck, sel, decks.length, t)}
         screen={screen}
         brightness={bri}
-        armed={armedAt > 0 && getState().conn === 'live'}
+        armed={armedAt > 0 && live}
         last={last}
         onLocked={onLocked}
         send={send}

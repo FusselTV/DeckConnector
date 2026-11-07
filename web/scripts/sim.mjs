@@ -7,7 +7,7 @@ import { join } from 'node:path'
 
 const port = process.env.DC_SIM_PORT ?? '18200'
 const password = process.env.DC_SIM_PASSWORD ?? 'simulator-pass'
-const elf = new URL('../../firmware/sim/build/deckbridge_sim.elf', import.meta.url).pathname
+const elf = process.env.DC_SIM_ELF ?? new URL('../../firmware/sim/build/deckbridge_sim.elf', import.meta.url).pathname
 const copy = join(tmpdir(), `deckconnector-sim-${port}.elf`)
 copyFileSync(elf, copy)
 console.log(`simulator on http://127.0.0.1:${port}, password "${password}"`)

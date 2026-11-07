@@ -60,7 +60,8 @@ export interface DeckFrontProps {
   last: InputEvent | undefined
   /** Called for a press while not armed: the remote-control pill shakes (rule 23). */
   onLocked: () => void
-  send: (body: InputBody) => void
+  /** `auto` marks a turn from auto-repeat, which must not keep the remote control on. */
+  send: (body: InputBody, auto?: boolean) => void
 }
 
 interface Dial {
@@ -75,7 +76,10 @@ interface Drag {
   z: number
   rep?: boolean
   tm?: number
+  left: number
 }
+const HOLD_MS = 450
+const REPEAT_MAX_MS = 5000
 
 export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   const { t } = useUi()
@@ -88,6 +92,8 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   const [kf, setKf] = useState(false)
   const [hint, setHint] = useState<'strip' | 'knob' | null>(null)
   const kd = useRef(new Map<number, { x: number; y: number; tm: number; sent?: boolean }>())
+  // Keys this page holds down on the device. Releases are decided from here, never from render state.
+  const held = useRef(new Set<number>())
   const dd = useRef(new Map<number, Drag>())
   const dtm = useRef<Record<number, number>>({})
   const pd = useRef<{ x: number; y: number; t: number; r: DOMRect } | null>(null)
@@ -122,33 +128,53 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     }
     return false
   }
-  const keyEv = (i: number, a: 'down' | 'up') => {
-    if (a === 'down' && blocked()) return
-    setDown((d) => ({ ...d, [`k${i}`]: a === 'down' }))
-    if (a === 'down') flash(`k${i}`, 'web')
-    send({ key: i, action: a })
+  const keyDown = (i: number) => {
+    if (held.current.has(i) || blocked()) return
+    held.current.add(i)
+    setDown((d) => ({ ...d, [`k${i}`]: true }))
+    flash(`k${i}`, 'web')
+    send({ key: i, action: 'down' })
   }
-  // A blur or hidden page must never leave a key held on the device.
-  const downRef = useLatest(down)
+  const keyUp = (i: number) => {
+    if (!held.current.delete(i)) return
+    setDown((d) => ({ ...d, [`k${i}`]: false }))
+    send({ key: i, action: 'up' })
+  }
+  const tap = (i: number) => {
+    if (blocked()) return
+    flash(`k${i}`, 'web')
+    send({ key: i })
+  }
+  // A blur, a hidden page, the remote control turning off or an unmount must never leave a key held or a dial
+  // repeating on the device.
+  const stop = useLatest(() => {
+    for (const k of kd.current.values()) clearTimeout(k.tm)
+    kd.current.clear()
+    for (const g of dd.current.values()) clearTimeout(g.tm)
+    dd.current.clear()
+    for (const i of [...held.current]) keyUp(i)
+  })
   useEffect(() => {
-    const release = () => {
-      for (const [k, v] of Object.entries(downRef.current))
-        if (v && k.startsWith('k')) send({ key: Number(k.slice(1)), action: 'up' })
-      setDown({})
-    }
-    window.addEventListener('blur', release)
-    document.addEventListener('visibilitychange', release)
+    const f = () => stop.current()
+    const badges = dtm.current
+    window.addEventListener('blur', f)
+    document.addEventListener('visibilitychange', f)
     return () => {
-      window.removeEventListener('blur', release)
-      document.removeEventListener('visibilitychange', release)
+      window.removeEventListener('blur', f)
+      document.removeEventListener('visibilitychange', f)
+      f()
+      Object.values(badges).forEach(clearTimeout)
     }
-  }, [send, downRef])
+  }, [stop])
+  useEffect(() => {
+    if (!armed) stop.current()
+  }, [armed, stop])
 
   // Encoders are endless: show the turn as a +n badge, then spring back to rest (rule 12).
-  const turn = (e: number, d: number) => {
+  const turn = (e: number, d: number, auto = false) => {
     if (blocked()) return false
     flash(`e${e}`, 'web')
-    send({ encoder: e, action: 'turn', ticks: d })
+    send({ encoder: e, action: 'turn', ticks: d }, auto)
     setDial((x) => {
       const c = x[e]?.live ? x[e] : { delta: 0, rot: 0, live: false }
       return { ...x, [e]: { delta: c.delta + d, rot: c.rot + d * 12, live: true } }
@@ -185,13 +211,14 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   const dDown = (i: number, e: RPE<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     const fx = (e.clientX - r.left) / r.width
-    const g: Drag = { x: e.clientX, acc: 0, turned: false, z: fx < 0.35 ? -1 : fx > 0.65 ? 1 : 0 }
+    const g: Drag = { x: e.clientX, acc: 0, turned: false, z: fx < 0.35 ? -1 : fx > 0.65 ? 1 : 0, left: REPEAT_MAX_MS }
     dd.current.set(i, g)
-    // Holding an arrow zone turns on and speeds up until release (rule 23).
+    // Holding an arrow zone turns on and speeds up until release (rule 23), for a few seconds at most.
     if (g.z) {
       const rep = (ms: number) => {
         g.rep = true
-        if (dd.current.get(i) !== g || !turnRef.current(i, g.z)) return
+        g.left -= ms
+        if (dd.current.get(i) !== g || g.left < 0 || !turnRef.current(i, g.z, true)) return
         g.tm = window.setTimeout(rep, ms, Math.max(40, ms * 0.8))
       }
       g.tm = window.setTimeout(rep, 400, 160)
@@ -223,19 +250,20 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     if (g.z) turn(i, g.z)
     else press(i)
   }
-  // On touch a key waits 90 ms so a scroll gesture never presses it.
+  // On touch a key sends nothing until the finger lifts (a tap) or rests still for HOLD_MS (a hold), so a
+  // scroll gesture that starts on a key never presses it.
   const kDown = (i: number, e: RPE<HTMLButtonElement>) => {
     if (e.pointerType === 'touch') {
       const k = { x: e.clientX, y: e.clientY, tm: 0, sent: false }
       k.tm = window.setTimeout(() => {
         k.sent = true
-        keyEv(i, 'down')
-      }, 90)
+        keyDown(i)
+      }, HOLD_MS)
       kd.current.set(i, k)
     } else {
       e.preventDefault()
       e.currentTarget.setPointerCapture(e.pointerId)
-      keyEv(i, 'down')
+      keyDown(i)
     }
   }
   const kMove = (i: number, e: RPE) => {
@@ -245,20 +273,12 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
       kd.current.delete(i)
     }
   }
-  const kUp = (i: number) => {
+  const kUp = (i: number, cancel = false) => {
     const k = kd.current.get(i)
-    if (k) {
-      clearTimeout(k.tm)
-      kd.current.delete(i)
-      if (!k.sent) {
-        if (!blocked()) {
-          flash(`k${i}`, 'web')
-          send({ key: i })
-        }
-        return
-      }
-    }
-    if (down[`k${i}`]) keyEv(i, 'up')
+    kd.current.delete(i)
+    if (k) clearTimeout(k.tm)
+    if (k && !k.sent && !cancel) tap(i)
+    keyUp(i)
   }
 
   const zones = M.strip?.z ?? 0
@@ -337,24 +357,22 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
                 onPointerDown={(e) => kDown(i, e)}
                 onPointerMove={(e) => kMove(i, e)}
                 onPointerUp={() => kUp(i)}
-                onPointerCancel={() => {
-                  const k = kd.current.get(i)
-                  if (k) clearTimeout(k.tm)
-                  kd.current.delete(i)
-                  if (down[`k${i}`]) keyEv(i, 'up')
-                }}
+                onPointerCancel={() => kUp(i, true)}
+                onBlur={() => kUp(i, true)}
                 onKeyDown={(e) => {
-                  if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    keyEv(i, 'down')
+                    if (!e.repeat) keyDown(i)
                   }
                 }}
                 onKeyUp={(e) => {
-                  if ((e.key === 'Enter' || e.key === ' ') && down[`k${i}`]) {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    keyEv(i, 'up')
+                    keyUp(i)
                   }
                 }}
+                // Screen readers in browse mode activate with a bare click (detail 0) and no pointer or key events.
+                onClick={(e) => e.detail === 0 && tap(i)}
               >
                 <span className="face">{p.screen && <Pixels screen={p.screen} rect={p.screen.keys[i]} />}</span>
                 {hit && <HitIcon kind={hit} />}
@@ -458,15 +476,17 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
                     onKeyDown={(e) => {
                       if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
                         e.preventDefault()
-                        turn(i, -1)
+                        turn(i, -1, e.repeat)
                       } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
                         e.preventDefault()
-                        turn(i, 1)
-                      } else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+                        turn(i, 1, e.repeat)
+                      } else if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        press(i)
+                        if (!e.repeat) press(i)
                       }
                     }}
+                    onKeyUp={(e) => (e.key === 'Enter' || e.key === ' ') && e.preventDefault()}
+                    onClick={(e) => e.detail === 0 && press(i)}
                   >
                     <span className="dhit" aria-hidden>
                       <span className="dz">
