@@ -377,6 +377,7 @@ static void on_ota_requested(const char *target, const char *url)
 static void apply_controller(void)
 {
     db_link_reload();
+    db_satellite_retry(); /* a new address is tried at once */
     db_dock_drop_satellite_host();
     /* also when only the host changed: another server or dock host of the same kind draws now */
     static char applied[sizeof(db_config()->host) + 4] = "-";

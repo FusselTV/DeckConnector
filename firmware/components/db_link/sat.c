@@ -30,6 +30,8 @@
 #define SEND_WAIT_MS 500
 #define CONNECT_MS   3000
 #define RETRY_MS     2000
+#define REFUSED_MS   500 /* refused or reset: Companion is starting, its port opens soon */
+#define REFUSED_MAX  40  /* then RETRY_MS */
 #define PING_MS      2000
 #define SILENT_MS    6000 /* Companion answers every PING */
 #define ADD_AGAIN_MS 3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
@@ -571,10 +573,11 @@ static void client_task(void *arg)
     bool via_wlan = false;
     bool old_ended = false;
     int last_err = 0;
+    int refused = 0;
     for (;;) {
         snprintf(s.addr, sizeof(s.addr), "%s", db_config()->satellite);
         if (!s.addr[0]) {
-            vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(RETRY_MS));
             continue;
         }
         db_net_status_t n;
@@ -621,11 +624,13 @@ static void client_task(void *arg)
             }
             /* right after a start the switch port may not pass traffic yet: LAN again, soon */
             bool early = !wlan && n.lan_link && esp_timer_get_time() < BOOT_LAN_US;
-            via_wlan = early ? false : !wlan;
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(early ? 250 : RETRY_MS)); /* or a retry now */
+            bool soon = (sock == -ECONNREFUSED || sock == -ECONNRESET) && refused++ < REFUSED_MAX;
+            via_wlan = early || soon ? false : !wlan;
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(early ? 250 : soon ? REFUSED_MS : RETRY_MS)); /* or now */
             continue;
         }
         last_err = 0;
+        refused = 0;
         struct timeval tv = {.tv_usec = RX_WAIT_MS * 1000};
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         struct timeval send_tv = {.tv_usec = SEND_WAIT_MS * 1000};
@@ -641,6 +646,7 @@ static void client_task(void *arg)
         getpeername(sock, (struct sockaddr *)&peer, &plen);
         s.peer = peer.sin_addr.s_addr;
         s.sock = sock;
+        int64_t began = now_ms();
         session();
         s.peer = 0;
         xSemaphoreTake(s.tx, portMAX_DELAY);
@@ -662,7 +668,10 @@ static void client_task(void *arg)
         heap_caps_free(s.work);
         s.rgb = s.work = NULL;
         via_wlan = false;
-        vTaskDelay(pdMS_TO_TICKS(s.to_lan ? 0 : RETRY_MS));
+        /* soon after a lost session, Companion may be restarting; not after one it ended at once, e.g. by
+         * refusing the deck */
+        bool moved = s.to_lan || strcmp(s.addr, db_config()->satellite) != 0;
+        vTaskDelay(pdMS_TO_TICKS(moved ? 0 : now_ms() - began < 1000 ? RETRY_MS : 250));
         s.to_lan = false;
     }
 }
