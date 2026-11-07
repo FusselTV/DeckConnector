@@ -19,7 +19,7 @@ import type { Right, TlsInfo, Token } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { loginReasonAtom, toast } from '../app/state'
-import { useRoute, useStore } from '../app/store'
+import { getState, useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, Tag } from '../components/controls'
@@ -227,39 +227,30 @@ export function Access() {
   const pwE = passwordError(pw, pw2)
   const corsE = corsError(corsV)
   const restart = !!(pw || pw2)
+  const corsDirty = cors !== null && cors !== cfg?.cors_origins
   useDraft('access', {
-    dirty: restart || (cors !== null && cors !== cfg?.cors_origins),
+    dirty: restart || corsDirty,
     restart,
     reset: () => {
       setPw('')
       setPw2('')
       setCors(null)
     },
-    save: async () => {
-      if (pwE.pw || pwE.rep || corsE) {
-        go('access')
-        setTimeout(() => document.getElementById(pwE.pw ? 'npw' : pwE.rep ? 'npw2' : 'cors')?.focus(), 80)
-        return false
-      }
-      if (cors !== null && cors !== cfg?.cors_origins && !(await act(() => putConfig({ cors_origins: corsV }))))
-        return false
+    check: () => {
+      if (!pwE.pw && !pwE.rep && !corsE) return true
+      go('access')
+      setTimeout(() => document.getElementById(pwE.pw ? 'npw' : pwE.rep ? 'npw2' : 'cors')?.focus(), 80)
+      return false
+    },
+    confirm: { title: t('cf.pw'), body: t('cf.pw_b') },
+    patch: { ...(corsDirty ? { cors_origins: corsV } : {}), ...(restart ? { admin_pass: pw } : {}) },
+    saved: () => {
       setCors(null)
-      if (!restart) {
-        toast(t('c.saved'))
-        return true
-      }
-      if (!(await ask({ title: t('cf.pw'), body: t('cf.pw_b'), ok: t('c.save_restart') }))) return false
-      const ok = await act(async () => {
-        await api.putConfig({ admin_pass: pw })
-        loginReasonAtom.set('pw')
-        expectRestart()
-        return true
-      })
-      if (ok) {
-        setPw('')
-        setPw2('')
-      }
-      return !!ok
+      if (!restart) return
+      setPw('')
+      setPw2('')
+      loginReasonAtom.set('pw')
+      if (!getState().restarting) expectRestart()
     },
   })
   const httpsOnly = async (v: boolean) => {
@@ -295,18 +286,12 @@ export function Access() {
               <PwInput
                 {...describedBy('npw', pwE.pw)}
                 minLength={6}
-                maxLength={23}
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
               />
             </Field>
             <Field id="npw2" label={t('access.pw_rep')} err={pwE.rep && pw2 ? t(pwE.rep) : null}>
-              <PwInput
-                {...describedBy('npw2', pwE.rep && pw2)}
-                maxLength={23}
-                value={pw2}
-                onChange={(e) => setPw2(e.target.value)}
-              />
+              <PwInput {...describedBy('npw2', pwE.rep && pw2)} value={pw2} onChange={(e) => setPw2(e.target.value)} />
             </Field>
           </div>
         </Card>

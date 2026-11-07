@@ -4,24 +4,24 @@ import type { Key } from '../i18n/types'
 const OCTET = '(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
 const IP_RE = new RegExp(`^${OCTET}(\\.${OCTET}){3}$`)
 
-export const isIP = (v: string) => IP_RE.test(v.trim())
+export const isIP = (v: string) => IP_RE.test(v)
 export const ipNum = (v: string) => v.split('.').reduce((a, b) => a * 256 + Number(b), 0)
 
 /** "/24" style prefix to a dotted netmask. */
 export const cidrMask = (n: number) =>
   [0, 1, 2, 3].map((i) => 256 - 2 ** (8 - Math.max(0, Math.min(8, n - 8 * i)))).join('.')
 
+/** A netmask from /1 to /30: anything wider or narrower leaves no usable host address. */
 export const isMask = (v: string) => {
   if (!isIP(v)) return false
-  const n = ipNum(v)
-  const inv = ~n >>> 0
-  return (inv & (inv + 1)) === 0
+  const inv = ~ipNum(v) >>> 0
+  return (inv & (inv + 1)) === 0 && inv >= 3 && inv < 0x80000000
 }
 
 /** Splits "10.0.0.5/24" into the address and its mask. */
 export function splitCidr(v: string): { ip: string; mask?: string } {
   const m = /^\s*([\d.]+)\s*\/\s*(\d{1,2})\s*$/.exec(v)
-  if (!m?.[1] || !m[2] || Number(m[2]) > 32) return { ip: v.trim() }
+  if (!m?.[1] || !m[2] || Number(m[2]) < 1 || Number(m[2]) > 30) return { ip: v.trim() }
   return { ip: m[1], mask: cidrMask(Number(m[2])) }
 }
 
@@ -43,9 +43,14 @@ export function ipErrors(v: IpForm): IpErrors {
   if (!v.ip) e.ip = 'net.need'
   else if (!isIP(v.ip)) e.ip = 'net.bad_ip'
   if (!v.mask) e.mask = 'net.need'
-  else if (!isMask(v.mask)) e.mask = 'net.bad_ip'
+  else if (!isMask(v.mask)) e.mask = 'net.bad_mask'
+  if (!e.ip && !e.mask) {
+    const host = ipNum(v.ip) & ~ipNum(v.mask)
+    if (host === 0 || host >>> 0 === ~ipNum(v.mask) >>> 0) e.ip = 'net.ip_edge'
+  }
   if (v.gateway && !isIP(v.gateway)) e.gateway = 'net.bad_ip'
   else if (v.gateway && !e.ip && !e.mask && !sameNet(v.ip, v.gateway, v.mask)) e.gateway = 'net.gw_out'
+  else if (v.gateway && v.gateway === v.ip) e.gateway = 'net.gw_self'
   if (v.dns && !isIP(v.dns)) e.dns = 'net.bad_ip'
   return e
 }
@@ -55,19 +60,27 @@ export const pinError = (v: string): Key | null =>
   !v.trim() || /^[0-9a-f]{64}$/i.test(v.replace(/[:\s]/g, '')) ? null : 'src.pin_bad'
 export const normPin = (v: string) => v.replace(/[:\s]/g, '').toLowerCase()
 
+const bytes = (v: string) => new TextEncoder().encode(v).length
+
+/** A ws:// or wss:// URL as the firmware takes it: lower-case scheme, no spaces, host up to 63 characters. */
 export const wsUrlError = (v: string): Key | null => {
+  if (!/^wss?:\/\/\S+$/.test(v) || v.length > 127) return 'src.bad_url'
   try {
-    const u = new URL(v.trim())
-    return (u.protocol === 'ws:' || u.protocol === 'wss:') && u.hostname ? null : 'src.bad_url'
+    const u = new URL(v)
+    return u.hostname && u.hostname.length <= 63 ? null : 'src.bad_url'
   } catch {
     return 'src.bad_url'
   }
 }
 
+export const NAME_RE = /^[A-Za-z0-9-]{1,31}$/
+export const nameError = (v: string): Key | null => (NAME_RE.test(v) ? null : 'net.bad_name')
+
 /** Companion address: IP, host, host:port, or a ws(s):// URL. */
 export const companionError = (v: string): Key | null => {
   const s = v.trim()
   if (!s) return null
+  if (s.length > 63) return 'wiz.addr_bad'
   if (/^wss?:\/\//i.test(s)) return wsUrlError(s) ? 'wiz.addr_bad' : null
   const m = /^([a-z0-9.-]+)(?::(\d{1,5}))?$/i.exec(s)
   if (!m?.[1] || (m[2] && Number(m[2]) > 65535)) return 'wiz.addr_bad'
@@ -78,15 +91,16 @@ export const companionError = (v: string): Key | null => {
 export const httpUrlError = (v: string): Key | null => {
   try {
     const u = new URL(v.trim())
-    return u.protocol === 'http:' || u.protocol === 'https:' ? null : 'fw.not_dbfw'
+    return u.protocol === 'http:' || u.protocol === 'https:' ? null : 'fw.bad_url'
   } catch {
-    return 'fw.not_dbfw'
+    return 'fw.bad_url'
   }
 }
 
 export const passwordError = (pw: string, rep: string): { pw?: Key; rep?: Key } => {
   if (!pw && !rep) return {}
   if (pw.length < 6) return { pw: 'access.pw_short' }
+  if (bytes(pw) > 23) return { pw: 'access.pw_long' }
   if (pw !== rep) return { rep: 'access.pw_diff' }
   return {}
 }
@@ -94,10 +108,19 @@ export const passwordError = (pw: string, rep: string): { pw?: Key; rep?: Key } 
 export const tokenNameError = (v: string): Key | null => (/^[A-Za-z0-9_-]{1,23}$/.test(v) ? null : 'access.tbad')
 
 export const corsError = (v: string): Key | null =>
+  v.length <= 127 &&
   v
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
     .every((s) => /^https?:\/\/[^/\s]+$/.test(s))
     ? null
-    : 'src.bad_url'
+    : 'access.cors_bad'
+
+/** What POST /api/wifi/join takes: SSID 1 to 32 bytes, not only spaces; password empty (open) or 8 to 64. */
+export const wifiError = (ssid: string, pass: string): Key | null =>
+  !ssid.trim() || bytes(ssid) > 32
+    ? 'wifi.pick'
+    : pass && (pass.length < 8 || pass.length > 64)
+      ? 'wifi.pass_len'
+      : null

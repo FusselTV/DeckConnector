@@ -379,7 +379,6 @@ export function Wizard() {
               {...describedBy('wpw', pwTried && pwE.pw, true)}
               value={pw}
               onChange={(e) => setPw(e.target.value)}
-              maxLength={23}
             />
           </Field>
           <Field id="wpw2" label={t('access.pw_rep')} err={pwTried && pwE.rep ? t(pwE.rep) : null}>
@@ -387,7 +386,6 @@ export function Wizard() {
               {...describedBy('wpw2', pwTried && pwE.rep)}
               value={pw2}
               onChange={(e) => setPw2(e.target.value)}
-              maxLength={23}
             />
           </Field>
         </div>

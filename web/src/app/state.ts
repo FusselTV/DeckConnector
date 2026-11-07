@@ -1,4 +1,5 @@
-import type { Coredump, WifiAp } from '../api/types'
+import type { ReactNode } from 'react'
+import type { ConfigPatch, Coredump, WifiAp } from '../api/types'
 import { atom } from '../lib/atom'
 import { ls } from '../lib/util'
 import type { Lang } from '../i18n'
@@ -39,14 +40,24 @@ export const loginReasonAtom = atom<'logout' | 'pw' | 'expired' | null>(null)
 export const forceAtom = atom(false)
 export const deckSelAtom = atom(0)
 
+/** A tab's unsaved settings. The save bar merges every dirty draft into one PUT with at most one confirm. */
 export interface Draft {
   dirty: boolean
   restart: boolean
-  /** Returns false when validation failed; the draft then opens its tab and focuses the field. */
-  save: () => Promise<boolean>
+  /** Returns false when a value is invalid, after opening the tab and focusing the field. */
+  check: () => boolean
+  /** Only the fields the person changed. */
+  patch: ConfigPatch
+  /** What the restart confirm says for this draft. */
+  confirm?: { title: string; body: ReactNode }
+  /** Runs before the PUT (a Wi-Fi join test); false stops the save. */
+  prepare?: () => Promise<boolean>
+  /** Where the page will reach the device after a restart. */
+  addr?: string
+  saved: () => void
   reset: () => void
 }
-export const draftsAtom = atom<Partial<Record<Tab, Draft>>>({})
+export const draftsAtom = atom<Partial<Record<Tab, { dirty: boolean; restart: boolean; ref: { current: Draft } }>>>({})
 
 /** The last crash report, null when none or when the firmware has no coredump route. */
 /** The last Wi-Fi scan, so search can offer the networks without scanning again. */

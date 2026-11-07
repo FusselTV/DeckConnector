@@ -6,10 +6,12 @@ import {
   ipErrors,
   isIP,
   isMask,
+  nameError,
   passwordError,
   pinError,
   splitCidr,
   tokenNameError,
+  wifiError,
   wsUrlError,
 } from './validate'
 
@@ -59,7 +61,7 @@ describe('pins and URLs', () => {
   })
   it('wants origins without a path for CORS', () => {
     expect(corsError('https://a.example, http://b:8123')).toBeNull()
-    expect(corsError('https://a.example/x')).toBe('src.bad_url')
+    expect(corsError('https://a.example/x')).toBe('access.cors_bad')
   })
 })
 
@@ -74,5 +76,46 @@ describe('passwords and names', () => {
     expect(tokenNameError('home-assistant')).toBeNull()
     expect(tokenNameError('has space')).toBe('access.tbad')
     expect(tokenNameError('x'.repeat(24))).toBe('access.tbad')
+  })
+})
+
+describe('values the firmware refuses or that lock the device out', () => {
+  it('takes masks from /1 to /30 only', () => {
+    expect(isMask('0.0.0.0')).toBe(false)
+    expect(isMask('255.255.255.255')).toBe(false)
+    expect(isMask('255.255.255.254')).toBe(false)
+    expect(isMask('255.255.255.252')).toBe(true)
+    expect(isMask('128.0.0.0')).toBe(true)
+    expect(splitCidr('10.0.0.5/0')).toEqual({ ip: '10.0.0.5/0' })
+  })
+  it('refuses the network, broadcast and gateway address as the own address', () => {
+    expect(ipErrors({ ...st, ip: '192.168.1.0' }).ip).toBe('net.ip_edge')
+    expect(ipErrors({ ...st, ip: '192.168.1.255' }).ip).toBe('net.ip_edge')
+    expect(ipErrors({ ...st, ip: '192.168.1.1' }).gateway).toBe('net.gw_self')
+    expect(ipErrors({ ...st, ip: ' 192.168.1.20 ' }).ip).toBe('net.bad_ip')
+    expect(ipErrors(st)).toEqual({})
+  })
+  it('checks the device name like the firmware and the restore', () => {
+    expect(nameError('studio-deck')).toBeNull()
+    for (const n of ['', 'my deck', '...', 'a'.repeat(32), '😀']) expect(nameError(n)).toBe('net.bad_name')
+  })
+  it('says when a password is too long instead of cutting it', () => {
+    expect(passwordError('p'.repeat(24), 'p'.repeat(24)).pw).toBe('access.pw_long')
+    expect(passwordError('p'.repeat(23), 'p'.repeat(23))).toEqual({})
+  })
+  it('wants lower-case schemes, no spaces and short hosts in server URLs', () => {
+    expect(wsUrlError('WS://h:1/x')).toBe('src.bad_url')
+    expect(wsUrlError('wss://h /x')).toBe('src.bad_url')
+    expect(wsUrlError(`wss://${'h'.repeat(64)}/x`)).toBe('src.bad_url')
+    expect(companionError('a'.repeat(64))).toBe('wiz.addr_bad')
+  })
+  it('limits CORS and the Wi-Fi fields', () => {
+    expect(corsError('http://' + 'a'.repeat(130))).toBe('access.cors_bad')
+    expect(corsError('example.com')).toBe('access.cors_bad')
+    expect(wifiError('  ', '')).toBe('wifi.pick')
+    expect(wifiError('😀'.repeat(12), '')).toBe('wifi.pick')
+    expect(wifiError('Home', 'short')).toBe('wifi.pass_len')
+    expect(wifiError('Home', 'p'.repeat(65))).toBe('wifi.pass_len')
+    expect(wifiError('Home', '')).toBeNull()
   })
 })

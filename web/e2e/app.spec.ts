@@ -46,6 +46,27 @@ test('a setting goes into the save bar and can be discarded or saved', async ({ 
   expect(await sim('GET', '/api/config')).toMatchObject({ menu_chord: 'keys' })
 })
 
+test('drafts from two tabs save in one request with only the changed fields', async ({ app: page }) => {
+  const puts: unknown[] = []
+  page.on('request', (r) => r.method() === 'PUT' && r.url().endsWith('/api/config') && puts.push(r.postDataJSON()))
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() === 'PUT') await new Promise((f) => setTimeout(f, 400))
+    await r.fallback()
+  })
+  await openTab(page, 'Deck')
+  await page.locator('#hold').fill('3')
+  // Another client turns the input lock on while this draft is open; the save must not turn it back off.
+  await sim('PUT', '/api/config', { input_lock: true })
+  await openTab(page, 'Access')
+  await page.locator('#cors-fold summary').click()
+  await page.locator('#cors').fill('http://studio.local')
+  const bar = page.getByRole('region', { name: 'Unsaved changes' })
+  await bar.getByRole('button', { name: /^Save/ }).dblclick()
+  await expect(bar).toHaveCount(0)
+  expect(puts).toEqual([{ menu_hold_ms: 3000, cors_origins: 'http://studio.local' }])
+  expect(await sim('GET', '/api/config')).toMatchObject({ input_lock: true, menu_hold_ms: 3000 })
+})
+
 test('dialogs confirm, cancel and create', async ({ app: page }) => {
   await page
     .getByRole('button', { name: /Restart/ })

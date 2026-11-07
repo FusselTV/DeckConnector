@@ -1,9 +1,8 @@
 import { CircleCheck, Gauge, LayoutGrid, SquareMenu, TriangleAlert, Turtle, Unplug, Usb } from 'lucide-react'
 import { useState } from 'react'
 import type { Config } from '../api/types'
-import { putConfig } from '../app/actions'
 import { decksOf, deckName } from '../app/derive'
-import { deckSelAtom, toast } from '../app/state'
+import { deckSelAtom } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -56,7 +55,7 @@ export function MiniDeck({ kind, hl }: { kind: ModelKey; hl: Hl }) {
 }
 
 export function DeckTab() {
-  const { t, fmt, act, ask } = useUi()
+  const { t, fmt, go } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const sel = deckSelAtom.use()
@@ -70,35 +69,33 @@ export function DeckTab() {
     usb: cfg?.usb_speed ?? 'auto',
     lock: !!cfg?.input_lock,
   }
-  const [d, setD] = useState<typeof base | null>(null)
+  // Only the fields the person touched, over the live values: a save never sends back a stale copy.
+  const [d, setD] = useState<Partial<typeof base>>({})
   // input_lock exists on firmware whose config carries it.
   const hasLock = cfg?.input_lock !== undefined
-  const v = d ?? base
-  const dirty = !!d && JSON.stringify(d) !== JSON.stringify(base)
-  const restart = dirty && v.usb !== base.usb
-  const holdErr = v.hold < 0.5 || v.hold > 10 ? t('deck.hold_h') : null
+  const v = { ...base, ...d }
+  const changed = (k: keyof typeof base) => k in d && d[k] !== base[k]
+  const dirty = (Object.keys(base) as (keyof typeof base)[]).some(changed)
+  const restart = changed('usb')
+  const holdErr = v.chord !== 'off' && (v.hold < 0.5 || v.hold > 10) ? t('deck.hold_h') : null
+  const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   useDraft('deck', {
     dirty,
     restart,
-    reset: () => setD(null),
-    save: async () => {
-      if (holdErr) {
-        document.getElementById('hold')?.focus()
-        return false
-      }
-      if (restart && !(await ask({ title: t('cf.usb'), body: t('cf.usb_b'), ok: t('c.save_restart') }))) return false
-      const ok = await act(async () => {
-        await putConfig({
-          menu_chord: v.chord,
-          menu_hold_ms: Math.round(v.hold * 1000),
-          usb_speed: v.usb,
-          ...(hasLock ? { input_lock: v.lock } : {}),
-        })
-        if (!restart) toast(t('c.saved'))
-        return true
-      })
-      if (ok) setD(null)
-      return !!ok
+    reset: () => setD({}),
+    saved: () => setD({}),
+    check: () => {
+      if (!holdErr) return true
+      go('deck')
+      setTimeout(() => document.getElementById('hold')?.focus(), 80)
+      return false
+    },
+    confirm: { title: t('cf.usb'), body: t('cf.usb_b') },
+    patch: {
+      ...(changed('chord') ? { menu_chord: v.chord } : {}),
+      ...(changed('hold') ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
+      ...(changed('usb') ? { usb_speed: v.usb } : {}),
+      ...(hasLock && changed('lock') ? { input_lock: v.lock } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
@@ -174,7 +171,7 @@ export function DeckTab() {
             id="usb-speed"
             label={t('deck.speed')}
             value={v.usb}
-            onChange={(usb) => setD({ ...v, usb })}
+            onChange={(usb) => set({ usb })}
             options={[
               ['auto', t('chord.auto'), Gauge],
               ['full', t('meter.full'), Turtle],
@@ -186,7 +183,7 @@ export function DeckTab() {
           <Switch
             id="input-lock"
             on={v.lock}
-            onChange={(lock) => setD({ ...v, lock })}
+            onChange={(lock) => set({ lock })}
             label={t('deck.lock')}
             hint={t('deck.lock_h')}
           />
@@ -222,7 +219,7 @@ export function DeckTab() {
                   className="choice"
                   aria-checked={v.chord === o}
                   disabled={dis}
-                  onClick={() => setD({ ...v, chord: o })}
+                  onClick={() => set({ chord: o })}
                 >
                   <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind])} />
                   <div>
@@ -244,7 +241,7 @@ export function DeckTab() {
               max={10}
               step={0.5}
               value={v.hold}
-              onChange={(e) => setD({ ...v, hold: Number(e.target.value) })}
+              onChange={(e) => set({ hold: Number(e.target.value) })}
             />
           </Field>
         )}

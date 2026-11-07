@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { Confirm } from '../components/Dialog'
 import { Toasts } from '../components/Toasts'
 import { Login } from '../pages/Login'
@@ -18,17 +18,31 @@ function Body() {
   return <Shell />
 }
 
+type Dlg = AskOpts & { res: (v: boolean) => void; n: number }
+
 export function App() {
-  const [dlg, setDlg] = useState<(AskOpts & { res: (v: boolean) => void }) | null>(null)
-  const ask = useCallback((o: AskOpts) => new Promise<boolean>((res) => setDlg({ ...o, res })), [])
+  const [dlg, setDlg] = useState<Dlg | null>(null)
+  const open = useRef<Dlg | null>(null)
+  // A new question cancels the one still open, so no caller waits forever.
+  const ask = useCallback(
+    (o: AskOpts) =>
+      new Promise<boolean>((res) => {
+        open.current?.res(false)
+        open.current = { ...o, res, n: (open.current?.n ?? 0) + 1 }
+        setDlg(open.current)
+      }),
+    [],
+  )
   return (
     <UiProvider onAsk={ask}>
       <Body />
       {dlg && (
         <Confirm
+          key={dlg.n}
           d={dlg}
           done={(v) => {
             dlg.res(v)
+            if (open.current === dlg) open.current = null
             setDlg(null)
           }}
         />

@@ -445,6 +445,16 @@ export const de: Dict = {
   'net.find_first': 'Probier zuerst die IP-Adresse. Die .local-Adresse geht nicht auf allen Handys.',
   'net.cidr': 'Auch 10.0.0.5/24 geht.',
   'net.gw_out': 'Gateway liegt nicht im Netz der IP-Adresse.',
+  'net.bad_mask': 'Keine gültige Netzmaske. Erlaubt sind /1 bis /30, zum Beispiel 255.255.255.0.',
+  'net.ip_edge': 'Das ist die Adresse des Netzes selbst oder seine Broadcast-Adresse. Wähle eine andere.',
+  'net.gw_self': 'Das Gateway darf nicht die eigene IP-Adresse sein.',
+  'net.bad_name': 'Nur Buchstaben, Ziffern und Bindestriche. Keine Leerzeichen. Höchstens 31 Zeichen.',
+  'access.pw_long': 'Höchstens 23 Zeichen.',
+  'access.cors_bad': 'Adressen wie http://host:port eingeben, durch Kommas getrennt. Höchstens 127 Zeichen.',
+  'fw.bad_url': 'Bitte eine http:// oder https:// Adresse eingeben.',
+  'wifi.lost':
+    'Die Seite hat den Connector beim Test verloren. Hat er sich verbunden, ist er jetzt unter der Adresse im neuen Netz erreichbar.',
+  'wifi.pass_len': 'Ein WLAN-Passwort hat 8 bis 64 Zeichen.',
   'fw.bad_header': 'Die Datei hat keinen gültigen DeckConnector-Kopf.',
   'fw.ver_unknown': 'Die Version steht erst nach dem Prüfen fest.',
   'fw.http_warn':

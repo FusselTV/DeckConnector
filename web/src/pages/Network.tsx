@@ -2,8 +2,7 @@ import { CircleAlert, EthernetPort, Network as NetIcon, Tag as TagIcon, Unplug, 
 import { useState } from 'react'
 import { api } from '../api/client'
 import type { IpConf } from '../api/types'
-import { putConfig } from '../app/actions'
-import { refreshStatus } from '../app/connection'
+import { refreshConfig, refreshStatus } from '../app/connection'
 import { reachList, sigWord } from '../app/derive'
 import { getState, useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
@@ -15,7 +14,7 @@ import { useDraft } from '../components/SaveBar'
 import { WifiPicker, type WifiChoice } from '../components/WifiPicker'
 import type { Key } from '../i18n/types'
 import { ls } from '../lib/util'
-import { ipErrors, splitCidr, type IpErrors } from '../lib/validate'
+import { ipErrors, NAME_RE, nameError, splitCidr, wifiError, type IpErrors } from '../lib/validate'
 
 const EMPTY: IpConf = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
 const LABEL: Record<'ip' | 'mask' | 'gateway' | 'dns', Key> = {
@@ -75,21 +74,23 @@ export function NetBlock({ id, v, set, err }: { id: string; v: IpConf; set: (v: 
   )
 }
 
-/** POST /api/wifi/join, then the status until the device says ok or failed (at most 15 s). */
-async function joinWifi(w: WifiChoice): Promise<string | null> {
+/** POST /api/wifi/join, then the status until the device says ok or failed (at most 20 s). 'lost' means the
+ *  page lost the device on the way, which happens when it is reached over the WLAN being changed. */
+export async function joinWifi(w: WifiChoice): Promise<string | null> {
   await api.wifiJoin(w.ssid, w.pass, w.bssid)
+  let seen = false
   for (let i = 0; i < 20; i++) {
     await new Promise((r) => setTimeout(r, 1000))
-    await refreshStatus()
+    seen = (await refreshStatus()) || seen
     const j = getState().status.network?.wlan
     if (j?.join === 'ok') return null
     if (j?.join === 'failed') return j.join_error || 'failed'
   }
-  return 'timeout'
+  return seen ? 'timeout' : 'lost'
 }
 
 export function Network() {
-  const { t, act, ask, go } = useUi()
+  const { t, go } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const canJoin = useRoute('POST', '/api/wifi/join')
@@ -100,72 +101,71 @@ export function Network() {
     wlan: cfg?.wlan ?? EMPTY,
     wifi: { ssid: cfg?.wifi_ssid ?? '', pass: '', bssid: cfg?.wifi_bssid ?? '' },
   }
-  const [d, setD] = useState<typeof base | null>(null)
+  // Only the fields the person touched, over the live values: a save never sends back a stale copy.
+  const [d, setD] = useState<Partial<typeof base>>({})
   const [expert, setExpert] = useState(() => ls.get('dc.bssid', false))
   const [joinErr, setJoinErr] = useState<string | null>(null)
-  const v = d ?? base
-  const dirty = !!d && JSON.stringify(d) !== JSON.stringify(base)
-  const err = { lan: ipErrors(v.lan), wlan: ipErrors(v.wlan) }
-  const wifiChanged = v.wifi.ssid !== base.wifi.ssid || v.wifi.bssid !== base.wifi.bssid || !!v.wifi.pass
+  const v = { ...base, ...d }
+  const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+  const err = { lan: ipErrors(v.lan), wlan: ipErrors(v.wlan), name: nameError(v.name) }
+  const wifiChanged = v.wifi.ssid !== base.wifi.ssid || v.wifi.bssid !== base.wifi.bssid || !!v.wifi.pass
   const patch = {
-    ...(v.name !== base.name ? { name: v.name } : {}),
-    ...(!same(v.lan, base.lan) ? { lan: v.lan } : {}),
-    ...(!same(v.wlan, base.wlan) ? { wlan: v.wlan } : {}),
+    ...(d.name !== undefined && v.name !== base.name ? { name: v.name } : {}),
+    ...(d.lan && !same(v.lan, base.lan) ? { lan: v.lan } : {}),
+    ...(d.wlan && !same(v.wlan, base.wlan) ? { wlan: v.wlan } : {}),
     ...(wifiChanged && !canJoin
       ? { wifi_ssid: v.wifi.ssid, wifi_bssid: v.wifi.bssid, ...(v.wifi.pass ? { wifi_pass: v.wifi.pass } : {}) }
       : {}),
   }
   const restart = Object.keys(patch).length > 0
+  const where = reachList(st, !!cfg?.https_only, v.name)
   useDraft('network', {
-    dirty,
+    dirty: restart || wifiChanged,
     restart,
     reset: () => {
-      setD(null)
+      setD({})
       setJoinErr(null)
     },
-    save: async () => {
+    saved: () => setD({}),
+    check: () => {
       const bad = (['lan', 'wlan'] as const).find((k) => Object.keys(err[k]).length)
-      if (bad) {
-        go('network')
-        setTimeout(() => {
-          const r = document.getElementById(`row-${bad}`)
-          if (r instanceof HTMLDetailsElement) r.open = true
-          document.querySelector<HTMLElement>('#card-conn [aria-invalid="true"]')?.focus()
-        }, 80)
-        return false
-      }
-      const where = reachList(st, !!cfg?.https_only, v.name)
-      if (
-        restart &&
-        !(await ask({
-          title: t('cf.net'),
-          body: (
-            <>
-              <p>{t('cf.net_b')}</p>
-              {where.map((w) => (
-                <code key={w}>{w}</code>
-              ))}
-            </>
-          ),
-          ok: t('c.save_restart'),
-        }))
-      )
-        return false
-      const ok = await act(async () => {
-        // A new Wi-Fi is tested first where the firmware can; a failed test keeps the old network (api-gaps #1).
-        if (wifiChanged && canJoin && v.wifi.ssid) {
-          const e = await joinWifi(v.wifi)
-          if (e) {
-            setJoinErr(t('wiz.test_bad') + ` (${e})`)
-            return false
-          }
-        }
-        if (restart) await putConfig(patch, where[0])
+      const wifiBad = wifiChanged && wifiError(v.wifi.ssid, v.wifi.pass)
+      if (!bad && !err.name && !wifiBad) return true
+      go('network')
+      if (wifiBad) setJoinErr(t(wifiBad))
+      setTimeout(() => {
+        const r = bad ? document.getElementById(`row-${bad}`) : wifiBad ? document.getElementById('row-wlan') : null
+        if (r instanceof HTMLDetailsElement) r.open = true
+        document.querySelector<HTMLElement>('#card-conn [aria-invalid="true"], #name[aria-invalid="true"]')?.focus()
+      }, 80)
+      return false
+    },
+    confirm: {
+      title: t('cf.net'),
+      body: (
+        <>
+          <p>{t('cf.net_b')}</p>
+          {where.map((w) => (
+            <code key={w}>{w}</code>
+          ))}
+        </>
+      ),
+    },
+    addr: where[0],
+    patch,
+    // A new Wi-Fi is tested first where the firmware can; a failed test keeps the old network (api-gaps #1).
+    prepare: async () => {
+      if (!wifiChanged || !canJoin || !v.wifi.ssid) return true
+      setJoinErr(null)
+      const e = await joinWifi(v.wifi)
+      if (e === null) {
+        await refreshConfig()
+        if (!restart) setD(({ wifi: _w, ...o }) => o)
         return true
-      })
-      if (ok) setD(null)
-      return !!ok
+      }
+      setJoinErr(e === 'lost' ? t('wifi.lost') : t('wiz.test_bad') + ` (${e})`)
+      return false
     },
   })
   const lanSt = !n?.lan?.cable ? (
@@ -207,7 +207,7 @@ export function Network() {
           status={lanSt}
           open={!base.lan.dhcp}
         >
-          <NetBlock id="lan" v={v.lan} set={(lan) => setD({ ...v, lan })} err={err.lan} />
+          <NetBlock id="lan" v={v.lan} set={(lan) => set({ lan })} err={err.lan} />
         </Row>
         <Row
           id="row-wlan"
@@ -240,10 +240,10 @@ export function Network() {
             err={joinErr}
             onChange={(wifi) => {
               setJoinErr(null)
-              setD({ ...v, wifi })
+              set({ wifi })
             }}
           />
-          <NetBlock id="wlan" v={v.wlan} set={(wlan) => setD({ ...v, wlan })} err={err.wlan} />
+          <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} />
         </Row>
       </Card>
       <Card
@@ -252,13 +252,14 @@ export function Network() {
         title={t('net.names')}
         right={<Help right label={t('net.names')} text={t('net.find_first')} />}
       >
-        <Field id="name" label={t('net.name')}>
+        <Field id="name" label={t('net.name')} err={err.name && t(err.name)}>
           <input
-            {...describedBy('name')}
+            {...describedBy('name', err.name && t(err.name))}
             className="in mono"
             maxLength={31}
+            pattern={NAME_RE.source}
             value={v.name}
-            onChange={(e) => setD({ ...v, name: e.target.value })}
+            onChange={(e) => set({ name: e.target.value.trim() })}
             spellCheck={false}
           />
         </Field>

@@ -1,5 +1,5 @@
 import type { Config, ConfigPatch } from '../api/types'
-import { ipErrors } from './validate'
+import { ipErrors, NAME_RE } from './validate'
 
 type Flat = Record<string, unknown>
 export const flat = (o: object, p = ''): Flat =>
@@ -53,7 +53,7 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
     const v = patch[k]
     if (v) for (const [f, e] of Object.entries(ipErrors({ ...cfg[k], ...v }))) errors.push(`${k}.${f}: ${e}`)
   }
-  if (patch.name !== undefined && !/^[A-Za-z0-9-]{1,31}$/.test(patch.name)) errors.push('name')
+  if (patch.name !== undefined && !NAME_RE.test(patch.name)) errors.push('name')
   if (patch.brightness !== undefined && !(patch.brightness >= 0 && patch.brightness <= 100))
     errors.push('brightness: 0-100')
   const fc = flat(cfg)
