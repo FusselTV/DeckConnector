@@ -246,6 +246,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_bool(j, "https_custom", db_web_cert_custom());
     db_json_int(j, "api", DB_WEB_API);
     db_json_str(j, "simulated_input", "local"); /* tests refuse to press keys on firmware without the gate */
+    db_json_int(j, "input_armed_s", db_web_input_armed_s());
     db_json_str(j, "name", db_config()->name);
     db_json_str(j, "firmware", esp_app_get_description()->version);
     if (c6) {

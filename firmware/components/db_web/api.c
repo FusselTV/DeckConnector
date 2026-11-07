@@ -26,6 +26,7 @@
 #include "esp_log.h"
 #include "esp_app_desc.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "web.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -52,6 +53,19 @@ static int fail(char *reply, size_t cap, int status, const char *msg)
     return status;
 }
 
+static int64_t armed_until; /* PUT /api/input/arm opens the input lock until then */
+
+static bool input_locked(void)
+{
+    return db_config()->input_lock && esp_timer_get_time() >= armed_until;
+}
+
+int db_web_input_armed_s(void)
+{
+    int64_t left = armed_until - esp_timer_get_time();
+    return db_config()->input_lock && left > 0 ? (int)((left + 999999) / 1000000) : 0;
+}
+
 /* The fields copied into `live` below apply at once; a change of any other one restarts the bridge. */
 int api_config(const char *body, char *reply, size_t cap)
 {
@@ -66,7 +80,7 @@ int api_config(const char *body, char *reply, size_t cap)
     cJSON *root = cJSON_Parse(body);
     bool force = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "force"));
     cJSON_Delete(root);
-    if (old.input_lock && cfg.input_lock && !force &&
+    if (input_locked() && cfg.input_lock && !force &&
         (cfg.controller != old.controller || strcmp(cfg.host, old.host) != 0)) {
         return fail(reply, cap, 423, "input is locked: send \"force\": true or unlock first");
     }
@@ -201,7 +215,7 @@ int api_input(const char *body, char *reply, size_t cap)
     }
     bool force = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "force"));
     cJSON_Delete(root);
-    if (!err && db_config()->input_lock && !force) {
+    if (!err && input_locked() && !force) {
         return fail(reply, cap, 423, "input is locked: send \"force\": true or unlock first");
     }
     if (err) {
@@ -372,6 +386,28 @@ esp_err_t post_input(httpd_req_t *req)
         return ESP_OK;
     }
     return body_api(req, api_input);
+}
+
+/* {"s": N} lets presses and source switches past the input lock for N seconds; 0 locks again */
+esp_err_t put_input_arm(httpd_req_t *req)
+{
+    char body[64];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *s = cJSON_GetObjectItemCaseSensitive(root, "s");
+    bool ok = cJSON_IsNumber(s) && s->valueint >= 0 && s->valueint <= 3600;
+    if (ok) {
+        armed_until = s->valueint ? esp_timer_get_time() + (int64_t)s->valueint * 1000000 : 0;
+    }
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "s: seconds from 0 to 3600");
+    }
+    char reply[32];
+    snprintf(reply, sizeof(reply), "{\"armed_s\":%d}", db_web_input_armed_s());
+    return send_json(req, reply);
 }
 
 esp_err_t post_menu(httpd_req_t *req)

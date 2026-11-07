@@ -26,6 +26,8 @@ bool db_web_cert_custom(void);
 
 /* The web wizard's step, 1 to 6, kept over restarts; 0 when it does not run. */
 int db_web_setup_step(void);
+/* Seconds the input lock stays open after PUT /api/input/arm; 0 when it is shut or there is no lock. */
+int db_web_input_armed_s(void);
 
 /* Send one JSON message to every listener of /api/ws. */
 void db_web_broadcast(const char *json);

@@ -31,8 +31,8 @@ static const char *TAG = "web";
 extern const char index_gz_start[] asm("_binary_index_html_gz_start");
 extern const char index_gz_end[] asm("_binary_index_html_gz_end");
 
-httpd_uri_t web_uris[48];
-route_t web_routes[48];
+httpd_uri_t web_uris[WEB_ROUTES_MAX];
+route_t web_routes[WEB_ROUTES_MAX];
 size_t web_route_count;
 static SemaphoreHandle_t handler_lock;
 
@@ -404,6 +404,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},
         {{.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image}, WEB_CONTROL},
         {{.uri = "/api/input", .method = HTTP_POST, .handler = post_input}, WEB_CONTROL},
+        {{.uri = "/api/input/arm", .method = HTTP_PUT, .handler = put_input_arm}, WEB_CONTROL},
         {{.uri = "/api/menu", .method = HTTP_POST, .handler = post_menu}, WEB_CONTROL},
         {{.uri = "/api/deck/reconnect", .method = HTTP_POST, .handler = post_deck_reconnect}, WEB_CONTROL},
         {{.uri = "/api/dock", .method = HTTP_POST, .handler = post_dock}, WEB_FULL},

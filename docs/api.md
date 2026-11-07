@@ -65,6 +65,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/screen/<id>.jpg` | One image of that picture |
 | `GET /api/screen.jpg` | The whole picture as one JPEG, for a camera in Home Assistant |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
+| `PUT /api/input/arm` | `{"s": 60}` opens the input lock for 60 seconds, at most 3600. `0` shuts it again. Answers `{armed_s}` |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
@@ -162,6 +163,8 @@ up to a second.
 
 `input_lock` stops presses over `POST /api/input` and the web socket, and changes of `controller` or `host`,
 with 423. A request with `"force": true` still gets through. The deck itself is never locked.
+`PUT /api/input/arm` opens the lock for some seconds for every client, and `input_armed_s` in the status counts
+them down. A restart shuts the lock again.
 
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
 

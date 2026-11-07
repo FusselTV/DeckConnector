@@ -22,3 +22,18 @@ def test_a_locked_bridge_refuses_presses_and_switches_without_force():
     finally:
         put_config({"input_lock": False})
     assert json.loads(api("GET", "/api/config")[1])["controller"] == cfg["controller"]
+
+
+@pytest.mark.sim
+def test_arming_opens_the_lock_for_a_while():
+    assert post("/api/config", {"input_lock": True}) == 200
+    try:
+        assert json.loads(api("PUT", "/api/input/arm", b'{"s": 30}')[1]) == {"armed_s": 30}
+        assert 0 < json.loads(api("GET", "/api/status")[1])["input_armed_s"] <= 30
+        assert post("/api/input", {"key": 0, "real": "192.0.2.1"}) == 200
+        assert post("/api/input/arm", {"s": 0}) == 200
+        assert post("/api/input", {"key": 0, "real": "192.0.2.1"}) == 423
+        assert post("/api/input/arm", {"s": 3601}) == 400
+    finally:
+        put_config({"input_lock": False})
+    assert json.loads(api("GET", "/api/status")[1])["input_armed_s"] == 0
