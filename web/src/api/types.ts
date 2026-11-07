@@ -48,7 +48,8 @@ export interface Pairing {
   open_s?: number
   auto_open?: boolean
   /** Hosts refused since the start (api-gaps #17), on firmware that lists them. */
-  denied?: { ip: string; name?: string; at?: number }[]
+  /** since_s: seconds after the start when the host was refused. */
+  denied?: { ip: string; name?: string; since_s?: number }[]
   hosts?: PairHost[]
 }
 

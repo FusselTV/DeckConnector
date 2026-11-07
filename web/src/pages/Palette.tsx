@@ -57,7 +57,7 @@ const TAB_KW: Record<Tab, I18nKey> = {
 }
 
 function useCommands(): Cmd[] {
-  const { t, go, jump, lang } = useUi()
+  const { t, go, jump, lang, ask } = useUi()
   const a = useActions()
   const eff = useTheme()
   const st = useStore((s) => s.status)
@@ -99,7 +99,7 @@ function useCommands(): Cmd[] {
         kw: t('kw.bri'),
         icon: SunDim,
         mut: true,
-        run: () => void a.brightness(n),
+        run: () => a.brightness(n),
       })),
       to('s-who', t('ov.who'), 'aktive quelle active source', Radio, 'overview', 'card-who', 'ov.who_help'),
       to('s-wlan', t('wifi.list'), t('kw.wlan'), Wifi, 'network', 'wifi-q'),
@@ -167,7 +167,7 @@ function useCommands(): Cmd[] {
         kw: t('kw.menu'),
         icon: SquareMenu,
         mut: true,
-        run: () => void a.menu(),
+        run: () => a.menu(),
       },
       {
         id: 'a-rec',
@@ -176,7 +176,7 @@ function useCommands(): Cmd[] {
         kw: t('kw.reconnect'),
         icon: Usb,
         mut: true,
-        run: () => void a.reconnect(decks.length),
+        run: () => a.reconnect(decks.length),
       },
       {
         id: 'a-reboot',
@@ -185,7 +185,7 @@ function useCommands(): Cmd[] {
         kw: t('kw.reboot'),
         icon: Power,
         mut: true,
-        run: () => void a.reboot(),
+        run: () => a.reboot(),
       },
       {
         id: 'a-setup',
@@ -194,7 +194,10 @@ function useCommands(): Cmd[] {
         kw: 'einrichtung setup wizard',
         icon: Sparkles,
         mut: true,
-        run: () => void putConfig({ setup_done: false }),
+        run: () =>
+          ask({ title: t('cf.setup'), body: t('cf.setup_b'), ok: t('pal.setup') }).then((ok) =>
+            ok ? putConfig({ setup_done: false }) : undefined,
+          ),
       },
       {
         id: 'a-lang',
@@ -218,7 +221,7 @@ function useCommands(): Cmd[] {
         label: t('hdr.logout'),
         kw: 'logout abmelden',
         icon: LogOut,
-        run: () => void a.logout(),
+        run: () => a.logout(),
       },
       ...(P?.request
         ? [
@@ -229,7 +232,7 @@ function useCommands(): Cmd[] {
               kw: t('kw.accept'),
               icon: Check,
               mut: true,
-              run: () => void a.accept(P.request_name || P.request || ''),
+              run: () => a.accept(P.request_name || P.request || ''),
             } satisfies Cmd,
             {
               id: 'a-deny',
@@ -238,7 +241,7 @@ function useCommands(): Cmd[] {
               kw: 'ablehnen deny',
               icon: X,
               mut: true,
-              run: () => void a.deny(P.request ?? ''),
+              run: () => a.deny(P.request ?? ''),
             } satisfies Cmd,
           ]
         : []),
@@ -274,7 +277,7 @@ function useCommands(): Cmd[] {
         run: () => (deckSelAtom.set(i), jump('deck', 'card-decks')),
         extras: [
           { id: 'live', label: t('pal.live'), run: () => (deckSelAtom.set(i), jump('overview', 'card-deck')) },
-          { id: 'menu', label: t('ov.menu_s'), run: () => void a.menu(decks.length > 1 ? d.serial : undefined) },
+          { id: 'menu', label: t('ov.menu_s'), run: () => a.menu(decks.length > 1 ? d.serial : undefined) },
         ],
       })),
       ...(st.sources ?? [])
@@ -288,13 +291,11 @@ function useCommands(): Cmd[] {
           hint: t(stateKey(s, null)),
           run: () => jump('sources', 'card-src'),
           extras:
-            !s.chosen && s.connected
-              ? [{ id: 'ctl', label: t('src.make_ctl_s'), run: () => void a.pick(s) }]
-              : undefined,
+            !s.chosen && s.connected ? [{ id: 'ctl', label: t('src.make_ctl_s'), run: () => a.pick(s) }] : undefined,
         })),
     ]
     return cmds
-  }, [t, go, jump, lang, a, eff, st, scan])
+  }, [t, go, jump, lang, ask, a, eff, st, scan])
 }
 
 export function Palette({ close }: { close: () => void }) {
@@ -316,7 +317,7 @@ export function Palette({ close }: { close: () => void }) {
           label: t('pal.bri', { n }),
           icon: SunDim,
           mut: true,
-          run: () => void putConfig({ brightness: n }),
+          run: () => putConfig({ brightness: n }),
         } satisfies Cmd,
       ]
     }
@@ -333,7 +334,7 @@ export function Palette({ close }: { close: () => void }) {
     listRef.current?.querySelector(`#pal-o-${sel}`)?.scrollIntoView({ block: 'nearest' })
   }, [sel])
   const locked = useStore((s) => s.conn !== 'live' || s.auth !== 'app')
-  const run = (c: Cmd | undefined, x?: { run: () => void }) => {
+  const run = (c: Cmd | undefined, x?: { run: () => unknown }) => {
     if (!c || (c.mut && locked)) return
     const next = remember(picks, q, c.id)
     setPicks(next)

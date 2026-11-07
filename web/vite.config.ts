@@ -4,12 +4,13 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
-// DC_TARGET picks the device behind /api in `npm run dev`. Anything but the local simulator is read-only:
-// the proxy refuses every request that could change it, and the page refuses to send presses.
+// DC_TARGET picks the device behind /api in `npm run dev`. Anything but the local simulator (loopback on
+// DC_SIM_PORT) is read-only: the proxy refuses every request and the web socket that could change it, and the
+// page refuses to send presses. A port matched by "loopback" alone would also cover an ssh tunnel to a device.
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, process.cwd(), 'DC_'), ...process.env }
   const target = env.DC_TARGET || 'http://127.0.0.1:18200'
-  const readonly = !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(target)
+  const readonly = target.replace(/\/$/, '') !== `http://127.0.0.1:${env.DC_SIM_PORT || '18200'}`
   const origin = (req: { setHeader(k: string, v: string): void }) => req.setHeader('origin', target)
   return {
     plugins: [react(), tailwindcss(), viteSingleFile({ removeViteModuleLoader: true })],
@@ -26,7 +27,7 @@ export default defineConfig(({ mode }) => {
             readonly && req.method !== 'GET' && !/^\/api\/log(in|out)$/.test(req.url ?? '') ? false : undefined,
           configure: (proxy) => {
             proxy.on('proxyReq', origin)
-            proxy.on('proxyReqWs', origin)
+            proxy.on('proxyReqWs', (req, _r, socket) => (readonly ? socket.destroy() : origin(req)))
           },
         },
       },

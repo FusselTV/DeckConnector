@@ -231,7 +231,8 @@ function CompanionForm({ close }: { close: () => void }) {
 }
 
 function AppForm({ close }: { close: () => void }) {
-  const { t, act } = useUi()
+  const { t, fmt, act } = useUi()
+  const bootAt = useStore((s) => s.bootAt)
   const P = useStore((s) => s.status.pairing)
   const ip = useStore((s) => s.status.network?.lan?.ip || s.status.network?.wlan?.ip || location.hostname)
   const a = usePairing()
@@ -282,13 +283,16 @@ function AppForm({ close }: { close: () => void }) {
             icon: X,
             lvl: 'warn',
             title: `${t('wiz.denied')}: ${d.name || d.ip}`,
-            text: t('wiz.denied_h'),
+            text:
+              d.since_s !== undefined && bootAt
+                ? `${t('wiz.denied_at', { time: fmt.time(bootAt + d.since_s * 1000) })} ${t('wiz.denied_h')}`
+                : t('wiz.denied_h'),
             acts: canUndeny
               ? [
                   {
                     label: t('wiz.ask_again'),
                     icon: RefreshCw,
-                    run: () => void act(() => api.undeny(d.ip).then(refreshStatus)),
+                    run: () => act(() => api.undeny(d.ip).then(refreshStatus)),
                   },
                 ]
               : [],

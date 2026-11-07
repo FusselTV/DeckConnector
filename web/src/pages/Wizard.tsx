@@ -594,11 +594,11 @@ export function Wizard() {
                       icon: Check,
                       pri: true,
                       run: () =>
-                        void a
+                        a
                           .accept(st.pairing?.request_name || req)
                           .then(() => act(() => putConfig({ controller: 'app', host: req }))),
                     },
-                    { label: t('act.deny'), icon: X, run: () => void a.deny(req) },
+                    { label: t('act.deny'), icon: X, run: () => a.deny(req) },
                   ],
                 }}
               />

@@ -18,11 +18,11 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Frontend, Slot, UpdateCheck } from '../api/types'
-import { putConfig } from '../app/actions'
+import { putConfig, useActions } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { toast } from '../app/state'
 import { useRoute, useStore } from '../app/store'
-import { useUi } from '../app/ui'
+import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Field, Help, Seg, SIcon, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
@@ -54,7 +54,10 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
   const [err, setErr] = useState<string | null>(null)
   const [version, setVersion] = useState<string | null>(null)
   const canInspect = useRoute('POST', '/api/ota/inspect')
+  // Only the reply for the file picked last counts; an earlier, slower one is dropped.
+  const picked = useRef<File | null>(null)
   const pickFile = (f: File | null) => {
+    picked.current = f
     setFile(f)
     setTg(null)
     setErr(null)
@@ -64,13 +67,14 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
     if (canInspect)
       api.inspect(f).then(
         (r) => {
+          if (picked.current !== f) return
           if (!r.ok) return setErr(r.error ?? t('fw.bad_header'))
           setTg(r.target === 'web' ? 'page' : (r.target ?? null))
           setVersion(r.version ?? null)
         },
-        (e: unknown) => setErr(e instanceof Error ? e.message : t('fw.bad_header')),
+        (e: unknown) => picked.current === f && setErr(errText(e, t)),
       )
-    else void dbfwTarget(f).then((x) => (x ? setTg(x) : setErr(t('fw.bad_header'))))
+    else void dbfwTarget(f).then((x) => picked.current === f && (x ? setTg(x) : setErr(t('fw.bad_header'))))
   }
   const what =
     mode === 'url'
@@ -199,7 +203,7 @@ function UpdateCheckBox() {
         setSt({ state: 'new', u: { ...u, latest: u.latest, url: u.url } })
       else setSt(u.error ? { state: 'error', msg: u.error } : { state: 'none' })
     } catch (e) {
-      setSt({ state: 'error', msg: e instanceof Error ? e.message : t('c.not_sent') })
+      setSt({ state: 'error', msg: errText(e, t) })
     }
   }
   return (
@@ -245,6 +249,7 @@ function UpdateCheckBox() {
 
 export function Firmware() {
   const { t, fmt, act, ask } = useUi()
+  const { putForce } = useActions()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const ota = useStore((s) => s.ota)
@@ -373,8 +378,8 @@ export function Firmware() {
     })
     if (!ok) return
     await act(async () => {
-      const r = await putConfig(p.patch)
-      if (!r.restart) toast(t('fw.restored'))
+      const r = await putForce(p.patch)
+      if (r && !r.restart) toast(t('fw.restored'))
     })
   }
   const why = (s: Slot) =>

@@ -1,12 +1,12 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cx } from '../lib/util'
-import { SIcon } from './controls'
+import { SIcon, useRun } from './controls'
 
 export interface NoticeAct {
   label: string
   icon?: LucideIcon
-  run: () => void
+  run: () => unknown
   pri?: boolean
   ghost?: boolean
 }
@@ -33,22 +33,28 @@ export function Notice({ n }: { n: NoticeData }) {
       </div>
       {n.acts && n.acts.length > 0 && (
         <div className="nacts">
-          {n.acts.map((a) => {
-            const I = a.icon
-            return (
-              <button
-                key={a.label}
-                type="button"
-                className={cx('btn sm', a.ghost && 'ghost', a.pri && 'pri')}
-                onClick={a.run}
-              >
-                {I && <I size={15} className="ic" aria-hidden />}
-                {a.label}
-              </button>
-            )
-          })}
+          {n.acts.map((a) => (
+            <ActBtn key={a.label} a={a} />
+          ))}
         </div>
       )}
     </div>
+  )
+}
+
+function ActBtn({ a }: { a: NoticeAct }) {
+  const [busy, run] = useRun(a.run)
+  const I = a.icon
+  return (
+    <button
+      type="button"
+      className={cx('btn sm', a.ghost && 'ghost', a.pri && 'pri')}
+      onClick={run}
+      disabled={busy}
+      aria-busy={busy || undefined}
+    >
+      {I && <I size={15} className="ic" aria-hidden />}
+      {a.label}
+    </button>
   )
 }

@@ -22,7 +22,7 @@ export default defineConfig({
     },
     {
       command: `npx vite --host 127.0.0.1 --port ${WEB} --strictPort`,
-      env: { DC_TARGET: `http://127.0.0.1:${SIM}` },
+      env: { DC_TARGET: `http://127.0.0.1:${SIM}`, DC_SIM_PORT: String(SIM) },
       url: `http://127.0.0.1:${WEB}/`,
       reuseExistingServer: false,
     },

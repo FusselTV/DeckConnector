@@ -91,3 +91,20 @@ describe('input lock and inspect', () => {
     expect((f.mock.calls[0]?.[1]?.body as Blob).size).toBe(144)
   })
 })
+
+describe('replies the page cannot use', () => {
+  it('drops a proxy HTML page from the message', async () => {
+    mockFetch(reply(500, '<html><body><h1>500 Internal Server Error</h1></body></html>', 'text/html'))
+    const e = await request('/api/config', { method: 'PUT', body: {} }).catch((x: unknown) => x)
+    expect(e).toMatchObject({ status: 500, message: '' })
+  })
+  it('fails an empty JSON reply instead of handing on null', async () => {
+    mockFetch(reply(200, 'null'))
+    await expect(api.config()).rejects.toMatchObject({ code: 'badreply' })
+  })
+  it('fails a list reply that is not a list', async () => {
+    mockFetch(reply(200, { x: 1 }), reply(200, 'null'))
+    await expect(api.wifiScan()).rejects.toMatchObject({ code: 'badreply' })
+    await expect(api.tokens()).rejects.toMatchObject({ code: 'badreply' })
+  })
+})

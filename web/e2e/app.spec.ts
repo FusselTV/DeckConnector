@@ -84,6 +84,25 @@ test('closing the Companion dialog while it tests the address saves nothing', as
   expect(puts).toEqual([])
 })
 
+test('broken replies show a worded error and leave the rest of the page working', async ({ app: page, errors }) => {
+  await page.route('**/api/tokens', (r) => r.fulfill({ json: null }))
+  await page.route('**/api/config', (r) =>
+    r.request().method() === 'PUT'
+      ? r.fulfill({ status: 500, contentType: 'text/html', body: '<html><body><h1>500</h1></body></html>' })
+      : r.fallback(),
+  )
+  await openTab(page, 'Access')
+  await expect(page.getByText('The token list could not be loaded.')).toBeVisible()
+  await openTab(page, 'Deck')
+  await page.getByRole('radio', { name: /Two keys/ }).click()
+  await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
+  await expect(page.getByText('The connector answered with an error (500). Try again.')).toBeVisible()
+  await expect(page.getByText('<html>')).toHaveCount(0)
+  await openTab(page, 'Overview')
+  await expect(page.locator('#bri-ov')).toBeVisible()
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 500')))
+})
+
 test('dialogs confirm, cancel and create', async ({ app: page }) => {
   await page
     .getByRole('button', { name: /Restart/ })

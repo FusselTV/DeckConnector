@@ -15,8 +15,8 @@ export interface Cmd {
   icon?: import('lucide-react').LucideIcon
   /** Changes the device: refused while offline. */
   mut?: boolean
-  run: () => void
-  extras?: { id: string; label: string; run: () => void }[]
+  run: () => unknown
+  extras?: { id: string; label: string; run: () => unknown }[]
 }
 
 export const GROUPS = ['pal.recent', 'pal.act', 'pal.set', 'pal.src', 'pal.go', 'pal.help'] as const

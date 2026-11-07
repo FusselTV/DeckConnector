@@ -377,7 +377,8 @@ const LiveDeck = memo(function LiveDeck() {
       const kind =
         'key' in b ? (b.action ?? 'press') : 'encoder' in b ? (b.action === 'turn' ? 'turn' : 'encoder') : b.touch
       const key = 'key' in b ? b.key : 'encoder' in b ? b.encoder : undefined
-      noteWebPress(kind === 'press' ? 'down' : kind, key ?? 0)
+      if (kind === 'press') noteWebPress('down', key ?? 0)
+      noteWebPress(kind === 'press' ? 'up' : kind, key ?? 0)
       if (!getState().inputLogApi)
         dispatch({
           type: 'input',
@@ -564,6 +565,12 @@ function BriSlider() {
   const hasDeck = useStore((s) => decksOf(s.status).length > 0)
   const [v, setV] = useState<number | null>(null)
   const shown = v ?? saved ?? 80
+  // Each saved value is a config write on the device: arrow keys save once they rest.
+  const keyTm = useRef(0)
+  const commit = () => {
+    clearTimeout(keyTm.current)
+    if (v !== null) void a.brightness(v).finally(() => setV(null))
+  }
   return (
     <div className="slider">
       <SunDim size={18} aria-hidden />
@@ -578,8 +585,12 @@ function BriSlider() {
         aria-valuetext={fmt.pct(shown)}
         disabled={!hasDeck || saved === undefined}
         onChange={(e) => setV(Number(e.target.value))}
-        onPointerUp={() => v !== null && void a.brightness(v).finally(() => setV(null))}
-        onKeyUp={() => v !== null && void a.brightness(v).finally(() => setV(null))}
+        onPointerUp={commit}
+        onKeyUp={() => {
+          clearTimeout(keyTm.current)
+          keyTm.current = window.setTimeout(commit, 700)
+        }}
+        onBlur={commit}
       />
       <output htmlFor="bri-ov">{fmt.pct(shown)}</output>
     </div>

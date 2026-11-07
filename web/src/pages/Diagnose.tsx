@@ -37,6 +37,7 @@ import { copyText, cx, download, useLatest } from '../lib/util'
 import { inputText } from './Overview'
 
 const LOG_LINES = 1000
+const NONE: string[] = []
 
 function Spark({ label, data, fmt }: { label: string; data: number[]; fmt: (n: number) => string }) {
   const n = data.length
@@ -82,7 +83,8 @@ const LogCard = memo(function LogCard() {
   const { t } = useUi()
   const conn = useStore((s) => s.conn)
   const name = useStore((s) => s.status.name ?? 'deckconnector')
-  const [lines, setLines] = useState<string[]>([])
+  // `gone` counts lines dropped from the front, so each line keeps its key while the list scrolls.
+  const [{ lines, gone }, setLog] = useState({ lines: [] as string[], gone: 0 })
   const [follow, setFollow] = useState(true)
   const [q, setQ] = useState('')
   const [which, setWhich] = useState<'cur' | 'prev'>('cur')
@@ -91,11 +93,16 @@ const LogCard = memo(function LogCard() {
   const followRef = useLatest(follow)
   useEffect(() => {
     let off = false
-    const add = (text: string) => {
+    const add = (text: string, replace = false) => {
       if (!followRef.current) return
       const el = ref.current
       const atBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 24
-      setLines((x) => [...x, ...text.split('\n').filter(Boolean)].slice(-LOG_LINES))
+      const more = text.split('\n').filter(Boolean)
+      setLog((x) => {
+        const all = [...(replace ? [] : x.lines), ...more]
+        const cut = Math.max(0, all.length - LOG_LINES)
+        return { lines: all.slice(cut), gone: x.gone + cut + (replace ? x.lines.length : 0) }
+      })
       if (atBottom) requestAnimationFrame(() => el && (el.scrollTop = el.scrollHeight))
     }
     // The first ws log message carries everything still kept, so GET /api/log is only the fallback.
@@ -121,9 +128,14 @@ const LogCard = memo(function LogCard() {
         () => setPrev(null),
       )
   }
-  const src = which === 'prev' ? (prev ?? []) : lines
+  const src = which === 'prev' ? (prev ?? NONE) : lines
+  const base = which === 'prev' ? 0 : gone
   const text = src.join('\n')
-  const shown = q ? src.filter((l) => fold(l).includes(fold(q))) : src
+  const shown = useMemo(() => {
+    const all = src.map((l, i) => [base + i, l] as const)
+    const fq = fold(q)
+    return q ? all.filter(([, l]) => fold(l).includes(fq)) : all
+  }, [src, base, q])
   const live = follow && conn === 'live'
   return (
     <Card
@@ -157,7 +169,11 @@ const LogCard = memo(function LogCard() {
                 toast(t('c.downloaded', { file: `${name}.log` }))
               }}
             />
-            <IconBtn icon={Eraser} label={t('dia.clear')} onClick={() => setLines([])} />
+            <IconBtn
+              icon={Eraser}
+              label={t('dia.clear')}
+              onClick={() => setLog((x) => ({ lines: [], gone: x.gone + x.lines.length }))}
+            />
           </div>
         </>
       }
@@ -189,8 +205,8 @@ const LogCard = memo(function LogCard() {
       ) : (
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the log scrolls inside its box and must be reachable by keyboard
         <pre ref={ref} className="log" tabIndex={0} aria-label={t('dia.log')}>
-          {shown.map((l, i) => (
-            <div key={i} className={l[0]}>
+          {shown.map(([k, l]) => (
+            <div key={k} className={l[0]}>
               {l}
             </div>
           ))}
@@ -214,7 +230,7 @@ function Health() {
         () => undefined,
       )
     void load()
-    const id = setInterval(() => void load(), (m?.every_s ?? 5) * 1000)
+    const id = setInterval(() => !document.hidden && void load(), (m?.every_s ?? 5) * 1000)
     return () => {
       off = true
       clearInterval(id)

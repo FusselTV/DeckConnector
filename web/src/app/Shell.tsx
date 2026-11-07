@@ -20,7 +20,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { Component, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Notice } from '../components/Notice'
 import { SaveBar, useDirtyTabs } from '../components/SaveBar'
 import { Seg } from '../components/controls'
@@ -36,7 +36,7 @@ import { Sources } from '../pages/Sources'
 import { LoginBar } from '../pages/Login'
 import { Palette } from '../pages/Palette'
 import { useActions } from './actions'
-import { retryNow } from './connection'
+import { clearOta, retryNow } from './connection'
 import { useIssues } from './issues'
 import { langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
 import { useStore } from './store'
@@ -339,6 +339,25 @@ function MoreSheet({ close }: { close: () => void }) {
   )
 }
 
+/** A reply in a shape this page does not expect breaks one tab, never the whole page. */
+class Guard extends Component<{ text: string; again: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <div className="empty" role="alert">
+        {this.props.text}
+        <button type="button" className="btn sm" onClick={() => this.setState({ failed: false })}>
+          {this.props.again}
+        </button>
+      </div>
+    )
+  }
+}
+
 function Banners() {
   const { t, fmt, go } = useUi()
   const tab = tabAtom.use()
@@ -380,19 +399,20 @@ function Banners() {
           n={{
             id: 'ota',
             icon: Cpu,
-            lvl: ota.error ? 'bad' : 'info',
+            lvl: ota.state === 'error' ? 'bad' : 'info',
             title: t('ban.update', {
               target: t(`tgt.${ota.target}` as 'tgt.p4'),
               state: ota.error ?? t(`ota.${ota.state}` as 'ota.done'),
             }),
-            extra: (
+            extra: ota.state !== 'error' && (
               <span className="row nprog">
                 <span className="bar">
-                  <i style={{ width: `${ota.pct}%` }} />
+                  <i style={{ width: `${Math.max(0, Math.min(100, ota.pct))}%` }} />
                 </span>
-                <span className="mono">{fmt.pct(ota.pct)}</span>
+                <span className="mono">{fmt.pct(Math.max(0, Math.min(100, ota.pct)))}</span>
               </span>
             ),
+            acts: ota.state === 'error' ? [{ label: t('c.close'), icon: X, run: clearOta }] : undefined,
           }}
         />
       )}
@@ -532,7 +552,9 @@ export function Shell() {
                 return (
                   <div key={k} className="stack" hidden={k !== tab}>
                     <h2 className="sr">{t(`tab.${k}`)}</h2>
-                    <P />
+                    <Guard text={t('c.err_page')} again={t('ban.retry')}>
+                      <P />
+                    </Guard>
                   </div>
                 )
               })}

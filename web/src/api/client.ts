@@ -33,11 +33,11 @@ export class ApiError extends Error {
     this.status = status
     this.code = code
   }
-  /** The firmware does not know this route yet: the caller hides the feature instead of showing an error. */
   /** input_lock on the device refused it; a person may confirm and send it again with force. */
   get locked() {
     return this.status === 423
   }
+  /** The firmware does not know this route yet: the caller hides the feature instead of showing an error. */
   get missing() {
     return this.status === 404 || this.status === 405 || this.status === 501
   }
@@ -82,10 +82,20 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
   const data: unknown = type.includes('json') ? await res.json().catch(() => null) : await res.text()
   if (!res.ok) {
     const d = (data && typeof data === 'object' ? data : {}) as { error?: string; code?: string }
-    throw new ApiError(res.status, d.error ?? (typeof data === 'string' && data ? data : res.statusText), d.code)
+    // A proxy's HTML error page is no message for a person; the page then words it from the status.
+    const text = typeof data === 'string' && data.length < 200 && !data.trimStart().startsWith('<') ? data : ''
+    throw new ApiError(res.status, d.error ?? text, d.code)
   }
+  if (type.includes('json') && data === null) throw new ApiError(502, '', 'badreply')
   return data as R
 }
+
+/** A list reply that is not a list (older or newer firmware, a cut reply) fails like any other error. */
+const list = <T>(p: Promise<T[]>) =>
+  p.then((x) => {
+    if (!Array.isArray(x)) throw new ApiError(502, '', 'badreply')
+    return x
+  })
 
 /** Resolves to null when the firmware lacks the route, so a card can say "needs newer firmware". */
 export async function optional<R>(p: Promise<R>): Promise<R | null> {
@@ -108,7 +118,7 @@ export const pressReal = (body: InputBody, deck?: string, force = false) =>
   request<{ ok: boolean }>('/api/input' + q(deck), { body: { ...body, real: true, ...(force ? { force } : {}) } })
 
 export const api = {
-  routes: () => request<Route[]>('/api'),
+  routes: () => list(request<Route[]>('/api')),
   status: () => request<Status>('/api/status'),
   login: (password: string, remember = false) =>
     request<{ ok: boolean; retry?: number }>('/api/login', {
@@ -128,7 +138,7 @@ export const api = {
   coredump: () => optional(request<Coredump>('/api/coredump')),
   clearCoredump: () => request<{ ok: boolean }>('/api/coredump', { method: 'DELETE' }),
   boot: () => request<BootInfo>('/api/boot'),
-  slots: () => request<Slot[]>('/api/slots'),
+  slots: () => list(request<Slot[]>('/api/slots')),
   bootSlot: (n: number) => request<{ ok: boolean }>(`/api/slots/${n}/boot`, { method: 'POST' }),
   ota: (file: Blob, slot?: number, boot = true) =>
     request<{ ok: boolean }>('/api/ota' + (slot ? `?slot=${slot}${boot ? '' : '&boot=0'}` : boot ? '' : '?boot=0'), {
@@ -140,18 +150,18 @@ export const api = {
   frontend: () => request<Frontend>('/api/frontend'),
   putFrontend: (file: Blob) => request<{ ok: boolean }>('/api/frontend', { method: 'PUT', raw: file }),
   resetFrontend: () => request<{ ok: boolean }>('/api/frontend', { method: 'DELETE' }),
-  found: () => request<Found[]>('/api/companion/found'),
-  wifiScan: () => request<WifiAp[]>('/api/wifi/scan'),
+  found: () => list(request<Found[]>('/api/companion/found')),
+  wifiScan: () => list(request<WifiAp[]>('/api/wifi/scan')),
   wifiJoin: (ssid: string, pass: string, bssid = '') =>
     request<{ ok: boolean }>('/api/wifi/join', { body: { ssid, pass, bssid } }),
   metrics: () => request<Metrics>('/api/metrics'),
   profile: () => request<Profile>('/api/profile'),
-  tokens: () => request<Token[]>('/api/tokens'),
+  tokens: () => list(request<Token[]>('/api/tokens')),
   makeToken: (name: string, right: 'control' | 'full') =>
     request<Token & { token: string }>('/api/tokens', { body: { name, right } }),
   dropToken: (name: string) => request<{ ok: boolean }>('/api/tokens/' + enc(name), { method: 'DELETE' }),
   // Newer routes: callers check useRoute() first, or use optional().
-  inputLog: (since = 0) => request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : '')),
+  inputLog: (since = 0) => list(request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : ''))),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>
     request<{ ok: boolean; error?: string; version?: string; surfaces?: number }>('/api/sources/probe', {

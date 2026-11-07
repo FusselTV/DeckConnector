@@ -47,4 +47,7 @@ describe('planRestore', () => {
     expect(planRestore(cfg, { brightness: 200 }).errors).toEqual(['brightness: 0-100'])
     expect(planRestore(cfg, [1]).errors).toEqual(['not an object'])
   })
+  it('brings the input lock back', () => {
+    expect(planRestore({ ...cfg, input_lock: false }, { ...cfg, input_lock: true }).patch).toEqual({ input_lock: true })
+  })
 })

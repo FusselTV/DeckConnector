@@ -512,6 +512,9 @@
     color: inherit;
     text-decoration: none;
   }
+  .btn > svg {
+    flex: none;
+  }
   .btn > span {
     white-space: normal;
     text-align: left;

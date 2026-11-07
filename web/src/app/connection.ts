@@ -1,5 +1,5 @@
-import { api, ApiError, onAuthLost, optional } from '../api/client'
-import type { WsMsg } from '../api/types'
+import { api, ApiError, onAuthLost, optional, READONLY } from '../api/client'
+import type { Status, WsMsg } from '../api/types'
 import { crashAtom, loginReasonAtom } from './state'
 import { dispatch, fromLog, getState, hasRoute } from './store'
 
@@ -11,16 +11,26 @@ const POLL_MS = 10_000
 
 let ws: WebSocket | null = null
 let wsTimer = 0
-let deadTimer = 0
 let pollTimer = 0
 let lostAt = 0
 let backoff = 1000
 let started = false
-let lastWeb: { kind: string; index: number; at: number } | null = null
+// What the last ws `state` said, so a poll reply that left before it cannot undo it.
+let stateGen = 0
+let lastState: Partial<Status> = {}
 
-/** The page logs its own presses; the echo the firmware sends back for them is dropped. */
+// Without GET /api/input/log the page logs its own presses and drops the echo the firmware sends back. Each
+// echo consumes one entry, so a real deck press on the same control right after is still shown.
+let ownPresses: { kind: string; index: number; at: number }[] = []
 export function noteWebPress(kind: string, index: number) {
-  lastWeb = { kind, index, at: Date.now() }
+  const now = Date.now()
+  ownPresses = [...ownPresses.filter((p) => now - p.at < 1500), { kind, index, at: now }]
+}
+function isEcho(kind: string, index: number | undefined) {
+  const i = ownPresses.findIndex((p) => p.kind === kind && p.index === (index ?? 0) && Date.now() - p.at < 1500)
+  if (i < 0) return false
+  ownPresses.splice(i, 1)
+  return true
 }
 
 let upAtRestart = 0
@@ -41,8 +51,9 @@ function live() {
 
 export async function refreshStatus() {
   try {
+    const gen = stateGen
     const status = await api.status()
-    dispatch({ type: 'status', status, now: Date.now() })
+    dispatch({ type: 'status', status: gen === stateGen ? status : { ...status, ...lastState }, now: Date.now() })
     if (getState().auth !== 'app') dispatch({ type: 'auth', auth: 'app' })
     const up = status.uptime_s ?? 0
     if (!getState().restarting) live()
@@ -69,11 +80,27 @@ export async function refreshConfig() {
 // With GET /api/input/log the firmware's ring is the one list; each ws `input` asks it for what is new.
 let inputSeq = 0
 let inputTimer = 0
+let inputBusy = false
+let inputAgain = false
 async function loadInputs() {
-  const list = await optional(api.inputLog(inputSeq)).catch(() => null)
-  if (!Array.isArray(list) || (!list.length && inputSeq)) return
-  dispatch({ type: 'inputs', list: fromLog(list, getState().bootAt || Date.now()), replace: !inputSeq })
-  inputSeq = list.at(-1)?.seq ?? inputSeq
+  if (inputBusy) return void (inputAgain = true)
+  inputBusy = true
+  try {
+    if (!getState().bootAt) await refreshStatus()
+    const since = inputSeq
+    const list = await optional(api.inputLog(since)).catch(() => null)
+    if (!Array.isArray(list)) return
+    const fresh = list.filter((e) => e.seq > since)
+    if (!fresh.length && since) return
+    dispatch({ type: 'inputs', list: fromLog(fresh, getState().bootAt || Date.now()), replace: !since })
+    inputSeq = fresh.at(-1)?.seq ?? inputSeq
+  } finally {
+    inputBusy = false
+    if (inputAgain) {
+      inputAgain = false
+      void loadInputs()
+    }
+  }
 }
 export function scheduleInputs() {
   if (!getState().inputLogApi) return
@@ -83,15 +110,18 @@ export function scheduleInputs() {
 
 function openWs() {
   clearTimeout(wsTimer)
-  if (ws || getState().auth !== 'app') return
+  // A read-only dev target has no socket (the dev proxy refuses it); the status poll keeps the page current.
+  if (ws || getState().auth !== 'app' || READONLY) return
   const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/ws`)
   ws = sock
+  let deadTimer = 0
   const alive = () => {
     clearTimeout(deadTimer)
     deadTimer = window.setTimeout(() => sock.close(), PING_DEAD_MS)
   }
   sock.onopen = () => {
     alive()
+    if (logListeners.size) askLog(sock)
     if (!getState().restarting) live()
   }
   sock.onmessage = (e: MessageEvent<string>) => {
@@ -102,15 +132,22 @@ function openWs() {
     } catch {
       return
     }
-    if (
-      m.t === 'input' &&
-      lastWeb &&
-      lastWeb.kind === m.kind &&
-      lastWeb.index === m.index &&
-      Date.now() - lastWeb.at < 600
-    )
-      return
-    if (m.t === 'log') logListeners.forEach((f) => f(m.text))
+    if (m.t === 'input' && !getState().inputLogApi && isEcho(m.kind, m.index)) return
+    if (m.t === 'state') {
+      stateGen++
+      const { t: _t, ...rest } = m
+      lastState = rest
+    }
+    // The firmware never sends `idle` after an update: a finished one leaves the banner after a few seconds.
+    if (m.t === 'ota' && m.state === 'done') {
+      clearTimeout(otaTimer)
+      otaTimer = window.setTimeout(clearOta, 6000)
+    }
+    if (m.t === 'log') {
+      // The first log message after asking repeats the backlog, so it replaces what is shown.
+      logListeners.forEach((f) => f(m.text, logFresh))
+      logFresh = false
+    }
     if (m.t === 'input') scheduleInputs()
     dispatch({ type: 'ws', msg: m, now: Date.now() })
   }
@@ -126,12 +163,20 @@ function openWs() {
   }
 }
 
-const logListeners = new Set<(text: string) => void>()
-/** Starts the live log on the shared socket. Returns a stop function. */
-export function followLog(fn: (text: string) => void) {
+let otaTimer = 0
+export const clearOta = () =>
+  dispatch({ type: 'ws', msg: { t: 'ota', target: '', state: 'idle', pct: 0 }, now: Date.now() })
+
+const logListeners = new Set<(text: string, replace: boolean) => void>()
+let logFresh = false
+function askLog(sock: WebSocket) {
+  logFresh = true
+  sock.send(JSON.stringify({ t: 'log', id: 3 }))
+}
+/** Starts the live log on the shared socket, and again on every new socket. Returns a stop function. */
+export function followLog(fn: (text: string, replace: boolean) => void) {
   logListeners.add(fn)
-  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'log', id: 3 }))
-  else if (ws) ws.addEventListener('open', () => ws?.send(JSON.stringify({ t: 'log', id: 3 })), { once: true })
+  if (ws?.readyState === WebSocket.OPEN) askLog(ws)
   return () => void logListeners.delete(fn)
 }
 
@@ -161,12 +206,21 @@ export function startSession() {
     },
     () => undefined,
   )
+  poll()
+  document.addEventListener('visibilitychange', poll)
+}
+
+// The status poll pauses in a hidden tab; the socket stays, since it carries pairing requests.
+function poll(e?: Event) {
   clearInterval(pollTimer)
+  if (document.hidden) return
+  if (e) void refreshStatus()
   pollTimer = window.setInterval(() => void refreshStatus(), POLL_MS)
 }
 
 export function stopSession() {
   started = false
+  document.removeEventListener('visibilitychange', poll)
   clearInterval(pollTimer)
   clearTimeout(wsTimer)
   ws?.close()

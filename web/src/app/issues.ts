@@ -139,8 +139,8 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
         title: t('pair.t', { name, ip: P.request }),
         text: t('pair.h'),
         acts: [
-          { label: t('act.accept'), icon: Check, run: () => void a.accept(name) },
-          { label: t('act.deny'), icon: X, run: () => void a.deny(P.request ?? '') },
+          { label: t('act.accept'), icon: Check, run: () => a.accept(name) },
+          { label: t('act.deny'), icon: X, run: () => a.deny(P.request ?? '') },
         ],
       })
     }

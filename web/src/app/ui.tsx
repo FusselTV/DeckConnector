@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { READONLY } from '../api/client'
+import { ApiError } from '../api/client'
 import { makeT, type Lang, type T } from '../i18n'
 import { makeFmt, type Fmt } from '../lib/format'
 import { ls } from '../lib/util'
@@ -101,14 +101,7 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
   const act = useCallback(
     async <R,>(fn: () => Promise<R> | R): Promise<R | undefined> => {
       const s = getState()
-      const refuse =
-        s.auth === 'expired'
-          ? t('login.need')
-          : READONLY
-            ? 'read-only dev target'
-            : s.conn !== 'live' || s.restarting
-              ? t('c.not_sent')
-              : null
+      const refuse = s.auth === 'expired' ? t('login.need') : s.conn !== 'live' || s.restarting ? t('c.not_sent') : null
       if (refuse) {
         toast(refuse, { bad: true })
         return undefined
@@ -116,7 +109,7 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
       try {
         return await fn()
       } catch (e) {
-        toast(e instanceof Error ? e.message : String(e), { bad: true })
+        toast(errText(e, t), { bad: true })
         return undefined
       }
     },
@@ -124,6 +117,13 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
   )
   const v = useMemo<Ui>(() => ({ lang, t, fmt, go, jump, ask: onAsk, act }), [lang, t, fmt, go, jump, onAsk, act])
   return <Ctx value={v}>{children}</Ctx>
+}
+
+/** Words an error for a person: the firmware's reason where it gave one, never a proxy page or a script error. */
+export function errText(e: unknown, t: T) {
+  if (!(e instanceof ApiError)) return t('c.err_page')
+  if (e.status === 0) return t('c.not_sent')
+  return e.message ? t('c.refused', { m: e.message }) : t('c.err_http', { n: e.status })
 }
 
 export function useTheme() {

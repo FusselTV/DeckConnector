@@ -207,10 +207,28 @@ export function IconBtn(p: {
   )
 }
 
+/** Runs a click handler once at a time: while its promise is pending the button is disabled and busy. */
+export function useRun(fn: (() => unknown) | undefined) {
+  const [busy, setBusy] = useState(false)
+  const on = useRef(false)
+  const run = () => {
+    if (on.current || !fn) return
+    const r = fn()
+    if (!(r instanceof Promise)) return
+    on.current = true
+    setBusy(true)
+    void r.finally(() => {
+      on.current = false
+      setBusy(false)
+    })
+  }
+  return [busy, run] as const
+}
+
 export function Btn(p: {
   icon?: LucideIcon
   children: ReactNode
-  onClick?: () => void
+  onClick?: () => unknown
   kind?: 'pri' | 'ghost' | 'danger'
   sm?: boolean
   disabled?: boolean
@@ -218,13 +236,15 @@ export function Btn(p: {
   type?: 'button' | 'submit'
 }) {
   const I = p.icon
+  const [busy, run] = useRun(p.onClick)
   return (
     <button
       type={p.type ?? 'button'}
       id={p.id}
       className={cx('btn', p.kind, p.sm && 'sm')}
-      onClick={p.onClick}
-      disabled={p.disabled}
+      onClick={run}
+      disabled={p.disabled || busy}
+      aria-busy={busy || undefined}
     >
       {I && <I size={p.sm ? 15 : 16} className="ic" aria-hidden />}
       {p.children}

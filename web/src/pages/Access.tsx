@@ -12,6 +12,7 @@ import {
   Trash2,
   TriangleAlert,
   Undo2,
+  RefreshCw,
 } from 'lucide-react'
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react'
 import { api, certUrl } from '../api/client'
@@ -20,7 +21,7 @@ import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { loginReasonAtom, toast } from '../app/state'
 import { getState, useRoute, useStore } from '../app/store'
-import { useUi } from '../app/ui'
+import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, Tag } from '../components/controls'
 import { Modal } from '../components/Dialog'
@@ -38,8 +39,11 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
   const [right, setRight] = useState<Right>('control')
   const [err, setErr] = useState<string | null>(null)
   const [made, setMade] = useState<string | null>(null)
+  // While the token is made the dialog stays open, so its one-time secret is never lost.
+  const [busy, setBusy] = useState(false)
   const create = async (e: SyntheticEvent) => {
     e.preventDefault()
+    if (busy) return
     const e1 = tokenNameError(name)
     if (e1) return setErr(t(e1))
     const exists = tokens.some((x) => x.name === name)
@@ -49,11 +53,13 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
       !(await ask({ title: t('cf.trepl', { name }), body: t('cf.trepl_b'), ok: t('btn.replace'), danger: true }))
     )
       return
+    setBusy(true)
     await act(async () => {
       const r = await api.makeToken(name, right)
       setMade(r.token)
       done()
     })
+    setBusy(false)
   }
   if (made)
     return (
@@ -81,13 +87,13 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
     <Modal
       icon={Key}
       title={t('api.add')}
-      close={close}
+      close={busy ? () => undefined : close}
       foot={
         <>
-          <Btn kind="ghost" onClick={close}>
+          <Btn kind="ghost" onClick={close} disabled={busy}>
             {t('c.cancel')}
           </Btn>
-          <button type="submit" form="tokform" className="btn pri">
+          <button type="submit" form="tokform" className="btn pri" disabled={busy} aria-busy={busy || undefined}>
             {t('access.tcreate')}
           </button>
         </>
@@ -143,7 +149,7 @@ function CertModal({ close }: { close: () => void }) {
       try {
         setInfo(await api.tlsCheck(c, k))
       } catch (e) {
-        setErr(e instanceof Error ? e.message : t('cert.bad'))
+        setErr(errText(e, t))
       }
     })
   }, [crt, key, t])
@@ -367,7 +373,10 @@ export function Access() {
         {tokErr ? (
           <div className="warnline">
             <TriangleAlert size={16} aria-hidden />
-            {t('c.not_sent')}
+            {t('access.tload')}
+            <Btn sm kind="ghost" icon={RefreshCw} onClick={loadTokens}>
+              {t('ban.retry')}
+            </Btn>
           </div>
         ) : tokens?.length ? (
           <div className="list">
