@@ -372,6 +372,16 @@ esp_err_t post_dock(httpd_req_t *req)
               : send_error(req, "400 Bad Request", "accept, pairing (0 to 3600 s) or forget expected");
 }
 
+/* DELETE /api/pairing/denied/<ip>: off the list of refused hosts; it is asked about again when it comes back */
+esp_err_t delete_denied(httpd_req_t *req)
+{
+    uint32_t ip = inet_addr(req->uri + strlen("/api/pairing/denied/"));
+    if (ip == INADDR_NONE || !db_dock_undeny(ip)) {
+        return send_error(req, "404 Not Found", "not on the list");
+    }
+    return send_json(req, "{\"ok\":true}");
+}
+
 esp_err_t post_deck_reconnect(httpd_req_t *req)
 {
     if (deck_refused(req)) {
@@ -483,6 +493,17 @@ esp_err_t post_ota(httpd_req_t *req)
     return send_json(req, db_ota_restarts() ? "{\"ok\":true,\"restart\":true}" : "{\"ok\":true}");
 }
 
+static const char *slot_refusal_text(esp_err_t err)
+{
+    return err == ESP_ERR_INVALID_VERSION ? "slot below the security level"
+           : err == ESP_ERR_INVALID_ARG   ? "no security level noted for the slot"
+           : err == ESP_ERR_INVALID_CRC   ? "the image in the slot is marked invalid"
+           : err == ESP_ERR_INVALID_STATE ? "the running firmware has not confirmed itself yet"
+           : err == ESP_ERR_INVALID_SIZE  ? "no firmware in the slot"
+           : err == ESP_ERR_NOT_FOUND     ? "no such slot"
+                                          : esp_err_to_name(err);
+}
+
 static size_t slots_json(char *buf, size_t cap)
 {
     db_ota_slot_t slots[16];
@@ -503,6 +524,11 @@ static size_t slots_json(char *buf, size_t cap)
         db_json_bool(&j, "next", slots[i].next);
         if (slots[i].level >= 0) {
             db_json_int(&j, "level", slots[i].level);
+        }
+        esp_err_t refusal = slots[i].running ? ESP_OK : db_ota_slot_refusal(i);
+        db_json_bool(&j, "bootable", !slots[i].running && refusal == ESP_OK);
+        if (refusal != ESP_OK) {
+            db_json_str(&j, "why_not", slot_refusal_text(refusal));
         }
         db_json_obj_close(&j);
     }
@@ -833,12 +859,7 @@ esp_err_t post_slot_boot(httpd_req_t *req)
     }
     esp_err_t err = db_ota_boot_slot(slot - 1);
     if (err != ESP_OK) {
-        return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict",
-                          err == ESP_ERR_INVALID_VERSION ? "slot below the security level"
-                          : err == ESP_ERR_INVALID_ARG   ? "no security level noted for the slot"
-                          : err == ESP_ERR_INVALID_CRC   ? "the image in the slot is marked invalid"
-                          : err == ESP_ERR_INVALID_STATE ? "the running firmware has not confirmed itself yet"
-                                                         : esp_err_to_name(err));
+        return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict", slot_refusal_text(err));
     }
     return send_json(req, "{\"ok\":true,\"restart\":true}");
 }

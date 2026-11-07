@@ -413,6 +413,7 @@ static void rejoin_app(void *arg)
  * away and waits as a request that the deck or the web UI answers.
  */
 #define KNOWN_MAX  8
+#define DENIED_MAX 4
 #define REQUEST_US (60 * 1000000LL)
 
 static struct {
@@ -429,7 +430,20 @@ static struct {
         int64_t asked_at;
     } names[KNOWN_MAX]; /* RAM only: a name is asked again after a boot, it may have changed */
     int next_name;
+    db_dock_denied_t denied[DENIED_MAX]; /* RAM only, oldest first */
+    int n_denied;
 } pair = {.mux = portMUX_INITIALIZER_UNLOCKED};
+
+/* With the lock held. */
+static void drop_denied(uint32_t ip)
+{
+    for (int i = 0; i < pair.n_denied; i++) {
+        if (pair.denied[i].ip == ip) {
+            memmove(&pair.denied[i], &pair.denied[i + 1], (size_t)(--pair.n_denied - i) * sizeof(pair.denied[0]));
+            return;
+        }
+    }
+}
 
 static void lookup_task(void *arg)
 {
@@ -710,12 +724,41 @@ esp_err_t db_dock_answer(bool accept)
     uint32_t r = pair.request;
     pair.request = 0;
     bool added = accept && r && find(r, pair.request_mac) < 0 && remember(r, pair.request_mac, false);
+    if (r) {
+        drop_denied(r);
+        if (!accept) {
+            if (pair.n_denied == DENIED_MAX) {
+                memmove(&pair.denied[0], &pair.denied[1], (DENIED_MAX - 1) * sizeof(pair.denied[0]));
+                pair.n_denied--;
+            }
+            pair.denied[pair.n_denied++] = (db_dock_denied_t){r, esp_timer_get_time()};
+        }
+    }
     taskEXIT_CRITICAL(&pair.mux);
     esp_err_t err = added ? save_known() : ESP_OK;
     if (s.hosts_changed) {
         s.hosts_changed();
     }
     return err;
+}
+
+size_t db_dock_denied(db_dock_denied_t *out, size_t max)
+{
+    taskENTER_CRITICAL(&pair.mux);
+    size_t n = (size_t)pair.n_denied < max ? (size_t)pair.n_denied : max;
+    memcpy(out, pair.denied, n * sizeof(*out));
+    taskEXIT_CRITICAL(&pair.mux);
+    return n;
+}
+
+bool db_dock_undeny(uint32_t ip)
+{
+    taskENTER_CRITICAL(&pair.mux);
+    int before = pair.n_denied;
+    drop_denied(ip);
+    bool dropped = pair.n_denied != before;
+    taskEXIT_CRITICAL(&pair.mux);
+    return dropped;
 }
 
 void db_dock_pairing(int seconds)

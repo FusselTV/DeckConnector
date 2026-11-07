@@ -50,6 +50,7 @@ typedef struct {
  * once when no deck comes up while a USB device is there. */
 esp_err_t db_deck_start(bool full_speed);
 bool db_deck_full_speed(void);
+bool db_deck_behind_hub(void);
 void db_deck_add_listener(const db_deck_listener_t *listener);
 void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg);
 

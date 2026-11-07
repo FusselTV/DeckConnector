@@ -115,6 +115,10 @@ esp_err_t db_dock_answer(bool accept)
 void db_dock_pairing(int seconds)
 {
 }
+bool db_dock_undeny(uint32_t ip)
+{
+    return false;
+}
 esp_err_t db_dock_forget(const char *ip)
 {
     return ESP_OK;
@@ -167,6 +171,10 @@ int db_ota_slots(db_ota_slot_t *out, int max)
 esp_err_t db_ota_boot_slot(int slot)
 {
     return ESP_ERR_NOT_SUPPORTED;
+}
+esp_err_t db_ota_slot_refusal(int slot)
+{
+    return ESP_ERR_NOT_FOUND;
 }
 void db_ota_web_load(uint16_t api)
 {

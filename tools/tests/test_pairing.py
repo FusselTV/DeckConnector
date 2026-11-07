@@ -59,7 +59,9 @@ def test_pairing():
         )
         assert status()["writer"] == "ui", "the deck shows the request"
         dock({"accept": False})
-        assert status()["pairing"]["request"] is None
+        p = status()["pairing"]
+        assert p["request"] is None
+        assert [d["ip"] for d in p["denied"]][-1] == me, "listed as refused"
         assert not admitted(), "refused stays out"
 
         # on the deck: the request page, its second key accepts
@@ -67,6 +69,8 @@ def test_pairing():
         assert api("POST", "/api/input", b'{"key": 1}')[0] == 200
         time.sleep(0.5)
         assert me in known()
+        assert me not in [d["ip"] for d in status()["pairing"]["denied"]], "accepted: off the refused list"
+        assert api("DELETE", f"/api/pairing/denied/{me}")[0] == 404
         assert admitted()
     finally:
         dock({"accept": False})

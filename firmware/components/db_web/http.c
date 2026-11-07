@@ -407,6 +407,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/menu", .method = HTTP_POST, .handler = post_menu}, WEB_CONTROL},
         {{.uri = "/api/deck/reconnect", .method = HTTP_POST, .handler = post_deck_reconnect}, WEB_CONTROL},
         {{.uri = "/api/dock", .method = HTTP_POST, .handler = post_dock}, WEB_FULL},
+        {{.uri = "/api/pairing/denied/*", .method = HTTP_DELETE, .handler = delete_denied}, WEB_FULL},
         {{.uri = "/api/screen.jpg", .method = HTTP_GET, .handler = get_screen_jpg}, WEB_CONTROL},
         {{.uri = "/api/ota/url", .method = HTTP_POST, .handler = post_ota_url}, WEB_FULL},
         {{.uri = "/api/slots", .method = HTTP_GET, .handler = get_slots}, WEB_FULL},

@@ -20,9 +20,14 @@ def test_one_running_slot_and_it_is_valid():
 
 def test_a_slot_that_cannot_start_is_refused():
     assert api("POST", "/api/slots/9/boot")[0] == 404
-    empty = [x["slot"] for x in slots() if x["state"] in ("empty", "invalid")]
+    s = slots()
+    empty = [x["slot"] for x in s if x["state"] in ("empty", "invalid")]
     if empty:
-        assert api("POST", f"/api/slots/{empty[0]}/boot")[0] == 409
+        code, reply = api("POST", f"/api/slots/{empty[0]}/boot")
+        assert code == 409
+        assert json.loads(reply)["error"] == s[empty[0] - 1]["why_not"], "the list says why before you try"
+    for x in s:
+        assert x["bootable"] is (not x["running"] and "why_not" not in x)
 
 
 @pytest.mark.parametrize("region", ["bootloader", "ptable"])

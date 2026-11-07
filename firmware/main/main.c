@@ -57,6 +57,7 @@ static void write_device(db_json_t *j)
         db_json_int(j, "number", 1);
         write_device_fields(j, dev);
         db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
+        db_json_bool(j, "hub", db_deck_behind_hub());
         db_json_obj_close(j);
     }
     db_json_arr_close(j);
@@ -166,6 +167,19 @@ static void write_sources(db_json_t *j, bool live)
     if (live) { /* counts down every second: not in the web socket's state, which goes out on changes */
         db_json_int(j, "open_s", db_dock_pairing_left());
     }
+    db_dock_denied_t denied[4];
+    size_t n_denied = db_dock_denied(denied, 4);
+    db_json_arr_open(j, "denied");
+    for (size_t i = 0; i < n_denied; i++) {
+        inet_ntoa_r(*(struct in_addr *)&denied[i].ip, ip, sizeof(ip));
+        db_json_obj_open(j, NULL);
+        db_json_str(j, "ip", ip);
+        db_dock_name(denied[i].ip, name);
+        db_json_str(j, "name", name);
+        db_json_int(j, "since_s", denied[i].at_us / 1000000); /* seconds after the start, like sources[].since_s */
+        db_json_obj_close(j);
+    }
+    db_json_arr_close(j);
     db_json_arr_open(j, "hosts");
     for (size_t i = 0; i < n_known; i++) {
         const db_dock_peer_t *p = &known[i];

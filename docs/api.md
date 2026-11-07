@@ -66,13 +66,14 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
+| `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckconnector.elf` with the ELF of the same build |
 | `DELETE /api/coredump` | Clear it |
 | `GET /api/boot` | The bootloader (`version`, `idf`, `built`, `sha256`) and the partition table (`partitions`, `md5`, `sha256`). `?raw=bootloader` or `?raw=ptable` gives the region itself. Both are replaced with `POST /api/ota`, see [ota.md](ota.md) |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the DeckConnector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
-| `GET /api/slots` | The firmware slots: `slot` (1 to 4), `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known) |
+| `GET /api/slots` | The firmware slots: `slot` (1 to 4), `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known), `bootable` and `why_not` (why `POST /api/slots/N/boot` would refuse it) |
 | `POST /api/slots/N/boot` | Restart into slot N. Refused (409) for an `invalid` slot, a slot without a known level or one below the security level, and while the running firmware has not confirmed itself yet |
 | `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` connects once, like the `satellite` setting would, and reads Companion's greeting. The answer has `ok`, `error` and Companion's `version`. It takes up to 6 s |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step (1 to 6) on the DeckConnector, also over a restart. `{"step": 0}` when the wizard ends. `setup` in the status has it |
@@ -214,7 +215,7 @@ it restores the settings. The web UI does this under System.
   lives there.
 - `id` is the DeckConnector's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields, its `number`
-  (from 1) and its `usb_speed`.
+  (from 1), its `usb_speed` and `hub` (true when it hangs on a USB hub).
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router
@@ -284,7 +285,8 @@ and the web UI ask whether to let it in. Up to 8 hosts are listed. A refused hos
 
 `pairing` in the status has `only_paired`, the waiting `request` or `null`, `open` while new hosts get in,
 `auto_open` while no host is listed yet (the first one gets in without pairing),
-`open_s` how long still, and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and
+`open_s` how long still, `denied` with the hosts refused since the start (`ip`, `name`, `since_s`, at most 4,
+newest last) and `hosts` with `ip`, `mac`, `name`, `kind` and `connected`. `name`, and
 `request_name` for the waiting host, is what the router's DNS answers for the address, empty when it does not
 know one. `POST /api/dock` takes one of these:
 
@@ -296,6 +298,8 @@ know one. `POST /api/dock` takes one of these:
 {"forget": "192.168.1.15"}
 {"forget": true}
 ```
+
+`DELETE /api/pairing/denied/<ip>` takes a host off the `denied` list.
 
 ## Live changes
 

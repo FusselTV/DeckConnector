@@ -60,6 +60,8 @@ int db_ota_slots(db_ota_slot_t *out, int max);
 
 /* Start slot `slot` after a restart. Refused for an invalid image or one below the security level. */
 esp_err_t db_ota_boot_slot(int slot);
+/* Why db_ota_boot_slot would refuse `slot`, ESP_OK when it would start it. */
+esp_err_t db_ota_slot_refusal(int slot);
 
 /*
  * The web page from the `www` partition: a signed .dbfw image with target web. It is used only when its key,

@@ -454,6 +454,11 @@ bool db_deck_full_speed(void)
     return usb_port_full_speed();
 }
 
+bool db_deck_behind_hub(void)
+{
+    return usb_port_behind_hub();
+}
+
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
 {
     _Static_assert(sizeof(db_input_t) <= INPUT_REPORT, "input does not fit the event");

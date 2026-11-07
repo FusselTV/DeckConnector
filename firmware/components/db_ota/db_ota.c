@@ -654,12 +654,16 @@ int db_ota_slots(db_ota_slot_t *out, int max)
     return n;
 }
 
-esp_err_t db_ota_boot_slot(int slot)
+esp_err_t db_ota_slot_refusal(int slot)
 {
     const esp_partition_t *p = slot_partition(slot);
     esp_ota_img_states_t st;
+    esp_app_desc_t d;
     if (!p) {
         return ESP_ERR_NOT_FOUND;
+    }
+    if (esp_ota_get_partition_description(p, &d) != ESP_OK) {
+        return ESP_ERR_INVALID_SIZE; /* empty */
     }
     /* The bootloader would abort an image left before it confirmed itself. */
     if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &st) == ESP_OK &&
@@ -673,7 +677,17 @@ esp_err_t db_ota_boot_slot(int slot)
     if (level < SECURITY_LEVEL) {
         return level < 0 ? ESP_ERR_INVALID_ARG : ESP_ERR_INVALID_VERSION;
     }
-    esp_err_t err = esp_ota_set_boot_partition(p); /* checks the image; the new start must confirm itself */
+    return ESP_OK;
+}
+
+esp_err_t db_ota_boot_slot(int slot)
+{
+    esp_err_t err = db_ota_slot_refusal(slot);
+    const esp_partition_t *p = slot_partition(slot);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = esp_ota_set_boot_partition(p); /* checks the image; the new start must confirm itself */
     if (err == ESP_OK) {
         ESP_LOGW(TAG, "booting slot %s", p->label);
         restart_soon();

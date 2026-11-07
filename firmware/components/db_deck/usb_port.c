@@ -41,6 +41,7 @@ static struct {
     db_hid_io_t io;
     bool auto_speed;
     volatile bool full; /* the root port runs at full speed */
+    bool behind_hub;    /* the open device hangs on a hub, not on the root port */
     esp_timer_handle_t check;
     esp_timer_handle_t in_retry;
     uint32_t in_backoff_ms;
@@ -312,6 +313,11 @@ bool usb_port_full_speed(void)
     return s.full;
 }
 
+bool usb_port_behind_hub(void)
+{
+    return s.dev && s.behind_hub;
+}
+
 esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
 {
     s.cb = *cb;
@@ -430,6 +436,7 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     usb_host_get_device_descriptor(s.dev, &dd);
     usb_host_get_active_config_descriptor(s.dev, &cd);
     usb_host_device_info(s.dev, &info);
+    s.behind_hub = info.parent.dev_hdl != NULL;
     *vid = dd->idVendor;
     *pid = dd->idProduct;
     ESP_LOGI(TAG, "device %04x:%04x, %s speed", *vid, *pid, info.speed == USB_SPEED_HIGH ? "high" : "full");

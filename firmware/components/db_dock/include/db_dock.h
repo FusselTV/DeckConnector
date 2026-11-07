@@ -31,6 +31,13 @@ size_t db_dock_hosts(db_dock_host_t *out, size_t max);
 bool db_dock_request(char ip[16]);
 /* Let the requesting host in from now on, or not. */
 esp_err_t db_dock_answer(bool accept); /* an error: in RAM only, gone after a restart */
+/* Hosts told "no" since the start, newest last; `at_us` is esp_timer time. A refused host still asks again. */
+typedef struct {
+    uint32_t ip;
+    int64_t at_us;
+} db_dock_denied_t;
+size_t db_dock_denied(db_dock_denied_t *out, size_t max);
+bool db_dock_undeny(uint32_t ip);
 /* New hosts get in and are remembered for `seconds`; 0 ends it, also the minutes after a boot. */
 void db_dock_pairing(int seconds);
 int db_dock_pairing_left(void);

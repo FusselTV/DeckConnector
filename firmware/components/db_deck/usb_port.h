@@ -16,6 +16,7 @@ typedef struct {
 /* full_only: full speed always; else high speed, and full speed once when no deck comes up */
 esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only);
 bool usb_port_full_speed(void);
+bool usb_port_behind_hub(void);
 
 /* Open and claim the device announced by `attached`. Call from a task other than the USB client task. */
 esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid);
