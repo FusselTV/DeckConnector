@@ -6,9 +6,14 @@ const ev = (o: Partial<InputEvent>): InputEvent => ({ at: 0, origin: 'deck', kin
 
 describe('reduce', () => {
   it('merges ws state into the last full status and keeps what state leaves out', () => {
-    const s1 = reduce(initial, { type: 'status', status: { uptime_s: 50, name: 'a', counters: { images: 3 } } })
+    const s1 = reduce(initial, {
+      type: 'status',
+      status: { uptime_s: 50, name: 'a', counters: { images: 3 } },
+      now: 60_000,
+    })
     const s2 = reduce(s1, { type: 'ws', now: 1, msg: { t: 'state', name: 'b' } })
     expect(s2.status).toMatchObject({ uptime_s: 50, name: 'b', counters: { images: 3 } })
+    expect(s2.bootAt).toBe(10_000)
   })
 
   it('remembers when the connection was lost, once', () => {

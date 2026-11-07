@@ -22,5 +22,9 @@ test('the setup wizard goes forward and back and keeps what was entered', async 
   await expect(page.locator('#wpw')).toHaveValue('abcdef1')
   await page.goBack()
   await expect(page.locator('#wz-step')).toHaveText('Which language?')
+  // The wizard keeps its step on the device; close the page first so no late step write follows the reset.
+  await page.waitForLoadState('networkidle')
+  await page.close()
+  await sim('PUT', '/api/setup', { step: 0 })
   await sim('PUT', '/api/config', { setup_done: true })
 })

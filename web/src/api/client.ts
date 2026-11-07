@@ -6,7 +6,7 @@ import type {
   Found,
   Frontend,
   InputBody,
-  InputEvent,
+  InputLogEntry,
   Metrics,
   Profile,
   PutReply,
@@ -50,7 +50,6 @@ export interface Req {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   raw?: BodyInit
-  text?: boolean
   signal?: AbortSignal
   quiet?: boolean
 }
@@ -120,7 +119,7 @@ export const api = {
   reboot: () => request<{ ok: boolean }>('/api/reboot', { method: 'POST' }),
   dock: (body: { accept: boolean } | { pairing: number } | { forget: string | true }) =>
     request<{ ok: boolean }>('/api/dock', { body }),
-  log: (prev = false) => request<string>('/api/log' + (prev ? '?boot=prev' : ''), { text: true }),
+  log: (prev = false) => request<string>('/api/log' + (prev ? '?boot=prev' : '')),
   coredump: () => optional(request<Coredump>('/api/coredump')),
   clearCoredump: () => request<{ ok: boolean }>('/api/coredump', { method: 'DELETE' }),
   boot: () => request<BootInfo>('/api/boot'),
@@ -146,17 +145,18 @@ export const api = {
     request<Token & { token: string }>('/api/tokens', { body: { name, right } }),
   dropToken: (name: string) => request<{ ok: boolean }>('/api/tokens/' + enc(name), { method: 'DELETE' }),
   // Routes from api-gaps.md the firmware may not have yet. Callers use optional() or catch .missing.
-  inputLog: (since = 0) => request<InputEvent[]>('/api/input/log' + (since ? `?since=${since}` : '')),
+  inputLog: (since = 0) => request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : '')),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>
     request<{ ok: boolean; error?: string; version?: string; surfaces?: number }>('/api/sources/probe', {
       body: { addr, pin },
     }),
   updateCheck: () => request<UpdateCheck>('/api/update/check'),
-  tlsCheck: (cert: string, key: string) => request<TlsInfo>('/api/tls/check', { body: { cert, key } }),
-  putTls: (cert: string, key: string) => request<{ ok: boolean }>('/api/tls', { method: 'PUT', body: { cert, key } }),
+  tlsCheck: (cert: string, key: string) => request<TlsInfo>('/api/tls', { method: 'PUT', body: { cert, key } }),
+  putTls: (cert: string, key: string) =>
+    request<TlsInfo>('/api/tls', { method: 'PUT', body: { cert, key, apply: true } }),
   resetTls: () => request<{ ok: boolean }>('/api/tls', { method: 'DELETE' }),
-  setup: (step: string) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
+  setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
 }
 
 export const certUrl = '/api/cert'

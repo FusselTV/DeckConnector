@@ -332,6 +332,7 @@ const LiveDeck = memo(function LiveDeck() {
   const armedAt = armAtom.use()
   const bri = useStore((s) => s.config?.brightness ?? 80)
   const last = useStore((s) => s.inputs[0])
+  const nudge = nudgeAtom.use() > 0
   const decks = decksOf(st)
   const deck = decks[Math.min(sel, decks.length - 1)]
   const serial = decks.length > 1 ? deck?.serial : undefined
@@ -350,10 +351,11 @@ const LiveDeck = memo(function LiveDeck() {
         'key' in b ? (b.action ?? 'press') : 'encoder' in b ? (b.action === 'turn' ? 'turn' : 'encoder') : b.touch
       const key = 'key' in b ? b.key : 'encoder' in b ? b.encoder : undefined
       noteWebPress(kind === 'press' ? 'down' : kind, key ?? 0)
-      dispatch({
-        type: 'input',
-        ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
-      })
+      if (!getState().inputLogApi)
+        dispatch({
+          type: 'input',
+          ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
+        })
       void act(() => pressReal(b, serial))
     },
     [ctx],
@@ -369,17 +371,22 @@ const LiveDeck = memo(function LiveDeck() {
       </div>
     )
   return (
-    <DeckFront
-      key={sel}
-      model={deck.kind}
-      label={deckName(deck, sel, decks.length, t)}
-      screen={screen}
-      brightness={bri}
-      armed={armedAt > 0 && getState().conn === 'live'}
-      last={last}
-      onLocked={onLocked}
-      send={send}
-    />
+    <>
+      <span className="sr" role="status">
+        {nudge ? t('arm.hint') : ''}
+      </span>
+      <DeckFront
+        key={sel}
+        model={deck.kind}
+        label={deckName(deck, sel, decks.length, t)}
+        screen={screen}
+        brightness={bri}
+        armed={armedAt > 0 && getState().conn === 'live'}
+        last={last}
+        onLocked={onLocked}
+        send={send}
+      />
+    </>
   )
 })
 

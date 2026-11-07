@@ -160,18 +160,22 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
 function UpdateCheckBox() {
   const { t, fmt, act, ask } = useUi()
   const fw = useStore((s) => s.status.firmware ?? '')
-  const [st, setSt] = useState<{ state: 'idle' | 'checking' | 'none' | 'error' } | { state: 'new'; u: UpdateCheck }>({
-    state: 'idle',
-  })
+  const [st, setSt] = useState<
+    | { state: 'idle' | 'checking' | 'none' }
+    | { state: 'error'; msg: string }
+    | { state: 'new'; u: UpdateCheck & { latest: string; url: string } }
+  >({ state: 'idle' })
   const [at, setAt] = useState(0)
   const check = async () => {
     setSt({ state: 'checking' })
     try {
       const u = await api.updateCheck()
       setAt(Date.now())
-      setSt(u.latest && u.latest !== u.current ? { state: 'new', u } : { state: 'none' })
-    } catch {
-      setSt({ state: 'error' })
+      if (u.latest && u.url && u.latest !== u.current)
+        setSt({ state: 'new', u: { ...u, latest: u.latest, url: u.url } })
+      else setSt(u.error ? { state: 'error', msg: u.error } : { state: 'none' })
+    } catch (e) {
+      setSt({ state: 'error', msg: e instanceof Error ? e.message : t('c.not_sent') })
     }
   }
   return (
@@ -187,7 +191,7 @@ function UpdateCheckBox() {
           {t('upd.none', { v: fw, time: fmt.time(at) })}
         </p>
       )}
-      {st.state === 'error' && <p className="warnline">{t('c.not_sent')}</p>}
+      {st.state === 'error' && <p className="warnline">{st.msg}</p>}
       {st.state === 'new' && (
         <Notice
           n={{

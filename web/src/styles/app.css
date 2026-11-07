@@ -3733,3 +3733,9 @@
     opacity: 0.5;
   }
 }
+@layer components {
+  .armpill:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}

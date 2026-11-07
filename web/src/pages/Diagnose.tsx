@@ -85,6 +85,8 @@ const LogCard = memo(function LogCard() {
   const [lines, setLines] = useState<string[]>([])
   const [follow, setFollow] = useState(true)
   const [q, setQ] = useState('')
+  const [which, setWhich] = useState<'cur' | 'prev'>('cur')
+  const [prev, setPrev] = useState<string[] | null | undefined>(undefined)
   const ref = useRef<HTMLPreElement>(null)
   const followRef = useLatest(follow)
   useEffect(() => {
@@ -111,8 +113,17 @@ const LogCard = memo(function LogCard() {
       stop()
     }
   }, [followRef])
-  const text = lines.join('\n')
-  const shown = q ? lines.filter((l) => fold(l).includes(fold(q))) : lines
+  const showPrev = (v: 'cur' | 'prev') => {
+    setWhich(v)
+    if (v === 'prev' && prev === undefined)
+      api.log(true).then(
+        (x) => setPrev(x.split('\n').filter(Boolean)),
+        () => setPrev(null),
+      )
+  }
+  const src = which === 'prev' ? (prev ?? []) : lines
+  const text = src.join('\n')
+  const shown = q ? src.filter((l) => fold(l).includes(fold(q))) : src
   const live = follow && conn === 'live'
   return (
     <Card
@@ -152,6 +163,16 @@ const LogCard = memo(function LogCard() {
       }
     >
       <div className="row">
+        <Seg
+          id="logsrc"
+          label={t('dia.log')}
+          value={which}
+          onChange={showPrev}
+          options={[
+            ['cur', t('dia.cur')],
+            ['prev', t('dia.prev')],
+          ]}
+        />
         <span className="sp" />
         <input
           id="logq"
@@ -163,14 +184,18 @@ const LogCard = memo(function LogCard() {
           onChange={(e) => setQ(e.target.value)}
         />
       </div>
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the log scrolls inside its box and must be reachable by keyboard */}
-      <pre ref={ref} className="log" tabIndex={0} aria-label={t('dia.log')}>
-        {shown.map((l, i) => (
-          <div key={i} className={l[0]}>
-            {l}
-          </div>
-        ))}
-      </pre>
+      {which === 'prev' && prev === null ? (
+        <div className="empty">{t('dia.prev_none')}</div>
+      ) : (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the log scrolls inside its box and must be reachable by keyboard
+        <pre ref={ref} className="log" tabIndex={0} aria-label={t('dia.log')}>
+          {shown.map((l, i) => (
+            <div key={i} className={l[0]}>
+              {l}
+            </div>
+          ))}
+        </pre>
+      )}
     </Card>
   )
 })

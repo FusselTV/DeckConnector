@@ -45,8 +45,13 @@ type Step = (typeof STEPS)[number] | 'find' | 'moving'
 const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', find: 'net', moving: 'net', src: 'net', done: 'src' }
 const EMPTY: IpConf = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
 
-/** The step lives in sessionStorage until the firmware keeps it (api-gaps #15), so a refresh resumes. */
+// The device keeps the step as 1 to 6 (lang, login, password, network, source, done), so a refresh or a second
+// browser resumes; sessionStorage covers firmware without PUT /api/setup.
+const NUM: Record<Step, number> = { lang: 1, pw: 3, net: 4, find: 4, moving: 4, src: 5, done: 6 }
+const FROM_NUM: Step[] = ['lang', 'lang', 'pw', 'pw', 'net', 'src', 'done']
 const saved = (): Step => {
+  const n = getState().status.setup?.step
+  if (n) return FROM_NUM[n] ?? 'lang'
   try {
     return (sessionStorage.getItem('dc.wiz') as Step | null) ?? 'lang'
   } catch {
@@ -63,7 +68,7 @@ function useStep() {
     } catch {
       /* private mode */
     }
-    if (hasSetup) void api.setup(step).catch(() => undefined)
+    if (hasSetup) void api.setup(NUM[step]).catch(() => undefined)
     document.getElementById('wz-step')?.focus()
   }, [step, hasSetup])
   // Browser back = wizard back: one guard entry in the history, stepped back on popstate (rule 28).
@@ -274,7 +279,8 @@ export function Wizard() {
     } catch {
       /* private mode */
     }
-    await refreshConfig()
+    await api.setup(0).catch(() => undefined)
+    await Promise.all([refreshConfig(), refreshStatus()])
   }
   const skip = async () => {
     if (await ask({ title: t('cf.skip'), body: t('cf.skip_b'), ok: t('wiz.skip') })) await finish()

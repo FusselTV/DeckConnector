@@ -28,6 +28,7 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
   const { t, go, jump, fmt } = useUi()
   const a = useActions()
   const st = useStore((s) => s.status)
+  const bootAt = useStore((s) => s.bootAt)
   const satellite = useStore((s) => s.config?.satellite)
   const canRetry = useRoute('POST', '/api/sources/retry')
   const crash = crashAtom.use()
@@ -58,7 +59,9 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
         title: t('is.chosen_off', { host: hostLabel(chosen, t) }),
         text: [
           chosen.error,
-          chosen.since && t('is.since', { time: fmt.time(Date.parse(chosen.since)) }),
+          chosen.since_s !== undefined &&
+            bootAt > 0 &&
+            t('is.since', { time: fmt.time(bootAt + chosen.since_s * 1000) }),
           t('is.chosen_off_h'),
           lanDead && t('is.lan_too'),
         ]
@@ -162,5 +165,5 @@ export function useIssues(): { list: NoticeData[]; notes: NoticeData[] } {
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
     return { list, notes }
-  }, [st, satellite, canRetry, crash, crashed, t, fmt, go, jump, a])
+  }, [st, bootAt, satellite, canRetry, crash, crashed, t, fmt, go, jump, a])
 }

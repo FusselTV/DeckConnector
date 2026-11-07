@@ -31,8 +31,8 @@ describe('dictionaries', () => {
 describe('t', () => {
   it('fills variables and picks the plural form', () => {
     const t = makeT('en')
-    expect(t('hero.n', { n: 1 })).toBe('1 thing to check')
-    expect(t('hero.n', { n: 3 })).toBe('3 things to check')
+    expect(t('wifi.aps', { n: 1 })).toBe('1 access point')
+    expect(t('wifi.aps', { n: 3 })).toBe('3 access points')
     expect(makeT('de')('deck.n', { n: 2 })).toBe('Deck 2')
   })
 

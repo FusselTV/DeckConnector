@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState, type SyntheticEvent } from 'react'
 import { api, certUrl } from '../api/client'
 import type { Right, TlsInfo, Token } from '../api/types'
 import { putConfig } from '../app/actions'
-import { expectRestart, refreshStatus } from '../app/connection'
+import { expectRestart } from '../app/connection'
 import { toast } from '../app/state'
 import { useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
@@ -141,9 +141,7 @@ function CertModal({ close }: { close: () => void }) {
     void Promise.all([pem(crt), pem(key)]).then(async ([c, k]) => {
       if (!c || !k) return setErr(t('cert.bad'))
       try {
-        const r = await api.tlsCheck(c, k)
-        if (r.ok) setInfo(r)
-        else setErr(r.error ?? t('cert.bad'))
+        setInfo(await api.tlsCheck(c, k))
       } catch (e) {
         setErr(e instanceof Error ? e.message : t('cert.bad'))
       }
@@ -155,8 +153,7 @@ function CertModal({ close }: { close: () => void }) {
     if (!c || !k) return
     const ok = await act(async () => {
       await api.putTls(c, k)
-      toast(t('cert.applied'))
-      await refreshStatus()
+      expectRestart()
       return true
     })
     if (ok) close()
@@ -346,16 +343,7 @@ export function Access() {
           )}
           <div className="field">
             <span className="flabel">{t('cert.title')}</span>
-            {st.tls?.custom ? (
-              <KeyValue
-                rows={[
-                  [t('cert.subject'), st.tls.subject, true],
-                  [t('cert.until'), st.tls.not_after, true],
-                ]}
-              />
-            ) : (
-              <span className="small">{t('cert.own')}</span>
-            )}
+            <span className="small">{st.https_custom ? t('cert.applied') : t('cert.own')}</span>
           </div>
           {(hasCert || hasTls) && (
             <div className="row">
@@ -366,13 +354,8 @@ export function Access() {
                 </a>
               )}
               {hasTls &&
-                (st.tls?.custom ? (
-                  <Btn
-                    icon={Undo2}
-                    onClick={() =>
-                      void act(async () => (await api.resetTls(), toast(t('cert.reset_done')), refreshStatus()))
-                    }
-                  >
+                (st.https_custom ? (
+                  <Btn icon={Undo2} onClick={() => void act(async () => (await api.resetTls(), expectRestart()))}>
                     {t('cert.reset')}
                   </Btn>
                 ) : (

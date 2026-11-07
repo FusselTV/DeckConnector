@@ -26,7 +26,9 @@ export interface Source {
   drawing: boolean
   connecting?: boolean
   error?: string
-  since?: string
+  /** When this state began, in seconds after the start (compare with uptime_s). */
+  since_s?: number
+  iface?: 'lan' | 'wlan'
   client?: string
 }
 
@@ -92,8 +94,9 @@ export interface Status {
   counters?: Counters
   boot_ms?: Record<string, number>
   memory?: Record<string, number>
-  setup?: { active?: boolean; step?: string; rerun?: boolean }
-  tls?: { custom?: boolean; subject?: string; not_after?: string }
+  setup?: { active?: boolean; step?: number; rerun?: boolean }
+  https_custom?: boolean
+  boot?: { reason?: string; at?: number | null }
   update?: { latest?: string; at?: string }
 }
 
@@ -250,6 +253,17 @@ export interface BootInfo {
   ptable: { partitions: number; md5: string; sha256: string }
 }
 
+/** One entry of GET /api/input/log as the firmware sends it. */
+export interface InputLogEntry {
+  seq: number
+  at_ms: number
+  origin: 'deck' | 'web' | 'tool'
+  kind: string
+  index?: number
+  value?: number
+  writer?: string
+}
+
 export interface InputEvent {
   at: number
   origin: 'deck' | 'web' | 'api'
@@ -263,10 +277,10 @@ export interface InputEvent {
 
 export interface UpdateCheck {
   current: string
-  latest: string
-  url: string
-  notes: string
-  published?: string
+  latest: string | null
+  url?: string
+  notes?: string
+  error?: string
 }
 
 export interface TlsInfo {
@@ -274,8 +288,6 @@ export interface TlsInfo {
   issuer: string
   not_after: string
   sha256: string
-  ok: boolean
-  error?: string
 }
 
 export type WsMsg =

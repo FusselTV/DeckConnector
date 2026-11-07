@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { Config, InputEvent, Route, Status, WsMsg } from '../api/types'
+import type { Config, InputEvent, InputLogEntry, Route, Status, WsMsg } from '../api/types'
 
 export type Conn = 'live' | 'reconnecting' | 'offline'
 export type Auth = 'checking' | 'login' | 'app' | 'expired'
@@ -25,6 +25,8 @@ export interface State {
   screenRev: number
   /** GET /api: what this firmware offers. Empty until known, so nothing is hidden by mistake on old firmware. */
   routes: Route[]
+  /** Wall-clock time of the device's start, from the last full status. Times "after the start" count from it. */
+  bootAt: number
 }
 
 export const INPUT_CAP = 200
@@ -41,19 +43,34 @@ export const initial: State = {
   inputLogApi: false,
   screenRev: 0,
   routes: [],
+  bootAt: 0,
 }
 
 export type Action =
-  | { type: 'status'; status: Status }
+  | { type: 'status'; status: Status; now: number }
   | { type: 'ws'; msg: WsMsg; now: number }
   | { type: 'conn'; conn: Conn; now: number }
   | { type: 'auth'; auth: Auth }
   | { type: 'config'; config: Config }
   | { type: 'configPatch'; patch: Partial<Config> }
   | { type: 'restart'; on: boolean; now: number; addr?: string }
-  | { type: 'inputs'; list: InputEvent[] }
+  | { type: 'inputs'; list: InputEvent[]; replace?: boolean }
   | { type: 'input'; ev: InputEvent }
   | { type: 'routes'; routes: Route[] }
+
+/** GET /api/input/log entries (oldest first, time after the start) as page events, newest first. */
+export function fromLog(list: InputLogEntry[], bootAt: number): InputEvent[] {
+  return list
+    .map((e) => ({
+      at: bootAt + e.at_ms,
+      origin: e.origin === 'tool' ? ('api' as const) : e.origin,
+      kind: e.kind,
+      key: e.index,
+      delta: e.kind === 'turn' ? e.value : undefined,
+      source: e.writer,
+    }))
+    .reverse()
+}
 
 /** Consecutive turns of one dial from one origin within 1.5 s collapse into one entry. */
 export function addInput(list: InputEvent[], ev: InputEvent): InputEvent[] {
@@ -73,7 +90,11 @@ export function addInput(list: InputEvent[], ev: InputEvent): InputEvent[] {
 export function reduce(s: State, a: Action): State {
   switch (a.type) {
     case 'status':
-      return { ...s, status: a.status }
+      return {
+        ...s,
+        status: a.status,
+        bootAt: a.status.uptime_s === undefined ? s.bootAt : a.now - a.status.uptime_s * 1000,
+      }
     case 'ws': {
       const m = a.msg
       if (m.t === 'state') {
@@ -86,7 +107,7 @@ export function reduce(s: State, a: Action): State {
           ...s,
           ota: m.state === 'idle' ? null : { target: m.target, state: m.state, pct: m.pct, error: m.error },
         }
-      if (m.t === 'input' && !m.simulated) {
+      if (m.t === 'input' && !m.simulated && !s.inputLogApi) {
         const ev: InputEvent = {
           at: a.now,
           origin: 'deck',
@@ -111,7 +132,7 @@ export function reduce(s: State, a: Action): State {
     case 'restart':
       return { ...s, restarting: a.on ? { t0: a.now, addr: a.addr } : null }
     case 'inputs':
-      return { ...s, inputs: a.list.slice(0, INPUT_CAP), inputLogApi: true }
+      return { ...s, inputs: [...a.list, ...(a.replace ? [] : s.inputs)].slice(0, INPUT_CAP), inputLogApi: true }
     case 'input':
       return { ...s, inputs: addInput(s.inputs, a.ev) }
     case 'routes':

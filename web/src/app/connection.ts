@@ -1,7 +1,7 @@
 import { api, ApiError, onAuthLost, optional } from '../api/client'
 import type { WsMsg } from '../api/types'
 import { crashAtom } from './state'
-import { dispatch, getState, hasRoute } from './store'
+import { dispatch, fromLog, getState, hasRoute } from './store'
 
 // One WebSocket for the whole page. The status poll fills what ws `state` leaves out (uptime, counters, signal)
 // and is how a dead socket is told apart from an ended session.
@@ -42,7 +42,7 @@ function live() {
 export async function refreshStatus() {
   try {
     const status = await api.status()
-    dispatch({ type: 'status', status })
+    dispatch({ type: 'status', status, now: Date.now() })
     if (getState().auth !== 'app') dispatch({ type: 'auth', auth: 'app' })
     const up = status.uptime_s ?? 0
     if (!getState().restarting) live()
@@ -66,9 +66,19 @@ export async function refreshConfig() {
   }
 }
 
+// With GET /api/input/log the firmware's ring is the one list; each ws `input` asks it for what is new.
+let inputSeq = 0
+let inputTimer = 0
 async function loadInputs() {
-  const list = await optional(api.inputLog()).catch(() => null)
-  if (Array.isArray(list)) dispatch({ type: 'inputs', list })
+  const list = await optional(api.inputLog(inputSeq)).catch(() => null)
+  if (!Array.isArray(list) || (!list.length && inputSeq)) return
+  dispatch({ type: 'inputs', list: fromLog(list, getState().bootAt || Date.now()), replace: !inputSeq })
+  inputSeq = list.at(-1)?.seq ?? inputSeq
+}
+export function scheduleInputs() {
+  if (!getState().inputLogApi) return
+  clearTimeout(inputTimer)
+  inputTimer = window.setTimeout(() => void loadInputs(), 250)
 }
 
 function openWs() {
@@ -101,6 +111,7 @@ function openWs() {
     )
       return
     if (m.t === 'log') logListeners.forEach((f) => f(m.text))
+    if (m.t === 'input') scheduleInputs()
     dispatch({ type: 'ws', msg: m, now: Date.now() })
   }
   sock.onclose = () => {
@@ -135,7 +146,9 @@ export function retryNow() {
 
 export function startSession() {
   started = true
+  inputSeq = 0
   openWs()
+  void refreshStatus()
   void refreshConfig()
   api.coredump().then(
     (c) => crashAtom.set(c && typeof c === 'object' && 'pc' in c ? c : null),
@@ -169,7 +182,7 @@ export async function boot() {
     } else if (code === 0) lost()
   })
   try {
-    dispatch({ type: 'status', status: await api.status() })
+    dispatch({ type: 'status', status: await api.status(), now: Date.now() })
     dispatch({ type: 'auth', auth: 'app' })
     startSession()
   } catch (e) {
