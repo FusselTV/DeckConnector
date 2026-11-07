@@ -1,4 +1,3 @@
-import { Dialog as D } from 'radix-ui'
 import {
   Cable,
   Cpu,
@@ -41,6 +40,7 @@ import { useIssues } from './issues'
 import { langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
 import { useStore } from './store'
 import { useTheme, useUi } from './ui'
+import { Dialog } from '../components/Dialog'
 
 const TAB_META: Record<Tab, { icon: LucideIcon; group: 'run' | 'device' | 'care' }> = {
   overview: { icon: LayoutDashboard, group: 'run' },
@@ -248,94 +248,98 @@ function MoreSheet({ close }: { close: () => void }) {
     go(k)
   }
   return (
-    <D.Root open onOpenChange={(o) => !o && close()}>
-      <D.Portal>
-        <D.Overlay className="scrim" />
-        <D.Content className="modal sheet" aria-describedby={undefined}>
-          <div className="sb">
-            <div className="row">
-              <span className="grab" aria-hidden />
-            </div>
-            <div className="row">
-              <D.Title style={{ fontSize: 18 }}>{t('tab.more')}</D.Title>
-              <span className="sp" />
-              <D.Close className="ibtn ghost" aria-label={t('c.close')}>
-                <X size={18} aria-hidden />
-              </D.Close>
-            </div>
-            <div className="sheetgrid">
-              {GROUPS.map((g) => {
-                const xs = TABS.filter((k) => TAB_META[k].group === g && !MOBILE.includes(k))
-                return xs.length ? (
-                  <div key={g}>
-                    <span className="lbl" style={{ margin: '6px 10px 2px', display: 'block' }}>
-                      {t(`grp.${g}`)}
-                    </span>
-                    {xs.map((k) => {
-                      const I = TAB_META[k].icon
-                      return (
-                        <button
-                          key={k}
-                          type="button"
-                          className="tabbtn"
-                          aria-current={tab === k ? 'page' : undefined}
-                          onClick={() => pick(k)}
-                        >
-                          <I size={20} aria-hidden />
-                          {t(`tab.${k}`)}
-                          {dirty.includes(k) && <span className="ddot" title={t('save.dirty')} />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : null
-              })}
-            </div>
-            <div className="acctsheet">
-              <div className="field">
-                <span className="flabel">{t('acct.lang')}</span>
-                <Seg
-                  id="m-lang"
-                  label={t('acct.lang')}
-                  value={lang}
-                  onChange={(v) => langAtom.set(v)}
-                  options={[
-                    ['de', 'Deutsch'],
-                    ['en', 'English'],
-                  ]}
-                />
-              </div>
-              <div className="field">
-                <span className="flabel">{t('acct.theme')}</span>
-                <Seg
-                  id="m-theme"
-                  label={t('acct.theme')}
-                  value={eff}
-                  onChange={(v) => themeAtom.set(v)}
-                  options={[
-                    ['light', t('acct.light'), Sun],
-                    ['dark', t('acct.dark'), Moon],
-                  ]}
-                />
-              </div>
-              <div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => {
-                    close()
-                    void a.logout()
-                  }}
-                >
-                  <LogOut size={16} aria-hidden />
-                  {t('hdr.logout')}
-                </button>
-              </div>
-            </div>
+    <Dialog
+      className="modal sheet"
+      title={t('tab.more')}
+      titleClass="sheett"
+      close={close}
+      head={(h) => (
+        <div className="sb sbhead">
+          <div className="row">
+            <span className="grab" aria-hidden />
           </div>
-        </D.Content>
-      </D.Portal>
-    </D.Root>
+          <div className="row">
+            {h}
+            <span className="sp" />
+            <button type="button" className="ibtn ghost" aria-label={t('c.close')} onClick={close}>
+              <X size={18} aria-hidden />
+            </button>
+          </div>
+        </div>
+      )}
+    >
+      <div className="sb">
+        <div className="sheetgrid">
+          {GROUPS.map((g) => {
+            const xs = TABS.filter((k) => TAB_META[k].group === g && !MOBILE.includes(k))
+            return xs.length ? (
+              <div key={g}>
+                <span className="lbl" style={{ margin: '6px 10px 2px', display: 'block' }}>
+                  {t(`grp.${g}`)}
+                </span>
+                {xs.map((k) => {
+                  const I = TAB_META[k].icon
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className="tabbtn"
+                      aria-current={tab === k ? 'page' : undefined}
+                      onClick={() => pick(k)}
+                    >
+                      <I size={20} aria-hidden />
+                      {t(`tab.${k}`)}
+                      {dirty.includes(k) && <span className="ddot" title={t('save.dirty')} />}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null
+          })}
+        </div>
+        <div className="acctsheet">
+          <div className="field">
+            <span className="flabel">{t('acct.lang')}</span>
+            <Seg
+              id="m-lang"
+              label={t('acct.lang')}
+              value={lang}
+              onChange={(v) => langAtom.set(v)}
+              options={[
+                ['de', 'Deutsch'],
+                ['en', 'English'],
+              ]}
+            />
+          </div>
+          <div className="field">
+            <span className="flabel">{t('acct.theme')}</span>
+            <Seg
+              id="m-theme"
+              label={t('acct.theme')}
+              value={eff}
+              onChange={(v) => themeAtom.set(v)}
+              options={[
+                ['light', t('acct.light'), Sun],
+                ['dark', t('acct.dark'), Moon],
+              ]}
+            />
+          </div>
+          <div>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                close()
+                void a.logout()
+              }}
+            >
+              <LogOut size={16} aria-hidden />
+              {t('hdr.logout')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 

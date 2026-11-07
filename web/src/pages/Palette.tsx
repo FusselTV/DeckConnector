@@ -34,13 +34,13 @@ import {
   Wrench,
   X,
 } from 'lucide-react'
-import { Dialog as D } from 'radix-ui'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { putConfig, useActions } from '../app/actions'
 import { decksOf, deckName, hostLabel, KIND_ICON, stateKey } from '../app/derive'
 import { deckSelAtom, langAtom, TABS, themeAtom, wifiScanAtom, type Tab } from '../app/state'
 import { useStore } from '../app/store'
 import { useTheme, useUi } from '../app/ui'
+import { Dialog } from '../components/Dialog'
 import type { Key as I18nKey } from '../i18n/types'
 import { fold, rank, remember, type Cmd, type Pick } from '../lib/rank'
 import { cx, ls } from '../lib/util'
@@ -368,100 +368,93 @@ export function Palette({ close }: { close: () => void }) {
   }
   let lastG: string | null = null
   return (
-    <D.Root open onOpenChange={(o) => !o && close()}>
-      <D.Portal>
-        <D.Overlay className="scrim" />
-        <D.Content className="modal pal" aria-describedby={undefined}>
-          <D.Title className="sr">{t('hdr.search')}</D.Title>
-          <div className="pin">
-            <Search size={18} aria-hidden />
-            <input
-              role="combobox"
-              aria-label={t('hdr.search')}
-              aria-expanded="true"
-              aria-controls="pal-list"
-              aria-activedescendant={res.length ? `pal-o-${sel}` : undefined}
-              aria-autocomplete="list"
-              placeholder={t('pal.ph')}
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value)
-                setSel(0)
-                setEx(-1)
-              }}
-              onKeyDown={onKey}
-              // eslint-disable-next-line jsx-a11y/no-autofocus -- the search dialog opens to type
-              autoFocus
-            />
-          </div>
-          <ul id="pal-list" ref={listRef} role="listbox" aria-label={t('hdr.search')}>
-            {res.length === 0 ? (
-              <li className="grp muted">{t('pal.none')}</li>
-            ) : (
-              res.map((c, i) => {
-                const head = c.group !== lastG
-                lastG = c.group
-                const I = c.icon ?? CircleHelp
-                const off = c.mut && locked
-                return (
-                  <li key={c.group + c.id} role="presentation" style={{ display: 'contents' }}>
-                    {head && (
-                      <span role="presentation" className="grp lbl" style={{ display: 'block' }}>
-                        {t(c.group)}
-                      </span>
-                    )}
-                    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- the combobox input carries the keyboard */}
-                    <span
-                      role="option"
-                      id={`pal-o-${i}`}
-                      className="palopt"
-                      aria-selected={i === sel}
-                      aria-disabled={off || undefined}
-                      tabIndex={-1}
-                      onPointerMove={() => sel !== i && setSel(i)}
-                      onClick={() => run(c)}
-                    >
-                      <I size={17} aria-hidden />
-                      <span className="pl">
-                        <span>{c.label}</span>
-                        {c.detail && i === sel && <small className="muted">{c.detail}</small>}
-                      </span>
-                      {i === sel && c.extras ? (
-                        <span className="pex">
-                          {c.extras.map((x, j) => (
-                            <button
-                              key={x.id}
-                              type="button"
-                              tabIndex={-1}
-                              className={cx('btn sm', ex === j && 'pri')}
-                              onClick={(e) => (e.stopPropagation(), run(c, x))}
-                            >
-                              {x.label}
-                            </button>
-                          ))}
-                        </span>
-                      ) : (
-                        <span className="ph">{off ? t('pal.off') : (c.hint ?? '')}</span>
-                      )}
+    <Dialog className="modal pal" title={t('hdr.search')} titleClass="sr" close={close}>
+      <div className="pin">
+        <Search size={18} aria-hidden />
+        <input
+          role="combobox"
+          aria-label={t('hdr.search')}
+          aria-expanded="true"
+          aria-controls="pal-list"
+          aria-activedescendant={res.length ? `pal-o-${sel}` : undefined}
+          aria-autocomplete="list"
+          placeholder={t('pal.ph')}
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value)
+            setSel(0)
+            setEx(-1)
+          }}
+          onKeyDown={onKey}
+          data-autofocus
+        />
+      </div>
+      <ul id="pal-list" ref={listRef} role="listbox" aria-label={t('hdr.search')}>
+        {res.length === 0 ? (
+          <li className="grp muted">{t('pal.none')}</li>
+        ) : (
+          res.map((c, i) => {
+            const head = c.group !== lastG
+            lastG = c.group
+            const I = c.icon ?? CircleHelp
+            const off = c.mut && locked
+            return (
+              <li key={c.group + c.id} role="presentation" style={{ display: 'contents' }}>
+                {head && (
+                  <span role="presentation" className="grp lbl" style={{ display: 'block' }}>
+                    {t(c.group)}
+                  </span>
+                )}
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- the combobox input carries the keyboard */}
+                <span
+                  role="option"
+                  id={`pal-o-${i}`}
+                  className="palopt"
+                  aria-selected={i === sel}
+                  aria-disabled={off || undefined}
+                  tabIndex={-1}
+                  onPointerMove={() => sel !== i && setSel(i)}
+                  onClick={() => run(c)}
+                >
+                  <I size={17} aria-hidden />
+                  <span className="pl">
+                    <span>{c.label}</span>
+                    {c.detail && i === sel && <small className="muted">{c.detail}</small>}
+                  </span>
+                  {i === sel && c.extras ? (
+                    <span className="pex">
+                      {c.extras.map((x, j) => (
+                        <button
+                          key={x.id}
+                          type="button"
+                          tabIndex={-1}
+                          className={cx('btn sm', ex === j && 'pri')}
+                          onClick={(e) => (e.stopPropagation(), run(c, x))}
+                        >
+                          {x.label}
+                        </button>
+                      ))}
                     </span>
-                  </li>
-                )
-              })
-            )}
-          </ul>
-          <div className="pf">
-            <span>
-              <kbd>↑</kbd> <kbd>↓</kbd> {t('pal.pick')}
-            </span>
-            <span>
-              <kbd>Tab</kbd> {t('pal.more')}
-            </span>
-            <span>
-              <kbd>↵</kbd> {t('pal.run')}
-            </span>
-          </div>
-        </D.Content>
-      </D.Portal>
-    </D.Root>
+                  ) : (
+                    <span className="ph">{off ? t('pal.off') : (c.hint ?? '')}</span>
+                  )}
+                </span>
+              </li>
+            )
+          })
+        )}
+      </ul>
+      <div className="pf">
+        <span>
+          <kbd>↑</kbd> <kbd>↓</kbd> {t('pal.pick')}
+        </span>
+        <span>
+          <kbd>Tab</kbd> {t('pal.more')}
+        </span>
+        <span>
+          <kbd>↵</kbd> {t('pal.run')}
+        </span>
+      </div>
+    </Dialog>
   )
 }

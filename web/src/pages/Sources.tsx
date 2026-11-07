@@ -501,7 +501,7 @@ export function Sources() {
               <span role="columnheader">{t('src.col_conn')}</span>
               <span role="columnheader">{t('src.col_state')}</span>
               <span role="columnheader" className="sr-acts">
-                <span className="sr-only">{t('th.action')}</span>
+                <span className="sr">{t('th.action')}</span>
               </span>
             </div>
             {rows.map((s) => {

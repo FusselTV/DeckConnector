@@ -108,8 +108,7 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
             value={name}
             maxLength={23}
             onChange={(e) => (setName(e.target.value), setErr(null))}
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog exists to fill this field
-            autoFocus
+            data-autofocus
           />
         </Field>
         <div className="field">

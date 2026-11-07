@@ -207,7 +207,8 @@ export function IconBtn(p: {
   )
 }
 
-/** Runs a click handler once at a time: while its promise is pending the button is disabled and busy. */
+/** Runs a click handler once at a time. While its promise is pending the button is busy; it stays focusable
+ *  (aria-disabled, not disabled), so focus can come back to it from a dialog the handler opened. */
 export function useRun(fn: (() => unknown) | undefined) {
   const [busy, setBusy] = useState(false)
   const on = useRef(false)
@@ -243,7 +244,8 @@ export function Btn(p: {
       id={p.id}
       className={cx('btn', p.kind, p.sm && 'sm')}
       onClick={run}
-      disabled={p.disabled || busy}
+      disabled={p.disabled}
+      aria-disabled={busy || undefined}
       aria-busy={busy || undefined}
     >
       {I && <I size={p.sm ? 15 : 16} className="ic" aria-hidden />}

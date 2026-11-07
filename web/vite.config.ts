@@ -1,5 +1,4 @@
 /// <reference types="vitest/config" />
-import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
@@ -13,7 +12,7 @@ export default defineConfig(({ mode }) => {
   const readonly = target.replace(/\/$/, '') !== `http://127.0.0.1:${env.DC_SIM_PORT || '18200'}`
   const origin = (req: { setHeader(k: string, v: string): void }) => req.setHeader('origin', target)
   return {
-    plugins: [react(), tailwindcss(), viteSingleFile({ removeViteModuleLoader: true })],
+    plugins: [react(), viteSingleFile({ removeViteModuleLoader: true })],
     define: { __DC_READONLY__: JSON.stringify(mode !== 'production' && readonly) },
     build: { target: 'es2022', reportCompressedSize: false },
     server: {

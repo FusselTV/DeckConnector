@@ -103,6 +103,16 @@ test('broken replies show a worded error and leave the rest of the page working'
   errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 500')))
 })
 
+test('a dialog closed with Escape gives focus back to the button that opened it', async ({ app: page }) => {
+  const btn = page.getByRole('button', { name: /Restart/ }).first()
+  await btn.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('alertdialog')).toHaveCount(0)
+  await expect(btn).toBeFocused()
+})
+
 test('dialogs confirm, cancel and create', async ({ app: page }) => {
   await page
     .getByRole('button', { name: /Restart/ })

@@ -50,7 +50,7 @@ function ActBtn({ a }: { a: NoticeAct }) {
       type="button"
       className={cx('btn sm', a.ghost && 'ghost', a.pri && 'pri')}
       onClick={run}
-      disabled={busy}
+      aria-disabled={busy || undefined}
       aria-busy={busy || undefined}
     >
       {I && <I size={15} className="ic" aria-hidden />}
