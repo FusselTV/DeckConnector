@@ -25,14 +25,16 @@ from dbtools.server import Server
 
 def _target() -> str:
     """--target sim|device. Read here, because HOST must be known when the tests import it; the environment carries
-    it on to pytest-xdist workers."""
+    it on to pytest-xdist workers, and only to them: a DECKBRIDGE_TARGET left in a shell must not pick the target."""
+    if "PYTEST_XDIST_WORKER" in os.environ:
+        return os.environ["DECKBRIDGE_TARGET"]
     argv = sys.argv
     for i, a in enumerate(argv):
         if a == "--target" and i + 1 < len(argv):
             return argv[i + 1]
         if a.startswith("--target="):
             return a.split("=", 1)[1]
-    return os.environ.get("DECKBRIDGE_TARGET", "device")
+    return "device"
 
 
 TARGET = os.environ["DECKBRIDGE_TARGET"] = _target()
@@ -74,6 +76,14 @@ PORTS = (8765, 8766)
 
 def pytest_addoption(parser):
     parser.addoption("--target", default="device", choices=("device", "sim"), help="the bridge, or firmware/sim")
+
+
+def pytest_configure(config):
+    if config.getoption("--target") != TARGET:
+        pytest.exit(f"--target {config.getoption('--target')} but the tests were set up for {TARGET}", returncode=4)
+    parallel = "PYTEST_XDIST_WORKER" in os.environ or getattr(config.option, "numprocesses", None)
+    if TARGET == "device" and parallel:
+        pytest.exit("one bridge cannot take tests in parallel: run the device suite without -n", returncode=4)
 
 
 def pytest_collection_modifyitems(config, items):
