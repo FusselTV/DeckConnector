@@ -6,7 +6,9 @@ import asyncio
 import json
 
 import pytest
-from conftest import HOST, PASSWORD, api, status
+from conftest import HOST, PASSWORD, REACT_PAGE, api, status
+
+pytestmark = pytest.mark.skipif(REACT_PAGE, reason="tests the old page; web/e2e tests the React one")
 
 async_api = pytest.importorskip("playwright.async_api")
 

@@ -33,11 +33,12 @@ def web_api() -> int:
 
 
 def web_image(key) -> bytes:
-    """index.html gzipped as the firmware build does it, signed for the www partition."""
+    """The page the firmware build embeds (web/dist/index.html, else db_web/index.html), gzipped, signed for www."""
     import gzip
     import subprocess
 
-    page = (OTA_C.parents[1] / "db_web/index.html").read_bytes()
+    react = OTA_C.parents[3] / "web/dist/index.html"
+    page = (react if react.exists() else OTA_C.parents[1] / "db_web/index.html").read_bytes()
     rev = subprocess.run(["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=OTA_C.parent)
     version = f"web {rev.stdout.strip()} {hashlib.sha256(page).hexdigest()[:6]}"
     return build("web", gzip.compress(page, 9, mtime=0), version, key, web_api())

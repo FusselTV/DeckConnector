@@ -79,7 +79,9 @@ def test_a_signed_file_below_the_security_level_is_refused():
 
 
 @pytest.mark.sim
-@pytest.mark.parametrize(("headers", "code"), [({}, 403), ({"X-DeckConnector": "1"}, 200), ({"X-Deckbridge": "1"}, 200)])
+@pytest.mark.parametrize(
+    ("headers", "code"), [({}, 403), ({"X-DeckConnector": "1"}, 200), ({"X-Deckbridge": "1"}, 200)]
+)
 def test_a_login_needs_the_marker_header_old_or_new(headers, code):
     body = json.dumps({"password": PASSWORD}).encode()
     assert post_raw("/api/login", body, {**headers, "Content-Type": "application/json"}) == code

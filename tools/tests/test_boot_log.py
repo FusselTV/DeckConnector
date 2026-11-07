@@ -1,10 +1,12 @@
 """The log of the boot before this one, the reason for the restart, and the NTP server setting."""
 
+import contextlib
 import json
 import time
+import urllib.request
 
 import pytest
-from conftest import TARGET, api, status, wait_for_bridge
+from conftest import HOST, TARGET, api, status, wait_for_bridge
 
 
 @pytest.mark.sim
@@ -23,10 +25,13 @@ def test_a_bad_ntp_server_is_refused(server):
 
 @pytest.mark.skipif(TARGET == "sim", reason="the simulator does not restart")
 def test_the_log_before_a_restart_stays_readable():
+    wrong = urllib.request.Request(f"http://{HOST}/api/config", headers={"Authorization": "Basic d3Jvbmc6eA=="})
+    with contextlib.suppress(urllib.error.HTTPError):
+        urllib.request.urlopen(wrong, timeout=5)  # logs "wrong web password", the last line before the restart
     api("POST", "/api/reboot")
     time.sleep(5)
     wait_for_bridge(60)
     assert status()["boot"]["reason"] == "restart"
     code, prev = api("GET", "/api/log?boot=prev")
-    assert code == 200 and b"main: DeckConnector" in prev, prev[-300:]
+    assert code == 200 and b"wrong web password" in prev, prev[-300:]
     assert status()["boot"]["at"], "SNTP set no clock"

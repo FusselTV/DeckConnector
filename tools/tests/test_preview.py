@@ -5,8 +5,10 @@ import io
 import json
 
 import pytest
-from conftest import HOST, PASSWORD, api, jpeg
+from conftest import HOST, PASSWORD, REACT_PAGE, api, jpeg
 from PIL import Image, ImageChops, ImageStat
+
+pytestmark = pytest.mark.skipif(REACT_PAGE, reason="tests the old page; web/e2e tests the React one")
 
 async_api = pytest.importorskip("playwright.async_api")
 

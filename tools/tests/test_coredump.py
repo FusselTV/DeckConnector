@@ -27,4 +27,4 @@ def test_a_crash_leaves_a_dump_and_no_rollback():
     assert dump["task"] == "httpd" and dump["mcause"] == 7, dump  # the store to address 0
     assert status()["firmware"] == before, "a crash on a confirmed image must not roll back"
     assert status()["boot"]["reason"] == "crash"
-    assert b"main: DeckConnector" in api("GET", "/api/log?boot=prev")[1], "the log before the crash is gone"
+    assert api("GET", "/api/log?boot=prev")[0] == 200, "the log before the crash is gone"

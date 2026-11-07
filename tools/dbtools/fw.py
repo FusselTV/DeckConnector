@@ -4,8 +4,8 @@ uv run python -m dbtools.fw deploy [--slot N] [--no-boot]   sign firmware/build/
 uv run python -m dbtools.fw use N                         boot slot N and wait until it answers
 uv run python -m dbtools.fw build REV                     build REV in a cached worktree, keep the signed image
 uv run python -m dbtools.fw ab REV_A REV_B                A into one bench slot and started, B into the other
-uv run python -m dbtools.fw web [--erase]                 sign db_web/index.html into the www partition, served
-                                                          at once; --erase goes back to the page in the firmware
+uv run python -m dbtools.fw web [--erase]                 sign the page the build embeds into the www partition,
+                                                          served at once; --erase goes back to the page in the firmware
 uv run python -m dbtools.fw boot bootloader|ptable        write the built bootloader or partition table. No undo but
                                                           USB if power fails while it is written; the table is
                                                           refused when it would move data or the running slot

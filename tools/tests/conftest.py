@@ -35,6 +35,8 @@ def _target() -> str:
 
 
 TARGET = os.environ["DECKBRIDGE_TARGET"] = _target()
+# The firmware build embeds the React page when web/dist has one; tests of the old page's DOM skip then.
+REACT_PAGE = (Path(__file__).resolve().parents[2] / "web/dist/index.html").exists()
 SIM = Path(__file__).resolve().parents[2] / "firmware/sim/build/deckbridge_sim.elf"
 
 

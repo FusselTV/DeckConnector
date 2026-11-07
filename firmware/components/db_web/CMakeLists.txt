@@ -13,10 +13,16 @@ if(DB_DEBUG_CRASH)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DB_DEBUG_CRASH)
 endif()
 idf_build_get_property(python PYTHON)
+# The React build (cd web && npm run build) when there is one, else the plain page. Checked when CMake runs.
+set(page ${CMAKE_CURRENT_SOURCE_DIR}/../../../web/dist/index.html)
+if(NOT EXISTS ${page})
+    set(page ${CMAKE_CURRENT_SOURCE_DIR}/index.html)
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../../web/dist)
 set(page_gz ${CMAKE_CURRENT_BINARY_DIR}/index.html.gz)
 add_custom_command(OUTPUT ${page_gz}
                    COMMAND ${python} -c "import gzip, sys; open(sys.argv[2], 'wb').write(gzip.compress(open(sys.argv[1], 'rb').read(), 9, mtime=0))"
-                           ${CMAKE_CURRENT_SOURCE_DIR}/index.html ${page_gz}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/index.html VERBATIM)
+                           ${page} ${page_gz}
+                   DEPENDS ${page} VERBATIM)
 add_custom_target(db_web_page_gz DEPENDS ${page_gz})
 target_add_binary_data(${COMPONENT_LIB} ${page_gz} BINARY DEPENDS db_web_page_gz)
