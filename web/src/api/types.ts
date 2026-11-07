@@ -99,7 +99,6 @@ export interface Status {
   memory?: Record<string, number>
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** Seconds the input lock stays open after PUT /api/input/arm. Only in GET /api/status. */
-  input_armed_s?: number
   https_custom?: boolean
   boot?: { reason?: string; at?: number | null }
   update?: { latest?: string; at?: string }
@@ -137,7 +136,6 @@ export interface Config {
   dock_paired_only?: boolean
   setup_done?: boolean
   token_set?: boolean
-  input_lock?: boolean
 }
 
 /** Keys PUT /api/config takes besides those of Config. */
@@ -147,8 +145,6 @@ export interface ConfigSecrets {
 }
 export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
   ConfigSecrets & {
-    /** Gets past input_lock for a source switch a person confirmed. */
-    force?: boolean
     lan?: Partial<IpConf>
     wlan?: Partial<IpConf>
   }

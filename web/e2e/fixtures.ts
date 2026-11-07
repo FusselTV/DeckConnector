@@ -30,7 +30,6 @@ export const test = base.extend<{ errors: string[]; app: Page }>({
     await sim('PUT', '/api/setup', { step: 0 })
     await sim('PUT', '/api/config', {
       setup_done: true,
-      input_lock: false,
       brightness: 80,
       menu_chord: 'auto',
       menu_hold_ms: 2000,

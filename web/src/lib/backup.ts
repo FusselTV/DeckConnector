@@ -29,7 +29,6 @@ const WRITABLE = new Set<keyof Config>([
   'menu_hold_ms',
   'usb_speed',
   'dock_paired_only',
-  'input_lock',
 ])
 const RESTARTS = new Set(['name', 'lan', 'wlan', 'wifi_ssid', 'wifi_bssid', 'usb_speed'])
 

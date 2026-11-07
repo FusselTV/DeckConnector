@@ -1,4 +1,4 @@
-import { CircleHelp, type LucideIcon } from 'lucide-react'
+import { CircleCheck, CircleHelp, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useUi } from '../app/ui'
 import { cx, roam } from '../lib/util'
@@ -250,3 +250,30 @@ export const Empty = ({ icon: I, children }: { icon: LucideIcon; children: React
     {children}
   </div>
 )
+
+export function Choice(p: {
+  on: boolean
+  icon: LucideIcon
+  label: string
+  hint?: string
+  onPick: () => void
+  first?: boolean
+}) {
+  const I = p.on ? CircleCheck : p.icon
+  return (
+    <button
+      type="button"
+      role="radio"
+      className="choice"
+      aria-checked={p.on}
+      tabIndex={p.on || p.first ? 0 : -1}
+      onClick={p.onPick}
+    >
+      <I size={22} className="ic" aria-hidden />
+      <div>
+        <b>{p.label}</b>
+        {p.hint && <span>{p.hint}</span>}
+      </div>
+    </button>
+  )
+}

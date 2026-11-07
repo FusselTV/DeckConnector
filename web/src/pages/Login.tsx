@@ -1,11 +1,11 @@
-import { Info, KeyRound, Languages, LockOpen, ShieldAlert } from 'lucide-react'
+import { Info, KeyRound, Languages, LockOpen, MonitorSmartphone, RotateCcw, ShieldAlert } from 'lucide-react'
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import { startSession } from '../app/connection'
 import { langAtom, loginReasonAtom } from '../app/state'
 import { dispatch, useStore } from '../app/store'
 import { useUi } from '../app/ui'
-import { describedBy, Field } from '../components/controls'
+import { Btn, describedBy, Field } from '../components/controls'
 import { PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { Logo } from '../deck/DeckFront'
@@ -45,6 +45,66 @@ function useLogin() {
   return { pw, setPw, err, lock, busy, submit }
 }
 
+function useCountdown() {
+  const [left, setLeft] = useState(0)
+  useEffect(() => {
+    if (!left) return
+    const id = setTimeout(() => setLeft(left - 1), 1000)
+    return () => clearTimeout(id)
+  }, [left])
+  return [left, setLeft] as const
+}
+
+/** No password at hand: the deck shows it, or a person at the deck confirms a reset to factory settings. */
+function Forgot() {
+  const { t, ask } = useUi()
+  const [shown, setShown] = useCountdown()
+  const [reset, setReset] = useCountdown()
+  const [err, setErr] = useState<string | null>(null)
+  const why = (x: unknown) =>
+    setErr(x instanceof ApiError && x.status === 409 ? t('login.no_deck') : t('login.offline'))
+  const show = () => {
+    setErr(null)
+    api.showPassword().then(() => setShown(30), why)
+  }
+  const askReset = async () => {
+    setErr(null)
+    if (!(await ask({ title: t('login.reset_t'), body: t('login.reset_b'), ok: t('login.reset_go'), danger: true })))
+      return
+    api.askReset().then((r) => setReset(r.s || 60), why)
+  }
+  return (
+    <div className="forgot">
+      {reset > 0 ? (
+        <Notice
+          n={{
+            id: 'reset',
+            icon: RotateCcw,
+            lvl: 'warn',
+            title: t('login.reset_wait', { s: reset }),
+            text: t('login.reset_wait_h'),
+            acts: [{ label: t('c.cancel'), run: () => void api.cancelReset().finally(() => setReset(0)) }],
+          }}
+        />
+      ) : (
+        <>
+          <Btn icon={MonitorSmartphone} onClick={show} disabled={shown > 0}>
+            {shown > 0 ? t('login.shown', { s: shown }) : t('login.show')}
+          </Btn>
+          <button type="button" className="linkbtn" onClick={() => void askReset()}>
+            {t('login.forgot')}
+          </button>
+        </>
+      )}
+      {err && (
+        <p className="warnline" role="alert">
+          {err}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function Login() {
   const { t, lang } = useUi()
   const reason = loginReasonAtom.use()
@@ -52,46 +112,45 @@ export function Login() {
   const plain = location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname)
   return (
     <div className="center">
-      <form className="panelbox" onSubmit={(e) => void L.submit(e)}>
-        <div className="row">
-          <Logo />
-          <h1 style={{ fontSize: 22 }}>{t('app.name')}</h1>
-          <span className="sp" />
-          <button
-            type="button"
-            className="ibtn"
-            aria-label={`${t('acct.lang')}: ${lang === 'de' ? 'English' : 'Deutsch'}`}
-            onClick={() => langAtom.set(lang === 'de' ? 'en' : 'de')}
-          >
-            <Languages size={17} aria-hidden />
-            <span className="mono small">{lang.toUpperCase()}</span>
-          </button>
-        </div>
-        <h2 id="login-h" style={{ fontSize: 20 }}>
-          {t('login.title')}
-        </h2>
-        {reason && !L.lock && <Notice n={{ id: 'why', icon: Info, lvl: 'info', title: t(`login.${reason}`) }} />}
-        {L.lock > 0 && (
-          <Notice n={{ id: 'lock', icon: ShieldAlert, lvl: 'bad', title: t('login.locked', { n: L.lock }) }} />
-        )}
-        <Field id="lpw" label={t('login.pass')} err={L.err} hint={t('login.hint')}>
-          <PwInput
-            {...describedBy('lpw', L.err, true)}
-            value={L.pw}
-            onChange={(e) => L.setPw(e.target.value)}
-            autoComplete="current-password"
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- the login page has one field
-            autoFocus
-          />
-        </Field>
-        <button type="submit" className="btn pri" disabled={!L.pw || L.lock > 0 || L.busy}>
-          <LockOpen size={16} aria-hidden />
-          {t('login.btn')}
+      <div className="panelbox login">
+        <button
+          type="button"
+          className="ibtn langbtn"
+          aria-label={`${t('acct.lang')}: ${lang === 'de' ? 'English' : 'Deutsch'}`}
+          onClick={() => langAtom.set(lang === 'de' ? 'en' : 'de')}
+        >
+          <Languages size={17} aria-hidden />
+          <span className="mono small">{lang.toUpperCase()}</span>
         </button>
+        <div className="brand">
+          <Logo s={52} />
+          <h1>{t('app.name')}</h1>
+        </div>
+        <form aria-label={t('login.title')} onSubmit={(e) => void L.submit(e)}>
+          {reason && !L.lock && <Notice n={{ id: 'why', icon: Info, lvl: 'info', title: t(`login.${reason}`) }} />}
+          {L.lock > 0 && (
+            <Notice n={{ id: 'lock', icon: ShieldAlert, lvl: 'bad', title: t('login.locked', { n: L.lock }) }} />
+          )}
+          <Field id="lpw" label={t('login.pass')} err={L.err}>
+            <PwInput
+              {...describedBy('lpw', L.err)}
+              value={L.pw}
+              onChange={(e) => L.setPw(e.target.value)}
+              autoComplete="current-password"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the login page has one field
+              autoFocus
+            />
+          </Field>
+          <button type="submit" className="btn pri" disabled={!L.pw || L.lock > 0 || L.busy}>
+            <LockOpen size={16} aria-hidden />
+            {t('login.btn')}
+          </button>
+        </form>
+        <Forgot />
         {plain && (
           <Notice n={{ id: 'http', icon: KeyRound, lvl: 'info', title: t('login.http'), text: t('login.http_h') }} />
         )}
-      </form>
+      </div>
     </div>
   )
 }

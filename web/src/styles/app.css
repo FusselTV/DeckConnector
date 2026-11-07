@@ -1475,7 +1475,7 @@
   }
   /* login, wizard */
   .center {
-    min-height: 100%;
+    min-height: 100dvh;
     display: grid;
     place-items: center;
     padding-block: 24px 80px;
@@ -1493,6 +1493,51 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+  .panelbox.login {
+    position: relative;
+    width: min(400px, 100%);
+    min-width: 0;
+    padding: 40px 32px 28px;
+    gap: 24px;
+  }
+  .login .langbtn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+  }
+  .login .brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .login .brand h1 {
+    margin: 0;
+    font-size: 24px;
+  }
+  .login form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .login form .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .forgot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  .forgot > .btn {
+    width: 100%;
+    justify-content: center;
+    white-space: normal;
   }
   .panelbox.wide {
     width: min(620px, 100%);
@@ -1791,6 +1836,10 @@
     font-size: 14px;
     min-height: 44px;
     padding: 0 8px;
+  }
+  .linkbtn.left {
+    align-self: flex-start;
+    padding: 0;
   }
   .steptxt {
     margin: 6px 0 0;
@@ -2265,8 +2314,34 @@
   .sidefoot {
     margin-top: auto;
     display: flex;
-    gap: 6px;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .sidefoot button {
+    display: flex;
     align-items: center;
+    gap: 12px;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 0;
+    background: none;
+    border-radius: var(--r);
+    color: var(--fg-2);
+    font-size: 15px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .sidefoot button:hover {
+    background: var(--panel-2);
+    color: var(--fg);
+  }
+  .sidefoot em {
+    margin-left: auto;
+    font-style: normal;
+    font-size: 13px;
+    color: var(--fg-3);
   }
   .li.req {
     flex-wrap: wrap;

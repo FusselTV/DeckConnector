@@ -35,8 +35,6 @@ export const ARM_MS = 60_000
 export const armAtom = atom(0)
 export const nudgeAtom = atom(0)
 export const loginReasonAtom = atom<'logout' | 'pw' | 'expired' | null>(null)
-/** Presses go out with force past input_lock, confirmed for this arm only. */
-export const forceAtom = atom(false)
 export const deckSelAtom = atom(0)
 
 /** A tab's unsaved settings. The save bar merges every dirty draft into one PUT with at most one confirm. */

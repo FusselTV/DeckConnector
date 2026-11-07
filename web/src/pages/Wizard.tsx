@@ -30,7 +30,7 @@ import { decksOf, hostLabel, reachList } from '../app/derive'
 import { langAtom } from '../app/state'
 import { getState, useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
-import { Btn, describedBy, Field, SIcon, Switch } from '../components/controls'
+import { Btn, Choice, describedBy, Field, SIcon, Switch } from '../components/controls'
 import { CopyField, PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
@@ -97,33 +97,6 @@ function useStep() {
     return () => removeEventListener('popstate', f)
   }, [back, set])
   return [step, set] as const
-}
-
-function Choice(p: {
-  on: boolean
-  icon: typeof Monitor
-  label: string
-  hint?: string
-  onPick: () => void
-  first?: boolean
-}) {
-  const I = p.on ? CircleCheck : p.icon
-  return (
-    <button
-      type="button"
-      role="radio"
-      className="choice"
-      aria-checked={p.on}
-      tabIndex={p.on || p.first ? 0 : -1}
-      onClick={p.onPick}
-    >
-      <I size={22} className="ic" aria-hidden />
-      <div>
-        <b>{p.label}</b>
-        {p.hint && <span>{p.hint}</span>}
-      </div>
-    </button>
-  )
 }
 
 export function Wizard() {

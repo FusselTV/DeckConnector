@@ -136,7 +136,7 @@ function useCommands(): Cmd[] {
       to('s-usb', t('deck.speed'), 'usb hub speed full high langsam slow', Usb, 'deck', 'usb-speed', 'deck.speed_h'),
       to('s-fw', t('fw.install'), t('kw.fwfile'), FileUp, 'firmware', 'fw-file', 'fw.install_h'),
       to('s-slots', t('fw.slots'), 'slot rollback ota', Layers, 'firmware', 'slots', 'fw.slots_h'),
-      to('s-bak', t('fw.dl'), t('kw.restore'), DatabaseBackup, 'firmware', 'bak-dl', 'fw.backup_h'),
+      to('s-bak', t('fw.save'), t('kw.restore'), DatabaseBackup, 'firmware', 'bak-dl', 'fw.backup_h'),
       to('s-rest', t('fw.restore'), t('kw.restore'), Upload, 'firmware', 'bak-restore'),
       to('s-log', t('dia.log'), `${t('kw.log')} protokoll journal`, ScrollText, 'diagnose', 'log'),
       to(

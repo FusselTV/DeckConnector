@@ -34,10 +34,6 @@ export class ApiError extends Error {
     this.status = status
     this.code = code
   }
-  /** input_lock on the device refused it; a person may confirm and send it again with force. */
-  get locked() {
-    return this.status === 423
-  }
   /** The firmware does not know this route yet: the caller hides the feature instead of showing an error. */
   get missing() {
     return this.status === 404 || this.status === 405 || this.status === 501
@@ -119,8 +115,8 @@ const q = (deck?: string) => (deck ? `?deck=${enc(deck)}` : '')
  * Presses from this page carry "real": true by design, so they reach Companion and the app.
  * Never call this from a test against the bench bridge; the UI only sends it while remote control is on.
  */
-export const pressReal = (body: InputBody, deck?: string, force = false) =>
-  request<{ ok: boolean }>('/api/input' + q(deck), { body: { ...body, real: true, ...(force ? { force } : {}) } })
+export const pressReal = (body: InputBody, deck?: string) =>
+  request<{ ok: boolean }>('/api/input' + q(deck), { body: { ...body, real: true } })
 
 export const api = {
   routes: () => list(request<Route[]>('/api')),
@@ -131,6 +127,9 @@ export const api = {
       quiet: true,
     }),
   logout: () => request<{ ok: boolean }>('/api/logout', { method: 'POST', quiet: true }),
+  showPassword: () => request<{ ok: boolean }>('/api/password/show', { method: 'POST', quiet: true }),
+  askReset: () => request<{ ok: boolean; s: number }>('/api/password/reset', { method: 'POST', quiet: true }),
+  cancelReset: () => request<{ ok: boolean }>('/api/password/reset', { method: 'DELETE', quiet: true }),
   config: () => request<Config>('/api/config'),
   putConfig: (patch: ConfigPatch) => request<PutReply>('/api/config', { method: 'PUT', body: patch }),
   screen: (deck?: string) => request<Screen>('/api/screen' + q(deck)),
@@ -181,7 +180,6 @@ export const api = {
   undeny: (ip: string) => request<{ ok: boolean }>('/api/pairing/denied/' + enc(ip), { method: 'DELETE' }),
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
   events: () => list(request<DeviceEvent[]>('/api/events')),
-  inputArm: (s: number) => request<{ armed_s: number }>('/api/input/arm', { method: 'PUT', body: { s } }),
 }
 
 export const certUrl = '/api/cert'

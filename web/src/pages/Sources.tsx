@@ -116,6 +116,7 @@ function CompanionForm({ close }: { close: () => void }) {
   const [sat, setSat] = useState(cfg?.satellite ?? '')
   const [pin, setPin] = useState(cfg?.satellite_pin ?? '')
   const [err, setErr] = useState<{ sat?: string; pin?: string }>({})
+  const [showPin, setShowPin] = useState(!!pin)
   // Cancel or Escape while the address is tested abandons the save.
   const gone = useRef(false)
   useEffect(
@@ -215,9 +216,14 @@ function CompanionForm({ close }: { close: () => void }) {
           spellCheck={false}
         />
       </Field>
-      {sat.startsWith('wss://') && (
-        <PinField id="m-satpin" value={pin} set={(v) => (setPin(v), setErr({}))} err={err.pin} />
-      )}
+      {sat.startsWith('wss://') &&
+        (showPin || err.pin ? (
+          <PinField id="m-satpin" value={pin} set={(v) => (setPin(v), setErr({}))} err={err.pin} />
+        ) : (
+          <button type="button" className="linkbtn left" onClick={() => setShowPin(true)}>
+            {t('src.pin_add')}
+          </button>
+        ))}
       <div className="mfoot inline">
         <Btn kind="ghost" onClick={close}>
           {t('c.cancel')}

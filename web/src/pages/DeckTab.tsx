@@ -6,7 +6,7 @@ import { deckSelAtom } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { describedBy, Field, Help, Seg, SIcon, Switch } from '../components/controls'
+import { describedBy, Field, Help, Seg, SIcon } from '../components/controls'
 import { useDraft } from '../components/SaveBar'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
 import type { T } from '../i18n'
@@ -67,12 +67,9 @@ export function DeckTab() {
     chord: cfg?.menu_chord ?? 'auto',
     hold: (cfg?.menu_hold_ms ?? 2000) / 1000,
     usb: cfg?.usb_speed ?? 'auto',
-    lock: !!cfg?.input_lock,
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
-  // input_lock exists on firmware whose config carries it.
-  const hasLock = cfg?.input_lock !== undefined
   const v = { ...base, ...d }
   const changed = (k: keyof typeof base) => k in d && d[k] !== base[k]
   const dirty = (Object.keys(base) as (keyof typeof base)[]).some(changed)
@@ -95,7 +92,6 @@ export function DeckTab() {
       ...(changed('chord') ? { menu_chord: v.chord } : {}),
       ...(changed('hold') ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
       ...(changed('usb') ? { usb_speed: v.usb } : {}),
-      ...(hasLock && changed('lock') ? { input_lock: v.lock } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
@@ -179,19 +175,6 @@ export function DeckTab() {
           />
           {multi && <span className="hint">{t('deck.settings_for')}</span>}
         </div>
-        {hasLock && (
-          <Switch
-            id="input-lock"
-            on={v.lock}
-            onChange={(lock) => set({ lock })}
-            label={t('deck.lock')}
-            hint={
-              st.input_armed_s
-                ? `${t('deck.lock_h')} ${t('deck.lock_open', { s: st.input_armed_s })}`
-                : t('deck.lock_h')
-            }
-          />
-        )}
       </Card>
       <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
         <div className="chordnow">

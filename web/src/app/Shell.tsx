@@ -147,48 +147,33 @@ function Nav() {
   )
 }
 
-function ThemeLang() {
+function SideFoot() {
   const { t, lang } = useUi()
   const eff = useTheme()
-  return (
-    <>
-      <button
-        type="button"
-        className="ibtn"
-        aria-label={`${t('acct.lang')}: ${lang === 'de' ? 'English' : 'Deutsch'}`}
-        title={t('acct.lang')}
-        onClick={() => langAtom.set(lang === 'de' ? 'en' : 'de')}
-      >
-        <Languages size={17} aria-hidden />
-        <span className="mono small">{lang.toUpperCase()}</span>
-      </button>
-      <button
-        type="button"
-        className="ibtn"
-        aria-label={eff === 'dark' ? t('hdr.to_light') : t('hdr.to_dark')}
-        title={eff === 'dark' ? t('hdr.to_light') : t('hdr.to_dark')}
-        onClick={() => themeAtom.set(eff === 'dark' ? 'light' : 'dark')}
-      >
-        {eff === 'dark' ? <Sun size={17} aria-hidden /> : <Moon size={17} aria-hidden />}
-      </button>
-    </>
-  )
-}
-
-function SideFoot() {
-  const { t } = useUi()
   const a = useActions()
   return (
     <div className="sidefoot">
-      <ThemeLang />
       <button
         type="button"
-        className="ibtn"
-        aria-label={t('hdr.logout')}
-        title={t('hdr.logout')}
-        onClick={() => void a.logout()}
+        aria-label={`${t('acct.lang')}: ${lang === 'de' ? 'English' : 'Deutsch'}`}
+        onClick={() => langAtom.set(lang === 'de' ? 'en' : 'de')}
       >
-        <LogOut size={17} aria-hidden />
+        <Languages size={18} aria-hidden />
+        <span>{t('acct.lang')}</span>
+        <em>{lang === 'de' ? 'Deutsch' : 'English'}</em>
+      </button>
+      <button
+        type="button"
+        aria-label={eff === 'dark' ? t('hdr.to_light') : t('hdr.to_dark')}
+        onClick={() => themeAtom.set(eff === 'dark' ? 'light' : 'dark')}
+      >
+        {eff === 'dark' ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />}
+        <span>{t('acct.theme')}</span>
+        <em>{t(eff === 'dark' ? 'acct.dark' : 'acct.light')}</em>
+      </button>
+      <button type="button" onClick={() => void a.logout()}>
+        <LogOut size={18} aria-hidden />
+        <span>{t('hdr.logout')}</span>
       </button>
     </div>
   )

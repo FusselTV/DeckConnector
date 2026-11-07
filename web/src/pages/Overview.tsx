@@ -26,7 +26,7 @@ import { pendingAtom, useActions } from '../app/actions'
 import { noteWebPress, retryNow } from '../app/connection'
 import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
 import { useIssues } from '../app/issues'
-import { armAtom, ARM_MS, deckSelAtom, forceAtom, nudgeAtom, type Tab } from '../app/state'
+import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, type Tab } from '../app/state'
 import { dispatch, getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -184,8 +184,7 @@ function Meter() {
 }
 
 function ArmSwitch() {
-  const { t, ask } = useUi()
-  const inputLock = useStore((s) => !!s.config?.input_lock)
+  const { t } = useUi()
   const armedAt = armAtom.use()
   const nudge = nudgeAtom.use()
   const locked = useStore((s) => s.conn !== 'live' || s.auth !== 'app' || !!s.restarting)
@@ -210,15 +209,8 @@ function ArmSwitch() {
       title={armed ? real : t('arm.help')}
       onClick={() => {
         if (armed) return armAtom.set(0)
-        // With input_lock on the device, this browser's presses need force, confirmed once per arm.
-        void (
-          inputLock ? ask({ title: t('cf.force'), body: t('cf.force_b'), ok: t('btn.force') }) : Promise.resolve(true)
-        ).then((ok) => {
-          if (!ok) return
-          forceAtom.set(inputLock)
-          armAtom.set(Date.now())
-          setNow(Date.now())
-        })
+        armAtom.set(Date.now())
+        setNow(Date.now())
       }}
       disabled={locked || READONLY}
     >
@@ -335,13 +327,12 @@ function useScreen(serial: string | undefined) {
 }
 
 const RELEASE_RETRY_MS = [0, 500, 1500, 4000, 10000]
-// A release passes every guard (offline, restart, lock, remote control off), so a key is never left held on the
-// host. force is safe here: it can only let go of a key this page pressed.
+// A release passes every guard (offline, restart, remote control off), so a key is never left held on the host.
 export async function release(b: InputBody, deck: string | undefined, wait = RELEASE_RETRY_MS) {
   for (const ms of wait) {
     if (ms) await new Promise((r) => setTimeout(r, ms))
     try {
-      await pressReal(b, deck, true)
+      await pressReal(b, deck)
       return true
     } catch (e) {
       if (e instanceof ApiError && e.status >= 400 && e.status < 500) return false
@@ -391,7 +382,7 @@ const LiveDeck = memo(function LiveDeck() {
           ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
         })
       if (up) void release(b, serial)
-      else void act(() => pressReal(b, serial, forceAtom.get()))
+      else void act(() => pressReal(b, serial))
     },
     [ctx],
   )
@@ -673,14 +664,17 @@ export function Overview() {
 }
 
 function AddSourceBtn() {
-  const { t, jump } = useUi()
+  const { t, go } = useUi()
   return (
     <button
       type="button"
       className="ibtn"
       aria-label={t('src.add')}
       title={t('src.add')}
-      onClick={() => jump('sources', 'src-add')}
+      onClick={() => {
+        go('sources')
+        setTimeout(() => document.getElementById('src-add')?.click(), 60)
+      }}
     >
       <Plus size={16} aria-hidden />
     </button>

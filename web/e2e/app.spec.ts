@@ -55,8 +55,8 @@ test('drafts from two tabs save in one request with only the changed fields', as
   })
   await openTab(page, 'Deck')
   await page.locator('#hold').fill('3')
-  // Another client turns the input lock on while this draft is open; the save must not turn it back off.
-  await sim('PUT', '/api/config', { input_lock: true })
+  // Another client changes the brightness while this draft is open; the save must not set it back.
+  await sim('PUT', '/api/config', { brightness: 55 })
   await openTab(page, 'Access')
   await page.locator('#cors-fold summary').click()
   await page.locator('#cors').fill('http://studio.local')
@@ -64,7 +64,7 @@ test('drafts from two tabs save in one request with only the changed fields', as
   await bar.getByRole('button', { name: /^Save/ }).dblclick()
   await expect(bar).toHaveCount(0)
   expect(puts).toEqual([{ menu_hold_ms: 3000, cors_origins: 'http://studio.local' }])
-  expect(await sim('GET', '/api/config')).toMatchObject({ input_lock: true, menu_hold_ms: 3000 })
+  expect(await sim('GET', '/api/config')).toMatchObject({ brightness: 55, menu_hold_ms: 3000 })
 })
 
 test('closing the Companion dialog while it tests the address saves nothing', async ({ app: page }) => {
@@ -204,30 +204,6 @@ test('long lists scroll inside their own box', async ({ app: page }) => {
   await expect(page.locator('pre.log')).toHaveCSS('height', '300px')
 })
 
-test('with input lock on the device, arming asks once and presses carry force', async ({ app: page }) => {
-  await sim('PUT', '/api/config', { input_lock: true })
-  await page.reload()
-  // The arm asks only once the page knows the setting: the brightness slider waits for the same config.
-  await expect(page.locator('#bri-ov')).toBeEnabled()
-  const sent: unknown[] = []
-  page.on('request', (r) => r.method() === 'POST' && r.url().includes('/api/input') && sent.push(r.postDataJSON()))
-  const toggle = page.locator('.deckToggle')
-  if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
-  await page.locator('#arm').click()
-  const dlg = page.getByRole('alertdialog')
-  await expect(dlg).toContainText('Presses are locked on the device')
-  const arms: unknown[] = []
-  page.on('request', (r) => r.url().endsWith('/api/input/arm') && arms.push(r.postDataJSON()))
-  await dlg.getByRole('button', { name: 'Send anyway' }).click()
-  await expect.poll(() => arms).toEqual([{ s: 60 }])
-  await page.getByRole('button', { name: 'Key 1, row 1' }).click({ force: true })
-  await expect.poll(() => sent.length).toBeGreaterThan(0)
-  expect(sent[0]).toMatchObject({ key: 0, real: true, force: true })
-  await page.locator('#arm').click()
-  await expect.poll(() => arms).toEqual([{ s: 60 }, { s: 0 }])
-  await sim('PUT', '/api/config', { input_lock: false })
-})
-
 test('a pairing answer names the host that asked', async ({ app: page }) => {
   const docks: unknown[] = []
   await page.route('**/api/status', async (r) => {
@@ -275,4 +251,46 @@ test('logging out says so on the login page', async ({ app: page }) => {
     await page.getByRole('dialog').getByRole('button', { name: 'Log out' }).click()
   }
   await expect(page.getByText('You logged out.')).toBeVisible()
+})
+
+test('the plus on the overview opens the add dialog, and the certificate pin waits behind a link', async ({
+  app: page,
+}) => {
+  await page.getByRole('button', { name: 'Add source' }).first().click()
+  const dlg = page.getByRole('dialog')
+  await expect(dlg).toBeVisible()
+  await dlg.locator('#m-sat').fill('wss://companion.example/satellite')
+  await expect(dlg.locator('#m-satpin')).toHaveCount(0)
+  await dlg.getByRole('button', { name: 'Pin a certificate (optional)' }).click()
+  await expect(dlg.locator('#m-satpin')).toBeVisible()
+})
+
+test('saving a backup asks whether passwords go in', async ({ app: page }) => {
+  await openTab(page, 'Firmware')
+  await page.locator('#bak-dl').click()
+  const dlg = page.getByRole('dialog')
+  await expect(dlg.getByRole('radio', { name: /Settings only/ })).toHaveAttribute('aria-checked', 'true')
+  await dlg.getByRole('radio', { name: /With passwords/ }).click()
+  const [file] = await Promise.all([
+    page.waitForEvent('download'),
+    dlg.getByRole('button', { name: 'Save backup' }).click(),
+  ])
+  expect(file.suggestedFilename()).toMatch(/-backup\.json$/)
+})
+
+test('without the password, the login page shows it on the deck or asks the deck for a reset', async ({ page }) => {
+  const calls: string[] = []
+  await page.route('**/api/password/**', (r) => {
+    calls.push(`${r.request().method()} ${new URL(r.request().url()).pathname}`)
+    return r.fulfill({ json: { ok: true, s: 60 } })
+  })
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Show password on the Stream Deck' }).click()
+  await expect(page.getByRole('button', { name: /On the Stream Deck for/ })).toBeDisabled()
+  await page.getByRole('button', { name: 'Forgot your password?' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm on the deck' }).click()
+  await expect(page.getByText(/Confirm on the Stream Deck\. \d+ s left/)).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  expect(calls).toEqual(['POST /api/password/show', 'POST /api/password/reset', 'DELETE /api/password/reset'])
 })

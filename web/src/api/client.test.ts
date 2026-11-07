@@ -77,14 +77,7 @@ describe('pressReal', () => {
   })
 })
 
-describe('input lock and inspect', () => {
-  it('adds force only when asked and reports a lock as locked', async () => {
-    const f = mockFetch(reply(200, { ok: true }), reply(423, { ok: false, error: 'input locked' }))
-    await pressReal({ key: 1 }, undefined, true)
-    expect(JSON.parse(f.mock.calls[0]?.[1]?.body as string)).toEqual({ key: 1, real: true, force: true })
-    const e = await pressReal({ key: 1 }).catch((x: unknown) => x)
-    expect(e).toMatchObject({ locked: true })
-  })
+describe('inspect', () => {
   it('sends only the 144-byte header for inspection', async () => {
     const f = mockFetch(reply(200, { ok: true, target: 'p4', version: 'v1' }))
     await api.inspect(new Blob([new Uint8Array(4096)]))

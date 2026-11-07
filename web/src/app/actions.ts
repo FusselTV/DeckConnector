@@ -25,16 +25,6 @@ export async function putConfig(patch: ConfigPatch, where?: string[]) {
 export function useActions() {
   const { t, act, ask } = useUi()
   return useMemo(() => {
-    // input_lock refuses source changes with 423: a person may confirm once and send them anyway.
-    const putForce = async (patch: ConfigPatch) => {
-      try {
-        return await putConfig(patch)
-      } catch (e) {
-        if (!(e instanceof ApiError && e.locked)) throw e
-        if (!(await ask({ title: t('cf.force'), body: t('deck.lock_h'), ok: t('btn.force') }))) return undefined
-        return await putConfig({ ...patch, force: true })
-      }
-    }
     // The answer names the host that asked; 409 means another host asks by now, or none.
     const answer = (accept: boolean, ip: string, done: string) =>
       act(async () => {
@@ -51,7 +41,7 @@ export function useActions() {
       const controller = s.kind === 'unknown' ? 'app' : s.kind
       pendingAtom.set(hk(s))
       try {
-        await putForce({ controller, host: hostKey(s) })
+        await putConfig({ controller, host: hostKey(s) })
       } finally {
         pendingAtom.set(null)
       }
@@ -76,7 +66,6 @@ export function useActions() {
     }
     return {
       pick,
-      putForce,
       brightness: (n: number) => act(() => putConfig({ brightness: n })),
       menu: (serial?: string) =>
         act(async () => {

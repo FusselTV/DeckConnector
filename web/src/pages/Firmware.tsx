@@ -6,25 +6,27 @@ import {
   Download,
   ExternalLink,
   FileUp,
+  KeyRound,
   Globe,
   Layers,
   LoaderCircle,
   Power,
   RefreshCw,
+  Settings,
   Sparkles,
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
-import type { Frontend, Slot, UpdateCheck } from '../api/types'
-import { putConfig, useActions } from '../app/actions'
+import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
+import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { toast } from '../app/state'
 import { useRoute, useStore } from '../app/store'
 import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { Btn, describedBy, Field, Help, Seg, SIcon, type Tone } from '../components/controls'
+import { Btn, Choice, describedBy, Field, Help, Seg, SIcon, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
 import { FilePick } from '../components/InputAction'
 import { KeyValue } from '../components/KeyValue'
@@ -32,7 +34,7 @@ import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
 import type { TKey } from '../i18n'
 import { backupOf, planRestore } from '../lib/backup'
-import { dbfwTarget, download } from '../lib/util'
+import { dbfwTarget, download, roam } from '../lib/util'
 import { httpUrlError } from '../lib/validate'
 
 type Target = Awaited<ReturnType<typeof dbfwTarget>>
@@ -155,7 +157,7 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
         />
       </div>
       {mode === 'file' ? (
-        <Field id="upd-file" label={t('upd.file_l')} err={err}>
+        <Field id="upd-file" label={t('upd.file_l')} hint={t('fw.install_h')} err={err}>
           <FilePick id="upd-file" accept=".dbfw" file={file} onFile={pickFile} />
         </Field>
       ) : (
@@ -185,7 +187,56 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
   )
 }
 
-function UpdateCheckBox() {
+function SaveModal({ close, cfg, full }: { close: () => void; cfg: Config; full: boolean }) {
+  const { t, act } = useUi()
+  const [what, setWhat] = useState<'cfg' | 'full'>('cfg')
+  const go = () =>
+    void act(async () => {
+      const name = what === 'full' ? `${cfg.name}-backup.json` : `${cfg.name}-settings.json`
+      download(name, what === 'full' ? JSON.stringify(await api.backup(), null, 1) : backupOf(cfg))
+      toast(t('c.downloaded', { file: name }))
+      close()
+    })
+  return (
+    <Modal
+      icon={DatabaseBackup}
+      title={t('fw.save_t')}
+      close={close}
+      foot={
+        <>
+          <Btn kind="ghost" onClick={close}>
+            {t('c.cancel')}
+          </Btn>
+          <Btn kind="pri" icon={Download} onClick={go}>
+            {t('fw.save')}
+          </Btn>
+        </>
+      }
+    >
+      <div className="choices" role="radiogroup" aria-label={t('fw.save_t')} onKeyDown={roam} tabIndex={-1}>
+        <Choice
+          on={what === 'cfg'}
+          icon={Settings}
+          label={t('fw.save_cfg')}
+          hint={t('fw.save_cfg_h')}
+          onPick={() => setWhat('cfg')}
+        />
+        {full && (
+          <Choice
+            on={what === 'full'}
+            icon={KeyRound}
+            label={t('fw.save_full')}
+            hint={t('fw.save_full_h')}
+            onPick={() => setWhat('full')}
+          />
+        )}
+      </div>
+      {what === 'full' && <p className="warnline">{t('fw.save_full_warn')}</p>}
+    </Modal>
+  )
+}
+
+function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   const { t, fmt, act, ask } = useUi()
   const fw = useStore((s) => s.status.firmware ?? '')
   const [st, setSt] = useState<
@@ -209,6 +260,7 @@ function UpdateCheckBox() {
   return (
     <>
       <div className="row">
+        {lead}
         <Btn id="upd-check" icon={RefreshCw} disabled={st.state === 'checking'} onClick={() => void check()}>
           {t(st.state === 'checking' ? 'upd.checking' : 'upd.check')}
         </Btn>
@@ -249,7 +301,6 @@ function UpdateCheckBox() {
 
 export function Firmware() {
   const { t, fmt, act, ask } = useUi()
-  const { putForce } = useActions()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const ota = useStore((s) => s.ota)
@@ -258,6 +309,7 @@ export function Firmware() {
   const [slots, setSlots] = useState<Slot[] | null>(null)
   const [front, setFront] = useState<Frontend | null>(null)
   const [upd, setUpd] = useState(false)
+  const [save, setSave] = useState(false)
   const rsRef = useRef<HTMLInputElement>(null)
   const slotRef = useRef<HTMLInputElement>(null)
   const [slotTarget, setSlotTarget] = useState<Slot | null>(null)
@@ -377,10 +429,15 @@ export function Firmware() {
     })
     if (!ok) return
     await act(async () => {
-      const r = await putForce(p.patch)
-      if (r && !r.restart) toast(t('fw.restored'))
+      const r = await putConfig(p.patch)
+      if (!r.restart) toast(t('fw.restored'))
     })
   }
+  const install = (
+    <Btn id="fw-file" kind="pri" icon={Download} disabled={!!ota} onClick={() => setUpd(true)}>
+      {t('fw.install')}
+    </Btn>
+  )
   const why = (s: Slot) =>
     s.why_not ??
     (s.running
@@ -433,12 +490,7 @@ export function Firmware() {
             </div>
           </div>
         )}
-        <div className="row">
-          <Btn id="fw-file" kind="pri" icon={Download} disabled={!!ota} onClick={() => setUpd(true)}>
-            {t('fw.install')}
-          </Btn>
-        </div>
-        {canCheck && <UpdateCheckBox />}
+        {canCheck ? <UpdateCheckBox lead={install} /> : <div className="row">{install}</div>}
         <Row
           id="slots"
           icon={Layers}
@@ -524,35 +576,10 @@ export function Firmware() {
         title={t('fw.backup')}
         right={<Help right label={t('fw.backup')} text={`${t('fw.backup_h')} ${t('fw.not_in')}`} />}
       >
-        <div className="actlist">
-          <Btn
-            id="bak-dl"
-            icon={Download}
-            disabled={!cfg}
-            onClick={() => {
-              if (!cfg) return
-              const name = `${cfg.name}-settings.json`
-              download(name, backupOf(cfg))
-              toast(t('c.downloaded', { file: name }))
-            }}
-          >
-            {t('fw.dl')}
+        <div className="row wrap">
+          <Btn id="bak-dl" icon={Download} disabled={!cfg} onClick={() => setSave(true)}>
+            {t('fw.save')}
           </Btn>
-          {canBackup && (
-            <Btn
-              id="bak-full"
-              icon={Download}
-              onClick={() =>
-                void act(async () => {
-                  const name = `${cfg?.name ?? 'deckconnector'}-backup.json`
-                  download(name, JSON.stringify(await api.backup(), null, 1))
-                  toast(t('c.downloaded', { file: name }))
-                })
-              }
-            >
-              {t('fw.dl_full')}
-            </Btn>
-          )}
           <Btn id="bak-restore" icon={ArchiveRestore} disabled={!cfg} onClick={() => rsRef.current?.click()}>
             {t('fw.restore')}
           </Btn>
@@ -580,6 +607,7 @@ export function Firmware() {
         />
       </Card>
       {upd && <UpdateModal close={() => setUpd(false)} target={target} />}
+      {save && cfg && <SaveModal close={() => setSave(false)} cfg={cfg} full={canBackup} />}
     </div>
   )
 }
