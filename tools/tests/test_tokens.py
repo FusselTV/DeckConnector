@@ -139,6 +139,7 @@ FULL = [
     ("POST", "/api/ota/url"),
     ("POST", "/api/reboot"),
     ("POST", "/api/slots/1/boot"),
+    ("POST", "/api/sources/probe"),
     ("PUT", "/api/config"),
     ("PUT", "/api/frontend"),
     ("PUT", "/api/setup"),

@@ -693,6 +693,32 @@ esp_err_t get_update_check(httpd_req_t *req)
     return send_json(req, body);
 }
 
+/* POST /api/sources/probe {"addr", "pin"}: is Companion's Satellite API there? Blocks for up to 6 s. */
+esp_err_t post_source_probe(httpd_req_t *req)
+{
+    char body[200];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *addr = cJSON_GetObjectItemCaseSensitive(root, "addr");
+    const cJSON *pin = cJSON_GetObjectItemCaseSensitive(root, "pin");
+    if (!cJSON_IsString(addr) || !addr->valuestring[0] || strlen(addr->valuestring) >= 64) {
+        cJSON_Delete(root);
+        return send_error(req, "400 Bad Request", "addr: host, host:port, or a ws:// or wss:// URL");
+    }
+    char version[24] = "", reply[160];
+    const char *why = db_satellite_probe(addr->valuestring, cJSON_IsString(pin) ? pin->valuestring : "", version,
+                                         sizeof(version));
+    cJSON_Delete(root);
+    db_json_t j;
+    db_json_begin(&j, reply, sizeof(reply));
+    db_json_obj_open(&j, NULL);
+    db_json_bool(&j, "ok", !why);
+    db_json_str(&j, "error", why ? why : "");
+    db_json_str(&j, "version", version);
+    db_json_obj_close(&j);
+    db_json_end(&j);
+    return send_json(req, reply);
+}
+
 /* GET /api/input/log?since=<seq> */
 esp_err_t get_input_log(httpd_req_t *req)
 {

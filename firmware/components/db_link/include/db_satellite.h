@@ -16,6 +16,9 @@ esp_err_t db_satellite_start(void (*changed)(void));
 bool db_satellite_connected(void);
 db_health_t db_satellite_health(void);
 void db_satellite_retry(void);
+/* Connect to `addr` (as in the satellite setting) once and read Companion's greeting, within about 3 s each.
+ * NULL and the version when it is Companion, else why not. */
+const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap);
 /* Companion's IPv4 address in network order while connected, else 0. */
 uint32_t db_satellite_peer(void);
 /* What the client connects to, "" when no address is set. */

@@ -315,3 +315,8 @@ const char *db_ota_inspect(const uint8_t *header)
 {
     return memcmp(header, "DBFW", 4) == 0 ? "the simulator checks no signature" : "not a .dbfw file";
 }
+
+const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap)
+{
+    return "the simulator reaches no Companion";
+}

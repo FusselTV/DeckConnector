@@ -778,6 +778,61 @@ uint32_t db_satellite_peer(void)
     return s.peer;
 }
 
+const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap)
+{
+    char line[160];
+    size_t n = 0;
+    if (strncmp(addr, "ws://", 5) == 0 || strncmp(addr, "wss://", 6) == 0) {
+        ws_t *w = calloc(1, sizeof(*w));
+        if (!w) {
+            return "no memory";
+        }
+        ws_init(w);
+        uint8_t pin[32];
+        bool pinned = db_config_pin(pin_hex, pin);
+        uint8_t op;
+        bool fin;
+        uint64_t len = 0;
+        int err = ws_connect(w, addr, NULL, NULL, NULL, CONNECT_MS, pinned ? pin : NULL);
+        err = err ? err : ws_read_header(w, &op, &fin, &len);
+        n = len < sizeof(line) - 1 ? (size_t)len : sizeof(line) - 1;
+        err = err ? err : ws_read(w, line, n);
+        ws_close(w);
+        free(w);
+        if (err) {
+            return err == -ETIMEDOUT ? "no answer within 3 s" : "no connection";
+        }
+    } else {
+        char host[64];
+        snprintf(host, sizeof(host), "%s", addr);
+        char *colon = strchr(host, ':');
+        unsigned port = colon ? (unsigned)atoi(colon + 1) : DB_SAT_PORT;
+        if (colon) {
+            *colon = '\0';
+        }
+        int sock = ws_tcp_open(host, port, NULL, CONNECT_MS);
+        if (sock < 0) {
+            return strerror(-sock);
+        }
+        for (int r; n < sizeof(line) - 1 && !memchr(line, '\n', n); n += (size_t)r) {
+            if ((r = recv(sock, line + n, sizeof(line) - 1 - n, 0)) <= 0) {
+                break;
+            }
+        }
+        close(sock);
+    }
+    line[n] = '\0';
+    line[strcspn(line, "\r\n")] = '\0';
+    db_sat_msg_t m;
+    db_sat_parse(line, &m);
+    const char *v = strcmp(m.cmd, "BEGIN") == 0 ? db_sat_get(&m, "CompanionVersion") : NULL;
+    if (!v) {
+        return "it answers, but it is not Companion's Satellite API";
+    }
+    snprintf(version, cap, "%s", v);
+    return NULL;
+}
+
 const char *db_satellite_address(void)
 {
     return db_config()->satellite;
