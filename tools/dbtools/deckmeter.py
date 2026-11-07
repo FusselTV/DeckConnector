@@ -106,32 +106,11 @@ class Camera:
     def __init__(self):
         h = HALF // SCALE
         self.boxes = [(x // SCALE - h, y // SCALE - h, x // SCALE + h, y // SCALE + h) for x, y in REGIONS.values()]
-        self.proc = subprocess.Popen(
-            [
-                "ffmpeg",
-                "-loglevel",
-                "error",
-                "-fflags",
-                "nobuffer",
-                "-flags",
-                "low_delay",
-                "-rtsp_transport",
-                "tcp",
-                "-i",
-                CAMERA,
-                "-vf",
-                f"scale={self.W}:{self.H}",
-                "-f",
-                "rawvideo",
-                "-pix_fmt",
-                "rgb24",
-                "-",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
         self.frames: list[tuple[float, dict]] = []
         self.last: bytes = b""
+        self.closed = False
+        self.restarts = 0
+        self._start()
         threading.Thread(target=self._read, daemon=True).start()
         end = time.time() + 30
         while not self.frames:
@@ -139,9 +118,29 @@ class Camera:
                 raise TimeoutError(f"no picture from {CAMERA}")
             time.sleep(0.1)
 
+    def _start(self):
+        # passthrough: a stream that hangs once froze the picture for a minute, as thousands of copies of one frame
+        # per second; now it delivers nothing, ffmpeg gives up after 2 s and _read starts it again
+        self.proc = subprocess.Popen(
+            [
+                *("ffmpeg", "-loglevel", "error", "-fflags", "nobuffer", "-flags", "low_delay"),
+                *("-rtsp_transport", "tcp", "-timeout", "2000000", "-i", CAMERA, "-fps_mode", "passthrough"),
+                *("-vf", f"scale={self.W}:{self.H}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+
     def _read(self):
         size = self.W * self.H * 3
-        while len(buf := self.proc.stdout.read(size)) == size:
+        while not self.closed:
+            buf = self.proc.stdout.read(size)
+            if len(buf) != size:
+                self.proc.kill()
+                if not self.closed:
+                    self.restarts += 1
+                    self._start()
+                continue
             t = time.time()
             img = Image.frombytes("RGB", (self.W, self.H), buf)
             px = [img.crop(b).resize((1, 1), Image.BOX).getpixel((0, 0)) for b in self.boxes]
@@ -182,6 +181,7 @@ class Camera:
         img.save(path)
 
     def close(self):
+        self.closed = True
         self.proc.kill()
 
 
@@ -350,9 +350,13 @@ class Run:
             before = pages
         else:
             self.cam.snapshot(Path("/tmp/deckmeter-learn-failed.png"))
+            recent = [f for t, f in self.cam.frames if t > time.time() - 10]
+            print(f"camera: {len(recent)} frames in the last 10 s, {len({str(f) for f in recent})} different")
             if self.bridge:
                 s = self.bridge.status()
                 print("bridge:", s["writer"], [(x["host"], x["connected"], x["drawing"]) for x in s["sources"]])
+                shown = self.bridge.call("GET", "/api/screen.jpg")[1]
+                Path("/tmp/deckmeter-learn-failed-bridge.jpg").write_bytes(shown)
             raise TimeoutError("Companion does not draw on the deck, see /tmp/deckmeter-learn-failed.png")
         tick, press = {}, {}
         for c in (0, 1, 2):
