@@ -1,6 +1,8 @@
 import {
   Cable,
   Check,
+  RefreshCw,
+  X,
   Crown,
   Link2,
   LoaderCircle,
@@ -218,6 +220,7 @@ function AppForm({ close }: { close: () => void }) {
   const P = useStore((s) => s.status.pairing)
   const ip = useStore((s) => s.status.network?.lan?.ip || s.status.network?.wlan?.ip || location.hostname)
   const a = usePairing()
+  const canUndeny = useRoute('DELETE', '/api/pairing/denied/x')
   return (
     <>
       <p className="small muted">{t('src.app_what')}</p>
@@ -256,6 +259,27 @@ function AppForm({ close }: { close: () => void }) {
           )}
         </div>
       )}
+      {P?.denied?.map((d) => (
+        <Notice
+          key={d.ip}
+          n={{
+            id: `denied-${d.ip}`,
+            icon: X,
+            lvl: 'warn',
+            title: `${t('wiz.denied')}: ${d.name || d.ip}`,
+            text: t('wiz.denied_h'),
+            acts: canUndeny
+              ? [
+                  {
+                    label: t('wiz.ask_again'),
+                    icon: RefreshCw,
+                    run: () => void act(() => api.undeny(d.ip).then(refreshStatus)),
+                  },
+                ]
+              : [],
+          }}
+        />
+      ))}
       <Switch
         id="only"
         on={!!P?.only_paired}

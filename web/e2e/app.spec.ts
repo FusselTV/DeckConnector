@@ -129,6 +129,8 @@ test('long lists scroll inside their own box', async ({ app: page }) => {
 test('with input lock on the device, arming asks once and presses carry force', async ({ app: page }) => {
   await sim('PUT', '/api/config', { input_lock: true })
   await page.reload()
+  // The arm asks only once the page knows the setting: the brightness slider waits for the same config.
+  await expect(page.locator('#bri-ov')).toBeEnabled()
   const sent: unknown[] = []
   page.on('request', (r) => r.method() === 'POST' && r.url().includes('/api/input') && sent.push(r.postDataJSON()))
   const toggle = page.locator('.deckToggle')

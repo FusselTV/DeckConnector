@@ -163,6 +163,7 @@ export const api = {
     request<TlsInfo>('/api/tls', { method: 'PUT', body: { cert, key, apply: true } }),
   resetTls: () => request<{ ok: boolean }>('/api/tls', { method: 'DELETE' }),
   backup: () => request<unknown>('/api/backup?secrets=1'),
+  undeny: (ip: string) => request<{ ok: boolean }>('/api/pairing/denied/' + enc(ip), { method: 'DELETE' }),
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
 }
 
