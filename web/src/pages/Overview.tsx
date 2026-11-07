@@ -27,7 +27,7 @@ import { pendingAtom, useActions } from '../app/actions'
 import { noteWebPress, retryNow } from '../app/connection'
 import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
 import { useIssues } from '../app/issues'
-import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, type Tab } from '../app/state'
+import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, toast, type Tab } from '../app/state'
 import { dispatch, getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -377,6 +377,9 @@ export async function release(b: InputBody, deck: string | undefined, wait = REL
   return false
 }
 
+// One queue for every press from this page: separate fetches could let a key's up reach the device before its down.
+let pressChain: Promise<unknown> = Promise.resolve()
+
 const LiveDeck = memo(function LiveDeck() {
   const { t, act } = useUi()
   // Only the parts the deck picture needs, so the 10 s status poll does not redraw it.
@@ -417,10 +420,17 @@ const LiveDeck = memo(function LiveDeck() {
           type: 'input',
           ev: { at: Date.now(), origin: 'web', kind, key, delta: 'ticks' in b ? b.ticks : undefined, deck: sel + 1 },
         })
-      if (up) void release(b, serial)
-      else void act(() => pressReal(b, serial))
+      pressChain = pressChain.then(async () => {
+        if (!up) return act(() => pressReal(b, serial))
+        if (await release(b, serial)) return
+        const st = getState().status
+        const host = st.sources?.find((x) => x.drawing)
+        toast(t('ov.stuck', { n: (key ?? 0) + 1, host: host ? hostName(host) : (st.name ?? 'DeckConnector') }), {
+          bad: true,
+        })
+      })
     },
-    [ctx],
+    [ctx, t],
   )
   if (!deck)
     return (

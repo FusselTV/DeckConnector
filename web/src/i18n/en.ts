@@ -70,6 +70,7 @@ export const en = {
   'ov.who_empty': 'No source yet.',
   'ov.deck': 'Live deck',
   'ov.real': 'Presses are real. They go to {host}.',
+  'ov.stuck': 'Key {n} may still be held on {host}. Press it again.',
   'ov.real_ui': 'Presses control the deck menu.',
   'ov.toggle_deck': 'Show or hide the deck view',
   'ov.key': 'Key {n}, row {r}',

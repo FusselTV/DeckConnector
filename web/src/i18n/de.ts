@@ -71,6 +71,7 @@ export const de: Dict = {
   'ov.who_empty': 'Noch keine Quelle.',
   'ov.deck': 'Live-Deck',
   'ov.real': 'Eingaben sind echt. Sie gehen an {host}.',
+  'ov.stuck': 'Taste {n} ist bei {host} evtl. noch gedrückt. Drück sie nochmal.',
   'ov.real_ui': 'Eingaben steuern das Deck-Menü.',
   'ov.toggle_deck': 'Deck-Ansicht ein- oder ausblenden',
   'ov.key': 'Taste {n}, Reihe {r}',

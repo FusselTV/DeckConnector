@@ -106,3 +106,24 @@ test('a dial held on its arrow stops repeating after a few seconds', async ({ ap
   expect(sent.length).toBe(n)
   await page.mouse.up()
 })
+
+test('a key up waits for its down, and a release that fails for good says so', async ({ app: page, errors }) => {
+  const { key } = await armedDeck(page)
+  const order: string[] = []
+  await page.route('**/api/input**', async (r) => {
+    const action = (r.request().postDataJSON() as { action?: string }).action ?? ''
+    order.push(action)
+    if (action === 'down') {
+      await new Promise((f) => setTimeout(f, 400))
+      order.push('down done')
+      return r.fulfill({ json: { ok: true } })
+    }
+    return r.fulfill({ status: 409, json: { ok: false, error: 'no' } })
+  })
+  await key.hover()
+  await page.mouse.down()
+  await page.mouse.up()
+  await expect(page.getByRole('alert').filter({ hasText: 'Key 1 may still be held' })).toBeVisible()
+  expect(order).toEqual(['down', 'down done', 'up'])
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('409')))
+})
