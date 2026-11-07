@@ -34,7 +34,7 @@ tools/dbtools/       reference server, benchmarks, signing, font generator, seri
 Exactly one source writes to the device at a time. `db_ui` decides:
 
 1. While the menu is open or an update runs, the device UI draws.
-2. Otherwise the controller from the settings draws. That is the active server, the Stream Deck app or
+2. Otherwise the controller from the settings draws. That is the active server, the Elgato App or
    Companion once it opened the device port, or Companion over its Satellite API once it took the deck.
 
 In every other case the device UI draws its home screen. It shows what is missing, for example "Kein Netz" or

@@ -1,7 +1,7 @@
 # Network Dock emulation
 
 The board answers like an Elgato Network Dock with the Stream Deck attached to it. Bitfocus
-Companion and the Stream Deck app find it over mDNS and drive the deck directly.
+Companion and the Elgato App find it over mDNS and drive the deck directly.
 
 ## Discovery
 
@@ -26,7 +26,7 @@ The framing ("Cora") is a 16 byte header (`43 93 8a 41`, flags, HID op, message 
 
 ## The two hosts
 
-Companion asks the dock with `GET_REPORT`. The Stream Deck app sends the same question as a plain write padded to
+Companion asks the dock with `GET_REPORT`. The Elgato App sends the same question as a plain write padded to
 1024 bytes. On the device port it wants an acknowledgement for every write with the flag `0x4000` (flags `0x8200`,
 4 zero bytes). Companion never sets that flag, so it tells the two apart. A feature report asked for with only the
 report id gets the full 32 bytes.
@@ -39,4 +39,4 @@ Up to four hosts may hold each port at once. The host list picks the one that dr
   key and strip images.
 - Bitfocus Companion 5.1.2, Surfaces, Discover, Add Connection.
 - Bitfocus Companion 5.2.0 nightly, as a remote surface. The deck shows up with its own serial and keeps its pages.
-- Elgato Stream Deck app 7.6.1 on Windows. The dock and the Stream Deck + connect, and images and input work.
+- Elgato App 7.6.1 on Windows. The dock and the Stream Deck + connect, and images and input work.

@@ -94,7 +94,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
 | `DELETE /api/menu` | Close the menu on the deck, like its close key. It also hides the password, ends the reset question and denies a login request. The deck goes back to the host that draws |
-| `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
+| `POST /api/dock` | Pairing of Companion and Elgato App hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
@@ -135,7 +135,7 @@ Without it they act on the first deck. A deck that is not attached gets a 404.
 ## Who controls the deck
 
 Every host that can draw is in one list: Companion over its Satellite API ([satellite.md](satellite.md)), hosts
-that use the Network Dock emulation (Companion, the Stream Deck app), and your own servers
+that use the Network Dock emulation (Companion, the Elgato App), and your own servers
 ([protocol.md](protocol.md)). Up to 4 servers and up to 4 dock hosts can be connected at once, in any mix.
 `sources` in the status is that list.
 
@@ -145,7 +145,7 @@ or `satellite`. `controller` is the program behind it.
 | `controller` | Program |
 |---|---|
 | `companion` | Bitfocus Companion, over Satellite or as a dock host |
-| `app` | The Elgato Stream Deck app, as a dock host |
+| `app` | The Elgato App, as a dock host |
 | `server` | Your own servers |
 
 To pick an entry, send both: `{"controller": "companion", "host": "satellite"}`.
@@ -244,7 +244,7 @@ again and upload the key again.
   source with `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs,
   or the picked host is not connected.
 - `boot_ms` says when each step of this boot happened first, in ms after the firmware started: the deck, the
-  LAN link, each address, Companion, the Stream Deck app, a server, the first picture of a host, and Companion
+  LAN link, each address, Companion, the Elgato App, a server, the first picture of a host, and Companion
   over its Satellite API.
 - `setup.step` is the web wizard's step, 0 when it does not run. `setup.active` is true until setup is done or
   while the wizard runs; `setup.rerun` is true while it runs again after setup was done.
@@ -294,7 +294,7 @@ are missing and `images` is empty.
 `POST /api/input` acts as if you used the deck. Keys and encoders count from 0. Coordinates are those of
 `/api/screen`.
 
-Companion, the Stream Deck app and the Satellite connection get the input only with `"real"`, because their
+Companion, the Elgato App and the Satellite connection get the input only with `"real"`, because their
 buttons switch real devices. `"real": true` is for a person who pressed something, as the web UI does. A script
 names the host instead, `"real": "192.168.1.20"`, and the press goes out only if that host draws at that moment.
 Without `"real"`, only the DeckConnector's own screens and your own servers get the input.
@@ -317,7 +317,7 @@ deck in between ends the simulated hold, because the deck always reports all key
 
 ## Pairing
 
-Companion and the Stream Deck app connect without a password. The DeckConnector lists every host that connected,
+Companion and the Elgato App connect without a password. The DeckConnector lists every host that connected,
 by its MAC address, so a laptop that gets a new address from DHCP stays the same host. With `dock_paired_only` set in
 the settings, only listed hosts get in. A new host is then let in and listed while none is known and while pairing
 is open. So the first host gets in by itself, and later ones need pairing. Otherwise it is turned away, and the deck

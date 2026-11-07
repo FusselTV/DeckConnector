@@ -466,7 +466,7 @@ static void test_without_the_web_ui(void)
         TEST_ASSERT_TRUE_MESSAGE(chord, decks[d].name);
         ui_action_t act;
         TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* nobody there yet */
-        md.source_count = 1; /* the Stream Deck app or Companion connects */
+        md.source_count = 1; /* the Elgato App or Companion connects */
         md.picked = true;
         TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* a choice made before stays, e.g. a re-run setup */
         md.picked = false;

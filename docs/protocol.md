@@ -58,7 +58,7 @@ ACK `result`:
 | 0 | `SHOWN`, sent to the device |
 | 1 | `SUPERSEDED`, replaced by a newer image before it was sent |
 | 2 | `REJECTED_RECT`, the rectangle is not a target of this display |
-| 3 | `REJECTED_ROLE`, this server is not active, or the menu, the Stream Deck app or Companion owns the device |
+| 3 | `REJECTED_ROLE`, this server is not active, or the menu, the Elgato App or Companion owns the device |
 | 4 | `NO_DEVICE`, no device is connected, or the USB transfer failed |
 | 5 | `BUSY`, the DeckConnector is out of image memory |
 

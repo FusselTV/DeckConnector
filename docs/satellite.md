@@ -34,7 +34,7 @@ back at once.
 ## After a power cut
 
 Companion keeps the session of the last boot open while it still writes to it, and the deck stays taken until
-that session ends. The DeckConnector ends it right after the start, the same way as for the Stream Deck app (see
+that session ends. The DeckConnector ends it right after the start, the same way as for the Elgato App (see
 [dock.md](dock.md)). Companion has the deck again about 10 s after power comes back.
 
 ## Both at once

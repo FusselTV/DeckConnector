@@ -2,7 +2,7 @@
 
 On 2026-11-06 a test sent 150 presses while Companion drew, and Home Assistant switched lights, scenes and a vacuum
 519 times in 40 s. Firmware that reports `simulated_input: "local"` keeps simulated input away from Companion, the
-Stream Deck app and Satellite unless the request carries "real": true. Every test and tool that presses checks
+Elgato App and Satellite unless the request carries "real": true. Every test and tool that presses checks
 `require_input_gate` first, and sends "real" only through `real_input_target`.
 """
 
@@ -23,7 +23,7 @@ NOBODY = ipaddress.ip_network("192.0.2.0/24")
 def require_input_gate(status: dict) -> None:
     if status.get("simulated_input") != "local":
         raise UnsafeBridge(
-            f"firmware {status.get('firmware')} passes simulated presses on to Companion and the Stream Deck app. "
+            f"firmware {status.get('firmware')} passes simulated presses on to Companion and the Elgato App. "
             "Deploy firmware that reports simulated_input=local before pressing anything."
         )
 

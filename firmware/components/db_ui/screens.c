@@ -117,7 +117,7 @@ static const char *ip_of(const ui_model_t *md)
 
 static const char *controller_label(int c)
 {
-    return c == UI_CTRL_SERVER ? "Server" : (c == UI_CTRL_APP ? "Stream Deck App" : "Companion");
+    return c == UI_CTRL_SERVER ? "Server" : (c == UI_CTRL_APP ? "Elgato App" : "Companion");
 }
 
 static const char *const via_label[] = {"", "Satellite", "Dock"}; /* UI_VIA_*; a server says it once */
@@ -254,8 +254,8 @@ static void home_status(page_t *p)
         snprintf(sub, sizeof(sub), "In Companion unter Surfaces als Remote Surface eintragen: %s", ip_of(md));
         status_message(p, ICON_ALERT, C_WARN, "Companion", "Warte auf Companion", sub, "Companion", "wartet");
     } else if (md->controller == UI_CTRL_APP) {
-        status_message(p, ICON_ALERT, C_WARN, "Stream Deck App", "Warte auf die Stream Deck App",
-                       "Die Stream Deck App findet den DeckConnector im Netz selbst", "SD App", "wartet");
+        status_message(p, ICON_ALERT, C_WARN, "Elgato App", "Warte auf die Elgato App",
+                       "Die Elgato App findet den DeckConnector im Netz selbst", "Elgato App", "wartet");
     } else {
         snprintf(sub, sizeof(sub), "%s", md->server_url[0] ? md->server_url : "Sucht einen Server im Netz");
         status_message(p, ICON_ALERT, C_WARN, "Server",
@@ -459,7 +459,7 @@ static void setup_keys(page_t *p)
     }
 }
 
-/* A new deck: the address to type into Companion or the Stream Deck app, and how to reach the menu. The first
+/* A new deck: the address to type into Companion or the Elgato App, and how to reach the menu. The first
  * host that connects draws by itself (ui_first_source). */
 static void welcome(page_t *p)
 {
@@ -477,7 +477,7 @@ static void welcome(page_t *p)
     if (p->l->strip) {
         if (ip) {
             segment(&p->sc->seg[0], 2, ICON_WEB, C_EDIT, "Diese Adresse eintragen", ip,
-                    "in Companion oder der Stream Deck App");
+                    "in Companion oder der Elgato App");
         } else {
             segment(&p->sc->seg[0], 2, ICON_NO_NETWORK, C_DANGER, "Kein Netz", "LAN-Kabel stecken",
                     "nach 1 min startet das Setup-WLAN");

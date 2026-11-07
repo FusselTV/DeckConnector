@@ -1,11 +1,11 @@
 # Bench rules
 
-The bench bridge (192.168.1.214) is also the owner's production deck. Companion and the Stream Deck app behind it
+The bench bridge (192.168.1.214) is also the owner's production deck. Companion and the Elgato App behind it
 switch real lights, scenes, a vacuum and more through Home Assistant, MQTT and HTTP.
 
 - Simulated presses (`POST /api/input`, `{"t": "input"}` on `/api/ws`, encoder turns, touches) must never reach a real
-  host. Firmware that reports `simulated_input: "local"` in `/api/status` keeps them away from Companion, the Stream
-  Deck app and Satellite unless the request carries `"real"`.
+  host. Firmware that reports `simulated_input: "local"` in `/api/status` keeps them away from Companion, the Elgato
+  App and Satellite unless the request carries `"real"`.
 - Never send `"real": true` from a test, tool or script: it is for a person at the web UI. Tools send
   `"real": "<ip>"` with the address from `dbtools.safety.real_input_target`, which allows only a host on this
   machine, and the firmware forwards each press only while that host draws. `tests/test_input_safety.py` and
