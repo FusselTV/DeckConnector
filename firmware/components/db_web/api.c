@@ -1062,18 +1062,17 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_obj_close(j);
 }
 
-static size_t screen_json(char *buf, size_t cap)
+static size_t screen_json_with(char *buf, size_t cap, db_shot_t *shots, db_device_info_t *info)
 {
-    static db_shot_t shots[DB_SCREEN_MAX];
     db_source_t writer;
     size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
-    bool present = db_deck_info(&dev);
+    bool present = db_deck_info(info);
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "writer", db_deck_source_name(writer));
     if (present) {
-        write_geometry(&j, &dev);
+        write_geometry(&j, info);
     }
     db_json_arr_open(&j, "images");
     for (size_t i = 0; present && i < n; i++) {
@@ -1087,6 +1086,20 @@ static size_t screen_json(char *buf, size_t cap)
     db_json_arr_close(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);
+}
+
+static size_t screen_json(char *buf, size_t cap)
+{
+    static db_shot_t shots[DB_SCREEN_MAX];
+    return screen_json_with(buf, cap, shots, &dev);
+}
+
+/* For the event task, which runs outside web_lock(): buffers of its own. */
+size_t api_screen_json(char *buf, size_t cap)
+{
+    static db_shot_t shots[DB_SCREEN_MAX];
+    static db_device_info_t info;
+    return screen_json_with(buf, cap, shots, &info);
 }
 
 esp_err_t get_screen(httpd_req_t *req)

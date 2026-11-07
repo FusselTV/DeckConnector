@@ -487,7 +487,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     }
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
-    events_start(state);
+    events_start(state, api_screen_json);
 #if CONFIG_IDF_TARGET_LINUX
     (void)fingerprint;
 #else

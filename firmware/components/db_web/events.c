@@ -23,6 +23,8 @@
 #define CLIENTS   8
 #define STATE_MAX 4096 /* as big as /api/status: a bigger state would stop going out */
 #define POLL_MS   200
+#define SCREEN_MS 50 /* how soon a changed deck picture reaches the page */
+#define SCREEN_MAX 8192
 #define FRAME_MAX 512
 #define INPUT_MAX 160
 #define LOG_CHUNK 4096 /* per listener and poll: a full log backlog goes out in about 1 s */
@@ -33,6 +35,7 @@ static const char *TAG = "events";
 
 static struct {
     size_t (*state_json)(char *buf, size_t cap);
+    size_t (*screen_json)(char *buf, size_t cap);
     SemaphoreHandle_t lock; /* the client list, and one frame on the wire at a time */
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
     int fds[CLIENTS];
@@ -75,10 +78,16 @@ static void send_locked(httpd_handle_t server, int fd, const char *json)
     xSemaphoreGive(e.lock);
 }
 
+typedef enum {
+    TO_ALL,
+    TO_SESSIONS, /* not to tokens: simulated presses, which an integration must not act on, and deck pictures */
+    TO_TOKENS,
+} audience_t;
+
 typedef struct {
     httpd_handle_t server;
-    int fd;         /* -1: every listener of this server */
-    bool no_tokens; /* simulated presses: an integration must not act on them */
+    int fd; /* -1: every listener of this server */
+    audience_t to;
     char json[];
 } job_t;
 
@@ -91,7 +100,7 @@ static void send_job(void *arg)
     for (int i = 0; i < CLIENTS; i++) {
         int fd = e.fds[i];
         if (fd < 0 || e.servers[i] != job->server || (job->fd >= 0 && fd != job->fd) ||
-            (job->no_tokens && e.by_token[i])) {
+            (job->to == TO_SESSIONS && e.by_token[i]) || (job->to == TO_TOKENS && !e.by_token[i])) {
             continue;
         }
         if (httpd_ws_get_fd_info(job->server, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
@@ -104,7 +113,7 @@ static void send_job(void *arg)
     free(job);
 }
 
-static void queue_job(httpd_handle_t server, int fd, const char *json, bool no_tokens)
+static void queue_job(httpd_handle_t server, int fd, const char *json, audience_t to)
 {
     size_t len = strlen(json) + 1;
     job_t *job = malloc(sizeof(*job) + len);
@@ -113,14 +122,14 @@ static void queue_job(httpd_handle_t server, int fd, const char *json, bool no_t
     }
     job->server = server;
     job->fd = fd;
-    job->no_tokens = no_tokens;
+    job->to = to;
     memcpy(job->json, json, len);
     if (httpd_queue_work(server, send_job, job) != ESP_OK) {
         free(job);
     }
 }
 
-static void broadcast_to(const char *json, bool no_tokens)
+static void broadcast_to(const char *json, audience_t to)
 {
     if (!e.lock) {
         return; /* before db_web_start */
@@ -134,13 +143,13 @@ static void broadcast_to(const char *json, bool no_tokens)
     }
     xSemaphoreGive(e.lock);
     for (int k = 0; k < 2 && servers[k]; k++) {
-        queue_job(servers[k], -1, json, no_tokens);
+        queue_job(servers[k], -1, json, to);
     }
 }
 
 static void broadcast(const char *json)
 {
-    broadcast_to(json, false);
+    broadcast_to(json, TO_ALL);
 }
 
 /* New log text to each listener that asked for it, from where it left off. */
@@ -164,7 +173,7 @@ static void send_log(char *chunk)
         char *json = cJSON_PrintUnformatted(msg);
         cJSON_Delete(msg);
         if (json) {
-            queue_job(server, fd, json, false);
+            queue_job(server, fd, json, TO_ALL);
             free(json);
         }
         xSemaphoreTake(e.lock, portMAX_DELAY);
@@ -261,6 +270,7 @@ static void poll_task(void *arg)
 {
     char *buf = heap_caps_malloc(STATE_MAX, MALLOC_CAP_SPIRAM);
     char *chunk = heap_caps_malloc(LOG_CHUNK + 1, MALLOC_CAP_SPIRAM);
+    char *scr = heap_caps_malloc(SCREEN_MAX + 96, MALLOC_CAP_SPIRAM);
     static db_shot_t shots[DB_SCREEN_MAX];
     char input[INPUT_MAX];
     /* differences only: the tick count wraps after 49.7 days, and a plain comparison would stop the updates
@@ -268,14 +278,42 @@ static void poll_task(void *arg)
     TickType_t polled = xTaskGetTickCount();
     TickType_t ping = polled;
     for (;;) {
-        if (xQueueReceive(e.inputs, input, pdMS_TO_TICKS(POLL_MS)) == pdTRUE) {
-            broadcast_to(input, strstr(input, "\"simulated\":true") != NULL);
+        if (xQueueReceive(e.inputs, input, pdMS_TO_TICKS(SCREEN_MS)) == pdTRUE) {
+            broadcast_to(input, strstr(input, "\"simulated\":true") ? TO_SESSIONS : TO_ALL);
         }
         if (xTaskGetTickCount() - ping >= pdMS_TO_TICKS(PING_MS) && anyone()) {
             ping = xTaskGetTickCount();
             broadcast("{\"t\":\"ping\"}");
         }
-        if (xTaskGetTickCount() - polled < pdMS_TO_TICKS(POLL_MS) || !anyone() || !buf) {
+        if (!anyone()) {
+            continue;
+        }
+        db_source_t writer;
+        size_t count = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
+        uint32_t key = db_deck_shots_key(writer, shots, count);
+        if (key != e.screen) {
+            e.screen = key;
+            char json[96];
+            int k = snprintf(json, sizeof(json), "{\"t\":\"screen\",\"writer\":\"%s\",\"images\":%u",
+                             db_deck_source_name(writer), (unsigned)count);
+            /* a page with a login gets the picture list along and saves a request; tokens fetch it, so the
+             * deck's login code stays hidden from them */
+            size_t m = 0;
+            if (scr) {
+                memcpy(scr, json, (size_t)k);
+                memcpy(scr + k, ",\"screen\":", 10);
+                m = e.screen_json(scr + k + 10, SCREEN_MAX);
+            }
+            strcpy(json + k, "}");
+            if (m) {
+                strcpy(scr + k + 10 + m, "}");
+                broadcast_to(scr, TO_SESSIONS);
+                broadcast_to(json, TO_TOKENS);
+            } else {
+                broadcast(json);
+            }
+        }
+        if (xTaskGetTickCount() - polled < pdMS_TO_TICKS(POLL_MS) || !buf) {
             continue;
         }
         polled = xTaskGetTickCount();
@@ -291,16 +329,6 @@ static void poll_task(void *arg)
         if (n && strcmp(buf, e.state) != 0) {
             memcpy(e.state, buf, n + 1);
             broadcast(buf);
-        }
-        db_source_t writer;
-        size_t count = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
-        uint32_t key = db_deck_shots_key(writer, shots, count);
-        if (key != e.screen) {
-            e.screen = key;
-            char json[96];
-            snprintf(json, sizeof(json), "{\"t\":\"screen\",\"writer\":\"%s\",\"images\":%u}",
-                     db_deck_source_name(writer), (unsigned)count);
-            broadcast(json);
         }
     }
 }
@@ -452,9 +480,10 @@ void db_web_broadcast(const char *json)
     broadcast(json);
 }
 
-void events_start(size_t (*state_json)(char *buf, size_t cap))
+void events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*screen_json)(char *buf, size_t cap))
 {
     e.state_json = state_json;
+    e.screen_json = screen_json;
     e.lock = xSemaphoreCreateMutex();
     e.inputs = xQueueCreate(16, INPUT_MAX);
     input_log = heap_caps_calloc(INPUT_LOG, sizeof(logged_t), MALLOC_CAP_SPIRAM);
