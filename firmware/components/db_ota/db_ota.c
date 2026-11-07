@@ -542,7 +542,11 @@ esp_err_t db_ota_start_url(const char *url)
         return ESP_ERR_NO_MEM;
     }
     ESP_LOGI(TAG, "downloading %s", url);
-    return xTaskCreate(url_task, "ota_url", 6144, copy, 5, NULL) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
+    if (xTaskCreate(url_task, "ota_url", 6144, copy, 5, NULL) != pdPASS) {
+        free(copy);
+        return ESP_ERR_NO_MEM;
+    }
+    return ESP_OK;
 }
 
 static void confirm_task(void *arg)
@@ -579,7 +583,10 @@ static void confirm_on_restart(void)
     esp_ota_img_states_t state;
     if (s_healthy() && esp_ota_get_state_partition(esp_ota_get_running_partition(), &state) == ESP_OK &&
         state == ESP_OTA_IMG_PENDING_VERIFY) {
-        esp_ota_mark_app_valid_cancel_rollback();
+        esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "confirming before the restart failed: %s, the bootloader goes back", esp_err_to_name(err));
+        }
     }
 }
 
@@ -592,7 +599,10 @@ void db_ota_confirm_when(bool (*healthy)(void))
         ESP_LOGW(TAG, "running a new image, waiting for it to prove itself");
         s_healthy = healthy;
         esp_register_shutdown_handler(confirm_on_restart);
-        xTaskCreate(confirm_task, "ota_confirm", 3072, healthy, 2, NULL);
+        if (xTaskCreate(confirm_task, "ota_confirm", 3072, healthy, 2, NULL) != pdPASS) {
+            esp_err_t err = esp_ota_mark_app_valid_cancel_rollback(); /* a rollback at every start is worse */
+            ESP_LOGE(TAG, "no task to watch the new firmware, confirmed at once: %s", esp_err_to_name(err));
+        }
     }
 }
 
