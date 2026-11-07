@@ -124,22 +124,22 @@ export interface Config {
   wlan: IpConf
   wifi_ssid: string
   wifi_pass_set: boolean
-  wifi_bssid?: string
+  wifi_bssid: string
   servers: string[]
   server_pins: string[]
   satellite: string
   satellite_pin: string
   https_only: boolean
   /** The one-time login code the deck shows as a QR code until setup is done. */
-  qr_login?: boolean
-  ntp_server?: string
+  qr_login: boolean
+  ntp_server: string
   cors_origins: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
   usb_speed: 'auto' | 'full'
-  dock_paired_only?: boolean
-  setup_done?: boolean
-  token_set?: boolean
+  dock_paired_only: boolean
+  setup_done: boolean
+  token_set: boolean
 }
 
 /** Keys PUT /api/config takes besides those of Config. */

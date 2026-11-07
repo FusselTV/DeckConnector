@@ -21,6 +21,12 @@ const cfg: Config = {
   menu_chord: 'auto',
   menu_hold_ms: 2000,
   usb_speed: 'auto',
+  wifi_bssid: '',
+  qr_login: true,
+  ntp_server: 'pool.ntp.org',
+  dock_paired_only: false,
+  setup_done: true,
+  token_set: false,
 }
 
 describe('planRestore', () => {

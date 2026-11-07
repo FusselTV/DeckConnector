@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { atom } from '../lib/atom'
 import type { Config, InputEvent, InputLogEntry, Screen, Status, WsMsg } from '../api/types'
 
 export type Conn = 'live' | 'reconnecting' | 'offline'
@@ -123,22 +123,8 @@ export function reduce(s: State, a: Action): State {
   }
 }
 
-let state = initial
-const subs = new Set<() => void>()
-
-export const getState = () => state
-export function dispatch(a: Action) {
-  const next = reduce(state, a)
-  if (next === state) return
-  state = next
-  subs.forEach((f) => f())
-}
-const subscribe = (f: () => void) => {
-  subs.add(f)
-  return () => void subs.delete(f)
-}
-
+const store = atom(initial)
+export const getState = store.get
+export const dispatch = (a: Action) => store.set((s) => reduce(s, a))
 /** Re-renders only when the selected slice changes (by Object.is), so a WS tick touches only its readers. */
-export function useStore<R>(sel: (s: State) => R): R {
-  return useSyncExternalStore(subscribe, () => sel(state))
-}
+export const useStore = <R>(sel: (s: State) => R): R => store.use(sel)

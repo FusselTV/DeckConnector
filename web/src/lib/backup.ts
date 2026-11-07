@@ -67,7 +67,7 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
   if (patch.brightness !== undefined && !(patch.brightness >= 0 && patch.brightness <= 100))
     errors.push('brightness: 0-100')
   for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push(`${k}: text`)
-  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, token: !!cfg.token_set }
+  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, token: cfg.token_set }
   const fc = flat(cfg)
   const fo = flat(patch)
   const rows = Object.keys(fo)

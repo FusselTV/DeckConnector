@@ -290,7 +290,7 @@ export function Access() {
               />
             </Field>
           </div>
-          {cfg?.qr_login !== undefined && (
+          {cfg && (
             <Switch
               id="qr-login"
               on={cfg.qr_login}
