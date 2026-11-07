@@ -115,7 +115,7 @@ async def test_a_simulated_press_reaches_no_integration(token):
                     seen.append(msg)
             assert seen[0]["simulated"] is True, press
         try:
-            while True:
+            for _ in range(20):  # bounded: a source that redraws every second keeps the socket busy
                 assert json.loads(await asyncio.wait_for(ha.recv(), 1))["t"] != "input", "a token got a simulated press"
         except TimeoutError:
             pass

@@ -16,6 +16,6 @@ def test_the_satellite_source_reports_its_health_and_takes_a_retry():
     sat = next(s for s in status()["sources"] if s.get("via") == "satellite")
     assert {"error", "since_s", "iface"} <= sat.keys()
     if sat["connected"]:
-        assert sat["error"] == "" and sat["iface"] in ("lan", "wlan") and sat["since_s"] >= 0
+        assert sat["error"] == "" and sat["iface"] in ("lan", "wlan") and 0 <= sat["since_s"] <= status()["uptime_s"]
     host = json.loads(api("GET", "/api/config")[1])["satellite"]
     assert api("POST", "/api/sources/retry", json.dumps({"host": host}).encode())[0] == 200

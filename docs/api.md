@@ -198,7 +198,7 @@ it restores the settings. The web UI does this under System.
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router
   calls the host, empty when it has no name or is a server. Servers and the Satellite address also have `error`
-  (why the last try failed, empty while connected), `since_s` (how long this state holds) and `iface` (`lan` or
+  (why the last try failed, empty while connected), `since_s` (when this state began, in seconds after the start; compare with `uptime_s`) and `iface` (`lan` or
   `wlan` while connected). `chosen` marks the one that draws whenever no menu
   covers it.
 - `network.wlan.lock` is the access point the DeckConnector is locked to (`wifi_bssid`), empty for any. `join`

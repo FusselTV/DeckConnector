@@ -112,8 +112,8 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
     db_json_bool(j, "connected", connected);
     if (health) { /* a connection the bridge makes: why it is down, since when, over which interface */
         db_json_str(j, "error", connected ? "" : health->error);
-        db_json_int(j, "since_s",
-                    health->since_us ? (int64_t)((esp_timer_get_time() - health->since_us) / 1000000) : 0);
+        db_json_int(j, "since_s", health->since_us / 1000000); /* after the start: an age would change the live
+                                                                state every second */
         db_json_str(j, "iface", connected ? (health->over_wlan ? "wlan" : "lan") : "");
     }
     db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
