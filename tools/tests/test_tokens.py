@@ -27,6 +27,13 @@ def call(method: str, path: str, token: str | None = None, headers: dict | None 
         return e.code, e.read(), e.headers
 
 
+@pytest.fixture(autouse=True)
+def set_up():
+    """Tokens are for a set-up bridge: until then the deck shows a login code, and its pictures are password-only."""
+    if not json.loads(api("GET", "/api/config")[1])["setup_done"]:
+        assert api("PUT", "/api/config", b'{"setup_done": true}')[0] == 200
+
+
 @pytest.fixture
 def token():
     code, body = api("POST", "/api/tokens", json.dumps({"name": "pytest"}).encode())
@@ -173,6 +180,33 @@ def test_a_full_token_reads_and_changes_settings_but_not_the_password(full_token
     assert call("PUT", "/api/config", full_token, body=b'{"admin_pass":"hijacked"}')[0] == 403
     listed = {t["name"]: t["right"] for t in json.loads(api("GET", "/api/tokens")[1])}
     assert listed["pytest-full"] == "full"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        rb'{"\u0061dmin_pass":"hijacked"}',  # cJSON decodes the escape: the key is admin_pass
+        b'{"setup_done":false}',  # reopens setup, and the deck then draws the one-time login QR
+        b'{"qr_login":true}',
+    ],
+    ids=["escaped-key", "setup", "qr-login"],
+)
+def test_a_full_token_may_not_reach_the_password_or_reopen_setup(full_token, body):
+    before = api("GET", "/api/config")[1]
+    assert call("PUT", "/api/config", full_token, body=body)[0] == 403
+    assert api("GET", "/api/config")[1] == before
+
+
+def test_deck_pictures_are_for_the_password_while_the_login_code_shows(token):
+    """Until setup is done the deck draws a one-time login QR: a token reading the pictures would get a session."""
+    assert api("PUT", "/api/config", b'{"setup_done": false}')[0] == 200
+    try:
+        for path in ("/api/screen", "/api/screen.jpg"):
+            assert call("GET", path, token)[0] == 403, path
+            assert api("GET", path)[0] != 403, path
+    finally:
+        api("PUT", "/api/config", b'{"setup_done": true}')
+    assert call("GET", "/api/screen.jpg", token)[0] != 403
 
 
 def test_a_token_right_is_control_or_full():

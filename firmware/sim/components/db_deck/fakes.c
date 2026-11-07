@@ -345,6 +345,12 @@ bool db_ui_login_take(const char *token)
     return ok;
 }
 
+bool db_ui_login_shown(void)
+{
+    const db_config_t *c = db_config(); /* the deck's rule: a code until setup is done */
+    return !c->setup_done && !c->qr_login_off;
+}
+
 void db_ui_setup_step(int step)
 {
 }

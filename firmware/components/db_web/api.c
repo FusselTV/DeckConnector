@@ -362,11 +362,18 @@ static esp_err_t body_api(httpd_req_t *req, int (*api)(const char *body, char *r
     return reply_with(req, api(body, reply, sizeof(reply)), reply);
 }
 
-/* A token, even with full rights, never changes the password. */
+/* A token, even with full rights, never changes the password, nor reopens setup: the deck then shows a one-time
+ * login QR, which /api/screen.jpg would hand to the token. Decided on the parsed keys: cJSON decodes \u escapes. */
 int api_config_token(const char *body, char *reply, size_t cap)
 {
-    return strstr(body, "\"admin_pass\"") ? fail(reply, cap, 403, "needs the password, not a token")
-                                           : api_config(body, reply, cap);
+    static const char *const password_only[] = {"admin_pass", "setup_done", "qr_login"};
+    cJSON *root = cJSON_Parse(body);
+    bool refused = false;
+    for (size_t i = 0; root && i < sizeof(password_only) / sizeof(*password_only); i++) {
+        refused |= cJSON_GetObjectItemCaseSensitive(root, password_only[i]) != NULL;
+    }
+    cJSON_Delete(root);
+    return refused ? fail(reply, cap, 403, "needs the password, not a token") : api_config(body, reply, cap);
 }
 
 /* The reply carries the stored settings, so a page shows what the bridge keeps, not what it sent. */
@@ -391,9 +398,14 @@ esp_err_t put_config(httpd_req_t *req)
     return reply_with(req, code, reply);
 }
 
-/* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. */
+/* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck shows
+ * the one-time login code, its pictures would hand a token a password session. */
 static bool deck_refused(httpd_req_t *req)
 {
+    if (auth_by_token(req) && db_ui_login_shown()) {
+        send_error(req, "403 Forbidden", "the deck shows a login code: for the password only");
+        return true;
+    }
     char query[64];
     char want[32];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||

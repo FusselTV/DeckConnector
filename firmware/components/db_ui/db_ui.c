@@ -239,6 +239,14 @@ bool db_ui_login_take(const char *token)
     return !diff;
 }
 
+bool db_ui_login_shown(void)
+{
+    portENTER_CRITICAL(&login_mux);
+    bool shown = login_token[0] != '\0';
+    portEXIT_CRITICAL(&login_mux);
+    return shown;
+}
+
 void db_ui_setup_step(int step)
 {
     setup_step = (uint8_t)step;

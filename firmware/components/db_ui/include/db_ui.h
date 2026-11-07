@@ -33,6 +33,8 @@ esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len);
 bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last);
 /* True once for the token the welcome pages show as a QR code, while it is shown and not 10 min old. */
 bool db_ui_login_take(const char *token);
+/* The deck shows a one-time login code: pictures of the deck are then for a password session only. */
+bool db_ui_login_shown(void);
 /* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
 void db_ui_setup_step(int step);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */
