@@ -2,10 +2,10 @@ import { useLayoutEffect, useRef } from 'react'
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ')
 
-export const ls = {
+const store = (st: () => Storage) => ({
   get<V>(k: string, d: V): V {
     try {
-      const v = localStorage.getItem(k)
+      const v = st().getItem(k)
       return v == null ? d : (JSON.parse(v) as V)
     } catch {
       return d
@@ -13,12 +13,15 @@ export const ls = {
   },
   set(k: string, v: unknown) {
     try {
-      localStorage.setItem(k, JSON.stringify(v))
+      if (v === undefined) st().removeItem(k)
+      else st().setItem(k, JSON.stringify(v))
     } catch {
       /* private mode */
     }
   },
-}
+})
+export const ls = store(() => localStorage)
+export const ss = store(() => sessionStorage)
 
 export async function copyText(text: string, el?: HTMLElement | null): Promise<boolean> {
   try {

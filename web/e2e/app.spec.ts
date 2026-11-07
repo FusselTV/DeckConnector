@@ -67,6 +67,23 @@ test('drafts from two tabs save in one request with only the changed fields', as
   expect(await sim('GET', '/api/config')).toMatchObject({ input_lock: true, menu_hold_ms: 3000 })
 })
 
+test('closing the Companion dialog while it tests the address saves nothing', async ({ app: page }) => {
+  const puts: unknown[] = []
+  page.on('request', (r) => r.method() === 'PUT' && r.url().endsWith('/api/config') && puts.push(r.postDataJSON()))
+  await page.route('**/api/sources/probe', async (r) => {
+    await new Promise((f) => setTimeout(f, 1500))
+    await r.fulfill({ json: { ok: true } })
+  })
+  await openTab(page, 'Sources')
+  await page.locator('#src-add').click()
+  await page.locator('#m-sat').fill('10.9.9.9')
+  await page.getByRole('dialog').getByRole('button', { name: /^Save/ }).click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.waitForTimeout(2500)
+  expect(puts).toEqual([])
+})
+
 test('dialogs confirm, cancel and create', async ({ app: page }) => {
   await page
     .getByRole('button', { name: /Restart/ })

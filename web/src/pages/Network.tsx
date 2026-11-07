@@ -16,7 +16,7 @@ import type { Key } from '../i18n/types'
 import { ls } from '../lib/util'
 import { ipErrors, NAME_RE, nameError, splitCidr, wifiError, type IpErrors } from '../lib/validate'
 
-const EMPTY: IpConf = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
+export const EMPTY: IpConf = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
 const LABEL: Record<'ip' | 'mask' | 'gateway' | 'dns', Key> = {
   ip: 'net.ip',
   mask: 'net.mask',

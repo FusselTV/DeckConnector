@@ -496,6 +496,8 @@ export const de: Dict = {
   'wiz.test': 'Verbindung testen',
   'wiz.testing': 'Teste…',
   'wiz.test_ok': 'Verbunden mit „{ssid}“. Adresse {ip}.',
+  'wiz.pw_again':
+    'Beim Neuladen hat die Seite das neue Passwort vergessen. Gib es noch einmal ein oder behalte das bisherige.',
   'wiz.test_bad': 'Das Passwort passt nicht. Prüfe Groß- und Kleinschreibung.',
   'wiz.test_need': 'Bitte erst die Verbindung testen.',
   'wiz.expert': 'Für Fortgeschrittene',

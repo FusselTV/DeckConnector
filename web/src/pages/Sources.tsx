@@ -15,7 +15,7 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Found, Source } from '../api/types'
 import { pendingAtom, putConfig, useActions } from '../app/actions'
@@ -88,28 +88,42 @@ function PinField({
   )
 }
 
-function CompanionForm({ close }: { close: () => void }) {
-  const { t, act } = useUi()
-  const cfg = useStore((s) => s.config)
+/** Companions on the network. The first call starts a 2 s search; the second one has the answers. */
+export function useFound(on = true) {
   const [found, setFound] = useState<Found[] | null>(null)
-  const [sat, setSat] = useState(cfg?.satellite ?? '')
-  const [pin, setPin] = useState(cfg?.satellite_pin ?? '')
-  const [err, setErr] = useState<{ sat?: string; pin?: string }>({})
   useEffect(() => {
+    if (!on) return
     let off = false
-    // The first call starts a 2 s search; the second one has the answers.
     void api
       .found()
       .then(() => new Promise((r) => setTimeout(r, 2200)))
       .then(() => api.found())
       .then(
-        (f) => !off && setFound(f),
+        (f) => !off && setFound(Array.isArray(f) ? f : []),
         () => !off && setFound([]),
       )
     return () => {
       off = true
     }
-  }, [])
+  }, [on])
+  return found
+}
+
+function CompanionForm({ close }: { close: () => void }) {
+  const { t, act } = useUi()
+  const cfg = useStore((s) => s.config)
+  const found = useFound()
+  const [sat, setSat] = useState(cfg?.satellite ?? '')
+  const [pin, setPin] = useState(cfg?.satellite_pin ?? '')
+  const [err, setErr] = useState<{ sat?: string; pin?: string }>({})
+  // Cancel or Escape while the address is tested abandons the save.
+  const gone = useRef(false)
+  useEffect(
+    () => () => {
+      gone.current = true
+    },
+    [],
+  )
   const canProbe = useRoute('POST', '/api/sources/probe')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
@@ -127,6 +141,7 @@ function CompanionForm({ close }: { close: () => void }) {
       const r = await api
         .probe(addr, normPin(p))
         .catch((x: unknown) => ({ ok: false, error: x instanceof Error ? x.message : '' }))
+      if (gone.current) return
       setBusy(false)
       if (!r.ok) {
         setFailed(addr)

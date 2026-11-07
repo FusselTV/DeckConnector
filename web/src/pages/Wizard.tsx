@@ -21,9 +21,9 @@ import {
   Wifi,
   X,
 } from 'lucide-react'
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { api } from '../api/client'
-import type { Found, IpConf } from '../api/types'
+import type { IpConf } from '../api/types'
 import { putConfig, useActions } from '../app/actions'
 import { refreshConfig, refreshStatus } from '../app/connection'
 import { decksOf, hostLabel, reachList } from '../app/derive'
@@ -37,52 +37,65 @@ import { Row } from '../components/Row'
 import { WifiPicker, type WifiChoice } from '../components/WifiPicker'
 import { Logo } from '../deck/DeckFront'
 import type { TKey } from '../i18n'
-import { useLatest } from '../lib/util'
-import { companionError, ipErrors, normPin, passwordError, pinError, wsUrlError } from '../lib/validate'
-import { NetBlock } from './Network'
+import { ss, useLatest } from '../lib/util'
+import {
+  companionError,
+  ipErrors,
+  NAME_RE,
+  nameError,
+  normPin,
+  passwordError,
+  pinError,
+  wifiError,
+  wsUrlError,
+} from '../lib/validate'
+import { EMPTY, joinWifi, NetBlock } from './Network'
+import { useFound } from './Sources'
 
 const STEPS = ['lang', 'pw', 'net', 'src', 'done'] as const
 type Step = (typeof STEPS)[number] | 'find' | 'moving'
 const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', find: 'net', moving: 'net', src: 'net', done: 'src' }
-const EMPTY: IpConf = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
 
 // The device keeps the step as 1 to 6 (lang, login, password, network, source, done), so a refresh or a second
 // browser resumes; sessionStorage covers firmware without PUT /api/setup.
-const NUM: Record<Step, number> = { lang: 1, pw: 3, net: 4, find: 4, moving: 4, src: 5, done: 6 }
 const FROM_NUM: Step[] = ['lang', 'lang', 'pw', 'pw', 'net', 'src', 'done']
-const saved = (): Step => {
+const num = (s: Step) => (s === 'find' || s === 'moving' ? 4 : FROM_NUM.lastIndexOf(s))
+// A new password lives only in this page until the network step saves it. After a reload it is gone, so the
+// wizard asks for it again instead of finishing with the old one.
+const PW_PENDING = 'dc.wizpw'
+const resumed = (): Step => {
   const n = getState().status.setup?.step
-  if (n) return FROM_NUM[n] ?? 'lang'
-  try {
-    return (sessionStorage.getItem('dc.wiz') as Step | null) ?? 'lang'
-  } catch {
-    return 'lang'
-  }
+  const s = n ? (FROM_NUM[n] ?? 'lang') : ss.get<Step>('dc.wiz', 'lang')
+  return (s === 'net' || s === 'find') && ss.get<boolean>(PW_PENDING, false) ? 'pw' : s
 }
 
 function useStep() {
-  const [step, set] = useState<Step>(saved)
+  const [step, setStep] = useState<Step>(resumed)
   const hasSetup = useRoute('PUT', '/api/setup')
+  const wentBack = useRef(false)
   useEffect(() => {
-    try {
-      sessionStorage.setItem('dc.wiz', step)
-    } catch {
-      /* private mode */
-    }
-    if (hasSetup) void api.setup(NUM[step]).catch(() => undefined)
+    ss.set('dc.wiz', step)
+    // Next never moves the device's step back, so a second, older tab cannot undo the first one.
+    if (hasSetup && (wentBack.current || num(step) >= (getState().status.setup?.step ?? 0)))
+      void api.setup(num(step)).catch(() => undefined)
+    wentBack.current = false
     document.getElementById('wz-step')?.focus()
   }, [step, hasSetup])
+  const set = useCallback((s: Step, back = false) => {
+    wentBack.current = back
+    setStep(s)
+  }, [])
   // Browser back = wizard back: one guard entry in the history, stepped back on popstate (rule 28).
   const back = useLatest(BACK[step])
   useEffect(() => {
     history.pushState({ wiz: 1 }, '')
     const f = () => {
-      if (back.current) set(back.current)
+      if (back.current) set(back.current, true)
       history.pushState({ wiz: 1 }, '')
     }
     addEventListener('popstate', f)
     return () => removeEventListener('popstate', f)
-  }, [back])
+  }, [back, set])
   return [step, set] as const
 }
 
@@ -141,16 +154,23 @@ export function Wizard() {
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
   const [pwTried, setPwTried] = useState(false)
-  const [name, setName] = useState(cfg?.name ?? '')
-  const [lan, setLan] = useState<IpConf>(cfg?.lan ?? EMPTY)
-  const [wlan, setWlan] = useState<IpConf>(cfg?.wlan ?? EMPTY)
-  const [useWlan, setUseWlan] = useState(!!cfg?.wifi_ssid || !cable)
-  const [wifi, setWifi] = useState<WifiChoice>({ ssid: cfg?.wifi_ssid ?? '', pass: '', bssid: cfg?.wifi_bssid ?? '' })
+  // Edits over the stored values: the wizard can open before GET /api/config answers.
+  const [d, setD] = useState<{ name?: string; lan?: IpConf; wlan?: IpConf; useWlan?: boolean; wifi?: WifiChoice }>({})
+  const name = d.name ?? cfg?.name ?? ''
+  const lan = d.lan ?? cfg?.lan ?? EMPTY
+  const wlan = d.wlan ?? cfg?.wlan ?? EMPTY
+  const useWlan = d.useWlan ?? (!!cfg?.wifi_ssid || !cable)
+  const wifi = d.wifi ?? { ssid: cfg?.wifi_ssid ?? '', pass: '', bssid: cfg?.wifi_bssid ?? '' }
+  const setName = (name: string) => setD((o) => ({ ...o, name }))
+  const setLan = (lan: IpConf) => setD((o) => ({ ...o, lan }))
+  const setWlan = (wlan: IpConf) => setD((o) => ({ ...o, wlan }))
+  const setUseWlan = (useWlan: boolean) => setD((o) => ({ ...o, useWlan }))
+  const setWifi = (wifi: WifiChoice) => setD((o) => ({ ...o, wifi }))
+  const nameE = nameError(name)
   const [editNet, setEditNet] = useState(!rerun)
   const [test, setTest] = useState<null | 'run' | 'ok' | 'bad'>(null)
   const [wErr, setWErr] = useState<string | null>(null)
   const [src, setSrc] = useState<'app' | 'comp' | 'srv' | null>(null)
-  const [found, setFound] = useState<Found[] | null>(null)
   const [addr, setAddr] = useState('')
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
@@ -164,14 +184,7 @@ export function Wizard() {
   const where = reachList(st, !!cfg?.https_only, name || (cfg?.name ?? ''))
   const hold = (cfg?.menu_hold_ms ?? 2000) / 1000
 
-  useEffect(() => {
-    if (step !== 'src' || src !== 'comp' || found) return
-    void api
-      .found()
-      .then(() => new Promise((r) => setTimeout(r, 2200)))
-      .then(() => api.found())
-      .then(setFound, () => setFound([]))
-  }, [step, src, found])
+  const found = useFound(step === 'src' && src === 'comp')
   // While the app path waits, the status shows a pairing request as soon as the app asks.
   useEffect(() => {
     if (step !== 'src' || src !== 'app') return
@@ -187,35 +200,22 @@ export function Wizard() {
   }, [step, src])
 
   const runTest = async () => {
-    if (!wifi.ssid) {
-      setWErr(t('wifi.pick'))
+    const e = wifiError(wifi.ssid, wifi.pass)
+    if (e) {
+      setWErr(t(e))
       return false
     }
     if (!canJoin) return true
     setTest('run')
     setWErr(null)
-    try {
-      await api.wifiJoin(wifi.ssid, wifi.pass, wifi.bssid)
-      for (let i = 0; i < 20; i++) {
-        await new Promise((r) => setTimeout(r, 1000))
-        await refreshStatus()
-        const w = getState().status.network?.wlan
-        if (w?.join === 'ok') {
-          setTest('ok')
-          return true
-        }
-        if (w?.join === 'failed') break
-      }
-    } catch {
-      /* falls through to the error */
-    }
-    setTest('bad')
-    setWErr(t('wiz.test_bad'))
-    return false
+    const r = await joinWifi(wifi).catch(() => 'failed')
+    setTest(r === null ? 'ok' : 'bad')
+    if (r !== null) setWErr(r === 'lost' ? t('wifi.lost') : t('wiz.test_bad'))
+    return r === null
   }
   const nextNet = async () => {
     if (!editNet) return setStep('src')
-    if (Object.keys(ipErrors(lan)).length || (useWlan && Object.keys(ipErrors(wlan)).length)) {
+    if (nameE || Object.keys(ipErrors(lan)).length || (useWlan && Object.keys(ipErrors(wlan)).length)) {
       const fx = document.getElementById('w-expert')
       if (fx instanceof HTMLDetailsElement) fx.open = true
       setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 50)
@@ -242,7 +242,9 @@ export function Wizard() {
       )
       return true
     })
-    if (ok) setStep(onAp ? 'moving' : 'src')
+    if (!ok) return
+    ss.set(PW_PENDING, undefined)
+    setStep(onAp ? 'moving' : 'src')
   }
   const compConnect = async (target: string, p: string) => {
     const e = companionError(target) ?? (target.startsWith('wss://') ? pinError(p) : null)
@@ -283,11 +285,7 @@ export function Wizard() {
   const finish = async () => {
     const ok = await act(() => putConfig({ setup_done: true }))
     if (ok === undefined) return
-    try {
-      sessionStorage.removeItem('dc.wiz')
-    } catch {
-      /* private mode */
-    }
+    ss.set('dc.wiz', undefined)
     await api.setup(0).catch(() => undefined)
     await Promise.all([refreshConfig(), refreshStatus()])
   }
@@ -308,7 +306,7 @@ export function Wizard() {
             ? 'wiz.d_pair'
             : 'wiz.d_step'
   const backBtn = BACK[step] ? (
-    <Btn id="w-back" kind="ghost" icon={ChevronLeft} onClick={() => setStep(BACK[step] as Step)}>
+    <Btn id="w-back" kind="ghost" icon={ChevronLeft} onClick={() => setStep(BACK[step] as Step, true)}>
       {t('c.back')}
     </Btn>
   ) : (
@@ -373,6 +371,7 @@ export function Wizard() {
       t('wiz.pw_q'),
       <>
         <p className="muted">{t(rerun ? 'wiz.pw_rerun' : 'wiz.pw_why')}</p>
+        {!pw && ss.get<boolean>(PW_PENDING, false) && <p className="warnline">{t('wiz.pw_again')}</p>}
         <div className="grid2">
           <Field id="wpw" label={t('access.pw_new')} hint={t('access.pw_h')} err={pwTried && pwE.pw ? t(pwE.pw) : null}>
             <PwInput
@@ -393,12 +392,14 @@ export function Wizard() {
       <>
         {backBtn}
         <div className="row">
-          <Btn kind="ghost" onClick={() => (setPw(''), setPw2(''), setStep('net'))}>
+          <Btn kind="ghost" onClick={() => (setPw(''), setPw2(''), ss.set(PW_PENDING, undefined), setStep('net'))}>
             {t('wiz.pw_keep')}
           </Btn>
           {next(t('c.next'), () => {
             setPwTried(true)
-            if (!pwE.pw && !pwE.rep) setStep('net')
+            if (pwE.pw || pwE.rep) return
+            ss.set(PW_PENDING, !!pw || undefined)
+            setStep('net')
           })}
         </div>
       </>,
@@ -450,13 +451,14 @@ export function Wizard() {
             </>
           )}
           <Row id="w-expert" group="wiz" icon={NetIcon} title={t('wiz.expert')}>
-            <Field id="wname" label={t('net.name')} hint={t('net.name_h')}>
+            <Field id="wname" label={t('net.name')} hint={t('net.name_h')} err={nameE && t(nameE)}>
               <input
-                {...describedBy('wname', null, true)}
+                {...describedBy('wname', nameE, true)}
                 className="in mono"
                 maxLength={31}
+                pattern={NAME_RE.source}
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.trim())}
               />
             </Field>
             {cable && (
@@ -503,7 +505,7 @@ export function Wizard() {
       </>,
       <>
         {backBtn}
-        <Btn kind="pri" icon={Power} onClick={() => void saveNet()}>
+        <Btn kind="pri" icon={Power} disabled={!cfg} onClick={() => void saveNet()}>
           {t(rerun || !onAp ? 'c.save_restart' : 'wiz.find_go')}
         </Btn>
       </>,

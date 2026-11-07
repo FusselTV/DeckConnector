@@ -489,6 +489,7 @@ export const en = {
   'wiz.test': 'Test connection',
   'wiz.testing': 'Testing…',
   'wiz.test_ok': 'Connected to "{ssid}". Address {ip}.',
+  'wiz.pw_again': 'The page forgot the new password when it reloaded. Enter it again, or keep the current one.',
   'wiz.test_bad': 'The password does not match. Check upper and lower case.',
   'wiz.test_need': 'Please test the connection first.',
   'wiz.expert': 'For experts',

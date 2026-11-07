@@ -113,6 +113,11 @@ export function WifiPicker(p: {
         <Info size={14} aria-hidden />
         {t('wifi.band')}
       </p>
+      {p.err && !hidden && !groups.some((g) => g.ssid === ssid && g.ssid !== p.current && !g.open) && (
+        <span className="err" id={`${p.id}-err`} role="alert">
+          {p.err}
+        </span>
+      )}
       <ul className="wlist" aria-label={t('wifi.list')} aria-busy={scan === null}>
         {scan === null && (
           <li className="wnet empty">
