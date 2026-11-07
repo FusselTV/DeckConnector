@@ -13,7 +13,10 @@
 #include "psa/crypto.h"
 
 #define PEM_MAX    1024
-#define CUSTOM_MAX 8192 /* an uploaded certificate may carry its chain */
+/* An uploaded certificate may carry its chain. Together with the key it lives in the 24 KB NVS partition next
+ * to the settings, which need room for a new copy each time they are saved. */
+#define CUSTOM_MAX  6144
+#define NVS_SPARE   4096
 
 static const char *TAG = "cert";
 
@@ -84,7 +87,7 @@ static bool load_custom(nvs_handle_t h, char **cert, char **key)
 {
     size_t cl = 0, kl = 0;
     if (nvs_get_blob(h, "ccert", NULL, &cl) != ESP_OK || nvs_get_blob(h, "ckey", NULL, &kl) != ESP_OK ||
-        cl > CUSTOM_MAX || kl > CUSTOM_MAX) {
+        cl + kl > CUSTOM_MAX) {
         return false;
     }
     char *c = heap_caps_calloc(1, cl + 1, MALLOC_CAP_SPIRAM);
@@ -99,6 +102,9 @@ static bool load_custom(nvs_handle_t h, char **cert, char **key)
     ESP_LOGE(TAG, "the uploaded certificate no longer loads, using the own one");
     heap_caps_free(c);
     heap_caps_free(k);
+    nvs_erase_key(h, "ccert"); /* its NVS space goes back to the settings */
+    nvs_erase_key(h, "ckey");
+    nvs_commit(h);
     return false;
 }
 
@@ -185,14 +191,20 @@ esp_err_t web_cert_store(const char *cert, const char *key)
     if (err != ESP_OK) {
         return err;
     }
-    if (cert) {
+    nvs_stats_t st;
+    if (cert && (nvs_get_stats(NULL, &st) != ESP_OK ||
+                 st.free_entries * 32 < strlen(cert) + strlen(key) + NVS_SPARE)) {
+        err = ESP_ERR_NVS_NOT_ENOUGH_SPACE;
+    } else if (cert) {
         err = nvs_set_blob(h, "ccert", cert, strlen(cert));
         err = err == ESP_OK ? nvs_set_blob(h, "ckey", key, strlen(key)) : err;
-    } else {
+    }
+    if (!cert || err != ESP_OK) { /* never a new certificate next to the old key */
         nvs_erase_key(h, "ccert");
         nvs_erase_key(h, "ckey");
     }
-    err = err == ESP_OK ? nvs_commit(h) : err;
+    esp_err_t committed = nvs_commit(h);
+    err = err == ESP_OK ? committed : err;
     nvs_close(h);
     return err;
 }
@@ -218,12 +230,20 @@ esp_err_t put_tls(httpd_req_t *req)
     const cJSON *key = cJSON_GetObjectItemCaseSensitive(root, "key");
     bool apply = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "apply"));
     char info[400];
-    bool ok = cJSON_IsString(cert) && cJSON_IsString(key) && strlen(cert->valuestring) <= CUSTOM_MAX &&
-              strlen(key->valuestring) <= CUSTOM_MAX && web_cert_check(cert->valuestring, key->valuestring, info, sizeof(info));
+    bool sized = cJSON_IsString(cert) && cJSON_IsString(key) &&
+                 strlen(cert->valuestring) + strlen(key->valuestring) <= CUSTOM_MAX;
+    bool ok = sized && web_cert_check(cert->valuestring, key->valuestring, info, sizeof(info));
     esp_err_t stored = ok && apply ? web_cert_store(cert->valuestring, key->valuestring) : ESP_OK;
+    bool parsed = root != NULL;
     cJSON_Delete(root);
+    if (!sized && parsed) {
+        return send_error(req, "413 Payload Too Large", "certificate and key: at most 6144 bytes together");
+    }
     if (!ok) {
         return send_error(req, "400 Bad Request", "a PEM certificate and its PEM key (not encrypted) expected");
+    }
+    if (stored == ESP_ERR_NVS_NOT_ENOUGH_SPACE) {
+        return send_error(req, "507 Insufficient Storage", "not saved: too little room next to the settings");
     }
     if (stored != ESP_OK) {
         return send_error(req, "500 Internal Server Error", "not saved");
