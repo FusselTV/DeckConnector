@@ -32,7 +32,7 @@ export interface Deck extends DeckInfo {
   speed: 'high' | 'full'
 }
 
-/** `decks` from newer firmware, else the single `device`. Per-deck USB speed falls back to the global counter. */
+/** `decks`, else the single `device`. Per-deck USB speed falls back to the global counter. */
 export function decksOf(st: Status): Deck[] {
   const list = st.decks?.length ? st.decks : st.device ? [st.device] : []
   return list.map((d) => ({

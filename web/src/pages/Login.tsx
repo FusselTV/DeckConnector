@@ -240,7 +240,7 @@ export function Login() {
   )
 }
 
-/** Session ended while the page was open: the status stays visible, changes wait for the password (api-gaps #20). */
+/** Session ended while the page was open: the status stays visible, changes wait for the password. */
 export function LoginBar() {
   const { t } = useUi()
   const L = useLogin()

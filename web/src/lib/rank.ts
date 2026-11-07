@@ -1,4 +1,4 @@
-// Search ranking as in the Ausguck launcher: label prefix, then word prefix, then substring, then ordered fuzzy,
+// Search ranking: label prefix, then word prefix, then substring, then ordered fuzzy,
 // then typo-tolerant fuzzy. Recent picks for a similar query rank higher and fade with a two-week half-life.
 import uFuzzy from '@leeoniya/ufuzzy'
 
@@ -8,7 +8,7 @@ export interface Cmd {
   label: string
   /** Second line: the help text of a setting, or where it lives. */
   hint?: string
-  /** Help text of a setting, shown as its second line (rule 21). */
+  /** Help text of a setting, shown as its second line. */
   detail?: string
   /** Hidden search words. */
   kw?: string

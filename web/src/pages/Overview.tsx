@@ -70,7 +70,7 @@ export function Hero() {
   )
 }
 
-/** Status strip: one line per tile, each a deep link (rules 16, 24). */
+/** Status strip: one line per tile, each a deep link. */
 function Meter() {
   const { t, fmt, jump } = useUi()
   const conn = useStore((s) => s.conn)
@@ -546,7 +546,7 @@ function HostRow({ s, pending, onPick }: { s: Source; pending: string | null; on
   )
 }
 
-/** "Aktive Quelle": pick who draws (rules 25, 29). */
+/** "Aktive Quelle": pick who draws. */
 export function Hosts({ limit }: { limit?: boolean }) {
   const { t, go } = useUi()
   const a = useActions()

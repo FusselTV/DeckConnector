@@ -2,7 +2,7 @@ import { ChevronDown, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { SIcon, type Tone } from './controls'
 
-/** The one expandable row (rule 3). Rows sharing `group` form an accordion (rule 17). */
+/** The one expandable row. Rows sharing `group` form an accordion. */
 export function Row(p: {
   id?: string
   icon: LucideIcon

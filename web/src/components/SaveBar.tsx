@@ -6,7 +6,7 @@ import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { useLatest } from '../lib/util'
 
-/** Registers a tab's in-place settings with the one save bar (rule 4). */
+/** Registers a tab's in-place settings with the one save bar. */
 export function useDraft(tab: Tab, d: Draft) {
   const ref = useLatest(d)
   const { dirty, restart } = d

@@ -1,4 +1,4 @@
-// Every field the firmware may leave out is optional: old firmware and the host simulator send less.
+// Every field the firmware may leave out is optional: the host simulator sends less.
 
 export type Kind = 'companion' | 'app' | 'server' | 'unknown'
 export type Right = 'control' | 'full'
@@ -47,8 +47,7 @@ export interface Pairing {
   open?: boolean
   open_s?: number
   auto_open?: boolean
-  /** Hosts refused since the start (api-gaps #17), on firmware that lists them. */
-  /** since_s: seconds after the start when the host was refused. */
+  /** Hosts refused since the start; since_s is when, in seconds after the start. */
   denied?: { ip: string; name?: string; since_s?: number }[]
   hosts?: PairHost[]
 }
@@ -102,7 +101,7 @@ export interface Status {
   boot_ms?: Record<string, number>
   memory?: Record<string, number>
   setup?: { active?: boolean; step?: number; rerun?: boolean }
-  /** Seconds the input lock stays open after PUT /api/input/arm. Only in GET /api/status. */
+  /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
   boot?: { reason?: string; at?: number | null }
   update?: { latest?: string; at?: string }

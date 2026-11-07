@@ -30,7 +30,7 @@ interface Issues {
   notes: NoticeData[]
 }
 const Ctx = createContext<Issues>({ list: [], notes: [] })
-/** Need-attention items for the top of Overview and the banner on other tabs (rule 13), worst first. */
+/** Need-attention items for the top of Overview and the banner on other tabs, worst first. */
 export const useIssues = () => useContext(Ctx)
 /** Works the issues out once for every reader; its children are passed in, so they do not re-render with it. */
 export const IssuesProvider = ({ children }: { children: ReactNode }) =>

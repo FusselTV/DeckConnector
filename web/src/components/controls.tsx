@@ -5,7 +5,7 @@ import { cx, roam } from '../lib/util'
 
 export type Tone = 'ok' | 'warn' | 'bad' | 'acc' | ''
 
-/** Status icon for a thing (Ethernet, deck, source), coloured by state (rule 2). */
+/** Status icon for a thing (Ethernet, deck, source), coloured by state. */
 export function SIcon({
   icon: I,
   tone = '',
@@ -29,7 +29,7 @@ export function SIcon({
   )
 }
 
-/** The one LED: the live connection in the status strip (rule 2). */
+/** The one LED: the live connection in the status strip. */
 export const Led = ({ tone, pulse }: { tone: Tone; pulse?: boolean }) => (
   <span className={cx('led', tone, pulse && 'pulse')} aria-hidden />
 )
@@ -145,7 +145,7 @@ export function Switch(p: {
   )
 }
 
-/** Up to four exclusive options (rule 6). Arrow keys move the choice, as a radio group does. */
+/** Up to four exclusive options. Arrow keys move the choice, as a radio group does. */
 export function Seg<V extends string>(p: {
   id?: string
   label: string

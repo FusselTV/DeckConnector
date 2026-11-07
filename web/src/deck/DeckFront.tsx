@@ -59,7 +59,7 @@ export interface DeckFrontProps {
   armed: boolean
   /** The last input from the store, so presses on the real deck light up here. */
   last: InputEvent | undefined
-  /** Called for a press while not armed: the remote-control pill shakes (rule 23). */
+  /** Called for a press while not armed: the remote-control pill shakes. */
   onLocked: () => void
   /** `auto` marks a turn from auto-repeat, which must not keep the remote control on. */
   send: (body: InputBody, auto?: boolean) => void
@@ -173,7 +173,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     if (!armed) stop.current()
   }, [armed, stop])
 
-  // Encoders are endless: show the turn as a +n badge, then spring back to rest (rule 12).
+  // Encoders are endless: show the turn as a +n badge, then spring back to rest.
   const turn = (e: number, d: number, auto = false) => {
     if (blocked()) return false
     flash(`e${e}`, 'web')
@@ -235,7 +235,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     const fx = (e.clientX - r.left) / r.width
     const g: Drag = { x: e.clientX, acc: 0, turned: false, z: fx < 0.35 ? -1 : fx > 0.65 ? 1 : 0, t0: e.timeStamp }
     dd.current.set(i, g)
-    // Holding an arrow zone turns on and speeds up until release (rule 23), for a few seconds at most.
+    // Holding an arrow zone turns on and speeds up until release, for a few seconds at most.
     if (g.z) {
       const rep = (ms: number) => {
         g.rep = true

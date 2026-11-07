@@ -88,7 +88,7 @@ function useStep() {
     wentBack.current = back
     setStep(s)
   }, [])
-  // Browser back = wizard back: one guard entry in the history, stepped back on popstate (rule 28).
+  // Browser back = wizard back: one guard entry in the history, stepped back on popstate.
   const back = useLatest(BACK[step])
   useEffect(() => {
     history.pushState({ wiz: 1 }, '')

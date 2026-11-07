@@ -55,9 +55,8 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
   const method = o.method ?? (o.body !== undefined || o.raw !== undefined ? 'POST' : 'GET')
   if (READONLY && method !== 'GET' && !/^\/api\/log(in|out)$/.test(path))
     throw new ApiError(403, 'read-only dev target', 'readonly')
-  // A hung request ends with an error instead of an idle button. Uploads take as long as they take, and a login
-  // may be held back by the device for up to a minute.
-  const limit = o.raw ? 0 : path === '/api/login' ? 90_000 : 20_000
+  // A hung request ends with an error instead of an idle button. Uploads take as long as they take.
+  const limit = o.raw ? 0 : 20_000
   let res: Response
   try {
     res = await fetch(path, {
@@ -86,7 +85,7 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
   return data as R
 }
 
-/** A list reply that is not a list (older or newer firmware, a cut reply) fails like any other error. */
+/** A list reply that is not a list (a cut reply, a proxy page) fails like any other error. */
 const list = <T>(p: Promise<T[]>) =>
   p.then((x) => {
     if (!Array.isArray(x)) throw new ApiError(502, '', 'badreply')

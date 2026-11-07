@@ -85,7 +85,7 @@ function Spark({ label, data, fmt }: { label: string; data: number[]; fmt: (n: n
   )
 }
 
-/** The log in a bounded box (rule 29); the newest LOG_LINES lines are kept. */
+/** The log in a bounded box; the newest LOG_LINES lines are kept. */
 const LogCard = memo(function LogCard() {
   const { t } = useUi()
   const conn = useStore((s) => s.conn)

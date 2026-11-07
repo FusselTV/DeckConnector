@@ -492,7 +492,7 @@ export function Shell() {
     addEventListener('keydown', f)
     return () => removeEventListener('keydown', f)
   }, [restarting])
-  // A visited tab stays mounted (hidden), so its unsaved draft survives a tab switch (rule 4).
+  // A visited tab stays mounted (hidden), so its unsaved draft survives a tab switch.
   const [seen, setSeen] = useState<Tab[]>([tab])
   if (!seen.includes(tab)) setSeen([...seen, tab])
   return (

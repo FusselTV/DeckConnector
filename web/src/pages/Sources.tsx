@@ -381,7 +381,7 @@ function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () 
   )
 }
 
-/** Add or edit a source; commits with its own button, never the save bar (rule 15). */
+/** Add or edit a source; commits with its own button, never the save bar. */
 function SourceModal({
   cfg,
   type: type0,

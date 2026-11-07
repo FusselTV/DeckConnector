@@ -4,7 +4,7 @@ import { toast } from '../app/state'
 import { useUi } from '../app/ui'
 import { copyText } from '../lib/util'
 
-/** An input or value box and its button in one row, same height (rule 14). */
+/** An input or value box and its button in one row, same height. */
 export const InputAction = ({ children }: { children: ReactNode }) => <div className="inrow">{children}</div>
 
 export function PwInput(p: InputHTMLAttributes<HTMLInputElement> & { id: string }) {

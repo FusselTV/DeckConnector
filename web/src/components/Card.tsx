@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useStore } from '../app/store'
 import { cx } from '../lib/util'
 
-/** A section with a 65 px title bar: icon, noun, and controls for the whole card on the right (rules 7, 19, 22). */
+/** A section with a 65 px title bar: icon, noun, and controls for the whole card on the right. */
 export function Card(p: {
   id: string
   icon: LucideIcon

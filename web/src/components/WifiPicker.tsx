@@ -29,7 +29,7 @@ export interface WifiChoice {
 }
 const sigIcon = (r: number) => (r >= -60 ? Wifi : r >= -70 ? WifiHigh : r >= -80 ? WifiLow : WifiZero)
 
-/** Wi-Fi list grouped by name; experts expand a name to its access points (rules 26, 30). */
+/** Wi-Fi list grouped by name; experts expand a name to its access points. */
 export function WifiPicker(p: {
   id: string
   value: WifiChoice

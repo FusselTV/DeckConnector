@@ -1,5 +1,5 @@
-// Fronts in real millimetres; --mm (px per mm) comes from the container width (rule 12).
-// Stream Deck +: measured on the owner's deck and Elgato renders (deck-accuracy/). + XL: SimDeck.
+// Fronts in real millimetres; --mm (px per mm) comes from the container width.
+// Stream Deck +: measured on a real deck and Elgato renders. + XL: SimDeck.
 // MK.2, XL, Mini, Neo: retail outer sizes, grids and native key sizes estimated.
 interface Box {
   x: number

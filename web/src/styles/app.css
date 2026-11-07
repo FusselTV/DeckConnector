@@ -512,7 +512,6 @@
     border-color: var(--bad);
     color: var(--bad-fg);
   }
-  /* hero */
   /* banners */
   .bar {
     height: 6px;
@@ -1605,7 +1604,7 @@
     font-weight: 600;
     min-height: 64px;
   }
-  /* v2.1 additions */
+  /* overview: layout, card head, remote control and last input */
   .ov,
   .ov > * {
     min-width: 0;
@@ -1938,7 +1937,7 @@
       min-height: 44px;
     }
   }
-  /* round 3 */
+  /* screen-reader text, sidebar, source list */
   .sr {
     position: absolute;
     width: 1px;
@@ -2165,7 +2164,7 @@
       min-height: 44px;
     }
   }
-  /* consistency round */
+  /* icon tones, segmented control, small parts */
   .sicon.acc,
   .ic.acc {
     color: var(--amber-fg);
@@ -2709,11 +2708,10 @@
       transition: transform 0.05s;
     }
   }
-  /* states dialog */
   .ledwrap {
     display: inline-flex;
   }
-  /* round 5 */
+  /* modal dialogs */
   .modal {
     width: min(560px, calc(100vw - 24px));
     max-height: min(88vh, 800px);
@@ -2902,7 +2900,7 @@
       grid-area: acts;
     }
   }
-  /* round 6 */
+  /* notices */
   .notices {
     display: flex;
     flex-direction: column;

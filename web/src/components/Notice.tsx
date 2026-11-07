@@ -20,7 +20,7 @@ export interface NoticeData {
   acts?: NoticeAct[]
 }
 
-/** The one notification block (rule 13): icon, title, one line, actions on the right. */
+/** The one notification block: icon, title, one line, actions on the right. */
 export function Notice({ n }: { n: NoticeData }) {
   const k = n.lvl === 'pair' ? 'warn' : n.lvl
   return (

@@ -62,7 +62,7 @@ export function Dialog(p: {
   )
 }
 
-/** A dialog that edits or creates something and commits with its own button (rule 15). */
+/** A dialog that edits or creates something and commits with its own button. */
 export function Modal(p: {
   title: string
   icon: LucideIcon
