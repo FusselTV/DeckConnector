@@ -1,9 +1,10 @@
-"""A real power cut: the UniFi switch turns PoE on port 4 off and on (an action, no config change).
+"""A real power cut: the UniFi switch turns PoE on a port (4, the bridge) off and on (an action, no config change).
 
 Only with the USB serial cable unplugged, or USB keeps the board powered and nothing is cut. See
 ~/projects/deckbridge-bench/poe-test.md.
 
 uv run python -m dbtools.poe --usb-unplugged
+uv run python -m dbtools.poe --port 2      the Elgato Network Dock
 """
 
 import argparse
@@ -32,24 +33,25 @@ def call(path: str, body: dict | None = None) -> dict:
         return json.loads(r.read())
 
 
-def power_cut(usb_unplugged: bool = False) -> None:
-    """Power-cycle port 4, after checking that it is the PoE port the bridge hangs on. Callers confirm the unplugged
-    USB cable with the flag or DECKBRIDGE_USB_UNPLUGGED=1."""
-    if not (usb_unplugged or os.environ.get("DECKBRIDGE_USB_UNPLUGGED") == "1"):
+def power_cut(usb_unplugged: bool = False, port: int = PORT) -> None:
+    """Power-cycle a PoE port, port 4 being the bridge's, after checking that it is powered. For the bridge, callers
+    confirm the unplugged USB cable with the flag or DECKBRIDGE_USB_UNPLUGGED=1."""
+    if port == PORT and not (usb_unplugged or os.environ.get("DECKBRIDGE_USB_UNPLUGGED") == "1"):
         raise SystemExit("unplug the USB serial cable first, then confirm with DECKBRIDGE_USB_UNPLUGGED=1")
     switch = next(d for d in call("stat/device/")["data"] if d["_id"] == SWITCH)
-    port = next(p for p in switch["port_table"] if p["port_idx"] == PORT)
-    if not (port.get("port_poe") and port.get("poe_enable") and port.get("up")):
-        raise SystemExit(f"port {PORT} is not a powered PoE port right now: {port.get('poe_mode')}")
-    call("cmd/devmgr", {"cmd": "power-cycle", "mac": switch["mac"], "port_idx": PORT})
+    state = next(p for p in switch["port_table"] if p["port_idx"] == port)
+    if not (state.get("port_poe") and state.get("poe_enable") and state.get("up")):
+        raise SystemExit(f"port {port} is not a powered PoE port right now: {state.get('poe_mode')}")
+    call("cmd/devmgr", {"cmd": "power-cycle", "mac": switch["mac"], "port_idx": port})
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--usb-unplugged", action="store_true", required=True, help="the USB serial cable is out")
-    ap.parse_args()
-    power_cut(usb_unplugged=True)
-    print(f"port {PORT} power-cycled")
+    ap.add_argument("--usb-unplugged", action="store_true", help="the bridge's USB serial cable is out")
+    ap.add_argument("--port", type=int, default=PORT, help="switch port, 2 for the Elgato Network Dock")
+    a = ap.parse_args()
+    power_cut(a.usb_unplugged, a.port)
+    print(f"port {a.port} power-cycled")
 
 
 if __name__ == "__main__":
