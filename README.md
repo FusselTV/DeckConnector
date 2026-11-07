@@ -61,7 +61,8 @@ Web-Zugang.
    - Companion, best over its Satellite API. Enter the address of Companion under Settings, Companion über die
      Satellite-API. The board then connects to Companion itself. This also works when Companion runs in Docker
      without host networking, as long as port 16622, or 16623 for `ws://`, is reachable. Without it, the board
-     shows up in Companion under Surfaces, Discover, as a Network Dock.
+     shows up in Companion under Surfaces, Discover, as a Network Dock. When Companion connects that way and its
+     Satellite API answers, the board moves it to Satellite by itself.
    - Elgato App. It finds the board by itself.
    - Your own servers. Add a server URL (`ws://host:port/deckbridge` or `wss://`). Without one, the board finds
      servers that announce `_deckconnector._tcp` (or the old `_deckbridge._tcp`) over mDNS.

@@ -158,6 +158,13 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     return db_json_end(&j);
 }
 
+void db_sat_addr_host(const char *addr, char *host, size_t cap)
+{
+    const char *p = strstr(addr, "://");
+    p = p ? p + 3 : addr;
+    snprintf(host, cap, "%.*s", (int)strcspn(p, ":/"), p);
+}
+
 const db_sat_control_t *db_sat_find(const db_sat_control_t *c, size_t n, const char *id)
 {
     char *end;

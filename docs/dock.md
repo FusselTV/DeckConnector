@@ -32,6 +32,8 @@ Companion asks the dock with `GET_REPORT`. The Elgato App sends the same questio
 report id gets the full 32 bytes.
 
 Up to four hosts may hold each port at once. The host list picks the one that draws, see [api.md](api.md).
+Companion that connects as a dock is moved to its Satellite API when that answers, see
+[satellite.md](satellite.md).
 
 ## Tested with
 

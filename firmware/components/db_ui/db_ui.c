@@ -6,9 +6,12 @@
 #include "canvas.h"
 #include "db_config.h"
 #include "db_deck.h"
+#include "db_dns.h"
 #include "db_dock.h"
 #include "db_link.h"
+#include "db_log.h"
 #include "db_net.h"
+#include "db_sat.h"
 #include "db_ota.h"
 #include "db_satellite.h"
 #include "esp_app_desc.h"
@@ -325,7 +328,36 @@ static void model_login(ui_model_t *md, const db_config_t *c)
 }
 
 #define OFFER_DENIED_MAX 4
-static char denied[OFFER_DENIED_MAX][16]; /* Companions the deck was told "no" for, until a restart */
+static char denied[OFFER_DENIED_MAX][16]; /* Companions a person said "no" to, until a restart; under login_mux */
+
+static bool offer_denied(const char *host)
+{
+    bool no = false;
+    portENTER_CRITICAL(&login_mux);
+    for (int d = 0; d < OFFER_DENIED_MAX; d++) {
+        no |= strcmp(denied[d], host) == 0;
+    }
+    portEXIT_CRITICAL(&login_mux);
+    return no;
+}
+
+static volatile uint32_t choices;
+
+void db_ui_offer_choice(const char *host, bool yes)
+{
+    static int next;
+    choices++;
+    portENTER_CRITICAL(&login_mux);
+    for (int d = 0; d < OFFER_DENIED_MAX; d++) {
+        if (strcmp(denied[d], host) == 0) {
+            denied[d][0] = '\0';
+        }
+    }
+    if (!yes && host[0]) {
+        snprintf(denied[next++ % OFFER_DENIED_MAX], sizeof(denied[0]), "%s", host);
+    }
+    portEXIT_CRITICAL(&login_mux);
+}
 
 /* A Companion that announces its Satellite API while no address is set and nobody said no to it. */
 static void model_offer(ui_model_t *md, const db_config_t *c)
@@ -336,11 +368,7 @@ static void model_offer(ui_model_t *md, const db_config_t *c)
     db_net_found_t found[OFFER_DENIED_MAX];
     size_t n = db_net_companions(found, OFFER_DENIED_MAX);
     for (size_t i = 0; i < n; i++) {
-        bool no = false;
-        for (int d = 0; d < OFFER_DENIED_MAX; d++) {
-            no |= strcmp(denied[d], found[i].host) == 0;
-        }
-        if (!no) {
+        if (!offer_denied(found[i].host)) {
             /* "Companion (studio)" -> "studio": the key already says Companion */
             const char *name = found[i].name[0] ? found[i].name : found[i].host;
             size_t len = strlen(name);
@@ -539,9 +567,9 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_OFFER:
         if (!act->value) {
-            static int next;
-            snprintf(denied[next++ % OFFER_DENIED_MAX], sizeof(denied[0]), "%.*s",
-                     (int)strcspn(md->offer_addr, ":"), md->offer_addr);
+            char host[16];
+            db_sat_addr_host(md->offer_addr, host, sizeof(host));
+            db_ui_offer_choice(host, false);
             break;
         }
         edit_begin(&c);
@@ -891,12 +919,86 @@ static void tick(void *arg)
     }
 }
 
+#define UPGRADE_AGAIN_US (5 * 60 * 1000000LL)
+
+/* Companion that drives the deck as a dock host is moved to its Satellite API when that answers: all controls, and
+ * no lost connections. The probe blocks for seconds, so it has its own task. */
+static void upgrade_task(void *arg)
+{
+    struct {
+        uint32_t ip;
+        int64_t at;
+    } tried[DB_DOCK_HOSTS] = {0}; /* Companion dock hosts asked at `at`, since a person last changed the address */
+    uint32_t seen_choices = 0;
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        if (seen_choices != choices) {
+            seen_choices = choices;
+            memset(tried, 0, sizeof(tried));
+        }
+        if (db_config()->satellite[0]) {
+            continue;
+        }
+        db_dock_host_t hosts[DB_DOCK_HOSTS];
+        size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
+        for (size_t i = 0; i < n; i++) {
+            uint32_t ip = ipaddr_addr(hosts[i].ip);
+            int64_t now = esp_timer_get_time();
+            int slot = -1, free_slot = 0;
+            for (int k = 0; k < DB_DOCK_HOSTS; k++) {
+                slot = tried[k].ip == ip ? k : slot;
+                free_slot = tried[k].ip ? free_slot : k;
+            }
+            if (hosts[i].kind != DB_CTRL_COMPANION || offer_denied(hosts[i].ip) ||
+                (slot >= 0 && now - tried[slot].at < UPGRADE_AGAIN_US)) {
+                continue;
+            }
+            bool first = slot < 0;
+            slot = first ? free_slot : slot;
+            tried[slot].ip = ip;
+            tried[slot].at = now;
+            char addr[40], version[24];
+            snprintf(addr, sizeof(addr), "%s", hosts[i].ip);
+            const char *why = db_satellite_probe(addr, "", version, sizeof(version));
+            if (why) {
+                snprintf(addr, sizeof(addr), "ws://%s:16623", hosts[i].ip);
+                why = db_satellite_probe(addr, "", version, sizeof(version)) ? why : NULL;
+            }
+            if (why) {
+                if (first) {
+                    db_log_event(TAG, "source", "Companion at %s has no Satellite API; Satellite would be better",
+                                 hosts[i].ip);
+                }
+                continue;
+            }
+            db_config_t c;
+            edit_begin(&c);
+            if (c.satellite[0] || offer_denied(hosts[i].ip)) { /* a person was quicker */
+                db_config_edit_end();
+                break;
+            }
+            snprintf(c.satellite, sizeof(c.satellite), "%s", addr);
+            if (c.controller == DB_CTRL_COMPANION && (!c.host[0] || strcmp(c.host, hosts[i].ip) == 0)) {
+                snprintf(c.host, sizeof(c.host), "satellite");
+            }
+            if (edit_end(&c, "Companion address") == ESP_OK) {
+                char name[DB_DNS_NAME_LEN];
+                db_dock_name(ip, name);
+                db_log_event(TAG, "source", "Companion%s%s at %s moved from Dock to Satellite", name[0] ? " " : "",
+                             name, hosts[i].ip);
+            }
+            break;
+        }
+    }
+}
+
 esp_err_t db_ui_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
     s.qr_lock = xSemaphoreCreateMutex();
     jpeg_port_init();
-    if (!s.lock || !s.qr_lock || xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS) {
+    if (!s.lock || !s.qr_lock || xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS ||
+        xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};

@@ -54,5 +54,8 @@ bool db_dock_peer_connected(const db_dock_peer_t *p);
 void db_dock_name(uint32_t ip, char name[40]);
 /* From the ARP table: a host that just connected is in it, one behind a router is not and gets zeros. */
 void db_dock_mac(uint32_t ip, uint8_t mac[6]);
+/* Ends Companion's dock connections from the address the `satellite` setting names or Satellite is connected to, and
+ * refuses them while it does: Companion would show the deck twice. */
+void db_dock_drop_satellite_host(void);
 /* NULL forgets every paired host. */
 esp_err_t db_dock_forget(const char *ip);

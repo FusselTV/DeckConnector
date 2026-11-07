@@ -27,6 +27,8 @@ typedef struct {
 void db_sat_parse(char *line, db_sat_msg_t *out);
 /* NULL when `key` is missing. */
 const char *db_sat_get(const db_sat_msg_t *m, const char *key);
+/* The host of a `satellite` setting ("host", "host:port", ws:// or wss:// URL), "" for "". */
+void db_sat_addr_host(const char *addr, char *host, size_t cap);
 
 typedef enum {
     DB_SAT_KEY,

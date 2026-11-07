@@ -39,8 +39,12 @@ that session ends. The DeckConnector ends it right after the start, the same way
 
 ## Both at once
 
-The DeckConnector stays a Network Dock as well. If Companion uses both, it sees two surfaces of the same deck.
-The one that connects second gets the id `streamdeck:<serial>-dev2` and its own settings. Use one of the two.
+The DeckConnector stays a Network Dock as well. When Companion connects as a dock while no Satellite address is set,
+the DeckConnector tries Companion's Satellite API on the same address. If it answers, the DeckConnector saves that
+address and moves Companion to Satellite. Companion's dock connection then ends, and it cannot connect as a dock
+again while the address points to it. If you remove the address or say no on the deck, this stops until the next
+restart. If Companion still uses both, it sees two surfaces of the same deck. The one that connects second gets the
+id `streamdeck:<serial>-dev2` and its own settings.
 
 ## Limits
 

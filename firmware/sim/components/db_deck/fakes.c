@@ -127,6 +127,10 @@ esp_err_t db_dock_forget(const char *ip)
     return ESP_OK;
 }
 
+void db_ui_offer_choice(const char *host, bool yes)
+{
+}
+
 esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len)
 {
     static const uint8_t tiny[] = {0xff, 0xd8, 0xff, 0xd9}; /* SOI, EOI: enough for a JPEG reply */

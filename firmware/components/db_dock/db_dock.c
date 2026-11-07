@@ -10,6 +10,8 @@
 #include "db_cora.h"
 #include "db_deck.h"
 #include "db_dns.h"
+#include "db_sat.h"
+#include "db_satellite.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -56,6 +58,7 @@ static struct {
 } s;
 
 static void note_kind(uint32_t ip, db_controller_t kind);
+static bool satellite_host(uint32_t ip);
 
 static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
 {
@@ -105,6 +108,9 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
         db_log_event(TAG, "source", "%s at %s connected", db_controller_name(c->kind), ip);
         note_kind(c->ip, c->kind);
+        if (c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
+            shutdown(c->sock, SHUT_RDWR);
+        }
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
                              next event */
     }
@@ -122,6 +128,9 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         c->kind = (h->flags & DB_CORA_FLAG_REQ_ACK) ? DB_CTRL_APP : DB_CTRL_COMPANION;
         ESP_LOGI(TAG, "device host is %s", db_controller_name(c->kind));
         note_kind(c->ip, c->kind);
+        if (c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
+            shutdown(c->sock, SHUT_RDWR);
+        }
         db_log_mark(c->kind == DB_CTRL_APP ? DB_MARK_APP : DB_MARK_COMPANION);
         report_clients();
     }
@@ -832,6 +841,38 @@ esp_err_t db_dock_forget(const char *ip)
     return save_known();
 }
 
+static bool satellite_host(uint32_t ip)
+{
+    char host[sizeof(db_config()->satellite)];
+    db_sat_addr_host(db_config()->satellite, host, sizeof(host));
+    return host[0] && (inet_addr(host) == ip || db_satellite_peer() == ip); /* a name: where it connected */
+}
+
+/* Refused at the door, before it says what it is: each new connection would write its port to NVS. An Elgato App on
+ * the same machine still gets in. */
+static bool known_companion(uint32_t ip)
+{
+    bool yes = false;
+    taskENTER_CRITICAL(&pair.mux);
+    for (int i = 0; i < pair.count; i++) {
+        yes |= pair.known[i].ip == ip && pair.known[i].kind == DB_CTRL_COMPANION;
+    }
+    taskEXIT_CRITICAL(&pair.mux);
+    return yes;
+}
+
+void db_dock_drop_satellite_host(void)
+{
+    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+        conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+        xSemaphoreTake(c->tx, portMAX_DELAY);
+        if (c->sock >= 0 && c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
+            shutdown(c->sock, SHUT_RDWR);
+        }
+        xSemaphoreGive(c->tx);
+    }
+}
+
 static void listen_task(void *arg)
 {
     bool device_port = arg != NULL;
@@ -858,6 +899,11 @@ static void listen_task(void *arg)
         }
         char ip[16];
         inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
+        if (satellite_host(from.sin_addr.s_addr) && known_companion(from.sin_addr.s_addr)) {
+            ESP_LOGD(TAG, "port %u: %s refused, it has the deck over Satellite", port, ip);
+            close(sock);
+            continue;
+        }
         if (!admit(from.sin_addr.s_addr)) {
             ESP_LOGW(TAG, "port %u: %s is not paired, asking on the deck", port, ip);
             close(sock);

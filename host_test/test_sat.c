@@ -248,6 +248,20 @@ static void test_png_refuses_a_first_chunk_bigger_than_the_picture(void)
     free(png);
 }
 
+static void test_host_of_every_satellite_address_form(void)
+{
+    const char *cases[][2] = {
+        {"192.168.1.10", "192.168.1.10"},           {"192.168.1.10:16622", "192.168.1.10"},
+        {"ws://192.168.1.10:16623", "192.168.1.10"}, {"wss://companion.example.org/satellite", "companion.example.org"},
+        {"", ""},
+    };
+    char host[64];
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        db_sat_addr_host(cases[i][0], host, sizeof(host));
+        TEST_ASSERT_EQUAL_STRING(cases[i][1], host);
+    }
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -257,5 +271,6 @@ int main(void)
     RUN_TEST(test_base64);
     RUN_TEST(test_png_decodes_to_bgr);
     RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
+    RUN_TEST(test_host_of_every_satellite_address_form);
     return UNITY_END();
 }

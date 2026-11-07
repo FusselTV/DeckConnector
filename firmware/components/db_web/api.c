@@ -16,6 +16,7 @@
 #include "db_log.h"
 #include "db_link.h"
 #include "db_net.h"
+#include "db_sat.h"
 #include "db_satellite.h"
 #include "db_ota.h"
 #include "db_screen.h"
@@ -69,6 +70,11 @@ static int config_edit(const char *body, char *reply, size_t cap)
     }
     if (db_config_save(&cfg) != ESP_OK) {
         return fail(reply, cap, 500, "saving failed");
+    }
+    if (strcmp(cfg.satellite, old.satellite) != 0) {
+        char host[sizeof(cfg.satellite)];
+        db_sat_addr_host(cfg.satellite[0] ? cfg.satellite : old.satellite, host, sizeof(host));
+        db_ui_offer_choice(host, cfg.satellite[0]);
     }
     if (strcmp(cfg.admin_pass, old.admin_pass) != 0) {
         auth_end_sessions();
