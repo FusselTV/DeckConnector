@@ -193,7 +193,7 @@ export function Network() {
       {w.rssi ? ` · ${t(sigWord(w.rssi))}` : ''}
     </>
   ) : (
-    t('meter.off')
+    t('arm.off')
   )
   return (
     <div className="cards">

@@ -123,7 +123,7 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
   return (
     <Modal
       icon={Download}
-      title={t('upd.title')}
+      title={t('fw.install')}
       close={close}
       foot={
         <>
@@ -301,8 +301,7 @@ export function Firmware() {
     })
   }
   const resetPage = async () => {
-    if (!(await ask({ title: t('cf.page_reset'), body: t('cf.page_reset_b'), ok: t('fw.page_reset'), danger: true })))
-      return
+    if (!(await ask({ title: t('cf.page_reset'), body: t('cf.page_reset_b'), ok: t('c.remove'), danger: true }))) return
     await act(async () => {
       await api.resetFrontend()
       toast(t('fw.page_reset_done'))
@@ -404,7 +403,7 @@ export function Firmware() {
         <KeyValue
           rows={[
             [t('fw.firmware'), t('fw.running_slot', { v: st.firmware ?? '–', n: running?.slot ?? '–' }), true],
-            [t('fw.wlan'), st.wlan_firmware, true],
+            [t('tgt.c6'), st.wlan_firmware, true],
             [
               t('fw.page'),
               front && (
@@ -512,7 +511,7 @@ export function Firmware() {
                   <span className="small muted">{t('fw.web_rm_h')}</span>
                 </div>
                 <Btn id="web-rm" sm icon={Trash2} onClick={() => void resetPage()}>
-                  {t('fw.web_rm_btn')}
+                  {t('c.remove')}
                 </Btn>
               </div>
             )}

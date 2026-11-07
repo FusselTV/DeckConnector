@@ -108,3 +108,17 @@ describe('replies the page cannot use', () => {
     await expect(api.tokens()).rejects.toMatchObject({ code: 'badreply' })
   })
 })
+
+describe('a hung request', () => {
+  it('ends as a timeout error without telling listeners the network is gone', async () => {
+    const seen: number[] = []
+    const off = onAuthLost((c) => seen.push(c))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new DOMException('slow', 'TimeoutError'))),
+    )
+    await expect(api.putConfig({ brightness: 1 })).rejects.toMatchObject({ code: 'timeout' })
+    expect(seen).toEqual([])
+    off()
+  })
+})

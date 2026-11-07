@@ -96,7 +96,7 @@ function Meter() {
       state: t(`conn.${conn}`),
     },
     {
-      k: 'meter.lan',
+      k: 'net.lan',
       el: 'row-lan',
       to: 'network',
       icon: EthernetPort,
@@ -104,12 +104,12 @@ function Meter() {
       v: !lan?.cable ? t('meter.no_cable') : lan.dead ? t('meter.dead') : (lan.ip ?? ''),
     },
     {
-      k: 'meter.wlan',
+      k: 'net.wlan',
       el: 'row-wlan',
       to: 'network',
       icon: Wifi,
       tone: wlan?.ip ? ((wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
-      v: wlan?.ip ? `${wlan.ssid ?? ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}` : t('meter.off'),
+      v: wlan?.ip ? `${wlan.ssid ?? ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}` : t('arm.off'),
     },
     {
       k: 'meter.deck',
@@ -154,7 +154,7 @@ function Meter() {
             <button
               type="button"
               aria-label={t('meter.go', {
-                k: t(it.k as 'meter.lan'),
+                k: t(it.k as 'net.lan'),
                 v: it.v + (it.state ? ` · ${it.state}` : ''),
                 tab: t(`tab.${it.to}`),
               })}
@@ -172,7 +172,7 @@ function Meter() {
                 ) : (
                   I && <SIcon icon={I} tone={conn !== 'live' ? '' : it.tone} size={15} />
                 )}
-                <span className="lbl">{t(it.k as 'meter.lan')}</span>
+                <span className="lbl">{t(it.k as 'net.lan')}</span>
               </span>
               <span className={cx('v', (it.tone === 'bad' || it.tone === 'warn') && it.tone)}>{it.v}</span>
             </button>
@@ -618,11 +618,11 @@ function Controls() {
           onClick={() => void a.menu(decks.length > 1 ? deck?.serial : undefined)}
         >
           <SquareMenu size={18} aria-hidden />
-          <span>{t('ov.menu_s')}</span>
+          <span>{t('deck.menu')}</span>
         </button>
         <button type="button" className="btn" title={t('ov.rec_h')} onClick={() => void a.reconnect(decks.length)}>
           <Usb size={18} aria-hidden />
-          <span>{t('ov.rec_s')}</span>
+          <span>{t('btn.reconnect')}</span>
         </button>
         <button type="button" className="btn" title={t('ov.reboot_h')} onClick={() => void a.reboot()}>
           <Power size={18} aria-hidden />

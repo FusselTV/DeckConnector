@@ -132,6 +132,7 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
 /** Words an error for a person: the firmware's reason where it gave one, never a proxy page or a script error. */
 export function errText(e: unknown, t: T) {
   if (!(e instanceof ApiError)) return t('c.err_page')
+  if (e.code === 'timeout') return t('c.timeout')
   if (e.status === 0) return t('c.not_sent')
   return e.message ? t('c.refused', { m: e.message }) : t('c.err_http', { n: e.status })
 }

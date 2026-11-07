@@ -460,7 +460,7 @@ function RestartOverlay() {
         <div className="bar indet" style={{ flex: 'none' }}>
           <i />
         </div>
-        <p>{t('rs.body')}</p>
+        <p>{t('cf.reboot_b')}</p>
         {r.reach?.map((u) => (
           <a key={u} className="in linkbox" href={u}>
             {u}

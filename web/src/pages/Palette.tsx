@@ -91,7 +91,7 @@ function useCommands(): Cmd[] {
         kw: t(TAB_KW[k]),
         run: () => go(k),
       })),
-      to('s-bri', t('pal.bri_go'), `${t('kw.bri')} helligkeit dimmen`, SunDim, 'overview', 'bri-ov'),
+      to('s-bri', t('ov.bright'), `${t('kw.bri')} helligkeit dimmen`, SunDim, 'overview', 'bri-ov'),
       ...[25, 50, 75, 100].map((n): Cmd => ({
         id: `bri${n}`,
         group: 'pal.act',
@@ -277,7 +277,7 @@ function useCommands(): Cmd[] {
         run: () => (deckSelAtom.set(i), jump('deck', 'card-decks')),
         extras: [
           { id: 'live', label: t('pal.live'), run: () => (deckSelAtom.set(i), jump('overview', 'card-deck')) },
-          { id: 'menu', label: t('ov.menu_s'), run: () => a.menu(decks.length > 1 ? d.serial : undefined) },
+          { id: 'menu', label: t('deck.menu'), run: () => a.menu(decks.length > 1 ? d.serial : undefined) },
         ],
       })),
       ...(st.sources ?? [])

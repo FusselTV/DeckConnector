@@ -174,7 +174,7 @@ function CertModal({ close }: { close: () => void }) {
             {t('c.cancel')}
           </Btn>
           <Btn kind="pri" disabled={!info} onClick={() => void apply()}>
-            {t('cert.apply')}
+            {t('btn.apply')}
           </Btn>
         </>
       }

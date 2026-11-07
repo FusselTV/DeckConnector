@@ -1151,10 +1151,6 @@
     min-width: 0;
   }
   @container (max-width:420px) {
-    .encs {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      row-gap: 14px;
-    }
     .knob {
       width: clamp(46px, 14cqi, 64px);
     }
@@ -1265,15 +1261,6 @@
   }
   .cgrid .warn b {
     color: var(--warn-fg);
-  }
-  .tokenshow {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    border: 1px solid var(--amber);
-    border-radius: var(--r);
-    background: var(--amber-soft);
   }
 
   /* overlays */
@@ -1768,11 +1755,6 @@
     border-radius: var(--r);
     padding: 6px 10px;
   }
-  .btngrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 8px;
-  }
   .btn.tall {
     justify-content: flex-start;
     text-align: left;
@@ -1824,39 +1806,6 @@
   .steps-ol .addr {
     margin-top: 6px;
   }
-  .qrfig {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .deckqr {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px;
-    border-radius: 12px;
-    background: #040506;
-    color: #f2f2ef;
-    border: 6px solid #1b1e22;
-    max-width: 100%;
-  }
-  .deckqr svg {
-    flex: none;
-    border-radius: 4px;
-  }
-  .deckqr div {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-    font-family: var(--f-mono);
-    font-size: 13px;
-    overflow-wrap: anywhere;
-  }
-  .deckqr span {
-    color: #a6acb3;
-  }
   .wizfoot {
     justify-content: space-between;
     margin-top: 4px;
@@ -1889,9 +1838,6 @@
   .addr a:hover {
     color: var(--amber-fg);
   }
-  .loginwrap {
-    display: block;
-  }
   .loginbar {
     display: flex;
     flex-direction: column;
@@ -1908,9 +1854,6 @@
     width: auto;
     flex: 0 1 180px;
     font-size: 14px;
-  }
-  .dangertxt {
-    color: var(--bad-fg);
   }
   .sheetgrid {
     display: grid;
@@ -2030,9 +1973,6 @@
   .host .sicon {
     grid-row: 1/3;
   }
-  .warntxt {
-    color: var(--warn-fg);
-  }
   .brand small {
     display: flex;
     align-items: center;
@@ -2070,42 +2010,6 @@
     position: relative;
     flex: 1;
     min-width: 0;
-  }
-  .acctbtn {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 44px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    background: var(--well);
-    border-radius: var(--r);
-    cursor: pointer;
-    font-weight: 600;
-    color: inherit;
-  }
-  .acctbtn:hover {
-    border-color: var(--edge);
-  }
-  .acctpop {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 52px;
-    z-index: 45;
-    background: var(--panel);
-    border: 1px solid var(--line-2);
-    border-radius: 10px;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-  }
-  .menuitem {
-    justify-content: flex-start;
-    width: 100%;
   }
   .acctsheet {
     display: flex;
@@ -2231,25 +2135,6 @@
   }
   .savebar > .ic {
     color: var(--amber-fg);
-  }
-  .rights {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 8px;
-  }
-  .rights > div {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    background: var(--well);
-  }
-  .rights b {
-    display: flex;
-    align-items: center;
-    gap: 6px;
   }
   .deckrow {
     width: 100%;
@@ -2813,23 +2698,13 @@
   .fkey .face.red {
     background: #b3202a;
   }
-  .fkey .face.green {
-    background: #147a37;
-  }
   .fkey .face.rec {
     background: #3b1013;
     color: #ff6b62;
   }
-  .fkey .face.blue {
-    background: #1d3f75;
-  }
   .fkey .face.dim {
     background: #0e1012;
     color: #8f969e;
-  }
-  .fkey .face.amberk {
-    background: #5a3b00;
-    color: #ffd27a;
   }
 
   /* round 5 */
@@ -3235,9 +3110,6 @@
     .search kbd {
       display: none;
     }
-    .hide-m {
-      display: none !important;
-    }
     .tabbar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -3541,9 +3413,6 @@
     font-family: var(--f-mono);
     font-size: 12px;
     color: var(--fg-2);
-  }
-  .tag.todo {
-    border-style: dashed;
   }
   .intbl {
     width: 100%;

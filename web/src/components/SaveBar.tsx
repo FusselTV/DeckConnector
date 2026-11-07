@@ -86,14 +86,14 @@ export function SaveBar() {
         type="button"
         className="btn pri"
         disabled={locked || saving}
-        title={restart ? t('save.restart') : undefined}
+        title={restart ? t('c.save_restart') : undefined}
         onClick={() => {
           setSaving(true)
           void save().finally(() => setSaving(false))
         }}
       >
         {restart && <Power size={16} aria-hidden />}
-        {t('save.save')}
+        {t('c.save')}
         <span className="hide-s">{restart ? ` ${t('save.and_restart')}` : ''}</span>
       </button>
     </div>

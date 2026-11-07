@@ -64,6 +64,9 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
   const method = o.method ?? (o.body !== undefined || o.raw !== undefined ? 'POST' : 'GET')
   if (READONLY && method !== 'GET' && !/^\/api\/log(in|out)$/.test(path))
     throw new ApiError(403, 'read-only dev target', 'readonly')
+  // A hung request ends with an error instead of an idle button. Uploads take as long as they take, and a login
+  // may be held back by the device for up to a minute.
+  const limit = o.raw ? 0 : path === '/api/login' ? 90_000 : 20_000
   let res: Response
   try {
     res = await fetch(path, {
@@ -71,10 +74,11 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
       credentials: 'same-origin',
       headers: { 'X-DeckConnector': '1', ...(o.body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: o.raw ?? (o.body !== undefined ? JSON.stringify(o.body) : undefined),
-      signal: o.signal,
+      signal: o.signal ?? (limit ? AbortSignal.timeout(limit) : undefined),
     })
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e
+    if (e instanceof DOMException && e.name === 'TimeoutError') throw new ApiError(0, '', 'timeout')
     if (!o.quiet) authListeners.forEach((f) => f(0))
     throw new ApiError(0, 'not reachable', 'offline')
   }

@@ -99,7 +99,7 @@ test('a dial held on its arrow stops repeating after a few seconds', async ({ ap
   if (!b) throw new Error('no dial box')
   await page.mouse.move(b.x + b.width * 0.9, b.y + b.height / 2)
   await page.mouse.down()
-  await page.waitForTimeout(6000)
+  await page.waitForTimeout(7000)
   const n = sent.length
   expect(n).toBeGreaterThan(5)
   await page.waitForTimeout(500)

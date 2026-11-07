@@ -394,8 +394,8 @@ export function SourceModal({ type: type0, src, close }: { type?: SrcType; src?:
           value={type}
           onChange={setType}
           options={[
-            ['comp', t('src.comp'), Radio],
-            ['app', t('src.app'), Monitor],
+            ['comp', t('prog.companion'), Radio],
+            ['app', t('prog.app'), Monitor],
             ['srv', t('prog.server'), Server],
           ]}
         />

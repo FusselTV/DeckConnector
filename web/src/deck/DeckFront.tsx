@@ -76,7 +76,7 @@ interface Drag {
   z: number
   rep?: boolean
   tm?: number
-  left: number
+  t0: number
 }
 const HOLD_MS = 450
 const REPEAT_MAX_MS = 5000
@@ -211,14 +211,14 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   const dDown = (i: number, e: RPE<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
     const fx = (e.clientX - r.left) / r.width
-    const g: Drag = { x: e.clientX, acc: 0, turned: false, z: fx < 0.35 ? -1 : fx > 0.65 ? 1 : 0, left: REPEAT_MAX_MS }
+    const g: Drag = { x: e.clientX, acc: 0, turned: false, z: fx < 0.35 ? -1 : fx > 0.65 ? 1 : 0, t0: e.timeStamp }
     dd.current.set(i, g)
     // Holding an arrow zone turns on and speeds up until release (rule 23), for a few seconds at most.
     if (g.z) {
       const rep = (ms: number) => {
         g.rep = true
-        g.left -= ms
-        if (dd.current.get(i) !== g || g.left < 0 || !turnRef.current(i, g.z, true)) return
+        const over = performance.now() - g.t0 > REPEAT_MAX_MS
+        if (dd.current.get(i) !== g || over || !turnRef.current(i, g.z, true)) return
         g.tm = window.setTimeout(rep, ms, Math.max(40, ms * 0.8))
       }
       g.tm = window.setTimeout(rep, 400, 160)
