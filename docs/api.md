@@ -210,6 +210,8 @@ it restores the settings. The web UI does this under System.
 - `boot.reason` says why the DeckConnector started: `power`, `pin` (the reset button), `restart`, `crash`,
   `watchdog`, `brownout` or `other`. `boot.at` is the start time in Unix seconds, `null` until the clock is set.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
+- `heap_free` includes the LP RAM. `heap_lp_free` is the LP RAM part; the 16 KB log ring that survives a restart
+  lives there.
 - `id` is the DeckConnector's MAC address. It stays when the name changes.
 - `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields, its `number`
   (from 1) and its `usb_speed`.

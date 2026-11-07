@@ -291,13 +291,17 @@ esp_err_t put_config(httpd_req_t *req)
     if (read_body(req, body, sizeof(body)) < 0) {
         return send_error(req, "413 Payload Too Large", "body too large");
     }
-    static char reply[JSON_MAX + 64]; /* handlers run under web_lock() */
+    enum { REPLY_MAX = JSON_MAX + 64 };
+    static char *reply; /* in PSRAM, made once; handlers run under web_lock() */
+    if (!reply && !(reply = heap_caps_malloc(REPLY_MAX, MALLOC_CAP_SPIRAM))) {
+        return send_error(req, "500 Internal Server Error", "out of memory");
+    }
     int code = (auth_by_token(req) ? api_config_token : api_config)(body, reply, 160);
     if (code == 200) {
         size_t n = strlen(reply) - 1; /* over the closing brace */
-        n += snprintf(reply + n, sizeof(reply) - n, ",\"config\":");
-        n += db_config_to_json(db_config(), false, reply + n, sizeof(reply) - n - 1);
-        snprintf(reply + n, sizeof(reply) - n, "}");
+        n += snprintf(reply + n, REPLY_MAX - n, ",\"config\":");
+        n += db_config_to_json(db_config(), false, reply + n, REPLY_MAX - n - 1);
+        snprintf(reply + n, REPLY_MAX - n, "}");
     }
     return reply_with(req, code, reply);
 }

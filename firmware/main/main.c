@@ -308,6 +308,8 @@ static size_t web_status(char *buf, size_t cap)
     db_json_int(&j, "psram_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     /* the largest block shows fragmentation, the task count a leak of tasks: both for long runs */
     db_json_int(&j, "heap_largest", (int64_t)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+    /* LP RAM counts as internal heap; the log ring lives there, 16 KB that are not HP RAM */
+    db_json_int(&j, "heap_lp_free", (int64_t)heap_caps_get_free_size(MALLOC_CAP_RTCRAM));
     db_json_int(&j, "psram_largest", (int64_t)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM));
     db_json_int(&j, "tasks", uxTaskGetNumberOfTasks());
     db_json_int(&j, "sockets", open_sockets());

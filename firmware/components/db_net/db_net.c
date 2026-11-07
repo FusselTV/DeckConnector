@@ -12,6 +12,7 @@
 #include "esp_check.h"
 #include "esp_eth.h"
 #include "esp_event.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_netif_sntp.h"
@@ -657,12 +658,16 @@ static void join_task(void *arg)
         up = s.st.wlan_up && strcmp(s.st.wlan_ssid, j->ssid) == 0;
     }
     if (up) {
-        static db_config_t next;
-        db_config_copy(&next);
-        strlcpy(next.wifi_ssid, j->ssid, sizeof(next.wifi_ssid));
-        strlcpy(next.wifi_pass, j->pass, sizeof(next.wifi_pass));
-        strlcpy(next.wifi_bssid, j->bssid, sizeof(next.wifi_bssid));
-        bool saved = db_config_save(&next) == ESP_OK;
+        db_config_t *next = heap_caps_malloc(sizeof(*next), MALLOC_CAP_SPIRAM);
+        bool saved = false;
+        if (next) {
+            db_config_copy(next);
+            strlcpy(next->wifi_ssid, j->ssid, sizeof(next->wifi_ssid));
+            strlcpy(next->wifi_pass, j->pass, sizeof(next->wifi_pass));
+            strlcpy(next->wifi_bssid, j->bssid, sizeof(next->wifi_bssid));
+            saved = db_config_save(next) == ESP_OK;
+            free(next);
+        }
         set_join(saved ? "ok" : "failed", saved ? "" : "not saved");
     } else {
         int r = s.join_reason;
