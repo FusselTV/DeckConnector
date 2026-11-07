@@ -11,7 +11,9 @@
 #include "db_net.h"
 #include "db_ui.h"
 #include "esp_log.h"
+#include "esp_attr.h"
 #include "esp_random.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -21,7 +23,7 @@
 #include "psa/crypto.h"
 #include "web.h"
 
-#define SESSIONS    4
+#define SESSIONS    16
 #define TOKEN_BYTES 32
 #define IDLE_US     (12LL * 3600 * 1000000)
 #define FREE_TRIES  5
@@ -31,10 +33,20 @@
 
 static const char *TAG = "auth";
 
-static struct {
+#if CONFIG_IDF_TARGET_LINUX
+#undef RTC_NOINIT_ATTR
+#define RTC_NOINIT_ATTR
+#endif
+
+/* In LP RAM, which a software restart keeps and a power loss scrambles. Across a restart last_used holds the idle
+ * age instead, and `kept_sum` (SHA-256 of the table and the password's hash) proves the table was written by the
+ * shutdown handler for this password: a new password or garbage after power on drops every session. */
+static RTC_NOINIT_ATTR struct {
     char token[TOKEN_BYTES * 2 + 1];
     int64_t last_used;
 } sessions[SESSIONS];
+static RTC_NOINIT_ATTR uint8_t kept_sum[32];
+static uint8_t pass_sha[32]; /* of the password this boot started with: the live one already is the new one */
 
 /* Failed tries per client address: one guesser cannot lock out the others. The oldest entry makes room. */
 #define TRIERS 8
@@ -299,10 +311,10 @@ static void new_session(char *out)
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     int slot = 0;
-    for (int i = 1; i < SESSIONS; i++) { /* replace the session unused for the longest time */
-        if (sessions[i].last_used < sessions[slot].last_used) {
-            slot = i;
-        }
+    for (int i = 1; i < SESSIONS; i++) { /* a free slot, else the session unused for the longest time */
+        int64_t a = sessions[i].token[0] ? sessions[i].last_used : INT64_MIN;
+        int64_t b = sessions[slot].token[0] ? sessions[slot].last_used : INT64_MIN;
+        slot = a < b ? i : slot;
     }
     strcpy(sessions[slot].token, out);
     sessions[slot].last_used = now;
@@ -326,9 +338,10 @@ static bool password_matches(httpd_req_t *req)
 static void set_session_cookie(httpd_req_t *req)
 {
     static char cookie[160]; /* the header must live until the reply is sent; handlers run one at a time */
+    /* 30 days: the 12 h idle limit is the bridge's, and a browser must not end a session in use any sooner */
     char token[TOKEN_BYTES * 2 + 1];
     new_session(token);
-    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=43200%s", token,
+    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000%s", token,
              web_tls(req) ? "; Secure" : "");
     httpd_resp_set_hdr(req, "Set-Cookie", cookie);
 }
@@ -569,8 +582,53 @@ static esp_err_t save_tokens(void)
     return err;
 }
 
+static void sessions_sum(const uint8_t pass[32], uint8_t out[32])
+{
+    psa_hash_operation_t op = PSA_HASH_OPERATION_INIT;
+    size_t len;
+    psa_crypto_init();
+    psa_hash_setup(&op, PSA_ALG_SHA_256);
+    psa_hash_update(&op, (const uint8_t *)sessions, sizeof(sessions));
+    psa_hash_update(&op, pass, 32);
+    psa_hash_finish(&op, out, 32, &len);
+}
+
+static void keep_sessions(void)
+{
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < SESSIONS; i++) {
+        sessions[i].last_used = now - sessions[i].last_used;
+    }
+    portEXIT_CRITICAL(&mux);
+    sessions_sum(pass_sha, kept_sum);
+}
+
+static void restore_sessions(void)
+{
+    sha256(db_config()->admin_pass, pass_sha);
+    uint8_t sum[32];
+    sessions_sum(pass_sha, sum);
+    int64_t now = esp_timer_get_time();
+    int kept = 0;
+    if (memcmp(sum, kept_sum, sizeof(sum)) == 0) {
+        for (int i = 0; i < SESSIONS; i++) {
+            sessions[i].last_used = now - sessions[i].last_used;
+            kept += sessions[i].token[0] != 0;
+        }
+    } else {
+        memset(sessions, 0, sizeof(sessions));
+    }
+    memset(kept_sum, 0, sizeof(kept_sum)); /* a panic or a reset pin later must not bring them back */
+    ESP_LOGI(TAG, "%d web sessions kept over the restart", kept);
+    if (esp_register_shutdown_handler(keep_sessions) != ESP_OK) {
+        ESP_LOGE(TAG, "no shutdown handler left: a restart ends the web sessions");
+    }
+}
+
 void auth_start(void)
 {
+    restore_sessions();
     nvs_handle_t h;
     size_t len = sizeof(tokens);
     if (nvs_open("auth", NVS_READONLY, &h) == ESP_OK) {

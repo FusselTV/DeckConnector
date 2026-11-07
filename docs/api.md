@@ -20,8 +20,9 @@ curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -X PUT -d '{"controller":"app","h
 ```
 
 The web UI logs in with `POST /api/login`, the header `X-DeckConnector: 1` and `{"password": "..."}`, and gets a
-session cookie for 12 hours. `POST /api/logout` ends it. After five wrong passwords from one address, that address
-waits a few seconds, up to a minute, for both kinds of login.
+session cookie. The session ends after 12 hours without use, or with `POST /api/logout`. It stays over a restart of
+the connector. A power loss or a new password ends all sessions. After five wrong passwords from one address, that
+address waits a few seconds, up to a minute, for both kinds of login.
 
 Two routes help someone who lost the password. Both need no login, only the header `X-DeckConnector: 1`. They
 answer 409 when no deck is attached. A second call within 3 seconds changes nothing.

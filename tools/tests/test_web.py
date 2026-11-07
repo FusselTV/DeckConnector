@@ -57,6 +57,19 @@ def test_session_cookie():
 
 
 @pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="16 logins would end the owner's own sessions on the bridge")
+def test_sixteen_logins_keep_the_first():
+    browsers = [opener() for _ in range(16)]
+    try:
+        for b in browsers:
+            assert login(b, PASSWORD)[0] == 200
+        assert call(browsers[0], "GET", "/api/status")[0] == 200
+    finally:
+        for b in browsers:
+            call(b, "POST", "/api/logout")
+
+
+@pytest.mark.sim
 def test_basic_auth_needs_the_marker_for_changes():
     assert api("PUT", "/api/config", b'{"brightness": 80}')[0] == 200  # api() sends the marker
     token = base64.b64encode(f"admin:{PASSWORD}".encode()).decode()

@@ -6,7 +6,8 @@ import time
 import urllib.request
 
 import pytest
-from conftest import HOST, TARGET, api, status, wait_for_bridge
+from conftest import HOST, PASSWORD, TARGET, api, status, wait_for_bridge
+from test_web import call, login, opener
 
 
 @pytest.mark.sim
@@ -24,7 +25,9 @@ def test_a_bad_ntp_server_is_refused(server):
 
 
 @pytest.mark.skipif(TARGET == "sim", reason="the simulator does not restart")
-def test_the_log_before_a_restart_stays_readable():
+def test_the_log_and_the_web_sessions_outlive_a_restart():
+    browser = opener()
+    assert login(browser, PASSWORD)[0] == 200
     wrong = urllib.request.Request(f"http://{HOST}/api/config", headers={"Authorization": "Basic d3Jvbmc6eA=="})
     with contextlib.suppress(urllib.error.HTTPError):
         urllib.request.urlopen(wrong, timeout=5)  # logs "wrong web password", the last line before the restart
@@ -35,3 +38,5 @@ def test_the_log_before_a_restart_stays_readable():
     code, prev = api("GET", "/api/log?boot=prev")
     assert code == 200 and b"wrong web password" in prev, prev[-300:]
     assert status()["boot"]["at"], "SNTP set no clock"
+    assert call(browser, "GET", "/api/status")[0] == 200, "the restart ended the session"
+    assert call(browser, "POST", "/api/logout")[0] == 200
