@@ -10,7 +10,7 @@ static const db_board_t board = {
     .wifi = true,
 };
 #else
-#error "No board selected, see menuconfig -> Deckbridge board"
+#error "No board selected, see menuconfig -> DeckConnector board"
 #endif
 
 const db_board_t *db_board(void)

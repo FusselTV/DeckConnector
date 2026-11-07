@@ -1,6 +1,6 @@
 """Bench firmware loop over the network: no serial flashing, and A/B comparisons are a slot switch.
 
-uv run python -m dbtools.fw deploy [--slot N] [--no-boot]   sign firmware/build/deckbridge.bin, upload, boot it
+uv run python -m dbtools.fw deploy [--slot N] [--no-boot]   sign firmware/build/deckconnector.bin, upload, boot it
 uv run python -m dbtools.fw use N                         boot slot N and wait until it answers
 uv run python -m dbtools.fw build REV                     build REV in a cached worktree, keep the signed image
 uv run python -m dbtools.fw ab REV_A REV_B                A into one bench slot and started, B into the other
@@ -35,10 +35,13 @@ BENCH_SLOTS = (4, 3)
 HOST = os.environ.get("DB_HOST", "192.168.1.214")
 AUTH = basic_auth()
 
+# The old name too: deploys and rescues also go to slots with firmware from before the rename.
+MARKER = {"X-DeckConnector": "1", "X-Deckbridge": "1"}
+
 
 def api(method: str, path: str, body: bytes | None = None, timeout: float = 120):
     req = urllib.request.Request(
-        f"http://{HOST}{path}", data=body, method=method, headers={"X-Deckbridge": "1", "Authorization": AUTH}
+        f"http://{HOST}{path}", data=body, method=method, headers=MARKER | {"Authorization": AUTH}
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -142,7 +145,7 @@ def build(rev: str) -> bytes:
     )
     if r.returncode:
         raise SystemExit(f"build of {rev} failed:\n{r.stdout[-3000:]}{r.stderr[-3000:]}")
-    signed = sign((wt / "firmware/build/deckbridge.bin").read_bytes())
+    signed = sign((wt / "firmware/build/deckconnector.bin").read_bytes())
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(signed)
     print(f"{rev}: built in {time.time() - start:.0f} s, {out}")
@@ -164,7 +167,7 @@ def main() -> None:
     sub.add_parser("boot").add_argument("what", choices=("bootloader", "ptable"))
     a = ap.parse_args()
     if a.cmd == "deploy":
-        signed = sign((ROOT / "firmware/build/deckbridge.bin").read_bytes())
+        signed = sign((ROOT / "firmware/build/deckconnector.bin").read_bytes())
         deploy(signed, a.slot if a.slot is not None else bench_slot(set()), not a.no_boot)
     elif a.cmd == "use":
         use(a.slot)

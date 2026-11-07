@@ -10,7 +10,7 @@ from conftest import HOST, PASSWORD, api
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 
-AUTH = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode(), "X-Deckbridge": "1"}
+AUTH = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode(), "X-DeckConnector": "1"}
 TLS = ssl.create_default_context()
 TLS.check_hostname = False
 TLS.verify_mode = ssl.CERT_NONE
@@ -47,8 +47,8 @@ def test_the_api_and_the_page_over_https():
 
 def test_a_login_over_https_gets_a_secure_cookie():
     body = json.dumps({"password": PASSWORD}).encode()
-    _, tls_headers, _ = get(f"https://{HOST}/api/login", {"X-Deckbridge": "1"}, body, "POST")
-    _, plain_headers, _ = get(f"http://{HOST}/api/login", {"X-Deckbridge": "1"}, body, "POST")
+    _, tls_headers, _ = get(f"https://{HOST}/api/login", {"X-DeckConnector": "1"}, body, "POST")
+    _, plain_headers, _ = get(f"http://{HOST}/api/login", {"X-DeckConnector": "1"}, body, "POST")
     assert "; Secure" in tls_headers["Set-Cookie"]
     assert "Secure" not in plain_headers["Set-Cookie"]
 

@@ -267,7 +267,9 @@ static void announce_api(void)
 {
     const char *fw = esp_app_get_description()->version;
     mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
-    esp_err_t err = mdns_service_add(NULL, "_deckbridge-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
+    esp_err_t err = mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
+    /* the old name, for Home Assistant integrations from before the rename */
+    err = err ? err : mdns_service_add(NULL, "_deckbridge-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
     }

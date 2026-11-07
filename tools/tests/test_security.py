@@ -23,7 +23,7 @@ def post_raw(path: str, body: bytes, headers: dict) -> int:
 @pytest.mark.sim
 def test_deep_json_does_not_crash_the_bridge():
     before = status()["uptime_s"]
-    code = post_raw("/api/login", b"[" * 127, {"X-Deckbridge": "1"})
+    code = post_raw("/api/login", b"[" * 127, {"X-DeckConnector": "1"})
     assert code == 403
     time.sleep(1)
     assert status()["uptime_s"] >= before, "the bridge restarted"
@@ -76,3 +76,10 @@ def test_a_signed_file_below_the_security_level_is_refused():
     key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
     code, body = api("POST", "/api/ota", dbfw.build("p4", bytes(4096), "old", key, level=0))
     assert (code, json.loads(body)["error"]) == (400, "ESP_ERR_INVALID_VERSION")
+
+
+@pytest.mark.sim
+@pytest.mark.parametrize(("headers", "code"), [({}, 403), ({"X-DeckConnector": "1"}, 200), ({"X-Deckbridge": "1"}, 200)])
+def test_a_login_needs_the_marker_header_old_or_new(headers, code):
+    body = json.dumps({"password": PASSWORD}).encode()
+    assert post_raw("/api/login", body, {**headers, "Content-Type": "application/json"}) == code

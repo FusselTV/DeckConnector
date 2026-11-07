@@ -203,7 +203,7 @@ async def drawing(host: str, auth: str, n: int) -> dict:
 
     def send(method: str, path: str, body: dict) -> None:
         c.get("/api/status")
-        c.conn.request(method, path, json.dumps(body), {"Authorization": auth, "X-Deckbridge": "1"})
+        c.conn.request(method, path, json.dumps(body), {"Authorization": auth, "X-DeckConnector": "1"})
         r = c.conn.getresponse()
         reply = r.read()
         if r.status != 200:
@@ -250,7 +250,7 @@ def firmware_size() -> dict:
         [
             "bash",
             "-c",
-            f". ~/esp/esp-idf/export.sh >/dev/null && python -m esp_idf_size --format json2 {build}/deckbridge.map",
+            f". ~/esp/esp-idf/export.sh >/dev/null && python -m esp_idf_size --format json2 {build}/deckconnector.map",
         ],
         capture_output=True,
         text=True,
@@ -258,7 +258,7 @@ def firmware_size() -> dict:
     if out.returncode:
         return {}
     diram = next(m["used"] for m in json.loads(out.stdout)["layout"] if m["name"] == "DIRAM")
-    return {"app": (build / "deckbridge.bin").stat().st_size, "ram_static": diram}
+    return {"app": (build / "deckconnector.bin").stat().st_size, "ram_static": diram}
 
 
 KINDS = {

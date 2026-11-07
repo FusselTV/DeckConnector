@@ -82,7 +82,7 @@ def _post_cookie(host: str, body: str) -> str | None:
     import http.client
 
     conn = http.client.HTTPConnection(host, timeout=5)
-    conn.request("POST", "/api/login", body=body, headers={"X-Deckbridge": "1", "Content-Type": "application/json"})
+    conn.request("POST", "/api/login", body=body, headers={"X-DeckConnector": "1", "Content-Type": "application/json"})
     r = conn.getresponse()
     r.read()
     return r.getheader("Set-Cookie", "").split(";")[0] or None
@@ -92,7 +92,7 @@ def _logout(host: str, cookie: str) -> None:
     import http.client
 
     conn = http.client.HTTPConnection(host, timeout=5)
-    conn.request("POST", "/api/logout", headers={"X-Deckbridge": "1", "Cookie": cookie})
+    conn.request("POST", "/api/logout", headers={"X-DeckConnector": "1", "Cookie": cookie})
     conn.getresponse().read()
 
 
@@ -103,7 +103,7 @@ async def main_async(a) -> None:
     def put(body: dict) -> None:
         c.get("/api/status")
         c.conn.request(
-            "PUT", "/api/config", body=json.dumps(body), headers={"Authorization": auth, "X-Deckbridge": "1"}
+            "PUT", "/api/config", body=json.dumps(body), headers={"Authorization": auth, "X-DeckConnector": "1"}
         )
         r = c.conn.getresponse()
         reply = r.read()
@@ -112,7 +112,7 @@ async def main_async(a) -> None:
 
     def post(path: str) -> None:
         c.get("/api/status")
-        c.conn.request("POST", path, headers={"Authorization": auth, "X-Deckbridge": "1"})
+        c.conn.request("POST", path, headers={"Authorization": auth, "X-DeckConnector": "1"})
         c.conn.getresponse().read()
 
     cfg = json.loads(c.get("/api/config")[2])
@@ -123,7 +123,7 @@ async def main_async(a) -> None:
         "POST",
         "/api/dock",
         body=json.dumps({"pairing": int(a.minutes * 60) + 60}),
-        headers={"Authorization": auth, "X-Deckbridge": "1"},
+        headers={"Authorization": auth, "X-DeckConnector": "1"},
     )  # its dock churn comes from a new host
     c.conn.getresponse().read()
     samples = []

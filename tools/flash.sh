@@ -15,7 +15,7 @@ if [ "${1:-app}" = all ]; then
     esptool --chip esp32p4 --port "$PORT" -b 921600 --after no-reset write-flash $(tr '\n' ' ' < flash_args)
 else
     # otadata too: after an OTA update the bootloader would otherwise keep starting the other slot
-    esptool --chip esp32p4 --port "$PORT" -b 921600 --after no-reset write-flash 0xf000 ota_data_initial.bin 0x20000 deckbridge.bin
+    esptool --chip esp32p4 --port "$PORT" -b 921600 --after no-reset write-flash 0xf000 ota_data_initial.bin 0x20000 deckconnector.bin
 fi
 cd "$HERE"
 setsid nohup uv run --quiet python -m dbtools.serlog --reset --secs 86400 > /tmp/esp-live.log 2>&1 < /dev/null &

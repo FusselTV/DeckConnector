@@ -60,6 +60,14 @@ static bool equal(const char *a, const char *b)
     return diff == 0;
 }
 
+/* X-Deckbridge is the old name: scripts written before the rename still send it */
+static bool auth_marked(httpd_req_t *req)
+{
+    char marker[4];
+    return httpd_req_get_hdr_value_str(req, "X-DeckConnector", marker, sizeof(marker)) == ESP_OK ||
+           httpd_req_get_hdr_value_str(req, "X-Deckbridge", marker, sizeof(marker)) == ESP_OK;
+}
+
 static bool session_valid(const char *token)
 {
     int64_t now = esp_timer_get_time();
@@ -237,8 +245,7 @@ bool auth_check(httpd_req_t *req, web_level_t need)
     }
     /* Browsers send cookies and remembered basic auth also with requests from other sites; those cannot add
      * a custom header, so every change needs it. */
-    char marker[4] = {0};
-    bool marked = httpd_req_get_hdr_value_str(req, "X-Deckbridge", marker, sizeof(marker)) == ESP_OK;
+    bool marked = auth_marked(req);
     bool allowed = req->method == HTTP_GET || marked;
     char token[TOKEN_BYTES * 2 + 1] = {0};
     size_t len = sizeof(token);
@@ -288,9 +295,8 @@ esp_err_t auth_login(httpd_req_t *req)
 {
     /* the marker header, as for every change: a page from another site cannot send it, so it cannot guess
      * passwords from a browser on the LAN or lock its user out */
-    char marker[4] = {0};
-    if (httpd_req_get_hdr_value_str(req, "X-Deckbridge", marker, sizeof(marker)) != ESP_OK) {
-        return send_error(req, "403 Forbidden", "X-Deckbridge header missing");
+    if (!auth_marked(req)) {
+        return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
     }
     if (locked(req)) {
         return ESP_OK;

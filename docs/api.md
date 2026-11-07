@@ -1,7 +1,7 @@
 # Web API
 
 Everything the web UI does goes through this JSON API on port 80, and the same over HTTPS on port 443. Scripts
-can use it the same way. The DeckConnector announces it over mDNS as `_deckbridge-api._tcp`, with `path` and
+can use it the same way. The DeckConnector announces it over mDNS as `_deckconnector-api._tcp` (and the old `_deckbridge-api._tcp`), with `path` and
 `fw` in the TXT record.
 
 The DeckConnector makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
@@ -12,14 +12,14 @@ network unencrypted. The setup access point stays on plain HTTP.
 ## Login
 
 Send the password as HTTP basic auth with the user `admin`. Every request that changes something also needs the
-header `X-Deckbridge: 1`.
+header `X-DeckConnector: 1`. The old `X-Deckbridge: 1` works too.
 
 ```
 curl -u admin:PASSWORD http://192.168.1.214/api/status
-curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -X PUT -d '{"controller":"app","host":""}' http://192.168.1.214/api/config
+curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -X PUT -d '{"controller":"app","host":""}' http://192.168.1.214/api/config
 ```
 
-The web UI logs in with `POST /api/login`, the header `X-Deckbridge: 1` and `{"password": "..."}`, and gets a
+The web UI logs in with `POST /api/login`, the header `X-DeckConnector: 1` and `{"password": "..."}`, and gets a
 session cookie for 12 hours. `POST /api/logout` ends it. After five wrong passwords from one address, that address
 waits a few seconds, up to a minute, for both kinds of login.
 
@@ -29,12 +29,12 @@ Home Assistant and other programs use a token instead of the password. Make one 
 with the password:
 
 ```
-curl -u admin:PASSWORD -H 'X-Deckbridge: 1' -d '{"name":"home-assistant","right":"full"}' http://192.168.1.214/api/tokens
+curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -d '{"name":"home-assistant","right":"full"}' http://192.168.1.214/api/tokens
 curl -H 'Authorization: Bearer TOKEN' http://192.168.1.214/api/status
 ```
 
 The reply shows the token once. The DeckConnector keeps only its SHA-256, and a settings backup never holds it. A
-token needs no `X-Deckbridge` header. Each token has one right:
+token needs no `X-DeckConnector` header. Each token has one right:
 
 | `right` | Reaches |
 |---|---|
@@ -68,7 +68,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
 | `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
-| `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckbridge.elf` with the ELF of the same build |
+| `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckconnector.elf` with the ELF of the same build |
 | `DELETE /api/coredump` | Clear it |
 | `GET /api/boot` | The bootloader (`version`, `idf`, `built`, `sha256`) and the partition table (`partitions`, `md5`, `sha256`). `?raw=bootloader` or `?raw=ptable` gives the region itself. Both are replaced with `POST /api/ota`, see [ota.md](ota.md) |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the DeckConnector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |

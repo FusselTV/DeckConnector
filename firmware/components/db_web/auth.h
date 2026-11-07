@@ -8,7 +8,7 @@
 /*
  * Login for the web UI. The browser gets a random session cookie (HttpOnly, SameSite=Strict, 12 h idle
  * timeout). Scripts may send the password as HTTP basic auth instead. Every request that changes something
- * must also carry the header X-Deckbridge: 1, which a foreign page cannot add. Failed logins lock the login
+ * must also carry the header X-DeckConnector: 1 (or the old X-Deckbridge: 1), which a foreign page cannot add. Failed logins lock the login
  * for a growing time. Sessions live in RAM, so a restart (also after a password change) ends them all.
  *
  * Integrations use a token instead (Authorization: Bearer ...). A control token reaches the WEB_CONTROL routes, a

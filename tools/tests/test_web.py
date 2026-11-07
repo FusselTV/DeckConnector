@@ -16,7 +16,7 @@ def opener():
 
 
 def call(op, method, path, body=None, marker=True):
-    headers = {"X-Deckbridge": "1"} if marker else {}
+    headers = {"X-DeckConnector": "1"} if marker else {}
     req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers=headers)
     try:
         with op.open(req, timeout=10) as r:

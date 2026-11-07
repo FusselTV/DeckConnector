@@ -23,7 +23,7 @@ WATCH_S = 2.5
 def post(c: Client, path: str, body: dict) -> None:
     if not c.conn:
         c.get("/api/status")  # opens the keep-alive connection
-    c.conn.request("POST", path, body=json.dumps(body), headers={"Authorization": c.auth, "X-Deckbridge": "1"})
+    c.conn.request("POST", path, body=json.dumps(body), headers={"Authorization": c.auth, "X-DeckConnector": "1"})
     c.conn.getresponse().read()
 
 

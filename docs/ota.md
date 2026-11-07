@@ -66,7 +66,7 @@ and when a firmware runs.
 ```
 tools/build.sh                              # incremental build, plain ninja without idf.py and export.sh
 cd tools
-uv run python -m dbtools.fw deploy          # sign firmware/build/deckbridge.bin, upload into a bench slot, start it
+uv run python -m dbtools.fw deploy          # sign firmware/build/deckconnector.bin, upload into a bench slot, start it
 uv run python -m dbtools.fw use 2           # start slot 2
 uv run python -m dbtools.fw ab REV_A REV_B  # build both (cached), start A in one bench slot, B waits in the other
 uv run python -m dbtools.fw web             # sign firmware/components/db_web/index.html and serve it from www
@@ -87,7 +87,7 @@ still be started by choice. Without `all`, `tools/flash.sh` writes only the firm
 ```
 cd tools
 uv run python -m dbtools.dbfw keygen        # once; key in ~/.config/deckbridge/ota_key.pem
-uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckbridge.bin out.dbfw
+uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin out.dbfw
 ```
 
 `keygen` writes the public key to `firmware/components/db_ota/ota_pubkey.c`. A DeckConnector only accepts files

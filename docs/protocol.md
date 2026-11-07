@@ -5,7 +5,7 @@ bridge knows the USB protocol of the device and shows the newest image for each 
 
 ## Connection
 
-- The DeckConnector is the client. It opens `ws://<server>/deckbridge` with the subprotocol `deckbridge.v1`.
+- The DeckConnector is the client. It opens `ws://<server>/deckbridge` with the subprotocols `deckconnector.v1` and `deckbridge.v1`; the server picks one.
   A `wss://` URL works too. The server's certificate must come from a public CA and name the host, or match the
   SHA-256 set for that server in `server_pins` ([api.md](api.md)).
 - The DeckConnector keeps a connection to every configured server, at most four. The first connected server in
@@ -119,7 +119,7 @@ OTA `state` is one of `download`, `verify`, `done`, `error`. After `done` the De
 
 ```json
 {"t": "brightness", "pct": 70}
-{"t": "ota", "target": "p4", "url": "http://server:8000/deckbridge-0.2.0.dbfw"}
+{"t": "ota", "target": "p4", "url": "http://server:8000/deckconnector-0.2.0.dbfw"}
 {"t": "reboot"}
 ```
 

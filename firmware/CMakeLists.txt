@@ -18,7 +18,7 @@ set(ENV{IDF_COMPONENT_CHECK_NEW_VERSION} 0)
 set(CCACHE_ENABLE 1)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(deckbridge)
+project(deckconnector)
 
 # Third party code: GCC 15 flags a harmless strncpy in mdns. Our own components keep -Werror.
 idf_component_get_property(mdns_lib espressif__mdns COMPONENT_LIB)

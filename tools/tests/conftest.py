@@ -87,7 +87,7 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
             raise UnsafeBridge('"real" other than a host address is for a person at the web UI: tests name the host')
         if ipaddress.ip_address(real) not in NOBODY:
             real_input_target(status())  # only a test Companion on this machine may get them
-    req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-Deckbridge": "1"})
+    req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-DeckConnector": "1"})
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())
     try:

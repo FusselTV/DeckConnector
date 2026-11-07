@@ -189,7 +189,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
 /* Every request carries this header; the bridge refuses changes without it, so other sites cannot send them. */
 async function api(path, opts = {}) {
-  const r = await fetch(path, {...opts, headers: {'X-Deckbridge': '1', ...(opts.headers || {})}});
+  const r = await fetch(path, {...opts, headers: {'X-DeckConnector': '1', ...(opts.headers || {})}});
   if (r.status === 401 && path !== '/api/status' && path !== '/api/login') location.reload(); /* session ended */
   return r;
 }

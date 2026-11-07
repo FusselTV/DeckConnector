@@ -64,7 +64,7 @@ Web-Zugang.
      shows up in Companion under Surfaces, Discover, as a Network Dock.
    - Stream Deck app. It finds the board by itself.
    - Own servers. Add a server URL (`ws://host:port/deckbridge` or `wss://`). Without one, the board finds
-     servers that announce `_deckbridge._tcp` over mDNS.
+     servers that announce `_deckconnector._tcp` (or the old `_deckbridge._tcp`) over mDNS.
 
 When nobody draws, the deck shows its home screen. Its top row lists the connected hosts. Tap one twice to let
 it draw, or Menü for the settings. While a host draws, hold the first and the last encoder for two seconds to
@@ -89,7 +89,7 @@ that the tests and benchmarks use. Start from it.
 
 ```
 cd tools
-uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckbridge.bin fw.dbfw
+uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin fw.dbfw
 ```
 
 Upload `fw.dbfw` in the web UI, or let a server send `{"t": "ota", "url": ...}`. See [docs/ota.md](docs/ota.md).

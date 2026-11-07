@@ -84,7 +84,7 @@ async def test_dead_lan_falls_back_to_wlan(servers):
 
 def bridge_status(ip: str) -> dict | None:
     auth = "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
-    req = urllib.request.Request(f"http://{ip}/api/status", headers={"X-Deckbridge": "1", "Authorization": auth})
+    req = urllib.request.Request(f"http://{ip}/api/status", headers={"X-DeckConnector": "1", "Authorization": auth})
     try:
         with urllib.request.urlopen(req, timeout=2) as r:
             return json.loads(r.read())

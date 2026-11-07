@@ -205,7 +205,7 @@ class Server:
             self._handler,
             "0.0.0.0",
             self.port,
-            subprotocols=["deckbridge.v1"],
+            subprotocols=["deckconnector.v1", "deckbridge.v1"],
             max_size=2**22,
             ping_interval=5 if self.ping else None,
             ping_timeout=15,
@@ -214,8 +214,8 @@ class Server:
         if self.announce:
             self._zc = AsyncZeroconf(ip_version=IPVersion.V4Only)
             info = AsyncServiceInfo(
-                "_deckbridge._tcp.local.",
-                f"{self.name}._deckbridge._tcp.local.",
+                "_deckconnector._tcp.local.",
+                f"{self.name}._deckconnector._tcp.local.",
                 addresses=[socket.inet_aton(local_ip())],
                 port=self.port,
                 properties={"path": "/deckbridge"},

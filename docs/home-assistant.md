@@ -5,7 +5,7 @@ in [api.md](api.md).
 
 ## Finding and logging in
 
-The config flow finds the DeckConnector over zeroconf as `_deckbridge-api._tcp`. It asks for a token, made in
+The config flow finds the DeckConnector over zeroconf as `_deckconnector-api._tcp` (and the old `_deckbridge-api._tcp`). It asks for a token, made in
 the web UI under System. Requests send it as `Authorization: Bearer`. `id` in `/api/status` is the
 `unique_id`. It is the MAC address and stays when the name changes. With `https_only` on, the integration has
 to use `https://` on port 443 and accept the DeckConnector's own certificate.
