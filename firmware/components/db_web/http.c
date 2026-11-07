@@ -345,6 +345,15 @@ const char *db_web_fingerprint(void)
     return fingerprint;
 }
 
+bool db_web_cert_custom(void)
+{
+#if CONFIG_IDF_TARGET_LINUX
+    return false;
+#else
+    return web_cert_custom();
+#endif
+}
+
 esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(char *buf, size_t cap))
 {
     api_status_json = status;
@@ -417,6 +426,11 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics}, WEB_CONTROL},
         {{.uri = "/api/frontend", .method = HTTP_GET, .handler = get_frontend}, WEB_CONTROL},
         {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_FULL},
+#if !CONFIG_IDF_TARGET_LINUX
+        {{.uri = "/api/cert", .method = HTTP_GET, .handler = get_cert}, WEB_OPEN},
+        {{.uri = "/api/tls", .method = HTTP_PUT, .handler = put_tls}, WEB_FULL},
+        {{.uri = "/api/tls", .method = HTTP_DELETE, .handler = delete_tls}, WEB_FULL},
+#endif
         {{.uri = "/api/input/log", .method = HTTP_GET, .handler = get_input_log}, WEB_CONTROL},
         {{.uri = "/api/sources/retry", .method = HTTP_POST, .handler = post_source_retry}, WEB_CONTROL},
         {{.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = get_wifi_scan}, WEB_FULL},

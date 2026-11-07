@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 
 #include "esp_err.h"
@@ -20,6 +21,8 @@ esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap),
 
 /* SHA-256 of the HTTPS certificate, "AB:CD:…"; empty without HTTPS. */
 const char *db_web_fingerprint(void);
+/* HTTPS serves an uploaded certificate, not its own. */
+bool db_web_cert_custom(void);
 
 /* Send one JSON message to every listener of /api/ws. */
 void db_web_broadcast(const char *json);

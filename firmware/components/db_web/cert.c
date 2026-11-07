@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "esp_heap_caps.h"
+#include "cJSON.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "mbedtls/pk.h"
@@ -11,7 +12,8 @@
 #include "nvs.h"
 #include "psa/crypto.h"
 
-#define PEM_MAX 1024
+#define PEM_MAX    1024
+#define CUSTOM_MAX 8192 /* an uploaded certificate may carry its chain */
 
 static const char *TAG = "cert";
 
@@ -74,12 +76,46 @@ static void fingerprint(const char *cert, char out[96])
     mbedtls_x509_crt_free(&crt);
 }
 
+static const char *active; /* the certificate HTTPS serves, for GET /api/cert */
+static bool custom;
+
+/* An uploaded pair from NVS "web" ccert/ckey, when it is there and still fits together. */
+static bool load_custom(nvs_handle_t h, char **cert, char **key)
+{
+    size_t cl = 0, kl = 0;
+    if (nvs_get_blob(h, "ccert", NULL, &cl) != ESP_OK || nvs_get_blob(h, "ckey", NULL, &kl) != ESP_OK ||
+        cl > CUSTOM_MAX || kl > CUSTOM_MAX) {
+        return false;
+    }
+    char *c = heap_caps_calloc(1, cl + 1, MALLOC_CAP_SPIRAM);
+    char *k = heap_caps_calloc(1, kl + 1, MALLOC_CAP_SPIRAM);
+    char info[8];
+    if (c && k && nvs_get_blob(h, "ccert", c, &cl) == ESP_OK && nvs_get_blob(h, "ckey", k, &kl) == ESP_OK &&
+        web_cert_check(c, k, info, 0)) {
+        *cert = c;
+        *key = k;
+        return true;
+    }
+    ESP_LOGE(TAG, "the uploaded certificate no longer loads, using the own one");
+    heap_caps_free(c);
+    heap_caps_free(k);
+    return false;
+}
+
 bool web_cert(const char *name, char **cert, char **key, char fp[96])
 {
+    nvs_handle_t h = 0;
+    bool ok = nvs_open("web", NVS_READWRITE, &h) == ESP_OK;
+    if (ok && load_custom(h, cert, key)) {
+        nvs_close(h);
+        custom = true;
+        active = *cert;
+        fingerprint(*cert, fp);
+        return true;
+    }
     *cert = heap_caps_calloc(1, PEM_MAX, MALLOC_CAP_SPIRAM);
     *key = heap_caps_calloc(1, PEM_MAX, MALLOC_CAP_SPIRAM);
-    nvs_handle_t h;
-    bool ok = *cert && *key && nvs_open("web", NVS_READWRITE, &h) == ESP_OK;
+    ok = ok && *cert && *key;
     if (ok) {
         size_t cl = PEM_MAX, kl = PEM_MAX;
         if (nvs_get_str(h, "cert", *cert, &cl) != ESP_OK || nvs_get_str(h, "key", *key, &kl) != ESP_OK) {
@@ -92,9 +128,12 @@ bool web_cert(const char *name, char **cert, char **key, char fp[96])
                 ESP_LOGE(TAG, "certificate not saved: its fingerprint changes at the next restart");
             }
         }
+    }
+    if (h) {
         nvs_close(h);
     }
     if (ok) {
+        active = *cert;
         fingerprint(*cert, fp);
     } else {
         heap_caps_free(*cert);
@@ -102,4 +141,107 @@ bool web_cert(const char *name, char **cert, char **key, char fp[96])
         *cert = *key = NULL;
     }
     return ok;
+}
+
+bool web_cert_check(const char *cert, const char *key, char *info, size_t cap)
+{
+    mbedtls_x509_crt crt;
+    mbedtls_pk_context pk;
+    mbedtls_x509_crt_init(&crt);
+    mbedtls_pk_init(&pk);
+    bool ok = mbedtls_x509_crt_parse(&crt, (const unsigned char *)cert, strlen(cert) + 1) == 0 &&
+              mbedtls_pk_parse_key(&pk, (const unsigned char *)key, strlen(key) + 1, NULL, 0) == 0 &&
+              mbedtls_pk_check_pair(&crt.pk, &pk) == 0;
+    if (ok && cap) {
+        char subject[96] = "", issuer[96] = "", fp[96];
+        mbedtls_x509_dn_gets(subject, sizeof(subject), &crt.subject);
+        mbedtls_x509_dn_gets(issuer, sizeof(issuer), &crt.issuer);
+        fingerprint(cert, fp);
+        const mbedtls_x509_time *t = &crt.valid_to;
+        snprintf(info, cap,
+                 "{\"ok\":true,\"subject\":\"%s\",\"issuer\":\"%s\",\"not_after\":\"%04d-%02d-%02d\","
+                 "\"sha256\":\"%s\"}",
+                 subject, issuer, t->year, t->mon, t->day, fp);
+    }
+    mbedtls_pk_free(&pk);
+    mbedtls_x509_crt_free(&crt);
+    return ok;
+}
+
+bool web_cert_custom(void)
+{
+    return custom;
+}
+
+const char *web_cert_active(void)
+{
+    return active;
+}
+
+esp_err_t web_cert_store(const char *cert, const char *key)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (cert) {
+        err = nvs_set_blob(h, "ccert", cert, strlen(cert));
+        err = err == ESP_OK ? nvs_set_blob(h, "ckey", key, strlen(key)) : err;
+    } else {
+        nvs_erase_key(h, "ccert");
+        nvs_erase_key(h, "ckey");
+    }
+    err = err == ESP_OK ? nvs_commit(h) : err;
+    nvs_close(h);
+    return err;
+}
+
+/* GET /api/cert: the public certificate HTTPS serves, to import into a trust store or to pin. */
+esp_err_t get_cert(httpd_req_t *req)
+{
+    if (!active) {
+        return send_error(req, "404 Not Found", "HTTPS is not running");
+    }
+    httpd_resp_set_type(req, "application/x-pem-file");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"deckconnector.pem\"");
+    return httpd_resp_send(req, active, HTTPD_RESP_USE_STRLEN);
+}
+
+/* PUT /api/tls {cert, key}: check an uploaded pair; with "apply": true keep it and restart. */
+esp_err_t put_tls(httpd_req_t *req)
+{
+    char *body = heap_caps_malloc(2 * CUSTOM_MAX + 256, MALLOC_CAP_SPIRAM);
+    cJSON *root = body && read_body(req, body, 2 * CUSTOM_MAX + 256) >= 0 ? cJSON_Parse(body) : NULL;
+    heap_caps_free(body);
+    const cJSON *cert = cJSON_GetObjectItemCaseSensitive(root, "cert");
+    const cJSON *key = cJSON_GetObjectItemCaseSensitive(root, "key");
+    bool apply = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "apply"));
+    char info[400];
+    bool ok = cJSON_IsString(cert) && cJSON_IsString(key) && strlen(cert->valuestring) <= CUSTOM_MAX &&
+              strlen(key->valuestring) <= CUSTOM_MAX && web_cert_check(cert->valuestring, key->valuestring, info, sizeof(info));
+    esp_err_t stored = ok && apply ? web_cert_store(cert->valuestring, key->valuestring) : ESP_OK;
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "a PEM certificate and its PEM key (not encrypted) expected");
+    }
+    if (stored != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "not saved");
+    }
+    send_json(req, info);
+    if (apply) {
+        restart_soon();
+    }
+    return ESP_OK;
+}
+
+/* DELETE /api/tls: back to the own certificate. */
+esp_err_t delete_tls(httpd_req_t *req)
+{
+    if (web_cert_store(NULL, NULL) != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "not saved");
+    }
+    send_json(req, "{\"ok\":true,\"restart\":true}");
+    restart_soon();
+    return ESP_OK;
 }
