@@ -307,6 +307,14 @@ function useScreen(serial: string | undefined) {
       busy.current = true
       try {
         const s = await api.screen(serial)
+        // A new <img> is empty until it loads, so the old picture stays until the new ones are decoded.
+        await Promise.all(
+          s.images.map((i) => {
+            const img = new Image()
+            img.src = i.url
+            return img.decode().catch(() => undefined)
+          }),
+        )
         if (!off) setScreen(s)
       } catch {
         /* the next screen event tries again */
