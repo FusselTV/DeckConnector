@@ -79,15 +79,9 @@ int read_body(httpd_req_t *req, char *buf, size_t cap)
     return (int)got;
 }
 
-static void restart_task(void *arg)
-{
-    vTaskDelay(pdMS_TO_TICKS(1000)); /* the reply goes out first */
-    esp_restart();
-}
-
 void restart_soon(void)
 {
-    xTaskCreate(restart_task, "web_restart", 2048, NULL, 5, NULL);
+    db_ota_restart(1000);
 }
 
 /* The page itself is public; it shows the login form until /api/status answers. It comes from the `www`

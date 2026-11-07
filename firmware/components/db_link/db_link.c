@@ -11,6 +11,7 @@
 #include "db_deck.h"
 #include "db_json.h"
 #include "db_net.h"
+#include "db_ota.h"
 #include "db_proto.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -234,8 +235,7 @@ static void handle_command(link_t *l, const char *text)
         ESP_LOGW(TAG, "server %d asked for a restart, but only the active server may", l->index);
     } else if (strcmp(t->valuestring, "reboot") == 0) {
         ESP_LOGW(TAG, "server %d asked for a restart", l->index);
-        vTaskDelay(pdMS_TO_TICKS(200));
-        esp_restart();
+        db_ota_restart(200);
     } else {
         ESP_LOGW(TAG, "server %d: unknown message %s", l->index, t->valuestring);
     }

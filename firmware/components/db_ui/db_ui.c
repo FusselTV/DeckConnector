@@ -9,6 +9,7 @@
 #include "db_dock.h"
 #include "db_link.h"
 #include "db_net.h"
+#include "db_ota.h"
 #include "db_satellite.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -479,12 +480,6 @@ static void save_brightness(void *arg)
     }
 }
 
-static void restart_task(void *arg)
-{
-    vTaskDelay(pdMS_TO_TICKS(800));
-    esp_restart();
-}
-
 static void save_lan(const ui_action_t *act)
 {
     db_config_t c;
@@ -496,7 +491,7 @@ static void save_lan(const ui_action_t *act)
         snprintf(fields[f], 16, "%u.%u.%u.%u", o[0], o[1], o[2], o[3]);
     }
     if (db_config_save(&c) == ESP_OK) {
-        xTaskCreate(restart_task, "ui_restart", 2048, NULL, 5, NULL);
+        db_ota_restart(800);
     }
 }
 
@@ -546,10 +541,10 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
     case UI_DO_RESET:
         ESP_LOGW(TAG, "factory reset from the deck");
         db_config_reset();
-        xTaskCreate(restart_task, "ui_restart", 2048, NULL, 5, NULL);
+        db_ota_restart(800);
         break;
     case UI_DO_RESTART:
-        xTaskCreate(restart_task, "ui_restart", 2048, NULL, 5, NULL);
+        db_ota_restart(800);
         break;
     case UI_DO_SAVE_LAN:
         save_lan(act);

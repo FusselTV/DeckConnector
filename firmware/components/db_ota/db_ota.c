@@ -57,12 +57,9 @@ static struct {
     psa_hash_operation_t hash;
     esp_ota_handle_t p4;
     const esp_partition_t *partition;
-    uint8_t *c6_buf;
-    uint8_t *table; /* a new partition table, until it is checked */
-    size_t c6_fill;
+    uint8_t *payload; /* a bootloader, partition table or C6 image, kept until its hash is checked */
     char c6_version[16];
     bool restarts; /* the last finished update restarts the bridge */
-    bool c6_open;  /* the C6 is in an update: an abort must end it there too */
     const char *refusal;
 } s;
 
@@ -128,10 +125,6 @@ static void finish(void)
         esp_ota_abort(s.p4);
         s.p4 = 0;
     }
-    if (s.c6_open) {
-        esp_hosted_slave_ota_end(); /* refuses the half image; the next begin starts clean */
-        s.c6_open = false;
-    }
     if (s.target == TARGET_BOOT || s.target == TARGET_TABLE) {
         /* IDF opens both regions for writing and leaves them open, and only esp_ota_end() resets the offset */
         if (esp_flash_set_dangerous_write_protection(esp_flash_default_chip, true) != ESP_OK) {
@@ -139,10 +132,8 @@ static void finish(void)
         }
         esp_image_bootloader_offset_set(ESP_PRIMARY_BOOTLOADER_OFFSET);
     }
-    heap_caps_free(s.c6_buf);
-    s.c6_buf = NULL;
-    heap_caps_free(s.table);
-    s.table = NULL;
+    heap_caps_free(s.payload);
+    s.payload = NULL;
     s.busy = false;
     xSemaphoreGive(s.lock);
 }
@@ -253,6 +244,11 @@ static esp_err_t start_payload(void)
     }
     ESP_LOGI(TAG, "signed %s image %.32s, %lu bytes", target_name(), (const char *)s.header + 12,
              (unsigned long)s.payload_len);
+    if (s.target == TARGET_C6) {
+        /* the C6 gets nothing before the hash is checked: an older C6 firmware switches over in end() */
+        s.payload = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
+        return s.payload ? ESP_OK : ESP_ERR_NO_MEM;
+    }
     if (s.target == TARGET_BOOT || s.target == TARGET_TABLE) {
         /* staged in the slot an update would use next, then IDF verifies it and copies it to its place */
         const esp_partition_t *final = primary(s.target);
@@ -261,47 +257,21 @@ static esp_err_t start_payload(void)
             return ESP_ERR_INVALID_SIZE;
         }
         /* kept until it is checked: a refused image must not erase the slot */
-        s.table = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
-        if (s.table) {
-            memset(s.table, 0xff, final->size);
+        s.payload = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
+        if (s.payload) {
+            memset(s.payload, 0xff, final->size);
         }
-        return s.table ? ESP_OK : ESP_ERR_NO_MEM;
+        return s.payload ? ESP_OK : ESP_ERR_NO_MEM;
     }
-    if (s.target == TARGET_P4) {
-        s.partition = s.slot < 0 ? esp_ota_get_next_update_partition(NULL) : slot_partition(s.slot);
-        if (!s.partition || s.partition == esp_ota_get_running_partition()) {
-            return ESP_ERR_NOT_FOUND;
-        }
-        int64_t t = esp_timer_get_time();
-        remember_level(s.partition, -1);
-        esp_err_t err = esp_ota_begin(s.partition, s.payload_len, &s.p4);
-        ESP_LOGI(TAG, "slot %s erased in %lld ms", s.partition->label, (esp_timer_get_time() - t) / 1000);
-        return err;
+    s.partition = s.slot < 0 ? esp_ota_get_next_update_partition(NULL) : slot_partition(s.slot);
+    if (!s.partition || s.partition == esp_ota_get_running_partition()) {
+        return ESP_ERR_NOT_FOUND;
     }
-    s.c6_buf = heap_caps_malloc(C6_CHUNK, MALLOC_CAP_INTERNAL);
-    s.c6_fill = 0;
-    esp_err_t err = s.c6_buf ? esp_hosted_slave_ota_begin() : ESP_ERR_NO_MEM;
-    s.c6_open = err == ESP_OK;
+    int64_t t = esp_timer_get_time();
+    remember_level(s.partition, -1);
+    esp_err_t err = esp_ota_begin(s.partition, s.payload_len, &s.p4);
+    ESP_LOGI(TAG, "slot %s erased in %lld ms", s.partition->label, (esp_timer_get_time() - t) / 1000);
     return err;
-}
-
-static esp_err_t write_c6(const uint8_t *p, size_t n)
-{
-    while (n > 0) {
-        size_t take = C6_CHUNK - s.c6_fill < n ? C6_CHUNK - s.c6_fill : n;
-        memcpy(s.c6_buf + s.c6_fill, p, take);
-        s.c6_fill += take;
-        p += take;
-        n -= take;
-        if (s.c6_fill == C6_CHUNK) {
-            esp_err_t err = esp_hosted_slave_ota_write(s.c6_buf, C6_CHUNK);
-            s.c6_fill = 0;
-            if (err != ESP_OK) {
-                return err;
-            }
-        }
-    }
-    return ESP_OK;
 }
 
 static esp_err_t write_payload(const uint8_t *p, size_t n)
@@ -311,10 +281,10 @@ static esp_err_t write_payload(const uint8_t *p, size_t n)
     }
     psa_hash_update(&s.hash, p, n);
     esp_err_t err = ESP_OK;
-    if (s.table) {
-        memcpy(s.table + s.written, p, n);
+    if (s.payload) {
+        memcpy(s.payload + s.written, p, n);
     } else {
-        err = s.target == TARGET_C6 ? write_c6(p, n) : esp_ota_write(s.p4, p, n);
+        err = esp_ota_write(s.p4, p, n);
     }
     s.written += (uint32_t)n;
     int pct = (int)((uint64_t)s.written * 100 / s.payload_len);
@@ -355,16 +325,20 @@ esp_err_t db_ota_write(const uint8_t *data, size_t len)
 
 static void restart_task(void *arg)
 {
-    vTaskDelay(pdMS_TO_TICKS(1500));
+    vTaskDelay(pdMS_TO_TICKS((uint32_t)(uintptr_t)arg));
+    xSemaphoreTake(s.lock, portMAX_DELAY); /* held from begin to end: never cut a bootloader copy short */
     esp_restart();
 }
 
-/* after the reply has gone out; without memory for the task, at once */
-static void restart_soon(void)
+void db_ota_restart(uint32_t delay_ms)
 {
-    if (xTaskCreate(restart_task, "ota_restart", 2048, NULL, 5, NULL) != pdPASS) {
+    if (xTaskCreate(restart_task, "restart", 2048, (void *)(uintptr_t)delay_ms, 5, NULL) == pdPASS) {
+        return;
+    }
+    if (xSemaphoreTake(s.lock, 0) == pdTRUE) {
         esp_restart();
     }
+    ESP_LOGE(TAG, "no restart: no memory for its task while an update runs");
 }
 
 /* A new table must keep everything the running firmware and its data rely on (db_ptable.c). */
@@ -399,9 +373,9 @@ static esp_err_t commit_boot(void)
     /* a bootloader: its image header (0xE9) and chip id here, IDF checks the rest in esp_ota_end, after staging
      * erased the slot and before the copy */
     uint16_t chip;
-    memcpy(&chip, s.table + 12, 2);
-    esp_err_t err = s.target == TARGET_TABLE                         ? check_table(s.table)
-                    : s.table[0] == 0xE9 && chip == ESP_CHIP_ID_ESP32P4 ? ESP_OK
+    memcpy(&chip, s.payload + 12, 2);
+    esp_err_t err = s.target == TARGET_TABLE                         ? check_table(s.payload)
+                    : s.payload[0] == 0xE9 && chip == ESP_CHIP_ID_ESP32P4 ? ESP_OK
                                                                          : ESP_ERR_INVALID_ARG;
     if (s.target == TARGET_BOOT && err != ESP_OK) {
         s.refusal = "not a bootloader for this chip";
@@ -414,7 +388,7 @@ static esp_err_t commit_boot(void)
         err = esp_ota_set_final_partition(s.p4, final, true);
     }
     if (err == ESP_OK) {
-        err = esp_ota_write(s.p4, s.table, s.payload_len);
+        err = esp_ota_write(s.p4, s.payload, s.payload_len);
     }
     uint8_t *staged = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
     uint8_t *placed = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
@@ -458,11 +432,18 @@ static esp_err_t commit(void)
         }
         return err == ESP_OK && s.boot ? esp_ota_set_boot_partition(s.partition) : err;
     }
-    if (s.c6_fill && esp_hosted_slave_ota_write(s.c6_buf, s.c6_fill) != ESP_OK) {
-        return ESP_FAIL;
+    uint8_t *chunk = heap_caps_malloc(C6_CHUNK, MALLOC_CAP_INTERNAL);
+    esp_err_t err = chunk ? esp_hosted_slave_ota_begin() : ESP_ERR_NO_MEM;
+    for (uint32_t off = 0; err == ESP_OK && off < s.payload_len; off += C6_CHUNK) {
+        uint32_t n = s.payload_len - off < C6_CHUNK ? s.payload_len - off : C6_CHUNK;
+        memcpy(chunk, s.payload + off, n);
+        err = esp_hosted_slave_ota_write(chunk, n);
     }
-    esp_err_t err = esp_hosted_slave_ota_end();
-    s.c6_open = false;
+    heap_caps_free(chunk);
+    if (err != ESP_OK) {
+        return err; /* no end(): on older C6 firmware it would switch to the half image */
+    }
+    err = esp_hosted_slave_ota_end();
     /* Co-processor firmware before 2.6 switches over in end() and has no activate call. */
     esp_hosted_coprocessor_fwver_t v = {0};
     bool known = esp_hosted_get_coprocessor_fwversion(&v) == ESP_OK;
@@ -502,7 +483,7 @@ esp_err_t db_ota_end(void)
     finish();
     /* After a C6 update the host restarts too, so both sides start their link again. */
     if (restart) {
-        restart_soon();
+        db_ota_restart(1500);
     }
     return ESP_OK;
 }
@@ -584,6 +565,7 @@ static void confirm_task(void *arg)
     }
     db_log_event(TAG, "update", "%s, rolling back",
                  reached ? "the healthy new firmware could not be confirmed" : "new firmware never became healthy");
+    xSemaphoreTake(s.lock, portMAX_DELAY); /* it restarts: not during an update */
     esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
     ESP_LOGE(TAG, "rolling back failed too: %s, the bootloader decides at the next start", esp_err_to_name(err));
     vTaskDelete(NULL);
@@ -692,7 +674,7 @@ esp_err_t db_ota_boot_slot(int slot)
     err = esp_ota_set_boot_partition(p); /* checks the image; the new start must confirm itself */
     if (err == ESP_OK) {
         ESP_LOGW(TAG, "booting slot %s", p->label);
-        restart_soon();
+        db_ota_restart(1500);
     }
     return err;
 }

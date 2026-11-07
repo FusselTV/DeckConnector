@@ -16,7 +16,10 @@
 #include "db_ota.h"
 #include "db_ui.h"
 #include "esp_http_server.h"
+#include "esp_system.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define LISTENERS 8
 
@@ -226,6 +229,15 @@ esp_err_t db_ota_end(void)
 }
 void db_ota_abort(const char *why)
 {
+}
+static void restart_task(void *arg)
+{
+    vTaskDelay(pdMS_TO_TICKS((uint32_t)(uintptr_t)arg));
+    esp_restart();
+}
+void db_ota_restart(uint32_t delay_ms)
+{
+    xTaskCreate(restart_task, "restart", 4096, (void *)(uintptr_t)delay_ms, 5, NULL);
 }
 esp_err_t db_ota_start_url(const char *url)
 {

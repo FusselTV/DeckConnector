@@ -33,6 +33,9 @@ bool db_ota_restarts(void);
 const char *db_ota_refusal(void);
 void db_ota_abort(const char *why);
 
+/* Every restart goes through here: after `delay_ms`, once no update runs. */
+void db_ota_restart(uint32_t delay_ms);
+
 /* Download and install a .dbfw file in the background. */
 esp_err_t db_ota_start_url(const char *url);
 
