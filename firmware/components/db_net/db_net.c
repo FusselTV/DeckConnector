@@ -662,17 +662,21 @@ static void join_task(void *arg)
     s.join_reason = 0;
     s.join_got_ip = false;
     esp_wifi_disconnect();
-    esp_wifi_set_config(WIFI_IF_STA, &cfg);
-    esp_wifi_connect();
+    esp_err_t set = esp_wifi_set_config(WIFI_IF_STA, &cfg);
+    if (set == ESP_OK) {
+        esp_wifi_connect();
+    } else {
+        ESP_LOGW(TAG, "WLAN %s not set: %s", j->ssid, esp_err_to_name(set));
+    }
     bool up = false;
-    for (int i = 0; i < 150 && !up; i++) {
+    for (int i = 0; set == ESP_OK && i < 150 && !up; i++) {
         vTaskDelay(pdMS_TO_TICKS(100));
         up = s.join_got_ip && s.st.wlan_up && strcmp(s.st.wlan_ssid, j->ssid) == 0 &&
              (!j->bssid[0] || strcasecmp(s.st.wlan_bssid, j->bssid) == 0);
     }
+    bool saved = false;
     if (up) {
         db_config_t *next = heap_caps_malloc(sizeof(*next), MALLOC_CAP_SPIRAM);
-        bool saved = false;
         if (next) {
             db_config_edit_begin();
             db_config_copy(next);
@@ -683,10 +687,14 @@ static void join_task(void *arg)
             db_config_edit_end();
             free(next);
         }
-        set_join(saved ? "ok" : "failed", saved ? "" : "not saved");
+    }
+    if (saved) {
+        set_join("ok", "");
     } else {
         int r = s.join_reason;
-        set_join("failed", r == WIFI_REASON_NO_AP_FOUND                                    ? "network not found"
+        set_join("failed", up                                                            ? "not saved"
+                           : set != ESP_OK                                               ? "not set"
+                           : r == WIFI_REASON_NO_AP_FOUND                                ? "network not found"
                            : r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
                                      r == WIFI_REASON_HANDSHAKE_TIMEOUT || r == WIFI_REASON_MIC_FAILURE
                                ? "wrong password"
