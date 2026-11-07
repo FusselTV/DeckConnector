@@ -27,6 +27,7 @@ export const test = base.extend<{ errors: string[]; app: Page }>({
   app: async ({ page, errors: _errors }, use) => {
     // Presses from the page carry "real": true by design. A test never lets one reach a device, not even the simulator.
     await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
+    await sim('PUT', '/api/setup', { step: 0 })
     await sim('PUT', '/api/config', {
       setup_done: true,
       brightness: 80,
