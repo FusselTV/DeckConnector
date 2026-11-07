@@ -259,7 +259,7 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   }
   return (
     <>
-      <div className="row">
+      <div className="row acts">
         {lead}
         <Btn id="upd-check" icon={RefreshCw} disabled={st.state === 'checking'} onClick={() => void check()}>
           {t(st.state === 'checking' ? 'upd.checking' : 'upd.check')}
@@ -490,7 +490,7 @@ export function Firmware() {
             </div>
           </div>
         )}
-        {canCheck ? <UpdateCheckBox lead={install} /> : <div className="row">{install}</div>}
+        {canCheck ? <UpdateCheckBox lead={install} /> : <div className="row acts">{install}</div>}
         <Row
           id="slots"
           icon={Layers}
@@ -576,7 +576,7 @@ export function Firmware() {
         title={t('fw.backup')}
         right={<Help right label={t('fw.backup')} text={`${t('fw.backup_h')} ${t('fw.not_in')}`} />}
       >
-        <div className="row wrap">
+        <div className="row wrap acts">
           <Btn id="bak-dl" icon={Download} disabled={!cfg} onClick={() => setSave(true)}>
             {t('fw.save')}
           </Btn>

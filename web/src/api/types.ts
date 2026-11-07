@@ -89,6 +89,10 @@ export interface Status {
   uptime_s?: number
   controller?: string
   writer?: string
+  /** The deck menu covers the deck. */
+  menu_open?: boolean
+  /** This page reached the device over its setup Wi-Fi, which needs no password. */
+  via_ap?: boolean
   device?: DeckInfo | null
   decks?: DeckInfo[]
   network?: Network

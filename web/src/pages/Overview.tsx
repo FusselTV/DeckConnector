@@ -18,6 +18,7 @@ import {
   Unplug,
   Usb,
   Wifi,
+  X,
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, pressReal, READONLY } from '../api/client'
@@ -627,10 +628,11 @@ function Controls() {
           className="btn"
           disabled={!deck}
           title={t('ov.chord', { a: 1, b: deck?.encoders ?? 4, s: fmt.dec(hold / 1000) })}
+          aria-pressed={!!st.menu_open}
           onClick={() => void a.menu(decks.length > 1 ? deck?.serial : undefined)}
         >
-          <SquareMenu size={18} aria-hidden />
-          <span>{t('deck.menu')}</span>
+          {st.menu_open ? <X size={18} aria-hidden /> : <SquareMenu size={18} aria-hidden />}
+          <span>{t(st.menu_open ? 'ov.menu_close' : 'deck.menu')}</span>
         </button>
         <button type="button" className="btn" title={t('ov.rec_h')} onClick={() => void a.reconnect(decks.length)}>
           <Usb size={18} aria-hidden />

@@ -134,6 +134,7 @@ export const api = {
   putConfig: (patch: ConfigPatch) => request<PutReply>('/api/config', { method: 'PUT', body: patch }),
   screen: (deck?: string) => request<Screen>('/api/screen' + q(deck)),
   menu: (deck?: string) => request<{ ok: boolean }>('/api/menu' + q(deck), { method: 'POST' }),
+  closeMenu: (deck?: string) => request<{ ok: boolean }>('/api/menu' + q(deck), { method: 'DELETE' }),
   reconnect: () => request<{ ok: boolean }>('/api/deck/reconnect', { method: 'POST' }),
   reboot: () => request<{ ok: boolean }>('/api/reboot', { method: 'POST' }),
   dock: (body: { accept: boolean; ip: string } | { pairing: number } | { forget: string | true }) =>

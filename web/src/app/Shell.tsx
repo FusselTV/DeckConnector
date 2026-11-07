@@ -151,6 +151,7 @@ function SideFoot() {
   const { t, lang } = useUi()
   const eff = useTheme()
   const a = useActions()
+  const viaAp = useStore((s) => !!s.status.via_ap)
   return (
     <div className="sidefoot">
       <button
@@ -171,10 +172,12 @@ function SideFoot() {
         <span>{t('acct.theme')}</span>
         <em>{t(eff === 'dark' ? 'acct.dark' : 'acct.light')}</em>
       </button>
-      <button type="button" onClick={() => void a.logout()}>
-        <LogOut size={18} aria-hidden />
-        <span>{t('hdr.logout')}</span>
-      </button>
+      {!viaAp && (
+        <button type="button" onClick={() => void a.logout()}>
+          <LogOut size={18} aria-hidden />
+          <span>{t('hdr.logout')}</span>
+        </button>
+      )}
     </div>
   )
 }
@@ -228,6 +231,7 @@ function MoreSheet({ close }: { close: () => void }) {
   const tab = tabAtom.use()
   const dirty = useDirtyTabs()
   const eff = useTheme()
+  const viaAp = useStore((s) => !!s.status.via_ap)
   const pick = (k: Tab) => {
     close()
     go(k)
@@ -309,19 +313,21 @@ function MoreSheet({ close }: { close: () => void }) {
               ]}
             />
           </div>
-          <div>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                close()
-                void a.logout()
-              }}
-            >
-              <LogOut size={16} aria-hidden />
-              {t('hdr.logout')}
-            </button>
-          </div>
+          {!viaAp && (
+            <div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  close()
+                  void a.logout()
+                }}
+              >
+                <LogOut size={16} aria-hidden />
+                {t('hdr.logout')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </Dialog>

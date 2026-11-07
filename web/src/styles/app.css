@@ -161,6 +161,8 @@
   html,
   body {
     height: 100%;
+    /* iOS widens the whole page for anything that sticks out, and keeps it for every tab */
+    overflow-x: clip;
   }
   html {
     scroll-padding-top: 72px;
@@ -650,7 +652,7 @@
   }
   .grid2 {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
     gap: 12px;
   }
   .sw {
@@ -1221,7 +1223,7 @@
   }
   .cgrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
     gap: 8px;
   }
   .cgrid div {
@@ -1610,7 +1612,7 @@
   }
   .langpick {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
   .langpick .choice {
@@ -1880,7 +1882,7 @@
   }
   .sheetgrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
     gap: 4px;
   }
   .grab {
@@ -2095,9 +2097,12 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    flex-wrap: wrap;
     padding: 12px 16px;
     min-height: 52px;
+  }
+  .xrow > summary > .ic,
+  .xrow > summary > .chev {
+    flex: none;
   }
   .xrow > summary::-webkit-details-marker {
     display: none;
@@ -2107,6 +2112,8 @@
   }
   .xrow > summary b {
     font-size: 16px;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .xrow .xst {
     display: inline-flex;
@@ -2232,6 +2239,9 @@
   .btnrow3 .btn {
     padding: 0 8px;
     white-space: normal;
+    text-align: center;
+  }
+  .btnrow3 .btn > span {
     text-align: center;
   }
   .cols2 {
@@ -2361,6 +2371,10 @@
       gap: 2px;
       font-size: 13px;
       min-height: 56px;
+      padding-block: 8px;
+    }
+    .acts > .btn {
+      flex: 1 1 auto;
     }
   }
   @property --rot {
@@ -3062,7 +3076,7 @@
     font-size: 15px;
   }
   .chordopts {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   }
   .chordopts .choice {
     align-items: center;
@@ -3137,7 +3151,7 @@
   }
   @media (max-width: 899px) {
     .shell {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
     .side {
       display: none;
@@ -3222,7 +3236,7 @@
       overflow-wrap: anywhere;
     }
     .sparks {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
     .meter {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3240,7 +3254,7 @@
       border-bottom: 0;
     }
     .dl {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: 0;
     }
     .dl dd {
@@ -3272,6 +3286,12 @@
     }
     .toast button {
       min-height: 44px;
+    }
+    /* below 16px iOS zooms in on focus and stays zoomed, and the page runs past the right edge */
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em) !important;
     }
   }
   @media (prefers-reduced-motion: reduce) {

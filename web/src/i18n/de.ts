@@ -84,6 +84,8 @@ export const de: Dict = {
   'ov.controls': 'Steuerung',
   'ov.bright': 'Helligkeit',
   'ov.menu': 'Deck-Menü öffnen',
+  'ov.menu_close': 'Menü schließen',
+  'ov.menu_closed': 'Menü am Deck geschlossen',
   'ov.menu_done': 'Menü am Deck geöffnet',
   'ov.chord': 'Am Deck: Drehregler {a} und {b} zusammen {s} s lang halten.',
   'src.intro':

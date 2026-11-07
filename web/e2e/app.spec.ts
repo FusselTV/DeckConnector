@@ -294,3 +294,13 @@ test('without the password, the login page shows it on the deck or asks the deck
   await page.getByRole('button', { name: 'Cancel' }).click()
   expect(calls).toEqual(['POST /api/password/show', 'POST /api/password/reset', 'DELETE /api/password/reset'])
 })
+
+test('the deck menu button closes the menu it opened', async ({ app: page }) => {
+  const btn = page.locator('#card-ctl .btnrow3 button').first()
+  await expect(btn).toHaveText('Deck menu')
+  await btn.click()
+  await expect(btn).toHaveText('Close menu')
+  await expect(btn).toHaveAttribute('aria-pressed', 'true')
+  await btn.click()
+  await expect(btn).toHaveText('Deck menu')
+})

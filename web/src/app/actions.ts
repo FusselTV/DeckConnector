@@ -69,8 +69,14 @@ export function useActions() {
       brightness: (n: number) => act(() => putConfig({ brightness: n })),
       menu: (serial?: string) =>
         act(async () => {
-          await api.menu(serial)
-          toast(t('ov.menu_done'))
+          if (getState().status.menu_open) {
+            await api.closeMenu(serial)
+            toast(t('ov.menu_closed'))
+          } else {
+            await api.menu(serial)
+            toast(t('ov.menu_done'))
+          }
+          await refreshStatus()
         }),
       reconnect: async (n: number) => {
         if (

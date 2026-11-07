@@ -83,6 +83,8 @@ export const en = {
   'ov.controls': 'Controls',
   'ov.bright': 'Brightness',
   'ov.menu': 'Open deck menu',
+  'ov.menu_close': 'Close menu',
+  'ov.menu_closed': 'Menu closed on the deck',
   'ov.menu_done': 'Menu opened on the deck',
   'ov.chord': 'On the deck: hold encoders {a} and {b} together for {s} s.',
   'src.intro': 'Three ways a program draws on the deck. Several can be connected, one source is chosen.',
