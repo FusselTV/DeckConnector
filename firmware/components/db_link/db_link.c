@@ -35,6 +35,7 @@
 #define BOOT_LAN_WAIT_US (30LL * 1000000)
 #define DISCOVER_EVERY   5000
 #define RETRY_MS         2000
+#define RETRY_MAX_MS     30000
 #define CONNECT_TIMEOUT  3000
 #define PING_AFTER_MS    2000
 #define SILENT_LIMIT_MS  6000
@@ -400,6 +401,8 @@ static void link_task(void *arg)
     link_t *l = arg;
     bool via_wlan = false;
     int logged_err[2] = {0}; /* per LAN/WLAN, which alternate: a server that stays away logs once per error */
+    uint32_t wait_ms = RETRY_MS;
+    char failed[sizeof(l->url)] = "";
     for (;;) {
         if (!l->url[0]) {
             vTaskDelay(pdMS_TO_TICKS(RETRY_MS));
@@ -434,9 +437,19 @@ static void link_task(void *arg)
              * over LAN. */
             bool path_ok = err == -ECONNREFUSED || err == -ECONNRESET;
             via_wlan = path_ok ? false : !wlan;
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wlan || path_ok ? RETRY_MS : 200)); /* or a retry now */
+            if (strcmp(failed, url) != 0) {
+                strlcpy(failed, url, sizeof(failed));
+                wait_ms = RETRY_MS;
+            }
+            bool tried_both = wlan || path_ok;
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tried_both ? wait_ms : 200)); /* or a retry now */
+            if (tried_both) {
+                wait_ms = wait_ms * 2 < RETRY_MAX_MS ? wait_ms * 2 : RETRY_MAX_MS;
+            }
             continue;
         }
+        wait_ms = RETRY_MS;
+        failed[0] = '\0';
         via_wlan = false; /* next time start with LAN again */
         logged_err[0] = logged_err[1] = 0;
         db_log_event(TAG, "source", "server %d connected over %s: %s", l->index, over, l->url);
@@ -606,6 +619,7 @@ void db_link_reload(void)
         if (strcmp(want, s.links[i].url) != 0) {
             strlcpy(s.links[i].url, want, sizeof(s.links[i].url));
             s.links[i].reconnect = "address changed";
+            db_link_retry(i);
         }
     }
 }
