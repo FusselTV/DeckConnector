@@ -899,11 +899,16 @@ static void listen_task(void *arg)
         }
         char ip[16];
         inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
+        static uint32_t refused; /* logged once per host: Companion tries every 5 s */
         if (satellite_host(from.sin_addr.s_addr) && known_companion(from.sin_addr.s_addr)) {
-            ESP_LOGD(TAG, "port %u: %s refused, it has the deck over Satellite", port, ip);
+            if (refused != from.sin_addr.s_addr) {
+                refused = from.sin_addr.s_addr;
+                db_log_event(TAG, "source", "Companion at %s refused as a dock: it has the deck over Satellite", ip);
+            }
             close(sock);
             continue;
         }
+        refused = refused == from.sin_addr.s_addr ? 0 : refused;
         if (!admit(from.sin_addr.s_addr)) {
             ESP_LOGW(TAG, "port %u: %s is not paired, asking on the deck", port, ip);
             close(sock);

@@ -939,7 +939,7 @@ static void tick(void *arg)
     }
 }
 
-#define UPGRADE_AGAIN_US (5 * 60 * 1000000LL)
+#define UPGRADE_AGAIN_US (60 * 1000000LL)
 
 /* Companion that drives the deck as a dock host is moved to its Satellite API when that answers: all controls, and
  * no lost connections. The probe blocks for seconds, so it has its own task. */
@@ -950,27 +950,36 @@ static void upgrade_task(void *arg)
         int64_t at;
     } tried[DB_DOCK_HOSTS] = {0}; /* Companion dock hosts asked at `at`, since a person last changed the address */
     uint32_t seen_choices = 0;
+    uint32_t before[DB_DOCK_HOSTS] = {0}; /* the hosts of the last round: one that connects anew is asked at once */
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(5000));
         if (seen_choices != choices) {
             seen_choices = choices;
             memset(tried, 0, sizeof(tried));
         }
+        db_dock_host_t hosts[DB_DOCK_HOSTS];
+        size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
+        uint32_t was[DB_DOCK_HOSTS];
+        memcpy(was, before, sizeof(was));
+        memset(before, 0, sizeof(before));
+        for (size_t i = 0; i < n; i++) {
+            before[i] = ipaddr_addr(hosts[i].ip);
+        }
         if (db_config()->satellite[0]) {
             continue;
         }
-        db_dock_host_t hosts[DB_DOCK_HOSTS];
-        size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
         for (size_t i = 0; i < n; i++) {
-            uint32_t ip = ipaddr_addr(hosts[i].ip);
+            uint32_t ip = before[i];
             int64_t now = esp_timer_get_time();
             int slot = -1, free_slot = 0;
+            bool anew = true;
             for (int k = 0; k < DB_DOCK_HOSTS; k++) {
                 slot = tried[k].ip == ip ? k : slot;
                 free_slot = tried[k].ip ? free_slot : k;
+                anew &= was[k] != ip;
             }
             if (hosts[i].kind != DB_CTRL_COMPANION || offer_denied(hosts[i].ip) ||
-                (slot >= 0 && now - tried[slot].at < UPGRADE_AGAIN_US)) {
+                (slot >= 0 && !anew && now - tried[slot].at < UPGRADE_AGAIN_US)) {
                 continue;
             }
             bool first = slot < 0;
