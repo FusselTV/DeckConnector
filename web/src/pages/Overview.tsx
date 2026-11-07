@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, pressReal, READONLY } from '../api/client'
-import type { InputBody, InputEvent, Screen, Source } from '../api/types'
+import type { InputBody, InputEvent, Rect, Screen, Source } from '../api/types'
 import { pendingAtom, useActions } from '../app/actions'
 import { noteWebPress, retryNow } from '../app/connection'
 import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
@@ -305,6 +305,10 @@ function useScreen(serial: string | undefined) {
   const [screen, setScreen] = useState<Screen | null>(null)
   const busy = useRef(false)
   const again = useRef(false)
+  const shown = useRef<Screen | null>(null)
+  const retries = useRef(0)
+  // The follow-up fetch runs the newest effect's load: an old one's `off` would drop its result.
+  const latest = useRef<() => Promise<void>>(() => Promise.resolve())
   useEffect(() => {
     let off = false
     const load = async () => {
@@ -315,25 +319,38 @@ function useScreen(serial: string | undefined) {
       busy.current = true
       try {
         const s = await api.screen(serial)
-        // A new <img> is empty until it loads, so the old picture stays until the new ones are decoded.
-        await Promise.all(
+        // A new <img> is empty until it loads, so the old picture stays until the new ones are decoded. An image
+        // the deck replaced meanwhile is gone (404): its area keeps the picture before, and the list is fetched again.
+        const ok = await Promise.all(
           s.images.map((i) => {
             const img = new Image()
             img.src = i.url
-            return img.decode().catch(() => undefined)
+            return img.decode().then(
+              () => true,
+              () => false,
+            )
           }),
         )
-        if (!off) setScreen(s)
+        const prev = shown.current?.images ?? []
+        const same = (a: Rect, b: Rect) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
+        const images = s.images.flatMap((i, n) => (ok[n] ? [i] : prev.filter((o) => same(o, i))))
+        if (ok.includes(false) && retries.current < 3) {
+          retries.current++
+          again.current = true
+        } else retries.current = 0
+        shown.current = { ...s, images }
+        if (!off) setScreen(shown.current)
       } catch {
         /* the next screen event tries again */
       } finally {
         busy.current = false
-        if (again.current && !off) {
+        if (again.current) {
           again.current = false
-          void load()
+          void latest.current()
         }
       }
     }
+    latest.current = load
     void load()
     return () => {
       off = true

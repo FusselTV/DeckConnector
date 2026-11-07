@@ -37,6 +37,7 @@ function Pixels({ screen, rect }: { screen: Screen; rect: Rect | undefined }) {
             src={i.url}
             alt=""
             draggable={false}
+            onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
             style={{
               left: `${(i.x / W) * 100}%`,
               top: `${(i.y / H) * 100}%`,
