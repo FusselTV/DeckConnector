@@ -88,7 +88,7 @@ header h1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 <div class="card-h"><h1>DeckConnector</h1><p class="muted">Anmelden, um den DeckConnector einzurichten.</p></div>
 <div class="card-b stack">
 <div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password" autofocus>
-<p class="hint">Steht auf dem Stream Deck im Menü unter Web-Zugang.</p></div>
+<p class="hint">Steht auf dem Deck im Menü unter Web-Zugang.</p></div>
 <button class="btn"><svg class="i" aria-hidden="true"><use href="#i-in"/></svg>Anmelden</button><p id="loginmsg" class="small" style="color:var(--bad)" role="alert"></p>
 </div>
 </form>
@@ -228,7 +228,7 @@ $('restore').onchange = async e => {
   if (confirm(`Einstellungen aus „${file.name}“ übernehmen? Ändert sich das Netz, startet der DeckConnector neu.`)) put(cfg);
 };
 
-const kinds = {companion: 'Companion', app: 'Stream Deck App', server: 'Server'};
+const kinds = {companion: 'Companion', app: 'Elgato App', server: 'Server'};
 let state = null;
 
 const shortHost = (h) => h.replace(/^wss?:\/\//, '').replace(/\/.*$/, '');
@@ -310,14 +310,14 @@ function howto(s) {
   const ip = s.network.lan.ip || s.network.wlan.ip;
   if (hostAt(s, s.controller)) return '';
   if (s.controller === 'companion') return `Companion verbinden: in Companion unter Surfaces den DeckConnector unter Discover hinzufügen, oder eine Remote Surface mit der Adresse ${ip} anlegen. Oder unter Einstellungen die Adresse von Companion für die Satellite-API eintragen.`;
-  if (s.controller === 'app') return 'Die Stream Deck Software findet den DeckConnector selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
+  if (s.controller === 'app') return 'Die Elgato App findet den DeckConnector selbst, wenn der PC im selben Netz ist. Sonst die Software neu starten.';
   return 'Die Adresse des Servers unter Einstellungen eintragen. Leer gelassen sucht der DeckConnector einen Server im Netz.';
 }
 function renderStatus() {
   const s = state;
   const n = s.network;
   $('title').textContent = s.name;
-  $('status').innerHTML = kv('Stream Deck', s.device ? `${s.device.model} · ${s.device.serial}` : 'nicht angeschlossen') +
+  $('status').innerHTML = kv('Deck', s.device ? `${s.device.model} · ${s.device.serial}` : 'nicht angeschlossen') +
     kv('LAN', n.lan.ip || (n.lan.cable ? 'keine Adresse' : 'kein Kabel')) +
     kv('WLAN', n.wlan.ip ? `${n.wlan.ip} · ${n.wlan.ssid}` : (n.wlan.ssid ? 'getrennt' : 'aus'));
   renderSources(s);
@@ -407,11 +407,11 @@ function chordText(sc) {
   return `Taste ${c.first + 1} (${where(sc.keys[c.first])}) und Taste ${c.last + 1} (${where(sc.keys[c.last])})`;
 }
 let hold = 2;
-const menuHow = () => chord === 'off' ? 'Am Deck selbst ist der Weg ins Menü aus.' : chord ? `Am Deck selbst: ${chord} gleichzeitig ${String(hold).replace('.', ',')} Sekunden halten.` : 'Kein Stream Deck angeschlossen.';
+const menuHow = () => chord === 'off' ? 'Am Deck selbst ist der Weg ins Menü aus.' : chord ? `Am Deck selbst: ${chord} gleichzeitig ${String(hold).replace('.', ',')} Sekunden halten.` : 'Kein Deck angeschlossen.';
 async function openMenu() {
   const r = await api('/api/menu', {method: 'POST'}).catch(() => null);
   if (!r) toast('DeckConnector nicht erreichbar.', true);
-  else if (r.status === 409) toast('Kein Stream Deck angeschlossen.', true);
+  else if (r.status === 409) toast('Kein Deck angeschlossen.', true);
   else if (!r.ok) toast('Menü ging nicht auf: ' + ((await r.json().catch(() => ({}))).error || r.status), true);
 }
 let shown = '';
@@ -431,7 +431,7 @@ async function drawScreen() {
   const r = await api('/api/screen', {signal: AbortSignal.timeout(5000)}).catch(() => null);
   if (!r || !r.ok) return;
   const sc = await r.json();
-  $('writer').textContent = sc.width ? 'Gerade zeichnet ' + writerName(sc.writer) + '.' : 'Kein Stream Deck angeschlossen.';
+  $('writer').textContent = sc.width ? 'Gerade zeichnet ' + writerName(sc.writer) + '.' : 'Kein Deck angeschlossen.';
   const geometry = JSON.stringify([sc.width, sc.keys, sc.touch, sc.encoders, sc.menu_chord]);
   if (geometry !== layout) {
     layout = geometry;
@@ -558,7 +558,7 @@ function renderSystem(s) {
   $('usbnow').textContent = c?.usb_speed === 'full' ? '(läuft gerade mit Full-Speed)' : '';
   $('sys').innerHTML = kv('Firmware', s.firmware) + kv('WLAN-Chip', s.wlan_firmware) +
     (s.https_fingerprint ? kv('HTTPS-Fingerabdruck (SHA-256)', s.https_fingerprint) : '') +
-    (s.device ? kv('Stream Deck', `${s.device.model}, Firmware ${s.device.firmware ?? '–'}`) : '') +
+    (s.device ? kv('Deck', `${s.device.model}, Firmware ${s.device.firmware ?? '–'}`) : '') +
     kv('Läuft seit', since(s.uptime_s)) + (s.network.wlan.ip ? kv('WLAN-Signal', s.network.wlan.rssi + ' dBm') : '') +
     kv('Speicher frei', `${Math.round(m.heap_free / 1024)} KB, mindestens ${Math.round(m.heap_min_free / 1024)} KB`) +
     kv('Bilder', `${c.images} gezeigt, ${c.superseded} übersprungen`) + kv('Fehler', `${c.usb_errors} USB, ${c.rejected ?? 0} abgelehnt`) +
@@ -642,14 +642,14 @@ for (const b of document.querySelectorAll('[data-tab]')) b.onclick = () => { his
 let step = 0;
 let picked = null;
 const steps = [
-  {title: 'Willkommen', text: 'Der DeckConnector bringt dein Stream Deck ins Netz. Ein paar kurze Schritte, alles lässt sich später ändern.',
-    body: () => '<p class="small">Das Stream Deck zeigt dieselben Schritte. Du kannst sie dort oder hier erledigen.</p>'},
+  {title: 'Willkommen', text: 'Der DeckConnector bringt dein Deck ins Netz. Ein paar kurze Schritte, alles lässt sich später ändern.',
+    body: () => '<p class="small">Das Deck zeigt dieselben Schritte. Du kannst sie dort oder hier erledigen.</p>'},
   {title: 'Wer soll das Deck steuern?', text: 'Das Programm, das die Tasten zeichnet und die Drücke bekommt. Es erscheint hier, sobald es verbunden ist.',
     body: () => {
       const rows = state.sources.filter((x) => x.connected && kinds[x.kind]);
       return rows.length ? '<div class="choice" id="wctrl">' + rows.map((x, i) =>
         `<button type="button" data-i="${i}" aria-pressed="${picked === x.host}"><b>${esc(hostName(x))}</b><span class="small muted">${what(x)}</span></button>`).join('') + '</div>'
-        : '<p class="small">Noch nichts verbunden. In Companion unter Surfaces den DeckConnector unter Discover hinzufügen. Die Stream Deck App findet ihn selbst.</p>';
+        : '<p class="small">Noch nichts verbunden. In Companion unter Surfaces den DeckConnector unter Discover hinzufügen. Die Elgato App findet ihn selbst.</p>';
     },
     after: () => { for (const b of $('wctrl')?.querySelectorAll('button') || []) b.onclick = () => { picked = state.sources.filter((x) => x.connected && kinds[x.kind])[+b.dataset.i].host; render(); }; },
     save: () => { const x = state.sources.find((y) => y.connected && y.host === picked); return x ? pick(x) : null; }},

@@ -1,4 +1,4 @@
-"""Simulated presses reach Companion and the Stream Deck app only with "real". `true` is for a person at the web UI.
+"""Simulated presses reach Companion and the Elgato App only with "real". `true` is for a person at the web UI.
 Tools name the host instead, from dbtools.safety.real_input_target, which allows only a host on this machine, and
 the bridge forwards a press only while that host draws (see dbtools/safety.py)."""
 

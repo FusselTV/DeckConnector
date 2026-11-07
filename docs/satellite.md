@@ -17,7 +17,7 @@ certificate check is the same as for servers, see `satellite_pin` in [api.md](ap
 
 ## Layout
 
-The DeckConnector gives Companion the same rows and columns as Companion's own Stream Deck plugin. On a Stream
+The DeckConnector gives Companion the same rows and columns as Companion's own deck plugin. On a Stream
 Deck + that is two rows of keys, then the touch strip in four parts of 200 x 100, then the four encoders. Your pages
 look the same as over USB or the Network Dock. The surface id is `streamdeck:<serial>`, the one the plugin uses,
 so Companion keeps the deck's settings.

@@ -206,7 +206,7 @@ static void client_event(const usb_host_client_event_msg_t *msg, void *arg)
     }
 }
 
-/* Full speed only: some hubs drop a high speed Stream Deck right after the handshake, and full speed behind a
+/* Full speed only: some hubs drop a high speed deck right after the handshake, and full speed behind a
  * high speed hub would need a transaction translator the host stack lacks. IDF 6.0's HAL cannot do esp-usb's
  * fsls_only, so the bit is set by hand; a recovery soft reset clears it, hence after every round of events. */
 static void keep_full_speed(void)
@@ -218,7 +218,7 @@ static void keep_full_speed(void)
 
 static void lib_task(void *arg)
 {
-    /* The Stream Deck has a 1024 byte interrupt OUT endpoint. The default FIFO split caps periodic OUT at
+    /* The deck has a 1024 byte interrupt OUT endpoint. The default FIFO split caps periodic OUT at
      * 512 bytes, and the PERIODIC_OUT bias leaves RX one line short for its 512 byte IN endpoint
      * (esp-idf #19143). Total must stay at or below 896 lines. */
     usb_host_config_t cfg = {
@@ -396,7 +396,7 @@ static esp_err_t find_endpoints(const usb_config_desc_t *cd)
     return ESP_ERR_NOT_FOUND;
 }
 
-/* At full speed the Stream Deck declares 512 byte interrupt endpoints. IN works at 512 (at 64 every poll
+/* At full speed the deck declares 512 byte interrupt endpoints. IN works at 512 (at 64 every poll
  * overflows), but the deck stalls OUT packets above 64, so output reports go out in 64 byte packets. */
 static void clamp_fs_out_mps(const usb_config_desc_t *cd)
 {

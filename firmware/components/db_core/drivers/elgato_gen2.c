@@ -1,5 +1,5 @@
 /*
- * Elgato Stream Deck, second generation HID protocol (JPEG images in 1024 byte reports).
+ * Elgato deck, second generation HID protocol (JPEG images in 1024 byte reports).
  * Protocol: https://docs.elgato.com/streamdeck/hid/stream-deck-plus/
  * Adding a model of this family only needs a new row in `models`.
  */

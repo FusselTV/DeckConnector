@@ -217,7 +217,7 @@ static const char *read_input(const cJSON *root, const db_device_info_t *dev, db
 int api_input(const char *body, char *reply, size_t cap)
 {
     if (!db_deck_info(&dev)) {
-        return fail(reply, cap, 409, "no Stream Deck attached");
+        return fail(reply, cap, 409, "no deck attached");
     }
     cJSON *root = cJSON_Parse(body);
     db_input_t ev;
@@ -244,7 +244,7 @@ int api_input(const char *body, char *reply, size_t cap)
         }
     }
     if (sent == ESP_ERR_INVALID_STATE) {
-        return fail(reply, cap, 409, "no Stream Deck attached");
+        return fail(reply, cap, 409, "no deck attached");
     }
     if (sent != ESP_OK) {
         return fail(reply, cap, 503, "input queue full");
@@ -1147,7 +1147,7 @@ esp_err_t get_screen_jpg(httpd_req_t *req)
     size_t len = 0;
     esp_err_t err = db_ui_snapshot(&jpeg, &len);
     if (err == ESP_ERR_INVALID_STATE) {
-        return send_error(req, "409 Conflict", "no Stream Deck attached");
+        return send_error(req, "409 Conflict", "no deck attached");
     }
     if (err != ESP_OK) {
         return send_error(req, "500 Internal Server Error", esp_err_to_name(err));

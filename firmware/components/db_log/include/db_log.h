@@ -27,7 +27,7 @@ size_t db_log_events(db_event_t *out, size_t max);
 
 /* The milestones of this boot: the first time each one happened, in ms since boot. For boot time tests. */
 typedef enum {
-    DB_MARK_DECK, /* a Stream Deck is ready */
+    DB_MARK_DECK, /* a deck is ready */
     DB_MARK_LAN_LINK,
     DB_MARK_LAN_IP,
     DB_MARK_WLAN_IP,

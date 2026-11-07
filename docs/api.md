@@ -254,7 +254,7 @@ again and upload the key again.
 - `heap_free` includes the LP RAM. `heap_lp_free` is the LP RAM part. The 16 KB log ring that survives a restart
   lives there.
 - `id` is the DeckConnector's MAC address. It stays when the name changes.
-- `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields, its `number`
+- `device` is `null` without a deck. `decks` lists every attached deck with the same fields, its `number`
   (from 1), its `usb_speed` and `hub` (true when it hangs on a USB hub).
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
@@ -287,7 +287,7 @@ pair opens it.
 
 Draw the JPEGs in this order at their place to get the picture. On the Stream Deck + the keys are at their place
 on the 800 x 480 screen, and the touch strip is the bottom 100 pixels. An image keeps its URL until something
-covers it, so a browser may cache it. A URL that is gone answers 404. Without a Stream Deck, `width` and `height`
+covers it, so a browser may cache it. A URL that is gone answers 404. Without a deck, `width` and `height`
 are missing and `images` is empty.
 
 ## Input

@@ -394,7 +394,7 @@ esp_err_t auth_password_show(httpd_req_t *req)
     }
     int decks = db_ui_show_password();
     if (!decks) {
-        return send_error(req, "409 Conflict", "no Stream Deck attached");
+        return send_error(req, "409 Conflict", "no deck attached");
     }
     char reply[32];
     snprintf(reply, sizeof(reply), "{\"ok\":true,\"decks\":%d}", decks);
@@ -412,7 +412,7 @@ esp_err_t auth_password_reset(httpd_req_t *req)
     }
     int left = db_ui_ask_reset();
     if (left < 0) {
-        return send_error(req, "409 Conflict", "no Stream Deck attached");
+        return send_error(req, "409 Conflict", "no deck attached");
     }
     char reply[32];
     snprintf(reply, sizeof(reply), "{\"ok\":true,\"s\":%d}", left);
@@ -475,7 +475,7 @@ esp_err_t auth_login_request(httpd_req_t *req)
         return send_error(req, "429 Too Many Requests", "one login request per 3 s");
     }
     if (!db_ui_ask_login(peer_ip(req), who, ASK_S)) {
-        return send_error(req, "409 Conflict", "no Stream Deck attached");
+        return send_error(req, "409 Conflict", "no deck attached");
     }
     uint8_t raw[ASK_ID / 2];
     char id[ASK_ID + 1];

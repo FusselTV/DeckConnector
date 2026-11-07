@@ -7,8 +7,8 @@
 #include "esp_err.h"
 
 /*
- * Network Dock emulation. Bitfocus Companion and the Elgato Stream Deck app find the bridge over mDNS
- * (_elg._tcp) and drive the attached Stream Deck as if it hung on an Elgato Network Dock. The protocol
+ * Network Dock emulation. Bitfocus Companion and the Elgato App find the bridge over mDNS
+ * (_elg._tcp) and drive the attached deck as if it hung on an Elgato Network Dock. The protocol
  * ("Cora") is the one of @elgato-stream-deck/tcp; see docs/dock.md.
  *
  * Several hosts may stay connected at once, each with its own deck source. Only the writer draws on the deck

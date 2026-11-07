@@ -1,4 +1,4 @@
-"""Simulated presses stay away from Companion and the Stream Deck app unless "real" is set (dbtools/safety.py).
+"""Simulated presses stay away from Companion and the Elgato App unless "real" is set (dbtools/safety.py).
 
 A dock host on this machine (companion-check, the library inside Companion) draws for the test, so no real
 Companion is ever the target, whatever the firmware does.

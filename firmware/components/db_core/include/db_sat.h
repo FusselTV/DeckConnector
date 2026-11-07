@@ -42,7 +42,7 @@ typedef struct {
     db_rect_t rect;
 } db_sat_control_t;
 
-/* Rows and columns as Companion's Stream Deck plugin lays out the deck over USB or a Network Dock, so the
+/* Rows and columns as Companion's deck plugin lays out the deck over USB or a Network Dock, so the
  * same buttons show: the keys, then the strip in one part per encoder, then the encoders. */
 size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_t max);
 /* The LAYOUT_MANIFEST JSON. Returns its length, 0 when it does not fit. */

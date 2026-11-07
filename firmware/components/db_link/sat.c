@@ -537,7 +537,7 @@ static void remember(int sock)
 /*
  * After a power cut Companion keeps writing into the session of the last boot, so it does not time out, and
  * the deck stays taken ("Device exists elsewhere") until a retransmission reaches us, seconds later. The
- * reset db_dock sends to the Stream Deck app ends it at once: a SYN from the old port, Companion's stack
+ * reset db_dock sends to the Elgato App ends it at once: a SYN from the old port, Companion's stack
  * answers with an ACK, ours with a reset. True once done, or when there is nothing to end.
  */
 static bool end_old_session(void)
@@ -695,7 +695,7 @@ static const db_sat_control_t *control_of(db_sat_kind_t kind, uint8_t index)
     return NULL;
 }
 
-/* As the Stream Deck plugin does it: a tap presses the strip part under the finger, a sideways swipe turns
+/* As the deck plugin does it: a tap presses the strip part under the finger, a sideways swipe turns
  * the page, an upward or downward one turns the part. */
 static void on_input(const db_input_t *ev)
 {

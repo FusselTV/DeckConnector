@@ -1,6 +1,6 @@
 # Network Dock emulation
 
-The board answers like an Elgato Network Dock with the Stream Deck attached to it. Bitfocus
+The board answers like an Elgato Network Dock with the deck attached to it. Bitfocus
 Companion and the Elgato App find it over mDNS and drive the deck directly.
 
 ## Discovery

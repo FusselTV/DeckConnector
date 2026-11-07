@@ -99,7 +99,7 @@ def app_connected(s: dict | None) -> bool:
 async def test_stream_deck_app_follows_a_dead_lan_and_comes_back():
     """The cable stays in and the LAN drops everything: the app finds the dock over WLAN, then back on LAN."""
     lan = bridge_status(LAN_IP)
-    assert app_connected(lan), "the Stream Deck app is connected at the start"
+    assert app_connected(lan), "the Elgato App is connected at the start"
     wlan_ip = lan["network"]["wlan"]["ip"]
     before = overrides()
     set_port(blocked(before))

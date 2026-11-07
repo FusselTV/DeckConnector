@@ -1,6 +1,6 @@
 # DeckConnector
 
-Firmware for an ESP32-P4 board that drives an Elgato Stream Deck over USB and puts it on the network. Your own
+Firmware for an ESP32-P4 board that drives an Elgato deck over USB and puts it on the network. Your own
 server renders the images and gets every key press, encoder turn and touch. The board also acts like an Elgato
 Network Dock, so Bitfocus Companion and the Elgato App use it without any extra software. Companion can
 also take the deck over its Satellite API. Every connected host is in one list, on the deck and in the web UI. A

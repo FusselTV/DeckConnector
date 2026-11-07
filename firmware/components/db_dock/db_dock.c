@@ -28,7 +28,7 @@
 
 #define PAYLOAD_MAX  8192
 #define KEEPALIVE_MS 2500  /* Companion drops a connection after 5 s without data */
-#define ANNOUNCE_MS  30000 /* the Stream Deck app drops a dock it has not heard from for a minute */
+#define ANNOUNCE_MS  30000 /* the Elgato App drops a dock it has not heard from for a minute */
 #define FEATURE_LEN  64
 #define IDLE_TIMEOUT 10 /* s without data from the host */
 
@@ -96,7 +96,7 @@ static void report_clients(void)
 
 static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
 {
-    /* Companion asks with GET_REPORT, the Stream Deck app with a plain write of the same bytes. Keepalive
+    /* Companion asks with GET_REPORT, the Elgato App with a plain write of the same bytes. Keepalive
      * acknowledgements (03 1a) are plain writes from both. */
     bool query = h->len >= 2 && p[0] == 0x03 && db_cora_is_query(p[1]);
     if (c->kind == DB_CTRL_SERVER && query) {
@@ -141,7 +141,7 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         db_deck_raw_set_feature(source_of(c), p, h->len);
         break;
     case DB_CORA_OP_GET_REPORT: {
-        /* The Stream Deck app sends a whole report and gets the same length back. Companion sends only the
+        /* The Elgato App sends a whole report and gets the same length back. Companion sends only the
          * report id and needs the full 32 bytes, or the serial number is lost. */
         size_t want = h->len < 2 ? 32 : (h->len < FEATURE_LEN ? h->len : FEATURE_LEN);
         uint8_t buf[FEATURE_LEN] = {h->len ? p[0] : 0};
@@ -155,7 +155,7 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     default:
         break;
     }
-    /* Only the Stream Deck app asks for acknowledgements; that also tells the hosts apart. */
+    /* Only the Elgato App asks for acknowledgements; that also tells the hosts apart. */
     if (h->flags & DB_CORA_FLAG_REQ_ACK) {
         static const uint8_t zero[4];
         send_frame(c, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_ACK_NAK, 0, h->id, zero, sizeof(zero));
@@ -189,7 +189,7 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     int one = 1;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
     c->sock = sock;
-    /* Greet with a keepalive at once; the Stream Deck app waits for it before it trusts a port.
+    /* Greet with a keepalive at once; the Elgato App waits for it before it trusts a port.
      */
     uint8_t hello[DB_CORA_REPORT_LEN];
     db_cora_keepalive(c->connection_no, hello);
@@ -304,7 +304,7 @@ static void save_peers(void) /* from both listen tasks: under info_lock */
 
 static bool answers_arp(uint32_t ip, uint32_t local_ip);
 
-/* the Stream Deck app marks the dock offline and waits for the service to come online again; it misses an
+/* the Elgato App marks the dock offline and waits for the service to come online again; it misses an
  * announcement that comes before it has noticed */
 static void announce_anew(void)
 {
@@ -319,7 +319,7 @@ static void announce_anew(void)
 
 /*
  * After a power cut a host still holds its old connection, which looks alive to it. Companion notices by
- * itself; the Stream Deck app waits for data that never comes and does not connect again for minutes. A SYN
+ * itself; the Elgato App waits for data that never comes and does not connect again for minutes. A SYN
  * from our old port to its old port makes its stack answer with an ACK (RFC 5961), which our stack answers
  * with a reset that fits exactly: the host sees its connection end, as after a clean restart.
  */
@@ -396,7 +396,7 @@ static err_t forget_arp(struct tcpip_api_call_data *call)
     return ERR_OK;
 }
 
-/* The Stream Deck app marks a dock offline when its connection dies, also when only the path in between was
+/* The Elgato App marks a dock offline when its connection dies, also when only the path in between was
  * down and the link stayed up, and comes back only for a new announcement. A fresh ARP answer shows the path
  * works again. */
 static void rejoin_app(void *arg)
@@ -970,7 +970,7 @@ static void device_service(const db_device_info_t *info)
 }
 
 /* Unasked 0x1c reports tell connected hosts that a device came or went; they then open or close the device
- * port. The Stream Deck app drops a dock that had no device for it and only comes back when the service goes
+ * port. The Elgato App drops a dock that had no device for it and only comes back when the service goes
  * offline and online again, so the service is announced anew as well. */
 static void tell_hosts(void)
 {
@@ -995,7 +995,7 @@ static void sync_services(void *arg)
 }
 
 /* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them
- * go offline and online several times, and the Stream Deck app then never resolved the device again. */
+ * go offline and online several times, and the Elgato App then never resolved the device again. */
 static void on_device(const db_device_info_t *info)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
@@ -1055,7 +1055,7 @@ static void announce(void)
 }
 
 /* Runs in esp_restart(). Hosts must see the dock go: the connections end with a reset, and mDNS says goodbye,
- * or the Stream Deck app keeps its cached dock and does not come back after a short restart. */
+ * or the Elgato App keeps its cached dock and does not come back after a short restart. */
 static void close_hosts(void)
 {
     mdns_service_remove_all();

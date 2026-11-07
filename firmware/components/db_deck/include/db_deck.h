@@ -29,7 +29,7 @@ typedef struct {
     void (*device_changed)(const db_device_info_t *info);
     void (*input)(const db_input_t *ev);
     void (*raw_input)(const uint8_t *report, size_t len);
-    /* A host whose presses act in the real world (Companion, the Stream Deck app). It gets simulated input only
+    /* A host whose presses act in the real world (Companion, the Elgato App). It gets simulated input only
      * when the request says a person sent it: a test once pressed real buttons in someone's home. */
     bool external;
 } db_deck_listener_t;

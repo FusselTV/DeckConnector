@@ -12,7 +12,7 @@
 typedef enum {
     DB_CTRL_SERVER = 0,    /* deckbridge servers over WebSocket */
     DB_CTRL_COMPANION = 1, /* Bitfocus Companion, through the Network Dock emulation */
-    DB_CTRL_APP = 2,       /* the Elgato Stream Deck app, through the Network Dock emulation */
+    DB_CTRL_APP = 2,       /* the Elgato App, through the Network Dock emulation */
     DB_CTRL_COUNT,
 } db_controller_t;
 

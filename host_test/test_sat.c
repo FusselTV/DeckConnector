@@ -79,7 +79,7 @@ static void test_parse_a_line_as_companion_writes_it(void)
     TEST_ASSERT_EQUAL_INT(0, m.count);
 }
 
-/* The layout of Companion's Stream Deck plugin (surface-schema.ts with @elgato-stream-deck/core's model). */
+/* The layout of Companion's deck plugin (surface-schema.ts with @elgato-stream-deck/core's model). */
 static void test_stream_deck_plus_layout_matches_companion(void)
 {
     db_device_info_t dev = open_deck(0x0084);

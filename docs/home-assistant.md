@@ -25,7 +25,7 @@ so 12 s without a message means the link is dead and the integration connects ag
 | Select "Controller" | `controller` and `host` in `PUT /api/config`, options from `sources` in the status |
 | Light or number "Brightness" | `brightness` in the settings, 0 to 100 |
 | Binary sensors per source | `connected` and `drawing` of each entry in `sources` |
-| Binary sensor "Stream Deck" | `device` is not `null` |
+| Binary sensor "Deck" | `device` is not `null` |
 | Sensors | `network.lan.ip`, `network.wlan.rssi`, `uptime_s`, the counters, and CPU and RAM from `/api/metrics` |
 | Event "Deck input" | `input` messages: `kind` is `key_down`, `key_up`, `encoder_turn`, `touch_tap` and so on, with `index` and `value` |
 | Buttons | `POST /api/menu`, `POST /api/reboot`, `POST /api/deck/reconnect` |

@@ -29,7 +29,7 @@ void db_cora_write_hdr(uint8_t out[DB_CORA_HDR_LEN], const db_cora_hdr_t *h)
     db_put_u32(out + 12, h->len);
 }
 
-/* Bytes 5 to 25 and the product name of 0x1c. The Stream Deck app reads the layout there.
+/* Bytes 5 to 25 and the product name of 0x1c. The Elgato App reads the layout there.
  * ponytail: only these models are known; others send zeros, add them per model. */
 static const struct {
     uint16_t pid;
@@ -67,7 +67,7 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
 }
 
-/* Fixed answers, byte for byte as the Stream Deck app expects them. It checks 0x81 to 0x8f.
+/* Fixed answers, byte for byte as the Elgato App expects them. It checks 0x81 to 0x8f.
  */
 static const struct {
     uint8_t cmd;
