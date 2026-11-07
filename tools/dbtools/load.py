@@ -42,6 +42,9 @@ def report_failures() -> str:
     return f"failed attempts: {text}"
 
 
+HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
+
+
 def password() -> str:
     return (Path.home() / ".config/deckbridge/admin_pass").read_text().strip()
 
@@ -204,7 +207,8 @@ async def drawing(host: str, auth: str, n: int) -> dict:
     c = Client(host, auth)
 
     def send(method: str, path: str, body: dict) -> None:
-        c.get("/api/status")
+        if not c.conn:
+            c.get("/api/status")  # opens the keep-alive connection
         c.conn.request(method, path, json.dumps(body), {"Authorization": auth, "X-DeckConnector": "1"})
         r = c.conn.getresponse()
         reply = r.read()
@@ -216,6 +220,7 @@ async def drawing(host: str, auth: str, n: int) -> dict:
     require_input_gate(json.loads(c.get("/api/status")[2]))
     cfg = json.loads(c.get("/api/config")[2])
     server = await Server(8765, "load", ping=False).start()
+    await asyncio.to_thread(c.get, "/api/status")
     await asyncio.to_thread(send, "PUT", "/api/config", {"controller": "server", "host": server.url})
     try:
         bridge = await server.wait_bridge(60)
@@ -232,6 +237,7 @@ async def drawing(host: str, auth: str, n: int) -> dict:
             await asyncio.sleep(0.03)
         press = []
         for _ in range(n):
+            await asyncio.to_thread(c.get, "/api/status")  # a live connection, outside the timed part
             t = time.perf_counter()
             await asyncio.to_thread(send, "POST", "/api/input", {"key": 3, "action": "down"})
             await asyncio.wait_for(bridge.inputs.get(), 5)
@@ -239,6 +245,7 @@ async def drawing(host: str, auth: str, n: int) -> dict:
             await asyncio.to_thread(send, "POST", "/api/input", {"key": 3, "action": "up"})
             await asyncio.wait_for(bridge.inputs.get(), 5)
     finally:
+        await asyncio.to_thread(c.get, "/api/status")
         await asyncio.to_thread(send, "PUT", "/api/config", settings_to_restore(cfg))
         await server.stop()
     print(f"key image to USB done {summary(key, 0)}\ninput POST to server event {summary(press, 0)}")
@@ -316,7 +323,7 @@ def compare(base_file: str, new_file: str) -> int:
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # `timeout` still restores the settings
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
+    ap.add_argument("--host", default=HOST)
     ap.add_argument("--secs", type=float, default=20)
     ap.add_argument("-n", type=int, default=200)
     ap.add_argument("--json", help="add this run to a baseline file")

@@ -39,7 +39,10 @@ def web_image(key) -> bytes:
 
     react = OTA_C.parents[3] / "web/dist/index.html"
     page = (react if react.exists() else OTA_C.parents[1] / "db_web/index.html").read_bytes()
-    rev = subprocess.run(["git", "describe", "--always", "--dirty"], capture_output=True, text=True, cwd=OTA_C.parent)
+    # no tag names: "web v0.1.0-123-g9e9fe25-dirty" and the page hash would not fit the 31 byte version
+    rev = subprocess.run(
+        ["git", "describe", "--always", "--dirty", "--exclude=*"], capture_output=True, text=True, cwd=OTA_C.parent
+    )
     version = f"web {rev.stdout.strip()} {hashlib.sha256(page).hexdigest()[:6]}"
     return build("web", gzip.compress(page, 9, mtime=0), version, key, web_api())
 
@@ -72,13 +75,17 @@ def write_pubkey(pub) -> None:
 
 
 def build(target: str, payload: bytes, version: str, key, level: int | None = None) -> bytes:
+    if target not in TARGETS:
+        raise ValueError(f"unknown target {target!r}, expected one of {list(TARGETS)}")
+    if len(version.encode()) > 31:  # the header keeps 31 bytes and a NUL
+        raise ValueError(f"version {version!r} is longer than 31 bytes")
     head = HEADER.pack(
         MAGIC,
         FORMAT,
         TARGETS[target],
         security_level() if level is None else level,
         len(payload),
-        version.encode()[:31],
+        version.encode(),
         hashlib.sha256(payload).digest(),
     )
     der = key.sign(head, ec.ECDSA(hashes.SHA256()))
@@ -98,8 +105,11 @@ def parse(data: bytes, pub=None) -> dict:
     magic, fmt, target, level, length, version, digest = HEADER.unpack_from(data)
     if magic != MAGIC or fmt != FORMAT:
         raise ValueError("not a dbfw image")
+    names = {v: k for k, v in TARGETS.items()}
+    if target not in names:
+        raise ValueError(f"unknown target {target} in the header")
     info = {
-        "target": {v: k for k, v in TARGETS.items()}[target],
+        "target": names[target],
         "level": level,
         "length": length,
         "version": version.rstrip(b"\0").decode(),

@@ -1,4 +1,4 @@
-"""End to end tests against a real bridge on the bench. Set DECKBRIDGE_HOST to the bridge's LAN address."""
+"""End to end tests against a real bridge on the bench (DECKBRIDGE_HOST, see dbtools.load) or firmware/sim."""
 
 import asyncio
 import atexit
@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from dbtools.load import HOST as DEVICE
 from dbtools.load import password
 from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate, settings_to_restore
 from dbtools.server import Server
@@ -69,7 +70,7 @@ def _start_sim() -> tuple[str, str]:
 if TARGET == "sim":
     HOST, PASSWORD = _start_sim()
 else:
-    HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
+    HOST = DEVICE
     PASSWORD = password()
 CAMERA = os.environ.get("DECKBRIDGE_CAMERA", "rtsp://192.168.1.163:8554/stream")
 PORTS = (8765, 8766)

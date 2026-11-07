@@ -36,7 +36,11 @@ def real_input_target(status: dict) -> str:
         raise UnsafeBridge(f"no single drawing host: {drawing}")
     host = drawing[0]["host"]
     addr = urlparse(host).hostname if "://" in host else host.split(":")[0]
-    if not addr or ipaddress.ip_address(addr) != ipaddress.ip_address(local_ip()):
+    try:
+        mine = bool(addr) and ipaddress.ip_address(addr) == ipaddress.ip_address(local_ip())
+    except ValueError:  # a host name: it may resolve anywhere
+        mine = False
+    if not mine:
         raise UnsafeBridge(f"{drawing[0]['kind']} at {host} draws: real presses go only to a host on this machine")
     return addr
 

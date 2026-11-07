@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from dbtools.safety import NOBODY
+from dbtools.safety import NOBODY, UnsafeBridge, real_input_target
 
 pytestmark = pytest.mark.sim
 
@@ -61,3 +61,10 @@ def test_tools_never_send_real_true():
         if f.name != "conftest.py" and true.search(text)  # the guard itself
     ]
     assert not offenders, f"tools name the host, true is for a person at the web UI: {offenders}"
+
+
+@pytest.mark.parametrize("host", ["companion.local:16622", "ws://studio.lan:8765/x", "192.168.1.15"])
+def test_only_this_machine_by_address_is_a_real_target(host):
+    status = {"simulated_input": "local", "sources": [{"drawing": True, "host": host, "kind": "companion"}]}
+    with pytest.raises(UnsafeBridge):
+        real_input_target(status)

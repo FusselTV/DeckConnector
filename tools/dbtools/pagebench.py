@@ -10,10 +10,9 @@ uv run python -m dbtools.pagebench [--encoder 3] [--gap-ms 25]
 
 import argparse
 import json
-import os
 import time
 
-from dbtools.load import Client, basic_auth
+from dbtools.load import HOST, Client, basic_auth
 from dbtools.safety import real_input_target
 
 PAUSE_S = 0.4
@@ -56,7 +55,7 @@ def run(c: Client, encoder: int, turns: int, gap_ms: int, ticks: int, target: st
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
+    ap.add_argument("--host", default=HOST)
     ap.add_argument("--encoder", type=int, default=3)
     ap.add_argument("--gap-ms", type=int, default=25)
     ap.add_argument("--rounds", type=int, default=5)

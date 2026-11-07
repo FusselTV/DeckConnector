@@ -17,7 +17,6 @@ serial recovery.
 
 import argparse
 import json
-import os
 import subprocess
 import time
 import urllib.error
@@ -27,12 +26,12 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 
 from dbtools import dbfw
-from dbtools.load import basic_auth
+from dbtools.load import HOST, basic_auth
+from dbtools.safety import UnsafeBridge, require_input_gate
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = Path.home() / ".cache/deckbridge"
 BENCH_SLOTS = (4, 3)
-HOST = os.environ.get("DB_HOST", "192.168.1.214")
 AUTH = basic_auth()
 
 # The old name too: deploys and rescues also go to slots with firmware from before the rename.
@@ -76,16 +75,29 @@ def wait_version(version: str, secs: float = 90) -> float:
     raise SystemExit(f"{version} did not come up within {secs:.0f} s")
 
 
+def gated() -> None:
+    """The firmware just booted must keep simulated presses from Companion (CLAUDE.md), or nothing may press."""
+    try:
+        require_input_gate(api("GET", "/api/status")[1])
+    except UnsafeBridge as e:
+        raise SystemExit(f"\n!!! {e}\n!!! Do not press anything on this bridge, and do not run the tests.") from None
+
+
+def slots() -> list[dict]:
+    code, reply = api("GET", "/api/slots")
+    if code != 200:
+        raise SystemExit(f"/api/slots answered {code}: firmware without slots, deploy with tools/flash.sh")
+    return reply
+
+
 def their(slot: int, slots: list[dict]) -> int:
     """Slot n (counted from 1 here) as the running firmware numbers it: firmware before f42a4fe counts from 0."""
     return slots[slot - 1]["slot"]
 
 
 def bench_slot(avoid: set) -> int:
-    code, slots = api("GET", "/api/slots")
-    if code != 200:
-        raise SystemExit(f"/api/slots answered {code}: firmware without slots, deploy with tools/flash.sh")
-    free = [s for s in BENCH_SLOTS if s not in avoid and not slots[s - 1]["running"]]
+    have = slots()
+    free = [s for s in BENCH_SLOTS if s not in avoid and not have[s - 1]["running"]]
     if not free:
         raise SystemExit(f"no bench slot left among {BENCH_SLOTS} (avoiding {sorted(avoid)})")
     return free[0]
@@ -112,22 +124,24 @@ def deploy(signed: bytes, slot: int, boot: bool) -> None:
     version = dbfw.parse(signed)["version"]
     confirmed()
     start = time.time()
-    code, r = api("POST", f"/api/ota?slot={their(slot, api('GET', '/api/slots')[1])}&boot={int(boot)}", signed)
+    code, r = api("POST", f"/api/ota?slot={their(slot, slots())}&boot={int(boot)}", signed)
     if code != 200:
         raise SystemExit(f"upload into slot {slot} failed: {r}")
     print(f"{version} into slot {slot}: upload {time.time() - start:.1f} s", flush=True)
     if boot:
         print(f"booted in {wait_version(version):.1f} s")
+        gated()
 
 
 def use(slot: int) -> None:
     confirmed()
-    _, slots = api("GET", "/api/slots")
-    code, r = api("POST", f"/api/slots/{their(slot, slots)}/boot")
+    have = slots()
+    code, r = api("POST", f"/api/slots/{their(slot, have)}/boot")
     if code != 200:
         raise SystemExit(f"slot {slot} not booted: {r} (a firmware older than the slots API needs a deploy)")
-    version = slots[slot - 1]["version"]
+    version = have[slot - 1]["version"]
     print(f"slot {slot} ({version}) up in {wait_version(version):.1f} s")
+    gated()
 
 
 def app_image(tree: Path) -> bytes:
@@ -149,7 +163,11 @@ def build(rev: str) -> bytes:
     start = time.time()
     # web/dist is untracked: a page left from another revision must not be embedded, so each revision builds its own
     subprocess.run(["rm", "-rf", wt / "web/dist"], check=True)
-    page = "cd web && npm ci --silent && npm run build >/dev/null && cd .. && " if (wt / "web/package.json").exists() else ""
+    page = (
+        "cd web && npm ci --silent && npm run build >/dev/null && cd .. && "
+        if (wt / "web/package.json").exists()
+        else ""
+    )
     r = subprocess.run(
         ["bash", "-c", f"{page}. ~/esp/esp-idf/export.sh >/dev/null 2>&1 && idf.py -C firmware reconfigure build"],
         cwd=wt,

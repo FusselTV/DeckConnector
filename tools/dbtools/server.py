@@ -189,11 +189,15 @@ class Server:
             return
         bridge = Bridge(ws)
         task = asyncio.create_task(bridge.run())
-        # hello always comes first
-        for _ in range(200):
+        # hello always comes first; a bridge is filed under its id, so one without a hello is not kept
+        for _ in range(1000):
             if bridge.hello or bridge.closed.is_set():
                 break
             await asyncio.sleep(0.01)
+        if not bridge.hello:
+            await ws.close(4002, "no hello")
+            await task
+            return
         self.bridges[bridge.id] = bridge
         await self.connected.put(bridge)
         await task

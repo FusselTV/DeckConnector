@@ -7,13 +7,12 @@ Needs the password (~/.config/deckbridge/admin_pass): a token gets no log.
 import argparse
 import base64
 import json
-import os
 import sys
 import time
 
 from websockets.sync.client import connect
 
-from dbtools.load import password
+from dbtools.load import HOST, password
 
 
 def follow(host: str, password: str, secs: float, out=sys.stdout) -> None:
@@ -35,7 +34,7 @@ def follow(host: str, password: str, secs: float, out=sys.stdout) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
+    ap.add_argument("--host", default=HOST)
     ap.add_argument("--secs", type=float, default=10)
     a = ap.parse_args()
     follow(a.host, password(), a.secs)
