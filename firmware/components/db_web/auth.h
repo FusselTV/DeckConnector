@@ -42,3 +42,7 @@ esp_err_t auth_logout(httpd_req_t *req);
 esp_err_t auth_password_show(httpd_req_t *req);
 /* POST asks on the deck, DELETE takes the question back. */
 esp_err_t auth_password_reset(httpd_req_t *req);
+/* No login: POST asks on the deck to let this browser in. /<id>: GET polls and logs in once accepted, DELETE
+ * takes the request back. */
+esp_err_t auth_login_request(httpd_req_t *req);
+esp_err_t auth_login_request_id(httpd_req_t *req);

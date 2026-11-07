@@ -596,6 +596,38 @@ static void reset_page(page_t *p)
     }
 }
 
+/* POST /api/login/request: a browser asks to get in without the password. */
+static void login_page(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, fit(p, "Login-Anfrage", "Login"), md->login_ip, "");
+    ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
+    button(yes, ICON_SAVE, "Annehmen", fit(p, "darf rein", ""));
+    yes->active = true;
+    yes->color = C_ACTIVE;
+    ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
+    button(no, ICON_CLOSE, "Ablehnen", fit(p, "bleibt draußen", ""));
+    no->color = C_DANGER;
+    int col = 0;
+    if (md->login_who[0]) {
+        card(put(p, at(p, 1, col++), K_NONE), ICON_WEB, "Gerät", md->login_who, "");
+    }
+    if (md->login_mac[0]) {
+        card(put(p, at(p, 1, col++), K_NONE), ICON_LAN, "MAC", md->login_mac, "");
+    }
+    if (md->login_name[0]) {
+        card(put(p, at(p, 1, col), K_NONE), ICON_LAN, "Name", md->login_name, "");
+    }
+    if (p->l->strip) {
+        char v[48];
+        char sub[112];
+        snprintf(v, sizeof(v), "%.15s · %.28s", md->login_ip, md->login_who);
+        snprintf(sub, sizeof(sub), "%s%s%snur annehmen, wenn du das bist", md->login_mac[0] ? "MAC " : "",
+                 md->login_mac, md->login_mac[0] ? " · " : "");
+        segment(&p->sc->seg[0], 4, ICON_WEB, C_WARN, "Login-Anfrage", md->login_who[0] ? v : md->login_ip, sub);
+    }
+}
+
 /* Every host that can draw; at most UI_SOURCES, so even the Neo needs no paging. */
 static void sources_page(page_t *p)
 {
@@ -650,14 +682,17 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_RESET:
         reset_page(&p);
         break;
+    case PAGE_LOGIN_REQ:
+        login_page(&p);
+        break;
     default:
         home(&p);
         break;
     }
 }
 
-/* The page that shows: a connection request comes first, then a reset question, the password, a found
- * Companion, then the welcome steps until setup is done. */
+/* The page that shows: a connection request comes first, then a reset question, a login request, the password,
+ * a found Companion, then the welcome steps until setup is done. */
 static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
 {
     ui_menu_t shown = *m;
@@ -665,6 +700,8 @@ static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
         shown.page = PAGE_REQUEST;
     } else if (md->reset_ask) {
         shown.page = PAGE_RESET;
+    } else if (md->login_ip[0]) {
+        shown.page = PAGE_LOGIN_REQ;
     } else if (md->show_pass) {
         shown.page = PAGE_PASSWORD;
     } else if (m->page == PAGE_HOME && md->offer_addr[0]) {
@@ -829,12 +866,14 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         act->what = UI_DO_HIDE_PASSWORD;
         return true;
     }
-    /* a control token can press keys over the API: it must not be able to wipe the bridge and take admin */
-    if (shown.page == PAGE_RESET && !md->from_deck) {
+    /* a control token can press keys over the API: it must not be able to wipe the bridge and take admin, nor
+     * let its own browser in */
+    bool deck_only = shown.page == PAGE_RESET || shown.page == PAGE_LOGIN_REQ;
+    if (deck_only && !md->from_deck) {
         return false;
     }
     bool key = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP;
-    if (shown.page == PAGE_PASSWORD || (shown.page == PAGE_RESET && !key)) {
+    if (shown.page == PAGE_PASSWORD || (deck_only && !key)) {
         return false;
     }
     if (!key) {
@@ -865,7 +904,9 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     case K_ACCEPT:
     case K_DENY:
-        *act = (ui_action_t){.what = shown.page == PAGE_OFFER ? UI_DO_OFFER : UI_DO_ANSWER,
+        *act = (ui_action_t){.what = shown.page == PAGE_OFFER       ? UI_DO_OFFER
+                                     : shown.page == PAGE_LOGIN_REQ ? UI_DO_LOGIN
+                                                                    : UI_DO_ANSWER,
                              .value = what == K_ACCEPT};
         return true;
     case K_CLOSE:

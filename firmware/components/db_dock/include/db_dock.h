@@ -52,5 +52,7 @@ size_t db_dock_known(db_dock_peer_t *out, size_t max);
 bool db_dock_peer_connected(const db_dock_peer_t *p);
 /* The name its router knows it by, "" until the lookup answered or when there is none. `ip` in network order. */
 void db_dock_name(uint32_t ip, char name[40]);
+/* From the ARP table: a host that just connected is in it, one behind a router is not and gets zeros. */
+void db_dock_mac(uint32_t ip, uint8_t mac[6]);
 /* NULL forgets every paired host. */
 esp_err_t db_dock_forget(const char *ip);

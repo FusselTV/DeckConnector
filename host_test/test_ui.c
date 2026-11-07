@@ -243,6 +243,14 @@ static void test_no_page_cuts_a_text(void)
             }
             m.confirm_key = -1;
             md.reset_ask = false;
+            strcpy(md.login_ip, v == 1 ? "255.255.255.255" : "192.168.1.42"); /* db_ui cuts the label to 20 characters */
+            strcpy(md.login_who, v == 1 ? "Android · Samsung In" : "iPhone · Safari");
+            strcpy(md.login_mac, v == 2 ? "" : "aa:bb:cc:dd:ee:ff");
+            strcpy(md.login_name, v == 1 ? "studio-pc-regie-links-2" : (v == 3 ? "" : "iPhone-von-Anna"));
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_login_request_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
+            md.login_ip[0] = '\0';
             md.source_count = 0; /* a new deck: nobody connected yet */
             md.menu_hold_ms = v == 1 ? 2500 : 2000;
             strcpy(md.menu_chord, v == 2 ? "keys" : (v == 3 ? "off" : "auto"));
@@ -517,6 +525,31 @@ static void test_password_and_reset_pages(void)
     TEST_ASSERT_EQUAL_INT(UI_DO_CANCEL_RESET, act.what);
 }
 
+static void test_login_request_page(void)
+{
+    db_device_info_t dev = open_deck(0x0084);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+    ui_action_t act;
+    strcpy(md.login_ip, "192.168.1.42");
+    md.login_seq = 7;
+    press(&m, &md, &l, 1, &act); /* sent over the API: a control token must not let its own browser in */
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    md.show_pass = true; /* the login request comes first */
+    md.from_deck = true;
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_LOGIN, act.what);
+    TEST_ASSERT_EQUAL_INT(1, act.value);
+    press(&m, &md, &l, 2, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_LOGIN, act.what);
+    TEST_ASSERT_EQUAL_INT(0, act.value);
+    TEST_ASSERT_EQUAL_INT(PAGE_MAIN, m.page);
+    md.reset_ask = true; /* the reset question comes before it */
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_NOT_EQUAL(UI_DO_LOGIN, act.what);
+}
+
 void setUp(void)
 {
     ui_on_cut = print_cut;
@@ -538,5 +571,6 @@ int main(void)
     RUN_TEST(test_menu_chord_on_every_deck);
     RUN_TEST(test_without_the_web_ui);
     RUN_TEST(test_password_and_reset_pages);
+    RUN_TEST(test_login_request_page);
     return UNITY_END();
 }

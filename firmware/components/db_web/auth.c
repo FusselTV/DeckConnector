@@ -384,6 +384,148 @@ esp_err_t auth_password_reset(httpd_req_t *req)
     return send_json(req, reply);
 }
 
+#define ASK_S        60
+#define ASK_AGAIN_US 3000000
+#define ASKS         4 /* replaced ids still read "denied" until this many newer ones came */
+#define WHO_CHARS    48
+#define ASK_ID       32 /* hex digits, 128 random bits */
+
+typedef enum { ASK_PENDING, ASK_DENIED, ASK_EXPIRED, ASK_USED } ask_state_t;
+static const char *const ask_names[] = {"pending", "denied", "expired", "used"};
+static struct {
+    char id[ASK_ID + 1];
+    int64_t until;
+    ask_state_t state;
+} asks[ASKS]; /* under mux */
+static int ask_cur = -1;
+static int64_t ask_last;
+
+static bool who_ok(const cJSON *who)
+{
+    if (!cJSON_IsString(who) || strlen(who->valuestring) > WHO_CHARS * 2) {
+        return false;
+    }
+    int chars = 0;
+    for (const unsigned char *c = (const unsigned char *)who->valuestring; *c; c++) {
+        if (*c < 0x20 || *c == 0x7f) {
+            return false;
+        }
+        chars += (*c & 0xc0) != 0x80;
+    }
+    return chars <= WHO_CHARS;
+}
+
+esp_err_t auth_login_request(httpd_req_t *req)
+{
+    if (!auth_marked(req)) {
+        return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
+    }
+    char body[256];
+    char who[WHO_CHARS * 2 + 1] = "";
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *w = cJSON_GetObjectItemCaseSensitive(root, "who");
+    bool ok = root && (!w || who_ok(w));
+    if (ok && w) {
+        strlcpy(who, w->valuestring, sizeof(who));
+    }
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "who: a label of up to 48 characters");
+    }
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&mux);
+    bool soon = ask_cur >= 0 && now - ask_last < ASK_AGAIN_US;
+    portEXIT_CRITICAL(&mux);
+    if (soon) {
+        return send_error(req, "429 Too Many Requests", "one login request per 3 s");
+    }
+    if (!db_ui_ask_login(peer_ip(req), who, ASK_S)) {
+        return send_error(req, "409 Conflict", "no Stream Deck attached");
+    }
+    uint8_t raw[ASK_ID / 2];
+    char id[ASK_ID + 1];
+    esp_fill_random(raw, sizeof(raw));
+    for (int i = 0; i < ASK_ID / 2; i++) {
+        snprintf(id + 2 * i, 3, "%02x", raw[i]);
+    }
+    portENTER_CRITICAL(&mux);
+    if (ask_cur >= 0 && asks[ask_cur].state == ASK_PENDING) {
+        asks[ask_cur].state = ASK_DENIED;
+    }
+    ask_cur = (ask_cur + 1) % ASKS;
+    strcpy(asks[ask_cur].id, id);
+    asks[ask_cur].until = now + ASK_S * 1000000LL;
+    asks[ask_cur].state = ASK_PENDING;
+    ask_last = now;
+    portEXIT_CRITICAL(&mux);
+    char reply[64];
+    snprintf(reply, sizeof(reply), "{\"id\":\"%s\",\"s\":%d}", id, ASK_S);
+    return send_json(req, reply);
+}
+
+/* GET answers the state and, once, logs in when the deck accepted; DELETE takes the request back. */
+esp_err_t auth_login_request_id(httpd_req_t *req)
+{
+    if (req->method == HTTP_DELETE && !auth_marked(req)) {
+        return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
+    }
+    const char *given = req->uri + strlen("/api/login/request/");
+    char id[ASK_ID + 1] = "";
+    size_t len = strcspn(given, "?");
+    if (len == ASK_ID) {
+        memcpy(id, given, len);
+        id[len] = '\0';
+    }
+    int found = -1;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < ASKS; i++) {
+        bool same = asks[i].id[0] && id[0] && equal(asks[i].id, id); /* every one compared: no early exit */
+        found = same ? i : found;
+    }
+    bool current = found >= 0 && found == ask_cur && asks[found].state == ASK_PENDING;
+    portEXIT_CRITICAL(&mux);
+    if (found < 0) {
+        return send_error(req, "404 Not Found", "no such login request");
+    }
+    if (req->method == HTTP_DELETE) {
+        portENTER_CRITICAL(&mux);
+        if (asks[found].state == ASK_PENDING) {
+            asks[found].state = ASK_DENIED;
+        }
+        portEXIT_CRITICAL(&mux);
+        if (current) {
+            db_ui_end_login();
+        }
+        return send_json(req, "{\"ok\":true}");
+    }
+    int answer = current ? db_ui_login_answer() : -1;
+    int64_t now = esp_timer_get_time();
+    bool accepted = false;
+    portENTER_CRITICAL(&mux);
+    int64_t left = asks[found].until - now;
+    if (asks[found].state == ASK_PENDING) {
+        /* the deck takes no answer after its page ran out; a poll a moment later still gets the login */
+        if (answer == 1 && left > -5000000) {
+            accepted = true;
+            asks[found].state = ASK_USED;
+        } else if (answer == 0) {
+            asks[found].state = ASK_DENIED;
+        } else if (left <= 0) {
+            asks[found].state = ASK_EXPIRED;
+        }
+    }
+    ask_state_t state = asks[found].state;
+    portEXIT_CRITICAL(&mux);
+    if (accepted) {
+        ESP_LOGI(TAG, "login accepted on the deck");
+        set_session_cookie(req);
+    }
+    char reply[48];
+    snprintf(reply, sizeof(reply), "{\"state\":\"%s\",\"s\":%d}", accepted ? "accepted" : ask_names[state],
+             state == ASK_PENDING && left > 0 ? (int)((left + 999999) / 1000000) : 0);
+    return send_json(req, reply);
+}
+
 esp_err_t auth_qr_login(httpd_req_t *req, const char *token)
 {
     if (db_ui_login_take(token)) {

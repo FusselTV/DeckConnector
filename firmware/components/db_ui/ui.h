@@ -121,6 +121,11 @@ typedef struct {
     bool show_pass;
     bool reset_ask;
     bool from_deck; /* the input being handled was pressed on the deck, not sent over the network */
+    char login_ip[16]; /* a browser asks to log in without the password; empty: nobody */
+    char login_who[40]; /* the label the browser sent, cut to 20 characters, what a key shows */
+    char login_mac[18]; /* empty when it is not in the ARP table */
+    char login_name[40];
+    uint32_t login_seq; /* which request the page shows, so an answer cannot reach a newer one */
 } ui_model_t;
 
 typedef enum {
@@ -137,6 +142,7 @@ typedef enum {
     UI_DO_OFFER, /* value: 1 connects to the offered Companion over Satellite, 0 asks no more until a restart */
     UI_DO_HIDE_PASSWORD,
     UI_DO_CANCEL_RESET,
+    UI_DO_LOGIN, /* value: 1 lets the asking browser in */
 } ui_do_t;
 
 typedef struct {
@@ -156,8 +162,9 @@ typedef enum {
     PAGE_SOURCES,  /* every connected host, when the top row has no room for all */
     PAGE_REQUEST,  /* shown over every page while a host that is not paired asks */
     PAGE_OFFER,    /* instead of home or welcome while a found Companion is offered */
-    PAGE_PASSWORD, /* over every page, below a request and PAGE_RESET */
+    PAGE_PASSWORD, /* over every page, below a request, PAGE_RESET and PAGE_LOGIN_REQ */
     PAGE_RESET,
+    PAGE_LOGIN_REQ, /* over every page, below a request and PAGE_RESET */
 } ui_page_t;
 
 typedef struct {

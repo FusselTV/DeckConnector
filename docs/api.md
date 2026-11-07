@@ -34,6 +34,17 @@ answer 409 when no deck is attached. A second call within 3 seconds changes noth
 
 While the deck shows the password, a token gets 403 for the pictures of the deck.
 
+A browser can also ask to log in without the password. The deck shows its address, the label it sent, its MAC
+address when it is on the same network, and its name when the router knows one. Someone at the deck taps
+"Annehmen" or "Ablehnen". Presses sent over the API do not count. The question ends after 60 seconds. There is one
+question at a time, and a new one replaces the older one.
+
+| Method and path | What it does |
+|---|---|
+| `POST /api/login/request` | Needs the header `X-DeckConnector: 1`. Body `{"who": "iPhone · Safari"}`, up to 48 characters. Answers `{"id": "<32 hex digits>", "s": 60}`. 409 when no deck is attached, 429 within 3 seconds of the last request |
+| `GET /api/login/request/<id>` | Answers `{"state": "pending", "s": 42}`. `state` is `pending`, `accepted`, `denied`, `expired` or `used`. With `accepted` the reply sets the session cookie, like `POST /api/login`. This happens once, then the state is `used`. 404 for an unknown id |
+| `DELETE /api/login/request/<id>` | Needs the header `X-DeckConnector: 1`. Takes the request back. Answers `{"ok": true}` |
+
 A client on the setup access point needs no password. To join that WLAN you need its password, and only the deck
 shows it. Every request over it has the rights of a password login. Changes still need the header
 `X-DeckConnector: 1`. `via_ap` in `GET /api/status` is true for such a request.
@@ -81,7 +92,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/screen.jpg` | The whole picture as one JPEG, for a camera in Home Assistant |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
-| `DELETE /api/menu` | Close the menu on the deck, like its close key. The deck goes back to the host that draws |
+| `DELETE /api/menu` | Close the menu on the deck, like its close key. It also hides the password, ends the reset question and denies a login request. The deck goes back to the host that draws |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
@@ -226,7 +237,7 @@ again and upload the key again.
             "psram_largest": 30932992, "tasks": 37, "sockets": 9, "sockets_max": 32}}
 ```
 
-- `menu_open` is true while the menu is open on the deck. `via_ap` is true when this request came over the setup
+- `menu_open` is true while the menu, the password, the reset question or a login request covers the deck. `via_ap` is true when this request came over the setup
   access point. The web socket's `state` has `menu_open` too.
 - `writer` is who draws at this moment: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. The
   source with `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs,

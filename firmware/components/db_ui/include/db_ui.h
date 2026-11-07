@@ -40,8 +40,10 @@ bool db_ui_login_shown(void);
 void db_ui_setup_step(int step);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */
 esp_err_t db_ui_open_menu(void);
-/* Back to the home page, like the menu's close key; the deck goes back to who draws. */
+/* Back to the home page, like the menu's close key; also hides the password page, cancels the reset question and
+ * denies a login request. The deck goes back to who draws. */
 void db_ui_close_menu(void);
+/* The menu, the password page, the reset question or a login request covers the deck. */
 bool db_ui_menu_open(void);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
@@ -49,3 +51,9 @@ int db_ui_show_password(void);
  * when no deck is connected. */
 int db_ui_ask_reset(void);
 void db_ui_cancel_reset(void);
+/* The deck asks for `seconds` whether the browser at `ip` (network order) may log in; a newer call replaces the
+ * question. False when no deck is connected. Only taps on the deck itself answer. */
+bool db_ui_ask_login(uint32_t ip, const char *who, int seconds);
+/* 1 accepted, 0 denied, -1 not answered (yet) for the last question. */
+int db_ui_login_answer(void);
+void db_ui_end_login(void);

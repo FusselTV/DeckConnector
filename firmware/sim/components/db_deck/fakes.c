@@ -141,6 +141,14 @@ bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
 }
 
 static bool menu_open;
+static int64_t pass_until, reset_until, ask_until, ask_at;
+static int ask_answer = -1;
+
+static bool covered(void)
+{
+    int64_t now = esp_timer_get_time();
+    return now < pass_until || now < reset_until || now < ask_until;
+}
 
 esp_err_t db_ui_open_menu(void)
 {
@@ -151,25 +159,57 @@ esp_err_t db_ui_open_menu(void)
 void db_ui_close_menu(void)
 {
     menu_open = false;
+    pass_until = reset_until = 0;
+    if (esp_timer_get_time() < ask_until) {
+        ask_answer = 0;
+        ask_until = 0;
+    }
 }
 
 bool db_ui_menu_open(void)
 {
-    return menu_open;
+    return menu_open || covered();
 }
 
 int db_ui_show_password(void)
 {
+    pass_until = esp_timer_get_time() + 30000000;
     return 1;
 }
 
 int db_ui_ask_reset(void)
 {
+    reset_until = esp_timer_get_time() + 60000000;
     return 60;
 }
 
 void db_ui_cancel_reset(void)
 {
+    reset_until = 0;
+}
+
+bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
+{
+    ask_at = esp_timer_get_time();
+    ask_until = ask_at + (int64_t)seconds * 1000000;
+    ask_answer = -1;
+    return true;
+}
+
+/* DB_SIM_LOGIN_ACCEPT=1: someone at the deck accepts every request after 1 s. */
+int db_ui_login_answer(void)
+{
+    if (ask_answer < 0 && esp_timer_get_time() < ask_until && getenv("DB_SIM_LOGIN_ACCEPT") &&
+        esp_timer_get_time() - ask_at >= 1000000) {
+        ask_answer = 1;
+        ask_until = 0;
+    }
+    return ask_answer;
+}
+
+void db_ui_end_login(void)
+{
+    ask_until = 0;
 }
 
 esp_err_t db_ota_begin(size_t total, int slot, bool boot)

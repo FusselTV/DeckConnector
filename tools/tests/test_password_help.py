@@ -27,9 +27,11 @@ def test_a_foreign_page_cannot_ask(method, path):
 
 
 @pytest.mark.sim
-@pytest.mark.skipif(TARGET != "sim", reason="it would cover the owner's deck for 30 s")
 def test_the_password_shows_without_a_login():
-    assert call("POST", "/api/password/show") == (200, {"ok": True, "decks": 1})
+    try:
+        assert call("POST", "/api/password/show") == (200, {"ok": True, "decks": 1})
+    finally:
+        assert api("DELETE", "/api/menu")[0] == 200  # it counts as an open menu for 30 s
 
 
 @pytest.mark.sim

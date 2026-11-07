@@ -226,6 +226,15 @@ static char login_token[17];
 static int64_t login_made;
 static uint8_t setup_step;
 static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_mux */
+static struct { /* the login request on the deck, under login_mux */
+    int64_t until;
+    uint32_t seq;
+    uint32_t ip;
+    char ip_s[16];
+    char who[97];
+    char mac[18];
+    int answer; /* -1 while none */
+} ask = {.answer = -1};
 
 static int64_t until(const int64_t *t)
 {
@@ -237,7 +246,7 @@ static int64_t until(const int64_t *t)
 
 static bool overlay(int64_t now)
 {
-    return now < until(&pass_until) || now < until(&reset_until);
+    return now < until(&pass_until) || now < until(&reset_until) || now < until(&ask.until);
 }
 
 /* A code made before setup was done must not outlive it: the model that clears it is only built while the
@@ -365,6 +374,29 @@ static void model(ui_model_t *md)
     };
     md->show_pass = md->now_us < until(&pass_until);
     md->reset_ask = md->now_us < until(&reset_until);
+    uint32_t ask_ip = 0;
+    portENTER_CRITICAL(&login_mux);
+    if (md->now_us < ask.until) {
+        ask_ip = ask.ip;
+        md->login_seq = ask.seq;
+        strcpy(md->login_ip, ask.ip_s);
+        /* 20 characters fit two lines on every key; never cut inside a UTF-8 character */
+        size_t n = 0;
+        for (int chars = 0; ask.who[n] && n < sizeof(md->login_who) - 4; n++) {
+            if ((ask.who[n] & 0xc0) != 0x80 && ++chars > 20) {
+                break;
+            }
+        }
+        while (n && (ask.who[n] & 0xc0) == 0x80) {
+            n--;
+        }
+        memcpy(md->login_who, ask.who, n);
+        strcpy(md->login_mac, ask.mac);
+    }
+    portEXIT_CRITICAL(&login_mux);
+    if (ask_ip) {
+        db_dock_name(ask_ip, md->login_name);
+    }
     snprintf(md->menu_chord, sizeof(md->menu_chord), "%s", c->menu_chord);
     model_offer(md, c);
     snprintf(md->lan_ip, sizeof(md->lan_ip), "%s", n.lan_ip);
@@ -530,6 +562,18 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         reset_until = 0;
         portEXIT_CRITICAL(&login_mux);
         break;
+    case UI_DO_LOGIN:
+        portENTER_CRITICAL(&login_mux);
+        bool same = ask.seq == md->login_seq && ask.answer < 0;
+        if (same) {
+            ask.answer = act->value;
+            ask.until = 0;
+        }
+        portEXIT_CRITICAL(&login_mux);
+        if (same) {
+            ESP_LOGI(TAG, "login request from %s %s on the deck", md->login_ip, act->value ? "accepted" : "denied");
+        }
+        break;
     case UI_DO_SETUP_DONE:
         db_config_copy(&c);
         c.setup_done = true;
@@ -676,13 +720,23 @@ esp_err_t db_ui_open_menu(void)
 
 void db_ui_close_menu(void)
 {
+    int64_t now = esp_timer_get_time();
+    bool covered = overlay(now);
+    portENTER_CRITICAL(&login_mux);
+    pass_until = 0;
+    reset_until = 0;
+    if (now < ask.until) {
+        ask.answer = 0;
+        ask.until = 0;
+    }
+    portEXIT_CRITICAL(&login_mux);
     xSemaphoreTake(s.lock, portMAX_DELAY);
     bool open = ui_menu_open(&s.menu);
     if (open) {
-        ui_menu_close(&s.menu, esp_timer_get_time());
+        ui_menu_close(&s.menu, now);
     }
     xSemaphoreGive(s.lock);
-    if (open) {
+    if (open || covered) {
         ESP_LOGI(TAG, "menu closed");
         changed();
     }
@@ -693,7 +747,7 @@ bool db_ui_menu_open(void)
     xSemaphoreTake(s.lock, portMAX_DELAY);
     bool open = ui_menu_open(&s.menu);
     xSemaphoreGive(s.lock);
-    return open;
+    return open || overlay(esp_timer_get_time());
 }
 
 static void check_menu_chord(void)
@@ -768,7 +822,7 @@ static void tick(void *arg)
     }
     static int64_t next;
     int64_t now = esp_timer_get_time();
-    /* the password page or the reset question ran out: the deck goes back to who draws */
+    /* the password page, the reset question or a login request ran out: the deck goes back to who draws */
     static bool overlaid;
     if (overlay(now) != overlaid) {
         overlaid = !overlaid;
@@ -869,6 +923,54 @@ void db_ui_cancel_reset(void)
 {
     portENTER_CRITICAL(&login_mux);
     reset_until = 0;
+    portEXIT_CRITICAL(&login_mux);
+    changed();
+}
+
+bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
+{
+    if (!s.present) {
+        return false;
+    }
+    uint8_t mac[6];
+    db_dock_mac(ip, mac);
+    char mac_s[18] = "";
+    if (memcmp(mac, (uint8_t[6]){0}, 6) != 0) {
+        snprintf(mac_s, sizeof(mac_s), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4],
+                 mac[5]);
+    }
+    char ip_s[16];
+    ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    s.menu.keys_down = 0; /* a key held before the page came must not answer it on release */
+    s.menu.encoders_down = 0;
+    xSemaphoreGive(s.lock);
+    portENTER_CRITICAL(&login_mux);
+    ask.until = esp_timer_get_time() + (int64_t)seconds * 1000000;
+    ask.seq++;
+    ask.ip = ip;
+    ask.answer = -1;
+    strcpy(ask.ip_s, ip_s);
+    strcpy(ask.mac, mac_s);
+    snprintf(ask.who, sizeof(ask.who), "%s", who);
+    portEXIT_CRITICAL(&login_mux);
+    ESP_LOGI(TAG, "login request from %s on the deck", ip_s);
+    changed();
+    return true;
+}
+
+int db_ui_login_answer(void)
+{
+    portENTER_CRITICAL(&login_mux);
+    int a = ask.answer;
+    portEXIT_CRITICAL(&login_mux);
+    return a;
+}
+
+void db_ui_end_login(void)
+{
+    portENTER_CRITICAL(&login_mux);
+    ask.until = 0;
     portEXIT_CRITICAL(&login_mux);
     changed();
 }

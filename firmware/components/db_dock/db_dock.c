@@ -559,9 +559,7 @@ static err_t arp_lookup(struct tcpip_api_call_data *call)
     return ERR_VAL;
 }
 
-/* A host that just connected is in the ARP table; one behind a router is not, and is known by address only.
- */
-static void mac_of(uint32_t ip, uint8_t mac[6])
+void db_dock_mac(uint32_t ip, uint8_t mac[6])
 {
     arp_query_t q = {.ip.addr = ip};
     tcpip_api_call(arp_lookup, &q.call);
@@ -662,7 +660,7 @@ static bool admit(uint32_t ip)
 {
     look_up(ip);
     uint8_t mac[6];
-    mac_of(ip, mac);
+    db_dock_mac(ip, mac);
     bool strict = db_config()->dock_paired_only;
     int64_t now = esp_timer_get_time();
     bool in = false;
