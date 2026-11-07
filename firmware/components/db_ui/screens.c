@@ -718,6 +718,11 @@ void ui_menu_open_main(ui_menu_t *m, int64_t now)
     go(m, PAGE_MAIN, now);
 }
 
+void ui_menu_close(ui_menu_t *m, int64_t now)
+{
+    go(m, PAGE_HOME, now);
+}
+
 /* First tap arms, a second one within 3 s does it. */
 static bool confirmed(ui_menu_t *m, int key, int64_t now)
 {

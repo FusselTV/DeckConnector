@@ -140,9 +140,22 @@ bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
     return *last >= 1;
 }
 
+static bool menu_open;
+
 esp_err_t db_ui_open_menu(void)
 {
+    menu_open = true;
     return ESP_OK;
+}
+
+void db_ui_close_menu(void)
+{
+    menu_open = false;
+}
+
+bool db_ui_menu_open(void)
+{
+    return menu_open;
 }
 
 int db_ui_show_password(void)
@@ -258,10 +271,15 @@ size_t db_net_companions(db_net_found_t *out, size_t max)
 
 static const char *sim_join = "";
 
+/* DB_SIM_VIA_AP=1: the setup AP is on and has the loopback address, so every request counts as over the AP. */
 void db_net_status(db_net_status_t *out)
 {
     *out = (db_net_status_t){.lan_link = true, .lan_up = true, .join_state = sim_join};
     strcpy(out->lan_ip, "127.0.0.1");
+    if (getenv("DB_SIM_VIA_AP")) {
+        out->ap_active = true;
+        strcpy(out->ap_ip, "127.0.0.1");
+    }
 }
 
 int db_net_wifi_scan(db_net_ap_t *out, size_t max)

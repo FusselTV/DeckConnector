@@ -252,7 +252,20 @@ int api_input(const char *body, char *reply, size_t cap)
 
 esp_err_t get_status(httpd_req_t *req)
 {
-    return send_built(req, STATUS_JSON_MAX, api_status_json);
+    char *buf = malloc(STATUS_JSON_MAX);
+    if (!buf) {
+        return send_error(req, "500 Internal Server Error", "memory");
+    }
+    int n = snprintf(buf, STATUS_JSON_MAX, "{\"via_ap\":%s", auth_via_ap(req) ? "true" : "false");
+    esp_err_t err;
+    if (api_status_json(buf + n, STATUS_JSON_MAX - n)) {
+        buf[n] = ','; /* in place of the status's own '{' */
+        err = send_json(req, buf);
+    } else {
+        err = send_error(req, "500 Internal Server Error", "too large");
+    }
+    free(buf);
+    return err;
 }
 
 static size_t config_json(char *buf, size_t cap)
@@ -426,6 +439,15 @@ esp_err_t post_menu(httpd_req_t *req)
     if (db_ui_open_menu() != ESP_OK) {
         return send_error(req, "409 Conflict", "no deck connected");
     }
+    return send_json(req, "{\"ok\":true}");
+}
+
+esp_err_t delete_menu(httpd_req_t *req)
+{
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
+    db_ui_close_menu();
     return send_json(req, "{\"ok\":true}");
 }
 

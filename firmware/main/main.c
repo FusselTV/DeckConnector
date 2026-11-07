@@ -264,6 +264,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_obj_close(j);
     db_json_str(j, "controller", db_controller_name(db_config()->controller));
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
+    db_json_bool(j, "menu_open", db_ui_menu_open());
     write_device(j);
     write_network(j, live);
     write_sources(j, live);

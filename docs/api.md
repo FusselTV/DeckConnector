@@ -34,6 +34,10 @@ answer 409 when no deck is attached. A second call within 3 seconds changes noth
 
 While the deck shows the password, a token gets 403 for the pictures of the deck.
 
+A client on the setup access point needs no password. To join that WLAN you need its password, and only the deck
+shows it. Every request over it has the rights of a password login. Changes still need the header
+`X-DeckConnector: 1`. `via_ap` in `GET /api/status` is true for such a request.
+
 ## For integrations
 
 Home Assistant and other programs use a token instead of the password. Make one in the web UI under System, or
@@ -77,6 +81,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/screen.jpg` | The whole picture as one JPEG, for a camera in Home Assistant |
 | `POST /api/input` | Press a key, turn an encoder or touch the strip, see below |
 | `POST /api/menu` | Open the menu on the deck. 409 without a deck |
+| `DELETE /api/menu` | Close the menu on the deck, like its close key. The deck goes back to the host that draws |
 | `POST /api/dock` | Pairing of Companion and Stream Deck app hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
@@ -201,9 +206,9 @@ again and upload the key again.
 ## Status
 
 ```json
-{"id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "wlan_firmware": "3.0.10", "uptime_s": 23,
  "boot": {"reason": "restart", "at": 1794012139},
- "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "dock2",
+ "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "dock2", "menu_open": false,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.214"},
@@ -221,6 +226,8 @@ again and upload the key again.
             "psram_largest": 30932992, "tasks": 37, "sockets": 9, "sockets_max": 32}}
 ```
 
+- `menu_open` is true while the menu is open on the deck. `via_ap` is true when this request came over the setup
+  access point. The web socket's `state` has `menu_open` too.
 - `writer` is who draws at this moment: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. The
   source with `drawing` in `sources` says which host that is. It is `ui` while the menu is open, an update runs,
   or the picked host is not connected.

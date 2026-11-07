@@ -5,6 +5,7 @@
 
 #include "db_config.h"
 #include "db_json.h"
+#include "db_ui.h"
 #include "db_web.h"
 #include "esp_event.h"
 #include "freertos/FreeRTOS.h"
@@ -19,6 +20,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_str(&j, "t", t);
     db_json_str(&j, "firmware", "sim");
     db_json_str(&j, "controller", "companion");
+    db_json_bool(&j, "menu_open", db_ui_menu_open());
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);

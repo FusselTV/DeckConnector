@@ -674,6 +674,28 @@ esp_err_t db_ui_open_menu(void)
     return ESP_OK;
 }
 
+void db_ui_close_menu(void)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    bool open = ui_menu_open(&s.menu);
+    if (open) {
+        ui_menu_close(&s.menu, esp_timer_get_time());
+    }
+    xSemaphoreGive(s.lock);
+    if (open) {
+        ESP_LOGI(TAG, "menu closed");
+        changed();
+    }
+}
+
+bool db_ui_menu_open(void)
+{
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    bool open = ui_menu_open(&s.menu);
+    xSemaphoreGive(s.lock);
+    return open;
+}
+
 static void check_menu_chord(void)
 {
     int last;

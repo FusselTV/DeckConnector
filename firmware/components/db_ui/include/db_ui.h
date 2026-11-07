@@ -40,6 +40,9 @@ bool db_ui_login_shown(void);
 void db_ui_setup_step(int step);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */
 esp_err_t db_ui_open_menu(void);
+/* Back to the home page, like the menu's close key; the deck goes back to who draws. */
+void db_ui_close_menu(void);
+bool db_ui_menu_open(void);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
 /* The deck asks for 60 s whether to reset every setting; only taps on the deck itself answer. Seconds left, -1

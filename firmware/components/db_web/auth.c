@@ -1,5 +1,6 @@
 #include "auth.h"
 
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 #include "cJSON.h"
 #include "db_config.h"
 #include "db_json.h"
+#include "db_net.h"
 #include "db_ui.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -86,11 +88,14 @@ static bool session_valid(const char *token)
     return ok;
 }
 
-static uint32_t peer_ip(httpd_req_t *req)
+/* The peer's address, or with `local` the address the request came in on. */
+static uint32_t sock_ip(httpd_req_t *req, bool local)
 {
     struct sockaddr_in6 addr; /* lwIP reports IPv4 peers as IPv4-mapped IPv6 */
     socklen_t len = sizeof(addr);
-    if (getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&addr, &len) != 0) {
+    int fd = httpd_req_to_sockfd(req);
+    if ((local ? getsockname(fd, (struct sockaddr *)&addr, &len) : getpeername(fd, (struct sockaddr *)&addr, &len)) !=
+        0) {
         return 0;
     }
     if (addr.sin6_family == AF_INET) {
@@ -99,6 +104,25 @@ static uint32_t peer_ip(httpd_req_t *req)
     uint32_t v4;
     memcpy(&v4, (const uint8_t *)&addr.sin6_addr + 12, 4); /* the last 4 bytes of ::ffff:a.b.c.d */
     return v4;
+}
+
+static uint32_t peer_ip(httpd_req_t *req)
+{
+    return sock_ip(req, false);
+}
+
+bool auth_via_ap(httpd_req_t *req)
+{
+    db_net_status_t n;
+    db_net_status(&n);
+    if (!n.ap_active) {
+        return false;
+    }
+    uint32_t ap = inet_addr(n.ap_ip);
+    uint32_t mask = htonl(0xffffff00);
+    /* lwIP also accepts the AP's address on the LAN, from a host that routes 192.168.4.0/24 there; its answers to
+     * a peer in the AP's subnet go out over the AP, so that host never completes the connection */
+    return sock_ip(req, true) == ap && (peer_ip(req) & mask) == (ap & mask);
 }
 
 /* The entry of this client, made when missing. Under mux. */
@@ -257,7 +281,7 @@ bool auth_check(httpd_req_t *req, web_level_t need)
     char token[TOKEN_BYTES * 2 + 1] = {0};
     size_t len = sizeof(token);
     bool cookie = httpd_req_get_cookie_val(req, COOKIE, token, &len) == ESP_OK && session_valid(token);
-    if (allowed && (cookie || basic_auth_ok(req))) {
+    if (allowed && (cookie || auth_via_ap(req) || basic_auth_ok(req))) {
         return true;
     }
     /* No WWW-Authenticate header: the page shows its own login form instead of the browser dialog. */
