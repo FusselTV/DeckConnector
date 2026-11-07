@@ -79,7 +79,8 @@ static ui_model_t base_model(void)
         .brightness = 100,
         .update_pct = -1,
         .menu_hold_ms = 2000,
-        .setup_done = true};
+        .setup_done = true,
+        .from_deck = true};
     strcpy(md.menu_chord, "auto");
     strcpy(md.lan_ip, "192.168.1.214");
     strcpy(md.wlan_ip, "192.168.1.237");
@@ -533,7 +534,8 @@ static void test_password_and_reset_pages(void)
     TEST_ASSERT_EQUAL_INT(UI_DO_HIDE_PASSWORD, act.what);
     TEST_ASSERT_EQUAL_INT(PAGE_MAIN, m.page);
 
-    md.reset_ask = true;         /* comes first */
+    md.reset_ask = true; /* comes first */
+    md.from_deck = false;
     press(&m, &md, &l, 1, &act); /* sent over the API: nothing */
     press(&m, &md, &l, 1, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
@@ -558,6 +560,7 @@ static void test_login_request_page(void)
     ui_action_t act;
     strcpy(md.login_ip, "192.168.1.42");
     md.login_seq = 7;
+    md.from_deck = false;
     press(&m, &md, &l, 1, &act); /* sent over the API: a control token must not let its own browser in */
     TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
     md.show_pass = true; /* the login request comes first */
@@ -572,6 +575,82 @@ static void test_login_request_page(void)
     md.reset_ask = true; /* the reset question comes before it */
     press(&m, &md, &l, 1, &act);
     TEST_ASSERT_NOT_EQUAL(UI_DO_LOGIN, act.what);
+}
+
+/* A control token presses keys over the API: on the deck menu it may navigate, but not restart, reset, change
+ * the network, open the setup WLAN or let a host in. */
+static void test_simulated_presses_cannot_act_on_the_bridge(void)
+{
+    db_device_info_t dev = open_deck(0x0084);
+    ui_layout_t l = ui_layout_of(&dev);
+    for (int deck = 0; deck < 2; deck++) {
+        ui_model_t md = base_model();
+        md.from_deck = deck;
+        ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+        ui_action_t act;
+        press(&m, &md, &l, 7, &act); /* restart: two taps */
+        press(&m, &md, &l, 7, &act);
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_RESTART : UI_DO_NOTHING, act.what);
+
+        ui_menu_open_main(&m, md.now_us); /* restart held 5 s: factory reset */
+        db_input_t down = {.kind = DB_INPUT_KEY_DOWN, .index = 7};
+        db_input_t up = {.kind = DB_INPUT_KEY_UP, .index = 7};
+        ui_menu_input(&m, &md, &l, &down, &act);
+        md.now_us += 6000000;
+        ui_menu_input(&m, &md, &l, &up, &act);
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_RESET : UI_DO_NOTHING, act.what);
+
+        ui_menu_open_main(&m, md.now_us);
+        press(&m, &md, &l, 5, &act); /* setup WLAN */
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_AP_START : UI_DO_NOTHING, act.what);
+        TEST_ASSERT_EQUAL_INT(deck ? PAGE_SETUP_AP : PAGE_MAIN, m.page);
+        md.ap_on = true;
+        if (deck) {
+            press(&m, &md, &l, (uint8_t)(l.cols + 1), &act);
+            TEST_ASSERT_EQUAL_INT(UI_DO_AP_STOP, act.what);
+        }
+        m.page = PAGE_SETUP_AP;
+        md.from_deck = false;
+        press(&m, &md, &l, (uint8_t)(l.cols + 1), &act);
+        TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+        md.from_deck = deck;
+        md.ap_on = false;
+
+        ui_menu_open_main(&m, md.now_us);
+        press(&m, &md, &l, 4, &act); /* LAN: navigation works over the API too */
+        TEST_ASSERT_EQUAL_INT(PAGE_LAN, m.page);
+        press(&m, &md, &l, 5, &act);
+        db_input_t turn = {.kind = DB_INPUT_ENCODER_TURN, .index = 3, .value = 1};
+        ui_menu_input(&m, &md, &l, &turn, &act);
+        press(&m, &md, &l, 7, &act);
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_SAVE_LAN : UI_DO_NOTHING, act.what);
+
+        m.page = PAGE_HOME; /* a host asks to pair, a Companion is offered */
+        strcpy(md.request, "192.168.1.77");
+        press(&m, &md, &l, 1, &act);
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_ANSWER : UI_DO_NOTHING, act.what);
+        md.request[0] = '\0';
+        strcpy(md.offer_name, "studio");
+        strcpy(md.offer_addr, "192.168.1.15:16622");
+        press(&m, &md, &l, 1, &act);
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_OFFER : UI_DO_NOTHING, act.what);
+        press(&m, &md, &l, 2, &act);
+        TEST_ASSERT_EQUAL_INT(deck ? UI_DO_OFFER : UI_DO_NOTHING, act.what);
+    }
+}
+
+/* A release of the restart key whose press came on another page must not count the uptime as held. */
+static void test_restart_release_without_its_press(void)
+{
+    db_device_info_t dev = open_deck(0x0084);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+    ui_action_t act;
+    m.keys_down = 1u << 7;
+    db_input_t up = {.kind = DB_INPUT_KEY_UP, .index = 7};
+    ui_menu_input(&m, &md, &l, &up, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
 }
 
 void setUp(void)
@@ -597,5 +676,7 @@ int main(void)
     RUN_TEST(test_without_the_web_ui);
     RUN_TEST(test_password_and_reset_pages);
     RUN_TEST(test_login_request_page);
+    RUN_TEST(test_simulated_presses_cannot_act_on_the_bridge);
+    RUN_TEST(test_restart_release_without_its_press);
     return UNITY_END();
 }

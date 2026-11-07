@@ -856,6 +856,9 @@ static bool restart_input(ui_menu_t *m, const ui_model_t *md, const db_input_t *
         m->restart_down = md->now_us;
         return true;
     }
+    if (!m->restart_down) { /* pressed on another page: no hold to measure */
+        return false;
+    }
     int64_t held = md->now_us - m->restart_down;
     m->restart_down = 0;
     if (held >= RESET_HOLD_US) {
@@ -882,8 +885,8 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         act->what = UI_DO_HIDE_PASSWORD;
         return true;
     }
-    /* a control token can press keys over the API: it must not be able to wipe the bridge and take admin, nor
-     * let its own browser in */
+    /* a control token can press keys over the API: it must not wipe or restart the bridge, change its network,
+     * open the setup WLAN, or let a browser or host in */
     bool deck_only = shown.page == PAGE_RESET || shown.page == PAGE_LOGIN_REQ;
     if (deck_only && !md->from_deck) {
         return false;
@@ -900,6 +903,10 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     uint8_t acts[UI_MAX_KEYS];
     build(&shown, md, l, sc, acts);
     key_act_t what = ev->index < UI_MAX_KEYS ? (key_act_t)acts[ev->index] : K_NONE;
+    if (!md->from_deck && (what == K_RESTART || what == K_SAVE_LAN || what == K_AP || what == K_AP_CLOSE ||
+                           what == K_ACCEPT || what == K_DENY)) {
+        return false;
+    }
     if (what == K_RESTART) {
         return restart_input(m, md, ev, act);
     }

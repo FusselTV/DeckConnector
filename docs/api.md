@@ -314,6 +314,9 @@ Without `"real"`, only the DeckConnector's own screens and your own servers get 
 The menu opens with `down` on the two controls in `menu_chord` and `up` after its `hold_ms`. A press on the real
 deck in between ends the simulated hold, because the deck always reports all keys at once.
 
+On the DeckConnector's own pages, input sent over the API can open pages and pick a host. Restart, reset, the LAN
+settings, the setup WLAN and the keys that let a host in work only on the deck itself.
+
 ## Pairing
 
 Companion and the Elgato App connect without a password. The DeckConnector lists every host that connected,
