@@ -80,6 +80,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `PUT /api/frontend` | Upload a signed `.dbfw` file with target web as the body. It is served at once and kept over restarts. Refused (400) when it is not signed with our key, its hash does not match, or it needs a newer `api` |
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
+| `GET /api/input/log` | The last 200 inputs, oldest first: `seq`, `at_ms` (after the start), `origin` (`deck` pressed on the deck, `web` a person over the network, `tool` a script or test), `kind`, `index`, `value`, `x`, `y`, and the `writer` that got it. `?since=<seq>` returns only newer ones. Kept in RAM, gone at a restart |
 | `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address: connect now instead of after the wait. 404 for anything else; dock hosts connect by themselves |
 | `GET /api/wifi/scan` | Networks in reach, one entry per access point, strongest first: `ssid`, `bssid`, `rssi` (dBm), `channel`, `open`. Only 2.4 GHz. Hidden networks and the setup network are left out. Takes 2 to 3 s |
 | `POST /api/wifi/join` | `{"ssid": "...", "pass": "...", "bssid": "..."}` tries that network and answers 202 at once. `network.wlan.join` in the status goes from `testing` to `ok` or `failed` (with `join_error`) within 15 s. Only a network that gives an address is saved, otherwise the old one comes back. `bssid` is optional and locks the DeckConnector to that access point |
@@ -193,7 +194,8 @@ it restores the settings. The web UI does this under System.
   over its Satellite API.
 - `heap_largest`, `psram_largest`, `tasks` and `sockets` show fragmentation and leaks over a long run.
 - `id` is the DeckConnector's MAC address. It stays when the name changes.
-- `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields.
+- `device` is `null` without a Stream Deck. `decks` lists every attached deck with the same fields, its `number`
+  (from 1) and its `usb_speed`.
 - `sources` lists every server that is set or was found, Companion's Satellite API when an address is set (with
   `"via": "satellite"`), and every Network Dock host. A dock host's `kind` is
   `unknown` until it asks something, and it is `connected` once it also uses the deck. `name` is what the router

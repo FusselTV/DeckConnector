@@ -82,6 +82,8 @@ size_t db_deck_input_space(void);
 esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip);
 /* Inside an input listener: whether the event came from the deck or a request that a person sent it. */
 bool db_deck_input_real(void);
+/* Inside an input listener: pressed on the deck itself, not sent over the network. */
+bool db_deck_input_from_deck(void);
 /* Inside an external listener: whether the host at `peer_ip` may get this event. */
 bool db_deck_input_real_for(uint32_t peer_ip);
 

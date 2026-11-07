@@ -54,6 +54,11 @@ bool db_deck_input_real(void)
     return input_real;
 }
 
+bool db_deck_input_from_deck(void)
+{
+    return false; /* the simulator has no deck: every input comes over the API */
+}
+
 bool db_deck_input_real_for(uint32_t peer_ip)
 {
     return input_real && (!input_only_ip || input_only_ip == peer_ip);

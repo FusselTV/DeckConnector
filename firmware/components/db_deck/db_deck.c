@@ -333,11 +333,17 @@ static void handle_detach(void)
 }
 
 static bool input_real;
+static bool input_from_deck;
 static uint32_t input_only_ip;
 
 bool db_deck_input_real(void)
 {
     return input_real;
+}
+
+bool db_deck_input_from_deck(void)
+{
+    return input_from_deck;
 }
 
 bool db_deck_input_real_for(uint32_t peer_ip)
@@ -350,6 +356,7 @@ static void handle_input(const ev_t *ev, const uint8_t *raw)
 {
     s.stats.inputs++;
     input_real = ev->real;
+    input_from_deck = ev->kind == EV_INPUT;
     input_only_ip = ev->only_ip;
     for (int i = 0; i < s.listener_count; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {

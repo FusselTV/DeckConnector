@@ -1,6 +1,12 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
+
+/* The input log after `since` (a seq number, 0 for all kept) as a JSON array; 0 when it does not fit. */
+size_t events_input_log(char *buf, size_t cap, uint32_t since);
+
+#include <stddef.h>
 
 #include "esp_http_server.h"
 

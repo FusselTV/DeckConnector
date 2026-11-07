@@ -1,5 +1,6 @@
 #include "api.h"
 #include "auth.h"
+#include "events.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -573,6 +574,24 @@ static size_t scan_json(char *buf, size_t cap)
     db_json_arr_close(&j);
     free(aps);
     return n < 0 ? 0 : db_json_end(&j);
+}
+
+static uint32_t log_since;
+
+static size_t input_log_json(char *buf, size_t cap)
+{
+    return events_input_log(buf, cap, log_since);
+}
+
+/* GET /api/input/log?since=<seq> */
+esp_err_t get_input_log(httpd_req_t *req)
+{
+    char q[32], v[12];
+    log_since = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+                        httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK
+                    ? (uint32_t)strtoul(v, NULL, 10)
+                    : 0;
+    return send_built(req, 200 * 150 + 16, input_log_json); /* runs under web_lock(): log_since stays put */
 }
 
 /* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us. */

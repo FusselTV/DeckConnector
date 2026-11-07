@@ -10,9 +10,11 @@
 #include "auth.h"
 #include "cJSON.h"
 #include "db_deck.h"
+#include "db_json.h"
 #include "db_log.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -187,8 +189,60 @@ static const char *const kinds[] = {"",           "key_down",     "key_up",    "
                                     "encoder_up", "encoder_turn", "touch_tap", "touch_long",
                                     "touch_swipe"};
 
+/* The last inputs for GET /api/input/log: a fixed ring in PSRAM, the oldest overwritten, gone at a restart. */
+#define INPUT_LOG 200
+typedef struct {
+    uint32_t at_ms;
+    uint8_t kind;
+    uint8_t index;
+    uint8_t origin; /* 0 the deck, 1 a person over the network ("real"), 2 a tool or script */
+    uint8_t writer;
+    int16_t value;
+    uint16_t x, y;
+} logged_t;
+static logged_t *input_log;
+static uint32_t input_seq; /* inputs ever logged; entry n is at n % INPUT_LOG */
+
+static void log_input(const db_input_t *ev)
+{
+    if (input_log) {
+        input_log[input_seq % INPUT_LOG] = (logged_t){
+            .at_ms = (uint32_t)(esp_timer_get_time() / 1000), .kind = (uint8_t)ev->kind, .index = ev->index,
+            .origin = db_deck_input_from_deck() ? 0 : db_deck_input_real_for(0) ? 1 : 2,
+            .writer = (uint8_t)db_deck_writer(), .value = ev->value, .x = ev->x, .y = ev->y};
+        input_seq++;
+    }
+}
+
+size_t events_input_log(char *buf, size_t cap, uint32_t since)
+{
+    static const char *const origins[] = {"deck", "web", "tool"};
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_arr_open(&j, NULL);
+    uint32_t end = input_seq; /* entries written meanwhile show next time */
+    uint32_t from = end > INPUT_LOG ? end - INPUT_LOG : 0;
+    for (uint32_t n = since > from ? since : from; input_log && n < end; n++) {
+        const logged_t *l = &input_log[n % INPUT_LOG];
+        db_json_obj_open(&j, NULL);
+        db_json_int(&j, "seq", n + 1);
+        db_json_int(&j, "at_ms", l->at_ms);
+        db_json_str(&j, "origin", origins[l->origin]);
+        db_json_str(&j, "kind", l->kind < sizeof(kinds) / sizeof(kinds[0]) ? kinds[l->kind] : "?");
+        db_json_int(&j, "index", l->index);
+        db_json_int(&j, "value", l->value);
+        db_json_int(&j, "x", l->x);
+        db_json_int(&j, "y", l->y);
+        db_json_str(&j, "writer", db_deck_source_name((db_source_t)l->writer));
+        db_json_obj_close(&j);
+    }
+    db_json_arr_close(&j);
+    return db_json_end(&j);
+}
+
 static void on_input(const db_input_t *ev)
 {
+    log_input(ev);
     if (!anyone() || ev->kind >= sizeof(kinds) / sizeof(kinds[0])) {
         return;
     }
@@ -403,6 +457,7 @@ void events_start(size_t (*state_json)(char *buf, size_t cap))
     e.state_json = state_json;
     e.lock = xSemaphoreCreateMutex();
     e.inputs = xQueueCreate(16, INPUT_MAX);
+    input_log = heap_caps_calloc(INPUT_LOG, sizeof(logged_t), MALLOC_CAP_SPIRAM);
     e.state = heap_caps_calloc(1, STATE_MAX, MALLOC_CAP_SPIRAM);
     for (int i = 0; i < CLIENTS; i++) {
         e.fds[i] = -1;

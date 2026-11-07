@@ -52,7 +52,9 @@ static void write_device(db_json_t *j)
     db_json_arr_open(j, "decks");
     if (present) {
         db_json_obj_open(j, NULL);
+        db_json_int(j, "number", 1);
         write_device_fields(j, dev);
+        db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
         db_json_obj_close(j);
     }
     db_json_arr_close(j);
