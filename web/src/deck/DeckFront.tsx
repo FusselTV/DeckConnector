@@ -81,6 +81,8 @@ interface Drag {
 }
 const HOLD_MS = 450
 const REPEAT_MAX_MS = 5000
+// One wheel notch is 100 px in Chrome and Safari; Firefox counts lines (deltaMode 1).
+const WHEEL_PX = 100
 
 export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   const { t } = useUi()
@@ -196,17 +198,36 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   }
   const turnRef = useLatest(turn)
   useEffect(() => {
+    // A trackpad fires dozens of small wheel events per gesture: the distance counts, and one turn per frame is sent.
     const hs = encRefs.current.map((el, i) => {
       if (!el) return null
+      let acc = 0
+      let ticks = 0
+      let raf = 0
       const f = (ev: WheelEvent) => {
         if (document.activeElement !== el) return
         ev.preventDefault()
-        turnRef.current(i, ev.deltaY > 0 ? 1 : -1)
+        const dy = ev.deltaY * (ev.deltaMode === 1 ? 33 : ev.deltaMode === 2 ? 800 : 1)
+        if (Math.sign(dy) !== Math.sign(acc)) acc = 0
+        acc += dy
+        const n = Math.trunc(acc / WHEEL_PX)
+        if (!n) return
+        acc -= n * WHEEL_PX
+        ticks += n
+        raf ||= requestAnimationFrame(() => {
+          raf = 0
+          turnRef.current(i, ticks)
+          ticks = 0
+        })
       }
       el.addEventListener('wheel', f, { passive: false })
-      return [el, f] as const
+      return [el, f, () => cancelAnimationFrame(raf)] as const
     })
-    return () => hs.forEach((x) => x?.[0].removeEventListener('wheel', x[1]))
+    return () =>
+      hs.forEach((x) => {
+        x?.[0].removeEventListener('wheel', x[1])
+        x?.[2]()
+      })
   }, [M.dials?.n, turnRef])
 
   const dDown = (i: number, e: RPE<HTMLButtonElement>) => {
@@ -234,13 +255,12 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     if (!g) return
     g.acc += e.clientX - g.x
     g.x = e.clientX
-    while (Math.abs(g.acc) >= 10) {
-      clearTimeout(g.tm)
-      const s = Math.sign(g.acc)
-      g.acc -= s * 10
-      g.turned = true
-      turn(i, s)
-    }
+    const n = Math.trunc(g.acc / 10)
+    if (!n) return
+    clearTimeout(g.tm)
+    g.acc -= n * 10
+    g.turned = true
+    turn(i, n)
   }
   const dUp = (i: number) => {
     const g = dd.current.get(i)

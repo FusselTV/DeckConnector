@@ -127,3 +127,21 @@ test('a key up waits for its down, and a release that fails for good says so', a
   expect(order).toEqual(['down', 'down done', 'up'])
   errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('409')))
 })
+
+test('wheel events on a focused dial add up by distance into one turn per frame', async ({ app: page }) => {
+  const { sent } = await armedDeck(page)
+  const dial = page.getByRole('button', { name: /^Encoder 1\./ })
+  test.skip(!(await dial.count()), 'this deck has no dials')
+  await dial.focus()
+  const wheel = (dys: number[]) =>
+    dial.evaluate((el, dys) => {
+      for (const deltaY of dys) el.dispatchEvent(new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true }))
+    }, dys)
+  await wheel(Array<number>(9).fill(10))
+  await page.waitForTimeout(200)
+  expect(sent).toEqual([])
+  await wheel([10, 100, 100])
+  await expect.poll(() => sent.length).toBe(1)
+  await page.waitForTimeout(200)
+  expect(sent).toEqual([{ encoder: 0, action: 'turn', ticks: 3, real: true }])
+})
