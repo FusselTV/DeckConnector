@@ -70,6 +70,9 @@ static int config_edit(const char *body, char *reply, size_t cap)
     if (db_config_save(&cfg) != ESP_OK) {
         return fail(reply, cap, 500, "saving failed");
     }
+    if (strcmp(cfg.admin_pass, old.admin_pass) != 0) {
+        auth_end_sessions();
+    }
     db_config_t live = cfg;
     live.brightness = old.brightness;
     live.controller = old.controller;

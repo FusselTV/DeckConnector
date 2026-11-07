@@ -335,6 +335,13 @@ static void new_session(char *out)
     portEXIT_CRITICAL(&mux);
 }
 
+void auth_end_sessions(void)
+{
+    portENTER_CRITICAL(&mux);
+    memset(sessions, 0, sizeof(sessions));
+    portEXIT_CRITICAL(&mux);
+}
+
 static bool password_matches(httpd_req_t *req)
 {
     char body[128];

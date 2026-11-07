@@ -115,11 +115,6 @@ def test_only_requests_to_the_setup_wlan_address_skip_the_password(own_sim):
 
 @pytest.mark.sim
 @pytest.mark.skipif(TARGET != "sim", reason="changes the password")
-@pytest.mark.xfail(
-    reason="firmware: other sessions end only with the restart a new password asks for, and work until then "
-    "(the simulator never restarts)",
-    strict=True,
-)
 def test_a_new_password_ends_the_other_sessions(own_sim):
     base = f"http://127.0.0.1:{own_sim}"
 

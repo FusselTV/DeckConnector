@@ -29,6 +29,8 @@ bool auth_via_ap(httpd_req_t *req);
 /* The password, or a token with full rights. */
 bool auth_full(httpd_req_t *req);
 void auth_start(void);
+/* A new password: every browser logs in again. */
+void auth_end_sessions(void);
 
 esp_err_t auth_tokens_list(httpd_req_t *req);
 esp_err_t auth_tokens_add(httpd_req_t *req);
