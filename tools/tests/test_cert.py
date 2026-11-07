@@ -59,7 +59,8 @@ def test_a_key_that_does_not_belong_to_the_certificate_is_refused():
 
 def test_a_certificate_that_would_crowd_out_the_settings_is_refused():
     cert, key = pair("big.example.org")
-    chain = cert + cert * 8  # a long chain: more than the 6 KB that may sit next to the settings in NVS
+    chain = cert * 14  # a long chain: more than the 6 KB that may sit next to the settings in NVS
+    assert len(chain) + len(key) > 6144
     code, body = api("PUT", "/api/tls", json.dumps({"cert": chain, "key": key}).encode())  # never "apply" on the bench
     assert code == 413, body
     assert status()["https_custom"] is False

@@ -201,6 +201,10 @@ def test_deck_pictures_are_for_the_password_while_the_login_code_shows(token):
     """Until setup is done the deck draws a one-time login QR: a token reading the pictures would get a session."""
     assert api("PUT", "/api/config", b'{"setup_done": false}')[0] == 200
     try:
+        for _ in range(20):  # the deck makes its code with the next picture
+            if call("GET", "/api/screen.jpg", token)[0] == 403:
+                break
+            time.sleep(0.25)
         for path in ("/api/screen", "/api/screen.jpg"):
             assert call("GET", path, token)[0] == 403, path
             assert api("GET", path)[0] != 403, path

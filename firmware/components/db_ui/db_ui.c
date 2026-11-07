@@ -222,10 +222,19 @@ static char login_token[17];
 static int64_t login_made;
 static uint8_t setup_step;
 
+/* A code made before setup was done must not outlive it: the model that clears it is only built while the
+ * deck shows its own screen, not while a host draws. */
+static bool login_wanted(void)
+{
+    const db_config_t *c = db_config();
+    return !c->setup_done && !c->qr_login_off;
+}
+
 bool db_ui_login_take(const char *token)
 {
+    bool wanted = login_wanted();
     portENTER_CRITICAL(&login_mux);
-    uint8_t diff = strlen(token) != 16 || !login_token[0] || esp_timer_get_time() - login_made >= LOGIN_US;
+    uint8_t diff = !wanted || strlen(token) != 16 || !login_token[0] || esp_timer_get_time() - login_made >= LOGIN_US;
     for (int i = 0; i < 16 && token[i]; i++) {
         diff |= (uint8_t)(token[i] ^ login_token[i]);
     }
@@ -241,8 +250,9 @@ bool db_ui_login_take(const char *token)
 
 bool db_ui_login_shown(void)
 {
+    bool wanted = login_wanted();
     portENTER_CRITICAL(&login_mux);
-    bool shown = login_token[0] != '\0';
+    bool shown = wanted && login_token[0] != '\0';
     portEXIT_CRITICAL(&login_mux);
     return shown;
 }
