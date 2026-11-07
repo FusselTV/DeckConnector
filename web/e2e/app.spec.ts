@@ -205,11 +205,56 @@ test('with input lock on the device, arming asks once and presses carry force', 
   await page.locator('#arm').click()
   const dlg = page.getByRole('alertdialog')
   await expect(dlg).toContainText('Presses are locked on the device')
+  const arms: unknown[] = []
+  page.on('request', (r) => r.url().endsWith('/api/input/arm') && arms.push(r.postDataJSON()))
   await dlg.getByRole('button', { name: 'Send anyway' }).click()
+  await expect.poll(() => arms).toEqual([{ s: 60 }])
   await page.getByRole('button', { name: 'Key 1, row 1' }).click({ force: true })
   await expect.poll(() => sent.length).toBeGreaterThan(0)
   expect(sent[0]).toMatchObject({ key: 0, real: true, force: true })
+  await page.locator('#arm').click()
+  await expect.poll(() => arms).toEqual([{ s: 60 }, { s: 0 }])
   await sim('PUT', '/api/config', { input_lock: false })
+})
+
+test('a pairing answer names the host that asked', async ({ app: page }) => {
+  const docks: unknown[] = []
+  await page.route('**/api/status', async (r) => {
+    const res = await r.fetch()
+    const j = (await res.json()) as Record<string, unknown>
+    j.pairing = {
+      request: '192.168.1.50',
+      request_name: 'studio-pc',
+      hosts: [],
+      denied: [{ ip: '10.0.0.9', since_s: 0 }],
+    }
+    await r.fulfill({ response: res, json: j })
+  })
+  await page.route('**/api/dock', (r) => (docks.push(r.request().postDataJSON()), r.fulfill({ json: { ok: true } })))
+  await page.reload()
+  await page.locator('#ntc-pair').getByRole('button', { name: 'Accept' }).first().click()
+  await expect.poll(() => docks).toEqual([{ accept: true, ip: '192.168.1.50' }])
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
+test('a restart shows the addresses the device names in its reply', async ({ app: page }) => {
+  await page.route('**/api/config', (r) =>
+    r.request().method() === 'PUT'
+      ? r.fulfill({ json: { ok: true, restart: true, reach: ['http://192.168.1.77', 'http://studio.local'] } })
+      : r.fallback(),
+  )
+  await openTab(page, 'Deck')
+  await page.getByRole('radio', { name: /Full speed/ }).click()
+  await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Save and restart' }).click()
+  await expect(page.getByRole('link', { name: 'http://studio.local' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'http://192.168.1.77' })).toBeVisible()
+})
+
+test('the device timeline shows in Diagnostics', async ({ app: page }) => {
+  await openTab(page, 'Diagnostics')
+  await page.locator('#dia-events summary').click()
+  await expect(page.locator('#dia-events')).toContainText('started')
 })
 
 test('logging out says so on the login page', async ({ app: page }) => {

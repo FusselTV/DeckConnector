@@ -238,7 +238,7 @@ export function Wizard() {
           ...(!useWlan ? { wifi_ssid: '' } : {}),
           ...(pw ? { admin_pass: pw } : {}),
         },
-        where[0],
+        where,
       )
       return true
     })
@@ -595,7 +595,7 @@ export function Wizard() {
                       pri: true,
                       run: () =>
                         a
-                          .accept(st.pairing?.request_name || req)
+                          .accept(req, st.pairing?.request_name || req)
                           .then(() => act(() => putConfig({ controller: 'app', host: req }))),
                     },
                     { label: t('act.deny'), icon: X, run: () => a.deny(req) },

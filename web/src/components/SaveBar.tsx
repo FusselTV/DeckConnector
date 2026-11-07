@@ -59,7 +59,7 @@ export function SaveBar() {
     const ok = await act(async () => {
       for (const d of ds) if (d.prepare && !(await d.prepare())) return false
       const patch = Object.assign({}, ...ds.map((d) => d.patch)) as Draft['patch']
-      if (Object.keys(patch).length) await putConfig(patch, ds.find((d) => d.addr)?.addr)
+      if (Object.keys(patch).length) await putConfig(patch, ds.find((d) => d.where)?.where)
       return true
     })
     if (!ok) return

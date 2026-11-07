@@ -232,7 +232,7 @@ function useCommands(): Cmd[] {
               kw: t('kw.accept'),
               icon: Check,
               mut: true,
-              run: () => a.accept(P.request_name || P.request || ''),
+              run: () => a.accept(P.request ?? '', P.request_name || P.request || ''),
             } satisfies Cmd,
             {
               id: 'a-deny',

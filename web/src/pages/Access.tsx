@@ -287,9 +287,9 @@ export function Access() {
           right={<Help right label={t('access.pw')} text={t('cf.pw_b')} />}
         >
           <div className="grid2">
-            <Field id="npw" label={t('access.pw_new')} err={pwE.pw ? t(pwE.pw) : null}>
+            <Field id="npw" label={t('access.pw_new')} hint={t('access.pw_h')} err={pwE.pw ? t(pwE.pw) : null}>
               <PwInput
-                {...describedBy('npw', pwE.pw)}
+                {...describedBy('npw', pwE.pw, true)}
                 minLength={6}
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
@@ -299,6 +299,15 @@ export function Access() {
               <PwInput {...describedBy('npw2', pwE.rep && pw2)} value={pw2} onChange={(e) => setPw2(e.target.value)} />
             </Field>
           </div>
+          {cfg?.qr_login !== undefined && (
+            <Switch
+              id="qr-login"
+              on={cfg.qr_login}
+              onChange={(v) => void act(() => putConfig({ qr_login: v }))}
+              label={t('access.qr')}
+              hint={t('access.qr_h')}
+            />
+          )}
         </Card>
         <Card
           id="card-https"

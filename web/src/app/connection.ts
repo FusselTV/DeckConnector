@@ -254,9 +254,9 @@ export async function boot() {
 }
 
 /** A restart from this page: the overlay stays until the device answers with a fresh uptime. */
-export function expectRestart(addr?: string) {
+export function expectRestart(reach?: string[]) {
   upAtRestart = getState().status.uptime_s ?? 0
   restartSawDown = false
-  dispatch({ type: 'restart', on: true, now: Date.now(), addr })
+  dispatch({ type: 'restart', on: true, now: Date.now(), reach })
   ws?.close()
 }

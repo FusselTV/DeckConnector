@@ -3,11 +3,12 @@ import type {
   Config,
   ConfigPatch,
   Coredump,
+  DeviceEvent,
   Found,
   Frontend,
   InputBody,
-  Inspect,
   InputLogEntry,
+  Inspect,
   Metrics,
   Profile,
   PutReply,
@@ -132,7 +133,7 @@ export const api = {
   menu: (deck?: string) => request<{ ok: boolean }>('/api/menu' + q(deck), { method: 'POST' }),
   reconnect: () => request<{ ok: boolean }>('/api/deck/reconnect', { method: 'POST' }),
   reboot: () => request<{ ok: boolean }>('/api/reboot', { method: 'POST' }),
-  dock: (body: { accept: boolean } | { pairing: number } | { forget: string | true }) =>
+  dock: (body: { accept: boolean; ip: string } | { pairing: number } | { forget: string | true }) =>
     request<{ ok: boolean }>('/api/dock', { body }),
   log: (prev = false) => request<string>('/api/log' + (prev ? '?boot=prev' : '')),
   coredump: () => optional(request<Coredump>('/api/coredump')),
@@ -175,6 +176,8 @@ export const api = {
   backup: () => request<unknown>('/api/backup?secrets=1'),
   undeny: (ip: string) => request<{ ok: boolean }>('/api/pairing/denied/' + enc(ip), { method: 'DELETE' }),
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
+  events: () => list(request<DeviceEvent[]>('/api/events')),
+  inputArm: (s: number) => request<{ armed_s: number }>('/api/input/arm', { method: 'PUT', body: { s } }),
 }
 
 export const certUrl = '/api/cert'

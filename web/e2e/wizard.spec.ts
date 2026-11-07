@@ -93,6 +93,7 @@ test('the wizard keeps the stored name and asks for a new password again after a
   await page.getByRole('button', { name: /^Save/ }).click()
   await expect.poll(() => puts.length).toBe(1)
   expect(puts[0]).toMatchObject({ name, admin_pass: 'newpass99' })
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
   await page.waitForLoadState('networkidle')
   await page.close()
   await sim('PUT', '/api/setup', { step: 0 })

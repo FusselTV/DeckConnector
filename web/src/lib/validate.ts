@@ -64,7 +64,7 @@ const bytes = (v: string) => new TextEncoder().encode(v).length
 
 /** A ws:// or wss:// URL as the firmware takes it: lower-case scheme, no spaces, host up to 63 characters. */
 export const wsUrlError = (v: string): Key | null => {
-  if (!/^wss?:\/\/\S+$/.test(v) || v.length > 127) return 'src.bad_url'
+  if (!/^wss?:\/\/[^\s"']+$/.test(v) || v.length > 127) return 'src.bad_url'
   try {
     const u = new URL(v)
     return u.hostname && u.hostname.length <= 63 ? null : 'src.bad_url'
@@ -73,7 +73,7 @@ export const wsUrlError = (v: string): Key | null => {
   }
 }
 
-export const NAME_RE = /^[A-Za-z0-9-]{1,31}$/
+export const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
 export const nameError = (v: string): Key | null => (NAME_RE.test(v) ? null : 'net.bad_name')
 
 /** Companion address: IP, host, host:port, or a ws(s):// URL. */
@@ -99,7 +99,7 @@ export const httpUrlError = (v: string): Key | null => {
 
 export const passwordError = (pw: string, rep: string): { pw?: Key; rep?: Key } => {
   if (!pw && !rep) return {}
-  if (pw.length < 6) return { pw: 'access.pw_short' }
+  if (bytes(pw) < 6) return { pw: 'access.pw_short' }
   if (bytes(pw) > 23) return { pw: 'access.pw_long' }
   if (pw !== rep) return { rep: 'access.pw_diff' }
   return {}
@@ -117,10 +117,11 @@ export const corsError = (v: string): Key | null =>
     ? null
     : 'access.cors_bad'
 
-/** What POST /api/wifi/join takes: SSID 1 to 32 bytes, not only spaces; password empty (open) or 8 to 64. */
+/** What the firmware takes: SSID 1 to 32 bytes, not only spaces; password empty (open), 8 to 63 characters, or
+ *  64 hex digits. */
 export const wifiError = (ssid: string, pass: string): Key | null =>
   !ssid.trim() || bytes(ssid) > 32
     ? 'wifi.pick'
-    : pass && (pass.length < 8 || pass.length > 64)
+    : pass && !(pass.length >= 8 && pass.length <= 63) && !/^[0-9a-f]{64}$/i.test(pass)
       ? 'wifi.pass_len'
       : null

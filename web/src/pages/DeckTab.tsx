@@ -185,7 +185,11 @@ export function DeckTab() {
             on={v.lock}
             onChange={(lock) => set({ lock })}
             label={t('deck.lock')}
-            hint={t('deck.lock_h')}
+            hint={
+              st.input_armed_s
+                ? `${t('deck.lock_h')} ${t('deck.lock_open', { s: st.input_armed_s })}`
+                : t('deck.lock_h')
+            }
           />
         )}
       </Card>

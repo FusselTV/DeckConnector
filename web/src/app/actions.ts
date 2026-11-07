@@ -11,11 +11,13 @@ import { useUi } from './ui'
 /** The source being handed the deck, until the next status shows it drawing. */
 export const pendingAtom = atom<string | null>(null)
 
-/** PUT /api/config, then the stored values: the page never claims more than the device confirmed (api-gaps #11). */
-export async function putConfig(patch: ConfigPatch, addr?: string) {
+/** PUT /api/config, then the stored values: the page never claims more than the device confirmed (api-gaps #11).
+ *  After a restart the device's own `reach` list says where to find it; `where` is the page's guess for older
+ *  firmware. */
+export async function putConfig(patch: ConfigPatch, where?: string[]) {
   const r = await api.putConfig(patch)
   if (r.config) dispatch({ type: 'config', config: r.config })
-  if (r.restart) expectRestart(addr)
+  if (r.restart) expectRestart(r.reach?.length ? r.reach : where)
   else await Promise.all([r.config ? undefined : refreshConfig(), refreshStatus()])
   return r
 }
@@ -33,6 +35,18 @@ export function useActions() {
         return await putConfig({ ...patch, force: true })
       }
     }
+    // The answer names the host that asked; 409 means another host asks by now, or none.
+    const answer = (accept: boolean, ip: string, done: string) =>
+      act(async () => {
+        try {
+          await api.dock({ accept, ip })
+          toast(done)
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 409)) throw e
+          toast(t('pair.gone'), { bad: true })
+        }
+        await refreshStatus()
+      })
     const select = async (s: Source) => {
       const controller = s.kind === 'unknown' ? 'app' : s.kind
       pendingAtom.set(hk(s))
@@ -87,18 +101,8 @@ export function useActions() {
           expectRestart()
         })
       },
-      accept: (name: string) =>
-        act(async () => {
-          await api.dock({ accept: true })
-          toast(t('ban.paired', { name }))
-          await refreshStatus()
-        }),
-      deny: (ip: string) =>
-        act(async () => {
-          await api.dock({ accept: false })
-          toast(t('ban.denied', { ip }))
-          await refreshStatus()
-        }),
+      accept: (ip: string, name: string) => answer(true, ip, t('ban.paired', { name })),
+      deny: (ip: string) => answer(false, ip, t('ban.denied', { ip })),
       retry: (s: Source) =>
         act(async () => {
           toast(t('act.retrying', { host: hostName(s) }))

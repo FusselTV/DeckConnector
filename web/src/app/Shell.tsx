@@ -461,11 +461,11 @@ function RestartOverlay() {
           <i />
         </div>
         <p>{t('rs.body')}</p>
-        {r.addr && (
-          <a className="in linkbox" href={r.addr}>
-            {r.addr}
+        {r.reach?.map((u) => (
+          <a key={u} className="in linkbox" href={u}>
+            {u}
           </a>
-        )}
+        ))}
         <p className="row small muted">
           <LoaderCircle size={15} className="spin" aria-hidden />
           {t('rs.wait')}

@@ -18,7 +18,7 @@ export interface State {
   status: Status
   config: Config | null
   ota: Ota | null
-  restarting: { t0: number; addr?: string } | null
+  restarting: { t0: number; reach?: string[] } | null
   inputs: InputEvent[]
   /** True once the firmware answered GET /api/input/log; until then the page keeps its own ring. */
   inputLogApi: boolean
@@ -53,7 +53,7 @@ export type Action =
   | { type: 'auth'; auth: Auth }
   | { type: 'config'; config: Config }
   | { type: 'configPatch'; patch: Partial<Config> }
-  | { type: 'restart'; on: boolean; now: number; addr?: string }
+  | { type: 'restart'; on: boolean; now: number; reach?: string[] }
   | { type: 'inputs'; list: InputEvent[]; replace?: boolean }
   | { type: 'input'; ev: InputEvent }
   | { type: 'routes'; routes: Route[] }
@@ -130,7 +130,7 @@ export function reduce(s: State, a: Action): State {
     case 'configPatch':
       return s.config ? { ...s, config: { ...s.config, ...a.patch } } : s
     case 'restart':
-      return { ...s, restarting: a.on ? { t0: a.now, addr: a.addr } : null }
+      return { ...s, restarting: a.on ? { t0: a.now, reach: a.reach } : null }
     case 'inputs':
       return { ...s, inputs: [...a.list, ...(a.replace ? [] : s.inputs)].slice(0, INPUT_CAP), inputLogApi: true }
     case 'input':

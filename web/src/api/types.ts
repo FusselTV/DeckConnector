@@ -98,6 +98,8 @@ export interface Status {
   boot_ms?: Record<string, number>
   memory?: Record<string, number>
   setup?: { active?: boolean; step?: number; rerun?: boolean }
+  /** Seconds the input lock stays open after PUT /api/input/arm. Only in GET /api/status. */
+  input_armed_s?: number
   https_custom?: boolean
   boot?: { reason?: string; at?: number | null }
   update?: { latest?: string; at?: string }
@@ -126,6 +128,8 @@ export interface Config {
   satellite: string
   satellite_pin: string
   https_only: boolean
+  /** The one-time login code the deck shows as a QR code until setup is done. */
+  qr_login?: boolean
   cors_origins: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
@@ -148,6 +152,14 @@ export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
     lan?: Partial<IpConf>
     wlan?: Partial<IpConf>
   }
+
+export interface DeviceEvent {
+  since_s: number
+  /** Unix time, null before the clock is set. */
+  at: number | null
+  kind: string
+  text: string
+}
 
 export interface PutReply {
   ok: boolean

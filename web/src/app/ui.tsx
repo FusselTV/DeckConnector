@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ApiError } from '../api/client'
+import { api, ApiError } from '../api/client'
 import { makeT, type Lang, type T } from '../i18n'
 import { makeFmt, type Fmt } from '../lib/format'
 import { ls } from '../lib/util'
-import { getState } from './store'
+import { getState, hasRoute } from './store'
 import { armAtom, ARM_MS, forceAtom, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
 
 export interface AskOpts {
@@ -51,6 +51,8 @@ export function openTarget(id: string) {
   flash(el)
 }
 
+let lockOpenedAt = 0
+
 export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o: AskOpts) => Promise<boolean> }) {
   const lang = langAtom.use()
   const theme = themeAtom.use()
@@ -75,7 +77,15 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
   useEffect(() => {
     if (!arm) {
       forceAtom.set(false)
+      if (lockOpenedAt) void api.inputArm(0).catch(() => undefined)
+      lockOpenedAt = 0
       return
+    }
+    // With input_lock on, the confirmed remote control also opens the lock on the device for its minute, renewed
+    // at most every 30 s. Presses still carry force, so one that races the device's timeout gets through too.
+    if (forceAtom.get() && hasRoute(getState().routes, 'PUT', '/api/input/arm') && Date.now() - lockOpenedAt > 30_000) {
+      lockOpenedAt = Date.now()
+      void api.inputArm(ARM_MS / 1000).catch(() => undefined)
     }
     const id = setTimeout(() => armAtom.set(0), arm + ARM_MS - Date.now())
     const hide = () => document.hidden && armAtom.set(0)

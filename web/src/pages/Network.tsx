@@ -152,7 +152,7 @@ export function Network() {
         </>
       ),
     },
-    addr: where[0],
+    where,
     patch,
     // A new Wi-Fi is tested first where the firmware can; a failed test keeps the old network (api-gaps #1).
     prepare: async () => {

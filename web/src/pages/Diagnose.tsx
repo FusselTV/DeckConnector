@@ -3,30 +3,37 @@ import {
   Bug,
   Check,
   Copy,
+  Cpu,
   Download,
   Eraser,
+  EthernetPort,
   Gauge,
   Hand,
   HardDrive,
+  History,
   Key,
+  Link2,
   MemoryStick,
   MousePointer2,
   Pause,
   Play,
+  Power,
+  Radio,
   RefreshCw,
   Route as RouteIcon,
   ScrollText,
   Timer,
   Trash2,
   TriangleAlert,
+  Wifi,
 } from 'lucide-react'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, coredumpRawUrl } from '../api/client'
-import type { InputEvent, Metrics, Profile } from '../api/types'
+import type { DeviceEvent, InputEvent, Metrics, Profile } from '../api/types'
 import { followLog } from '../app/connection'
 import { decksOf } from '../app/derive'
 import { crashAtom, tabAtom, toast } from '../app/state'
-import { useStore } from '../app/store'
+import { useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, Help, IconBtn, Seg } from '../components/controls'
@@ -384,6 +391,79 @@ function InputLog() {
   )
 }
 
+const EV_ICON: Record<string, typeof Power> = {
+  boot: Power,
+  source: Radio,
+  wlan: Wifi,
+  lan: EthernetPort,
+  pairing: Link2,
+  update: Cpu,
+}
+
+/** GET /api/events: what happened on the device since the start, newest first. */
+function Events() {
+  const { t, fmt } = useUi()
+  const has = useRoute('GET', '/api/events')
+  const bootAt = useStore((s) => s.bootAt)
+  const visible = tabAtom.use() === 'diagnose'
+  const [list, setList] = useState<DeviceEvent[] | null>(null)
+  useEffect(() => {
+    if (!has || !visible) return
+    let off = false
+    const load = () =>
+      api.events().then(
+        (x) => !off && setList(x),
+        () => undefined,
+      )
+    void load()
+    const id = setInterval(() => !document.hidden && void load(), 10_000)
+    return () => {
+      off = true
+      clearInterval(id)
+    }
+  }, [has, visible])
+  if (!has) return null
+  const rows = [...(list ?? [])].reverse()
+  return (
+    <Row group="dia" id="dia-events" icon={History} title={t('ev.title')}>
+      <div className="tblw">
+        <table className="intbl">
+          <thead>
+            <tr>
+              <th>{t('in.time')}</th>
+              <th>{t('ev.what')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? (
+              rows.map((e) => {
+                const I = EV_ICON[e.kind] ?? Activity
+                return (
+                  <tr key={`${e.since_s}-${e.kind}-${e.text}`}>
+                    <td className="mono">{fmt.clock(e.at ? e.at * 1000 : bootAt + e.since_s * 1000)}</td>
+                    <td>
+                      <span className="ino">
+                        <I size={14} aria-hidden />
+                        <span>{e.text}</span>
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })
+            ) : (
+              <tr>
+                <td colSpan={2} className="muted">
+                  {t('ev.none')}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Row>
+  )
+}
+
 function Details() {
   const { t, fmt, act, ask, lang } = useUi()
   const st = useStore((s) => s.status)
@@ -417,6 +497,7 @@ function Details() {
         />
       )}
       <InputLog />
+      <Events />
       <Row
         group="dia"
         id="dia-crash"
