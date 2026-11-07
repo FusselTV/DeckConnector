@@ -23,9 +23,14 @@ def visit(path: str) -> tuple[int, str]:
 
 
 def logged_in(cookie: str) -> bool:
+    """And logs out again: a session left behind takes one of the bridge's few slots."""
     c = http.client.HTTPConnection(HOST, timeout=10)
     c.request("GET", "/api/config", headers={"Cookie": cookie})
-    return c.getresponse().status == 200
+    ok = c.getresponse().status == 200
+    c = http.client.HTTPConnection(HOST, timeout=10)
+    c.request("POST", "/api/logout", headers={"Cookie": cookie, "X-DeckConnector": "1"})
+    c.getresponse().read()
+    return ok
 
 
 @pytest.mark.sim

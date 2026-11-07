@@ -33,6 +33,7 @@ async def page(servers):
         await page.reload()
         await page.wait_for_selector("#online.ok")
         yield page
+        await context.request.post(f"http://{HOST}/api/logout", headers={"X-DeckConnector": "1"})
         assert errors == []
         await browser.close()
 
