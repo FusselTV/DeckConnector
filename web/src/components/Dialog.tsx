@@ -2,8 +2,12 @@ import { CircleHelp, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { AskOpts } from '../app/ui'
 import { useUi } from '../app/ui'
+import { atom } from '../lib/atom'
 import { cx, useLatest } from '../lib/util'
 import { describedBy, Field } from './controls'
+
+/** The open modal dialogs, newest last. Everything outside the newest one is inert, so toasts render inside it. */
+export const openDialogs = atom<HTMLDialogElement[]>([])
 
 /** A native modal dialog: top layer, focus trap, Escape, inert page. Focus goes back where it came from. */
 export function Dialog(p: {
@@ -22,9 +26,13 @@ export function Dialog(p: {
   // Taken before the dialog opens: by the time an effect runs, focus may already be inside it.
   const [back] = useState(() => document.activeElement)
   useEffect(() => {
-    ref.current?.showModal()
-    ref.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus()
+    const el = ref.current
+    if (!el) return
+    el.showModal()
+    el.querySelector<HTMLElement>('[data-autofocus]')?.focus()
+    openDialogs.set((l) => [...l, el])
     return () => {
+      openDialogs.set((l) => l.filter((x) => x !== el))
       if (back instanceof HTMLElement && back.isConnected) back.focus()
     }
   }, [back])

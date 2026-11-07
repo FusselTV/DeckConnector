@@ -1,8 +1,10 @@
 import { Check, TriangleAlert } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { dismissToast, toastsAtom, type Toast } from '../app/state'
 import { useUi } from '../app/ui'
 import { cx } from '../lib/util'
+import { openDialogs } from './Dialog'
 
 function ToastItem({ x }: { x: Toast }) {
   const { t } = useUi()
@@ -38,11 +40,13 @@ function ToastItem({ x }: { x: Toast }) {
 
 export function Toasts() {
   const list = toastsAtom.use()
-  return (
+  const host = openDialogs.use((l) => l.at(-1))
+  const box = (
     <div className="toasts" aria-live="polite">
       {list.map((x) => (
         <ToastItem key={x.id} x={x} />
       ))}
     </div>
   )
+  return host ? createPortal(box, host) : box
 }

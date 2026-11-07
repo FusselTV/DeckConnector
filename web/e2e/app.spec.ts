@@ -314,3 +314,25 @@ test('the deck can let a browser in without the password', async ({ page }) => {
   await expect(page.locator('#lpw')).toHaveCount(0, { timeout: 8000 })
   await expect(page.getByRole('heading', { name: 'Overview' }).first()).toBeAttached()
 })
+
+test('an error toast shows above an open dialog and can be read and used there', async ({ app: page, errors }) => {
+  await openTab(page, 'Access')
+  await page.route('**/api/tokens', (r) =>
+    r.request().method() === 'POST'
+      ? r.fulfill({ status: 500, json: { ok: false, error: 'flash full' } })
+      : r.fallback(),
+  )
+  await page.locator('#tok-add').first().click()
+  await page.locator('#tname').fill('e2e-toast')
+  await page.getByRole('button', { name: 'Create' }).click()
+  const alert = page.getByRole('alert').filter({ hasText: 'flash full' })
+  await expect(alert).toBeVisible()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  const onTop = await alert.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) && !el.closest('[inert]')
+  })
+  expect(onTop).toBe(true)
+  await page.screenshot({ path: 'test-results/toast-over-dialog.png' })
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('500')))
+})
