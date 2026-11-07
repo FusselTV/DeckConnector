@@ -35,6 +35,7 @@
 #define PASSWORD_US   30000000
 #define RESET_ASK_US  60000000
 #define AGAIN_US      3000000 /* a second call within this changes nothing */
+#define HANDOVER_US   5000000
 
 static const char *TAG = "ui";
 
@@ -59,6 +60,7 @@ static struct {
     ui_menu_t menu;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
     esp_timer_handle_t save_timer;
+    int64_t handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
 } s = {.active_link = -1, .update_pct = -1, .full = true, .menu = {.confirm_key = -1}, .brightness = -1};
 
 static void octets_of(const char *ip, uint8_t out[4])
@@ -469,7 +471,20 @@ static db_source_t wanted_writer(void)
         s.menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time())) {
         return DB_SOURCE_UI;
     }
-    return db_ui_chosen_source();
+    const db_config_t *c = db_config();
+    static char satellite[sizeof(c->satellite)];
+    if (strcmp(satellite, c->satellite) != 0) {
+        snprintf(satellite, sizeof(satellite), "%s", c->satellite);
+        if (c->satellite[0] && c->controller == DB_CTRL_COMPANION && db_deck_writer() != DB_SOURCE_UI) {
+            s.handover_until = esp_timer_get_time() + HANDOVER_US;
+        }
+    }
+    db_source_t chosen = db_ui_chosen_source();
+    if (chosen == DB_SOURCE_SAT) {
+        s.handover_until = 0;
+    }
+    /* nothing draws as the Satellite client while it connects, so the old picture stays */
+    return chosen == DB_SOURCE_UI && esp_timer_get_time() < s.handover_until ? DB_SOURCE_SAT : chosen;
 }
 
 static void pick_writer(void)
@@ -886,6 +901,11 @@ static void tick(void *arg)
     static bool overlaid;
     if (overlay(now) != overlaid) {
         overlaid = !overlaid;
+        changed();
+    }
+    static bool handing_over;
+    if ((now < s.handover_until) != handing_over) {
+        handing_over = !handing_over;
         changed();
     }
     static int64_t next_look;

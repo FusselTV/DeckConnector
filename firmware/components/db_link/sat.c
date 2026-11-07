@@ -769,7 +769,7 @@ esp_err_t db_satellite_start(void (*changed)(void))
 
 bool db_satellite_connected(void)
 {
-    return s.added;
+    return s.added && strcmp(s.addr, db_config()->satellite) == 0; /* not the old address after a change */
 }
 
 db_health_t db_satellite_health(void)

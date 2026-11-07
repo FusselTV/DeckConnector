@@ -62,6 +62,7 @@ static struct {
         size_t len;
     } feature[DB_SOURCE_COUNT]; /* last feature report (brightness) of a source that was not the writer */
     bool replay;
+    bool clear_first; /* the writer had nothing kept: the display goes black before its first image */
     uint8_t waiting; /* a second device that came while the deck was open */
 } s;
 
@@ -101,7 +102,8 @@ static void clear_display(void)
 }
 
 /* Draw again everything the new writer had on the deck, before anything new it sends. The UI is left out: it
- * draws a fresh screen whenever it takes over. Runs in the writer task, so images that arrive meanwhile are drawn
+ * draws a fresh screen whenever it takes over. A writer without a kept picture leaves the old one until its first
+ * image, so a handover shows no black frame. Runs in the writer task, so images that arrive meanwhile are drawn
  * after it. Each image is copied out: the kept picture must not stay locked for USB transfers, a fresh deck can
  * take half a second per report. */
 static void replay(void)
@@ -123,7 +125,10 @@ static void replay(void)
     if (!present) {
         return;
     }
-    clear_display();
+    s.clear_first = n == 0;
+    if (n) {
+        clear_display();
+    }
     if (feature_len) {
         xSemaphoreTake(s.io_lock, portMAX_DELAY);
         usb_port_io()->set_feature(feature, feature_len);
@@ -223,6 +228,10 @@ static void writer_task(void *arg)
             xSemaphoreGive(s.lock);
             if (!r) {
                 break;
+            }
+            if (s.clear_first && t) {
+                s.clear_first = false;
+                clear_display();
             }
             xSemaphoreTake(s.io_lock, portMAX_DELAY);
             uint64_t t0 = (uint64_t)esp_timer_get_time();

@@ -122,7 +122,7 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
         db_json_str(j, "iface", connected ? (health->over_wlan ? "wlan" : "lan") : "");
     }
     db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
-    db_json_bool(j, "drawing", source >= 0 && (db_source_t)source == db_deck_writer());
+    db_json_bool(j, "drawing", connected && source >= 0 && (db_source_t)source == db_deck_writer());
     db_json_obj_close(j);
 }
 
