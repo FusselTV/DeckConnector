@@ -199,7 +199,6 @@ static const char *const kinds[] = {"",           "key_down",     "key_up",    "
                                     "touch_swipe"};
 
 /* The last inputs for GET /api/input/log: a fixed ring in PSRAM, the oldest overwritten, gone at a restart. */
-#define INPUT_LOG 200
 typedef struct {
     uint32_t at_ms;
     uint8_t kind;

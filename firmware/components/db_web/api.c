@@ -592,6 +592,7 @@ esp_err_t post_ota(httpd_req_t *req)
             db_ota_abort("upload interrupted");
             break;
         }
+        timeouts = 0;
         have += (size_t)n;
         left -= (size_t)n;
         if (have == cap || left == 0) {
@@ -881,7 +882,7 @@ esp_err_t get_input_log(httpd_req_t *req)
                         httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK
                     ? (uint32_t)strtoul(v, NULL, 10)
                     : 0;
-    return send_built(req, 200 * 150 + 16, input_log_json); /* runs under web_lock(): log_since stays put */
+    return send_built(req, INPUT_LOG * 150 + 16, input_log_json); /* runs under web_lock(): log_since stays put */
 }
 
 /* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us. */
@@ -1172,8 +1173,11 @@ esp_err_t post_ota_url(httpd_req_t *req)
     if (!ok) {
         return send_error(req, "400 Bad Request", "url: http://… to a signed .dbfw file expected");
     }
-    if (err != ESP_OK) {
+    if (err == ESP_ERR_INVALID_STATE) {
         return send_error(req, "409 Conflict", "an update is already running");
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
     }
     /* progress shows on the deck and in the state of /api/ws; the bridge restarts when done */
     return send_json(req, "{\"ok\":true}");
@@ -1213,6 +1217,8 @@ static size_t coredump_json(char *buf, size_t cap)
         snprintf(hex, sizeof(hex), "0x%08lx", (unsigned long)sum->ex_info.mtval);
         db_json_str(&j, "mtval", hex);
         db_json_str(&j, "elf_sha256", (const char *)sum->app_elf_sha256);
+    } else {
+        db_json_bool(&j, "summary", false);
     }
     heap_caps_free(sum);
     db_json_obj_close(&j);

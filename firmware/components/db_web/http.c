@@ -324,6 +324,9 @@ static void start_tls(void)
     cfg.prvtkey_len = strlen(key) + 1;
     cfg.session_tickets = true;
     cfg.httpd.max_uri_handlers = web_route_count;
+    cfg.httpd.max_open_sockets = 12; /* as port 80 */
+    cfg.httpd.backlog_conn = cfg.httpd.max_open_sockets;
+    cfg.httpd.lru_purge_enable = true;
     cfg.httpd.uri_match_fn = httpd_uri_match_wildcard;
     cfg.httpd.keep_alive_enable = true;
     cfg.httpd.keep_alive_idle = 5;
@@ -354,6 +357,15 @@ bool db_web_cert_custom(void)
     return false;
 #else
     return web_cert_custom();
+#endif
+}
+
+bool db_web_cert_unread(void)
+{
+#if CONFIG_IDF_TARGET_LINUX
+    return false;
+#else
+    return web_cert_custom_unread();
 #endif
 }
 
@@ -445,7 +457,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_FULL},
 #if !CONFIG_IDF_TARGET_LINUX
         {{.uri = "/api/cert", .method = HTTP_GET, .handler = get_cert}, WEB_OPEN},
-        {{.uri = "/api/tls", .method = HTTP_PUT, .handler = put_tls}, WEB_FULL},
+        {{.uri = "/api/tls", .method = HTTP_PUT, .handler = put_tls}, WEB_ADMIN},
         {{.uri = "/api/tls", .method = HTTP_DELETE, .handler = delete_tls}, WEB_FULL},
 #endif
         {{.uri = "/api/input/log", .method = HTTP_GET, .handler = get_input_log}, WEB_CONTROL},

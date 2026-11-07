@@ -69,7 +69,7 @@ token needs no `X-DeckConnector` header. Each token has one right:
 | `control` (default) | The routes `GET /api` lists with `"access": "control"`: status, screen, metrics, input, menu, reconnect, and the web socket without changing settings |
 | `full` | Also the `"access": "full"` routes: settings, restart, updates, slots, log, pairing |
 
-No token reaches the `"access": "admin"` routes (the tokens themselves and the crash dump), and no token changes `admin_pass`, `setup_done` or `qr_login`. Those
+No token reaches the `"access": "admin"` routes (the tokens themselves, the crash dump and `PUT /api/tls`), and no token changes `admin_pass`, `setup_done` or `qr_login`. Those
 answer 403. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
 the old one. Up to 8 tokens exist at a time.
 
@@ -117,7 +117,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `DELETE /api/frontend` | Go back to the page built into the firmware |
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
 | `GET /api/cert` | The certificate HTTPS serves, as a PEM file, without the key. Open to everyone. Import it into a trust store, or pin its SHA-256 (`https_fingerprint` in the status) |
-| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate (its chain may follow it) and key, and answers `subject`, `issuer`, `not_after` and `sha256`. With `"apply": true` it is kept and the DeckConnector restarts. A key with a password is refused. `https_custom` in the status says it is in use |
+| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate (its chain may follow it) and key, and answers `subject`, `issuer`, `not_after` and `sha256`. With `"apply": true` it is kept and the DeckConnector restarts. A key with a password is refused. `https_custom` in the status says it is in use. `https_custom_unread` says it is kept but could not be read at this start, so the DeckConnector's own certificate serves until the next start |
 | `DELETE /api/tls` | Back to the DeckConnector's own certificate, with a restart |
 | `GET /api/input/log` | The last 200 inputs, oldest first: `seq`, `at_ms` (after the start), `origin` (`deck` pressed on the deck, `web` a person over the network, `tool` a script or test), `kind`, `index`, `value`, `x`, `y`, and the `writer` that got it. `?since=<seq>` returns only newer ones. Kept in RAM, gone at a restart |
 | `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. The DeckConnector connects to it now instead of after the wait. 404 for anything else. Dock hosts connect by themselves |
