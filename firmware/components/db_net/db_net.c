@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 #include "db_board.h"
@@ -53,6 +54,7 @@ static struct {
     int missed;
     bool gateway_seen;
     int join_reason;
+    bool join_got_ip; /* WLAN got an address after the join cleared it: not the old link's state */
 } s;
 
 /* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
@@ -187,6 +189,7 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
         watch_gateway(&e->ip_info);
     } else {
         s.st.wlan_up = true;
+        s.join_got_ip = true;
     }
     changed();
 }
@@ -255,6 +258,7 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         wifi_event_sta_disconnected_t *d = data;
         ESP_LOGW(TAG, "WLAN lost, reason %d", d->reason);
         s.join_reason = d->reason;
+        s.join_got_ip = false;
         s.st.wlan_up = false;
         set_ip(s.st.wlan_ip, NULL);
         changed();
@@ -650,23 +654,27 @@ static void join_task(void *arg)
     ESP_LOGI(TAG, "WLAN trying %s", j->ssid);
     wifi_config_t cfg = sta_config(j->ssid, j->pass, j->bssid);
     s.join_reason = 0;
+    s.join_got_ip = false;
     esp_wifi_disconnect();
     esp_wifi_set_config(WIFI_IF_STA, &cfg);
     esp_wifi_connect();
     bool up = false;
     for (int i = 0; i < 150 && !up; i++) {
         vTaskDelay(pdMS_TO_TICKS(100));
-        up = s.st.wlan_up && strcmp(s.st.wlan_ssid, j->ssid) == 0;
+        up = s.join_got_ip && s.st.wlan_up && strcmp(s.st.wlan_ssid, j->ssid) == 0 &&
+             (!j->bssid[0] || strcasecmp(s.st.wlan_bssid, j->bssid) == 0);
     }
     if (up) {
         db_config_t *next = heap_caps_malloc(sizeof(*next), MALLOC_CAP_SPIRAM);
         bool saved = false;
         if (next) {
+            db_config_edit_begin();
             db_config_copy(next);
             strlcpy(next->wifi_ssid, j->ssid, sizeof(next->wifi_ssid));
             strlcpy(next->wifi_pass, j->pass, sizeof(next->wifi_pass));
             strlcpy(next->wifi_bssid, j->bssid, sizeof(next->wifi_bssid));
             saved = db_config_save(next) == ESP_OK;
+            db_config_edit_end();
             free(next);
         }
         set_join(saved ? "ok" : "failed", saved ? "" : "not saved");

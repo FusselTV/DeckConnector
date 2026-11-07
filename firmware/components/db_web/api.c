@@ -67,7 +67,7 @@ int db_web_input_armed_s(void)
 }
 
 /* The fields copied into `live` below apply at once; a change of any other one restarts the bridge. */
-int api_config(const char *body, char *reply, size_t cap)
+static int config_edit(const char *body, char *reply, size_t cap)
 {
     static db_config_t old; /* two of them would crowd the caller's stack */
     static db_config_t cfg;
@@ -143,6 +143,14 @@ int api_config(const char *body, char *reply, size_t cap)
     ESP_LOGW(TAG, "config changed, restarting");
     restart_soon();
     return 200;
+}
+
+int api_config(const char *body, char *reply, size_t cap)
+{
+    db_config_edit_begin();
+    int code = config_edit(body, reply, cap);
+    db_config_edit_end();
+    return code;
 }
 
 static int json_int(const cJSON *root, const char *key, int fallback)

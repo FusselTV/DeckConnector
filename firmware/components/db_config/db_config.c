@@ -22,6 +22,7 @@
 static const char *TAG = "config";
 static db_config_t current;
 static SemaphoreHandle_t lock;
+static SemaphoreHandle_t edit;
 
 void db_config_random_password(char *out, size_t len)
 {
@@ -74,6 +75,7 @@ static void defaults(db_config_t *c)
 esp_err_t db_config_load(void)
 {
     lock = xSemaphoreCreateMutex();
+    edit = xSemaphoreCreateMutex();
     defaults(&current);
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NS, NVS_READWRITE, &h);
@@ -169,6 +171,16 @@ esp_err_t db_config_save(const db_config_t *cfg)
         on_save();
     }
     return err;
+}
+
+void db_config_edit_begin(void)
+{
+    xSemaphoreTake(edit, portMAX_DELAY);
+}
+
+void db_config_edit_end(void)
+{
+    xSemaphoreGive(edit);
 }
 
 void db_config_on_save(void (*cb)(void))

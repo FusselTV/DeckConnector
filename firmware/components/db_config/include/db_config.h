@@ -73,6 +73,9 @@ const db_config_t *db_config(void);
 /* Copy of the current config to edit and pass to db_config_save(). */
 void db_config_copy(db_config_t *out);
 esp_err_t db_config_save(const db_config_t *cfg);
+/* Around a copy, change and save that must not overwrite another task's save made in between. */
+void db_config_edit_begin(void);
+void db_config_edit_end(void);
 esp_err_t db_config_reset(void);
 /* Called after every successful save, from the saving task. */
 void db_config_on_save(void (*cb)(void));
