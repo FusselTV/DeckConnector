@@ -101,7 +101,9 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     bool query = h->len >= 2 && p[0] == 0x03 && db_cora_is_query(p[1]);
     if (c->kind == DB_CTRL_SERVER && query) {
         c->kind = h->op == DB_CORA_OP_GET_REPORT ? DB_CTRL_COMPANION : DB_CTRL_APP;
-        ESP_LOGI(TAG, "dock host is %s", db_controller_name(c->kind));
+        char ip[16];
+        inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
+        db_log_event(TAG, "source", "%s at %s connected", db_controller_name(c->kind), ip);
         note_kind(c->ip, c->kind);
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
                              next event */
@@ -207,7 +209,11 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     c->sock = -1;
     xSemaphoreGive(c->tx);
     close(sock);
-    ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(c->kind));
+    if (c->device_port && c->kind != DB_CTRL_SERVER) {
+        db_log_event(TAG, "source", "%s left", db_controller_name(c->kind));
+    } else {
+        ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(c->kind));
+    }
     if (c->device_port) {
         db_deck_forget(source_of(c)); /* the next host in this slot must not show this one's picture */
     } else if (c->kind == DB_CTRL_APP && !rejoining) {
@@ -674,6 +680,7 @@ static bool admit(uint32_t ip)
         in = changed = remember(ip, mac, strict);
     }
     bool asking = pair.request && now - pair.request_at < REQUEST_US;
+    bool new_request = !in && !asking;
     if (!in && (!asking || pair.request == ip)) {
         /* one request at a time: another address must not take the place of the one on the deck */
         pair.request = ip;
@@ -683,6 +690,11 @@ static bool admit(uint32_t ip)
     taskEXIT_CRITICAL(&pair.mux);
     if (changed) {
         save_known();
+    }
+    if (new_request) {
+        char a[16];
+        inet_ntoa_r(*(struct in_addr *)&ip, a, sizeof(a));
+        db_log_event(TAG, "pairing", "%s asks to pair", a);
     }
     if (!in && s.hosts_changed) {
         s.hosts_changed(); /* the deck shows the request */
@@ -736,6 +748,11 @@ esp_err_t db_dock_answer(bool accept)
     }
     taskEXIT_CRITICAL(&pair.mux);
     esp_err_t err = added ? save_known() : ESP_OK;
+    if (r) {
+        char a[16];
+        inet_ntoa_r(*(struct in_addr *)&r, a, sizeof(a));
+        db_log_event(TAG, "pairing", "%s %s", a, accept ? "accepted" : "refused");
+    }
     if (s.hosts_changed) {
         s.hosts_changed();
     }

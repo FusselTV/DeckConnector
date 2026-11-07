@@ -1,5 +1,7 @@
 #include "db_ota.h"
 
+#include "db_log.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -150,7 +152,7 @@ void db_ota_abort(const char *why)
     if (!s.busy) {
         return;
     }
-    ESP_LOGE(TAG, "update aborted: %s", why);
+    db_log_event(TAG, "update", "update aborted: %s", why);
     report("error", -1, why);
     finish();
 }
@@ -495,7 +497,7 @@ esp_err_t db_ota_end(void)
     }
     bool restart = s.target == TARGET_C6 || (s.target == TARGET_P4 && s.boot);
     s.restarts = restart;
-    ESP_LOGW(TAG, "%s update installed%s", target_name(), restart ? ", restarting" : "");
+    db_log_event(TAG, "update", "%s update installed%s", target_name(), restart ? ", restarting" : "");
     report("done", 100, NULL);
     finish();
     /* After a C6 update the host restarts too, so both sides start their link again. */
@@ -574,14 +576,14 @@ static void confirm_task(void *arg)
             reached = true;
             esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
             if (err == ESP_OK) {
-                ESP_LOGI(TAG, "new firmware confirmed");
+                db_log_event(TAG, "update", "new firmware confirmed");
                 vTaskDelete(NULL);
             }
             ESP_LOGE(TAG, "confirming the new firmware failed: %s, trying again", esp_err_to_name(err));
         }
     }
-    ESP_LOGE(TAG, "%s, rolling back", reached ? "the healthy new firmware could not be confirmed"
-                                                 : "new firmware never became healthy");
+    db_log_event(TAG, "update", "%s, rolling back",
+                 reached ? "the healthy new firmware could not be confirmed" : "new firmware never became healthy");
     esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
     ESP_LOGE(TAG, "rolling back failed too: %s, the bootloader decides at the next start", esp_err_to_name(err));
     vTaskDelete(NULL);

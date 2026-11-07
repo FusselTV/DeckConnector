@@ -382,7 +382,7 @@ static bool session(link_t *l)
             }
             continue;
         }
-        ESP_LOGW(TAG, "server %d lost: %s", l->index, strerror(-err));
+        db_log_event(TAG, "source", "server %d lost: %s", l->index, strerror(-err));
         return false;
     }
 }
@@ -435,7 +435,7 @@ static void link_task(void *arg)
             continue;
         }
         via_wlan = false; /* next time start with LAN again */
-        ESP_LOGI(TAG, "server %d connected over %s: %s", l->index, over, l->url);
+        db_log_event(TAG, "source", "server %d connected over %s: %s", l->index, over, l->url);
         l->over_wlan = bound && wlan;
         db_health_ok(&l->health, l->over_wlan);
         l->connected = true;

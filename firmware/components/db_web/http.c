@@ -436,6 +436,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/tls", .method = HTTP_DELETE, .handler = delete_tls}, WEB_FULL},
 #endif
         {{.uri = "/api/input/log", .method = HTTP_GET, .handler = get_input_log}, WEB_CONTROL},
+        {{.uri = "/api/events", .method = HTTP_GET, .handler = get_events}, WEB_CONTROL},
         {{.uri = "/api/sources/retry", .method = HTTP_POST, .handler = post_source_retry}, WEB_CONTROL},
         {{.uri = "/api/sources/probe", .method = HTTP_POST, .handler = post_source_probe}, WEB_FULL},
         {{.uri = "/api/ota/inspect", .method = HTTP_POST, .handler = post_ota_inspect}, WEB_FULL},

@@ -241,6 +241,36 @@ esp_err_t get_config(httpd_req_t *req)
 /* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token, for a
  * restore through PUT /api/config. Without it the same as GET /api/config. API tokens (only their hashes are kept),
  * paired hosts and the TLS key stay out: create new tokens, pair again, upload the key again. */
+/* GET /api/events: the timeline of the last DB_EVENTS events, oldest first */
+static size_t events_json(char *buf, size_t cap)
+{
+    db_event_t *ev = heap_caps_malloc(DB_EVENTS * sizeof(*ev), MALLOC_CAP_SPIRAM);
+    size_t n = ev ? db_log_events(ev, DB_EVENTS) : 0;
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_arr_open(&j, NULL);
+    for (size_t i = 0; i < n; i++) {
+        db_json_obj_open(&j, NULL);
+        db_json_int(&j, "since_s", ev[i].at_us / 1000000);
+        if (ev[i].unix_s) {
+            db_json_int(&j, "at", ev[i].unix_s);
+        } else {
+            db_json_null(&j, "at");
+        }
+        db_json_str(&j, "kind", ev[i].kind);
+        db_json_str(&j, "text", ev[i].text);
+        db_json_obj_close(&j);
+    }
+    db_json_arr_close(&j);
+    free(ev);
+    return db_json_end(&j);
+}
+
+esp_err_t get_events(httpd_req_t *req)
+{
+    return send_built(req, DB_EVENTS * 160, events_json);
+}
+
 esp_err_t get_backup(httpd_req_t *req)
 {
     char query[32] = "";

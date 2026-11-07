@@ -205,7 +205,7 @@ static void write_sources(db_json_t *j, bool live)
 
 /* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
  * out what changes all the time (uptime, signal, counters), so a change in it is worth telling. */
-static void write_boot(db_json_t *j)
+static const char *boot_reason(void)
 {
     static const char *const reasons[] = {
         [ESP_RST_POWERON] = "power",  [ESP_RST_EXT] = "pin",        [ESP_RST_SW] = "restart",
@@ -213,8 +213,13 @@ static void write_boot(db_json_t *j)
         [ESP_RST_WDT] = "watchdog",   [ESP_RST_BROWNOUT] = "brownout",
     };
     esp_reset_reason_t r = esp_reset_reason();
+    return r < sizeof(reasons) / sizeof(*reasons) && reasons[r] ? reasons[r] : "other";
+}
+
+static void write_boot(db_json_t *j)
+{
     db_json_obj_open(j, "boot");
-    db_json_str(j, "reason", r < sizeof(reasons) / sizeof(*reasons) && reasons[r] ? reasons[r] : "other");
+    db_json_str(j, "reason", boot_reason());
     static int64_t at; /* worked out once: now minus uptime jitters by a second, and the state would change */
     if (!at && time(NULL) > 1700000000) { /* before SNTP sets the clock it counts from 1970 */
         at = time(NULL) - esp_timer_get_time() / 1000000;
@@ -411,6 +416,7 @@ void app_main(void)
     abort();
 #endif
     db_log_start();
+    db_log_event(TAG, "boot", "started (%s)", boot_reason());
     init_nvs();
     ESP_ERROR_CHECK(db_config_load());
     ESP_LOGI(TAG, "DeckConnector %s, controller %s", esp_app_get_description()->version,

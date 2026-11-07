@@ -1,7 +1,9 @@
 #include "db_log.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "esp_attr.h"
 #include "esp_timer.h"
@@ -21,6 +23,8 @@ static RTC_NOINIT_ATTR uint32_t magic;
 static char *prev;
 static size_t prev_len;
 static vprintf_like_t serial;
+static db_event_t *events; /* PSRAM ring, made at the first event */
+static uint32_t n_events;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 static int capture(const char *fmt, va_list args)
@@ -110,4 +114,35 @@ const char *db_log_mark_name(db_mark_t mark)
                                                      "companion", "app",      "server", "host_draws",
                                                      "satellite"};
     return names[mark];
+}
+
+void db_log_event(const char *tag, const char *kind, const char *fmt, ...)
+{
+    db_event_t e = {.at_us = esp_timer_get_time()};
+    time_t now = time(NULL);
+    e.unix_s = now > 1700000000 ? now : 0; /* before SNTP the clock starts in 1970 */
+    strlcpy(e.kind, kind, sizeof(e.kind));
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(e.text, sizeof(e.text), fmt, args);
+    va_end(args);
+    ESP_LOGI(tag, "%s", e.text);
+    if (!events && !(events = heap_caps_calloc(DB_EVENTS, sizeof(*events), MALLOC_CAP_SPIRAM))) {
+        return;
+    }
+    portENTER_CRITICAL(&mux);
+    events[n_events++ % DB_EVENTS] = e;
+    portEXIT_CRITICAL(&mux);
+}
+
+size_t db_log_events(db_event_t *out, size_t max)
+{
+    portENTER_CRITICAL(&mux);
+    size_t n = n_events < DB_EVENTS ? n_events : DB_EVENTS;
+    n = n < max ? n : max;
+    for (size_t i = 0; i < n && events; i++) {
+        out[i] = events[(n_events - n + i) % DB_EVENTS];
+    }
+    portEXIT_CRITICAL(&mux);
+    return events ? n : 0;
 }

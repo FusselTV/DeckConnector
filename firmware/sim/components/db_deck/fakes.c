@@ -314,6 +314,14 @@ void db_satellite_retry(void)
 {
 }
 
+size_t db_log_events(db_event_t *out, size_t max)
+{
+    if (!max) {
+        return 0;
+    }
+    out[0] = (db_event_t){.at_us = 0, .kind = "boot", .text = "started (sim)"};
+    return 1;
+}
 size_t db_log_prev(char *buf, size_t cap)
 {
     return 0;

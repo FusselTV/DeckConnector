@@ -138,7 +138,7 @@ static void note_gateway(bool answered)
     if (dead == was) {
         return;
     }
-    ESP_LOGW(TAG, "%s", dead ? "LAN dead: the gateway stopped answering" : "LAN answers again");
+    db_log_event(TAG, "lan", "%s", dead ? "LAN dead: the gateway stopped answering" : "LAN answers again");
     changed();
 }
 
@@ -218,7 +218,7 @@ static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
             esp_timer_start_periodic(s.kick, 1000000);
         }
     } else if (id == ETHERNET_EVENT_DISCONNECTED) {
-        ESP_LOGW(TAG, "LAN link down");
+        db_log_event(TAG, "lan", "LAN link down");
         s.st.lan_link = false;
         s.st.lan_up = false;
         set_ip(s.st.lan_ip, NULL);
@@ -240,10 +240,10 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x", c->bssid[0], c->bssid[1], c->bssid[2],
                  c->bssid[3], c->bssid[4], c->bssid[5]);
         if (s.st.wlan_bssid[0] && strcmp(s.st.wlan_bssid, bssid) != 0) {
-            ESP_LOGI(TAG, "WLAN roam %.*s %s -> %s, channel %u", c->ssid_len, c->ssid, s.st.wlan_bssid, bssid,
-                     c->channel);
+            db_log_event(TAG, "wlan", "WLAN roam %.*s %s -> %s, channel %u", c->ssid_len, c->ssid, s.st.wlan_bssid,
+                         bssid, c->channel);
         } else {
-            ESP_LOGI(TAG, "WLAN joined %.*s %s, channel %u", c->ssid_len, c->ssid, bssid, c->channel);
+            db_log_event(TAG, "wlan", "WLAN joined %.*s %s, channel %u", c->ssid_len, c->ssid, bssid, c->channel);
         }
         snprintf(s.st.wlan_ssid, sizeof(s.st.wlan_ssid), "%.*s", c->ssid_len, c->ssid);
         strcpy(s.st.wlan_bssid, bssid);
