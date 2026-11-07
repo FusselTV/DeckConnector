@@ -244,6 +244,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_str(j, "id", id); /* stable, unlike the name: for Home Assistant's unique_id */
     db_json_str(j, "https_fingerprint", db_web_fingerprint());
     db_json_bool(j, "https_custom", db_web_cert_custom());
+    db_json_bool(j, "https_custom_unread", db_web_cert_unread());
     db_json_int(j, "api", DB_WEB_API);
     db_json_str(j, "simulated_input", "local"); /* tests refuse to press keys on firmware without the gate */
     db_json_str(j, "name", db_config()->name);

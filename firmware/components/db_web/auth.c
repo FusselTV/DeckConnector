@@ -66,6 +66,7 @@ typedef struct {
 } api_token_t;
 static api_token_t tokens[API_TOKENS]; /* in NVS "auth", not in the settings: a backup must not carry them */
 static uint8_t full_rights;             /* bit i: token i reaches WEB_FULL, else WEB_CONTROL only */
+static bool tokens_unread;              /* a save now would overwrite the stored tokens */
 
 /* Compare without an early exit, so the time does not tell how many characters were right. */
 static bool equal(const char *a, const char *b)
@@ -652,18 +653,32 @@ void auth_start(void)
     restore_sessions();
     nvs_handle_t h;
     size_t len = sizeof(tokens);
-    if (nvs_open("auth", NVS_READONLY, &h) == ESP_OK) {
-        esp_err_t err = nvs_get_blob(h, "tokens", tokens, &len);
+    esp_err_t err = nvs_open("auth", NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        err = nvs_get_blob(h, "tokens", tokens, &len);
         nvs_get_u8(h, "rights", &full_rights); /* missing: every older token stays control-only */
-        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGE(TAG, "API tokens not read: %s", esp_err_to_name(err));
-        }
         nvs_close(h);
     }
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE(TAG, "API tokens not read: %s", esp_err_to_name(err));
+        memset(tokens, 0, sizeof(tokens));
+        tokens_unread = true;
+    }
+}
+
+static bool tokens_refused(httpd_req_t *req)
+{
+    if (tokens_unread) {
+        send_error(req, "500 Internal Server Error", "the stored tokens could not be read at this start");
+    }
+    return tokens_unread;
 }
 
 esp_err_t auth_tokens_list(httpd_req_t *req)
 {
+    if (tokens_refused(req)) {
+        return ESP_OK;
+    }
     char buf[API_TOKENS * 60 + 16];
     db_json_t j;
     db_json_begin(&j, buf, sizeof(buf));
@@ -684,6 +699,9 @@ esp_err_t auth_tokens_list(httpd_req_t *req)
 /* The token is in the reply once and never again: only its SHA-256 stays. */
 esp_err_t auth_tokens_add(httpd_req_t *req)
 {
+    if (tokens_refused(req)) {
+        return ESP_OK;
+    }
     char body[96];
     cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
     const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, "name");
@@ -748,6 +766,9 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
 
 esp_err_t auth_tokens_remove(httpd_req_t *req)
 {
+    if (tokens_refused(req)) {
+        return ESP_OK;
+    }
     const char *name = req->uri + strlen("/api/tokens/");
     bool found = false;
     portENTER_CRITICAL(&mux);

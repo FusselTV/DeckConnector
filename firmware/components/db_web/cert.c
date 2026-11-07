@@ -82,6 +82,7 @@ static void fingerprint(const char *cert, char out[96])
 
 static const char *active; /* the certificate HTTPS serves, for GET /api/cert */
 static bool custom;
+static bool custom_unread; /* an uploaded pair is kept but could not be read this boot */
 
 /* An uploaded pair from NVS "web" ccert/ckey, when it is there and still fits together. */
 static bool load_custom(nvs_handle_t h, char **cert, char **key)
@@ -93,16 +94,21 @@ static bool load_custom(nvs_handle_t h, char **cert, char **key)
     }
     char *c = heap_caps_calloc(1, cl + 1, MALLOC_CAP_SPIRAM);
     char *k = heap_caps_calloc(1, kl + 1, MALLOC_CAP_SPIRAM);
+    bool read = c && k && nvs_get_blob(h, "ccert", c, &cl) == ESP_OK && nvs_get_blob(h, "ckey", k, &kl) == ESP_OK;
     char info[8];
-    if (c && k && nvs_get_blob(h, "ccert", c, &cl) == ESP_OK && nvs_get_blob(h, "ckey", k, &kl) == ESP_OK &&
-        web_cert_check(c, k, info, 0)) {
+    if (read && web_cert_check(c, k, info, 0)) {
         *cert = c;
         *key = k;
         return true;
     }
-    ESP_LOGE(TAG, "the uploaded certificate no longer loads, using the own one");
     heap_caps_free(c);
     heap_caps_free(k);
+    if (!read) {
+        ESP_LOGE(TAG, "the uploaded certificate could not be read, using the own one until the next start");
+        custom_unread = true;
+        return false;
+    }
+    ESP_LOGE(TAG, "the uploaded certificate no longer loads, using the own one");
     nvs_erase_key(h, "ccert"); /* its NVS space goes back to the settings */
     nvs_erase_key(h, "ckey");
     nvs_commit(h);
@@ -186,6 +192,11 @@ bool web_cert_check(const char *cert, const char *key, char *info, size_t cap)
 bool web_cert_custom(void)
 {
     return custom;
+}
+
+bool web_cert_custom_unread(void)
+{
+    return custom_unread;
 }
 
 esp_err_t web_cert_store(const char *cert, const char *key)

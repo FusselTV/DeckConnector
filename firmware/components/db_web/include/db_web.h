@@ -23,6 +23,8 @@ esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap),
 const char *db_web_fingerprint(void);
 /* HTTPS serves an uploaded certificate, not its own. */
 bool db_web_cert_custom(void);
+/* An uploaded certificate is kept but could not be read at this start (memory, flash): the own one serves. */
+bool db_web_cert_unread(void);
 
 /* The web wizard's step, 1 to 6, kept over restarts; 0 when it does not run. */
 int db_web_setup_step(void);

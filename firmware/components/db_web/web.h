@@ -62,6 +62,7 @@ bool web_cert_check(const char *cert, const char *key, char *info, size_t cap);
 /* Keep an uploaded pair for the next start, or drop it (cert NULL) and go back to the own certificate. */
 esp_err_t web_cert_store(const char *cert, const char *key);
 bool web_cert_custom(void);
+bool web_cert_custom_unread(void);
 esp_err_t get_cert(httpd_req_t *req);
 esp_err_t put_tls(httpd_req_t *req);
 esp_err_t delete_tls(httpd_req_t *req);
