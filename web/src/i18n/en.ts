@@ -114,6 +114,7 @@ export const en = {
   'src.forget_all': 'Forget all pairings',
   'src.srv_url': 'WebSocket URL',
   'src.srv_full': '4 servers at most.',
+  'src.dup': 'This server is already in the list.',
   'src.bad_url': 'Enter a ws:// or wss:// address.',
   'src.srv_removed': 'Server removed',
   'deck.layout_v': '{k} keys, {e} encoders',

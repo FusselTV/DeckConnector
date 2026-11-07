@@ -117,6 +117,7 @@ export const de: Dict = {
   'src.forget_all': 'Alle Kopplungen vergessen',
   'src.srv_url': 'WebSocket-URL',
   'src.srv_full': 'Höchstens 4 Server.',
+  'src.dup': 'Dieser Server steht schon in der Liste.',
   'src.bad_url': 'Bitte eine ws:// oder wss:// Adresse eingeben.',
   'src.srv_removed': 'Server entfernt',
   'deck.layout_v': '{k} Tasten, {e} Drehregler',

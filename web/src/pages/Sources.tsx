@@ -327,7 +327,8 @@ function ServerForm({ src, close }: { src?: Source; close: () => void }) {
   const [err, setErr] = useState<string | null>(null)
   const full = servers.filter(Boolean).length >= 4 && old < 0
   const save = async () => {
-    const e = wsUrlError(url) ?? (url.startsWith('wss://') ? pinError(pin) : null)
+    const dup = servers.some((x, j) => j !== old && x === url.trim())
+    const e = wsUrlError(url.trim()) ?? (dup ? 'src.dup' : url.startsWith('wss://') ? pinError(pin) : null)
     if (e) {
       setErr(t(e))
       document.getElementById('m-url')?.focus()
