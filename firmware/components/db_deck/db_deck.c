@@ -590,6 +590,14 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
     db_chunk_t chunk;
     if (s.dev.driver->parse_output(&s.dev, padded, io->out_report_size, &chunk)) {
+        if (!db_device_find_target(&s.dev.info, chunk.display, chunk.rect)) { /* a partial strip rect is the host's */
+            xSemaphoreGive(s.shot_lock);
+            if (chunk.part == 0) {
+                ESP_LOGW(TAG, "%s: image at %u,%u %ux%u is off the display, dropped", db_deck_source_name(source),
+                         chunk.rect.x, chunk.rect.y, chunk.rect.w, chunk.rect.h);
+            }
+            return ESP_OK;
+        }
         db_screen_t *sc = &s.screens[source];
         db_err_t fed = db_screen_feed(sc, &chunk);
         if (fed != DB_OK) {

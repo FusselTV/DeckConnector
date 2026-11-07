@@ -85,6 +85,22 @@ static void test_empty_image_is_dropped(void)
     TEST_ASSERT_EQUAL_INT(0, sc.count);
 }
 
+/* A dock host picks the strip rect: an image placed off the picture must not write past it. */
+static void test_blit_stays_inside_the_picture(void)
+{
+    enum { W = 8, H = 4 };
+    uint8_t *dst = malloc(W * H * 3);
+    uint8_t src[16 * 16 * 3];
+    memset(src, 0xab, sizeof(src));
+    TEST_ASSERT_EQUAL_INT(DB_ERR_PROTO, db_screen_blit(dst, W, H, W, H - 1, src, 16 * 3, 16, 16));
+    TEST_ASSERT_EQUAL_INT(DB_ERR_PROTO, db_screen_blit(dst, W, H, 0, H, src, 16 * 3, 16, 16));
+    memset(dst, 0, W * H * 3);
+    TEST_ASSERT_EQUAL_INT(DB_OK, db_screen_blit(dst, W, H, W - 1, H - 1, src, 16 * 3, 16, 16));
+    TEST_ASSERT_EQUAL_UINT8(0xab, dst[W * H * 3 - 1]); /* cut at the edge */
+    TEST_ASSERT_EQUAL_UINT8(0, dst[W * H * 3 - 4]);
+    free(dst);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -93,5 +109,6 @@ int main(void)
     RUN_TEST(test_drops_an_image_with_missing_pieces);
     RUN_TEST(test_empty_image_is_dropped);
     RUN_TEST(test_an_image_that_never_ends_is_bounded);
+    RUN_TEST(test_blit_stays_inside_the_picture);
     return UNITY_END();
 }

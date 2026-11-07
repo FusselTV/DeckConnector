@@ -1,6 +1,9 @@
 #include "jpeg_port.h"
 
+#include <stdint.h>
 #include <string.h>
+
+#include "db_screen.h"
 
 #include "driver/jpeg_decode.h"
 #include "driver/jpeg_encode.h"
@@ -105,6 +108,9 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
     bool sub_y = info.sample_method == JPEG_DOWN_SAMPLING_YUV420;
     uint32_t pw = padded(info.width, sub_x);
     uint32_t ph = padded(info.height, sub_y);
+    if (x >= dw || y >= dh || (uint64_t)pw * ph * 3 > SIZE_MAX) {
+        return ESP_ERR_INVALID_SIZE;
+    }
     jpeg_decode_memory_alloc_cfg_t in_cfg = {.buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER};
     jpeg_decode_memory_alloc_cfg_t out_cfg = {.buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER};
     size_t in_cap = 0;
@@ -119,9 +125,8 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
                                  .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR};
         err = jpeg_decoder_process(decoder, &cfg, in, (uint32_t)len, out, (uint32_t)out_cap, &n);
     }
-    for (uint32_t row = 0; err == ESP_OK && row < info.height && y + row < dh; row++) {
-        uint32_t w = x + info.width > dw ? dw - x : info.width;
-        memcpy(dst + ((size_t)(y + row) * dw + x) * 3, out + (size_t)row * pw * 3, w * 3);
+    if (err == ESP_OK && db_screen_blit(dst, dw, dh, x, y, out, (size_t)pw * 3, info.width, info.height) != DB_OK) {
+        err = ESP_ERR_INVALID_SIZE;
     }
     heap_caps_free(in);
     heap_caps_free(out);

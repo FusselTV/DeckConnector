@@ -99,3 +99,16 @@ void db_screen_clear(db_screen_t *s)
     s->pending.cap = 0;
     s->pending.next_part = 0xffff;
 }
+
+db_err_t db_screen_blit(uint8_t *dst, uint16_t dw, uint16_t dh, uint16_t x, uint16_t y, const uint8_t *src,
+                        size_t stride, uint32_t w, uint32_t h)
+{
+    if (x >= dw || y >= dh) {
+        return DB_ERR_PROTO;
+    }
+    uint32_t cw = w < (uint32_t)(dw - x) ? w : (uint32_t)(dw - x);
+    for (uint32_t row = 0; row < h && y + row < dh; row++) {
+        memcpy(dst + ((size_t)(y + row) * dw + x) * 3, src + (size_t)row * stride, (size_t)cw * 3);
+    }
+    return DB_OK;
+}
