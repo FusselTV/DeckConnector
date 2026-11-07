@@ -276,6 +276,12 @@ esp_err_t usb_port_replug(uint8_t address)
     return err;
 }
 
+static void replug_task(void *arg)
+{
+    usb_port_replug(0); /* it sleeps: not in the esp_timer task */
+    vTaskDelete(NULL);
+}
+
 static void in_retry(void *arg)
 {
     if (s.open && s.in) {
@@ -305,7 +311,9 @@ static void check_speed(void *arg)
     }
     ESP_LOGW(TAG, "no deck at high speed with %d USB device(s) present: trying full speed", n);
     s.full = true;
-    usb_port_replug(0);
+    if (xTaskCreate(replug_task, "usb_replug", 3072, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "no task to switch to full speed");
+    }
 }
 
 bool usb_port_full_speed(void)
@@ -332,7 +340,10 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
     s.ctrl_lock = xSemaphoreCreateMutex();
     s.io = (db_hid_io_t){
         .write = io_write, .flush = io_flush, .get_feature = io_get_feature, .set_feature = io_set_feature};
-    xTaskCreatePinnedToCore(lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), 10, NULL, 1);
+    if (!s.out_free || !s.ctrl_done || !s.ctrl_lock ||
+        xTaskCreatePinnedToCore(lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), 10, NULL, 1) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     usb_host_client_config_t cc = {
         .max_num_event_msg = 5,
@@ -341,7 +352,9 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
     ESP_RETURN_ON_ERROR(usb_host_client_register(&cc, &s.client), TAG, "client register");
     ESP_RETURN_ON_ERROR(usb_host_transfer_alloc(CTRL_BUF, 0, &s.ctrl), TAG, "ctrl alloc");
     s.ctrl->callback = ctrl_done;
-    xTaskCreatePinnedToCore(client_task, "usb_client", 4096, NULL, 9, NULL, 1);
+    if (xTaskCreatePinnedToCore(client_task, "usb_client", 4096, NULL, 9, NULL, 1) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
     if (s.auto_speed) {
         esp_timer_start_once(s.check, 6000000);
     }
@@ -443,6 +456,9 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     esp_err_t err = find_endpoints(cd);
     if (info.speed != USB_SPEED_HIGH) {
         clamp_fs_out_mps(cd);
+    }
+    if (err == ESP_OK && s.mps_out > 1024) {
+        err = ESP_ERR_NOT_SUPPORTED; /* db_deck_raw_write pads a report to 1024 bytes */
     }
     if (err == ESP_OK) {
         err = usb_host_interface_claim(s.client, s.dev, s.intf, 0);

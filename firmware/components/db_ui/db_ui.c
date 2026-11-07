@@ -896,7 +896,9 @@ esp_err_t db_ui_start(void)
     s.lock = xSemaphoreCreateMutex();
     s.qr_lock = xSemaphoreCreateMutex();
     jpeg_port_init();
-    xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0);
+    if (!s.lock || !s.qr_lock || xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
     db_net_on_change(changed);

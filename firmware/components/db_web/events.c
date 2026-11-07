@@ -479,7 +479,7 @@ void db_web_broadcast(const char *json)
     broadcast(json);
 }
 
-void events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*screen_json)(char *buf, size_t cap))
+esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*screen_json)(char *buf, size_t cap))
 {
     e.state_json = state_json;
     e.screen_json = screen_json;
@@ -490,7 +490,10 @@ void events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*screen_j
     for (int i = 0; i < CLIENTS; i++) {
         e.fds[i] = -1;
     }
+    if (!e.lock || !e.inputs || !e.state) {
+        return ESP_ERR_NO_MEM;
+    }
     db_deck_listener_t l = {.input = on_input};
     db_deck_add_listener(&l);
-    xTaskCreatePinnedToCore(poll_task, "events", 3072, NULL, 3, NULL, 0);
+    return xTaskCreatePinnedToCore(poll_task, "events", 3072, NULL, 3, NULL, 0) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }

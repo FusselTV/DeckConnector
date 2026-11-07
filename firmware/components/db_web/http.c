@@ -11,6 +11,7 @@
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_ui.h"
+#include "esp_check.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -493,7 +494,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     }
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
-    events_start(state, api_screen_json);
+    ESP_RETURN_ON_ERROR(events_start(state, api_screen_json), TAG, "web socket");
 #if CONFIG_IDF_TARGET_LINUX
     (void)fingerprint;
 #else

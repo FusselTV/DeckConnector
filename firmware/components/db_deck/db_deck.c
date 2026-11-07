@@ -481,8 +481,11 @@ esp_err_t db_deck_start(bool full_speed)
     }
     db_screen_seed_ids(esp_random());
     db_regions_init(&s.pending, PENDING_BUDGET);
-    xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, NULL, 8, &s.writer_task, 1);
-    xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1);
+    if (!s.lock || !s.io_lock || !s.events || !s.shot_lock ||
+        xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, NULL, 8, &s.writer_task, 1) != pdPASS ||
+        xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
     usb_port_cb_t cb = {.attached = on_attached, .detached = on_detached, .input = on_input};
     return usb_port_start(&cb, full_speed);
 }
@@ -534,7 +537,9 @@ static void replug_task(void *arg)
 void db_deck_reconnect(void)
 {
     ESP_LOGI(TAG, "reconnecting the deck");
-    xTaskCreate(replug_task, "deck_replug", 3072, NULL, 5, NULL);
+    if (xTaskCreate(replug_task, "deck_replug", 3072, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "no task to reconnect the deck");
+    }
 }
 
 void db_deck_forget(db_source_t source)

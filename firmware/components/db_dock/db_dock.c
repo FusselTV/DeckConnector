@@ -205,21 +205,26 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
             handle_dock(c, &h, payload);
         }
     }
+    /* everything about this host before the slot is free: the listen task may hand it to the next one */
+    db_controller_t kind = c->kind;
+    uint32_t ip = c->ip;
+    uint32_t local_ip = c->local_ip;
+    if (c->device_port) {
+        db_deck_forget(source_of(c)); /* the next host in this slot must not show this one's picture */
+    }
     xSemaphoreTake(c->tx, portMAX_DELAY);
     c->sock = -1;
     xSemaphoreGive(c->tx);
     close(sock);
-    if (c->device_port && c->kind != DB_CTRL_SERVER) {
-        db_log_event(TAG, "source", "%s left", db_controller_name(c->kind));
+    if (c->device_port && kind != DB_CTRL_SERVER) {
+        db_log_event(TAG, "source", "%s left", db_controller_name(kind));
     } else {
-        ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(c->kind));
+        ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(kind));
     }
-    if (c->device_port) {
-        db_deck_forget(source_of(c)); /* the next host in this slot must not show this one's picture */
-    } else if (c->kind == DB_CTRL_APP && !rejoining) {
+    if (!c->device_port && kind == DB_CTRL_APP && !rejoining) {
         rejoining = true;
-        rejoin_ip = c->ip;
-        rejoin_local_ip = c->local_ip;
+        rejoin_ip = ip;
+        rejoin_local_ip = local_ip;
         if (xTaskCreate(rejoin_app, "dock_rejoin", 3072, NULL, 3, NULL) != pdPASS) {
             rejoining = false;
         }
@@ -1070,7 +1075,9 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
 {
     s.hosts_changed = hosts_changed;
     load_known();
-    xTaskCreate(reset_old_peers, "dock_reset", 3072, NULL, 3, NULL);
+    if (xTaskCreate(reset_old_peers, "dock_reset", 3072, NULL, 3, NULL) != pdPASS) {
+        ESP_LOGW(TAG, "no task to end the connections of the last boot");
+    }
     esp_register_shutdown_handler(close_hosts);
     s.info_lock = xSemaphoreCreateMutex();
     esp_read_mac(s.info.mac, ESP_MAC_BASE);
@@ -1091,9 +1098,11 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
     }
     db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input, .external = true};
     db_deck_add_listener(&l);
-    xTaskCreatePinnedToCore(listen_task, "dock_port", 3072, NULL, 6, NULL, 0);
-    xTaskCreatePinnedToCore(listen_task, "dock_dev_port", 3072, (void *)1, 7, NULL, 0);
-    xTaskCreatePinnedToCore(keepalive_task, "dock_ka", 3072, NULL, 5, NULL, 0);
+    if (xTaskCreatePinnedToCore(listen_task, "dock_port", 3072, NULL, 6, NULL, 0) != pdPASS ||
+        xTaskCreatePinnedToCore(listen_task, "dock_dev_port", 3072, (void *)1, 7, NULL, 0) != pdPASS ||
+        xTaskCreatePinnedToCore(keepalive_task, "dock_ka", 3072, NULL, 5, NULL, 0) != pdPASS) {
+        return ESP_ERR_NO_MEM;
+    }
     announce();
     ESP_LOGI(TAG, "Network Dock emulation on ports %d and %d", DB_CORA_DOCK_PORT, DB_CORA_DEVICE_PORT);
     return ESP_OK;
