@@ -5,8 +5,8 @@ import http.client
 import json
 import threading
 
-from conftest import HOST, api
-from test_https import AUTH, TLS
+from conftest import HOST, TLS, api, put_config
+from test_https import AUTH
 from websockets.asyncio.client import connect
 
 
@@ -29,7 +29,7 @@ def put_both(rounds: int):
         yield bright, pin
 
 
-def test_config_changes_on_both_ports_are_never_lost():
+def test_config_changes_on_both_ports_are_never_lost(servers):  # a test pin would drop the owner's satellite link
     before = json.loads(api("GET", "/api/config")[1])
     lost = []
     try:
@@ -38,8 +38,7 @@ def test_config_changes_on_both_ports_are_never_lost():
             if (cfg["brightness"], cfg["satellite_pin"]) != wanted:
                 lost.append(i)
     finally:
-        body = {"brightness": before["brightness"], "satellite_pin": before["satellite_pin"]}
-        api("PUT", "/api/config", json.dumps(body).encode())
+        put_config({"brightness": before["brightness"], "satellite_pin": before["satellite_pin"]})
     assert not lost, f"a change was lost in rounds {lost}"
 
 

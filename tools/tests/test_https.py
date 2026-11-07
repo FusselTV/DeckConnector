@@ -2,18 +2,14 @@
 
 import base64
 import json
-import ssl
 import urllib.request
 
 import pytest
-from conftest import HOST, PASSWORD, api
+from conftest import HOST, PASSWORD, TLS, get_config, put_config
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
 
 AUTH = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode(), "X-DeckConnector": "1"}
-TLS = ssl.create_default_context()
-TLS.check_hostname = False
-TLS.verify_mode = ssl.CERT_NONE
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -33,9 +29,19 @@ def get(url: str, headers: dict, body: bytes | None = None, method: str = "GET")
 
 @pytest.fixture
 def https_only():
-    api("PUT", "/api/config", json.dumps({"https_only": True}).encode())
+    before = get_config()["https_only"]
+    put_config({"https_only": True})
     yield
-    get(f"https://{HOST}/api/config", AUTH, json.dumps({"https_only": False}).encode(), "PUT")
+    try:
+        put_config({"https_only": before}, https=True)
+    except OSError:
+        put_config({"https_only": before})
+    assert get_config()["https_only"] == before
+
+
+def logout(headers) -> None:
+    cookie = headers["Set-Cookie"].split(";")[0]
+    assert get(f"https://{HOST}/api/logout", {"X-DeckConnector": "1", "Cookie": cookie}, b"", "POST")[0] == 200
 
 
 def test_the_api_and_the_page_over_https():
@@ -49,6 +55,8 @@ def test_a_login_over_https_gets_a_secure_cookie():
     body = json.dumps({"password": PASSWORD}).encode()
     _, tls_headers, _ = get(f"https://{HOST}/api/login", {"X-DeckConnector": "1"}, body, "POST")
     _, plain_headers, _ = get(f"http://{HOST}/api/login", {"X-DeckConnector": "1"}, body, "POST")
+    logout(tls_headers)
+    logout(plain_headers)
     assert "; Secure" in tls_headers["Set-Cookie"]
     assert "Secure" not in plain_headers["Set-Cookie"]
 

@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import signal
+import ssl
 import subprocess
 import sys
 import threading
@@ -93,18 +94,26 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(pytest.mark.skip(reason="needs the device"))
 
 
-def api(method: str, path: str, body: bytes | None = None, auth: bool = True, timeout: float = 30):
+# the bridge's own certificate, which no CA signed
+TLS = ssl.create_default_context()
+TLS.check_hostname = False
+TLS.verify_mode = ssl.CERT_NONE
+
+
+def api(method: str, path: str, body: bytes | None = None, auth: bool = True, timeout: float = 30, https=False):
     real = json.loads(body).get("real") if path.startswith("/api/input") and body else None
     if real is not None:
         if not isinstance(real, str):
             raise UnsafeBridge('"real" other than a host address is for a person at the web UI: tests name the host')
         if ipaddress.ip_address(real) not in NOBODY and real != real_input_target(status()):
             raise UnsafeBridge(f'"real": {real} is not the host on this machine that draws')
-    req = urllib.request.Request(f"http://{HOST}{path}", data=body, method=method, headers={"X-DeckConnector": "1"})
+    req = urllib.request.Request(
+        f"{'https' if https else 'http'}://{HOST}{path}", data=body, method=method, headers={"X-DeckConnector": "1"}
+    )
     if auth:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=TLS if https else None) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
@@ -117,11 +126,63 @@ def status() -> dict:
 signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # so `timeout` still runs the atexit restore
 
 
-def put_config(body: dict) -> None:
+def put_config(body: dict, https: bool = False) -> None:
     """A refused change must not go unnoticed: a refused restore leaves the owner's deck on a test controller."""
-    code, reply = api("PUT", "/api/config", json.dumps(body).encode())
+    code, reply = api("PUT", "/api/config", json.dumps(body).encode(), https=https)
     if code != 200:
         raise RuntimeError(f"PUT /api/config {body} refused: {code} {reply[:200]!r}")
+
+
+def get_config() -> dict:
+    code, body = api("GET", "/api/config")
+    if code == 403:  # https_only is on: plain HTTP refuses a password
+        code, body = api("GET", "/api/config", https=True)
+    if code != 200:
+        raise RuntimeError(f"GET /api/config answered {code}")
+    return json.loads(body)
+
+
+# What tests change and a run sets back. Not the name or the network: changing those restarts the bridge.
+KEPT = (
+    "controller",
+    "host",
+    "satellite",
+    "satellite_pin",
+    "servers",
+    "server_pins",
+    "brightness",
+    "menu_chord",
+    "menu_hold_ms",
+    "qr_login",
+    "dock_paired_only",
+    "https_only",
+    "cors_origins",
+    "usb_speed",
+    "setup_done",
+    "ntp_server",
+)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def restore_config():
+    """Everything a run changed goes back at its end, also on pytest.exit and SIGTERM (atexit)."""
+    before = get_config()
+    # A run killed before its teardown left the test controller behind once; never keep that as the one to restore.
+    before |= settings_to_restore(before)
+    done = []
+
+    def restore():
+        if done:
+            return
+        done.append(True)
+        now = get_config()
+        changed = {k: before[k] for k in KEPT if k in before and now.get(k) != before[k]}
+        if changed:
+            put_config(changed, https=now.get("https_only", False))
+
+    atexit.register(restore)
+    yield
+    restore()
 
 
 @pytest.fixture(autouse=True)
@@ -287,24 +348,14 @@ async def servers():
     await first.start()
     await second.start()
     wanted = [first.url, second.url]
-    cfg = json.loads(api("GET", "/api/config")[1])
+    cfg = get_config()
     if [u for u in cfg["servers"] if u] != wanted:
         put_config({"servers": wanted})  # applies without a restart
-    # A run killed before its teardown left the test controller behind once; never keep that as the one to restore.
-    back = settings_to_restore(cfg)
-    restored = []
-
-    def restore():
-        if not restored:
-            restored.append(True)
-            put_config(back)
-
-    atexit.register(restore)  # also on pytest.exit and on SIGTERM from `timeout`, see below
     put_config({"controller": "server", "host": ""})
     yield first, second
     await first.stop()
     await second.stop()
-    restore()
+    put_config({k: cfg[k] for k in ("servers", "server_pins")} | settings_to_restore(cfg))
 
 
 async def newest(server):

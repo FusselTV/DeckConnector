@@ -41,11 +41,12 @@ def real_input_target(status: dict) -> str:
     return addr
 
 
-PRODUCTION = {"controller": "companion", "host": "satellite"}  # CLAUDE.md: the bench is the owner's deck
+# CLAUDE.md: the bench is the owner's deck
+PRODUCTION = {"controller": "companion", "host": "satellite", "satellite": "wss://companion.example.com/satellite"}
 
 
 def settings_to_restore(cfg: dict) -> dict:
     """What a run sets back: what it found, unless that is a test controller a killed run left behind."""
     if cfg["controller"] == "server":
         return dict(PRODUCTION)
-    return {"controller": cfg["controller"], "host": cfg.get("host", "")}
+    return {k: cfg.get(k, "") for k in PRODUCTION}
