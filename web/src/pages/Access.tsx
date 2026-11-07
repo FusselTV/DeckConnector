@@ -212,7 +212,6 @@ export function Access() {
   const hasCert = useRoute('GET', '/api/cert')
   const hasTls = useRoute('PUT', '/api/tls')
   const [pw, setPw] = useState('')
-  const [pw2, setPw2] = useState('')
   const [cors, setCors] = useState<string | null>(null)
   const [tokens, setTokens] = useState<Token[] | null>(null)
   const [tokErr, setTokErr] = useState(false)
@@ -229,22 +228,21 @@ export function Access() {
   }, [])
   useEffect(loadTokens, [loadTokens])
   const corsV = cors ?? cfg?.cors_origins ?? ''
-  const pwE = passwordError(pw, pw2)
+  const pwE = passwordError(pw)
   const corsE = corsError(corsV)
-  const restart = !!(pw || pw2)
+  const restart = !!pw
   const corsDirty = cors !== null && cors !== cfg?.cors_origins
   useDraft('access', {
     dirty: restart || corsDirty,
     restart,
     reset: () => {
       setPw('')
-      setPw2('')
       setCors(null)
     },
     check: () => {
-      if (!pwE.pw && !pwE.rep && !corsE) return true
+      if (!pwE && !corsE) return true
       go('access')
-      setTimeout(() => document.getElementById(pwE.pw ? 'npw' : pwE.rep ? 'npw2' : 'cors')?.focus(), 80)
+      setTimeout(() => document.getElementById(pwE ? 'npw' : 'cors')?.focus(), 80)
       return false
     },
     confirm: { title: t('cf.pw'), body: t('cf.pw_b') },
@@ -253,7 +251,6 @@ export function Access() {
       setCors(null)
       if (!restart) return
       setPw('')
-      setPw2('')
       loginReasonAtom.set('pw')
       if (!getState().restarting) expectRestart()
     },
@@ -287,16 +284,13 @@ export function Access() {
           right={<Help right label={t('access.pw')} text={t('cf.pw_b')} />}
         >
           <div className="grid2">
-            <Field id="npw" label={t('access.pw_new')} hint={t('access.pw_h')} err={pwE.pw ? t(pwE.pw) : null}>
+            <Field id="npw" label={t('access.pw_new')} hint={t('access.pw_h')} err={pwE ? t(pwE) : null}>
               <PwInput
-                {...describedBy('npw', pwE.pw, true)}
+                {...describedBy('npw', pwE, true)}
                 minLength={6}
                 value={pw}
                 onChange={(e) => setPw(e.target.value)}
               />
-            </Field>
-            <Field id="npw2" label={t('access.pw_rep')} err={pwE.rep && pw2 ? t(pwE.rep) : null}>
-              <PwInput {...describedBy('npw2', pwE.rep && pw2)} value={pw2} onChange={(e) => setPw2(e.target.value)} />
             </Field>
           </div>
           {cfg?.qr_login !== undefined && (

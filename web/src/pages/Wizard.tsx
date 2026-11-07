@@ -113,7 +113,6 @@ export function Wizard() {
   const drawer = st.sources?.find((s) => s.drawing)
   const decks = decksOf(st)
   const [pw, setPw] = useState('')
-  const [pw2, setPw2] = useState('')
   const [pwTried, setPwTried] = useState(false)
   // Edits over the stored values: the wizard can open before GET /api/config answers.
   const [d, setD] = useState<{ name?: string; lan?: IpConf; wlan?: IpConf; useWlan?: boolean; wifi?: WifiChoice }>({})
@@ -141,7 +140,7 @@ export function Wizard() {
   const [uErr, setUErr] = useState<string | null>(null)
   const [srcErr, setSrcErr] = useState<string | null>(null)
   const [waitS, setWaitS] = useState(0)
-  const pwE = passwordError(pw, pw2)
+  const pwE = passwordError(pw)
   const where = reachList(st, !!cfg?.https_only, name || (cfg?.name ?? ''))
   const hold = (cfg?.menu_hold_ms ?? 2000) / 1000
 
@@ -328,31 +327,20 @@ export function Wizard() {
         <p className="muted">{t(rerun ? 'wiz.pw_rerun' : 'wiz.pw_why')}</p>
         {!pw && ss.get<boolean>(PW_PENDING, false) && <p className="warnline">{t('wiz.pw_again')}</p>}
         <div className="grid2">
-          <Field id="wpw" label={t('access.pw_new')} hint={t('access.pw_h')} err={pwTried && pwE.pw ? t(pwE.pw) : null}>
-            <PwInput
-              {...describedBy('wpw', pwTried && pwE.pw, true)}
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-            />
-          </Field>
-          <Field id="wpw2" label={t('access.pw_rep')} err={pwTried && pwE.rep ? t(pwE.rep) : null}>
-            <PwInput
-              {...describedBy('wpw2', pwTried && pwE.rep)}
-              value={pw2}
-              onChange={(e) => setPw2(e.target.value)}
-            />
+          <Field id="wpw" label={t('access.pw_new')} hint={t('access.pw_h')} err={pwTried && pwE ? t(pwE) : null}>
+            <PwInput {...describedBy('wpw', pwTried && pwE, true)} value={pw} onChange={(e) => setPw(e.target.value)} />
           </Field>
         </div>
       </>,
       <>
         {backBtn}
         <div className="row">
-          <Btn kind="ghost" onClick={() => (setPw(''), setPw2(''), ss.set(PW_PENDING, undefined), setStep('net'))}>
+          <Btn kind="ghost" onClick={() => (setPw(''), ss.set(PW_PENDING, undefined), setStep('net'))}>
             {t('wiz.pw_keep')}
           </Btn>
           {next(t('c.next'), () => {
             setPwTried(true)
-            if (pwE.pw || pwE.rep) return
+            if (pwE) return
             ss.set(PW_PENDING, !!pw || undefined)
             setStep('net')
           })}

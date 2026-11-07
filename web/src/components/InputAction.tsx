@@ -9,7 +9,7 @@ export const InputAction = ({ children }: { children: ReactNode }) => <div class
 
 export function PwInput(p: InputHTMLAttributes<HTMLInputElement> & { id: string }) {
   const { t } = useUi()
-  const [show, setShow] = useState(false)
+  const [show, setShow] = useState(p.autoComplete !== 'current-password')
   return (
     <InputAction>
       <input {...p} className="in" type={show ? 'text' : 'password'} autoComplete={p.autoComplete ?? 'new-password'} />

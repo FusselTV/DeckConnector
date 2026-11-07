@@ -143,7 +143,7 @@ export function WifiPicker(p: {
                   <SIcon icon={sigIcon(g.rssi)} tone={tone} label={`${g.rssi} dBm`} />
                   <span className="grow">
                     {g.ssid}
-                    {cur && <span className="tag ok"> {t('st.connected')}</span>}
+                    {cur && <span className="tag ok">{t('st.connected')}</span>}
                     {p.expert && (
                       <span className="bss">
                         {g.aps.length > 1
@@ -192,7 +192,7 @@ export function WifiPicker(p: {
                         <span className="rdot" aria-hidden />
                         <span className="grow">
                           <span className={s.b ? 'mono' : 'wsl'}>{s.label}</span>
-                          {s.b && s.b === p.curBssid && <span className="tag ok"> {t('st.connected')}</span>}
+                          {s.b && s.b === p.curBssid && <span className="tag ok">{t('st.connected')}</span>}
                           <span className="bss">{s.detail}</span>
                         </span>
                         {s.dbm !== null && <span className="dbm">{s.dbm} dBm</span>}

@@ -68,10 +68,9 @@ describe('pins and URLs', () => {
 
 describe('passwords and names', () => {
   it('needs 6 characters and a match', () => {
-    expect(passwordError('', '')).toEqual({})
-    expect(passwordError('abc', 'abc')).toEqual({ pw: 'access.pw_short' })
-    expect(passwordError('abcdef', 'abcdeg')).toEqual({ rep: 'access.pw_diff' })
-    expect(passwordError('abcdef', 'abcdef')).toEqual({})
+    expect(passwordError('')).toBeNull()
+    expect(passwordError('abc')).toBe('access.pw_short')
+    expect(passwordError('abcdef')).toBeNull()
   })
   it('limits token names', () => {
     expect(tokenNameError('home-assistant')).toBeNull()
@@ -108,10 +107,10 @@ describe('values the firmware refuses or that lock the device out', () => {
     expect(re.test('-deck')).toBe(false)
   })
   it('says when a password is too long instead of cutting it', () => {
-    expect(passwordError('p'.repeat(24), 'p'.repeat(24)).pw).toBe('access.pw_long')
-    expect(passwordError('p'.repeat(23), 'p'.repeat(23))).toEqual({})
-    expect(passwordError('ä'.repeat(12), 'ä'.repeat(12)).pw).toBe('access.pw_long')
-    expect(passwordError('äää', 'äää')).toEqual({})
+    expect(passwordError('p'.repeat(24))).toBe('access.pw_long')
+    expect(passwordError('p'.repeat(23))).toBeNull()
+    expect(passwordError('ä'.repeat(12))).toBe('access.pw_long')
+    expect(passwordError('äää')).toBeNull()
   })
   it('wants lower-case schemes, no spaces and short hosts in server URLs', () => {
     expect(wsUrlError('WS://h:1/x')).toBe('src.bad_url')

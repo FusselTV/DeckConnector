@@ -2867,6 +2867,10 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  .wnet .grow .tag {
+    margin-left: 8px;
+    vertical-align: 1px;
+  }
   .wjoin {
     padding: 4px 12px 12px;
     background: var(--amber-soft);

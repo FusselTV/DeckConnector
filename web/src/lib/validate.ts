@@ -97,13 +97,8 @@ export const httpUrlError = (v: string): Key | null => {
   }
 }
 
-export const passwordError = (pw: string, rep: string): { pw?: Key; rep?: Key } => {
-  if (!pw && !rep) return {}
-  if (bytes(pw) < 6) return { pw: 'access.pw_short' }
-  if (bytes(pw) > 23) return { pw: 'access.pw_long' }
-  if (pw !== rep) return { rep: 'access.pw_diff' }
-  return {}
-}
+export const passwordError = (pw: string): Key | null =>
+  !pw ? null : bytes(pw) < 6 ? 'access.pw_short' : bytes(pw) > 23 ? 'access.pw_long' : null
 
 export const tokenNameError = (v: string): Key | null => (/^[A-Za-z0-9_-]{1,23}$/.test(v) ? null : 'access.tbad')
 
