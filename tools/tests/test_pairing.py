@@ -3,8 +3,10 @@
 import json
 import socket
 import time
+import warnings
 
-from conftest import HOST, api, status
+import pytest
+from conftest import HOST, api, get_config, status
 
 
 def dock(body: dict) -> None:
@@ -46,7 +48,8 @@ def test_open_by_default_and_hosts_listed_with_mac():
 def test_pairing():
     me = socket.create_connection((HOST, 80), timeout=3).getsockname()[0]
     if not [ip for ip in known() if ip != me]:
-        return  # with nothing paired the dock lets everyone in, by design
+        pytest.skip("with nothing paired the dock lets everyone in, by design")
+    before = get_config()["dock_paired_only"]
     strict(True)
     dock({"pairing": 0})
     dock({"forget": me})
@@ -66,14 +69,19 @@ def test_pairing():
         assert [d["ip"] for d in p["denied"]][-1] == me, "listed as refused"
         assert not admitted(), "refused stays out"
 
-        # on the deck: the request page, its second key accepts
+        # the request page's second key accepts, but only for a person at the deck: a simulated press leaves it
         assert status()["pairing"]["request"] == me
         assert api("POST", "/api/input", b'{"key": 1}')[0] == 200
         time.sleep(0.5)
-        assert me in known()
+        if me in known():  # firmware before the owner's decision of 2026-11-07
+            warnings.warn("this firmware lets a simulated press admit a new dock host", stacklevel=1)
+        else:
+            assert status()["pairing"]["request"] == me, "a simulated press must leave the request pending"
+            dock({"accept": True, "ip": me})
+            assert me in known()
         assert me not in [d["ip"] for d in status()["pairing"]["denied"]], "accepted: off the refused list"
         assert api("DELETE", f"/api/pairing/denied/{me}")[0] == 404
         assert admitted()
     finally:
         api("POST", "/api/dock", json.dumps({"accept": False, "ip": me}).encode())  # 409 when nothing asks
-        strict(False)
+        strict(before)
