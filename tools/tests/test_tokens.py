@@ -150,15 +150,15 @@ FULL = [
     ("PUT", "/api/config"),
     ("PUT", "/api/frontend"),
     ("PUT", "/api/setup"),
-    ("PUT", "/api/tls"),
     ("DELETE", "/api/tls"),
     ("POST", "/api/wifi/join"),
     ("GET", "/api/wifi/scan"),
     ("DELETE", "/api/pairing/denied/192.0.2.1"),
 ]
-# a crash dump holds task stacks, where the password can linger
+# a crash dump holds task stacks, where the password can linger; a TLS key a token chose could read the next login
 PASSWORD_ONLY = [
     ("POST", "/api/debug/crash"),
+    ("PUT", "/api/tls"),
     ("DELETE", "/api/tokens/x"),
     ("GET", "/api/backup"),
     ("GET", "/api/coredump"),
