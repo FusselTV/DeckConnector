@@ -39,3 +39,13 @@ def real_input_target(status: dict) -> str:
     if not addr or ipaddress.ip_address(addr) != ipaddress.ip_address(local_ip()):
         raise UnsafeBridge(f"{drawing[0]['kind']} at {host} draws: real presses go only to a host on this machine")
     return addr
+
+
+PRODUCTION = {"controller": "companion", "host": "satellite"}  # CLAUDE.md: the bench is the owner's deck
+
+
+def settings_to_restore(cfg: dict) -> dict:
+    """What a run sets back: what it found, unless that is a test controller a killed run left behind."""
+    if cfg["controller"] == "server":
+        return dict(PRODUCTION)
+    return {"controller": cfg["controller"], "host": cfg.get("host", "")}

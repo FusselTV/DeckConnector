@@ -16,8 +16,10 @@ import base64
 import contextlib
 import json
 import os
+import signal
 import socket
 import statistics
+import sys
 import time
 import traceback
 
@@ -25,6 +27,7 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
 from dbtools.load import Client, basic_auth
+from dbtools.safety import settings_to_restore
 from dbtools.server import Server
 
 KEYS = [(13 + 219 * (i % 4), 12 + 160 * (i // 4), 120, 120) for i in range(8)]
@@ -160,7 +163,7 @@ async def main_async(a) -> None:
                     flush=True,
                 )
     finally:
-        put({"controller": cfg["controller"], "host": cfg["host"], "servers": [u for u in cfg["servers"] if u]})
+        put({**settings_to_restore(cfg), "servers": [u for u in cfg["servers"] if u]})
         await server.stop()
     half = samples[len(samples) // 4 :]  # after the first quarter: caches and pools have filled
     t = [s[0] for s in half]
@@ -177,6 +180,7 @@ async def main_async(a) -> None:
 
 
 def main() -> None:
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # `timeout` still restores the settings
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
     ap.add_argument("--minutes", type=float, default=5)

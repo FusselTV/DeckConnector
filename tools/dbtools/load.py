@@ -14,8 +14,10 @@ import base64
 import http.client
 import json
 import os
+import signal
 import statistics
 import subprocess
+import sys
 import threading
 import time
 from collections import Counter
@@ -209,7 +211,7 @@ async def drawing(host: str, auth: str, n: int) -> dict:
         if r.status != 200:
             raise RuntimeError(f"{path} refused: {r.status} {reply[:200]!r}")
 
-    from .safety import require_input_gate
+    from .safety import require_input_gate, settings_to_restore
 
     require_input_gate(json.loads(c.get("/api/status")[2]))
     cfg = json.loads(c.get("/api/config")[2])
@@ -237,7 +239,7 @@ async def drawing(host: str, auth: str, n: int) -> dict:
             await asyncio.to_thread(send, "POST", "/api/input", {"key": 3, "action": "up"})
             await asyncio.wait_for(bridge.inputs.get(), 5)
     finally:
-        await asyncio.to_thread(send, "PUT", "/api/config", {"controller": cfg["controller"], "host": cfg["host"]})
+        await asyncio.to_thread(send, "PUT", "/api/config", settings_to_restore(cfg))
         await server.stop()
     print(f"key image to USB done {summary(key, 0)}\ninput POST to server event {summary(press, 0)}")
     return {"key_image": quantiles(key), "input_event": quantiles(press)}
@@ -312,6 +314,7 @@ def compare(base_file: str, new_file: str) -> int:
 
 
 def main() -> None:
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # `timeout` still restores the settings
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default=os.environ.get("DB_HOST", "192.168.1.214"))
     ap.add_argument("--secs", type=float, default=20)

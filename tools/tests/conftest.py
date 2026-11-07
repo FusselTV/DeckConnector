@@ -7,6 +7,7 @@ import io
 import ipaddress
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -18,7 +19,7 @@ import pytest
 from PIL import Image
 
 from dbtools.load import password
-from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate
+from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate, settings_to_restore
 from dbtools.server import Server
 
 
@@ -101,6 +102,9 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
 
 def status() -> dict:
     return json.loads(api("GET", "/api/status")[1])
+
+
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # so `timeout` still runs the atexit restore
 
 
 def put_config(body: dict) -> None:
@@ -276,13 +280,21 @@ async def servers():
     cfg = json.loads(api("GET", "/api/config")[1])
     if [u for u in cfg["servers"] if u] != wanted:
         put_config({"servers": wanted})  # applies without a restart
-    if cfg["controller"] != "server" or cfg.get("host"):
-        put_config({"controller": "server", "host": ""})
+    # A run killed before its teardown left the test controller behind once; never keep that as the one to restore.
+    back = settings_to_restore(cfg)
+    restored = []
+
+    def restore():
+        if not restored:
+            restored.append(True)
+            put_config(back)
+
+    atexit.register(restore)  # also on pytest.exit and on SIGTERM from `timeout`, see below
+    put_config({"controller": "server", "host": ""})
     yield first, second
     await first.stop()
     await second.stop()
-    if cfg["controller"] != "server" or cfg.get("host"):
-        put_config({"controller": cfg["controller"], "host": cfg.get("host", "")})
+    restore()
 
 
 async def newest(server):
