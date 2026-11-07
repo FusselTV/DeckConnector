@@ -277,11 +277,6 @@ export interface Coredump {
   at?: string
 }
 
-export interface BootInfo {
-  bootloader: { version: number; idf: string; built: string; sha256: string }
-  ptable: { partitions: number; md5: string; sha256: string }
-}
-
 /** One entry of GET /api/input/log as the firmware sends it. */
 export interface InputLogEntry {
   seq: number

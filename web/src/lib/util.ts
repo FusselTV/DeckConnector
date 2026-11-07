@@ -58,7 +58,6 @@ export async function dbfwTarget(file: Blob): Promise<'p4' | 'c6' | 'page' | 'bo
   return b[5] !== undefined && b[5] in map ? map[b[5] as keyof typeof map] : null
 }
 
-/** Moves focus between `[data-roam]` children with the arrow keys. */
 /** Arrow keys in a radio group: focus moves to the next enabled radio and, as in any radio group, picks it. */
 export function roam(e: KeyboardEvent<HTMLElement>) {
   const d = ({ ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 } as Record<string, number>)[e.key]

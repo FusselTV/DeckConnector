@@ -228,6 +228,7 @@ function Health() {
   const visible = tabAtom.use() === 'diagnose'
   const c = useStore((s) => s.status.counters)
   const [m, setM] = useState<Metrics | null>(null)
+  const every = m?.every_s ?? 5
   useEffect(() => {
     if (!visible) return
     let off = false
@@ -237,12 +238,12 @@ function Health() {
         () => undefined,
       )
     void load()
-    const id = setInterval(() => !document.hidden && void load(), (m?.every_s ?? 5) * 1000)
+    const id = setInterval(() => !document.hidden && void load(), every * 1000)
     return () => {
       off = true
       clearInterval(id)
     }
-  }, [visible, m?.every_s])
+  }, [visible, every])
   return (
     <Card
       id="card-health"

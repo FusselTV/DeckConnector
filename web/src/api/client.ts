@@ -1,5 +1,4 @@
 import type {
-  BootInfo,
   Config,
   ConfigPatch,
   Coredump,
@@ -121,9 +120,9 @@ export const pressReal = (body: InputBody, deck?: string) =>
 export const api = {
   routes: () => list(request<Route[]>('/api')),
   status: () => request<Status>('/api/status'),
-  login: (password: string, remember = false) =>
+  login: (password: string) =>
     request<{ ok: boolean; retry?: number }>('/api/login', {
-      body: remember ? { password, remember } : { password },
+      body: { password },
       quiet: true,
     }),
   logout: () => request<{ ok: boolean }>('/api/logout', { method: 'POST', quiet: true }),
@@ -149,7 +148,6 @@ export const api = {
   log: (prev = false) => request<string>('/api/log' + (prev ? '?boot=prev' : '')),
   coredump: () => optional(request<Coredump>('/api/coredump')),
   clearCoredump: () => request<{ ok: boolean }>('/api/coredump', { method: 'DELETE' }),
-  boot: () => request<BootInfo>('/api/boot'),
   slots: () => list(request<Slot[]>('/api/slots')),
   bootSlot: (n: number) => request<{ ok: boolean }>(`/api/slots/${n}/boot`, { method: 'POST' }),
   ota: (file: Blob, slot?: number, boot = true) =>

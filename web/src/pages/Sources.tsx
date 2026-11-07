@@ -23,7 +23,7 @@ import { refreshStatus } from '../app/connection'
 import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
-import { useRoute, useStore } from '../app/store'
+import { getState, useRoute, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, type Tone } from '../components/controls'
@@ -422,7 +422,7 @@ function usePairing() {
   const { t, act, ask } = useUi()
   return {
     onlyPaired: async (v: boolean) => {
-      const st = (await import('../app/store')).getState().status
+      const st = getState().status
       const stray = (st.sources ?? []).filter(
         (s) => s.kind === 'app' && s.connected && !st.pairing?.hosts?.some((h) => h.ip === s.host),
       )

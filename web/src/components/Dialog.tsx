@@ -61,13 +61,12 @@ export function Modal(p: {
   children: ReactNode
   foot?: ReactNode
   close: () => void
-  wide?: boolean
 }) {
   const { t } = useUi()
   const I = p.icon
   return (
     <Dialog
-      className={cx('modal', p.wide && 'wide')}
+      className="modal"
       title={p.title}
       close={p.close}
       head={(h) => (

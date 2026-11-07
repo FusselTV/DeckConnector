@@ -1177,9 +1177,6 @@
   .log .E {
     color: var(--bad-fg);
   }
-  .log .ts {
-    color: var(--fg-3);
-  }
   .sparks {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1401,21 +1398,6 @@
   }
   .pal .grp {
     padding: 8px 10px 4px;
-  }
-  .pal li[role='option'] {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    min-height: 40px;
-  }
-  .pal li[aria-selected='true'] {
-    background: var(--amber-soft);
-  }
-  .pal li[aria-disabled='true'] {
-    opacity: 0.5;
   }
   .pal li .ph {
     margin-left: auto;
@@ -1773,23 +1755,6 @@
     border: 1px solid var(--line);
     border-radius: var(--r);
     padding: 6px 10px;
-  }
-  .btn.tall {
-    justify-content: flex-start;
-    text-align: left;
-    white-space: normal;
-    padding: 8px 12px;
-    min-height: 56px;
-  }
-  .btn.tall > span {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .btn.tall small {
-    font-weight: 400;
-    font-size: 13px;
-    color: var(--fg-2);
   }
   .morebtn {
     margin: 6px 12px 10px;
@@ -2207,14 +2172,6 @@
   }
   .ic.muted {
     color: var(--fg-3);
-  }
-  .xact {
-    display: inline-flex;
-    gap: 6px;
-    margin-left: auto;
-  }
-  .xact + .chev {
-    margin-left: 0 !important;
   }
   .seg {
     width: max-content;
@@ -2756,17 +2713,6 @@
   .ledwrap {
     display: inline-flex;
   }
-  .fkey .face.red {
-    background: #b3202a;
-  }
-  .fkey .face.rec {
-    background: #3b1013;
-    color: #ff6b62;
-  }
-  .fkey .face.dim {
-    background: #0e1012;
-    color: #8f969e;
-  }
   /* round 5 */
   .modal {
     width: min(560px, calc(100vw - 24px));
@@ -2817,17 +2763,6 @@
   }
   .emptystate p {
     margin: 0;
-  }
-  .actlist {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .actlist .btn {
-    justify-content: flex-start;
-    width: 100%;
-    white-space: normal;
-    text-align: left;
   }
   .wifi {
     display: flex;
@@ -3285,10 +3220,7 @@
     .btn.sm,
     .ibtn,
     .in,
-    .quick button,
-    .sw,
-    details.fold > summary,
-    .pal li[role='option'] {
+    .sw {
       min-height: 44px;
     }
     .ibtn {
@@ -3568,13 +3500,6 @@
     margin: 0;
     min-width: 0;
   }
-  .bubble.pop {
-    position: static;
-    z-index: 70;
-  }
-  .modal.wide {
-    width: min(720px, calc(100vw - 24px));
-  }
   .modal.confirm {
     width: min(500px, calc(100vw - 32px));
   }
@@ -3595,10 +3520,6 @@
   }
   .fstrip .z {
     position: relative;
-  }
-  .xact .ibtn {
-    height: 32px;
-    min-width: 32px;
   }
   .bootl {
     display: flex;
@@ -3657,6 +3578,11 @@
     border-radius: 6px;
     cursor: pointer;
     min-height: 40px;
+  }
+  @media (pointer: coarse) {
+    .pal .palopt {
+      min-height: 44px;
+    }
   }
   .pal .palopt[aria-selected='true'] {
     background: var(--amber-soft);

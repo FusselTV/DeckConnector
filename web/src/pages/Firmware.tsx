@@ -279,7 +279,7 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
             icon: Download,
             lvl: 'pair',
             title: t('upd.new', { v: st.u.latest }),
-            text: t('upd.new_h', { v: st.u.latest, repo: '' }),
+            text: t('upd.new_h'),
             acts: [
               {
                 label: t('btn.install'),
