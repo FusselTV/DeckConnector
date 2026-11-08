@@ -495,7 +495,7 @@ static void pick_writer(void)
     if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
         s.full = true;
     }
-    db_deck_set_writer(wanted);
+    db_deck_set_writer(wanted, esp_timer_get_time() < s.handover_until);
     if (s.covered && !covering && s.active_link >= 0) {
         db_link_resend_role();
     }

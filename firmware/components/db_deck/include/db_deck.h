@@ -54,8 +54,9 @@ bool db_deck_behind_hub(void);
 void db_deck_add_listener(const db_deck_listener_t *listener);
 void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg);
 
-/* Pending images of the old writer are dropped and acknowledged as REJECTED_ROLE. */
-void db_deck_set_writer(db_source_t source);
+/* Pending images of the old writer are dropped and acknowledged as REJECTED_ROLE. `keep_picture`: the old
+ * writer's picture stays until the new one draws, when the new one has none kept. */
+void db_deck_set_writer(db_source_t source, bool keep_picture);
 /* Unplug and plug in the deck by switching its USB port off and on; returns at once. */
 void db_deck_reconnect(void);
 /* Drop the kept picture of a source whose host left. */

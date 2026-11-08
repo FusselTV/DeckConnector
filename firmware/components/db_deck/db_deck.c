@@ -62,7 +62,8 @@ static struct {
         size_t len;
     } feature[DB_SOURCE_COUNT]; /* last feature report (brightness) of a source that was not the writer */
     bool replay;
-    bool clear_first; /* the writer had nothing kept: the display goes black before its first image */
+    bool keep_picture; /* of the old writer, until the new one draws: under lock */
+    bool clear_first;  /* the display goes black before the writer's first image */
     uint8_t waiting; /* a second device that came while the deck was open */
 } s;
 
@@ -102,16 +103,17 @@ static void clear_display(void)
 }
 
 /* Draw again everything the new writer had on the deck, before anything new it sends. The UI is left out: it
- * draws a fresh screen whenever it takes over. A writer without a kept picture leaves the old one until its first
- * image, so a handover shows no black frame. Runs in the writer task, so images that arrive meanwhile are drawn
- * after it. Each image is copied out: the kept picture must not stay locked for USB transfers, a fresh deck can
- * take half a second per report. */
+ * draws a fresh screen whenever it takes over. On a handover, a writer without a kept picture leaves the old
+ * one until its first image, so it shows no black frame. Runs in the writer task, so images that arrive
+ * meanwhile are drawn after it. Each image is copied out: the kept picture must not stay locked for USB
+ * transfers, a fresh deck can take half a second per report. */
 static void replay(void)
 {
     static db_shot_t shots[DB_SCREEN_MAX];
     xSemaphoreTake(s.lock, portMAX_DELAY);
     db_source_t w = s.writer;
     bool present = s.present;
+    bool keep = s.keep_picture;
     s.replay = false;
     xSemaphoreGive(s.lock);
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
@@ -125,8 +127,8 @@ static void replay(void)
     if (!present) {
         return;
     }
-    s.clear_first = n == 0;
-    if (n) {
+    s.clear_first = n == 0 && keep;
+    if (!s.clear_first) {
         clear_display();
     }
     if (feature_len) {
@@ -511,10 +513,11 @@ void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
     s.ack[source].arg = arg;
 }
 
-void db_deck_set_writer(db_source_t source)
+void db_deck_set_writer(db_source_t source, bool keep_picture)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
     if (s.writer != source) {
+        s.keep_picture = keep_picture;
         ESP_LOGI(TAG, "writer %d -> %d", s.writer, source);
         if (source != DB_SOURCE_UI) {
             db_log_mark(DB_MARK_HOST_DRAWS);
