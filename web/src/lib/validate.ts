@@ -5,7 +5,7 @@ const OCTET = '(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)'
 const IP_RE = new RegExp(`^${OCTET}(\\.${OCTET}){3}$`)
 
 export const isIP = (v: string) => IP_RE.test(v)
-export const ipNum = (v: string) => v.split('.').reduce((a, b) => a * 256 + Number(b), 0)
+const ipNum = (v: string) => v.split('.').reduce((a, b) => a * 256 + Number(b), 0)
 
 /** "/24" style prefix to a dotted netmask. */
 export const cidrMask = (n: number) =>
@@ -25,10 +25,10 @@ export function splitCidr(v: string): { ip: string; mask?: string } {
   return { ip: m[1], mask: cidrMask(Number(m[2])) }
 }
 
-export const sameNet = (a: string, b: string, mask: string) =>
+const sameNet = (a: string, b: string, mask: string) =>
   (ipNum(a) & ipNum(mask)) >>> 0 === (ipNum(b) & ipNum(mask)) >>> 0
 
-export interface IpForm {
+interface IpForm {
   dhcp: boolean
   ip: string
   mask: string
@@ -90,8 +90,7 @@ export const companionError = (v: string): Key | null => {
 
 export const httpUrlError = (v: string): Key | null => {
   try {
-    const u = new URL(v.trim())
-    return u.protocol === 'http:' || u.protocol === 'https:' ? null : 'fw.bad_url'
+    return new URL(v.trim()).protocol === 'http:' ? null : 'fw.bad_url'
   } catch {
     return 'fw.bad_url'
   }
@@ -113,10 +112,15 @@ export const corsError = (v: string): Key | null =>
     : 'access.cors_bad'
 
 /** What the firmware takes: SSID 1 to 32 bytes, not only spaces; password empty (open), 8 to 63 characters, or
- *  64 hex digits. */
-export const wifiError = (ssid: string, pass: string): Key | null =>
+ *  64 hex digits. `secured`: the scan saw this name with encryption, so an empty password can only fail. */
+export const wifiError = (ssid: string, pass: string, secured = false): Key | null =>
   !ssid.trim() || bytes(ssid) > 32
     ? 'wifi.pick'
-    : pass && !(pass.length >= 8 && pass.length <= 63) && !/^[0-9a-f]{64}$/i.test(pass)
-      ? 'wifi.pass_len'
-      : null
+    : !pass && secured
+      ? 'wifi.pass_need'
+      : pass && !(pass.length >= 8 && pass.length <= 63) && !/^[0-9a-f]{64}$/i.test(pass)
+        ? 'wifi.pass_len'
+        : null
+
+export const securedWifi = (scan: { ssid: string; open: boolean }[], ssid: string) =>
+  scan.some((a) => a.ssid === ssid && !a.open)

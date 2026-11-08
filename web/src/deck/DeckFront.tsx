@@ -14,44 +14,53 @@ const mm = (o: { x: number; y: number; w: number; h: number }): CSSProperties =>
 })
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
-/** The part of the deck picture that falls on one key or strip, scaled to its box. */
-function Pixels({ screen, rect }: { screen: Screen; rect: Rect | undefined }) {
-  const W = screen.width
-  const H = screen.height
-  if (!rect || !W || !H) return null
-  const imgs = screen.images.filter((i) => overlaps(i, rect))
-  if (!imgs.length) return null
-  return (
-    <span className="px" aria-hidden>
-      <span
-        style={{
-          width: `${(W / rect.w) * 100}%`,
-          height: `${(H / rect.h) * 100}%`,
-          left: `${(-rect.x / rect.w) * 100}%`,
-          top: `${(-rect.y / rect.h) * 100}%`,
-        }}
-      >
-        {imgs.map((i) => (
-          <img
-            key={i.url}
-            src={i.url}
-            alt=""
-            draggable={false}
-            onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
-            style={{
-              left: `${(i.x / W) * 100}%`,
-              top: `${(i.y / H) * 100}%`,
-              width: `${(i.w / W) * 100}%`,
-              height: `${(i.h / H) * 100}%`,
-            }}
-          />
-        ))}
-      </span>
-    </span>
-  )
-}
+type PixelsProps = { screen: Screen; rect: Rect | undefined }
+const box = (r: Rect) => `${r.x},${r.y},${r.w},${r.h}`
+const facePrint = ({ screen: s, rect: r }: PixelsProps) =>
+  r ? `${s.width}x${s.height} ${box(r)} ${s.images.map((i) => (overlaps(i, r) ? i.url + box(i) : '')).join(' ')}` : ''
 
-export interface DeckFrontProps {
+/** The part of the deck picture that falls on one key or strip, scaled to its box. A key whose images did not
+ *  change keeps its DOM. */
+const Pixels = memo(
+  function Pixels({ screen, rect }: PixelsProps) {
+    const W = screen.width
+    const H = screen.height
+    if (!rect || !W || !H) return null
+    const imgs = screen.images.filter((i) => overlaps(i, rect))
+    if (!imgs.length) return null
+    return (
+      <span className="px" aria-hidden>
+        <span
+          style={{
+            width: `${(W / rect.w) * 100}%`,
+            height: `${(H / rect.h) * 100}%`,
+            left: `${(-rect.x / rect.w) * 100}%`,
+            top: `${(-rect.y / rect.h) * 100}%`,
+          }}
+        >
+          {imgs.map((i) => (
+            <img
+              key={i.url}
+              src={i.url}
+              alt=""
+              draggable={false}
+              onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+              style={{
+                left: `${(i.x / W) * 100}%`,
+                top: `${(i.y / H) * 100}%`,
+                width: `${(i.w / W) * 100}%`,
+                height: `${(i.h / H) * 100}%`,
+              }}
+            />
+          ))}
+        </span>
+      </span>
+    )
+  },
+  (a, b) => facePrint(a) === facePrint(b),
+)
+
+interface DeckFrontProps {
   model: ModelKey
   label: string
   screen: Screen | null
@@ -304,8 +313,9 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
 
   const zones = M.strip?.z ?? 0
   const touch = p.screen?.touch[0]
+  // Without the strip's place in the picture there is no point to send that the firmware would take.
   const stripPt = (fx: number): [number, number] =>
-    touch ? [Math.round(touch.x + fx * touch.w), Math.round(touch.y + touch.h / 2)] : [Math.round(fx * 800), 430]
+    touch ? [Math.round(touch.x + fx * touch.w), Math.round(touch.y + touch.h / 2)] : [0, 0]
   const stripUp = (e: RPE) => {
     const s = pd.current
     pd.current = null
@@ -313,7 +323,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     const dx = e.clientX - s.x
     const dy = e.clientY - s.y
     if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) return
-    if (blocked()) return
+    if (!touch || blocked()) return
     const fx = (s.x - s.r.left) / s.r.width
     const z = Math.max(0, Math.min(zones - 1, Math.floor(fx * zones)))
     flash(`z${z}`, 'web')
@@ -336,7 +346,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     }
     if (L || R || e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      if (blocked()) return
+      if (!touch || blocked()) return
       flash(`z${zone}`, 'web')
       const [x, y] = stripPt(mid)
       if (L || R) send({ touch: 'swipe', x, y, x2: stripPt(mid + (R ? 1 : -1) / zones)[0], y2: y })
@@ -408,7 +418,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
               ref={stripRef}
               role="button"
               tabIndex={0}
-              aria-disabled={armed ? undefined : true}
+              aria-disabled={armed && touch ? undefined : true}
               aria-describedby="kb-hint"
               className="fstrip"
               style={{ ...mm(M.strip), gridTemplateColumns: `repeat(${zones},1fr)` }}
@@ -550,7 +560,7 @@ const HitIcon = ({ kind }: { kind: Hit }) => (
   </span>
 )
 
-export function DeckMark() {
+function DeckMark() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <g fill="currentColor">

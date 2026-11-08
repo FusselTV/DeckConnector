@@ -39,7 +39,7 @@ import { Card } from '../components/Card'
 import { Btn, Help, IconBtn, Seg } from '../components/controls'
 import { KeyValue } from '../components/KeyValue'
 import { Row } from '../components/Row'
-import { fold } from '../lib/rank'
+import { fold } from '../lib/util'
 import { copyText, cx, download, useLatest } from '../lib/util'
 import { inputText } from './Overview'
 
@@ -308,7 +308,7 @@ function InputLog() {
     [src, who, dk],
   )
   const origin = (x: InputEvent) =>
-    x.origin === 'deck' ? t('in.o_deck') : x.origin === 'api' ? t('in.o_api', { c: x.client ?? '' }) : t('in.o_web')
+    x.origin === 'deck' ? t('tab.deck') : x.origin === 'api' ? t('in.o_api', { c: x.client ?? '' }) : t('in.o_web')
   return (
     <Row
       group="dia"
@@ -325,7 +325,7 @@ function InputLog() {
           onChange={setWho}
           options={[
             ['all', t('in.all')],
-            ['deck', t('in.o_deck'), Hand],
+            ['deck', t('tab.deck'), Hand],
             ['web', t('in.web_api'), MousePointer2],
           ]}
         />
@@ -355,7 +355,7 @@ function InputLog() {
             <tr>
               <th>{t('in.time')}</th>
               <th>{t('in.origin')}</th>
-              {nDecks > 1 && <th>{t('in.deck')}</th>}
+              {nDecks > 1 && <th>{t('tab.deck')}</th>}
               <th>{t('in.kind')}</th>
               <th>{t('in.src')}</th>
             </tr>

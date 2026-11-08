@@ -28,10 +28,13 @@ export const READONLY = typeof __DC_READONLY__ !== 'undefined' && __DC_READONLY_
 export class ApiError extends Error {
   readonly status: number
   readonly code: string | undefined
-  constructor(status: number, message: string, code?: string) {
+  /** Seconds until a locked login may try again. */
+  readonly retry: number | undefined
+  constructor(status: number, message: string, code?: string, retry?: number) {
     super(message)
     this.status = status
     this.code = code
+    this.retry = retry
   }
 }
 
@@ -43,7 +46,7 @@ export const onAuthLost = (fn: Listener) => {
   return () => void authListeners.delete(fn)
 }
 
-export interface Req {
+interface Req {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   raw?: BodyInit
@@ -76,10 +79,10 @@ export async function request<R>(path: string, o: Req = {}): Promise<R> {
   const type = res.headers.get('content-type') ?? ''
   const data: unknown = type.includes('json') ? await res.json().catch(() => null) : await res.text()
   if (!res.ok) {
-    const d = (data && typeof data === 'object' ? data : {}) as { error?: string; code?: string }
+    const d = (data && typeof data === 'object' ? data : {}) as { error?: string; code?: string; retry?: number }
     // A proxy's HTML error page is no message for a person; the page then words it from the status.
     const text = typeof data === 'string' && data.length < 200 && !data.trimStart().startsWith('<') ? data : ''
-    throw new ApiError(res.status, d.error ?? text, d.code)
+    throw new ApiError(res.status, d.error ?? text, d.code, d.retry)
   }
   if (type.includes('json') && data === null) throw new ApiError(502, '', 'badreply')
   return data as R
@@ -159,7 +162,7 @@ export const api = {
   inputLog: (since = 0) => list(request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : ''))),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>
-    request<{ ok: boolean; error?: string; version?: string; surfaces?: number }>('/api/sources/probe', {
+    request<{ ok: boolean; error?: string; code?: string; version?: string; surfaces?: number }>('/api/sources/probe', {
       body: { addr, pin },
     }),
   updateCheck: () => request<UpdateCheck>('/api/update/check'),

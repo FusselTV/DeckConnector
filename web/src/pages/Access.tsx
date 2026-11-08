@@ -68,7 +68,7 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
         title={t('api.made', { name })}
         foot={
           <Btn kind="pri" onClick={close}>
-            {t('c.done')}
+            {t('wiz.s_done')}
           </Btn>
         }
       >
@@ -296,7 +296,7 @@ export function Access() {
               on={cfg.qr_login}
               onChange={(v) => void act(() => putConfig({ qr_login: v }))}
               label={t('access.qr')}
-              hint={t('access.qr_h')}
+              hint={t(cfg.setup_done ? 'access.qr_done' : 'access.qr_h')}
             />
           )}
         </Card>
@@ -408,7 +408,7 @@ export function Access() {
             </span>
           }
         >
-          <Field id="cors" label={t('access.cors')} hint={t('access.cors_h')} err={corsE ? t(corsE) : null}>
+          <Field id="cors" label={t('access.cors_l')} hint={t('access.cors_h')} err={corsE ? t(corsE) : null}>
             <input
               {...describedBy('cors', corsE, true)}
               className="in mono"

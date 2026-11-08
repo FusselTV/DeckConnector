@@ -99,3 +99,6 @@ export function deviceLabel(ua: string) {
           : ''
   return [os, br].filter(Boolean).join(' · ') || 'Browser'
 }
+
+/** Lowercase without accents, for matching typed text. */
+export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()

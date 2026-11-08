@@ -11,7 +11,6 @@ import {
   Network as NetIcon,
   Power,
   RefreshCw,
-  Search,
   ShieldCheck,
   Stethoscope,
   Sun,
@@ -33,13 +32,12 @@ import { Network } from '../pages/Network'
 import { Overview } from '../pages/Overview'
 import { Sources } from '../pages/Sources'
 import { LoginBar } from '../pages/Login'
-import { Palette } from '../pages/Palette'
 import { useActions } from './actions'
 import { clearOta, retryNow } from './connection'
 import { IssuesProvider, useIssues } from './issues'
 import { langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
 import { useStore } from './store'
-import { useTheme, useUi } from './ui'
+import { codeText, useTheme, useUi } from './ui'
 import { Dialog } from '../components/Dialog'
 
 const TAB_META: Record<Tab, { icon: LucideIcon; group: 'run' | 'device' | 'care' }> = {
@@ -397,7 +395,7 @@ function Banners() {
             lvl: ota.state === 'error' ? 'bad' : 'info',
             title: t('ban.update', {
               target: t(`tgt.${ota.target}` as 'tgt.p4'),
-              state: ota.error ?? t(`ota.${ota.state}` as 'ota.done'),
+              state: ota.error ? codeText(t, ota.code, ota.error) : t(`ota.${ota.state}` as 'ota.done'),
             }),
             extra: ota.state !== 'error' && (
               <span className="row nprog">
@@ -480,18 +478,7 @@ export function Shell() {
   const fw = useStore((s) => s.status.firmware)
   const stale = useStore((s) => s.conn !== 'live')
   const restarting = useStore((s) => !!s.restarting)
-  const [pal, setPal] = useState(false)
   const [more, setMore] = useState(false)
-  useEffect(() => {
-    const f = (e: globalThis.KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        if (!restarting) setPal((p) => !p)
-      }
-    }
-    addEventListener('keydown', f)
-    return () => removeEventListener('keydown', f)
-  }, [restarting])
   // A visited tab stays mounted (hidden), so its unsaved draft survives a tab switch.
   const [seen, setSeen] = useState<Tab[]>([tab])
   if (!seen.includes(tab)) setSeen([...seen, tab])
@@ -514,17 +501,6 @@ export function Shell() {
               <small className="mono">{fw}</small>
             </div>
           </button>
-          <button
-            type="button"
-            className="ibtn search sidesearch"
-            aria-label={t('hdr.search')}
-            aria-keyshortcuts="Control+K"
-            onClick={() => setPal(true)}
-          >
-            <Search size={16} aria-hidden />
-            <span className="stxt">{t('hdr.search')}</span>
-            <kbd>Ctrl K</kbd>
-          </button>
           <Nav />
           <SideFoot />
         </aside>
@@ -533,11 +509,6 @@ export function Shell() {
             <div className="mtt">
               <h1>{t(`tab.${tab}`)}</h1>
               <small>{name}</small>
-            </div>
-            <div className="tools">
-              <button type="button" className="ibtn" aria-label={t('hdr.search')} onClick={() => setPal(true)}>
-                <Search size={17} aria-hidden />
-              </button>
             </div>
           </header>
           <main className="content" id="panel" tabIndex={-1}>
@@ -566,7 +537,6 @@ export function Shell() {
         <TabBar onMore={() => setMore(true)} />
       </div>
       <RestartOverlay />
-      {pal && <Palette close={() => setPal(false)} />}
       {more && <MoreSheet close={() => setMore(false)} />}
     </IssuesProvider>
   )

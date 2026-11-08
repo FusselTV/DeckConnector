@@ -1,16 +1,20 @@
 import type { Lang } from '../i18n'
 
 export function makeFmt(lang: Lang) {
-  const num = new Intl.NumberFormat(lang)
-  const dec = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 })
-  const pct = new Intl.NumberFormat(lang, { style: 'percent', maximumFractionDigits: 0 })
-  const unit = (v: number, u: string) =>
-    new Intl.NumberFormat(lang, { style: 'unit', unit: u, unitDisplay: 'long' }).format(v)
+  // Built on first use and kept: an Intl formatter costs far more to make than to call.
+  const made = new Map<string, Intl.NumberFormat>()
+  const nf = (k: string, o?: Intl.NumberFormatOptions) => {
+    let f = made.get(k)
+    if (!f) made.set(k, (f = new Intl.NumberFormat(lang, o)))
+    return f
+  }
+  const dec = (n: number) => nf('dec', { maximumFractionDigits: 1 }).format(n)
+  const unit = (v: number, u: string) => nf(u, { style: 'unit', unit: u, unitDisplay: 'long' }).format(v)
   return {
-    num: (n: number) => num.format(n),
-    dec: (n: number) => dec.format(n),
-    pct: (n: number) => pct.format(n / 100),
-    bytes: (n: number) => (n >= 1048576 ? dec.format(n / 1048576) + ' MB' : dec.format(n / 1024) + ' KB'),
+    num: (n: number) => nf('num').format(n),
+    dec,
+    pct: (n: number) => nf('pct', { style: 'percent', maximumFractionDigits: 0 }).format(n / 100),
+    bytes: (n: number) => (n >= 1048576 ? dec(n / 1048576) + ' MB' : dec(n / 1024) + ' KB'),
     time: (d: number | Date) => new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }),
     clock: (d: number | Date) =>
       new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' }),

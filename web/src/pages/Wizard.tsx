@@ -27,10 +27,10 @@ import type { IpConf } from '../api/types'
 import { putConfig, useActions } from '../app/actions'
 import { refreshConfig, refreshStatus } from '../app/connection'
 import { decksOf, hostLabel, reachList } from '../app/derive'
-import { configErrAtom, langAtom, loginReasonAtom } from '../app/state'
+import { configErrAtom, langAtom, loginReasonAtom, wifiScanAtom } from '../app/state'
 import { RestartOverlay } from '../app/Shell'
 import { getState, useStore } from '../app/store'
-import { errText, useUi } from '../app/ui'
+import { codeText, errText, useUi } from '../app/ui'
 import { Btn, Choice, describedBy, Field, SIcon, Switch } from '../components/controls'
 import { CopyField, PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
@@ -47,6 +47,7 @@ import {
   normPin,
   passwordError,
   pinError,
+  securedWifi,
   wifiError,
   wsUrlError,
 } from '../lib/validate'
@@ -63,14 +64,17 @@ const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', find: 'net', 
 const FROM_NUM: Step[] = ['lang', 'lang', 'pw', 'pw', 'net', 'src', 'done']
 const num = (s: Step) => (s === 'find' ? 4 : s === 'moving' ? 5 : FROM_NUM.lastIndexOf(s))
 const viaAp = () => getState().status.via_ap ?? !!getState().status.network?.ap?.on
-// A new password lives only in this page until the network step saves it. After a reload it is gone, so the
-// wizard asks for it again instead of finishing with the old one.
+// Name and password live only in this page until the network step saves them. A reload asks for the password
+// again; another browser or a reopened captive portal starts at the name, so setup never ends with values the
+// person typed and then lost without seeing it.
 const PW_PENDING = 'dc.wizpw'
 const NAME_PENDING = 'dc.wizname'
+const SEEN = 'dc.wizseen'
 const resumed = (): Step => {
   const s = FROM_NUM[getState().status.setup?.step ?? 0] ?? 'lang'
   // Back on the setup Wi-Fi after the move: joining the network failed, so the network step again.
   if ((s === 'src' || s === 'moving') && viaAp()) return 'net'
+  if ((s === 'pw' || s === 'net' || s === 'find') && !ss.get<boolean>(SEEN, false)) return 'lang'
   return (s === 'net' || s === 'find') && ss.get<boolean>(PW_PENDING, false) ? 'pw' : s
 }
 
@@ -148,7 +152,8 @@ export function Wizard() {
   const [addr, setAddr] = useState('')
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
-  const [mErr, setMErr] = useState<string | null>(null)
+  const [mErr, setMErr] = useState<{ to: string; m: string } | null>(null)
+  const [linked, setLinked] = useState<string | null>(null)
   const [url, setUrl] = useState('')
   const [uPin, setUPin] = useState('')
   const [uErr, setUErr] = useState<string | null>(null)
@@ -174,7 +179,7 @@ export function Wizard() {
   }, [step, src])
 
   const runTest = async () => {
-    const e = wifiError(wifi.ssid, wifi.pass)
+    const e = wifiError(wifi.ssid, wifi.pass, securedWifi(wifiScanAtom.get(), wifi.ssid))
     if (e) {
       setWErr(t(e))
       return false
@@ -187,7 +192,7 @@ export function Wizard() {
     return r === null
   }
   const nextLang = () => {
-    if (!nameE) return setStep('pw')
+    if (!nameE) return (ss.set(SEEN, true), setStep('pw'))
     setNameTried(true)
     document.getElementById('wname')?.focus()
   }
@@ -227,14 +232,16 @@ export function Wizard() {
   }
   const compConnect = async (target: string, p: string) => {
     const e = companionError(target) ?? (target.startsWith('wss://') ? pinError(p) : null)
-    if (e || !target) return setMErr(t(e ?? 'wiz.addr_bad'))
+    if (e || !target) return setMErr({ to: target, m: t(e ?? 'wiz.addr_bad') })
     setMErr(null)
+    setLinked(null)
     setBusy(target)
     try {
-      const r = await api.probe(target, normPin(p)).catch((x: unknown) => setMErr(errText(x, t)))
+      const r = await api.probe(target, normPin(p)).catch((x: unknown) => setMErr({ to: target, m: errText(x, t) }))
       if (!r) return
-      if (!r.ok) return setMErr(r.error ?? t('wiz.no_answer', { a: target }))
-      await act(() =>
+      if (!r.ok)
+        return setMErr({ to: target, m: r.error ? codeText(t, r.code, r.error) : t('wiz.no_answer', { a: target }) })
+      const ok = await act(() =>
         putConfig({
           satellite: target,
           satellite_pin: target.startsWith('wss://') ? normPin(p) : '',
@@ -242,6 +249,7 @@ export function Wizard() {
           host: 'satellite',
         }),
       )
+      if (ok !== undefined) setLinked(target)
     } finally {
       setBusy(null)
     }
@@ -269,6 +277,7 @@ export function Wizard() {
     if (await ask({ title: t('cf.skip'), body: t('cf.skip_b'), ok: t('wiz.skip') })) await finish()
   }
 
+  const satErr = mErr && mErr.to === addr.trim() ? mErr.m : null
   const idx = STEPS.indexOf(step === 'find' || step === 'moving' ? 'net' : step)
   const deckSays: TKey = rerun
     ? 'wiz.d_live'
@@ -322,7 +331,7 @@ export function Wizard() {
         <Field
           id="wname"
           label={t('wiz.name')}
-          hint={t('wiz.name_h', { url: `${name || '…'}.local` })}
+          hint={t('wiz.name_h', { url: `${nameE ? '…' : name}.local` })}
           err={nameTried && nameE ? t(nameE) : null}
         >
           <input
@@ -383,65 +392,68 @@ export function Wizard() {
   else if (step === 'net')
     body = pane(
       t('wiz.net_q'),
-      !editNet ? (
-        <Notice
-          n={{
-            id: 'kept',
-            icon: NetIcon,
-            lvl: 'ok',
-            title: t('wiz.net_kept'),
-            text: where.join(' · '),
-            acts: [{ label: t('wiz.net_change'), icon: Pencil, run: () => setD((o) => ({ ...o, editNet: true })) }],
-          }}
-        />
-      ) : (
-        <>
-          <div className={cable ? 'okline' : 'warnline'}>
-            {cable ? <Check size={16} aria-hidden /> : <TriangleAlert size={16} aria-hidden />}
-            {cable ? t('wiz.lan_ok') : t('wiz.lan_none')}
-          </div>
-          {cable && (
-            <Switch
-              id="w-usewlan"
-              on={useWlan}
-              onChange={(v) => (setUseWlan(v), setTest(null), setWErr(null))}
-              label={t('wiz.use_wlan')}
-              hint={t('wiz.use_wlan_h')}
-            />
-          )}
-          {useWlan && (
-            <>
-              <WifiPicker
-                id="w-wifi"
-                value={wifi}
-                current={rerun ? st.network?.wlan?.ssid : ''}
-                err={wErr}
-                onChange={(v) => (setWifi(v), setTest(null), setWErr(null))}
-              />
-              {test === 'ok' && (
-                <p className="okline" role="status">
-                  <Check size={16} aria-hidden />
-                  {t('wiz.test_ok', { ssid: wifi.ssid, ip: st.network?.wlan?.ip ?? '' })}
-                </p>
-              )}
-            </>
-          )}
-          <Row id="w-expert" group="wiz" icon={NetIcon} title={t('wiz.expert')}>
+      <>
+        {!editNet ? (
+          <Notice
+            n={{
+              id: 'kept',
+              icon: NetIcon,
+              lvl: 'ok',
+              title: t('wiz.net_kept'),
+              text: where.join(' · '),
+              acts: [{ label: t('wiz.net_change'), icon: Pencil, run: () => setD((o) => ({ ...o, editNet: true })) }],
+            }}
+          />
+        ) : (
+          <>
+            <div className={cable ? 'okline' : 'warnline'}>
+              {cable ? <Check size={16} aria-hidden /> : <TriangleAlert size={16} aria-hidden />}
+              {cable ? t('wiz.lan_ok') : t('wiz.lan_none')}
+            </div>
             {cable && (
-              <>
-                <div className="lbl">{t('net.lan')}</div>
-                <NetBlock id="wlan0" v={lan} set={setLan} err={ipErrors(lan)} />
-              </>
+              <Switch
+                id="w-usewlan"
+                on={useWlan}
+                onChange={(v) => (setUseWlan(v), setTest(null), setWErr(null))}
+                label={t('wiz.use_wlan')}
+                hint={t('wiz.use_wlan_h')}
+              />
             )}
             {useWlan && (
               <>
-                <div className="lbl">{t('net.wlan')}</div>
-                <NetBlock id="wlan1" v={wlan} set={setWlan} err={ipErrors(wlan)} />
+                <WifiPicker
+                  id="w-wifi"
+                  value={wifi}
+                  current={rerun ? st.network?.wlan?.ssid : ''}
+                  err={wErr}
+                  onChange={(v) => (setWifi(v), setTest(null), setWErr(null))}
+                />
+                {test === 'ok' && (
+                  <p className="okline" role="status">
+                    <Check size={16} aria-hidden />
+                    {t('wiz.test_ok', { ssid: wifi.ssid, ip: st.network?.wlan?.ip ?? '' })}
+                  </p>
+                )}
               </>
             )}
-          </Row>
-        </>
-      ),
+            <Row id="w-expert" group="wiz" icon={NetIcon} title={t('wiz.expert')}>
+              {cable && (
+                <>
+                  <div className="lbl">{t('net.lan')}</div>
+                  <NetBlock id="wlan0" v={lan} set={setLan} err={ipErrors(lan)} cur={st.network?.lan?.ip} />
+                </>
+              )}
+              {useWlan && (
+                <>
+                  <div className="lbl">{t('net.wlan')}</div>
+                  <NetBlock id="wlan1" v={wlan} set={setWlan} err={ipErrors(wlan)} cur={st.network?.wlan?.ip} />
+                </>
+              )}
+            </Row>
+          </>
+        )}
+        {!onAp && restarts && <p className="small muted">{t('wiz.restart_h')}</p>}
+      </>,
       <>
         {backBtn}
         <button
@@ -516,7 +528,7 @@ export function Wizard() {
             on={src === 'app'}
             first={!src}
             icon={Monitor}
-            label={t('wiz.p_app')}
+            label={t('prog.app')}
             hint={t('wiz.p_app_h')}
             onPick={() => (setSrc('app'), setSrcErr(null))}
           />
@@ -632,18 +644,29 @@ export function Wizard() {
                 </div>
               )
             )}
+            {mErr && mErr.to !== addr.trim() && (
+              <p className="warnline" role="alert">
+                {mErr.m}
+              </p>
+            )}
+            {linked && !drawer && (
+              <p className="okline" role="status">
+                <Check size={16} aria-hidden />
+                {t('wiz.linked', { a: linked })}
+              </p>
+            )}
             <p className="small muted">{t('wiz.docker')}</p>
-            <Field id="w-sat" label={t('src.addr')} hint={t('src.addr_hint')} err={mErr}>
+            <Field id="w-sat" label={t('src.addr')} hint={t('src.addr_hint')} err={satErr}>
               <div className="inrow">
                 <input
-                  {...describedBy('w-sat', mErr, true)}
+                  {...describedBy('w-sat', satErr, true)}
                   className="in mono"
                   value={addr}
-                  onChange={(e) => (setAddr(e.target.value), setMErr(null))}
+                  onChange={(e) => setAddr(e.target.value)}
                   spellCheck={false}
                 />
                 <Btn disabled={!addr || !!busy} onClick={() => void compConnect(addr.trim(), pin)}>
-                  {busy === addr.trim() ? t('st.connecting') : t('wiz.connect_addr')}
+                  {busy === addr.trim() ? t('st.connecting') : t('src.connect')}
                 </Btn>
               </div>
             </Field>
@@ -673,7 +696,7 @@ export function Wizard() {
                   spellCheck={false}
                 />
                 <Btn disabled={!url} onClick={() => void srvConnect()}>
-                  {t('wiz.connect_addr')}
+                  {t('src.connect')}
                 </Btn>
               </div>
             </Field>
@@ -713,7 +736,7 @@ export function Wizard() {
           <Btn kind="ghost" onClick={() => setStep('done')}>
             {t('wiz.src_later')}
           </Btn>
-          {next(t('c.next'), () => (drawer ? setStep('done') : setSrcErr(t('wiz.pick_first'))))}
+          {next(t('c.next'), () => (drawer || linked ? setStep('done') : setSrcErr(t('wiz.pick_first'))))}
         </div>
       </>,
     )
@@ -734,6 +757,8 @@ export function Wizard() {
                   : t('wiz.done_look', { prog: t(`prog.${drawer.kind}`) }),
             }}
           />
+        ) : linked ? (
+          <Notice n={{ id: 'linked', icon: Radio, lvl: 'info', title: t('wiz.linked', { a: linked }) }} />
         ) : (
           <Notice
             n={{

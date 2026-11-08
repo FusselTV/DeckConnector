@@ -47,12 +47,16 @@ describe('planRestore', () => {
     expect(p.errors).toEqual([])
   })
   it('instant keys need no restart', () => {
-    expect(planRestore(cfg, { brightness: 10 }).restart).toBe(false)
+    expect(planRestore(cfg, { ...cfg, brightness: 10 }).restart).toBe(false)
   })
   it('reports invalid values', () => {
-    expect(planRestore(cfg, { lan: { dhcp: false, ip: 'x', mask: '' } }).errors.length).toBeGreaterThan(0)
-    expect(planRestore(cfg, { brightness: 200 }).errors).toEqual(['brightness: 0-100'])
-    expect(planRestore(cfg, [1]).errors).toEqual(['not an object'])
+    expect(planRestore(cfg, { ...cfg, lan: { dhcp: false, ip: 'x', mask: '' } }).errors.length).toBeGreaterThan(0)
+    expect(planRestore(cfg, { ...cfg, brightness: 200 }).errors).toEqual([{ key: 'brightness', err: 'fw.r_bri' }])
+  })
+  it('takes only a backup', () => {
+    const not = [{ key: '', err: 'fw.not_backup' }]
+    expect(planRestore(cfg, [1]).errors).toEqual(not)
+    expect(planRestore(cfg, { name: 'my-app', version: '1.0.0', dependencies: {} }).errors).toEqual(not)
   })
   it('takes the secrets of a full backup back and shows only whether they are set', () => {
     const p = planRestore(cfg, { ...cfg, admin_pass: 'hunter22', wifi_pass: 'wlan-secret', token: '' })

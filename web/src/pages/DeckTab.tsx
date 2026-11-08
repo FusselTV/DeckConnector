@@ -17,7 +17,7 @@ interface Hl {
   keys: number[]
   dials: number[]
 }
-export function chordHl(o: Chord, M: Model): Hl {
+function chordHl(o: Chord, M: Model): Hl {
   const nk = M.cols * M.rows
   const dials = M.dials?.n ?? 0
   const enc = { keys: [], dials: [0, Math.min(3, dials - 1)] }
@@ -31,7 +31,7 @@ export function chordSentence(t: T, o: Chord, M: Model, holdS: string) {
   return t(hl.dials.length ? 'chord.s_dials' : 'chord.s_keys', { a: a + 1, b: b + 1, s: holdS })
 }
 
-export function MiniDeck({ kind, hl }: { kind: ModelKey; hl: Hl }) {
+function MiniDeck({ kind, hl }: { kind: ModelKey; hl: Hl }) {
   const M: Model = MODELS[kind]
   const nk = M.cols * M.rows
   const nd = M.dials?.n ?? 0
@@ -100,7 +100,7 @@ export function DeckTab() {
       <Card
         id="card-decks"
         icon={LayoutGrid}
-        title={multi ? t('deck.list') : t('deck.one')}
+        title={multi ? t('deck.list') : t('tab.deck')}
         right={multi && <Help right label={t('deck.list')} text={t('deck.map')} />}
       >
         {!deck ? (
@@ -181,7 +181,7 @@ export function DeckTab() {
           <div className="chordnow">
             <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind])} />
             <p>
-              {chordSentence(t, v.chord, MODELS[kind], fmt.dec(v.hold))}
+              {chordSentence(t, v.chord, MODELS[kind], fmt.dec(holdErr ? (cfg?.menu_hold_ms ?? 2000) / 1000 : v.hold))}
               {multi && deck && (
                 <>
                   <br />

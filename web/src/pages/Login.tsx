@@ -43,11 +43,14 @@ function useLogin() {
       dispatch({ type: 'auth', auth: 'app' })
       startSession()
     } catch (x) {
-      if (x instanceof ApiError && (x.status === 429 || x.message === 'locked')) {
-        setLock(12)
+      if (x instanceof ApiError && (x.status === 429 || x.code === 'locked' || x.message === 'locked')) {
+        setLock(x.retry || 12)
         setErr(null)
       } else if (x instanceof ApiError && x.status === 0 && x.code !== 'timeout') setErr(t('login.offline'))
-      else if (x instanceof ApiError && (x.status === 401 || (x.status === 403 && x.message === 'wrong password')))
+      else if (
+        x instanceof ApiError &&
+        (x.status === 401 || x.code === 'wrong_password' || x.message === 'wrong password')
+      )
         setErr(t('login.wrong'))
       else setErr(errText(x, t))
     } finally {
@@ -180,7 +183,11 @@ function Forgot() {
           </button>
         </>
       )}
-      {L.msg && <p className="warnline">{L.msg}</p>}
+      {L.msg && (
+        <p className="warnline" role="status">
+          {L.msg}
+        </p>
+      )}
       {err && (
         <p className="warnline" role="alert">
           {err}
@@ -216,7 +223,7 @@ export function Login() {
           {L.lock > 0 && (
             <Notice n={{ id: 'lock', icon: ShieldAlert, lvl: 'bad', title: t('login.locked', { n: L.lock }) }} />
           )}
-          <Field id="lpw" label={t('login.pass')} err={L.err}>
+          <Field id="lpw" label={t('wiz.s_pw')} err={L.err}>
             <PwInput
               {...describedBy('lpw', L.err)}
               value={L.pw}
@@ -249,7 +256,7 @@ export function LoginBar() {
   return (
     <form className="notice warn loginbar" onSubmit={(e) => void L.submit(e)}>
       <b>{t('login.expired_bar')}</b>
-      <Field id="lpw-bar" label={t('login.pass')} err={L.err}>
+      <Field id="lpw-bar" label={t('wiz.s_pw')} err={L.err}>
         <div className="inrow">
           <input
             {...describedBy('lpw-bar', L.err)}

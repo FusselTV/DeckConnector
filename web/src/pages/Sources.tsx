@@ -24,7 +24,7 @@ import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
 import { getState, useStore } from '../app/store'
-import { errText, useUi } from '../app/ui'
+import { codeText, errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
@@ -143,7 +143,7 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
       if (typeof r === 'string') return setErr({ sat: r })
       if (!r.ok) {
         setFailed(addr)
-        setErr({ sat: `${t('wiz.no_answer', { a: addr })}${r.error ? ` (${r.error})` : ''}` })
+        setErr({ sat: `${t('wiz.no_answer', { a: addr })}${r.error ? ` (${codeText(t, r.code, r.error)})` : ''}` })
         return
       }
     }
@@ -309,7 +309,7 @@ function AppForm({ close }: { close: () => void }) {
       <div className="mfoot inline">
         <span className="sp" />
         <Btn kind="pri" onClick={close}>
-          {t('c.done')}
+          {t('wiz.s_done')}
         </Btn>
       </div>
     </>
@@ -512,7 +512,7 @@ export function Sources() {
                 <span role="columnheader">{t('src.col_conn')}</span>
                 <span role="columnheader">{t('src.col_state')}</span>
                 <span role="columnheader" className="sr-acts">
-                  <span className="sr">{t('th.action')}</span>
+                  <span className="sr">{t('pal.act')}</span>
                 </span>
               </div>
               {rows.map((s) => {

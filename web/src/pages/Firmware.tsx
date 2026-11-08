@@ -24,7 +24,7 @@ import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { toast } from '../app/state'
 import { useStore } from '../app/store'
-import { errText, useUi } from '../app/ui'
+import { codeText, errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, Choice, describedBy, Field, Help, Seg, SIcon, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
@@ -32,12 +32,42 @@ import { FilePick } from '../components/InputAction'
 import { KeyValue } from '../components/KeyValue'
 import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
-import type { TKey } from '../i18n'
+import type { T, TKey } from '../i18n'
 import { backupOf, planRestore } from '../lib/backup'
 import { download, roam } from '../lib/util'
 import { httpUrlError } from '../lib/validate'
 
 type Target = 'p4' | 'c6' | 'page' | 'bootloader' | 'ptable' | null
+
+const LABEL: Record<string, TKey> = {
+  name: 'net.name',
+  brightness: 'ov.bright',
+  lan: 'net.lan',
+  wlan: 'net.wlan',
+  wifi_ssid: 'net.ssid',
+  satellite: 'src.addr',
+  satellite_pin: 'src.pin',
+  servers: 'src.srv_url',
+  https_only: 'access.https_only',
+  cors_origins: 'access.cors',
+  menu_chord: 'deck.chord',
+  menu_hold_ms: 'deck.hold',
+  qr_login: 'access.qr',
+  usb_speed: 'deck.speed',
+  dock_paired_only: 'src.only',
+  admin_pass: 'access.pw',
+  ip: 'net.ip',
+  mask: 'net.mask',
+  gateway: 'net.gw',
+  dns: 'net.dns',
+  dhcp: 'net.dhcp',
+}
+/** "lan.ip" as the UI names it: "LAN › IP address". A key without a label stays as it is. */
+const settingName = (k: string, t: T) =>
+  k
+    .split('.')
+    .map((p) => (LABEL[p] ? t(LABEL[p]) : p))
+    .join(' › ')
 
 function slotState(s: Slot): [Tone, TKey] {
   if (s.running) return ['ok', 'slot.running']
@@ -68,41 +98,43 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
     api.inspect(f).then(
       (r) => {
         if (picked.current !== f) return
-        if (!r.ok) return setErr(r.error ?? t('fw.bad_header'))
+        if (!r.ok) return setErr(codeText(t, r.code, r.error ?? t('fw.bad_header')))
         setTg(r.target === 'web' ? 'page' : (r.target ?? null))
         setVersion(r.version ?? null)
       },
       (e: unknown) => picked.current === f && setErr(errText(e, t)),
     )
   }
+  const cur = useStore((s) => s.status.firmware) ?? '–'
+  const slotVars = { slot: target?.slot ?? '–', old: target?.version ?? '–', cur }
   const what =
     mode === 'url'
-      ? t('upd.w_url')
+      ? t('upd.w_url', slotVars)
       : tg === 'page'
         ? t('upd.w_page')
         : tg === 'c6'
           ? t('upd.w_c6')
           : tg === 'p4'
-            ? t('upd.w_p4', { slot: target?.slot ?? '–', old: target?.version ?? '–' })
+            ? t('upd.w_p4', slotVars)
             : null
   const go = async () => {
     if (mode === 'url') {
-      const e = httpUrlError(url)
+      const u = url.trim()
+      const e = httpUrlError(u)
       if (e) return setErr(t(e))
       const ok = await ask({
         title: t('cf.fw', { tgt: t('tgt.p4') }),
         body: (
           <>
-            <code className="wrap">{url}</code>
+            <code className="wrap">{u}</code>
             <p>{t('fw.ver_unknown')}</p>
-            {url.startsWith('http://') && <p className="warnline">{t('fw.http_warn')}</p>}
           </>
         ),
         ok: t('btn.install'),
       })
       if (!ok) return
       close()
-      await act(() => api.otaUrl(url.trim()))
+      await act(() => api.otaUrl(u))
       return
     }
     if (!file || !tg) return
@@ -158,12 +190,12 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
           <FilePick id="upd-file" accept=".dbfw" file={file} onFile={pickFile} />
         </Field>
       ) : (
-        <Field id="upd-url" label={t('upd.url')} err={err}>
+        <Field id="upd-url" label={t('upd.url')} hint={t('fw.url_h')} err={err}>
           <input
-            {...describedBy('upd-url', err)}
+            {...describedBy('upd-url', err, true)}
             className="in mono"
             type="url"
-            placeholder="https://…/deckconnector.dbfw"
+            placeholder="http://…/deckconnector.dbfw"
             value={url}
             onChange={(e) => (setUrl(e.target.value), setErr(null))}
           />
@@ -247,7 +279,7 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
       setAt(Date.now())
       if (u.latest && u.url && u.latest !== u.current)
         setSt({ state: 'new', u: { ...u, latest: u.latest, url: u.url } })
-      else setSt(u.error ? { state: 'error', msg: u.error } : { state: 'none' })
+      else setSt(u.error ? { state: 'error', msg: codeText(t, u.code, u.error) } : { state: 'none' })
     } catch (e) {
       setSt({ state: 'error', msg: errText(e, t) })
     }
@@ -347,7 +379,7 @@ export function Firmware() {
     if (!s) return
     const r = await act(() => api.inspect(file))
     if (!r) return
-    if (!r.ok || r.target !== 'p4') return toast(r.error ?? t('fw.bad_header'), { bad: true })
+    if (!r.ok || r.target !== 'p4') return toast(codeText(t, r.code, r.error ?? t('fw.bad_header')), { bad: true })
     if (
       !(await ask({
         title: t('cf.write', { slot: s.slot }),
@@ -379,6 +411,7 @@ export function Firmware() {
       return toast(t('fw.restore_bad'), { bad: true })
     }
     const p = planRestore(cfg, obj)
+    if (p.errors[0]?.err === 'fw.not_backup') return toast(t('fw.not_backup'), { bad: true })
     if (p.errors.length)
       return void ask({
         title: t('fw.restore_err'),
@@ -387,8 +420,8 @@ export function Firmware() {
             <p>{t('fw.restore_err_b')}</p>
             <ul className="plain">
               {p.errors.map((e) => (
-                <li key={e}>
-                  <code>{e}</code>
+                <li key={e.key}>
+                  <b>{settingName(e.key, t)}</b> {t(e.err)}
                 </li>
               ))}
             </ul>
@@ -415,7 +448,7 @@ export function Firmware() {
             <table className="diff">
               <thead>
                 <tr>
-                  <th>{t('cf.r_key')}</th>
+                  <th>{t('pal.set')}</th>
                   <th>{t('cf.r_now')}</th>
                   <th>{t('cf.r_file')}</th>
                 </tr>
@@ -423,7 +456,7 @@ export function Firmware() {
               <tbody>
                 {p.rows.map((r) => (
                   <tr key={r.key}>
-                    <td className="mono">{r.key}</td>
+                    <td>{settingName(r.key, t)}</td>
                     <td className="mono">{r.secret ? (r.now ? t('fw.secret_set') : '–') : show(r.now)}</td>
                     <td className="mono" style={{ color: 'var(--fg)', fontWeight: 600 }}>
                       {r.secret ? (r.file ? t('fw.secret_set') : '–') : show(r.file)}
@@ -469,7 +502,7 @@ export function Firmware() {
       >
         <KeyValue
           rows={[
-            [t('fw.firmware'), t('fw.running_slot', { v: st.firmware ?? '–', n: running?.slot ?? '–' }), true],
+            [t('tab.firmware'), t('fw.running_slot', { v: st.firmware ?? '–', n: running?.slot ?? '–' }), true],
             [t('tgt.c6'), st.wlan_firmware, true],
             [
               t('fw.page'),
@@ -500,7 +533,8 @@ export function Firmware() {
           <div className="prog" role="status">
             <div className="row">
               <LoaderCircle size={18} className="spin" aria-hidden />
-              <b>{t(`tgt.${ota.target}` as 'tgt.p4')}</b> · {ota.error ?? t(`ota.${ota.state}` as 'ota.done')}
+              <b>{t(`tgt.${ota.target}` as 'tgt.p4')}</b> ·{' '}
+              {ota.error ? codeText(t, ota.code, ota.error) : t(`ota.${ota.state}` as 'ota.done')}
               <span className="sp" />
               <span className="mono">{fmt.pct(ota.pct)}</span>
             </div>

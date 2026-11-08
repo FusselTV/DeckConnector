@@ -3,6 +3,7 @@ import {
   cidrMask,
   companionError,
   corsError,
+  httpUrlError,
   ipErrors,
   isIP,
   isMask,
@@ -129,5 +130,12 @@ describe('values the firmware refuses or that lock the device out', () => {
     expect(wifiError('Home', 'ab'.repeat(32))).toBeNull()
     expect(wifiError('Home', 'p'.repeat(63))).toBeNull()
     expect(wifiError('Home', '')).toBeNull()
+    expect(wifiError('Home', '', true)).toBe('wifi.pass_need')
+    expect(wifiError('Home', 'p'.repeat(8), true)).toBeNull()
+  })
+
+  it('firmware URL: http only, spaces around it ignored', () => {
+    expect(httpUrlError(' http://h/x.dbfw ')).toBeNull()
+    expect(httpUrlError('https://h/x.dbfw')).toBe('fw.bad_url')
   })
 })

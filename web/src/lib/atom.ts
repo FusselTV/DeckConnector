@@ -10,6 +10,7 @@ export function atom<V>(initial: V) {
   }
   return {
     get: () => v,
+    subscribe,
     set(next: V | ((p: V) => V)) {
       const n = typeof next === 'function' ? (next as (p: V) => V)(v) : next
       if (Object.is(n, v)) return

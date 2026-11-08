@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Confirm } from '../components/Dialog'
 import { Toasts } from '../components/Toasts'
+import { Logo } from '../deck/DeckFront'
 import { Login } from '../pages/Login'
 import { Wizard } from '../pages/Wizard'
 import { Shell } from './Shell'
@@ -10,7 +11,12 @@ import { UiProvider, type AskOpts } from './ui'
 function Body() {
   const auth = useStore((s) => s.auth)
   const wizard = useStore((s) => s.status.setup?.active)
-  if (auth === 'checking') return null
+  if (auth === 'checking')
+    return (
+      <div className="center" aria-busy="true">
+        <Logo s={52} />
+      </div>
+    )
   if (auth === 'login') return <Login />
   if (wizard) return <Wizard />
   return <Shell />

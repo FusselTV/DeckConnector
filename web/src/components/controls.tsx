@@ -99,10 +99,15 @@ export function Field(p: {
 }) {
   return (
     <div className="field">
-      <label htmlFor={p.id}>
-        {p.label}
-        {p.help && <Help label={typeof p.label === 'string' ? p.label : ''} text={p.help} />}
-      </label>
+      {p.help ? (
+        // The help button sits beside the label, not in it, so its text stays out of the field's name.
+        <span className="flabel">
+          <label htmlFor={p.id}>{p.label}</label>
+          <Help label={typeof p.label === 'string' ? p.label : ''} text={p.help} />
+        </span>
+      ) : (
+        <label htmlFor={p.id}>{p.label}</label>
+      )}
       {p.children}
       {p.err && (
         <span className="err" id={`${p.id}-err`} role="alert">

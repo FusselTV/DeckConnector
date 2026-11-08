@@ -92,7 +92,7 @@ test('a failed release is retried', async ({ app: page, errors }) => {
 
 test('a dial held on its arrow stops repeating after a few seconds', async ({ app: page }) => {
   const { sent } = await armedDeck(page)
-  const dial = page.getByRole('button', { name: /^Encoder 1\./ })
+  const dial = page.getByRole('button', { name: /^Dial 1\./ })
   test.skip(!(await dial.count()), 'this deck has no dials')
   await dial.scrollIntoViewIfNeeded()
   const b = await dial.boundingBox()
@@ -130,7 +130,7 @@ test('a key up waits for its down, and a release that fails for good says so', a
 
 test('wheel events on a focused dial add up by distance into one turn per frame', async ({ app: page }) => {
   const { sent } = await armedDeck(page)
-  const dial = page.getByRole('button', { name: /^Encoder 1\./ })
+  const dial = page.getByRole('button', { name: /^Dial 1\./ })
   test.skip(!(await dial.count()), 'this deck has no dials')
   await dial.focus()
   const wheel = (dys: number[]) =>

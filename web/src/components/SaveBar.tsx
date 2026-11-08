@@ -1,8 +1,10 @@
 import { PenLine, Power } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
+import { api } from '../api/client'
 import { putConfig } from '../app/actions'
+import { refreshConfig } from '../app/connection'
 import { draftsAtom, TABS, toast, type Draft, type Tab } from '../app/state'
-import { useStore } from '../app/store'
+import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { useLatest } from '../lib/util'
 
@@ -57,8 +59,17 @@ export function SaveBar() {
       }))
     if (!confirm) return
     const ok = await act(async () => {
-      for (const d of ds) if (d.prepare && !(await d.prepare())) return false
       const patch = Object.assign({}, ...ds.map((d) => d.patch)) as Draft['patch']
+      // The settings carry no version: a field this page would send that changed on the device since it was read
+      // (another tab, another person) is shown before it is overwritten.
+      const seen = getState().config as Record<string, unknown> | null
+      const now = (await api.config()) as unknown as Record<string, unknown>
+      const moved = Object.keys(patch).filter((k) => seen && JSON.stringify(now[k]) !== JSON.stringify(seen[k]))
+      if (moved.length && !(await ask({ title: t('save.moved'), body: t('save.moved_b'), ok: t('save.overwrite') }))) {
+        await refreshConfig()
+        return false
+      }
+      for (const d of ds) if (d.prepare && !(await d.prepare())) return false
       if (Object.keys(patch).length) await putConfig(patch)
       return true
     })

@@ -1,12 +1,13 @@
 import type { Config, ConfigPatch } from '../api/types'
+import type { Key } from '../i18n/types'
 import { ipErrors, NAME_RE } from './validate'
 
 // GET /api/config leaves these out, so a full backup's values cannot be compared and always go back.
-export const SECRETS = ['admin_pass', 'wifi_pass', 'token'] as const
+const SECRETS = ['admin_pass', 'wifi_pass', 'token'] as const
 const isSecret = (k: string) => (SECRETS as readonly string[]).includes(k)
 
 type Flat = Record<string, unknown>
-export const flat = (o: object, p = ''): Flat =>
+const flat = (o: object, p = ''): Flat =>
   Object.fromEntries(
     Object.entries(o).flatMap(([k, v]) =>
       v && typeof v === 'object' && !Array.isArray(v) ? Object.entries(flat(v as object, `${p}${k}.`)) : [[p + k, v]],
@@ -40,19 +41,22 @@ const WRITABLE = new Set<keyof ConfigPatch>([
 ])
 const RESTARTS = new Set(['name', 'lan', 'wlan', 'wifi_ssid', 'wifi_bssid', 'usb_speed', 'ntp_server'])
 
-export interface RestorePlan {
+interface RestorePlan {
   patch: ConfigPatch
   /** For a secret, `now` and `file` say only whether it is set. */
   rows: { key: string; now: unknown; file: unknown; secret?: boolean }[]
   restart: boolean
-  errors: string[]
+  errors: { key: string; err: Key }[]
 }
+
+// Both kinds of backup (GET /api/config and /api/backup) carry these; another JSON file does not.
+const MARKS = ['controller', 'lan', 'wlan', 'menu_chord', 'wifi_pass_set'] as const
 
 /** What applying a settings file would change, and what in it is invalid. */
 export function planRestore(cfg: Config, file: unknown): RestorePlan {
-  const errors: string[] = []
-  if (!file || typeof file !== 'object' || Array.isArray(file))
-    return { patch: {}, rows: [], restart: false, errors: ['not an object'] }
+  const errors: RestorePlan['errors'] = []
+  if (!file || typeof file !== 'object' || Array.isArray(file) || !MARKS.every((k) => k in file))
+    return { patch: {}, rows: [], restart: false, errors: [{ key: '', err: 'fw.not_backup' }] }
   const obj = file as Record<string, unknown>
   const top = Object.keys(obj).filter(
     (k) =>
@@ -62,12 +66,12 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
   const patch = Object.fromEntries(top.map((k) => [k, obj[k]])) as ConfigPatch
   for (const k of ['lan', 'wlan'] as const) {
     const v = patch[k]
-    if (v) for (const [f, e] of Object.entries(ipErrors({ ...cfg[k], ...v }))) errors.push(`${k}.${f}: ${e}`)
+    if (v) for (const [f, e] of Object.entries(ipErrors({ ...cfg[k], ...v }))) errors.push({ key: `${k}.${f}`, err: e })
   }
-  if (patch.name !== undefined && !NAME_RE.test(patch.name)) errors.push('name')
+  if (patch.name !== undefined && !NAME_RE.test(patch.name)) errors.push({ key: 'name', err: 'net.bad_name' })
   if (patch.brightness !== undefined && !(patch.brightness >= 0 && patch.brightness <= 100))
-    errors.push('brightness: 0-100')
-  for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push(`${k}: text`)
+    errors.push({ key: 'brightness', err: 'fw.r_bri' })
+  for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push({ key: k, err: 'fw.r_text' })
   const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, token: cfg.token_set }
   const fc = flat(cfg)
   const fo = flat(patch)

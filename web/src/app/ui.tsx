@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError } from '../api/client'
-import { makeT, type Lang, type T } from '../i18n'
+import { makeT, type Lang, type T, type TKey } from '../i18n'
 import { makeFmt, type Fmt } from '../lib/format'
 import { ls } from '../lib/util'
 import { getState } from './store'
@@ -39,7 +39,7 @@ const flash = (el: Element | null) => {
   requestAnimationFrame(() => card.classList.add('flash'))
 }
 
-export function openTarget(id: string) {
+function openTarget(id: string) {
   const el = document.getElementById(id)
   if (!el) return
   for (let p: HTMLElement | null = el; p; p = p.parentElement) if (p instanceof HTMLDetailsElement) p.open = true
@@ -116,12 +116,20 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
   return <Ctx value={v}>{children}</Ctx>
 }
 
+/** The firmware's `code` in the page's language; its English text for a code this page does not know. */
+export function codeText(t: T, code: string | undefined, english: string) {
+  const k = `err.${code}`
+  const s = code ? t(k as TKey) : k
+  return s === k ? english : s
+}
+
 /** Words an error for a person: the firmware's reason where it gave one, never a proxy page or a script error. */
 export function errText(e: unknown, t: T) {
   if (!(e instanceof ApiError)) return t('c.err_page')
   if (e.code === 'timeout') return t('c.timeout')
   if (e.status === 0) return t('c.not_sent')
-  return e.message ? t('c.refused', { m: e.message }) : t('c.err_http', { n: e.status })
+  const m = codeText(t, e.code, e.message)
+  return m ? t('c.refused', { m }) : t('c.err_http', { n: e.status })
 }
 
 export function useTheme() {

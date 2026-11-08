@@ -20,15 +20,15 @@ import {
   Wifi,
   X,
 } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { api, ApiError, pressReal, READONLY } from '../api/client'
 import type { InputBody, InputEvent, Rect, Screen, Source } from '../api/types'
 import { pendingAtom, useActions } from '../app/actions'
 import { retryNow } from '../app/connection'
 import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
 import { useIssues } from '../app/issues'
-import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, toast, type Tab } from '../app/state'
-import { getState, useStore } from '../app/store'
+import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, tabAtom, toast, type Tab } from '../app/state'
+import { getState, subscribe, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Help, Led, Seg, SIcon, type Tone } from '../components/controls'
@@ -39,7 +39,7 @@ import type { T } from '../i18n'
 import { cx, ls, useLatest } from '../lib/util'
 import { chordSentence } from './DeckTab'
 
-export function Hero() {
+function Hero() {
   const { t, fmt } = useUi()
   const conn = useStore((s) => s.conn)
   const asOf = useStore((s) => s.asOf)
@@ -116,7 +116,7 @@ function Meter() {
       v: wlan?.ip ? `${wlan.ssid ?? ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}` : t('arm.off'),
     },
     {
-      k: 'meter.deck',
+      k: 'tab.deck',
       el: 'card-decks',
       to: 'deck',
       icon: LayoutGrid,
@@ -208,6 +208,7 @@ function ArmSwitch() {
       id="arm"
       role="switch"
       aria-checked={armed}
+      aria-label={t('arm.label')}
       aria-describedby="arm-h"
       className={cx('hbtn armpill', armed && 'on', nudge > 0 && 'nudge')}
       title={armed ? real : t('arm.help')}
@@ -234,7 +235,7 @@ function ArmSwitch() {
 }
 
 const ARROW: Record<string, string> = { down: '↓', up: '↑', press: '↕', encoder: '↕' }
-/** One input in a few words: "Taste 7 ↓", "Regler 4 ↻ +1", "Streifen tippen". */
+/** One input in a few words: "Taste 7 ↓", "Drehregler 4 ↻ +1", "Streifen tippen". */
 export function inputText(e: InputEvent, t: T) {
   const n = (e.key ?? 0) + 1
   const k = e.kind.replace(/^(key|encoder|touch)_/, '')
@@ -248,12 +249,16 @@ export function inputText(e: InputEvent, t: T) {
   return `${t('in.k_key')} ${n} ${ARROW[k] ?? ''}`
 }
 
+// The input log says only "web", not which browser: an input counts as this page's when it sent a press just then.
+let sentAt = 0
+
 function LastInput() {
   const { t, jump } = useUi()
   const last = useStore((s) => s.inputs[0])
   if (!last) return null
   const web = last.origin !== 'deck'
-  const src = t(web ? 'ov.legend_web' : 'ov.legend_deck')
+  const mine = last.origin === 'web' && Math.abs(last.at - sentAt) < 3000
+  const src = t(mine ? 'ov.legend_web' : web ? 'ov.legend_net' : 'ov.legend_deck')
   return (
     <button
       type="button"
@@ -301,17 +306,26 @@ function DeckPicker() {
   )
 }
 
-/** Fetches the deck picture once, then again on every ws `screen`, never two at a time. */
+const onVisible = (f: () => void) => {
+  document.addEventListener('visibilitychange', f)
+  return () => document.removeEventListener('visibilitychange', f)
+}
+
+/** Fetches the deck picture once, then again on every ws `screen`, never two at a time. Only while it can be seen:
+ *  a hidden tab or another page tab loads nothing, and the picture is fetched once on return. */
 function useScreen(serial: string | undefined) {
-  const rev = useStore((s) => s.screenRev)
+  const shown = tabAtom.use() === 'overview'
+  const visible = useSyncExternalStore(onVisible, () => !document.hidden)
+  const active = shown && visible
   const [screen, setScreen] = useState<Screen | null>(null)
   const busy = useRef(false)
   const again = useRef(false)
-  const shown = useRef<Screen | null>(null)
+  const last = useRef<Screen | null>(null)
   const retries = useRef(0)
   // The follow-up fetch runs the newest effect's load: an old one's `off` would drop its result.
   const latest = useRef<() => Promise<void>>(() => Promise.resolve())
   useEffect(() => {
+    if (!active) return
     let off = false
     const load = async () => {
       if (busy.current) {
@@ -321,7 +335,8 @@ function useScreen(serial: string | undefined) {
       busy.current = true
       try {
         const pushed = getState().pushed
-        const s = pushed && !serial && !retries.current ? pushed : await api.screen(serial)
+        const s = pushed && !serial && !retries.current && !first ? pushed : await api.screen(serial)
+        first = false
         // A new <img> is empty until it loads, so the old picture stays until the new ones are decoded. An image
         // the deck replaced meanwhile is gone (404): its area keeps the picture before, and the list is fetched again.
         const ok = await Promise.all(
@@ -334,15 +349,15 @@ function useScreen(serial: string | undefined) {
             )
           }),
         )
-        const prev = shown.current?.images ?? []
+        const prev = last.current?.images ?? []
         const same = (a: Rect, b: Rect) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
         const images = s.images.flatMap((i, n) => (ok[n] ? [i] : prev.filter((o) => same(o, i))))
         if (ok.includes(false) && retries.current < 3) {
           retries.current++
           again.current = true
         } else retries.current = 0
-        shown.current = { ...s, images }
-        if (!off) setScreen(shown.current)
+        last.current = { ...s, images }
+        if (!off) setScreen(last.current)
       } catch {
         /* the next screen event tries again */
       } finally {
@@ -353,12 +368,21 @@ function useScreen(serial: string | undefined) {
         }
       }
     }
+    // On return the pushed picture may be old: the first load asks the device.
+    let first = true
     latest.current = load
     void load()
+    let rev = getState().screenRev
+    const unsub = subscribe(() => {
+      if (getState().screenRev === rev) return
+      rev = getState().screenRev
+      void load()
+    })
     return () => {
       off = true
+      unsub()
     }
-  }, [serial, rev])
+  }, [serial, active])
   return screen
 }
 
@@ -410,6 +434,7 @@ const LiveDeck = memo(function LiveDeck() {
       const up = 'key' in b && b.action === 'up'
       // Every press by the person keeps remote control on for another minute.
       if (!up && !auto) armAtom.set(Date.now())
+      sentAt = Date.now()
       pressChain = pressChain.then(async () => {
         if (!up) return act(() => pressReal(b, serial))
         if (await release(b, serial)) return
@@ -497,7 +522,7 @@ function DeckCard() {
     >
       <div id="deckbody" className="stack" style={{ gap: 12 }} hidden={shut}>
         <DeckPicker />
-        <LiveDeck />
+        {!shut && <LiveDeck />}
         {hasDeck && (
           <div className="lastin-b">
             <LastInput />

@@ -181,11 +181,12 @@ export function retryNow() {
   if (!ws) openWs()
 }
 
-export function startSession() {
+/** `fresh`: the caller has just read the status, so it is not asked for again. */
+export function startSession(fresh = false) {
   started = true
   inputSeq = 0
   openWs()
-  void refreshStatus()
+  if (!fresh) void refreshStatus()
   void refreshConfig()
   void loadInputs()
   api.coredump().then(
@@ -230,7 +231,7 @@ export async function boot() {
   try {
     dispatch({ type: 'status', status: await api.status(), now: Date.now() })
     dispatch({ type: 'auth', auth: 'app' })
-    startSession()
+    startSession(true)
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) dispatch({ type: 'auth', auth: 'login' })
     else {

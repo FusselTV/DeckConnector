@@ -92,7 +92,7 @@ test('broken replies show a worded error and leave the rest of the page working'
       : r.fallback(),
   )
   await openTab(page, 'Access')
-  await expect(page.getByText('The token list could not be loaded.')).toBeVisible()
+  await expect(page.getByText('The list of API keys could not be loaded.')).toBeVisible()
   await openTab(page, 'Deck')
   await page.getByRole('radio', { name: /Two keys/ }).click()
   await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
@@ -174,15 +174,6 @@ test('the live deck is locked until remote control is on', async ({ app: page })
   await key.click({ force: true })
   await expect.poll(() => sent.length).toBeGreaterThan(0)
   expect(sent[0]).toMatchObject({ key: 0, real: true })
-})
-
-test('search finds settings and opens them', async ({ app: page }) => {
-  await page.keyboard.press('Control+k')
-  const box = page.getByRole('combobox', { name: 'Search' })
-  await box.fill('wifi')
-  await expect(page.getByRole('option').first()).toContainText(/Wi-Fi|Networks/)
-  await page.keyboard.press('Enter')
-  await expect(page.locator('#row-wlan')).toHaveAttribute('open', '')
 })
 
 test('long lists scroll inside their own box', async ({ app: page }) => {
@@ -292,7 +283,7 @@ test('without the password, the login page shows it on the deck or asks the deck
   await page.goto('/')
   await page.getByRole('button', { name: 'Show password on the deck' }).click()
   await expect(page.getByRole('button', { name: /On the deck for/ })).toBeDisabled()
-  await page.getByRole('button', { name: 'Forgot your password?' }).click()
+  await page.getByRole('button', { name: 'Reset to factory settings…' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm on the deck' }).click()
   await expect(page.getByText(/Confirm on the deck\. \d+ s left/)).toBeVisible()
   await page.getByRole('button', { name: 'Cancel' }).click()

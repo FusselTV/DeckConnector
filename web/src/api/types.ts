@@ -1,6 +1,6 @@
 // Every field the firmware may leave out is optional: the host simulator sends less.
 
-export type Kind = 'companion' | 'app' | 'server' | 'unknown'
+type Kind = 'companion' | 'app' | 'server' | 'unknown'
 export type Right = 'control' | 'full'
 
 export interface DeckInfo {
@@ -32,7 +32,7 @@ export interface Source {
   client?: string
 }
 
-export interface PairHost {
+interface PairHost {
   ip: string
   mac?: string
   name?: string
@@ -105,7 +105,6 @@ export interface Status {
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
   boot?: { reason?: string; at?: number | null }
-  update?: { latest?: string; at?: string }
 }
 
 export interface IpConf {
@@ -146,7 +145,7 @@ export interface Config {
 }
 
 /** Keys PUT /api/config takes besides those of Config. */
-export interface ConfigSecrets {
+interface ConfigSecrets {
   wifi_pass?: string
   admin_pass?: string
   token?: string
@@ -174,6 +173,7 @@ export interface PutReply {
 export interface Inspect {
   ok: boolean
   error?: string
+  code?: string
   target?: 'p4' | 'c6' | 'web' | 'page' | 'bootloader' | 'ptable'
   version?: string
   length?: number
@@ -309,6 +309,7 @@ export interface UpdateCheck {
   url?: string
   notes?: string
   error?: string
+  code?: string
 }
 
 export interface TlsInfo {
@@ -322,7 +323,7 @@ export type WsMsg =
   | ({ t: 'state' } & Status)
   | { t: 'screen'; deck?: string; screen?: Screen }
   | { t: 'input'; kind: string; index?: number; value?: number; writer?: string; simulated?: boolean; deck?: string }
-  | { t: 'ota'; target: string; state: string; pct: number; error?: string }
+  | { t: 'ota'; target: string; state: string; pct: number; error?: string; code?: string }
   | { t: 'ping' }
   | { t: 'log'; text: string }
   | { t: 'result'; id: number; status: number; reply: unknown }

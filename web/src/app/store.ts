@@ -1,13 +1,14 @@
 import { atom } from '../lib/atom'
 import type { Config, InputEvent, InputLogEntry, Screen, Status, WsMsg } from '../api/types'
 
-export type Conn = 'live' | 'reconnecting' | 'offline'
-export type Auth = 'checking' | 'login' | 'app' | 'expired'
-export interface Ota {
+type Conn = 'live' | 'reconnecting' | 'offline'
+type Auth = 'checking' | 'login' | 'app' | 'expired'
+interface Ota {
   target: string
   state: string
   pct: number
   error?: string
+  code?: string
 }
 
 export interface State {
@@ -103,7 +104,8 @@ export function reduce(s: State, a: Action): State {
       if (m.t === 'ota')
         return {
           ...s,
-          ota: m.state === 'idle' ? null : { target: m.target, state: m.state, pct: m.pct, error: m.error },
+          ota:
+            m.state === 'idle' ? null : { target: m.target, state: m.state, pct: m.pct, error: m.error, code: m.code },
         }
       return s
     }
@@ -125,6 +127,7 @@ export function reduce(s: State, a: Action): State {
 
 const store = atom(initial)
 export const getState = store.get
+export const subscribe = store.subscribe
 export const dispatch = (a: Action) => store.set((s) => reduce(s, a))
 /** Re-renders only when the selected slice changes (by Object.is), so a WS tick touches only its readers. */
 export const useStore = <R>(sel: (s: State) => R): R => store.use(sel)

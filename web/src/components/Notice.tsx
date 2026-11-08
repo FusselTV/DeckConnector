@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { cx } from '../lib/util'
 import { SIcon, useRun } from './controls'
 
-export interface NoticeAct {
+interface NoticeAct {
   label: string
   icon?: LucideIcon
   run: () => unknown
@@ -27,7 +27,10 @@ export function Notice({ n }: { n: NoticeData }) {
     <div className={cx('notice', k)} id={`ntc-${n.id}`} role={n.lvl === 'pair' || n.lvl === 'bad' ? 'alert' : 'status'}>
       <SIcon icon={n.icon} tone={k === 'info' ? '' : k} size={20} />
       <div className="ntext">
-        <b>{n.title}</b>
+        <b>
+          {n.title}
+          {n.text && <span className="sr">{/[.!?:…]$/.test(n.title) ? ' ' : '. '}</span>}
+        </b>
         {n.text && <span>{n.text}</span>}
         {n.extra}
       </div>

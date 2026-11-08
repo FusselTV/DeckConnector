@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { IpConf } from '../api/types'
 import { refreshConfig, refreshStatus } from '../app/connection'
 import { reachList, sigWord } from '../app/derive'
+import { wifiScanAtom } from '../app/state'
 import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -14,7 +15,7 @@ import { useDraft } from '../components/SaveBar'
 import { WifiPicker, type WifiChoice } from '../components/WifiPicker'
 import type { Key } from '../i18n/types'
 import { ls } from '../lib/util'
-import { ipErrors, NAME_RE, nameError, splitCidr, wifiError, type IpErrors } from '../lib/validate'
+import { ipErrors, NAME_RE, nameError, securedWifi, splitCidr, wifiError, type IpErrors } from '../lib/validate'
 
 export const EMPTY: IpConf = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
 const LABEL: Record<'ip' | 'mask' | 'gateway' | 'dns', Key> = {
@@ -24,7 +25,8 @@ const LABEL: Record<'ip' | 'mask' | 'gateway' | 'dns', Key> = {
   dns: 'net.dns',
 }
 
-export function NetBlock({ id, v, set, err }: { id: string; v: IpConf; set: (v: IpConf) => void; err: IpErrors }) {
+export function NetBlock(p: { id: string; v: IpConf; set: (v: IpConf) => void; err: IpErrors; cur?: string }) {
+  const { id, v, set, err } = p
   const { t } = useUi()
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -34,7 +36,7 @@ export function NetBlock({ id, v, set, err }: { id: string; v: IpConf; set: (v: 
           id={`${id}-dhcp`}
           label={t('net.ipmode')}
           value={v.dhcp ? 'auto' : 'static'}
-          onChange={(m) => set({ ...v, dhcp: m === 'auto' })}
+          onChange={(m) => set({ ...v, dhcp: m === 'auto', ip: v.ip || (m === 'auto' ? '' : (p.cur ?? '')) })}
           options={[
             ['auto', t('net.dhcp')],
             ['static', t('net.static')],
@@ -126,7 +128,7 @@ export function Network() {
     saved: () => setD({}),
     check: () => {
       const bad = (['lan', 'wlan'] as const).find((k) => Object.keys(err[k]).length)
-      const wifiBad = wifiChanged && wifiError(v.wifi.ssid, v.wifi.pass)
+      const wifiBad = wifiChanged && wifiError(v.wifi.ssid, v.wifi.pass, securedWifi(wifiScanAtom.get(), v.wifi.ssid))
       if (!bad && !err.name && !wifiBad) return true
       go('network')
       if (wifiBad) setJoinErr(t(wifiBad))
@@ -204,7 +206,7 @@ export function Network() {
           status={lanSt}
           open={!base.lan.dhcp}
         >
-          <NetBlock id="lan" v={v.lan} set={(lan) => set({ lan })} err={err.lan} />
+          <NetBlock id="lan" v={v.lan} set={(lan) => set({ lan })} err={err.lan} cur={n?.lan?.ip} />
         </Row>
         <Row
           id="row-wlan"
@@ -240,7 +242,7 @@ export function Network() {
               set({ wifi })
             }}
           />
-          <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} />
+          <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
         </Row>
       </Card>
       <Card id="card-names" icon={TagIcon} title={t('net.names')}>

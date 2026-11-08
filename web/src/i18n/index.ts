@@ -5,7 +5,7 @@ import type { Dict, Key, Lang, T, TKey, Vars } from './types'
 export type { Lang, T, TKey } from './types'
 
 // A new language is one more dictionary here. Missing keys fall back to English, then to the key itself.
-export const DICTS: Record<Lang, Partial<Dict>> = { de, en }
+const DICTS: Record<Lang, Partial<Dict>> = { de, en }
 
 export function makeT(lang: Lang): T {
   const plural = new Intl.PluralRules(lang)
