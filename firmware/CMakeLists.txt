@@ -21,7 +21,7 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(deckconnector)
 
 # Third party code: GCC 15 flags a harmless strncpy in mdns. Our own components keep -Werror.
-idf_component_get_property(mdns_lib espressif__mdns COMPONENT_LIB)
+idf_component_get_property(mdns_lib mdns COMPONENT_LIB)
 target_compile_options(${mdns_lib} PRIVATE -Wno-error=stringop-truncation)
 
 # ldgen takes 5 s and reruns on every edit, because it depends on every library. ldgen_cache.py skips it when its
