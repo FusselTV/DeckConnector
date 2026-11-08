@@ -1047,8 +1047,9 @@ static void sync_services(void *arg)
     xSemaphoreGive(s.info_lock);
     if (dock_instance[0]) {
         mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
-        announce();
+        dock_instance[0] = '\0';
     }
+    announce();
 }
 
 /* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them
@@ -1086,8 +1087,16 @@ size_t db_dock_hosts(db_dock_host_t *out, size_t max)
     return n;
 }
 
+/* Only with a deck: the Elgato App rejects a dock without one and then ignores it, also once a deck is back,
+ * until the app starts again. A dock that appears with its deck is new to it. */
 static void announce(void)
 {
+    xSemaphoreTake(s.info_lock, portMAX_DELAY);
+    bool deck = s.info.device != NULL;
+    xSemaphoreGive(s.info_lock);
+    if (!deck) {
+        return;
+    }
     snprintf(dock_instance, sizeof(dock_instance), "Stream Deck Network Dock %02X%02X%02X", s.info.mac[3],
              s.info.mac[4], s.info.mac[5]);
     char id[18];

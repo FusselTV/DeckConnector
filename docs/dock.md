@@ -5,9 +5,11 @@ Companion and the Elgato App find it over mDNS and drive the deck directly.
 
 ## Discovery
 
-The dock is `_elg._tcp` on port 5343, with these TXT records: `dt=215`, `mf=Elgato`, `md`, `pv`,
-`id` (MAC), `sn`, `fw`, `hwrev`. The serial number is `DB` and the MAC. While a deck is plugged in, the board also
-announces a second service named after its serial on port 5344, with `dt=213`, `vid`, `pid`, `fw` and `prt=2`.
+While a deck is plugged in, the dock is `_elg._tcp` on port 5343, with these TXT records: `dt=215`,
+`mf=Elgato`, `md`, `pv`, `id` (MAC), `sn`, `fw`, `hwrev`. The serial number is `DB` and the MAC. The board also
+announces a second service named after the deck's serial on port 5344, with `dt=213`, `vid`, `pid`, `fw` and `prt=2`.
+Without a deck it announces neither, because the Elgato App turns away a dock without a deck and does not look at
+it again until the app restarts.
 
 The board announces both services every 30 s, and again on every plug or unplug of the deck.
 
