@@ -6,11 +6,6 @@ Network Dock, so Bitfocus Companion and the Elgato App use it without any extra 
 also take the deck over its Satellite API. Every connected host is in one list, on the deck and in the web UI. A
 tap picks the one that draws, and the deck shows its picture at once.
 
-<table><tr>
-<td><img src="docs/img/status.jpg" width="380" alt=""></td>
-<td><img src="docs/img/companion.jpg" width="380" alt=""></td>
-</tr></table>
-
 ## What it does
 
 - One key takes 0.5 ms from the server to the end of the USB transfer, a 9 KB full screen image 1.7 ms (LAN,
