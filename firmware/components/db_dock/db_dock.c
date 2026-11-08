@@ -274,8 +274,11 @@ static void host_task(void *arg)
     vTaskDelete(NULL);
 }
 
-static char dock_instance[48];
+static char dock_instance[48]; /* set while the dock service is registered */
+/* the keepalive, the deck timer and the rejoin tasks all add and remove the service */
+static SemaphoreHandle_t mdns_lock;
 static void announce(void);
+static void withdraw(void);
 
 /* The hosts of the last boot, so that after a power cut their old connections can be ended. */
 typedef struct {
@@ -329,7 +332,7 @@ static void announce_anew(void)
         return;
     }
     vTaskDelay(pdMS_TO_TICKS(3000));
-    mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
+    withdraw();
     vTaskDelay(pdMS_TO_TICKS(500));
     announce();
 }
@@ -947,14 +950,21 @@ static void listen_task(void *arg)
 
 static char device_instance[32];
 
+static esp_timer_handle_t services_timer;
+
 static void reannounce(void)
 {
+    xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
     if (!dock_instance[0]) {
-        announce();
+        if (!esp_timer_is_active(services_timer)) { /* a deck that just came waits for its debounce */
+            announce();
+        }
+        xSemaphoreGiveRecursive(mdns_lock);
         return;
     }
     /* setting the unchanged port is the API's only way to send the full service announcement again */
     mdns_service_port_set_for_host(dock_instance, "_elg", "_tcp", NULL, DB_CORA_DOCK_PORT);
+    xSemaphoreGiveRecursive(mdns_lock);
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     if (device_instance[0]) {
         mdns_service_port_set_for_host(device_instance, "_elg", "_tcp", NULL, DB_CORA_DEVICE_PORT);
@@ -1038,18 +1048,15 @@ static void tell_hosts(void)
     }
 }
 
-static esp_timer_handle_t services_timer;
-
 static void sync_services(void *arg)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     device_service(s.info.device);
     xSemaphoreGive(s.info_lock);
-    if (dock_instance[0]) {
-        mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
-        dock_instance[0] = '\0';
-    }
+    xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
+    withdraw();
     announce();
+    xSemaphoreGiveRecursive(mdns_lock);
 }
 
 /* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them
@@ -1094,7 +1101,9 @@ static void announce(void)
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     bool deck = s.info.device != NULL;
     xSemaphoreGive(s.info_lock);
-    if (!deck) {
+    xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
+    if (!deck || dock_instance[0]) {
+        xSemaphoreGiveRecursive(mdns_lock);
         return;
     }
     snprintf(dock_instance, sizeof(dock_instance), "Stream Deck Network Dock %02X%02X%02X", s.info.mac[3],
@@ -1118,6 +1127,17 @@ static void announce(void)
         ESP_LOGW(TAG, "mDNS announcement failed: %s", esp_err_to_name(err));
         dock_instance[0] = '\0'; /* the next re-announce tries again */
     }
+    xSemaphoreGiveRecursive(mdns_lock);
+}
+
+static void withdraw(void)
+{
+    xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
+    if (dock_instance[0]) {
+        mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
+        dock_instance[0] = '\0';
+    }
+    xSemaphoreGiveRecursive(mdns_lock);
 }
 
 /* Runs in esp_restart(). Hosts must see the dock go: the connections end with a reset, and mDNS says goodbye,
@@ -1140,6 +1160,7 @@ static void close_hosts(void)
 esp_err_t db_dock_start(void (*hosts_changed)(void))
 {
     s.hosts_changed = hosts_changed;
+    mdns_lock = xSemaphoreCreateRecursiveMutex();
     load_known();
     if (xTaskCreate(reset_old_peers, "dock_reset", 3072, NULL, 3, NULL) != pdPASS) {
         ESP_LOGW(TAG, "no task to end the connections of the last boot");
