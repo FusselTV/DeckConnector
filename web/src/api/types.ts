@@ -128,6 +128,8 @@ export interface Config {
   servers: string[]
   server_pins: string[]
   satellite: string
+  /** False after a person removed `satellite` or said no on the deck: Companion is not moved there by itself. */
+  satellite_auto: boolean
   satellite_pin: string
   https_only: boolean
   /** The one-time login code the deck shows as a QR code until setup is done. */

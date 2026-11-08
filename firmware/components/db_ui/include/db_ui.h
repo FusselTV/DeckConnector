@@ -17,9 +17,6 @@
 esp_err_t db_ui_start(void);
 
 void db_ui_set_active_link(int index);
-/* A person chose for or against Companion over Satellite at `host` (no port): against keeps the deck's offer and the
- * move from the dock path away from it until a restart. */
-void db_ui_offer_choice(const char *host, bool yes);
 /* A Network Dock host came, left or told what it is. */
 void db_ui_hosts_changed(void);
 /* pct < 0 ends the update screen. */

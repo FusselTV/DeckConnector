@@ -42,9 +42,15 @@ that session ends. The DeckConnector ends it right after the start, the same way
 The DeckConnector stays a Network Dock as well. When Companion connects as a dock while no Satellite address is set,
 the DeckConnector tries Companion's Satellite API on the same address. If it answers, the DeckConnector saves that
 address and moves Companion to Satellite. Companion's dock connection then ends, and it cannot connect as a dock
-again while the address points to it. If you remove the address or say no on the deck, this stops until the next
-restart. If Companion still uses both, it sees two surfaces of the same deck. The one that connects second gets the
-id `streamdeck:<serial>-dev2` and its own settings.
+again while the address points to it. The Elgato App on the same computer still can. If you pick Companion's dock
+connection as the host, it stays.
+
+If you remove the address or say no on the deck, the DeckConnector stops this. It also stops the offer on the deck.
+This stays after a restart. It starts again when you set a new address, or with `satellite_auto: true`.
+
+Behind a proxy, the DeckConnector only knows the proxy's address, so it cannot end Companion's dock connection. If
+Companion still uses both, it sees two surfaces of the same deck. The one that connects second gets the id
+`streamdeck:<serial>-dev2` and its own settings.
 
 ## Limits
 

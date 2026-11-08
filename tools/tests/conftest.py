@@ -154,6 +154,7 @@ KEPT = (
     "controller",
     "host",
     "satellite",
+    "satellite_auto",
     "satellite_pin",
     "servers",
     "server_pins",

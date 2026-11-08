@@ -15,6 +15,7 @@ const cfg: Config = {
   servers: ['', '', '', ''],
   server_pins: ['', '', '', ''],
   satellite: '',
+  satellite_auto: true,
   satellite_pin: '',
   https_only: false,
   cors_origins: '',

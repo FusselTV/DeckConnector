@@ -11,7 +11,6 @@
 #include "db_link.h"
 #include "db_log.h"
 #include "db_net.h"
-#include "db_sat.h"
 #include "db_ota.h"
 #include "db_satellite.h"
 #include "esp_app_desc.h"
@@ -329,58 +328,20 @@ static void model_login(ui_model_t *md, const db_config_t *c)
     md->login_qr = want ? qr : (ui_qr_t){0};
 }
 
-#define OFFER_DENIED_MAX 4
-static char denied[OFFER_DENIED_MAX][16]; /* Companions a person said "no" to, until a restart; under login_mux */
-
-static bool offer_denied(const char *host)
-{
-    bool no = false;
-    portENTER_CRITICAL(&login_mux);
-    for (int d = 0; d < OFFER_DENIED_MAX; d++) {
-        no |= strcmp(denied[d], host) == 0;
-    }
-    portEXIT_CRITICAL(&login_mux);
-    return no;
-}
-
-static volatile uint32_t choices;
-
-void db_ui_offer_choice(const char *host, bool yes)
-{
-    static int next;
-    choices++;
-    portENTER_CRITICAL(&login_mux);
-    for (int d = 0; d < OFFER_DENIED_MAX; d++) {
-        if (strcmp(denied[d], host) == 0) {
-            denied[d][0] = '\0';
-        }
-    }
-    if (!yes && host[0]) {
-        snprintf(denied[next++ % OFFER_DENIED_MAX], sizeof(denied[0]), "%s", host);
-    }
-    portEXIT_CRITICAL(&login_mux);
-}
-
-/* A Companion that announces its Satellite API while no address is set and nobody said no to it. */
+/* A Companion that announces its Satellite API while no address is set and nobody said no. */
 static void model_offer(ui_model_t *md, const db_config_t *c)
 {
-    if (c->satellite[0]) {
+    db_net_found_t found;
+    if (c->satellite[0] || c->satellite_auto_off || !db_net_companions(&found, 1)) {
         return;
     }
-    db_net_found_t found[OFFER_DENIED_MAX];
-    size_t n = db_net_companions(found, OFFER_DENIED_MAX);
-    for (size_t i = 0; i < n; i++) {
-        if (!offer_denied(found[i].host)) {
-            /* "Companion (studio)" -> "studio": the key already says Companion */
-            const char *name = found[i].name[0] ? found[i].name : found[i].host;
-            size_t len = strlen(name);
-            bool wrapped = strncmp(name, "Companion (", 11) == 0 && len > 12 && name[len - 1] == ')';
-            snprintf(md->offer_name, sizeof(md->offer_name), "%.*s", wrapped ? (int)len - 12 : (int)len,
-                     wrapped ? name + 11 : name);
-            snprintf(md->offer_addr, sizeof(md->offer_addr), "%s:%u", found[i].host, found[i].port);
-            return;
-        }
-    }
+    /* "Companion (studio)" -> "studio": the key already says Companion */
+    const char *name = found.name[0] ? found.name : found.host;
+    size_t len = strlen(name);
+    bool wrapped = strncmp(name, "Companion (", 11) == 0 && len > 12 && name[len - 1] == ')';
+    snprintf(md->offer_name, sizeof(md->offer_name), "%.*s", wrapped ? (int)len - 12 : (int)len,
+             wrapped ? name + 11 : name);
+    snprintf(md->offer_addr, sizeof(md->offer_addr), "%s:%u", found.host, found.port);
 }
 
 static void model(ui_model_t *md)
@@ -581,13 +542,13 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         edit_end(&c, "host choice");
         break;
     case UI_DO_OFFER:
+        edit_begin(&c);
         if (!act->value) {
-            char host[16];
-            db_sat_addr_host(md->offer_addr, host, sizeof(host));
-            db_ui_offer_choice(host, false);
+            c.satellite_auto_off = true;
+            edit_end(&c, "no to Satellite");
             break;
         }
-        edit_begin(&c);
+        c.satellite_auto_off = false;
         snprintf(c.satellite, sizeof(c.satellite), "%s", md->offer_addr);
         c.controller = DB_CTRL_COMPANION;
         snprintf(c.host, sizeof(c.host), "satellite");
@@ -909,11 +870,13 @@ static void tick(void *arg)
         changed();
     }
     static int64_t next_look;
-    if (now >= next_look && s.present && !db_config()->satellite[0] && db_deck_writer() == DB_SOURCE_UI) {
+    const db_config_t *c = db_config();
+    if (now >= next_look && s.present && !c->satellite[0] && !c->satellite_auto_off &&
+        db_deck_writer() == DB_SOURCE_UI) {
         next_look = now + 5000000;
         static size_t seen;
-        db_net_found_t found[OFFER_DENIED_MAX];
-        size_t n = db_net_companions(found, OFFER_DENIED_MAX); /* also starts the next browse */
+        db_net_found_t found[4];
+        size_t n = db_net_companions(found, 4); /* also starts the next browse */
         if (n != seen) {
             seen = n;
             changed();
@@ -941,6 +904,8 @@ static void tick(void *arg)
 
 #define UPGRADE_AGAIN_US (60 * 1000000LL)
 
+static volatile uint32_t satellite_changes; /* per save: a set and a removal between looks count twice */
+
 /* Companion that drives the deck as a dock host is moved to its Satellite API when that answers: all controls, and
  * no lost connections. The probe blocks for seconds, so it has its own task. */
 static void upgrade_task(void *arg)
@@ -948,15 +913,11 @@ static void upgrade_task(void *arg)
     struct {
         uint32_t ip;
         int64_t at;
-    } tried[DB_DOCK_HOSTS] = {0}; /* Companion dock hosts asked at `at`, since a person last changed the address */
-    uint32_t seen_choices = 0;
+    } tried[DB_DOCK_HOSTS] = {0}; /* Companion dock hosts asked at `at`, since the address last changed */
+    uint32_t seen_changes = 0;
     uint32_t before[DB_DOCK_HOSTS] = {0}; /* the hosts of the last round: one that connects anew is asked at once */
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(5000));
-        if (seen_choices != choices) {
-            seen_choices = choices;
-            memset(tried, 0, sizeof(tried));
-        }
         db_dock_host_t hosts[DB_DOCK_HOSTS];
         size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
         uint32_t was[DB_DOCK_HOSTS];
@@ -965,7 +926,12 @@ static void upgrade_task(void *arg)
         for (size_t i = 0; i < n; i++) {
             before[i] = ipaddr_addr(hosts[i].ip);
         }
-        if (db_config()->satellite[0]) {
+        if (seen_changes != satellite_changes) {
+            seen_changes = satellite_changes;
+            memset(tried, 0, sizeof(tried));
+        }
+        const db_config_t *cfg = db_config();
+        if (cfg->satellite[0] || cfg->satellite_auto_off || cfg->controller != DB_CTRL_COMPANION) {
             continue;
         }
         for (size_t i = 0; i < n; i++) {
@@ -978,7 +944,8 @@ static void upgrade_task(void *arg)
                 free_slot = tried[k].ip ? free_slot : k;
                 anew &= was[k] != ip;
             }
-            if (hosts[i].kind != DB_CTRL_COMPANION || offer_denied(hosts[i].ip) ||
+            /* a dock host picked by hand stays on the dock path */
+            if (hosts[i].kind != DB_CTRL_COMPANION || strcmp(cfg->host, hosts[i].ip) == 0 ||
                 (slot >= 0 && !anew && now - tried[slot].at < UPGRADE_AGAIN_US)) {
                 continue;
             }
@@ -1002,12 +969,14 @@ static void upgrade_task(void *arg)
             }
             db_config_t c;
             edit_begin(&c);
-            if (c.satellite[0] || offer_denied(hosts[i].ip)) { /* a person was quicker */
+            /* a person was quicker */
+            if (c.satellite[0] || c.satellite_auto_off || c.controller != DB_CTRL_COMPANION ||
+                strcmp(c.host, hosts[i].ip) == 0) {
                 db_config_edit_end();
                 break;
             }
             snprintf(c.satellite, sizeof(c.satellite), "%s", addr);
-            if (c.controller == DB_CTRL_COMPANION && (!c.host[0] || strcmp(c.host, hosts[i].ip) == 0)) {
+            if (!c.host[0]) {
                 snprintf(c.host, sizeof(c.host), "satellite");
             }
             if (edit_end(&c, "Companion address") == ESP_OK) {
@@ -1159,6 +1128,14 @@ void db_ui_set_update(int pct, const char *what)
 
 void db_ui_refresh(void)
 {
+    static char satellite[sizeof(db_config()->satellite)];
+    static bool auto_off;
+    const db_config_t *c = db_config();
+    if (strcmp(satellite, c->satellite) != 0 || auto_off != c->satellite_auto_off) {
+        strcpy(satellite, c->satellite);
+        auto_off = c->satellite_auto_off;
+        satellite_changes++;
+    }
     changed();
 }
 

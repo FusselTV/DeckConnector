@@ -58,6 +58,8 @@ typedef struct {
     char ntp_server[64]; /* empty: the one DHCP names, else pool.ntp.org */
     bool input_lock;     /* unused: keeps the layout of blobs saved by older firmware */
     bool qr_login_off;   /* JSON qr_login: false; the welcome pages show no one-time login code */
+    bool satellite_auto_off; /* JSON satellite_auto: false; a person removed the address or said no on the
+                                deck, so no offer and no move from the dock path to Satellite */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

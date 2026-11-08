@@ -122,6 +122,8 @@ esp_err_t db_config_load(void)
             uint8_t lock;
             memcpy(&lock, &current.qr_login_off, 1); /* padding of an older blob: neither 0 nor 1 is no bool */
             current.qr_login_off = lock == 1;
+            memcpy(&lock, &current.satellite_auto_off, 1);
+            current.satellite_auto_off = lock == 1;
         }
         free(blob);
     }
@@ -270,6 +272,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "wifi_bssid", cfg->wifi_bssid);
     db_json_str(&j, "ntp_server", cfg->ntp_server);
     db_json_bool(&j, "qr_login", !cfg->qr_login_off);
+    db_json_bool(&j, "satellite_auto", !cfg->satellite_auto_off);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
@@ -515,6 +518,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     if (qr) {
         cfg->qr_login_off = !cJSON_IsTrue(qr);
     }
+    const cJSON *sat_auto = cJSON_GetObjectItemCaseSensitive(root, "satellite_auto");
+    if (sat_auto && !cJSON_IsBool(sat_auto)) {
+        snprintf(err, err_cap, "satellite_auto: true or false expected");
+        return false;
+    }
+    if (sat_auto) {
+        cfg->satellite_auto_off = !cJSON_IsTrue(sat_auto);
+    }
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "brightness");
     if (b) {
         if (!cJSON_IsNumber(b) || b->valueint < 0 || b->valueint > 100) {
@@ -542,6 +553,8 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
         cJSON_Delete(root);
         return ESP_ERR_INVALID_ARG;
     }
+    char satellite_was[sizeof(cfg->satellite)];
+    strcpy(satellite_was, cfg->satellite);
     bool ok = take_str(root, "name", cfg->name, sizeof(cfg->name), err, err_cap) &&
               take_str(root, "wifi_ssid", cfg->wifi_ssid, sizeof(cfg->wifi_ssid), err, err_cap) &&
               take_str(root, "wifi_pass", cfg->wifi_pass, sizeof(cfg->wifi_pass), err, err_cap) &&
@@ -557,6 +570,10 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
               take_pins(root, cfg, err, err_cap) && take_scalars(root, cfg, err, err_cap);
+    if (!cJSON_GetObjectItemCaseSensitive(root, "satellite_auto") &&
+        strcmp(satellite_was, cfg->satellite) != 0) {
+        cfg->satellite_auto_off = !cfg->satellite[0];
+    }
     if (ok && cJSON_GetObjectItemCaseSensitive(root, "name") && !name_ok(cfg->name)) {
         snprintf(err, err_cap, "name: letters, digits and dashes, no dash at the start or end");
         ok = false;

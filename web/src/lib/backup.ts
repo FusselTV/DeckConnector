@@ -26,6 +26,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'servers',
   'server_pins',
   'satellite',
+  'satellite_auto',
   'satellite_pin',
   'https_only',
   'cors_origins',

@@ -161,7 +161,7 @@ The change works at once. All hosts stay connected, and the deck shows the picke
 others keep drawing into their own picture in the background and get no input. On the device the hosts are the top
 row of the home screen and the menu.
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_pin`, `https_only`,
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`,
 `cors_origins`, `menu_chord`, `menu_hold_ms` and `qr_login` also work at once. Every other change restarts the DeckConnector,
 and the reply says so. `reach` lists where the page finds it after the restart: a fixed LAN address as saved,
 the WLAN address while the network stays the same, and the name in `.local`:
@@ -175,7 +175,7 @@ the WLAN address while the network stays the same, and the name in `.local`:
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "deckbridge", "wifi_pass_set": true,
  "servers": ["ws://192.168.1.128:8765/deckbridge", "wss://example.org/deckbridge", "", ""],
- "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_pin": "",
+ "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "usb_speed": "auto",
  "token_set": false}
 ```
@@ -192,6 +192,9 @@ up to a second.
 Until setup is done, the deck shows a QR code with `http://<address>/?t=<code>`. Opening it logs that browser in
 once, without the password. A code is good for 10 minutes and for one login. Then the deck shows a new one.
 `qr_login: false` turns it off.
+
+`satellite_auto: false` stops the move of Companion from the dock to Satellite and the offer on the deck, see
+[satellite.md](satellite.md#both-at-once). Removing `satellite` sets it to `false`, a new `satellite` to `true`.
 
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
 
