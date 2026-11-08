@@ -25,6 +25,8 @@
 bool auth_check(httpd_req_t *req, web_level_t need);
 /* The request comes with a token, not the password. */
 bool auth_by_token(httpd_req_t *req);
+/* A new session for this request, sent as its cookie. */
+void auth_session_cookie(httpd_req_t *req);
 /* The request came in over the setup access point. */
 bool auth_via_ap(httpd_req_t *req);
 /* The password, or a token with full rights. */

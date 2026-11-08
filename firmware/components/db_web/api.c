@@ -29,6 +29,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mbedtls/platform_util.h"
 #include "nvs.h"
 #include "sdkconfig.h"
 #include "web.h"
@@ -140,6 +141,16 @@ int api_config(const char *body, char *reply, size_t cap)
     db_config_edit_begin();
     int code = config_edit(body, reply, cap);
     db_config_edit_end();
+    return code;
+}
+
+int db_web_config(const char *json, char *reply, size_t cap)
+{
+    if (!web_lock_for(10000)) {
+        return fail(reply, cap, 503, "busy");
+    }
+    int code = api_config(json, reply, cap);
+    web_unlock();
     return code;
 }
 
@@ -405,7 +416,15 @@ esp_err_t put_config(httpd_req_t *req)
     if (!reply && !(reply = heap_caps_malloc(REPLY_MAX, MALLOC_CAP_SPIRAM))) {
         return send_error(req, "500 Internal Server Error", "out of memory");
     }
-    int code = (auth_by_token(req) ? api_config_token : api_config)(body, reply, 320);
+    bool token = auth_by_token(req);
+    static char old_pass[sizeof(db_config()->admin_pass)];
+    strlcpy(old_pass, db_config()->admin_pass, sizeof(old_pass));
+    int code = (token ? api_config_token : api_config)(body, reply, 320);
+    /* a new password ends every session, also this one: the setup wizard's next step would get a 401 */
+    if (code == 200 && !token && strcmp(old_pass, db_config()->admin_pass) != 0) {
+        auth_session_cookie(req);
+    }
+    mbedtls_platform_zeroize(old_pass, sizeof(old_pass));
     if (code == 200) {
         size_t n = strlen(reply) - 1; /* over the closing brace */
         n += snprintf(reply + n, REPLY_MAX - n, ",\"config\":");

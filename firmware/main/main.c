@@ -12,6 +12,7 @@
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_satellite.h"
+#include "db_serial.h"
 #include "db_ui.h"
 #include "db_web.h"
 #include "esp_app_desc.h"
@@ -499,6 +500,7 @@ void app_main(void)
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
     db_config_on_save(apply_controller);
     started("web", db_web_start(web_status, web_state));
+    started("Improv", db_serial_start());
     db_ota_confirm_when(healthy);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);
 }

@@ -5,6 +5,7 @@
 
 #include "db_config.h"
 #include "db_json.h"
+#include "db_serial.h"
 #include "db_ui.h"
 #include "db_web.h"
 #include "esp_event.h"
@@ -69,6 +70,7 @@ void app_main(void)
     strlcpy(cfg.admin_pass, pw ? pw : "simulator", sizeof(cfg.admin_pass));
     db_config_save(&cfg);
     db_web_start(status_json, state_json);
+    db_serial_start();
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

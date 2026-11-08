@@ -132,5 +132,9 @@ def test_a_new_password_ends_the_other_sessions(own_sim):
         method="PUT",
         headers={"X-DeckConnector": "1", "Cookie": mine},
     )
-    assert urllib.request.urlopen(req, timeout=5).status == 200
+    with urllib.request.urlopen(req, timeout=5) as r:
+        assert r.status == 200
+        renewed = r.headers["Set-Cookie"].split(";")[0]
     assert get(f"{base}/api/status", other) == 401
+    assert get(f"{base}/api/status", mine) == 401
+    assert get(f"{base}/api/status", renewed) == 200, "the browser that set the password stays logged in"

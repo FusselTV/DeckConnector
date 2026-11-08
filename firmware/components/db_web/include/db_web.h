@@ -35,5 +35,9 @@ int db_web_setup_step(void);
 /* The "code" a page translates for an error text it shows to users, or NULL. */
 const char *db_web_error_code(const char *msg);
 
+/* PUT /api/config with the password's rights, for setup that does not come over HTTP (Improv on the serial
+ * console). Returns the HTTP status and writes the JSON reply. */
+int db_web_config(const char *json, char *reply, size_t cap);
+
 /* Send one JSON message to every listener of /api/ws. */
 void db_web_broadcast(const char *json);

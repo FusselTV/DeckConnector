@@ -376,7 +376,7 @@ static bool password_matches(httpd_req_t *req)
     return ok;
 }
 
-static void set_session_cookie(httpd_req_t *req)
+void auth_session_cookie(httpd_req_t *req)
 {
     static char cookie[160]; /* the header must live until the reply is sent; handlers run one at a time */
     /* 30 days: the 12 h idle limit is the bridge's, and a browser must not end a session in use any sooner */
@@ -402,7 +402,7 @@ esp_err_t auth_login(httpd_req_t *req)
     if (!ok) {
         return send_error(req, "403 Forbidden", "wrong password");
     }
-    set_session_cookie(req);
+    auth_session_cookie(req);
     return send_json(req, "{\"ok\":true}");
 }
 
@@ -570,7 +570,7 @@ esp_err_t auth_login_request_id(httpd_req_t *req)
     portEXIT_CRITICAL(&mux);
     if (accepted) {
         ESP_LOGI(TAG, "login accepted on the deck");
-        set_session_cookie(req);
+        auth_session_cookie(req);
     }
     char reply[48];
     snprintf(reply, sizeof(reply), "{\"state\":\"%s\",\"s\":%d}", accepted ? "accepted" : ask_names[state],
@@ -581,7 +581,7 @@ esp_err_t auth_login_request_id(httpd_req_t *req)
 esp_err_t auth_qr_login(httpd_req_t *req, const char *token)
 {
     if (db_ui_login_take(token)) {
-        set_session_cookie(req);
+        auth_session_cookie(req);
     }
     httpd_resp_set_status(req, "302 Found");
     httpd_resp_set_hdr(req, "Location", "/"); /* the token leaves the address bar and the history */
