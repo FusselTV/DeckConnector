@@ -62,20 +62,30 @@ static void note_kind(uint32_t ip, db_controller_t kind);
 static bool refuse(conn_t *c, db_controller_t kind);
 static void keep_peers(void);
 
-static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
+/* block false: skip a host that is not reading instead of waiting up to the send timeout for it */
+static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len,
+                          bool block)
 {
     configASSERT(len <= DB_CORA_REPORT_LEN);
-    xSemaphoreTake(c->tx, portMAX_DELAY);
+    if (xSemaphoreTake(c->tx, block ? portMAX_DELAY : 0) != pdTRUE) {
+        return;
+    }
     int sock = c->sock;
     if (sock >= 0) {
         /* one send: header and data in one TCP segment */
         db_cora_write_hdr(c->out, &(db_cora_hdr_t){.flags = flags, .op = op, .id = id, .len = (uint32_t)len});
         memcpy(c->out + DB_CORA_HDR_LEN, payload, len);
-        if (send(sock, c->out, DB_CORA_HDR_LEN + len, 0) != (ssize_t)(DB_CORA_HDR_LEN + len)) {
+        ssize_t n = send(sock, c->out, DB_CORA_HDR_LEN + len, block ? 0 : MSG_DONTWAIT);
+        if (n != (ssize_t)(DB_CORA_HDR_LEN + len) && !(n < 0 && !block && errno == EWOULDBLOCK)) {
             shutdown(sock, SHUT_RDWR);
         }
     }
     xSemaphoreGive(c->tx);
+}
+
+static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
+{
+    send_frame_to(c, flags, op, id, payload, len, true);
 }
 
 static void send_dock_report(conn_t *c, uint8_t cmd, uint32_t id)
@@ -989,7 +999,7 @@ static void keepalive_task(void *arg)
                 shutdown(c->sock, SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
             } else if (c->sock >= 0) {
                 db_cora_keepalive(c->connection_no, buf);
-                send_frame(c, 0, 0, 0, buf, sizeof(buf));
+                send_frame_to(c, 0, 0, 0, buf, sizeof(buf), false); /* one stuck host must not delay the others */
             }
         }
     }
