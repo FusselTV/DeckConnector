@@ -3,6 +3,7 @@
 import asyncio
 import atexit
 import base64
+import contextlib
 import io
 import ipaddress
 import json
@@ -19,6 +20,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from dbtools.benchlock import bench_lock
 from dbtools.load import HOST as DEVICE
 from dbtools.load import password
 from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate, settings_to_restore
@@ -86,12 +88,17 @@ def pytest_addoption(parser):
     parser.addoption("--target", default="device", choices=("device", "sim"), help="the bridge, or firmware/sim")
 
 
+_bench = contextlib.ExitStack()  # held until the process ends, after the atexit restore
+
+
 def pytest_configure(config):
     if config.getoption("--target") != TARGET:
         pytest.exit(f"--target {config.getoption('--target')} but the tests were set up for {TARGET}", returncode=4)
     parallel = "PYTEST_XDIST_WORKER" in os.environ or getattr(config.option, "numprocesses", None)
     if TARGET == "device" and parallel:
         pytest.exit("one bridge cannot take tests in parallel: run the device suite without -n", returncode=4)
+    if TARGET == "device":
+        _bench.enter_context(bench_lock())  # deckmeter and other runs wait, and they wait for us
 
 
 def pytest_collection_modifyitems(config, items):

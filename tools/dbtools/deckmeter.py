@@ -17,7 +17,6 @@ import asyncio
 import base64
 import calendar
 import contextlib
-import fcntl
 import io
 import itertools
 import json
@@ -38,6 +37,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from dbtools.benchlock import bench_lock
 from dbtools.load import password
 from dbtools.safety import PRODUCTION, real_input_target, require_input_gate
 from dbtools.server import Server, local_ip
@@ -48,7 +48,6 @@ CONTAINER = "companion-bench"
 BENCH = Path(os.environ.get("DECKMETER_BENCH", Path.home() / "deckbridge-bench"))
 CAPTURES = Path(os.environ.get("DECKMETER_CAPTURES", BENCH.parent / "captures"))
 DRIVE = Path(__file__).resolve().parents[1] / "companion-check/drive.mjs"
-LOCK = "/tmp/deckbridge-bench.lock"
 PORTS = {"dock": {5343, 5344}, "satellite": {16622, 16623}}
 
 # Centres of the keys and the four strip parts in the 1920x1080 camera picture of this bench.
@@ -1029,8 +1028,7 @@ def main():
         if a.out:
             save(a.out, a.label or "core", "traffic", result)
         return
-    with open(LOCK, "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with bench_lock():
         r = Run(a)
         direct = a.metric == "image" and a.source != "companion"
         device = "esp" if r.bridge else "dock"
