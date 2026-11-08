@@ -31,7 +31,8 @@ size_t db_dock_hosts(db_dock_host_t *out, size_t max);
 bool db_dock_request(char ip[16]);
 /* Let the requesting host in from now on, or not. */
 esp_err_t db_dock_answer(bool accept); /* an error: in RAM only, gone after a restart */
-/* Hosts told "no" since the start, newest last; `at_us` is esp_timer time. A refused host still asks again. */
+/* Hosts told "no" since the start, newest last; `at_us` is esp_timer time. A refused host still asks again.
+ */
 typedef struct {
     uint32_t ip;
     int64_t at_us;
@@ -50,12 +51,13 @@ typedef struct {
 /* The hosts that connected (dock_paired_only off) or were paired (on), oldest first. */
 size_t db_dock_known(db_dock_peer_t *out, size_t max);
 bool db_dock_peer_connected(const db_dock_peer_t *p);
-/* The name its router knows it by, "" until the lookup answered or when there is none. `ip` in network order. */
+/* The name its router knows it by, "" until the lookup answered or when there is none. `ip` in network order.
+ */
 void db_dock_name(uint32_t ip, char name[40]);
 /* From the ARP table: a host that just connected is in it, one behind a router is not and gets zeros. */
 void db_dock_mac(uint32_t ip, uint8_t mac[6]);
-/* Ends Companion's dock connections from the address the `satellite` setting names or Satellite is connected to, and
- * refuses them while it does: Companion would show the deck twice. */
+/* Ends Companion's dock connections from the address the `satellite` setting names or Satellite is connected
+ * to, and refuses them while it does: Companion would show the deck twice. */
 void db_dock_drop_satellite_host(void);
 /* NULL forgets every paired host. */
 esp_err_t db_dock_forget(const char *ip);

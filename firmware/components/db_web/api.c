@@ -13,25 +13,25 @@
 #include "db_deck.h"
 #include "db_dock.h"
 #include "db_json.h"
-#include "db_log.h"
 #include "db_link.h"
+#include "db_log.h"
 #include "db_net.h"
-#include "db_satellite.h"
 #include "db_ota.h"
+#include "db_satellite.h"
 #include "db_screen.h"
 #include "db_ui.h"
 #include "db_web.h"
+#include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
-#include "esp_app_desc.h"
 #include "esp_system.h"
 #include "esp_timer.h"
-#include "web.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "sdkconfig.h"
+#include "web.h"
 #if !CONFIG_IDF_TARGET_LINUX
 #include "esp_core_dump.h"
 #include "esp_partition.h"
@@ -103,11 +103,13 @@ static int config_edit(const char *body, char *reply, size_t cap)
         snprintf(reply, cap, "{\"ok\":true,\"restart\":false}");
         return 200;
     }
-    /* where the page finds the bridge after the restart: a fixed LAN address as saved, the others as they are */
+    /* where the page finds the bridge after the restart: a fixed LAN address as saved, the others as they are
+     */
     db_net_status_t n;
     db_net_status(&n);
     const char *lan = !cfg.lan.dhcp && cfg.lan.ip[0] ? cfg.lan.ip : (n.lan_up ? n.lan_ip : "");
-    const char *wlan = cfg.wifi_ssid[0] && strcmp(cfg.wifi_ssid, old.wifi_ssid) == 0 && n.wlan_up ? n.wlan_ip : "";
+    const char *wlan =
+        cfg.wifi_ssid[0] && strcmp(cfg.wifi_ssid, old.wifi_ssid) == 0 && n.wlan_up ? n.wlan_ip : "";
     const char *scheme = cfg.https_only ? "https" : "http";
     db_json_t j;
     db_json_begin(&j, reply, cap);
@@ -229,7 +231,8 @@ int api_input(const char *body, char *reply, size_t cap)
     db_input_t ev;
     db_input_t then = {.kind = 0};
     const char *err = root ? read_input(root, &dev, &ev, &then) : "invalid JSON";
-    /* true: a person at the web UI. A tool names the host that may get it, and the deck task checks per press */
+    /* true: a person at the web UI. A tool names the host that may get it, and the deck task checks per press
+     */
     const cJSON *r = cJSON_GetObjectItemCaseSensitive(root, "real");
     bool real = cJSON_IsTrue(r) || cJSON_IsString(r);
     uint32_t only_ip = cJSON_IsString(r) ? inet_addr(r->valuestring) : 0;
@@ -323,9 +326,10 @@ esp_err_t get_events(httpd_req_t *req)
     return send_built(req, DB_EVENTS * 160, events_json);
 }
 
-/* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token, for a
- * restore through PUT /api/config. Without it the same as GET /api/config. API tokens (only their hashes are kept),
- * paired hosts and the TLS key stay out: create new tokens, pair again, upload the key again. */
+/* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token,
+ * for a restore through PUT /api/config. Without it the same as GET /api/config. API tokens (only their
+ * hashes are kept), paired hosts and the TLS key stay out: create new tokens, pair again, upload the key
+ * again. */
 esp_err_t get_backup(httpd_req_t *req)
 {
     char query[32] = "";
@@ -374,8 +378,9 @@ static esp_err_t body_api(httpd_req_t *req, int (*api)(const char *body, char *r
     return reply_with(req, api(body, reply, sizeof(reply)), reply);
 }
 
-/* A token, even with full rights, never changes the password, nor reopens setup: the deck then shows a one-time
- * login QR, which /api/screen.jpg would hand to the token. Decided on the parsed keys: cJSON decodes \u escapes. */
+/* A token, even with full rights, never changes the password, nor reopens setup: the deck then shows a
+ * one-time login QR, which /api/screen.jpg would hand to the token. Decided on the parsed keys: cJSON decodes
+ * \u escapes. */
 int api_config_token(const char *body, char *reply, size_t cap)
 {
     static const char *const password_only[] = {"admin_pass", "setup_done", "qr_login"};
@@ -411,8 +416,8 @@ esp_err_t put_config(httpd_req_t *req)
     return reply_with(req, code, reply);
 }
 
-/* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck shows
- * a login code or a password, its pictures would hand a token a password session. */
+/* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck
+ * shows a login code or a password, its pictures would hand a token a password session. */
 bool web_deck_refused(httpd_req_t *req)
 {
     if (auth_by_token(req) && db_ui_login_shown()) {
@@ -483,13 +488,15 @@ esp_err_t post_dock(httpd_req_t *req)
     }
     cJSON_Delete(root);
     if (saved != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "not saved: the list is as before after a restart");
+        return send_error(req, "500 Internal Server Error",
+                          "not saved: the list is as before after a restart");
     }
     return ok ? send_json(req, "{\"ok\":true}")
               : send_error(req, "400 Bad Request", "accept, pairing (0 to 3600 s) or forget expected");
 }
 
-/* DELETE /api/pairing/denied/<ip>: off the list of refused hosts; it is asked about again when it comes back */
+/* DELETE /api/pairing/denied/<ip>: off the list of refused hosts; it is asked about again when it comes back
+ */
 esp_err_t delete_denied(httpd_req_t *req)
 {
     uint32_t ip = inet_addr(req->uri + strlen("/api/pairing/denied/"));
@@ -536,7 +543,8 @@ static bool device_fault(esp_err_t err)
     return err == ESP_ERR_NO_MEM || (err >= ESP_ERR_FLASH_BASE && err < ESP_ERR_FLASH_BASE + 0x100);
 }
 
-/* POST /api/ota/inspect with the first 144 bytes of a .dbfw file: what it is, and whether an upload would pass */
+/* POST /api/ota/inspect with the first 144 bytes of a .dbfw file: what it is, and whether an upload would
+ * pass */
 esp_err_t post_ota_inspect(httpd_req_t *req)
 {
     static const char *const targets[] = {"", "p4", "c6", "web", "bootloader", "ptable"};
@@ -578,7 +586,7 @@ esp_err_t post_ota(httpd_req_t *req)
     if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
         if (httpd_query_key_value(q, "slot", v, sizeof(v)) == ESP_OK) {
             slot = atoi(v) - 1; /* the API counts slots from 1 */
-            if (slot < 0) { /* an old client's slot 0 must not mean "the next slot" */
+            if (slot < 0) {     /* an old client's slot 0 must not mean "the next slot" */
                 return send_error(req, "400 Bad Request", "slot: 1 or more");
             }
         }
@@ -630,7 +638,8 @@ esp_err_t post_ota(httpd_req_t *req)
     if (err == ESP_OK) {
         err = db_ota_end();
     }
-    /* db_ota_write and db_ota_end end the update themselves: aborting again here could end one started since */
+    /* db_ota_write and db_ota_end end the update themselves: aborting again here could end one started since
+     */
     if (err == DB_OTA_ERR_HALF_WRITTEN) {
         return send_error(req, "500 Internal Server Error",
                           "written incompletely: do not power off, write it again or flash over USB");
@@ -864,8 +873,8 @@ esp_err_t put_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-/* TODO: ask the GitHub releases of FusselTV/deckbridge once there are any, and install the release's .dbfw with
- * POST /api/ota/url. */
+/* TODO: ask the GitHub releases of FusselTV/deckbridge once there are any, and install the release's .dbfw
+ * with POST /api/ota/url. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
     char body[160];
@@ -887,8 +896,8 @@ esp_err_t post_source_probe(httpd_req_t *req)
         return send_error(req, "400 Bad Request", "addr: host, host:port, or a ws:// or wss:// URL");
     }
     char version[24] = "", reply[160];
-    const char *why = db_satellite_probe(addr->valuestring, cJSON_IsString(pin) ? pin->valuestring : "", version,
-                                         sizeof(version));
+    const char *why = db_satellite_probe(addr->valuestring, cJSON_IsString(pin) ? pin->valuestring : "",
+                                         version, sizeof(version));
     cJSON_Delete(root);
     db_json_t j;
     db_json_begin(&j, reply, sizeof(reply));
@@ -912,10 +921,12 @@ esp_err_t get_input_log(httpd_req_t *req)
                         httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK
                     ? (uint32_t)strtoul(v, NULL, 10)
                     : 0;
-    return send_built(req, INPUT_LOG * 150 + 16, input_log_json); /* runs under the handler lock: log_since stays put */
+    return send_built(req, INPUT_LOG * 150 + 16,
+                      input_log_json); /* runs under the handler lock: log_since stays put */
 }
 
-/* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us. */
+/* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us.
+ */
 esp_err_t post_source_retry(httpd_req_t *req)
 {
     char body[160];
@@ -959,11 +970,13 @@ esp_err_t post_wifi_join(httpd_req_t *req)
                         : ESP_ERR_INVALID_ARG;
     cJSON_Delete(root);
     if (err == ESP_ERR_INVALID_ARG) {
-        return send_error(req, "400 Bad Request",
-                          "ssid (1 to 32), pass (8 to 63, 64 hex digits or empty) and an optional bssid expected");
+        return send_error(
+            req, "400 Bad Request",
+            "ssid (1 to 32), pass (8 to 63, 64 hex digits or empty) and an optional bssid expected");
     }
     if (err != ESP_OK) {
-        return send_error(req, "409 Conflict", err == ESP_ERR_INVALID_STATE ? "a test is running" : esp_err_to_name(err));
+        return send_error(req, "409 Conflict",
+                          err == ESP_ERR_INVALID_STATE ? "a test is running" : esp_err_to_name(err));
     }
     httpd_resp_set_status(req, "202 Accepted");
     return send_json(req, "{\"ok\":true,\"join\":\"testing\"}");
@@ -991,7 +1004,8 @@ esp_err_t put_frontend(httpd_req_t *req)
     if (err != ESP_OK) {
         heap_caps_free(img);
         if (err == ESP_FAIL) {
-            return send_error(req, "500 Internal Server Error", "page not saved, the built-in one is used after a restart");
+            return send_error(req, "500 Internal Server Error",
+                              "page not saved, the built-in one is used after a restart");
         }
         return send_error(req, device_fault(err) ? "500 Internal Server Error" : "400 Bad Request",
                           err == ESP_ERR_INVALID_VERSION ? "needs a newer firmware" : esp_err_to_name(err));
@@ -1016,7 +1030,8 @@ esp_err_t post_slot_boot(httpd_req_t *req)
     }
     esp_err_t err = db_ota_boot_slot(slot - 1);
     if (err != ESP_OK) {
-        return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict", slot_refusal_text(err));
+        return send_error(req, err == ESP_ERR_NOT_FOUND ? "404 Not Found" : "409 Conflict",
+                          slot_refusal_text(err));
     }
     return send_json(req, "{\"ok\":true,\"restart\":true}");
 }
@@ -1246,7 +1261,8 @@ static size_t coredump_json(char *buf, size_t cap)
     return db_json_end(&j);
 }
 
-/* GET /api/coredump: what crashed. ?raw=1: the ELF dump itself, for `idf.py coredump-info -c` with the build's ELF. */
+/* GET /api/coredump: what crashed. ?raw=1: the ELF dump itself, for `idf.py coredump-info -c` with the
+ * build's ELF. */
 esp_err_t get_coredump(httpd_req_t *req)
 {
     size_t addr = 0;
@@ -1286,7 +1302,8 @@ esp_err_t delete_coredump(httpd_req_t *req)
 #endif
 
 #ifdef DB_DEBUG_CRASH
-/* Only in test builds (idf.py -DDB_DEBUG_CRASH=1): proves a crash leaves a dump that GET /api/coredump reads. */
+/* Only in test builds (idf.py -DDB_DEBUG_CRASH=1): proves a crash leaves a dump that GET /api/coredump reads.
+ */
 esp_err_t post_debug_crash(httpd_req_t *req)
 {
     send_json(req, "{\"ok\":true}");

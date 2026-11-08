@@ -125,7 +125,8 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
                                  .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR};
         err = jpeg_decoder_process(decoder, &cfg, in, (uint32_t)len, out, (uint32_t)out_cap, &n);
     }
-    if (err == ESP_OK && db_screen_blit(dst, dw, dh, x, y, out, (size_t)pw * 3, info.width, info.height) != DB_OK) {
+    if (err == ESP_OK &&
+        db_screen_blit(dst, dw, dh, x, y, out, (size_t)pw * 3, info.width, info.height) != DB_OK) {
         err = ESP_ERR_INVALID_SIZE;
     }
     heap_caps_free(in);

@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ENTRY   32
-#define MAX     95
-#define TYPE_APP 0
+#define ENTRY     32
+#define MAX       95
+#define TYPE_APP  0
 #define TABLE_END 0x9000 /* bootloader at 0x2000, table at 0x8000 */
 
 typedef struct {
@@ -26,7 +26,8 @@ static int parse(const uint8_t *t, size_t len, part_t *out)
 {
     int n = 0;
     for (size_t i = 0; i + ENTRY <= len && n < MAX && t[i] == 0xAA && t[i + 1] == 0x50; i += ENTRY, n++) {
-        out[n] = (part_t){.type = t[i + 2], .subtype = t[i + 3], .offset = u32(t + i + 4), .size = u32(t + i + 8)};
+        out[n] =
+            (part_t){.type = t[i + 2], .subtype = t[i + 3], .offset = u32(t + i + 4), .size = u32(t + i + 8)};
         memcpy(out[n].label, t + i + 12, 16);
         out[n].label[16] = '\0';
     }
@@ -36,7 +37,8 @@ static int parse(const uint8_t *t, size_t len, part_t *out)
 static const part_t *find(const part_t *p, int n, const part_t *like)
 {
     for (int i = 0; i < n; i++) {
-        if (p[i].type == like->type && p[i].subtype == like->subtype && strcmp(p[i].label, like->label) == 0) {
+        if (p[i].type == like->type && p[i].subtype == like->subtype &&
+            strcmp(p[i].label, like->label) == 0) {
             return &p[i];
         }
     }

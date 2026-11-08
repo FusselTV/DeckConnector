@@ -637,7 +637,8 @@ static void login_page(page_t *p)
         snprintf(v, sizeof(v), "%.15s · %.28s", md->login_ip, md->login_who);
         snprintf(sub, sizeof(sub), "%s%s%snur annehmen, wenn du das bist", md->login_mac[0] ? "MAC " : "",
                  md->login_mac, md->login_mac[0] ? " · " : "");
-        segment(&p->sc->seg[0], 4, ICON_WEB, C_WARN, "Login-Anfrage", md->login_who[0] ? v : md->login_ip, sub);
+        segment(&p->sc->seg[0], 4, ICON_WEB, C_WARN, "Login-Anfrage", md->login_who[0] ? v : md->login_ip,
+                sub);
     }
 }
 
@@ -887,8 +888,8 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         act->what = UI_DO_HIDE_PASSWORD;
         return true;
     }
-    /* a control token can press keys over the API: it must not wipe or restart the bridge, change its network,
-     * open the setup WLAN, or let a browser or host in */
+    /* a control token can press keys over the API: it must not wipe or restart the bridge, change its
+     * network, open the setup WLAN, or let a browser or host in */
     bool deck_only = shown.page == PAGE_RESET || shown.page == PAGE_LOGIN_REQ;
     if (deck_only && !md->from_deck) {
         return false;
@@ -1041,7 +1042,8 @@ bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders,
     if (strcmp(chord, "off") == 0) {
         return false;
     }
-    *on_encoders = encoders >= 2 && strcmp(chord, "keys") != 0; /* encoders: auto's choice when there are some */
+    *on_encoders =
+        encoders >= 2 && strcmp(chord, "keys") != 0; /* encoders: auto's choice when there are some */
     *last = (*on_encoders ? encoders : keys) - 1;
     return *last >= 1;
 }

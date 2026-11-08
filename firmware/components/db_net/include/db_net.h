@@ -49,9 +49,9 @@ bool db_net_has_ip(uint32_t ip);
 /* True once `local_ip` is ours again and the host `ip` (or its gateway) answers ARP over that interface: an
  * address can be up before the switch port forwards, and a SYN sent then is lost. Asks again on each call. */
 bool db_net_path_ready(uint32_t local_ip, uint32_t ip);
-/* A SYN from an old local address and port to a peer (all network order), to end a session of the last boot: the
- * peer's stack answers with an ACK, ours with a reset. The non-blocking socket, or -1 when the old port cannot be
- * bound; the caller closes it once the reset is out. */
+/* A SYN from an old local address and port to a peer (all network order), to end a session of the last boot:
+ * the peer's stack answers with an ACK, ours with a reset. The non-blocking socket, or -1 when the old port
+ * cannot be bound; the caller closes it once the reset is out. */
 int db_net_syn_from(uint32_t local_ip, uint16_t local_port, uint32_t ip, uint16_t port);
 
 /* Called from the event task whenever an address or link changes. One listener. */
@@ -63,14 +63,15 @@ typedef struct {
     uint16_t port;
 } db_net_found_t;
 
-/* Companions that announce their Satellite API over mDNS, from the last browse. A call starts a new 2 s browse in
- * the background when the last one is older than 5 s, so the next call has fresh results. */
+/* Companions that announce their Satellite API over mDNS, from the last browse. A call starts a new 2 s
+ * browse in the background when the last one is older than 5 s, so the next call has fresh results. */
 size_t db_net_companions(db_net_found_t *out, size_t max);
 
-/* Networks in reach, one entry per access point, strongest first, without the setup AP. -1 while the radio is busy. */
+/* Networks in reach, one entry per access point, strongest first, without the setup AP. -1 while the radio is
+ * busy. */
 int db_net_wifi_scan(db_net_ap_t *out, size_t max);
-/* Try a network in the background; it is saved only when it gives an address within 15 s, otherwise the old one
- * comes back. The state shows in db_net_status(). */
+/* Try a network in the background; it is saved only when it gives an address within 15 s, otherwise the old
+ * one comes back. The state shows in db_net_status(). */
 esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid);
 /* Setup access point "<name>" with a fresh random WPA2 password. */
 esp_err_t db_net_ap_start(void);

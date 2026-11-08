@@ -62,8 +62,8 @@ esp_err_t get_profile(httpd_req_t *req);
 void restart_soon(void);
 /* The HTTPS certificate and key as PEM, made and kept on the first start; its SHA-256 fingerprint. */
 bool web_cert(const char *name, char **cert, char **key, char fingerprint[96]);
-/* An uploaded certificate (PEM, its chain may follow) and key: they parse and belong together. Fills `info` with
- * {ok, subject, issuer, not_after, sha256} when cap > 0. */
+/* An uploaded certificate (PEM, its chain may follow) and key: they parse and belong together. Fills `info`
+ * with {ok, subject, issuer, not_after, sha256} when cap > 0. */
 bool web_cert_check(const char *cert, const char *key, char *info, size_t cap);
 /* Keep an uploaded pair for the next start, or drop it (cert NULL) and go back to the own certificate. */
 esp_err_t web_cert_store(const char *cert, const char *key);

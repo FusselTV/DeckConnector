@@ -192,7 +192,8 @@ static void send_status(void)
 /* Returns true when the active server changed; every connected server then got a role message. */
 static bool recompute_active(void)
 {
-    xSemaphoreTake(s.role_lock, portMAX_DELAY); /* every link task calls this; hooks must see changes in order */
+    xSemaphoreTake(s.role_lock,
+                   portMAX_DELAY); /* every link task calls this; hooks must see changes in order */
     /* the chosen server when it is up, else the first one that is */
     int next = -1;
     const char *host = db_config()->host;

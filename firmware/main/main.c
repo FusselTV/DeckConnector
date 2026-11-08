@@ -117,8 +117,8 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
     db_json_bool(j, "connected", connected);
     if (health) { /* a connection the bridge makes: why it is down, since when, over which interface */
         db_json_str(j, "error", connected ? "" : health->error);
-        db_json_int(j, "since_s", health->since_us / 1000000); /* after the start: an age would change the live
-                                                                state every second */
+        db_json_int(j, "since_s", health->since_us / 1000000); /* after the start: an age would change the
+                                                                live state every second */
         db_json_str(j, "iface", connected ? (health->over_wlan ? "wlan" : "lan") : "");
     }
     db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
@@ -146,7 +146,8 @@ static void write_sources(db_json_t *j, bool live)
     size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
     for (size_t i = 0; i < n; i++) {
         const char *kind = hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind);
-        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].source, NULL);
+        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].source,
+                     NULL);
     }
     db_json_arr_close(j);
     char ip[16];
@@ -176,7 +177,8 @@ static void write_sources(db_json_t *j, bool live)
         db_json_str(j, "ip", ip);
         db_dock_name(denied[i].ip, name);
         db_json_str(j, "name", name);
-        db_json_int(j, "since_s", denied[i].at_us / 1000000); /* seconds after the start, like sources[].since_s */
+        db_json_int(j, "since_s",
+                    denied[i].at_us / 1000000); /* seconds after the start, like sources[].since_s */
         db_json_obj_close(j);
     }
     db_json_arr_close(j);
@@ -206,9 +208,9 @@ static void write_sources(db_json_t *j, bool live)
 static const char *boot_reason(void)
 {
     static const char *const reasons[] = {
-        [ESP_RST_POWERON] = "power",  [ESP_RST_EXT] = "pin",        [ESP_RST_SW] = "restart",
-        [ESP_RST_PANIC] = "crash",    [ESP_RST_INT_WDT] = "watchdog", [ESP_RST_TASK_WDT] = "watchdog",
-        [ESP_RST_WDT] = "watchdog",   [ESP_RST_BROWNOUT] = "brownout",
+        [ESP_RST_POWERON] = "power", [ESP_RST_EXT] = "pin",           [ESP_RST_SW] = "restart",
+        [ESP_RST_PANIC] = "crash",   [ESP_RST_INT_WDT] = "watchdog",  [ESP_RST_TASK_WDT] = "watchdog",
+        [ESP_RST_WDT] = "watchdog",  [ESP_RST_BROWNOUT] = "brownout",
     };
     esp_reset_reason_t r = esp_reset_reason();
     return r < sizeof(reasons) / sizeof(*reasons) && reasons[r] ? reasons[r] : "other";
@@ -419,8 +421,8 @@ static void on_satellite(void)
     db_dock_drop_satellite_host(); /* the peer of a new session, if it is a dock host as well */
 }
 
-/* A new bridge without any network opens the setup WLAN by itself. It closes again once the network is there and
- * no phone is on it: the wizard joins the WLAN over it and still has to save. */
+/* A new bridge without any network opens the setup WLAN by itself. It closes again once the network is there
+ * and no phone is on it: the wizard joins the WLAN over it and still has to save. */
 static void setup_ap_task(void *arg)
 {
     vTaskDelay(pdMS_TO_TICKS(SETUP_AP_AFTER_S * 1000));

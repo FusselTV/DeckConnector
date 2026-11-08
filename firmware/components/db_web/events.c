@@ -20,14 +20,14 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
-#define CLIENTS   8
-#define STATE_MAX 4096 /* as big as /api/status: a bigger state would stop going out */
-#define POLL_MS   200
-#define SCREEN_MS 50 /* how soon a changed deck picture reaches the page */
+#define CLIENTS    8
+#define STATE_MAX  4096 /* as big as /api/status: a bigger state would stop going out */
+#define POLL_MS    200
+#define SCREEN_MS  50 /* how soon a changed deck picture reaches the page */
 #define SCREEN_MAX 8192
-#define FRAME_MAX 512
-#define INPUT_MAX 160
-#define LOG_CHUNK 4096 /* per listener and poll: a full log backlog goes out in about 1 s */
+#define FRAME_MAX  512
+#define INPUT_MAX  160
+#define LOG_CHUNK  4096 /* per listener and poll: a full log backlog goes out in about 1 s */
 /* a listener hears something this often, so it can tell a dead link from a quiet deck */
 #define PING_MS 5000
 /* httpd_queue_work posts to a UDP socket that holds 6 messages and silently drops a 7th. So messages wait in
@@ -49,7 +49,7 @@ static struct {
     bool limited[CLIENTS];           /* a control token: may press, but not change settings or read the log */
     bool log[CLIENTS];               /* asked for the log with {"t":"log"} */
     uint64_t log_pos[CLIENTS];
-    char *state;                     /* the last state sent, to send only changes */
+    char *state; /* the last state sent, to send only changes */
     uint32_t screen;
     unsigned evict;
     struct outbox {
@@ -93,7 +93,8 @@ static void send_locked(httpd_handle_t server, int fd, const char *json)
 
 typedef enum {
     TO_ALL,
-    TO_SESSIONS, /* not to tokens: simulated presses, which an integration must not act on, and deck pictures */
+    TO_SESSIONS, /* not to tokens: simulated presses, which an integration must not act on, and deck pictures
+                  */
     TO_TOKENS,
 } audience_t;
 
@@ -256,7 +257,8 @@ static const char *const kinds[] = {"",           "key_down",     "key_up",    "
                                     "encoder_up", "encoder_turn", "touch_tap", "touch_long",
                                     "touch_swipe"};
 
-/* The last inputs for GET /api/input/log: a fixed ring in PSRAM, the oldest overwritten, gone at a restart. */
+/* The last inputs for GET /api/input/log: a fixed ring in PSRAM, the oldest overwritten, gone at a restart.
+ */
 typedef struct {
     uint32_t at_ms;
     uint8_t kind;
@@ -272,10 +274,16 @@ static uint32_t input_seq; /* inputs ever logged; entry n is at n % INPUT_LOG */
 static void log_input(const db_input_t *ev)
 {
     if (input_log) {
-        input_log[input_seq % INPUT_LOG] = (logged_t){
-            .at_ms = (uint32_t)(esp_timer_get_time() / 1000), .kind = (uint8_t)ev->kind, .index = ev->index,
-            .origin = db_deck_input_from_deck() ? 0 : db_deck_input_real_for(0) ? 1 : 2,
-            .writer = (uint8_t)db_deck_writer(), .value = ev->value, .x = ev->x, .y = ev->y};
+        input_log[input_seq % INPUT_LOG] = (logged_t){.at_ms = (uint32_t)(esp_timer_get_time() / 1000),
+                                                      .kind = (uint8_t)ev->kind,
+                                                      .index = ev->index,
+                                                      .origin = db_deck_input_from_deck()   ? 0
+                                                                : db_deck_input_real_for(0) ? 1
+                                                                                            : 2,
+                                                      .writer = (uint8_t)db_deck_writer(),
+                                                      .value = ev->value,
+                                                      .x = ev->x,
+                                                      .y = ev->y};
         input_seq++;
     }
 }
@@ -318,7 +326,8 @@ static void on_input(const db_input_t *ev)
         "{\"t\":\"input\",\"kind\":\"%s\",\"index\":%u,\"value\":%d,\"x\":%u,\"y\":%u,\"x2\":%u,\"y2\":%u,"
         "\"writer\":\"%s\",\"simulated\":%s}",
         kinds[ev->kind], ev->index, ev->value, ev->x, ev->y, ev->x2, ev->y2,
-        db_deck_source_name(db_deck_writer()), db_deck_input_real_for(0) ? "false" : "true"); /* a person's, not a tool's */
+        db_deck_source_name(db_deck_writer()),
+        db_deck_input_real_for(0) ? "false" : "true"); /* a person's, not a tool's */
     xQueueSend(e.inputs, json, 0); /* full: the press is dropped for listeners, never for the deck */
 }
 
@@ -429,7 +438,8 @@ static void command(httpd_handle_t server, int fd, const char *text)
             }
         }
         xSemaphoreGive(e.lock);
-    } else if (cJSON_IsString(t) && (strcmp(t->valuestring, "set") == 0 || strcmp(t->valuestring, "input") == 0)) {
+    } else if (cJSON_IsString(t) &&
+               (strcmp(t->valuestring, "set") == 0 || strcmp(t->valuestring, "input") == 0)) {
         bool set = t->valuestring[0] == 's';
         bool token = false;
         bool any_token = false;
@@ -447,14 +457,14 @@ static void command(httpd_handle_t server, int fd, const char *text)
                 reply, sizeof(reply),
                 "{\"ok\":false,\"error\":\"needs the password, not a token\",\"code\":\"needs_password\"}");
             code = 403;
-        } else if (!web_lock_for(10000)) { /* as in http.c timed(): a hung handler must not hold this server */
+        } else if (!web_lock_for(
+                       10000)) { /* as in http.c timed(): a hung handler must not hold this server */
             snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"busy\",\"code\":\"busy\"}");
             code = 503;
         } else {
-            code =
-                body ? (set ? (any_token ? api_config_token : api_config)(body, reply, sizeof(reply))
-                           : api_input(body, reply, sizeof(reply)))
-                     : 500;
+            code = body ? (set ? (any_token ? api_config_token : api_config)(body, reply, sizeof(reply))
+                               : api_input(body, reply, sizeof(reply)))
+                        : 500;
             web_unlock();
         }
         free(body);
@@ -542,7 +552,8 @@ void db_web_broadcast(const char *json)
     broadcast(json);
 }
 
-esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*screen_json)(char *buf, size_t cap))
+esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap),
+                       size_t (*screen_json)(char *buf, size_t cap))
 {
     e.state_json = state_json;
     e.screen_json = screen_json;
@@ -560,5 +571,6 @@ esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*scr
     }
     db_deck_listener_t l = {.input = on_input};
     db_deck_add_listener(&l);
-    return xTaskCreatePinnedToCore(poll_task, "events", 3072, NULL, 3, NULL, 0) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
+    return xTaskCreatePinnedToCore(poll_task, "events", 3072, NULL, 3, NULL, 0) == pdPASS ? ESP_OK
+                                                                                          : ESP_ERR_NO_MEM;
 }

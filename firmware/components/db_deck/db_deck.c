@@ -12,11 +12,11 @@
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
-#include "jpeg_port.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "jpeg_port.h"
 #include "usb_port.h"
 
 #define MAX_LISTENERS  6
@@ -44,8 +44,8 @@ static struct {
     QueueHandle_t events;
     TaskHandle_t writer_task;
     db_dev_t dev;
-    /* simulated input has its own key states, or a test's held key would turn a person's next real report into
-     * a release nobody made. Swapped in for it: both run in the event task. */
+    /* simulated input has its own key states, or a test's held key would turn a person's next real report
+     * into a release nobody made. Swapped in for it: both run in the event task. */
     uint8_t sim_state[sizeof(((db_dev_t *)0)->state)];
     bool present;
     db_regions_t pending;
@@ -66,7 +66,7 @@ static struct {
     bool replay;
     bool keep_picture; /* of the old writer, until the new one draws: under lock */
     bool clear_first;  /* the display goes black before the writer's first image */
-    uint8_t waiting; /* a second device that came while the deck was open */
+    uint8_t waiting;   /* a second device that came while the deck was open */
 } s;
 
 static void *psram_realloc(void *ptr, size_t size)
@@ -225,7 +225,8 @@ static void writer_task(void *arg)
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         for (;;) {
-            int pct = __atomic_exchange_n(&brightness, 0, __ATOMIC_RELAXED); /* between images, also in a stream */
+            int pct =
+                __atomic_exchange_n(&brightness, 0, __ATOMIC_RELAXED); /* between images, also in a stream */
             if (pct && s.present) {
                 xSemaphoreTake(s.io_lock, portMAX_DELAY);
                 s.dev.driver->set_brightness(&s.dev, (uint8_t)(pct - 1));
@@ -279,8 +280,9 @@ static bool start_replug(uint8_t address, uint32_t off_ms);
 #define STUCK_RESTARTED 0x57a11ed0
 static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not over a power cut */
 
-/* A replug that did not help within a minute leaves one restart per power-on, not before 10 min uptime. A deck
- * that keeps hanging after that is replugged less and less often, up to every 5 min, and the bridge stays up. */
+/* A replug that did not help within a minute leaves one restart per power-on, not before 10 min uptime. A
+ * deck that keeps hanging after that is replugged less and less often, up to every 5 min, and the bridge
+ * stays up. */
 static void on_stuck(void)
 {
     static int64_t last;
@@ -303,9 +305,9 @@ static void on_stuck(void)
 
 static void handle_attach(uint8_t address)
 {
-    /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen at
-     * 16, 32 and 48, never in between). Plugged in again it gets the next one. A hub or another device there
-     * is left alone. */
+    /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen
+     * at 16, 32 and 48, never in between). Plugged in again it gets the next one. A hub or another device
+     * there is left alone. */
     uint16_t vid;
     uint16_t pid;
     if ((address & 0x0f) == 0 && usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
@@ -397,7 +399,8 @@ bool db_deck_input_real_for(uint32_t peer_ip)
     return input_real && (!input_only_ip || input_only_ip == peer_ip);
 }
 
-/* `raw` is what dock hosts get, `ev->report` what the edges are parsed from: they differ for a simulated press. */
+/* `raw` is what dock hosts get, `ev->report` what the edges are parsed from: they differ for a simulated
+ * press. */
 static void handle_input(const ev_t *ev, const uint8_t *raw)
 {
     s.stats.inputs++;
@@ -483,7 +486,10 @@ static void on_detached(void)
 
 static void on_input(const uint8_t *report, size_t len, uint64_t t_us)
 {
-    ev_t ev = {.kind = EV_INPUT, .real = true, .t_us = t_us, .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
+    ev_t ev = {.kind = EV_INPUT,
+               .real = true,
+               .t_us = t_us,
+               .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
     memcpy(ev.report, report, ev.len);
     if (xQueueSend(s.events, &ev, 0) != pdTRUE) {
         s.stats.inputs_dropped++;
@@ -532,7 +538,8 @@ esp_err_t db_deck_start(bool full_speed)
         xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    usb_port_cb_t cb = {.attached = on_attached, .detached = on_detached, .input = on_input, .stuck = on_stuck};
+    usb_port_cb_t cb = {
+        .attached = on_attached, .detached = on_detached, .input = on_input, .stuck = on_stuck};
     return usb_port_start(&cb, full_speed);
 }
 
@@ -668,11 +675,12 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
     db_chunk_t chunk;
     if (s.dev.driver->parse_output(&s.dev, padded, io->out_report_size, &chunk)) {
-        if (!db_device_find_target(&s.dev.info, chunk.display, chunk.rect)) { /* a partial strip rect is the host's */
+        if (!db_device_find_target(&s.dev.info, chunk.display,
+                                   chunk.rect)) { /* a partial strip rect is the host's */
             xSemaphoreGive(s.shot_lock);
             if (chunk.part == 0) {
-                ESP_LOGW(TAG, "%s: image at %u,%u %ux%u is off the display, dropped", db_deck_source_name(source),
-                         chunk.rect.x, chunk.rect.y, chunk.rect.w, chunk.rect.h);
+                ESP_LOGW(TAG, "%s: image at %u,%u %ux%u is off the display, dropped",
+                         db_deck_source_name(source), chunk.rect.x, chunk.rect.y, chunk.rect.w, chunk.rect.h);
             }
             return ESP_OK;
         }

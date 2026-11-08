@@ -52,7 +52,7 @@ void db_screen_put(db_screen_t *s, uint8_t display, db_rect_t rect, uint8_t *dat
 /* Collects pieces; the last one turns them into a shot. Pieces out of order are dropped with their image. */
 db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c);
 void db_screen_clear(db_screen_t *s);
-/* Copy w x h RGB888 pixels (rows `stride` bytes apart) into the dw x dh picture `dst` at x, y, cut at its edges.
- * DB_ERR_PROTO when x, y lies outside it. */
+/* Copy w x h RGB888 pixels (rows `stride` bytes apart) into the dw x dh picture `dst` at x, y, cut at its
+ * edges. DB_ERR_PROTO when x, y lies outside it. */
 db_err_t db_screen_blit(uint8_t *dst, uint16_t dw, uint16_t dh, uint16_t x, uint16_t y, const uint8_t *src,
                         size_t stride, uint32_t w, uint32_t h);

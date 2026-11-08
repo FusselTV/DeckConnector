@@ -167,9 +167,10 @@ esp_err_t send_built(httpd_req_t *req, size_t cap, size_t (*build)(char *buf, si
 
 static httpd_handle_t tls_server;
 
-/* A server task stuck in a handler takes the whole web interface and API with it, and nothing else notices. Each
- * server runs an empty job every 10 s; none for 2 min restarts the bridge. A firmware upload takes 10 to 30 s. */
-#define HUNG_US (120 * 1000000LL)
+/* A server task stuck in a handler takes the whole web interface and API with it, and nothing else notices.
+ * Each server runs an empty job every 10 s; none for 2 min restarts the bridge. A firmware upload takes 10 to
+ * 30 s. */
+#define HUNG_US        (120 * 1000000LL)
 #define HUNG_RESTARTED 0x3eb0de4d
 #if CONFIG_IDF_TARGET_LINUX
 #undef RTC_NOINIT_ATTR
@@ -180,7 +181,8 @@ static struct {
     httpd_handle_t hd;
     volatile int64_t ran;
     volatile bool proven; /* ran a job since the start */
-    int64_t queued; /* one job waits at a time: the server's control socket holds 6 and the live deck needs them */
+    int64_t queued; /* one job waits at a time: the server's control socket holds 6 and the live deck needs
+                       them */
 } alive[2];
 
 static void alive_job(void *arg)
@@ -201,7 +203,8 @@ static void alive_check(void *arg)
             db_ota_restart(0);
             return;
         }
-        if (alive[i].ran >= alive[i].queued || now - alive[i].queued > 30 * 1000000LL) { /* or it was dropped */
+        if (alive[i].ran >= alive[i].queued ||
+            now - alive[i].queued > 30 * 1000000LL) { /* or it was dropped */
             alive[i].queued = now;
             httpd_queue_work(alive[i].hd, alive_job, &alive[i]);
         }
@@ -240,7 +243,8 @@ bool web_tls_running(void)
 
 bool web_plain_refused(httpd_req_t *req)
 {
-    if (!db_config()->https_only || web_tls(req) || !tls_server) { /* no HTTPS: plain stays, or nobody gets in */
+    if (!db_config()->https_only || web_tls(req) ||
+        !tls_server) { /* no HTTPS: plain stays, or nobody gets in */
         return false;
     }
     db_net_status_t n;
@@ -371,7 +375,8 @@ static void announce_api(void)
 {
     const char *fw = esp_app_get_description()->version;
     mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
-    esp_err_t err = mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
+    esp_err_t err =
+        mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
     }
@@ -499,7 +504,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     cfg.recv_wait_timeout =
         2; /* a client that stops halfway through its headers blocks the server this long */
     db_ota_web_load(DB_WEB_API);
-    /* every closed browser tab logged a dozen "error in send" warnings and pushed real lines out of the log ring */
+    /* every closed browser tab logged a dozen "error in send" warnings and pushed real lines out of the log
+     * ring */
     esp_log_level_set("httpd_txrx", ESP_LOG_ERROR);
     esp_log_level_set("httpd_uri", ESP_LOG_ERROR);
     esp_log_level_set("httpd_ws", ESP_LOG_ERROR);
@@ -578,7 +584,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/wifi/join", .method = HTTP_POST, .handler = post_wifi_join}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_PUT, .handler = put_frontend}, WEB_FULL},
         {{.uri = "/api/frontend", .method = HTTP_DELETE, .handler = delete_frontend}, WEB_FULL},
-        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump}, WEB_ADMIN}, /* stacks can hold the password */
+        {{.uri = "/api/coredump", .method = HTTP_GET, .handler = get_coredump},
+         WEB_ADMIN}, /* stacks can hold the password */
         {{.uri = "/api/boot", .method = HTTP_GET, .handler = get_boot}, WEB_FULL},
         {{.uri = "/api/coredump", .method = HTTP_DELETE, .handler = delete_coredump}, WEB_FULL},
 #ifdef DB_DEBUG_CRASH

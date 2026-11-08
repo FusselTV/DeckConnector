@@ -61,7 +61,7 @@ static struct {
         char addr[sizeof(((db_config_t *)0)->satellite)];
         uint32_t ip;
     } resolved; /* under resolved_mux */
-    ws_t ws; /* the WebSocket port (16623), when the address is a ws:// or wss:// URL */
+    ws_t ws;    /* the WebSocket port (16623), when the address is a ws:// or wss:// URL */
     bool ws_mode;
     uint64_t frame_left;
     char pin[sizeof(((db_config_t *)0)->satellite_pin)];
@@ -100,8 +100,9 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
-/* Under `tx`. Over the WebSocket one frame carries one line, as Companion sends them. A failed or short send ends
- * the session: a lost key-up would leave the key held in Companion, and the deck's input task must not wait. */
+/* Under `tx`. Over the WebSocket one frame carries one line, as Companion sends them. A failed or short send
+ * ends the session: a lost key-up would leave the key held in Companion, and the deck's input task must not
+ * wait. */
 static void raw_send(const char *buf, size_t n)
 {
     if (s.sock < 0 || s.broken) {
@@ -799,8 +800,9 @@ esp_err_t db_satellite_start(void (*changed)(void))
     db_deck_listener_t dl = {.input = on_input, .device_changed = on_device, .external = true};
     db_deck_add_listener(&dl);
     /* tinfl, which inflates the PNGs, keeps 11 KB of state on the stack */
-    return xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, &s.task, 0) == pdPASS ? ESP_OK
-                                                                                                : ESP_ERR_NO_MEM;
+    return xTaskCreatePinnedToCore(client_task, "satellite", 16384, NULL, 6, &s.task, 0) == pdPASS
+               ? ESP_OK
+               : ESP_ERR_NO_MEM;
 }
 
 bool db_satellite_connected(void)
@@ -872,8 +874,10 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
             snprintf(why, sizeof(why), "no connection: %s", strerror(-sock));
             return why;
         }
-        int64_t end = esp_timer_get_time() + CONNECT_MS * 1000LL; /* a byte at a time must not hold the web lock */
-        for (int r; n < sizeof(line) - 1 && !memchr(line, '\n', n) && esp_timer_get_time() < end; n += (size_t)r) {
+        int64_t end =
+            esp_timer_get_time() + CONNECT_MS * 1000LL; /* a byte at a time must not hold the web lock */
+        for (int r; n < sizeof(line) - 1 && !memchr(line, '\n', n) && esp_timer_get_time() < end;
+             n += (size_t)r) {
             if ((r = recv(sock, line + n, sizeof(line) - 1 - n, 0)) <= 0) {
                 break;
             }

@@ -12,8 +12,8 @@ size_t db_log_since(uint64_t *pos, char *buf, size_t cap);
 /* The end of the log the boot before this one left, 0 bytes after a power cut. */
 size_t db_log_prev(char *buf, size_t cap);
 
-/* Things worth a timeline (a source came or went, a roam, pairing, an update): logged like ESP_LOGI under `tag`
- * and kept in a ring of the last DB_EVENTS. `kind` is a short word such as "source" or "wlan". */
+/* Things worth a timeline (a source came or went, a roam, pairing, an update): logged like ESP_LOGI under
+ * `tag` and kept in a ring of the last DB_EVENTS. `kind` is a short word such as "source" or "wlan". */
 #define DB_EVENTS 32
 typedef struct {
     int64_t at_us;  /* esp_timer time */
@@ -21,7 +21,8 @@ typedef struct {
     char kind[12];
     char text[84];
 } db_event_t;
-void db_log_event(const char *tag, const char *kind, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+void db_log_event(const char *tag, const char *kind, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
 /* Oldest first. */
 size_t db_log_events(db_event_t *out, size_t max);
 

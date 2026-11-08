@@ -4,8 +4,12 @@
 
 #include "db_dns.h"
 
-void setUp(void) {}
-void tearDown(void) {}
+void setUp(void)
+{
+}
+void tearDown(void)
+{
+}
 
 static size_t unhex(const char *hex, uint8_t *out)
 {
@@ -19,10 +23,12 @@ static size_t unhex(const char *hex, uint8_t *out)
 }
 
 /* A PTR query and answer for 192.168.1.180, a Windows PC. */
-static const char *QUERY = "123401000001000000000000033138300131033136380331393207696e2d61646472046172706100000c0001";
-static const char *ANSWER = "123485800001000100000000033138300131033136380331393207696e2d61646472046172706100000c00010331"
-                            "38300131033136380331393207696e2d61646472046172706100000c00010000000500110f4445534b544f50"
-                            "2d4558414d504c4500";
+static const char *QUERY =
+    "123401000001000000000000033138300131033136380331393207696e2d61646472046172706100000c0001";
+static const char *ANSWER =
+    "123485800001000100000000033138300131033136380331393207696e2d61646472046172706100000c00010331"
+    "38300131033136380331393207696e2d61646472046172706100000c00010000000500110f4445534b544f50"
+    "2d4558414d504c4500";
 
 static uint32_t ip180(void)
 {
@@ -60,7 +66,8 @@ static void test_compressed_and_looping_names(void)
     uint8_t msg[256];
     size_t n = unhex(QUERY, msg);
     msg[2] = 0x81, msg[3] = 0x80, msg[7] = 1;
-    const uint8_t rr[] = {0xc0, 12, 0, 12, 0, 1, 0, 0, 0, 5, 0, 2, 0xc0, 12}; /* PTR data points at the question */
+    const uint8_t rr[] = {0xc0, 12, 0, 12, 0, 1,    0,
+                          0,    0,  5, 0,  2, 0xc0, 12}; /* PTR data points at the question */
     memcpy(msg + n, rr, sizeof(rr));
     char name[DB_DNS_NAME_LEN];
     TEST_ASSERT_TRUE(db_dns_ptr_name(msg, n + sizeof(rr), 0x1234, name));

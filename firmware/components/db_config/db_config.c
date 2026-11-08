@@ -98,8 +98,8 @@ esp_err_t db_config_load(void)
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
                 current.controller = DB_CTRL_SERVER;
             }
-            /* An older blob ends in the struct's padding, which lands in the first appended fields: menu_chord
-             * came back empty once, and then every settings change without it was refused. */
+            /* An older blob ends in the struct's padding, which lands in the first appended fields:
+             * menu_chord came back empty once, and then every settings change without it was refused. */
             db_config_t fresh;
             defaults(&fresh);
             if (!known_chord(current.menu_chord)) {
@@ -120,7 +120,8 @@ esp_err_t db_config_load(void)
                 current.ntp_server[0] = '\0';
             }
             uint8_t lock;
-            memcpy(&lock, &current.qr_login_off, 1); /* padding of an older blob: neither 0 nor 1 is no bool */
+            memcpy(&lock, &current.qr_login_off,
+                   1); /* padding of an older blob: neither 0 nor 1 is no bool */
             current.qr_login_off = lock == 1;
             memcpy(&lock, &current.satellite_auto_off, 1);
             current.satellite_auto_off = lock == 1;
@@ -214,7 +215,7 @@ static esp_err_t erase(const char *ns, const char *key)
 esp_err_t db_config_reset(void)
 {
     /* "ota" stays (each slot's security level), and so does the bridge's own HTTPS certificate */
-    const char *const wipe[][2] = {{"auth", NULL},  {"dock", NULL},  {"satellite", NULL},
+    const char *const wipe[][2] = {{"auth", NULL},   {"dock", NULL},  {"satellite", NULL},
                                    {"web", "ccert"}, {"web", "ckey"}, {"web", "step"}};
     esp_err_t err = ESP_OK;
     for (size_t i = 0; i < sizeof(wipe) / sizeof(wipe[0]); i++) {
@@ -293,7 +294,8 @@ static bool take_str(const cJSON *obj, const char *key, char *dst, size_t cap, c
     }
     if (!cJSON_IsString(v) || strlen(v->valuestring) >= cap) {
         snprintf(err, err_cap,
-                 strcmp(key, "admin_pass") ? "%s: text expected, at most %u characters" : "%s: 6 to %u characters",
+                 strcmp(key, "admin_pass") ? "%s: text expected, at most %u characters"
+                                           : "%s: 6 to %u characters",
                  key, (unsigned)(cap - 1));
         return false;
     }
@@ -578,7 +580,8 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
         snprintf(err, err_cap, "name: letters, digits and dashes, no dash at the start or end");
         ok = false;
     }
-    if (ok && cJSON_GetObjectItemCaseSensitive(root, "wifi_pass") && !db_config_wifi_pass_ok(cfg->wifi_pass)) {
+    if (ok && cJSON_GetObjectItemCaseSensitive(root, "wifi_pass") &&
+        !db_config_wifi_pass_ok(cfg->wifi_pass)) {
         snprintf(err, err_cap, "wifi_pass: 8 to 63 characters, 64 hex digits, or empty for an open network");
         ok = false;
     }

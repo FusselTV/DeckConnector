@@ -11,7 +11,6 @@
 #include "nvs.h"
 #include "web.h"
 
-
 /* Per mille of all CPU time (both cores, idle included) since the previous call; since boot on the first call
  * and for a new task. */
 static void write_cpu(db_json_t *j)

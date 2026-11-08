@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "esp_heap_caps.h"
 #include "cJSON.h"
 #include "db_json.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "mbedtls/pk.h"
@@ -13,15 +13,16 @@
 #include "nvs.h"
 #include "psa/crypto.h"
 
-#define PEM_MAX    1024
+#define PEM_MAX 1024
 /* An uploaded certificate may carry its chain. Together with the key it lives in the 24 KB NVS partition next
  * to the settings, which need room for a new copy each time they are saved. */
-#define CUSTOM_MAX  6144
-#define NVS_SPARE   4096
+#define CUSTOM_MAX 6144
+#define NVS_SPARE  4096
 
 static const char *TAG = "cert";
 
-/* A new P-256 key and a certificate for it, signed by itself: RSA-2048 made each handshake three times as slow. */
+/* A new P-256 key and a certificate for it, signed by itself: RSA-2048 made each handshake three times as
+ * slow. */
 static bool make(const char *name, char *cert, char *key)
 {
     psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
@@ -94,7 +95,8 @@ static bool load_custom(nvs_handle_t h, char **cert, char **key)
     }
     char *c = heap_caps_calloc(1, cl + 1, MALLOC_CAP_SPIRAM);
     char *k = heap_caps_calloc(1, kl + 1, MALLOC_CAP_SPIRAM);
-    bool read = c && k && nvs_get_blob(h, "ccert", c, &cl) == ESP_OK && nvs_get_blob(h, "ckey", k, &kl) == ESP_OK;
+    bool read =
+        c && k && nvs_get_blob(h, "ccert", c, &cl) == ESP_OK && nvs_get_blob(h, "ckey", k, &kl) == ESP_OK;
     char info[8];
     if (read && web_cert_check(c, k, info, 0)) {
         *cert = c;
@@ -140,9 +142,10 @@ bool web_cert(const char *name, char **cert, char **key, char fp[96])
         } else if (ke == ESP_ERR_NVS_NOT_FOUND) {
             uint32_t t = esp_log_timestamp();
             ok = make(name, *cert, *key);
-            bool saved = ok && nvs_set_str(h, "cert", *cert) == ESP_OK && nvs_set_str(h, "key", *key) == ESP_OK &&
-                         nvs_commit(h) == ESP_OK;
-            ESP_LOGI(TAG, "new certificate in %lu ms: %s", (unsigned long)(esp_log_timestamp() - t), ok ? "ok" : "failed");
+            bool saved = ok && nvs_set_str(h, "cert", *cert) == ESP_OK &&
+                         nvs_set_str(h, "key", *key) == ESP_OK && nvs_commit(h) == ESP_OK;
+            ESP_LOGI(TAG, "new certificate in %lu ms: %s", (unsigned long)(esp_log_timestamp() - t),
+                     ok ? "ok" : "failed");
             if (ok && !saved) {
                 ESP_LOGE(TAG, "certificate not saved: its fingerprint changes at the next restart");
             }
@@ -263,7 +266,8 @@ esp_err_t put_tls(httpd_req_t *req)
         return send_error(req, "413 Payload Too Large", "certificate and key: at most 6144 bytes together");
     }
     if (!ok) {
-        return send_error(req, "400 Bad Request", "a PEM certificate and its PEM key (not encrypted) expected");
+        return send_error(req, "400 Bad Request",
+                          "a PEM certificate and its PEM key (not encrypted) expected");
     }
     if (stored == ESP_ERR_NVS_NOT_ENOUGH_SPACE) {
         return send_error(req, "507 Insufficient Storage", "not saved: too little room next to the settings");

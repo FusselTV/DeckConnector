@@ -40,8 +40,9 @@ static struct {
     SemaphoreHandle_t ctrl_done;
     SemaphoreHandle_t ctrl_lock;
     volatile uint32_t errors;
-    uint32_t fail_since; /* ms of the first failed output since the last one that went through, 0: none. 32 bits:
-                          * written by the USB client task and read by writers, a 64-bit value could tear */
+    uint32_t
+        fail_since; /* ms of the first failed output since the last one that went through, 0: none. 32 bits:
+                     * written by the USB client task and read by writers, a 64-bit value could tear */
     uint32_t recoveries;
     db_hid_io_t io;
     bool auto_speed;
@@ -102,7 +103,8 @@ static void in_done(usb_transfer_t *t)
 
 static void in_resubmit(usb_transfer_t *t)
 {
-    /* Without a pending IN transfer no key or encoder would ever arrive again. An error halts the endpoint. */
+    /* Without a pending IN transfer no key or encoder would ever arrive again. An error halts the endpoint.
+     */
     if (usb_host_transfer_submit(t) != ESP_OK &&
         (usb_host_endpoint_clear(s.dev, s.ep_in) != ESP_OK || usb_host_transfer_submit(t) != ESP_OK)) {
         s.errors++;
@@ -121,8 +123,8 @@ static void ctrl_done(usb_transfer_t *t)
 static db_err_t control(uint8_t type, uint8_t request, uint8_t report_id, uint8_t *data, size_t len,
                         size_t *out_len);
 
-/* On 2026-11-08 the deck's output transfers stopped completing while it stayed attached: it showed one picture
- * for hours and the errors were only counted. Cutting the port's power brought it back. */
+/* On 2026-11-08 the deck's output transfers stopped completing while it stayed attached: it showed one
+ * picture for hours and the errors were only counted. Cutting the port's power brought it back. */
 static db_err_t write_failed(db_err_t err)
 {
     s.errors++;
@@ -149,8 +151,8 @@ static db_err_t write_failed(db_err_t err)
         }
         uint8_t probe[32] = {0x05};
         bool answers = control(0xa1, HID_GET_REPORT, probe[0], probe, sizeof(probe), NULL) == DB_OK;
-        ESP_LOGE(TAG, "the deck took no output for %d s, its control endpoint %s: reconnecting it", STUCK_MS / 1000,
-                 answers ? "still answers" : "is silent too");
+        ESP_LOGE(TAG, "the deck took no output for %d s, its control endpoint %s: reconnecting it",
+                 STUCK_MS / 1000, answers ? "still answers" : "is silent too");
         s.cb.stuck();
     }
     return err;
@@ -259,7 +261,8 @@ static void client_event(const usb_host_client_event_msg_t *msg, void *arg)
 
 /* Full speed only: some hubs drop a high speed deck right after the handshake, and full speed behind a
  * high speed hub would need a transaction translator the host stack lacks. IDF 6.0's HAL cannot do esp-usb's
- * fsls_only, so the bit is set by hand; a recovery soft reset clears it, hence after every round of events. */
+ * fsls_only, so the bit is set by hand; a recovery soft reset clears it, hence after every round of events.
+ */
 static void keep_full_speed(void)
 {
     if (s.full) {
@@ -319,9 +322,9 @@ static esp_err_t replug(uint8_t address, uint32_t off_ms)
     if (address) {
         usb_host_device_close(s.client, dev);
     }
-    /* A port without power is a pulled cable to the host stack: the device goes, and comes back enumerated anew.
-     * Always the root port, so behind a hub everything on it goes too: switching a hub port from here (CLEAR_FEATURE
-     * on the hub) tripped an assert in esp-usb's ext_hub.c:512 and restarted the bridge. */
+    /* A port without power is a pulled cable to the host stack: the device goes, and comes back enumerated
+     * anew. Always the root port, so behind a hub everything on it goes too: switching a hub port from here
+     * (CLEAR_FEATURE on the hub) tripped an assert in esp-usb's ext_hub.c:512 and restarted the bridge. */
     ESP_LOGI(TAG, "power cycling the root port");
     __atomic_store_n(&s.replug_until_ms, (uint32_t)(esp_timer_get_time() / 1000) + off_ms + 4500,
                      __ATOMIC_RELAXED);
@@ -329,7 +332,8 @@ static esp_err_t replug(uint8_t address, uint32_t off_ms)
     vTaskDelay(pdMS_TO_TICKS(off_ms));
     keep_full_speed();
     esp_err_t err = ESP_FAIL;
-    for (int i = 0; i < 3 && err != ESP_OK; i++) { /* off and never on again: the deck stays dark until a reboot */
+    for (int i = 0; i < 3 && err != ESP_OK;
+         i++) { /* off and never on again: the deck stays dark until a reboot */
         err = usb_host_lib_set_root_port_power(true);
         if (err != ESP_OK) {
             vTaskDelay(pdMS_TO_TICKS(200));
@@ -355,8 +359,8 @@ static void in_retry(void *arg)
     }
 }
 
-/* auto: a USB device is there (a hub counts) but no deck came up at high speed, so try full speed. Back to high
- * speed once the port is empty, so a deck plugged in directly afterwards gets it. */
+/* auto: a USB device is there (a hub counts) but no deck came up at high speed, so try full speed. Back to
+ * high speed once the port is empty, so a deck plugged in directly afterwards gets it. */
 static void check_speed(void *arg)
 {
     uint8_t addrs[8];
@@ -409,7 +413,8 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
     s.io = (db_hid_io_t){
         .write = io_write, .flush = io_flush, .get_feature = io_get_feature, .set_feature = io_set_feature};
     if (!s.out_free || !s.ctrl_done || !s.ctrl_lock ||
-        xTaskCreatePinnedToCore(lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), 10, NULL, 1) != pdPASS) {
+        xTaskCreatePinnedToCore(lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), 10, NULL, 1) !=
+            pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
@@ -470,7 +475,8 @@ static void clamp_fs_out_mps(const usb_config_desc_t *cd)
 {
     int off = 0;
     const usb_standard_desc_t *d = (const usb_standard_desc_t *)cd;
-    while ((d = usb_parse_next_descriptor_of_type(d, cd->wTotalLength, USB_B_DESCRIPTOR_TYPE_ENDPOINT, &off))) {
+    while (
+        (d = usb_parse_next_descriptor_of_type(d, cd->wTotalLength, USB_B_DESCRIPTOR_TYPE_ENDPOINT, &off))) {
         usb_ep_desc_t *ep = (usb_ep_desc_t *)d;
         if (!(ep->bEndpointAddress & 0x80) && USB_EP_DESC_GET_XFERTYPE(ep) == USB_TRANSFER_TYPE_INTR &&
             USB_EP_DESC_GET_MPS(ep) > 64) {

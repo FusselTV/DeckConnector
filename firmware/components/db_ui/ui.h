@@ -114,14 +114,14 @@ typedef struct {
     int update_pct; /* < 0: no update running */
     char update_what[24];
     bool setup_done;
-    uint8_t setup_step; /* the web wizard's step, 0 when it does not run */
+    uint8_t setup_step;   /* the web wizard's step, 0 when it does not run */
     char login_token[17]; /* one login for whoever scans login_qr; empty: none */
     ui_qr_t login_qr;
     bool picked; /* the config names a host or a program other than the default: someone chose */
     bool show_pass;
     bool reset_ask;
-    bool from_deck; /* the input being handled was pressed on the deck, not sent over the network */
-    char login_ip[16]; /* a browser asks to log in without the password; empty: nobody */
+    bool from_deck;     /* the input being handled was pressed on the deck, not sent over the network */
+    char login_ip[16];  /* a browser asks to log in without the password; empty: nobody */
     char login_who[40]; /* the label the browser sent, cut to 20 characters, what a key shows */
     char login_mac[18]; /* empty when it is not in the ARP table */
     char login_name[40];
@@ -139,7 +139,8 @@ typedef enum {
     UI_DO_RESET,
     UI_DO_SAVE_LAN, /* dhcp, octets */
     UI_DO_SETUP_DONE,
-    UI_DO_OFFER, /* value: 1 connects to the offered Companion over Satellite, 0 asks no more until a restart */
+    UI_DO_OFFER, /* value: 1 connects to the offered Companion over Satellite, 0 asks no more until a restart
+                  */
     UI_DO_HIDE_PASSWORD,
     UI_DO_CANCEL_RESET,
     UI_DO_LOGIN, /* value: 1 lets the asking browser in */
@@ -188,8 +189,8 @@ ui_layout_t ui_layout_of(const db_device_info_t *info);
 bool ui_menu_open(const ui_menu_t *m);
 void ui_menu_open_main(ui_menu_t *m, int64_t now);
 void ui_menu_close(ui_menu_t *m, int64_t now);
-/* The menu controls for `chord` (auto, keys, encoders, off; anything else counts as auto): index 0 and *last of the
- * encoders or keys. False for off or when the deck has fewer than two. */
+/* The menu controls for `chord` (auto, keys, encoders, off; anything else counts as auto): index 0 and *last
+ * of the encoders or keys. False for off or when the deck has fewer than two. */
 bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders, int *last);
 /* True when the screen changed; `act` says what the bridge has to do. Not reentrant. */
 bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, const db_input_t *ev,

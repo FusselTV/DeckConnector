@@ -40,8 +40,8 @@ void db_ota_restart(uint32_t delay_ms);
 esp_err_t db_ota_start_url(const char *url);
 
 /*
- * A new image must confirm itself or the bootloader goes back to the old one. It confirms once `healthy()` holds
- * for 20 s in a row (CONFIRM_AFTER) within two minutes, else it rolls back.
+ * A new image must confirm itself or the bootloader goes back to the old one. It confirms once `healthy()`
+ * holds for 20 s in a row (CONFIRM_AFTER) within two minutes, else it rolls back.
  */
 void db_ota_confirm_when(bool (*healthy)(void));
 
@@ -88,7 +88,8 @@ bool db_ota_web(db_ota_web_t *out);
 /* Why the page in the partition was not used at start, or ESP_OK. */
 esp_err_t db_ota_web_rejected(void);
 
-/* What sits below the app slots. Both can be replaced with POST /api/ota and a signed "bootloader" or "ptable" file. */
+/* What sits below the app slots. Both can be replaced with POST /api/ota and a signed "bootloader" or
+ * "ptable" file. */
 typedef struct {
     uint32_t bootloader_version;
     char bootloader_idf[32];

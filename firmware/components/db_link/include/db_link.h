@@ -10,8 +10,8 @@
 #include <string.h>
 
 /* How a connection the bridge makes is doing, for the status: the last error ("" while connected), since when
- * that holds, and the interface. Written by its task, copied whole by readers; a torn read shows a mixed error
- * text at worst. */
+ * that holds, and the interface. Written by its task, copied whole by readers; a torn read shows a mixed
+ * error text at worst. */
 typedef struct {
     char error[40];
     int64_t since_us;
@@ -34,8 +34,9 @@ static inline void db_health_ok(db_health_t *h, bool over_wlan)
 }
 
 /*
- * Connections to the deckbridge servers (docs/protocol.md). The server the config names in `host` is active while it
- * is connected, else the first connected one; only the active one may draw, the others wait as standby.
+ * Connections to the deckbridge servers (docs/protocol.md). The server the config names in `host` is active
+ * while it is connected, else the first connected one; only the active one may draw, the others wait as
+ * standby.
  */
 
 /* All hooks are required. */

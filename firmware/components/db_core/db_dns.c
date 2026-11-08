@@ -7,7 +7,8 @@
 size_t db_dns_ptr_query(uint32_t ip, uint16_t id, uint8_t *out)
 {
     const uint8_t *a = (const uint8_t *)&ip;
-    uint8_t head[12] = {(uint8_t)(id >> 8), (uint8_t)id, 0x01, 0x00, 0, 1}; /* recursion desired, 1 question */
+    uint8_t head[12] = {
+        (uint8_t)(id >> 8), (uint8_t)id, 0x01, 0x00, 0, 1}; /* recursion desired, 1 question */
     memcpy(out, head, sizeof(head));
     size_t n = sizeof(head);
     for (int i = 3; i >= 0; i--) {

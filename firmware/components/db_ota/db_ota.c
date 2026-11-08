@@ -66,7 +66,7 @@ static struct {
 
 static const char *target_name(void)
 {
-    return s.target == TARGET_C6     ? "c6"
+    return s.target == TARGET_C6      ? "c6"
            : s.target == TARGET_BOOT  ? "bootloader"
            : s.target == TARGET_TABLE ? "ptable"
                                       : "p4";
@@ -79,9 +79,10 @@ static const esp_partition_t *primary(uint8_t target)
     esp_partition_type_t type = boot ? ESP_PARTITION_TYPE_BOOTLOADER : ESP_PARTITION_TYPE_PARTITION_TABLE;
     const esp_partition_t *p = esp_partition_find_first(type, 0, NULL); /* subtype 0: the primary one */
     if (!p) {
-        esp_partition_register_external(NULL, boot ? ESP_PRIMARY_BOOTLOADER_OFFSET : ESP_PRIMARY_PARTITION_TABLE_OFFSET,
-                                        boot ? ESP_BOOTLOADER_SIZE : ESP_PARTITION_TABLE_SIZE,
-                                        boot ? "PrimaryBTLDR" : "PrimaryPrtTable", type, 0, &p);
+        esp_partition_register_external(
+            NULL, boot ? ESP_PRIMARY_BOOTLOADER_OFFSET : ESP_PRIMARY_PARTITION_TABLE_OFFSET,
+            boot ? ESP_BOOTLOADER_SIZE : ESP_PARTITION_TABLE_SIZE, boot ? "PrimaryBTLDR" : "PrimaryPrtTable",
+            type, 0, &p);
     }
     return p;
 }
@@ -130,7 +131,8 @@ static void finish(void)
         s.p4 = 0;
     }
     if (s.target == TARGET_BOOT || s.target == TARGET_TABLE) {
-        /* IDF opens both regions for writing and leaves them open, and only esp_ota_end() resets the offset */
+        /* IDF opens both regions for writing and leaves them open, and only esp_ota_end() resets the offset
+         */
         if (esp_flash_set_dangerous_write_protection(esp_flash_default_chip, true) != ESP_OK) {
             ESP_LOGE(TAG, "bootloader and partition table stay writable");
         }
@@ -176,11 +178,11 @@ const char *db_ota_inspect(const uint8_t *h)
 {
     uint16_t level;
     memcpy(&level, h + 6, 2);
-    return memcmp(h, "DBFW", 4) != 0 || h[4] != 1          ? "not a .dbfw file"
-           : h[5] < TARGET_P4 || h[5] > TARGET_TABLE         ? "unknown target"
-           : !signature_ok(h)                                ? "not signed for this DeckConnector"
-           : h[5] != TARGET_WEB && level < SECURITY_LEVEL    ? "below the security level, refused"
-                                                             : NULL;
+    return memcmp(h, "DBFW", 4) != 0 || h[4] != 1         ? "not a .dbfw file"
+           : h[5] < TARGET_P4 || h[5] > TARGET_TABLE      ? "unknown target"
+           : !signature_ok(h)                             ? "not signed for this DeckConnector"
+           : h[5] != TARGET_WEB && level < SECURITY_LEVEL ? "below the security level, refused"
+                                                          : NULL;
 }
 
 static const esp_partition_t *slot_partition(int slot)
@@ -232,7 +234,8 @@ static esp_err_t start_payload(void)
     }
     s.target = s.header[5];
     memcpy(&s.payload_len, s.header + 8, 4);
-    if (s.target != TARGET_P4 && s.target != TARGET_C6 && s.target != TARGET_BOOT && s.target != TARGET_TABLE) {
+    if (s.target != TARGET_P4 && s.target != TARGET_C6 && s.target != TARGET_BOOT &&
+        s.target != TARGET_TABLE) {
         return ESP_ERR_NOT_SUPPORTED;
     }
     if (!signature_ok(s.header)) {
@@ -257,7 +260,8 @@ static esp_err_t start_payload(void)
         /* staged in the slot an update would use next, then IDF verifies it and copies it to its place */
         const esp_partition_t *final = primary(s.target);
         s.partition = esp_ota_get_next_update_partition(NULL);
-        if (!final || !s.partition || s.partition == esp_ota_get_boot_partition() || s.payload_len > final->size) {
+        if (!final || !s.partition || s.partition == esp_ota_get_boot_partition() ||
+            s.payload_len > final->size) {
             return ESP_ERR_INVALID_SIZE;
         }
         /* kept until it is checked: a refused image must not erase the slot */
@@ -358,13 +362,14 @@ static esp_err_t check_table(const uint8_t *next)
     uint32_t flash = 0;
     esp_flash_get_size(NULL, &flash);
     int count = 0;
-    const char *why = !now                                                               ? "memory"
-                      : esp_partition_table_verify((const esp_partition_info_t *)next, false, &count) != ESP_OK
-                          ? "not a valid table (MD5)"
-                      : esp_partition_read(primary(TARGET_TABLE), 0, now, ESP_PARTITION_TABLE_SIZE) != ESP_OK
-                          ? "read"
-                      : esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &pos, &meta) != ESP_OK ? "running image"
-                          : db_ptable_check(now, next, ESP_PARTITION_TABLE_SIZE, run->address, meta.image_len, flash);
+    const char *why =
+        !now ? "memory"
+        : esp_partition_table_verify((const esp_partition_info_t *)next, false, &count) != ESP_OK
+            ? "not a valid table (MD5)"
+        : esp_partition_read(primary(TARGET_TABLE), 0, now, ESP_PARTITION_TABLE_SIZE) != ESP_OK ? "read"
+        : esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &pos, &meta) != ESP_OK
+            ? "running image"
+            : db_ptable_check(now, next, ESP_PARTITION_TABLE_SIZE, run->address, meta.image_len, flash);
     heap_caps_free(now);
     if (why) {
         ESP_LOGE(TAG, "partition table refused: %s", why);
@@ -377,13 +382,13 @@ static esp_err_t check_table(const uint8_t *next)
 static esp_err_t commit_boot(void)
 {
     const esp_partition_t *final = primary(s.target);
-    /* a bootloader: its image header (0xE9) and chip id here, IDF checks the rest in esp_ota_end, after staging
-     * erased the slot and before the copy */
+    /* a bootloader: its image header (0xE9) and chip id here, IDF checks the rest in esp_ota_end, after
+     * staging erased the slot and before the copy */
     uint16_t chip;
     memcpy(&chip, s.payload + 12, 2);
-    esp_err_t err = s.target == TARGET_TABLE                         ? check_table(s.payload)
+    esp_err_t err = s.target == TARGET_TABLE                              ? check_table(s.payload)
                     : s.payload[0] == 0xE9 && chip == ESP_CHIP_ID_ESP32P4 ? ESP_OK
-                                                                         : ESP_ERR_INVALID_ARG;
+                                                                          : ESP_ERR_INVALID_ARG;
     if (s.target == TARGET_BOOT && err != ESP_OK) {
         s.refusal = "not a bootloader for this chip";
     }
@@ -401,7 +406,8 @@ static esp_err_t commit_boot(void)
     uint8_t *placed = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
     uint8_t *old = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
     if (err == ESP_OK) {
-        err = staged && placed && old ? esp_partition_read(s.partition, 0, staged, final->size) : ESP_ERR_NO_MEM;
+        err = staged && placed && old ? esp_partition_read(s.partition, 0, staged, final->size)
+                                      : ESP_ERR_NO_MEM;
     }
     if (err == ESP_OK) {
         err = esp_partition_read(final, 0, old, s.payload_len);
@@ -416,7 +422,7 @@ static esp_err_t commit_boot(void)
         } else if (err != ESP_OK || !read || memcmp(placed, staged, s.payload_len)) {
             /* the region may be half written: the board may not start again until it is written again */
             ESP_LOGE(TAG, "the %s at 0x%lx is written incompletely (%s): do not power off, write it again",
-                     target_name(), (unsigned long)final->address, esp_err_to_name(err));
+                     target_name(), (unsigned long) final->address, esp_err_to_name(err));
             err = DB_OTA_ERR_HALF_WRITTEN;
         }
     }
@@ -457,7 +463,8 @@ static esp_err_t commit(void)
     if (err == ESP_OK && (!known || v.major1 > 2 || (v.major1 == 2 && v.minor1 >= 6))) {
         esp_err_t act = esp_hosted_slave_ota_activate();
         if (act != ESP_OK) {
-            ESP_LOGW(TAG, "C6 activate: %s%s", esp_err_to_name(act), known ? "" : " (version unknown, maybe old firmware)");
+            ESP_LOGW(TAG, "C6 activate: %s%s", esp_err_to_name(act),
+                     known ? "" : " (version unknown, maybe old firmware)");
             err = known ? act : ESP_OK;
         }
     }
@@ -510,9 +517,11 @@ static void url_task(void *arg)
     } else if (status != 200) {
         snprintf(why, sizeof(why), "HTTP %d", status);
     }
-    esp_err_t begun = err == ESP_OK && status == 200 && len > 0 ? db_ota_begin((size_t)len, -1, true) : ESP_FAIL;
+    esp_err_t begun =
+        err == ESP_OK && status == 200 && len > 0 ? db_ota_begin((size_t)len, -1, true) : ESP_FAIL;
     if (begun == ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "download of %s skipped: an update is already running", url); /* its state stays as it is */
+        ESP_LOGW(TAG, "download of %s skipped: an update is already running",
+                 url); /* its state stays as it is */
     } else if (begun != ESP_OK) {
         ESP_LOGE(TAG, "download of %s failed: %s", url, why);
         if (s.progress) {
@@ -586,17 +595,20 @@ static void confirm_task(void *arg)
         }
     }
     db_log_event(TAG, "update", "%s, rolling back",
-                 reached ? "the healthy new firmware could not be confirmed" : "new firmware never became healthy");
+                 reached ? "the healthy new firmware could not be confirmed"
+                         : "new firmware never became healthy");
     xSemaphoreTake(s.lock, portMAX_DELAY); /* it restarts: not during an update */
     esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
-    ESP_LOGE(TAG, "rolling back failed too: %s, the bootloader decides at the next start", esp_err_to_name(err));
+    ESP_LOGE(TAG, "rolling back failed too: %s, the bootloader decides at the next start",
+             esp_err_to_name(err));
     xSemaphoreGive(s.lock);
     vTaskDelete(NULL);
 }
 
 static bool (*s_healthy)(void);
 
-/* A restart asked for over the network before CONFIRM_AFTER is up would otherwise make the bootloader go back. */
+/* A restart asked for over the network before CONFIRM_AFTER is up would otherwise make the bootloader go
+ * back. */
 static void confirm_on_restart(void)
 {
     esp_ota_img_states_t state;
@@ -604,7 +616,8 @@ static void confirm_on_restart(void)
         state == ESP_OTA_IMG_PENDING_VERIFY) {
         esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "confirming before the restart failed: %s, the bootloader goes back", esp_err_to_name(err));
+            ESP_LOGE(TAG, "confirming before the restart failed: %s, the bootloader goes back",
+                     esp_err_to_name(err));
         }
     }
 }
@@ -683,7 +696,8 @@ esp_err_t db_ota_slot_refusal(int slot)
         st == ESP_OTA_IMG_PENDING_VERIFY) {
         return ESP_ERR_INVALID_STATE;
     }
-    if (esp_ota_get_state_partition(p, &st) == ESP_OK && (st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED)) {
+    if (esp_ota_get_state_partition(p, &st) == ESP_OK &&
+        (st == ESP_OTA_IMG_INVALID || st == ESP_OTA_IMG_ABORTED)) {
         return ESP_ERR_INVALID_CRC;
     }
     int level = known_level(p);
@@ -830,7 +844,8 @@ static void sha_hex(uint8_t target, char *out)
         psa_hash_compute(PSA_ALG_SHA_256, buf, p->size, sha, sizeof(sha), &n) == PSA_SUCCESS) {
         db_hex(out, sha, 32);
     } else {
-        ESP_LOGW(TAG, "%s region not read, no hash", target == TARGET_BOOT ? "bootloader" : "partition table");
+        ESP_LOGW(TAG, "%s region not read, no hash",
+                 target == TARGET_BOOT ? "bootloader" : "partition table");
     }
     heap_caps_free(buf);
 }
@@ -848,7 +863,8 @@ void db_ota_boot_info(db_ota_boot_t *out)
     }
     uint8_t e[32];
     const esp_partition_t *t = primary(TARGET_TABLE);
-    for (size_t off = 0; t && off < ESP_PARTITION_TABLE_SIZE && esp_partition_read(t, off, e, sizeof(e)) == ESP_OK;
+    for (size_t off = 0;
+         t && off < ESP_PARTITION_TABLE_SIZE && esp_partition_read(t, off, e, sizeof(e)) == ESP_OK;
          off += sizeof(e)) {
         if (e[0] == 0xAA && e[1] == 0x50) {
             out->partitions++;

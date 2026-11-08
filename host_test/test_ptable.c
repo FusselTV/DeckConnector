@@ -14,10 +14,10 @@ typedef struct {
 
 /* firmware/partitions.csv */
 static const row_t ours[] = {
-    {1, 2, 0x9000, 0x6000, "nvs"},         {1, 0, 0xf000, 0x2000, "otadata"},
-    {1, 1, 0x11000, 0x1000, "phy_init"},   {0, 16, 0x20000, 0x400000, "ota_0"},
-    {0, 17, 0x420000, 0x400000, "ota_1"},  {1, 3, 0x820000, 0x40000, "coredump"},
-    {0, 18, 0x860000, 0x400000, "ota_2"},  {0, 19, 0xc60000, 0x3a0000, "ota_3"},
+    {1, 2, 0x9000, 0x6000, "nvs"},        {1, 0, 0xf000, 0x2000, "otadata"},
+    {1, 1, 0x11000, 0x1000, "phy_init"},  {0, 16, 0x20000, 0x400000, "ota_0"},
+    {0, 17, 0x420000, 0x400000, "ota_1"}, {1, 3, 0x820000, 0x40000, "coredump"},
+    {0, 18, 0x860000, 0x400000, "ota_2"}, {0, 19, 0xc60000, 0x3a0000, "ota_3"},
     {1, 64, 0x1000000, 0x100000, "www"},
 };
 #define ROWS (sizeof(ours) / sizeof(ours[0]))
@@ -62,7 +62,9 @@ void setUp(void)
     write_table(now, ours, ROWS);
 }
 
-void tearDown(void) {}
+void tearDown(void)
+{
+}
 
 static void test_the_same_table_may_be_written(void)
 {
@@ -97,8 +99,8 @@ static void test_app_slots_keep_the_running_one_and_fit_it(void)
 
 static void test_overlap_flash_end_and_garbage_are_refused(void)
 {
-    TEST_ASSERT_NOT_NULL(with(7, (row_t){0, 19, 0xc50000, 0x3a0000, "ota_3"}));   /* into ota_2 */
-    TEST_ASSERT_NOT_NULL(with(8, (row_t){1, 64, 0x1f80000, 0x100000, "www"}));    /* past 32 MB, and moved */
+    TEST_ASSERT_NOT_NULL(with(7, (row_t){0, 19, 0xc50000, 0x3a0000, "ota_3"})); /* into ota_2 */
+    TEST_ASSERT_NOT_NULL(with(8, (row_t){1, 64, 0x1f80000, 0x100000, "www"}));  /* past 32 MB, and moved */
     memset(next, 0xff, sizeof(next));
     TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
 }

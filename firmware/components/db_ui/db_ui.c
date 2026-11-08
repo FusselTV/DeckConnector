@@ -29,7 +29,7 @@
 #include "ui.h"
 
 #define QUALITY       85
-#define REDRAW_DELAY  10 /* ms: the events of one turn or press come in a burst */
+#define REDRAW_DELAY  10      /* ms: the events of one turn or press come in a burst */
 #define FULL_ABOVE    5       /* more changed areas than this go out as one full image, measured faster */
 #define SAVE_AFTER_US 1500000 /* brightness goes to flash once it rests */
 #define PASSWORD_US   30000000
@@ -41,7 +41,7 @@ static const char *TAG = "ui";
 
 static struct {
     TaskHandle_t task;
-    SemaphoreHandle_t lock; /* menu, between the deck's event task and the UI task */
+    SemaphoreHandle_t lock;    /* menu, between the deck's event task and the UI task */
     SemaphoreHandle_t qr_lock; /* the QR buffers, which model() fills on both tasks */
     int active_link;
     int update_pct;
@@ -61,7 +61,8 @@ static struct {
     volatile int brightness; /* applied but not saved yet, -1 when saved */
     esp_timer_handle_t save_timer;
     bool save_due;
-    int64_t handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
+    int64_t
+        handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
 } s = {.active_link = -1, .update_pct = -1, .full = true, .menu = {.confirm_key = -1}, .brightness = -1};
 
 static void octets_of(const char *ip, uint8_t out[4])
@@ -268,7 +269,8 @@ bool db_ui_login_take(const char *token)
 {
     bool wanted = login_wanted();
     portENTER_CRITICAL(&login_mux);
-    uint8_t diff = !wanted || strlen(token) != 16 || !login_token[0] || esp_timer_get_time() - login_made >= LOGIN_US;
+    uint8_t diff =
+        !wanted || strlen(token) != 16 || !login_token[0] || esp_timer_get_time() - login_made >= LOGIN_US;
     for (int i = 0; i < 16 && token[i]; i++) {
         diff |= (uint8_t)(token[i] ^ login_token[i]);
     }
@@ -505,7 +507,8 @@ static void save_brightness(void)
     db_config_t c;
     edit_begin(&c);
     c.brightness = (uint8_t)b;
-    if (edit_end(&c, "brightness") == ESP_OK && s.brightness == b) { /* a turn during the save keeps its value */
+    if (edit_end(&c, "brightness") == ESP_OK &&
+        s.brightness == b) { /* a turn during the save keeps its value */
         s.brightness = -1;
     }
 }
@@ -607,7 +610,8 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         }
         portEXIT_CRITICAL(&login_mux);
         if (same) {
-            ESP_LOGI(TAG, "login request from %s %s on the deck", md->login_ip, act->value ? "accepted" : "denied");
+            ESP_LOGI(TAG, "login request from %s %s on the deck", md->login_ip,
+                     act->value ? "accepted" : "denied");
         }
         break;
     case UI_DO_SETUP_DONE:
@@ -916,8 +920,8 @@ static void tick(void *arg)
 
 static volatile uint32_t satellite_changes; /* per save: a set and a removal between looks count twice */
 
-/* Companion that drives the deck as a dock host is moved to its Satellite API when that answers: all controls, and
- * no lost connections. The probe blocks for seconds, so it has its own task. */
+/* Companion that drives the deck as a dock host is moved to its Satellite API when that answers: all
+ * controls, and no lost connections. The probe blocks for seconds, so it has its own task. */
 static void upgrade_task(void *arg)
 {
     struct {
@@ -925,7 +929,8 @@ static void upgrade_task(void *arg)
         int64_t at;
     } tried[DB_DOCK_HOSTS] = {0}; /* Companion dock hosts asked at `at`, since the address last changed */
     uint32_t seen_changes = 0;
-    uint32_t before[DB_DOCK_HOSTS] = {0}; /* the hosts of the last round: one that connects anew is asked at once */
+    uint32_t before[DB_DOCK_HOSTS] = {
+        0}; /* the hosts of the last round: one that connects anew is asked at once */
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(5000));
         db_dock_host_t hosts[DB_DOCK_HOSTS];
@@ -972,7 +977,8 @@ static void upgrade_task(void *arg)
             }
             if (why) {
                 if (first) {
-                    db_log_event(TAG, "source", "Companion at %s has no Satellite API; Satellite would be better",
+                    db_log_event(TAG, "source",
+                                 "Companion at %s has no Satellite API; Satellite would be better",
                                  hosts[i].ip);
                 }
                 continue;
@@ -992,8 +998,8 @@ static void upgrade_task(void *arg)
             if (edit_end(&c, "Companion address") == ESP_OK) {
                 char name[DB_DNS_NAME_LEN];
                 db_dock_name(ip, name);
-                db_log_event(TAG, "source", "Companion%s%s at %s moved from Dock to Satellite", name[0] ? " " : "",
-                             name, hosts[i].ip);
+                db_log_event(TAG, "source", "Companion%s%s at %s moved from Dock to Satellite",
+                             name[0] ? " " : "", name, hosts[i].ip);
             }
             break;
         }
@@ -1005,7 +1011,8 @@ esp_err_t db_ui_start(void)
     s.lock = xSemaphoreCreateMutex();
     s.qr_lock = xSemaphoreCreateMutex();
     jpeg_port_init();
-    if (!s.lock || !s.qr_lock || xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS ||
+    if (!s.lock || !s.qr_lock ||
+        xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS ||
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
@@ -1079,8 +1086,8 @@ bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
     db_dock_mac(ip, mac);
     char mac_s[18] = "";
     if (memcmp(mac, (uint8_t[6]){0}, 6) != 0) {
-        snprintf(mac_s, sizeof(mac_s), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4],
-                 mac[5]);
+        snprintf(mac_s, sizeof(mac_s), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3],
+                 mac[4], mac[5]);
     }
     char ip_s[16];
     ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));

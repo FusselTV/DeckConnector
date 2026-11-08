@@ -57,17 +57,18 @@ static ui_model_t base_model(void)
         .now_us = 100000000,
         .controller = 1,
         .hosts = {2, 2, 1},
-        .sources = {{.kind = 1, .via = UI_VIA_SATELLITE, .chosen = true, .label = "studio", .id = "satellite"},
-                    {.kind = 1, .via = UI_VIA_DOCK, .label = "192.168.1.16", .id = "192.168.1.16"},
-                    {.kind = 2, .via = UI_VIA_DOCK, .label = "DESKTOP-EXAMPLE", .id = "192.168.1.180"},
-                    {.kind = 0,
-                     .via = UI_VIA_SERVER,
-                     .label = "192.168.1.128:8765",
-                     .id = "ws://192.168.1.128:8765/x"},
-                    {.kind = 0,
-                     .via = UI_VIA_SERVER,
-                     .label = "192.168.1.128:8766",
-                     .id = "ws://192.168.1.128:8766/x"}},
+        .sources =
+            {{.kind = 1, .via = UI_VIA_SATELLITE, .chosen = true, .label = "studio", .id = "satellite"},
+             {.kind = 1, .via = UI_VIA_DOCK, .label = "192.168.1.16", .id = "192.168.1.16"},
+             {.kind = 2, .via = UI_VIA_DOCK, .label = "DESKTOP-EXAMPLE", .id = "192.168.1.180"},
+             {.kind = 0,
+              .via = UI_VIA_SERVER,
+              .label = "192.168.1.128:8765",
+              .id = "ws://192.168.1.128:8765/x"},
+             {.kind = 0,
+              .via = UI_VIA_SERVER,
+              .label = "192.168.1.128:8766",
+              .id = "ws://192.168.1.128:8766/x"}},
         .source_count = 5,
         .lan_link = true,
         .lan_up = true,
@@ -244,7 +245,8 @@ static void test_no_page_cuts_a_text(void)
             }
             m.confirm_key = -1;
             md.reset_ask = false;
-            strcpy(md.login_ip, v == 1 ? "255.255.255.255" : "192.168.1.42"); /* db_ui cuts the label to 20 characters */
+            strcpy(md.login_ip,
+                   v == 1 ? "255.255.255.255" : "192.168.1.42"); /* db_ui cuts the label to 20 characters */
             strcpy(md.login_who, v == 1 ? "Android · Samsung In" : "iPhone · Safari");
             strcpy(md.login_mac, v == 2 ? "" : "aa:bb:cc:dd:ee:ff");
             strcpy(md.login_name, v == 1 ? "studio-pc-regie-links-2" : (v == 3 ? "" : "iPhone-von-Anna"));
@@ -495,7 +497,7 @@ static void test_without_the_web_ui(void)
         TEST_ASSERT_TRUE_MESSAGE(chord, decks[d].name);
         ui_action_t act;
         TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* nobody there yet */
-        md.source_count = 1; /* the Elgato App or Companion connects */
+        md.source_count = 1;                           /* the Elgato App or Companion connects */
         md.picked = true;
         TEST_ASSERT_FALSE(ui_first_source(&md, &act)); /* a choice made before stays, e.g. a re-run setup */
         md.picked = false;

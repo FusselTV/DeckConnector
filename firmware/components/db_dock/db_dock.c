@@ -63,8 +63,8 @@ static bool refuse(conn_t *c, db_controller_t kind);
 static void keep_peers(void);
 
 /* block false: skip a host that is not reading instead of waiting up to the send timeout for it */
-static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len,
-                          bool block)
+static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload,
+                          size_t len, bool block)
 {
     configASSERT(len <= DB_CORA_REPORT_LEN);
     if (xSemaphoreTake(c->tx, block ? portMAX_DELAY : 0) != pdTRUE) {
@@ -438,7 +438,8 @@ static void rejoin_app(void *arg)
     for (int i = 0; i < 600; i++) {
         db_net_status_t n;
         db_net_status(&n);
-        uint32_t from = n.lan_dead && n.wlan_up ? inet_addr(n.wlan_ip) : rejoin_local_ip; /* a dead LAN keeps its address */
+        uint32_t from = n.lan_dead && n.wlan_up ? inet_addr(n.wlan_ip)
+                                                : rejoin_local_ip; /* a dead LAN keeps its address */
         if (db_net_path_ready(from, rejoin_ip)) {
             announce_anew();
             break;
@@ -484,7 +485,8 @@ static void drop_denied(uint32_t ip)
 {
     for (int i = 0; i < pair.n_denied; i++) {
         if (pair.denied[i].ip == ip) {
-            memmove(&pair.denied[i], &pair.denied[i + 1], (size_t)(--pair.n_denied - i) * sizeof(pair.denied[0]));
+            memmove(&pair.denied[i], &pair.denied[i + 1],
+                    (size_t)(--pair.n_denied - i) * sizeof(pair.denied[0]));
             return;
         }
     }
@@ -975,10 +977,12 @@ static void keepalive_task(void *arg)
         for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
             conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
             if (c->sock >= 0 && wlan && c->local_ip == wlan) {
-                shutdown(c->sock, SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
+                shutdown(c->sock,
+                         SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
             } else if (c->sock >= 0) {
                 db_cora_keepalive(c->connection_no, buf);
-                send_frame_to(c, 0, 0, 0, buf, sizeof(buf), false); /* one stuck host must not delay the others */
+                send_frame_to(c, 0, 0, 0, buf, sizeof(buf),
+                              false); /* one stuck host must not delay the others */
             }
         }
     }

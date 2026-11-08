@@ -10,8 +10,8 @@
 #include "db_json.h"
 #include "db_net.h"
 #include "db_ui.h"
-#include "esp_log.h"
 #include "esp_attr.h"
+#include "esp_log.h"
 #include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -39,9 +39,10 @@ static const char *TAG = "auth";
 #define RTC_NOINIT_ATTR
 #endif
 
-/* In LP RAM, which a software restart keeps and a power loss scrambles. Across a restart last_used holds the idle
- * age instead, and `kept_sum` (SHA-256 of the table and the password's hash) proves the table was written by the
- * shutdown handler for this password: a new password or garbage after power on drops every session. */
+/* In LP RAM, which a software restart keeps and a power loss scrambles. Across a restart last_used holds the
+ * idle age instead, and `kept_sum` (SHA-256 of the table and the password's hash) proves the table was
+ * written by the shutdown handler for this password: a new password or garbage after power on drops every
+ * session. */
 static RTC_NOINIT_ATTR struct {
     char token[TOKEN_BYTES * 2 + 1];
     int64_t last_used;
@@ -80,8 +81,8 @@ typedef struct {
     uint8_t sha[32];
 } api_token_t;
 static api_token_t tokens[API_TOKENS]; /* in NVS "auth", not in the settings: a backup must not carry them */
-static uint8_t full_rights;             /* bit i: token i reaches WEB_FULL, else WEB_CONTROL only */
-static bool tokens_unread;              /* a save now would overwrite the stored tokens */
+static uint8_t full_rights;            /* bit i: token i reaches WEB_FULL, else WEB_CONTROL only */
+static bool tokens_unread;             /* a save now would overwrite the stored tokens */
 
 /* Compare without an early exit, so the time does not tell how many characters were right. */
 static bool equal(const char *a, const char *b)
@@ -123,8 +124,8 @@ static uint32_t sock_ip(httpd_req_t *req, bool local)
     struct sockaddr_in6 addr; /* lwIP reports IPv4 peers as IPv4-mapped IPv6 */
     socklen_t len = sizeof(addr);
     int fd = httpd_req_to_sockfd(req);
-    if ((local ? getsockname(fd, (struct sockaddr *)&addr, &len) : getpeername(fd, (struct sockaddr *)&addr, &len)) !=
-        0) {
+    if ((local ? getsockname(fd, (struct sockaddr *)&addr, &len)
+               : getpeername(fd, (struct sockaddr *)&addr, &len)) != 0) {
         return 0;
     }
     if (addr.sin6_family == AF_INET) {
@@ -149,8 +150,8 @@ bool auth_via_ap(httpd_req_t *req)
     }
     uint32_t ap = inet_addr(n.ap_ip);
     uint32_t mask = htonl(0xffffff00);
-    /* lwIP also accepts the AP's address on the LAN, from a host that routes 192.168.4.0/24 there; its answers to
-     * a peer in the AP's subnet go out over the AP, so that host never completes the connection */
+    /* lwIP also accepts the AP's address on the LAN, from a host that routes 192.168.4.0/24 there; its
+     * answers to a peer in the AP's subnet go out over the AP, so that host never completes the connection */
     return sock_ip(req, true) == ap && (peer_ip(req) & mask) == (ap & mask);
 }
 
@@ -203,8 +204,7 @@ static void count_try(httpd_req_t *req, bool ok, bool password)
     if (failures >= FREE_TRIES) {
         int shift = failures - FREE_TRIES < 6 ? failures - FREE_TRIES : 6;
         int secs = 1 << shift;
-        triers[i].locked_until =
-            now + (int64_t)(secs < MAX_LOCK_S ? secs : MAX_LOCK_S) * 1000000;
+        triers[i].locked_until = now + (int64_t)(secs < MAX_LOCK_S ? secs : MAX_LOCK_S) * 1000000;
     }
     portEXIT_CRITICAL(&mux);
     if (!ok) {
@@ -382,8 +382,8 @@ static void set_session_cookie(httpd_req_t *req)
     /* 30 days: the 12 h idle limit is the bridge's, and a browser must not end a session in use any sooner */
     char token[TOKEN_BYTES * 2 + 1];
     new_session(token);
-    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000%s", token,
-             web_tls(req) ? "; Secure" : "");
+    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000%s",
+             token, web_tls(req) ? "; Secure" : "");
     httpd_resp_set_hdr(req, "Set-Cookie", cookie);
 }
 
@@ -771,7 +771,8 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
         tokens[slot] = before; /* the old token keeps working, the new one was never shown */
         full_rights = rights_before;
         portEXIT_CRITICAL(&mux);
-        return send_error(req, "500 Internal Server Error", "not saved: the token would be gone after a restart");
+        return send_error(req, "500 Internal Server Error",
+                          "not saved: the token would be gone after a restart");
     }
     char reply[180];
     snprintf(reply, sizeof(reply), "{\"name\":\"%s\",\"right\":\"%s\",\"token\":\"%s\"}", wanted,
@@ -799,7 +800,8 @@ esp_err_t auth_tokens_remove(httpd_req_t *req)
         return send_error(req, "404 Not Found", "no such token");
     }
     if (save_tokens() != ESP_OK) { /* gone until the next restart, then it works again */
-        return send_error(req, "500 Internal Server Error", "not saved: the token works again after a restart");
+        return send_error(req, "500 Internal Server Error",
+                          "not saved: the token works again after a restart");
     }
     return send_json(req, "{\"ok\":true}");
 }

@@ -60,7 +60,7 @@ static struct {
     int join_reason;
     esp_timer_handle_t rejoin;
     uint32_t rejoin_ms; /* doubles per failed try: an AP that is gone must not flood the log */
-    bool join_got_ip; /* WLAN got an address after the join cleared it: not the old link's state */
+    bool join_got_ip;   /* WLAN got an address after the join cleared it: not the old link's state */
 } s;
 
 /* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
@@ -83,7 +83,8 @@ static void mdns_follow(void)
         mdns_netif_action(s.wlan, MDNS_EVENT_DISABLE_IP4);
     }
     if (s.st.lan_up) {
-        mdns_netif_action(s.lan, lan ? MDNS_EVENT_ENABLE_IP4 | MDNS_EVENT_ANNOUNCE_IP4 : MDNS_EVENT_DISABLE_IP4);
+        mdns_netif_action(s.lan,
+                          lan ? MDNS_EVENT_ENABLE_IP4 | MDNS_EVENT_ANNOUNCE_IP4 : MDNS_EVENT_DISABLE_IP4);
     }
     if (wlan) {
         mdns_register_netif(s.wlan); /* mdns forgets a netif of ours when it disables it */
@@ -138,7 +139,8 @@ static void note_gateway(bool answered)
         s.gateway_seen = true;
         s.missed = 0;
         s.st.lan_dead = false;
-    } else if (s.gateway_seen && ++s.missed >= LAN_DEAD_AFTER) { /* a gateway that never answers pings proves nothing */
+    } else if (s.gateway_seen &&
+               ++s.missed >= LAN_DEAD_AFTER) { /* a gateway that never answers pings proves nothing */
         s.st.lan_dead = true;
     }
     bool dead = s.st.lan_dead;
@@ -252,10 +254,11 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x", c->bssid[0], c->bssid[1], c->bssid[2],
                  c->bssid[3], c->bssid[4], c->bssid[5]);
         if (s.st.wlan_bssid[0] && strcmp(s.st.wlan_bssid, bssid) != 0) {
-            db_log_event(TAG, "wlan", "WLAN roam %.*s %s -> %s, channel %u", c->ssid_len, c->ssid, s.st.wlan_bssid,
-                         bssid, c->channel);
+            db_log_event(TAG, "wlan", "WLAN roam %.*s %s -> %s, channel %u", c->ssid_len, c->ssid,
+                         s.st.wlan_bssid, bssid, c->channel);
         } else {
-            db_log_event(TAG, "wlan", "WLAN joined %.*s %s, channel %u", c->ssid_len, c->ssid, bssid, c->channel);
+            db_log_event(TAG, "wlan", "WLAN joined %.*s %s, channel %u", c->ssid_len, c->ssid, bssid,
+                         c->channel);
         }
         snprintf(s.st.wlan_ssid, sizeof(s.st.wlan_ssid), "%.*s", c->ssid_len, c->ssid);
         strcpy(s.st.wlan_bssid, bssid);
@@ -688,8 +691,8 @@ int db_net_wifi_scan(db_net_ap_t *out, size_t max)
         }
         db_net_ap_t *a = &out[count++];
         strlcpy(a->ssid, (char *)rec[i].ssid, sizeof(a->ssid));
-        snprintf(a->bssid, sizeof(a->bssid), "%02x:%02x:%02x:%02x:%02x:%02x", rec[i].bssid[0], rec[i].bssid[1],
-                 rec[i].bssid[2], rec[i].bssid[3], rec[i].bssid[4], rec[i].bssid[5]);
+        snprintf(a->bssid, sizeof(a->bssid), "%02x:%02x:%02x:%02x:%02x:%02x", rec[i].bssid[0],
+                 rec[i].bssid[1], rec[i].bssid[2], rec[i].bssid[3], rec[i].bssid[4], rec[i].bssid[5]);
         a->rssi = rec[i].rssi;
         a->channel = rec[i].primary;
         a->open = rec[i].authmode == WIFI_AUTH_OPEN;
@@ -753,14 +756,15 @@ static void join_task(void *arg)
         set_join("ok", "");
     } else {
         int r = s.join_reason;
-        set_join("failed", up                                                            ? "not saved"
-                           : set != ESP_OK                                               ? "not set"
-                           : r == WIFI_REASON_NO_AP_FOUND                                ? "network not found"
+        set_join("failed", up                             ? "not saved"
+                           : set != ESP_OK                ? "not set"
+                           : r == WIFI_REASON_NO_AP_FOUND ? "network not found"
                            : r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
-                                     r == WIFI_REASON_HANDSHAKE_TIMEOUT || r == WIFI_REASON_MIC_FAILURE
+                                   r == WIFI_REASON_HANDSHAKE_TIMEOUT || r == WIFI_REASON_MIC_FAILURE
                                ? "wrong password"
                                : "no address");
-        ESP_LOGW(TAG, "WLAN %s failed (reason %d), back to %s", j->ssid, r, c->wifi_ssid[0] ? c->wifi_ssid : "none");
+        ESP_LOGW(TAG, "WLAN %s failed (reason %d), back to %s", j->ssid, r,
+                 c->wifi_ssid[0] ? c->wifi_ssid : "none");
         wifi_config_t old = sta_config(c->wifi_ssid, c->wifi_pass, c->wifi_bssid);
         esp_wifi_disconnect();
         esp_wifi_set_config(WIFI_IF_STA, &old);
@@ -775,7 +779,8 @@ static void join_task(void *arg)
 esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid)
 {
     uint8_t mac[6];
-    if (!s.wifi_started || !ssid[0] || strlen(ssid) > 32 || strlen(pass) > 64 || (bssid[0] && !db_config_bssid(bssid, mac))) {
+    if (!s.wifi_started || !ssid[0] || strlen(ssid) > 32 || strlen(pass) > 64 ||
+        (bssid[0] && !db_config_bssid(bssid, mac))) {
         return ESP_ERR_INVALID_ARG;
     }
     if (s.st.join_state && strcmp(s.st.join_state, "testing") == 0) {

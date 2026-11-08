@@ -13,10 +13,10 @@
 #include "freertos/FreeRTOS.h"
 
 #define RING_SIZE (16 * 1024)
-#define MAGIC 0x64626c67
+#define MAGIC     0x64626c67
 
-/* In LP RAM, which no cache sits in front of and no restart clears: the next boot still reads it, also after a
- * panic. HP RAM sits behind the L1 cache, and a panic loses what has not been written back. */
+/* In LP RAM, which no cache sits in front of and no restart clears: the next boot still reads it, also after
+ * a panic. HP RAM sits behind the L1 cache, and a panic loses what has not been written back. */
 static RTC_NOINIT_ATTR char ring[RING_SIZE];
 static RTC_NOINIT_ATTR uint64_t total; /* bytes ever written: byte p sits at ring[p % RING_SIZE] while kept */
 static RTC_NOINIT_ATTR uint32_t magic;
@@ -111,9 +111,8 @@ int64_t db_log_mark_ms(db_mark_t mark)
 
 const char *db_log_mark_name(db_mark_t mark)
 {
-    static const char *const names[DB_MARK_COUNT] = {"deck",      "lan_link", "lan_ip", "wlan_ip",
-                                                     "companion", "app",      "server", "host_draws",
-                                                     "satellite"};
+    static const char *const names[DB_MARK_COUNT] = {
+        "deck", "lan_link", "lan_ip", "wlan_ip", "companion", "app", "server", "host_draws", "satellite"};
     return names[mark];
 }
 

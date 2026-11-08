@@ -256,8 +256,8 @@ static void test_builds_what_the_deck_would_send(void)
         0, dev.driver->build_input(&dev, &(db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = 8}, r, sizeof(r)));
 }
 
-/* db_deck keeps simulated presses on a copy of the device, as here: a test's held key must not turn a person's
- * next real report into a release, or swallow their press of the same key. */
+/* db_deck keeps simulated presses on a copy of the device, as here: a test's held key must not turn a
+ * person's next real report into a release, or swallow their press of the same key. */
 static void test_a_simulated_hold_leaves_the_real_key_states_alone(void)
 {
     db_dev_t real = dev;

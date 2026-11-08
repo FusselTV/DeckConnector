@@ -290,7 +290,8 @@ db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, u
                       h * stride) {
         return DB_ERR_PROTO;
     }
-    /* rows are unfiltered in internal RAM: byte by byte in `work`, which is in PSRAM, it takes a third longer */
+    /* rows are unfiltered in internal RAM: byte by byte in `work`, which is in PSRAM, it takes a third longer
+     */
     size_t n = stride - 1;
     uint8_t *prev = calloc(2, n);
     if (!prev) {

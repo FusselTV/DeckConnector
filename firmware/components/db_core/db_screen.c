@@ -34,7 +34,9 @@ void db_screen_put(db_screen_t *s, uint8_t display, db_rect_t rect, uint8_t *dat
         }
     }
     if (s->count == DB_SCREEN_MAX) {
-        drop(s, 0); /* ponytail: oldest goes; a host drawing over DB_SCREEN_MAX small areas loses one on replay */
+        drop(
+            s,
+            0); /* ponytail: oldest goes; a host drawing over DB_SCREEN_MAX small areas loses one on replay */
     }
     s->shots[s->count++] =
         (db_shot_t){.id = ++next_id, .display = display, .rect = rect, .data = data, .len = len};

@@ -51,13 +51,14 @@ typedef struct {
     char satellite_pin[65];
     char cors_origins[128]; /* origins whose pages may call the API with a token, comma separated; empty: none
                              */
-    char menu_chord[10];   /* which two controls open the menu: auto, keys, encoders or off */
+    char menu_chord[10];    /* which two controls open the menu: auto, keys, encoders or off */
     uint16_t menu_hold_ms;
-    char usb_speed[6]; /* auto: high speed, full speed when a USB device is there but no deck comes up; full: always */
-    char wifi_bssid[18]; /* "aa:bb:cc:dd:ee:ff" joins only that access point; empty: any with wifi_ssid */
-    char ntp_server[64]; /* empty: the one DHCP names, else pool.ntp.org */
-    bool input_lock;     /* unused: keeps the layout of blobs saved by older firmware */
-    bool qr_login_off;   /* JSON qr_login: false; the welcome pages show no one-time login code */
+    char usb_speed[6]; /* auto: high speed, full speed when a USB device is there but no deck comes up; full:
+                          always */
+    char wifi_bssid[18];     /* "aa:bb:cc:dd:ee:ff" joins only that access point; empty: any with wifi_ssid */
+    char ntp_server[64];     /* empty: the one DHCP names, else pool.ntp.org */
+    bool input_lock;         /* unused: keeps the layout of blobs saved by older firmware */
+    bool qr_login_off;       /* JSON qr_login: false; the welcome pages show no one-time login code */
     bool satellite_auto_off; /* JSON satellite_auto: false; a person removed the address or said no on the
                                 deck, so no offer and no move from the dock path to Satellite */
 } db_config_t;

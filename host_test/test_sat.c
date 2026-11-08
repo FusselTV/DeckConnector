@@ -242,8 +242,10 @@ static void test_png_refuses_a_first_chunk_bigger_than_the_picture(void)
 static void test_host_of_every_satellite_address_form(void)
 {
     const char *cases[][2] = {
-        {"192.168.1.10", "192.168.1.10"},           {"192.168.1.10:16622", "192.168.1.10"},
-        {"ws://192.168.1.10:16623", "192.168.1.10"}, {"wss://companion.example.org/satellite", "companion.example.org"},
+        {"192.168.1.10", "192.168.1.10"},
+        {"192.168.1.10:16622", "192.168.1.10"},
+        {"ws://192.168.1.10:16623", "192.168.1.10"},
+        {"wss://companion.example.org/satellite", "companion.example.org"},
         {"", ""},
     };
     char host[64];
