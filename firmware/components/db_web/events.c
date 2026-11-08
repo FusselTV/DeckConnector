@@ -30,6 +30,9 @@
 #define LOG_CHUNK 4096 /* per listener and poll: a full log backlog goes out in about 1 s */
 /* a listener hears something this often, so it can tell a dead link from a quiet deck */
 #define PING_MS 5000
+/* httpd_queue_work posts to a UDP socket that holds 6 messages. A 7th is dropped while the send still succeeds,
+ * and its job is never run nor freed. 4 leaves room for the close requests send_to makes. */
+#define JOBS_MAX 4
 
 static const char *TAG = "events";
 
@@ -47,6 +50,7 @@ static struct {
     char *state;                     /* the last state sent, to send only changes */
     uint32_t screen;
     unsigned evict;
+    int jobs; /* queued and not yet run */
 } e;
 
 /* A listener that stopped reading fills its socket, and the next send would block the sender for the send
@@ -111,28 +115,36 @@ static void send_job(void *arg)
     }
     xSemaphoreGive(e.lock);
     free(job);
+    __atomic_sub_fetch(&e.jobs, 1, __ATOMIC_RELAXED);
 }
 
-static void queue_job(httpd_handle_t server, int fd, const char *json, audience_t to)
+static bool queue_job(httpd_handle_t server, int fd, const char *json, audience_t to)
 {
+    if (__atomic_add_fetch(&e.jobs, 1, __ATOMIC_RELAXED) > JOBS_MAX) {
+        __atomic_sub_fetch(&e.jobs, 1, __ATOMIC_RELAXED);
+        return false;
+    }
     size_t len = strlen(json) + 1;
     job_t *job = malloc(sizeof(*job) + len);
-    if (!job) {
-        return;
-    }
-    job->server = server;
-    job->fd = fd;
-    job->to = to;
-    memcpy(job->json, json, len);
-    if (httpd_queue_work(server, send_job, job) != ESP_OK) {
+    if (job) {
+        job->server = server;
+        job->fd = fd;
+        job->to = to;
+        memcpy(job->json, json, len);
+        if (httpd_queue_work(server, send_job, job) == ESP_OK) {
+            return true;
+        }
         free(job);
     }
+    __atomic_sub_fetch(&e.jobs, 1, __ATOMIC_RELAXED);
+    return false;
 }
 
-static void broadcast_to(const char *json, audience_t to)
+/* false: not every server got it, so a change should be sent again at the next poll */
+static bool broadcast_to(const char *json, audience_t to)
 {
     if (!e.lock) {
-        return; /* before db_web_start */
+        return true; /* before db_web_start */
     }
     httpd_handle_t servers[2] = {0};
     xSemaphoreTake(e.lock, portMAX_DELAY);
@@ -142,14 +154,16 @@ static void broadcast_to(const char *json, audience_t to)
         }
     }
     xSemaphoreGive(e.lock);
+    bool all = true;
     for (int k = 0; k < 2 && servers[k]; k++) {
-        queue_job(servers[k], -1, json, to);
+        all &= queue_job(servers[k], -1, json, to);
     }
+    return all;
 }
 
-static void broadcast(const char *json)
+static bool broadcast(const char *json)
 {
-    broadcast_to(json, TO_ALL);
+    return broadcast_to(json, TO_ALL);
 }
 
 /* New log text to each listener that asked for it, from where it left off. */
@@ -291,7 +305,6 @@ static void poll_task(void *arg)
         size_t count = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
         uint32_t key = db_deck_shots_key(writer, shots, count);
         if (key != e.screen) {
-            e.screen = key;
             char json[96];
             int k = snprintf(json, sizeof(json), "{\"t\":\"screen\",\"writer\":\"%s\",\"images\":%u",
                              db_deck_source_name(writer), (unsigned)count);
@@ -306,10 +319,12 @@ static void poll_task(void *arg)
             strcpy(json + k, "}");
             if (m) {
                 strcpy(scr + k + 10 + m, "}");
-                broadcast_to(scr, TO_SESSIONS);
-                broadcast_to(json, TO_TOKENS);
-            } else {
-                broadcast(json);
+                bool sessions = broadcast_to(scr, TO_SESSIONS);
+                if (broadcast_to(json, TO_TOKENS) && sessions) {
+                    e.screen = key;
+                }
+            } else if (broadcast(json)) {
+                e.screen = key;
             }
         }
         if (xTaskGetTickCount() - polled < pdMS_TO_TICKS(POLL_MS) || !buf) {
@@ -325,9 +340,8 @@ static void poll_task(void *arg)
             warned = true;
             ESP_LOGW(TAG, "state does not fit %d bytes, listeners stop getting it", STATE_MAX);
         }
-        if (n && strcmp(buf, e.state) != 0) {
+        if (n && strcmp(buf, e.state) != 0 && broadcast(buf)) {
             memcpy(e.state, buf, n + 1);
-            broadcast(buf);
         }
     }
 }
