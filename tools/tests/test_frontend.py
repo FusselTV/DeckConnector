@@ -20,8 +20,7 @@ def page() -> bytes:
 
 
 def image(marker: str, api_min: int | None = None, target: str = "web") -> bytes:
-    html = dbfw.OTA_C.parents[1] / "db_web/index.html"
-    payload = gzip.compress(html.read_bytes().replace(b"</body>", f"<!--{marker}--></body>".encode()))
+    payload = gzip.compress(dbfw.PAGE.read_bytes().replace(b"</body>", f"<!--{marker}--></body>".encode()))
     return dbfw.build(target, payload, f"web {marker}", KEY, dbfw.web_api() if api_min is None else api_min)
 
 

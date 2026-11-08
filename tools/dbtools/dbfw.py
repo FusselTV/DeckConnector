@@ -24,6 +24,7 @@ HEADER_LEN = 144
 KEY = Path.home() / ".config/deckbridge/ota_key.pem"
 PUBKEY_C = Path(__file__).resolve().parents[2] / "firmware/components/db_ota/ota_pubkey.c"
 OTA_C = PUBKEY_C.with_name("db_ota.c")
+PAGE = OTA_C.parents[3] / "web/dist/index.html"
 
 
 def web_api() -> int:
@@ -33,12 +34,11 @@ def web_api() -> int:
 
 
 def web_image(key) -> bytes:
-    """The page the firmware build embeds (web/dist/index.html, else db_web/index.html), gzipped, signed for www."""
+    """The page the firmware build embeds (web/dist/index.html), gzipped, signed for www."""
     import gzip
     import subprocess
 
-    react = OTA_C.parents[3] / "web/dist/index.html"
-    page = (react if react.exists() else OTA_C.parents[1] / "db_web/index.html").read_bytes()
+    page = PAGE.read_bytes()
     # no tag names: "web v0.1.0-123-g9e9fe25-dirty" and the page hash would not fit the 31 byte version
     rev = subprocess.run(
         ["git", "describe", "--always", "--dirty", "--exclude=*"], capture_output=True, text=True, cwd=OTA_C.parent

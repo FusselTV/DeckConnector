@@ -84,8 +84,14 @@ esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
     return ESP_OK;
 }
 
-void db_deck_reconnect(uint32_t off_ms)
+bool db_deck_reconnect(uint32_t off_ms)
 {
+    return true;
+}
+
+esp_err_t db_deck_stall(void)
+{
+    return ESP_ERR_INVALID_STATE;
 }
 db_source_t db_deck_writer(void)
 {
@@ -371,12 +377,24 @@ esp_err_t get_profile(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"routes\":[]}");
 }
 
-/* IDF's esp_timer has only its header on Linux. */
+/* IDF's esp_timer has only its header on Linux. Timers never fire: the web watchdog has nothing to watch
+ * here. */
 int64_t esp_timer_get_time(void)
 {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     return (int64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+}
+
+esp_err_t esp_timer_create(const esp_timer_create_args_t *args, esp_timer_handle_t *out)
+{
+    *out = NULL;
+    return ESP_OK;
+}
+
+esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t period)
+{
+    return ESP_OK;
 }
 
 /* No servers and no Satellite client in the simulator: retries find nothing to wake. */

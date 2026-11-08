@@ -13,12 +13,11 @@ if(DB_DEBUG_CRASH)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DB_DEBUG_CRASH)
 endif()
 idf_build_get_property(python PYTHON)
-# The React build (cd web && npm run build) when there is one, else the plain page. Checked when CMake runs.
+# The React build. Checked when CMake runs.
 set(page ${CMAKE_CURRENT_SOURCE_DIR}/../../../web/dist/index.html)
 if(NOT EXISTS ${page})
-    set(page ${CMAKE_CURRENT_SOURCE_DIR}/index.html)
+    message(FATAL_ERROR "web/dist/index.html is missing: run `cd web && npm ci && npm run build` first")
 endif()
-message(STATUS "Web page embedded: ${page}")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../../web/dist)
 set(page_gz ${CMAKE_CURRENT_BINARY_DIR}/index.html.gz)
 add_custom_command(OUTPUT ${page_gz}
