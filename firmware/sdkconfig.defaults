@@ -28,6 +28,8 @@ CONFIG_ETH_USE_ESP32_EMAC=y
 # a full-screen stream plus eight HTTP clients, this to 111 KB. About 30 KB of that is the larger DMA buffers
 # (internal RAM, kept for good), the rest is received data waiting in each busy socket (up to ~24 KB each).
 CONFIG_ETH_DMA_BUFFER_SIZE=1536
+# Five send buffers instead of ten: 10 KB more free heap, the page and screen.jpg as fast
+CONFIG_ETH_DMA_TX_BUFFER_NUM=5
 CONFIG_LWIP_TCP_WND_DEFAULT=23040
 # Unacked data of each socket waits in internal RAM: with 32 KB, eight clients polling screen.jpg took the lowest
 # free heap from 171 to 69 KB. Eight segments keep the page and screen.jpg as fast as before.
