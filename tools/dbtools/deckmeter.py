@@ -48,7 +48,7 @@ CONTAINER = "companion-bench"
 BENCH = Path(os.environ.get("DECKMETER_BENCH", Path.home() / "deckbridge-bench"))
 CAPTURES = Path(os.environ.get("DECKMETER_CAPTURES", BENCH.parent / "captures"))
 DRIVE = Path(__file__).resolve().parents[1] / "companion-check/drive.mjs"
-PORTS = {"dock": {5343, 5344}, "satellite": {16622, 16623}}
+PORTS = {"dock": {5343, 5344, *range(20000, 20010)}, "satellite": {16622, 16623}}  # Elgato dock: deck on 2000x
 
 # Centres of the keys and the four strip parts in the 1920x1080 camera picture of this bench.
 REGIONS = {
@@ -581,7 +581,7 @@ def m_camdelay(r: Run) -> dict:
 def m_image(r: Run) -> dict:
     a = r.a
     rates = [float(x) for x in a.rates.split(",")]
-    regions = ["k7"] if a.kind == "key" else ALL
+    regions = ALL if a.kind == "page" else ["k7"]
     if a.source == "companion":
         if a.kind != "key":
             raise SystemExit("Companion redraws the whole deck only on a page switch: see the pages command")
@@ -815,6 +815,7 @@ def m_boot(r: Run) -> dict:
         for i in range(r.a.runs):
             if i:
                 time.sleep(60)  # real cuts a minute apart, for the hardware
+                r.learn()  # the camera's exposure shifts while the deck is dark; old references miss the pages
             r.show(2)
             lit = lum(r.cam.frames[-1][1])
             t0 = time.time()
@@ -1010,7 +1011,7 @@ def main():
     ap.add_argument("--runs", type=int, default=10)
     ap.add_argument("--no-bridge-api", action="store_true", help="treat the bridge like an Elgato dock")
     ap.add_argument("--source", choices=["companion", "dock", "satellite", "server"], default="dock")
-    ap.add_argument("--kind", choices=["key", "page"], default="key")
+    ap.add_argument("--kind", choices=["key", "keyimg", "page"], default="key")
     ap.add_argument("--rates", default="2,5,10,20,30,60")
     ap.add_argument("--secs", type=float, default=4, help="per rate (image), idle phase (traffic), listening (manual)")
     ap.add_argument("--manual", action="store_true", help="input: a person presses, nothing is simulated")

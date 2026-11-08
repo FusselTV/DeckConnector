@@ -1,7 +1,8 @@
 // Draws colour cycles on a Network Dock (the bridge or a real Elgato dock) with @elgato-stream-deck/tcp, the library
 // inside Bitfocus Companion, and prints one JSON line per update with its send time, for dbtools.deckmeter.
 // Usage: node drive.mjs <dock ip> key|page <rates per second, comma separated> <seconds per rate>
-//   key   key 8 only; page  all 8 keys and the strip, what a page switch sends
+//   key   key 8 only, a fill-colour report; keyimg  key 8 as a JPEG picture, as Companion draws it;
+//   page  all 8 keys and the strip, what a page switch sends
 // Colour class c (0 red, 1 green, 2 blue) is the same as in the bench Companion's page set.
 import { StreamDeckTcpConnectionManager } from '@elgato-stream-deck/tcp'
 
@@ -38,11 +39,15 @@ const strips = COLORS.map(([r, g, b]) => {
 	for (let i = 0; i < buf.length; i += 3) buf.set([r, g, b], i)
 	return buf
 })
-const keys = deck.CONTROLS.filter((c) => c.type === 'button').map((c) => c.index)
+const buttons = deck.CONTROLS.filter((c) => c.type === 'button')
+const keys = buttons.map((c) => c.index)
+const { width, height } = buttons[0].pixelSize
+const keyPics = COLORS.map((rgb) => Buffer.alloc(width * height * 3).map((_, i) => rgb[i % 3]))
 
 async function draw(c) {
 	const [r, g, b] = COLORS[c]
 	if (kind === 'key') return deck.fillKeyColor(keys[keys.length - 1], r, g, b)
+	if (kind === 'keyimg') return deck.fillKeyBuffer(keys[keys.length - 1], keyPics[c], { format: 'rgb' })
 	await Promise.all(keys.map((k) => deck.fillKeyColor(k, r, g, b)))
 	if (lcd) await deck.fillLcd(lcd.id, strips[c], { format: 'rgb' })
 }
