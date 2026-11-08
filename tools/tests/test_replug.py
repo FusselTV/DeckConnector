@@ -72,3 +72,23 @@ async def test_reconnect_takes_one_at_a_time_and_checks_off_s(servers, bridges):
     assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect?x=1"))[0] == 200
     await wait_device(False, 5)
     await wait_device(True, 20)
+
+
+async def test_a_hung_deck_is_reconnected_by_the_bridge(servers, bridges):
+    active, _ = bridges
+    before = (await asyncio.to_thread(status))["counters"]
+    assert (await asyncio.to_thread(api, "POST", "/api/deck/stall"))[0] == 200
+    start = time.time()
+    while (await asyncio.to_thread(status))["device"] is not None:  # images keep failing until the bridge acts
+        assert time.time() - start < 10, "the hung deck was never reconnected"
+        try:
+            await active.send_image(FULL, jpeg((20, 20, 220)))
+        except TimeoutError:
+            pass
+    await wait_device(True, 20)
+    if active.ws.state.name != "OPEN":
+        active = await newest(servers[0])
+    ack = await active.send_image(FULL, jpeg((20, 220, 20)))
+    assert ack.result.name == "SHOWN"
+    after = (await asyncio.to_thread(status))["counters"]
+    assert after["usb_recoveries"] == before["usb_recoveries"] + 1

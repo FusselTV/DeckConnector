@@ -42,6 +42,7 @@ typedef struct {
     uint32_t superseded;
     uint32_t rejected;
     uint32_t usb_errors;
+    uint32_t usb_recoveries; /* hung decks reconnected by the bridge */
     uint32_t inputs;
     uint32_t inputs_dropped;
 } db_deck_stats_t;
@@ -59,6 +60,8 @@ void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
 void db_deck_set_writer(db_source_t source, bool keep_picture);
 /* Unplug and plug in the deck by switching its USB port off for `off_ms` and on again; returns at once. */
 bool db_deck_reconnect(uint32_t off_ms);
+/* The deck stops taking images as a hung one would, until the bridge notices and reconnects it. */
+esp_err_t db_deck_stall(void);
 /* Drop the kept picture of a source whose host left. */
 void db_deck_forget(db_source_t source);
 db_source_t db_deck_writer(void);

@@ -11,6 +11,7 @@ typedef struct {
     void (*attached)(uint8_t address);
     void (*detached)(void);
     void (*input)(const uint8_t *report, size_t len, uint64_t t_us);
+    void (*stuck)(void); /* output failed for STUCK_MS; runs in the writing task, holding its lock */
 } usb_port_cb_t;
 
 /* full_only: full speed always; else high speed, and full speed once when no deck comes up */
@@ -28,6 +29,9 @@ void usb_port_close(void);
 const db_hid_io_t *usb_port_io(void);
 
 uint32_t usb_port_errors(void);
+uint32_t usb_port_recoveries(void);
+/* Halt the output endpoint, as a hung deck would look; for the test of the recovery. */
+esp_err_t usb_port_stall(void);
 /* Cut and restore the power of the root port, as if the cable were pulled and plugged in again; behind a hub
  * everything on it goes too. `address` (0: none) must be a present device. Blocks for `off_ms`. */
 esp_err_t usb_port_replug(uint8_t address, uint32_t off_ms);

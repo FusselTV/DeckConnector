@@ -25,6 +25,7 @@ esp_err_t get_backup(httpd_req_t *req);
 esp_err_t get_events(httpd_req_t *req);
 esp_err_t delete_denied(httpd_req_t *req);
 esp_err_t post_deck_reconnect(httpd_req_t *req);
+esp_err_t post_deck_stall(httpd_req_t *req);
 esp_err_t post_ota(httpd_req_t *req);
 esp_err_t get_slots(httpd_req_t *req);
 esp_err_t get_frontend(httpd_req_t *req);

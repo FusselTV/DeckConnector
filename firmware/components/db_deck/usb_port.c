@@ -18,6 +18,8 @@
 #define HID_GET_REPORT     0x01
 #define HID_SET_REPORT     0x09
 #define HID_REPORT_FEATURE 3
+/* a fresh deck can take 0.5 s per report; this long with nothing but failed output is a hung deck */
+#define STUCK_MS 3000
 
 static const char *TAG = "usb";
 
@@ -38,6 +40,8 @@ static struct {
     SemaphoreHandle_t ctrl_done;
     SemaphoreHandle_t ctrl_lock;
     volatile uint32_t errors;
+    int64_t fail_since; /* first failed output since the last one that went through, 0: none */
+    uint32_t recoveries;
     db_hid_io_t io;
     bool auto_speed;
     volatile bool full; /* the root port runs at full speed */
@@ -59,6 +63,9 @@ static void count_error(usb_transfer_status_t status)
 
 static void out_done(usb_transfer_t *t)
 {
+    if (t->status == USB_TRANSFER_STATUS_COMPLETED) {
+        s.fail_since = 0;
+    }
     count_error(t->status);
     xSemaphoreGive(s.out_free);
 }
@@ -103,6 +110,43 @@ static void ctrl_done(usb_transfer_t *t)
     xSemaphoreGive(s.ctrl_done);
 }
 
+static db_err_t control(uint8_t type, uint8_t request, uint8_t report_id, uint8_t *data, size_t len,
+                        size_t *out_len);
+
+/* On 2026-11-08 the deck's output transfers stopped completing while it stayed attached: it showed one picture
+ * for hours and the errors were only counted. Cutting the port's power brought it back. */
+static db_err_t write_failed(db_err_t err)
+{
+    s.errors++;
+    int64_t now = esp_timer_get_time();
+    if (!s.fail_since) {
+        s.fail_since = now;
+    } else if (now - s.fail_since >= STUCK_MS * 1000LL) {
+        s.fail_since = 0;
+        s.recoveries++;
+        /* Channel enabled and HCDMA unchanged over 100 ms: the host channel is stuck (esp-usb #627).
+         * Channel done or gone: the deck refuses the data. */
+        for (int pass = 0; pass < 2; pass++) {
+            for (int c = 0; c < 16; c++) {
+                volatile usb_dwc_host_chan_regs_t *ch = &USB_DWC_HS.host_chans[c];
+                if (ch->hcchar_reg.chena) {
+                    ESP_LOGE(TAG, "chan %d hcchar %08lx hctsiz %08lx hcdma %08lx hcint %08lx hfnum %08lx", c,
+                             (unsigned long)ch->hcchar_reg.val, (unsigned long)ch->hctsiz_reg.val,
+                             (unsigned long)ch->hcdma_reg.val, (unsigned long)ch->hcint_reg.val,
+                             (unsigned long)USB_DWC_HS.hfnum_reg.val);
+                }
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        uint8_t probe[32] = {0x05};
+        bool answers = control(0xa1, HID_GET_REPORT, probe[0], probe, sizeof(probe), NULL) == DB_OK;
+        ESP_LOGE(TAG, "the deck took no output for %d s, its control endpoint %s: reconnecting it", STUCK_MS / 1000,
+                 answers ? "still answers" : "is silent too");
+        s.cb.stuck();
+    }
+    return err;
+}
+
 static db_err_t io_write(const uint8_t *report, size_t len)
 {
     if (!s.open || len > s.mps_out) {
@@ -110,17 +154,15 @@ static db_err_t io_write(const uint8_t *report, size_t len)
     }
     /* A device that hangs without unplugging must not block the writer forever. */
     if (xSemaphoreTake(s.out_free, pdMS_TO_TICKS(500)) != pdTRUE) {
-        s.errors++;
-        return DB_ERR_TIMEOUT;
+        return write_failed(DB_ERR_TIMEOUT);
     }
     usb_transfer_t *t = s.out[s.next_out];
     s.next_out = (s.next_out + 1) % OUT_SLOTS;
     memcpy(t->data_buffer, report, len);
     t->num_bytes = len;
     if (usb_host_transfer_submit(t) != ESP_OK) {
-        s.errors++;
         xSemaphoreGive(s.out_free);
-        return DB_ERR_IO;
+        return write_failed(DB_ERR_IO);
     }
     return DB_OK;
 }
@@ -488,6 +530,7 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     s.in->callback = in_done;
     s.io.out_report_size = s.mps_out;
     s.next_out = 0;
+    s.fail_since = 0;
     s.open = true;
     if (usb_host_transfer_submit(s.in) != ESP_OK) {
         ESP_LOGE(TAG, "input transfer could not be queued, the device will show images but send no input");
@@ -520,4 +563,14 @@ const db_hid_io_t *usb_port_io(void)
 uint32_t usb_port_errors(void)
 {
     return s.errors;
+}
+
+uint32_t usb_port_recoveries(void)
+{
+    return s.recoveries;
+}
+
+esp_err_t usb_port_stall(void)
+{
+    return s.open ? usb_host_endpoint_halt(s.dev, s.ep_out) : ESP_ERR_INVALID_STATE;
 }

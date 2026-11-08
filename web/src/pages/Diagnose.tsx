@@ -275,8 +275,10 @@ function Health() {
         <>
           <div className="lbl">{t('dia.counters')}</div>
           <div className="cgrid">
-            {(['images', 'superseded', 'rejected', 'usb_errors', 'inputs', 'inputs_dropped'] as const).map((k) => (
-              <div key={k} className={k === 'usb_errors' && (c[k] ?? 0) > 0 ? 'warn' : undefined}>
+            {(
+              ['images', 'superseded', 'rejected', 'usb_errors', 'usb_recoveries', 'inputs', 'inputs_dropped'] as const
+            ).map((k) => (
+              <div key={k} className={k.startsWith('usb_') && (c[k] ?? 0) > 0 ? 'warn' : undefined}>
                 <b>{fmt.num(c[k] ?? 0)}</b>
                 <span>{t(`cnt.${k}`)}</span>
               </div>

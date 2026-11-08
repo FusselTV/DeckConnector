@@ -98,6 +98,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `POST /api/dock` | Pairing of Companion and Elgato App hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
 | `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in. `?off_s=N` (1 to 600) keeps it off for N seconds instead of half a second |
+| `POST /api/deck/stall` | Stop the deck's image output, as a hung deck would. The bridge notices it after 3 s and reconnects the deck. For tests |
 | `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
 | `GET /api/events` | The last 32 events, oldest first: `[{since_s, at, kind, text}]`. `since_s` counts from the start, `at` is the Unix time or null before the clock is set. `kind` is `boot`, `source`, `wlan`, `lan`, `pairing` or `update` |
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckconnector.elf` with the ELF of the same build |
@@ -234,7 +235,7 @@ again and upload the key again.
               "chosen": false, "drawing": false},
              {"kind": "companion", "host": "192.168.1.15", "name": "studio", "connected": true, "chosen": true,
               "drawing": true}],
- "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "usb_speed": "high", "inputs": 0,
+ "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "usb_recoveries": 0, "usb_speed": "high", "inputs": 0,
  "inputs_dropped": 0},
  "boot_ms": {"deck": 537, "lan_link": 2688, "wlan_ip": 5724, "lan_ip": 6692, "companion": 7439, "host_draws": 7665},
  "memory": {"heap_free": 353203, "heap_min_free": 290191, "psram_free": 32211772, "heap_largest": 208896,
@@ -271,6 +272,7 @@ again and upload the key again.
   it loses the DeckConnector when the setup network closes.
 - `superseded` counts images that a newer one replaced before they were drawn.
 - `usb_errors` counts failed USB transfers. Transfers that an unplug ends are not counted.
+- `usb_recoveries` counts how often the deck took no images for 3 s and the bridge reconnected it.
 - `inputs_dropped` counts inputs lost in a full queue, on the way from the deck or to a server.
 - `usb_speed` is `high` or `full`, the speed the USB port runs at now.
 

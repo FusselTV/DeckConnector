@@ -1,5 +1,6 @@
 #include "db_deck.h"
 #include "db_log.h"
+#include "db_ota.h"
 
 #include <string.h>
 
@@ -266,6 +267,20 @@ static void notify_device(const db_device_info_t *info)
 
 static bool start_replug(uint8_t address, uint32_t off_ms);
 
+/* A replug that did not help within a minute leaves a restart; not before 10 min uptime, so a broken deck
+ * cannot restart the bridge in a loop. */
+static void on_stuck(void)
+{
+    static int64_t last;
+    int64_t now = esp_timer_get_time();
+    if (last && now - last < 60000000LL && now > 600000000LL) {
+        ESP_LOGE(TAG, "the deck hung again after its reconnect: restarting");
+        db_ota_restart(0);
+    }
+    last = now;
+    start_replug(0, 500);
+}
+
 static void handle_attach(uint8_t address)
 {
     /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen at
@@ -497,7 +512,7 @@ esp_err_t db_deck_start(bool full_speed)
         xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    usb_port_cb_t cb = {.attached = on_attached, .detached = on_detached, .input = on_input};
+    usb_port_cb_t cb = {.attached = on_attached, .detached = on_detached, .input = on_input, .stuck = on_stuck};
     return usb_port_start(&cb, full_speed);
 }
 
@@ -564,6 +579,14 @@ static bool start_replug(uint8_t address, uint32_t off_ms)
         return false;
     }
     return true;
+}
+
+esp_err_t db_deck_stall(void)
+{
+    xSemaphoreTake(s.io_lock, portMAX_DELAY);
+    esp_err_t err = usb_port_stall();
+    xSemaphoreGive(s.io_lock);
+    return err;
 }
 
 bool db_deck_reconnect(uint32_t off_ms)
@@ -743,5 +766,6 @@ void db_deck_stats(db_deck_stats_t *out)
     xSemaphoreTake(s.lock, portMAX_DELAY);
     *out = s.stats;
     out->usb_errors = usb_port_errors();
+    out->usb_recoveries = usb_port_recoveries();
     xSemaphoreGive(s.lock);
 }

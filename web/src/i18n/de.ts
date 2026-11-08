@@ -230,6 +230,7 @@ export const de: Dict = {
   'cnt.superseded': 'übersprungen',
   'cnt.rejected': 'abgelehnt',
   'cnt.usb_errors': 'USB-Fehler',
+  'cnt.usb_recoveries': 'Deck neu verbunden',
   'cnt.inputs': 'Eingaben',
   'cnt.inputs_dropped': 'verlorene Eingaben',
   'dia.id': 'ID',

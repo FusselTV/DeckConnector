@@ -529,6 +529,17 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+esp_err_t post_deck_stall(httpd_req_t *req)
+{
+    if (deck_refused(req)) {
+        return ESP_OK;
+    }
+    if (db_deck_stall() != ESP_OK) {
+        return send_error(req, "409 Conflict", "no deck");
+    }
+    return send_json(req, "{\"ok\":true}");
+}
+
 /* the bridge failed, not the file: the client should not blame its upload */
 static bool device_fault(esp_err_t err)
 {

@@ -277,6 +277,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_int(j, "superseded", st.superseded);
     db_json_int(j, "rejected", st.rejected);
     db_json_int(j, "usb_errors", st.usb_errors);
+    db_json_int(j, "usb_recoveries", st.usb_recoveries);
     db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
     db_json_int(j, "inputs", st.inputs);
     db_json_int(j, "inputs_dropped", st.inputs_dropped + db_link_inputs_dropped());

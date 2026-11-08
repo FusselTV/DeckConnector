@@ -72,6 +72,7 @@ export interface Counters {
   superseded?: number
   rejected?: number
   usb_errors?: number
+  usb_recoveries?: number
   usb_speed?: 'high' | 'full'
   inputs?: number
   inputs_dropped?: number
