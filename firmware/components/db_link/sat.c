@@ -19,6 +19,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "jpeg_port.h"
+#include "lwip/netdb.h"
 #include "lwip/sockets.h"
 #include "mbedtls/base64.h"
 #include "nvs.h"
@@ -56,6 +57,10 @@ static struct {
     SemaphoreHandle_t tx;
     volatile int sock;
     volatile uint32_t peer;
+    struct {
+        char addr[sizeof(((db_config_t *)0)->satellite)];
+        uint32_t ip;
+    } resolved; /* under resolved_mux */
     ws_t ws; /* the WebSocket port (16623), when the address is a ws:// or wss:// URL */
     bool ws_mode;
     uint64_t frame_left;
@@ -567,6 +572,22 @@ static bool end_old_session(void)
     return true;
 }
 
+static portMUX_TYPE resolved_mux = portMUX_INITIALIZER_UNLOCKED;
+
+/* Kept while the session is down or DNS fails: db_dock refuses Companion's dock connections by it. */
+static void resolve(void)
+{
+    struct addrinfo hints = {.ai_family = AF_INET}, *res = NULL;
+    if (getaddrinfo(s.host, NULL, &hints, &res) != 0 || !res) {
+        return;
+    }
+    portENTER_CRITICAL(&resolved_mux);
+    strcpy(s.resolved.addr, s.addr);
+    s.resolved.ip = ((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr;
+    portEXIT_CRITICAL(&resolved_mux);
+    freeaddrinfo(res);
+}
+
 /* LAN first, WLAN after a failed try, and back to LAN as soon as it reaches Companion. */
 static void client_task(void *arg)
 {
@@ -602,6 +623,7 @@ static void client_task(void *arg)
                 *colon = '\0';
             }
         }
+        resolve();
         char ifname[6];
         bool wlan = via_wlan;
         bool bound = db_net_pick(&wlan, ifname);
@@ -646,6 +668,7 @@ static void client_task(void *arg)
         getpeername(sock, (struct sockaddr *)&peer, &plen);
         s.peer = peer.sin_addr.s_addr;
         s.sock = sock;
+        s.changed(); /* Companion's dock connection from this peer ends, or it refuses the deck as taken */
         int64_t began = now_ms();
         session();
         s.peer = 0;
@@ -796,6 +819,14 @@ void db_satellite_retry(void)
 uint32_t db_satellite_peer(void)
 {
     return s.peer;
+}
+
+uint32_t db_satellite_resolved(void)
+{
+    portENTER_CRITICAL(&resolved_mux);
+    uint32_t ip = strcmp(s.resolved.addr, db_config()->satellite) == 0 ? s.resolved.ip : 0;
+    portEXIT_CRITICAL(&resolved_mux);
+    return ip;
 }
 
 const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap)

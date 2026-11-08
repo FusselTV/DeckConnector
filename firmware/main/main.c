@@ -392,6 +392,12 @@ static void apply_controller(void)
     db_ui_refresh(); /* also for setup_done and qr_login, which change what the deck shows */
 }
 
+static void on_satellite(void)
+{
+    db_ui_hosts_changed();
+    db_dock_drop_satellite_host(); /* the peer of a new session, if it is a dock host as well */
+}
+
 /* A new bridge without any network opens the setup WLAN by itself. It closes again once the network is there and
  * no phone is on it: the wizard joins the WLAN over it and still has to save. */
 static void setup_ap_task(void *arg)
@@ -446,7 +452,7 @@ void app_main(void)
                             .active_changed = db_ui_set_active_link};
     ESP_ERROR_CHECK(db_link_start(&link));
     ESP_ERROR_CHECK(db_dock_start(db_ui_hosts_changed));
-    ESP_ERROR_CHECK(db_satellite_start(db_ui_hosts_changed));
+    ESP_ERROR_CHECK(db_satellite_start(on_satellite));
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
     db_config_on_save(apply_controller);
     ESP_ERROR_CHECK(db_web_start(web_status, web_state));

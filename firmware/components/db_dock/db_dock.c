@@ -59,7 +59,8 @@ static struct {
 } s;
 
 static void note_kind(uint32_t ip, db_controller_t kind);
-static bool satellite_host(uint32_t ip);
+static bool refuse(conn_t *c, db_controller_t kind);
+static void keep_peers(void);
 
 static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
 {
@@ -106,14 +107,14 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
      * acknowledgements (03 1a) are plain writes from both. */
     bool query = h->len >= 2 && p[0] == 0x03 && db_cora_is_query(p[1]);
     if (c->kind == DB_CTRL_SERVER && query) {
-        c->kind = h->op == DB_CORA_OP_GET_REPORT ? DB_CTRL_COMPANION : DB_CTRL_APP;
+        if (refuse(c, h->op == DB_CORA_OP_GET_REPORT ? DB_CTRL_COMPANION : DB_CTRL_APP)) {
+            return;
+        }
         char ip[16];
         inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
         db_log_event(TAG, "source", "%s at %s connected", db_controller_name(c->kind), ip);
         note_kind(c->ip, c->kind);
-        if (c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
-            shutdown(c->sock, SHUT_RDWR);
-        }
+        keep_peers();
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
                              next event */
     }
@@ -128,12 +129,12 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
 static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
 {
     if (c->kind == DB_CTRL_SERVER) {
-        c->kind = (h->flags & DB_CORA_FLAG_REQ_ACK) ? DB_CTRL_APP : DB_CTRL_COMPANION;
+        if (refuse(c, (h->flags & DB_CORA_FLAG_REQ_ACK) ? DB_CTRL_APP : DB_CTRL_COMPANION)) {
+            return;
+        }
         ESP_LOGI(TAG, "device host is %s", db_controller_name(c->kind));
         note_kind(c->ip, c->kind);
-        if (c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
-            shutdown(c->sock, SHUT_RDWR);
-        }
+        keep_peers();
         db_log_mark(c->kind == DB_CTRL_APP ? DB_MARK_APP : DB_MARK_COMPANION);
         report_clients();
     }
@@ -286,18 +287,21 @@ typedef struct {
 
 #define NVS_PEERS "dock_peers"
 
-static void save_peers(void) /* from both listen tasks: under info_lock */
+/* After a host said what it is: a refused one must not write to NVS every few seconds. */
+static void keep_peers(void)
 {
     static peer_t saved[2 * DB_DOCK_HOSTS];
     peer_t now[2 * DB_DOCK_HOSTS] = {0};
+    xSemaphoreTake(s.info_lock, portMAX_DELAY);
     for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
         const conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
-        if (c->sock >= 0) {
+        if (c->sock >= 0 && c->kind != DB_CTRL_SERVER) {
             now[i] = (peer_t){c->ip, c->local_ip, c->peer_port,
                               c->device_port ? DB_CORA_DEVICE_PORT : DB_CORA_DOCK_PORT};
         }
     }
     if (memcmp(now, saved, sizeof(now)) == 0) {
+        xSemaphoreGive(s.info_lock);
         return; /* a write only when a host connected anew */
     }
     nvs_handle_t h;
@@ -312,6 +316,7 @@ static void save_peers(void) /* from both listen tasks: under info_lock */
     } else {
         ESP_LOGW(TAG, "hosts for the power-cut reset not saved: %s", esp_err_to_name(err));
     }
+    xSemaphoreGive(s.info_lock);
 }
 
 static bool answers_arp(uint32_t ip, uint32_t local_ip);
@@ -846,22 +851,33 @@ esp_err_t db_dock_forget(const char *ip)
 
 static bool satellite_host(uint32_t ip)
 {
-    char host[sizeof(db_config()->satellite)];
-    db_sat_addr_host(db_config()->satellite, host, sizeof(host));
-    return host[0] && (inet_addr(host) == ip || db_satellite_peer() == ip); /* a name: where it connected */
+    const db_config_t *cfg = db_config();
+    char host[sizeof(cfg->satellite)];
+    db_sat_addr_host(cfg->satellite, host, sizeof(host));
+    if (!host[0] || (cfg->controller == DB_CTRL_COMPANION && inet_addr(cfg->host) == ip)) {
+        return false; /* a person picked this dock host */
+    }
+    return inet_addr(host) == ip || db_satellite_resolved() == ip || db_satellite_peer() == ip;
 }
 
-/* Refused at the door, before it says what it is: each new connection would write its port to NVS. An Elgato App on
- * the same machine still gets in. */
-static bool known_companion(uint32_t ip)
+/* Companion that has the deck over Satellite would show it twice. Only Companion: an Elgato App on the same
+ * machine gets in. */
+static bool refuse(conn_t *c, db_controller_t kind)
 {
-    bool yes = false;
-    taskENTER_CRITICAL(&pair.mux);
-    for (int i = 0; i < pair.count; i++) {
-        yes |= pair.known[i].ip == ip && pair.known[i].kind == DB_CTRL_COMPANION;
+    static uint32_t logged; /* once per host: Companion tries again every 5 s */
+    if (kind != DB_CTRL_COMPANION || !satellite_host(c->ip)) {
+        logged = logged == c->ip && kind == DB_CTRL_COMPANION ? 0 : logged;
+        c->kind = kind;
+        return false;
     }
-    taskEXIT_CRITICAL(&pair.mux);
-    return yes;
+    if (logged != c->ip) {
+        logged = c->ip;
+        char ip[16];
+        inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
+        db_log_event(TAG, "source", "Companion at %s refused as a dock: it has the deck over Satellite", ip);
+    }
+    shutdown(c->sock, SHUT_RDWR);
+    return true;
 }
 
 void db_dock_drop_satellite_host(void)
@@ -902,16 +918,6 @@ static void listen_task(void *arg)
         }
         char ip[16];
         inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
-        static uint32_t refused; /* logged once per host: Companion tries every 5 s */
-        if (satellite_host(from.sin_addr.s_addr) && known_companion(from.sin_addr.s_addr)) {
-            if (refused != from.sin_addr.s_addr) {
-                refused = from.sin_addr.s_addr;
-                db_log_event(TAG, "source", "Companion at %s refused as a dock: it has the deck over Satellite", ip);
-            }
-            close(sock);
-            continue;
-        }
-        refused = refused == from.sin_addr.s_addr ? 0 : refused;
         if (!admit(from.sin_addr.s_addr)) {
             ESP_LOGW(TAG, "port %u: %s is not paired, asking on the deck", port, ip);
             close(sock);
@@ -930,9 +936,6 @@ static void listen_task(void *arg)
         c->local_ip = getsockname(sock, (struct sockaddr *)&at, &at_len) == 0 ? at.sin_addr.s_addr : 0;
         c->kind = DB_CTRL_SERVER;
         c->sock = sock;
-        xSemaphoreTake(s.info_lock, portMAX_DELAY);
-        save_peers();
-        xSemaphoreGive(s.info_lock);
         if (xTaskCreatePinnedToCore(host_task, device_port ? "dock_dev" : "dock_host", 4096, c,
                                     device_port ? 7 : 6, NULL, 0) != pdPASS) {
             ESP_LOGE(TAG, "no memory for a host task, %s refused", ip);
