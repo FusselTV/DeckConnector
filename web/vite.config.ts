@@ -11,10 +11,23 @@ export default defineConfig(({ mode }) => {
   const target = env.DC_TARGET || 'http://127.0.0.1:18200'
   const readonly = target.replace(/\/$/, '') !== `http://127.0.0.1:${env.DC_SIM_PORT || '18200'}`
   const origin = (req: { setHeader(k: string, v: string): void }) => req.setHeader('origin', target)
+  // `--mode demo`: the page with the in-browser mock of the device from src/demo, built into dist-demo.
+  const demo = mode === 'demo'
+  const demoEntry = {
+    name: 'demo-entry',
+    transformIndexHtml: {
+      order: 'pre' as const,
+      handler: (html: string) =>
+        html
+          .replace('/src/main.tsx', '/src/demo/main.ts')
+          .replace('<title>DeckConnector</title>', '<title>DeckConnector demo</title>'),
+    },
+  }
   return {
-    plugins: [react(), viteSingleFile({ removeViteModuleLoader: true })],
-    define: { __DC_READONLY__: JSON.stringify(mode !== 'production' && readonly) },
-    build: { target: 'es2022', reportCompressedSize: false },
+    plugins: [react(), viteSingleFile({ removeViteModuleLoader: true }), demo && demoEntry],
+    define: { __DC_READONLY__: JSON.stringify(!demo && mode !== 'production' && readonly) },
+    base: demo ? './' : undefined,
+    build: { target: 'es2022', reportCompressedSize: false, outDir: demo ? 'dist-demo' : 'dist' },
     server: {
       proxy: {
         '/api': {
