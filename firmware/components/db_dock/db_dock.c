@@ -75,8 +75,13 @@ static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, co
         /* one send: header and data in one TCP segment */
         db_cora_write_hdr(c->out, &(db_cora_hdr_t){.flags = flags, .op = op, .id = id, .len = (uint32_t)len});
         memcpy(c->out + DB_CORA_HDR_LEN, payload, len);
-        ssize_t n = send(sock, c->out, DB_CORA_HDR_LEN + len, block ? 0 : MSG_DONTWAIT);
-        if (n != (ssize_t)(DB_CORA_HDR_LEN + len) && !(n < 0 && !block && errno == EWOULDBLOCK)) {
+        size_t want = DB_CORA_HDR_LEN + len;
+        ssize_t n = send(sock, c->out, want, block ? 0 : MSG_DONTWAIT);
+        if (n > 0 && (size_t)n < want) { /* partly sent: the rest must follow or the stream breaks */
+            ssize_t rest = send(sock, c->out + n, want - n, 0);
+            n = rest < 0 ? rest : n + rest;
+        }
+        if (n != (ssize_t)want && !(n < 0 && !block && errno == EWOULDBLOCK)) {
             shutdown(sock, SHUT_RDWR);
         }
     }

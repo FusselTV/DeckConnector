@@ -38,9 +38,9 @@ route_t web_routes[WEB_ROUTES_MAX];
 size_t web_route_count;
 static SemaphoreHandle_t handler_lock;
 
-void web_lock(void)
+bool web_lock_for(uint32_t ms)
 {
-    xSemaphoreTake(handler_lock, portMAX_DELAY);
+    return xSemaphoreTake(handler_lock, pdMS_TO_TICKS(ms)) == pdTRUE;
 }
 
 void web_unlock(void)
@@ -139,6 +139,7 @@ static httpd_handle_t tls_server;
 static struct {
     httpd_handle_t hd;
     volatile int64_t ran;
+    int64_t queued; /* one job waits at a time: the server's control socket holds 6 and the live deck needs them */
 } alive[2];
 
 static void alive_job(void *arg)
@@ -155,7 +156,10 @@ static void alive_check(void *arg)
             db_ota_restart(0);
             return;
         }
-        httpd_queue_work(alive[i].hd, alive_job, (void *)&alive[i].ran);
+        if (alive[i].ran >= alive[i].queued || now - alive[i].queued > 30 * 1000000LL) { /* or it was dropped */
+            alive[i].queued = now;
+            httpd_queue_work(alive[i].hd, alive_job, (void *)&alive[i].ran);
+        }
     }
 }
 
@@ -278,7 +282,7 @@ static esp_err_t timed(httpd_req_t *req)
     route_t *r = req->user_ctx;
     bool lock = r->handler != post_ota; /* an upload takes seconds and shares nothing */
     /* a handler that hangs must not take every other request on both ports with it */
-    if (lock && xSemaphoreTake(handler_lock, pdMS_TO_TICKS(10000)) != pdTRUE) {
+    if (lock && !web_lock_for(10000)) {
         return send_error(req, "503 Service Unavailable", "busy");
     }
     int64_t start = esp_timer_get_time();

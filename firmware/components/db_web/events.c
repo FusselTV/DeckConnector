@@ -400,8 +400,10 @@ static void command(httpd_handle_t server, int fd, const char *text)
         if (set && token) {
             snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"needs the password, not a token\"}");
             code = 403;
+        } else if (!web_lock_for(10000)) { /* as in http.c timed(): a hung handler must not hold this server */
+            snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"busy\"}");
+            code = 503;
         } else {
-            web_lock();
             code =
                 body ? (set ? (any_token ? api_config_token : api_config)(body, reply, sizeof(reply))
                            : api_input(body, reply, sizeof(reply)))

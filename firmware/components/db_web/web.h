@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 #include "esp_http_server.h"
@@ -44,7 +45,7 @@ esp_err_t send_error(httpd_req_t *req, const char *status, const char *msg);
 /* The whole body, NUL-terminated; -1 when it is cap or longer, or the client stops sending. */
 int read_body(httpd_req_t *req, char *buf, size_t cap);
 /* One handler at a time across both servers, see timed(). */
-void web_lock(void);
+bool web_lock_for(uint32_t ms); /* false: another handler held it that long */
 void web_unlock(void);
 /* A reply built into a heap buffer; build returns 0 when it does not fit. */
 esp_err_t send_built(httpd_req_t *req, size_t cap, size_t (*build)(char *buf, size_t cap));

@@ -391,7 +391,7 @@ esp_err_t put_config(httpd_req_t *req)
         return send_error(req, "413 Payload Too Large", "body too large");
     }
     enum { REPLY_MAX = JSON_MAX * 2 + 64 };
-    static char *reply; /* in PSRAM, made once; handlers run under web_lock() */
+    static char *reply; /* in PSRAM, made once; handlers run under the handler lock */
     if (!reply && !(reply = heap_caps_malloc(REPLY_MAX, MALLOC_CAP_SPIRAM))) {
         return send_error(req, "500 Internal Server Error", "out of memory");
     }
@@ -508,7 +508,7 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
     if (deck_refused(req)) {
         return ESP_OK;
     }
-    char query[64];
+    char query[128];
     char off[8];
     uint32_t off_ms = 500;
     esp_err_t got = httpd_req_get_url_query_str(req, query, sizeof(query));
@@ -517,7 +517,7 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
     }
     if (got != ESP_ERR_NOT_FOUND) { /* there, or cut off */
         char *end = off;
-        long off_s = got == ESP_OK ? strtol(off, &end, 10) : 0;
+        long off_s = got == ESP_OK && off[0] >= '0' && off[0] <= '9' ? strtol(off, &end, 10) : 0;
         if (*end || off_s < 1 || off_s > 600) {
             return send_error(req, "400 Bad Request", "off_s is 1 to 600");
         }
@@ -911,7 +911,7 @@ esp_err_t get_input_log(httpd_req_t *req)
                         httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK
                     ? (uint32_t)strtoul(v, NULL, 10)
                     : 0;
-    return send_built(req, INPUT_LOG * 150 + 16, input_log_json); /* runs under web_lock(): log_since stays put */
+    return send_built(req, INPUT_LOG * 150 + 16, input_log_json); /* runs under the handler lock: log_since stays put */
 }
 
 /* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us. */
@@ -1127,7 +1127,7 @@ static size_t screen_json(char *buf, size_t cap)
     return screen_json_with(buf, cap, shots, &dev);
 }
 
-/* For the event task, which runs outside web_lock(): buffers of its own. */
+/* For the event task, which runs outside the handler lock: buffers of its own. */
 size_t api_screen_json(char *buf, size_t cap)
 {
     static db_shot_t shots[DB_SCREEN_MAX];

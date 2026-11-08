@@ -228,7 +228,7 @@ export const en = {
   'cnt.superseded': 'superseded',
   'cnt.rejected': 'rejected',
   'cnt.usb_errors': 'USB errors',
-  'cnt.usb_recoveries': 'Deck reconnected',
+  'cnt.usb_recoveries': 'deck reconnected',
   'cnt.inputs': 'inputs',
   'cnt.inputs_dropped': 'inputs dropped',
   'dia.id': 'ID',
