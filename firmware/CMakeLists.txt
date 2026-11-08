@@ -20,10 +20,6 @@ set(CCACHE_ENABLE 1)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(deckconnector)
 
-# Third party code: GCC 15 flags a harmless strncpy in mdns. Our own components keep -Werror.
-idf_component_get_property(mdns_lib mdns COMPONENT_LIB)
-target_compile_options(${mdns_lib} PRIVATE -Wno-error=stringop-truncation)
-
 # ldgen takes 5 s and reruns on every edit, because it depends on every library. ldgen_cache.py skips it when its
 # output cannot change. CMake sets a launcher only per directory, so every custom command here passes through it.
 set_property(DIRECTORY PROPERTY RULE_LAUNCH_CUSTOM ${CMAKE_CURRENT_LIST_DIR}/ldgen_launch.sh)

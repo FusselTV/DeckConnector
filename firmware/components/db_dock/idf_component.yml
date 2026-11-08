@@ -1,6 +1,6 @@
 dependencies:
   espressif/mdns:
     version: "^1.15.0"
-    # 1.15.0 that answers SRV, TXT and A at once instead of after 25-200 ms (mdns_send.c, "deckbridge:"). The
+    # 1.15.1 that answers SRV, TXT and A at once instead of after 25-200 ms (mdns_send.c, "deckbridge:"). The
     # Elgato App waits for each answer before it connects.
     override_path: "../../vendor/mdns"
