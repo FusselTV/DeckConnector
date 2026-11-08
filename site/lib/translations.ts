@@ -1,0 +1,39 @@
+import { defineI18nUI } from 'fumadocs-ui/i18n'
+import { i18n } from './i18n'
+
+export const ui = defineI18nUI(i18n, {
+  de: {
+    displayName: 'Deutsch',
+    'Search(search trigger)': 'Suchen',
+    'Search(search dialog)': 'Suchen',
+    'Open Search(search trigger)(aria-label)': 'Suche öffnen',
+    'Close Search(search dialog)(aria-label)': 'Suche schließen',
+    'No results found(search dialog)': 'Nichts gefunden',
+    'On this page(table of contents)': 'Auf dieser Seite',
+    'Table of Contents(inline table of contents)': 'Inhalt',
+    'No Headings(table of contents)': 'Keine Überschriften',
+    'Next Page(pagination)': 'Weiter',
+    'Previous Page(pagination)': 'Zurück',
+    'Choose a language(language switcher)': 'Sprache',
+    'Choose a language(language switcher)(aria-label)': 'Sprache wählen',
+    'Toggle Theme(theme switcher)(aria-label)': 'Hell oder dunkel',
+    'Light(theme switcher)(aria-label)': 'Hell',
+    'Dark(theme switcher)(aria-label)': 'Dunkel',
+    'System(theme switcher)(aria-label)': 'Wie das System',
+    'Open Sidebar(aria-label)': 'Menü öffnen',
+    'Open Sidebar(sidebar)(aria-label)': 'Menü öffnen',
+    'Close Sidebar(aria-label)': 'Menü schließen',
+    'Close Sidebar(sidebar)(aria-label)': 'Menü schließen',
+    'Collapse Sidebar(sidebar)(aria-label)': 'Menü einklappen',
+    'Toggle Menu(home layout header)(aria-label)': 'Menü',
+    'Copy Text(code block)(aria-label)': 'Kopieren',
+    'Copied Text(code block)(aria-label)': 'Kopiert',
+    'Copy Anchor Link(heading anchor)(aria-label)': 'Link kopieren',
+    'Copied Anchor Link(heading anchor)(aria-label)': 'Link kopiert',
+    'Page Not Found(404 not found page)': 'Seite nicht gefunden',
+    'Back to Home(404 not found page)': 'Zur Startseite',
+    'The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.(404 not found page)':
+      'Diese Seite gibt es nicht oder nicht mehr.',
+  },
+  en: { displayName: 'English' },
+})

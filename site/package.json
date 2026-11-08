@@ -1,0 +1,43 @@
+{
+  "name": "deckconnector-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/copy-demo.mjs && next dev",
+    "build": "node scripts/copy-demo.mjs && next build",
+    "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "check": "npm run typecheck && npm run lint && npm run build"
+  },
+  "dependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@remotion/player": "4.0.541",
+    "esptool-js": "0.7.1",
+    "fumadocs-core": "16.18.3",
+    "fumadocs-mdx": "15.5.2",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.18.3",
+    "lucide-react": "1.70.0",
+    "next": "16.4.5",
+    "next-themes": "0.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.541"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@next/eslint-plugin-next": "16.4.5",
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/mdx": "2.0.14",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "tailwindcss": "4.3.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}
