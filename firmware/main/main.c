@@ -392,6 +392,23 @@ static void apply_controller(void)
     db_ui_refresh(); /* also for setup_done and qr_login, which change what the deck shows */
 }
 
+/* A path that came back: links waiting out their backoff try again at once. */
+static void on_net(void)
+{
+    static unsigned was;
+    db_net_status_t n;
+    db_net_status(&n);
+    unsigned up = (n.lan_up && !n.lan_dead) | n.wlan_up << 1;
+    if (up & ~was) {
+        for (int i = 0; i < DB_MAX_SERVERS; i++) {
+            db_link_retry(i);
+        }
+        db_satellite_retry();
+    }
+    was = up;
+    db_ui_refresh();
+}
+
 static void on_satellite(void)
 {
     db_ui_hosts_changed();
@@ -441,6 +458,7 @@ void app_main(void)
              db_controller_name(db_config()->controller));
 
     ESP_ERROR_CHECK(db_ui_start());
+    db_net_on_change(on_net);
     ESP_ERROR_CHECK(db_deck_start(strcmp(db_config()->usb_speed, "full") == 0));
     ESP_ERROR_CHECK(db_net_start());
     db_ui_set_c6_version(db_ota_c6_version());

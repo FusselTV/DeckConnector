@@ -1032,7 +1032,6 @@ esp_err_t db_ui_start(void)
     }
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
-    db_net_on_change(changed);
     const esp_timer_create_args_t targs = {.callback = tick, .name = "ui_tick"};
     esp_timer_handle_t timer;
     esp_timer_create(&targs, &timer);
