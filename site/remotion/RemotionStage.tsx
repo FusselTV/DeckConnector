@@ -4,7 +4,7 @@ import type { CompositionId } from '.'
 
 export type StageProps = { id: CompositionId; className?: string }
 
-const Stage = dynamic(() => import('./Stage'), { ssr: false, loading: () => <div className="aspect-video w-full bg-lcd" /> })
+const Stage = dynamic(() => import('./Stage'), { ssr: false, loading: () => null })
 
 export function RemotionStage(props: StageProps) {
   return (

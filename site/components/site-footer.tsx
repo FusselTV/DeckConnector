@@ -1,33 +1,61 @@
 import { prefix, type Lang } from '~/lib/i18n'
 import { repo } from '~/site.config'
+import { Logo } from './site-header'
 
 const t = {
-  en: { home: 'Home', docs: 'Docs', flash: 'Flash', demo: 'Demo', license: 'License', free: 'DeckConnector is free software under the AGPL-3.0.' },
-  de: { home: 'Startseite', docs: 'Anleitung', flash: 'Flashen', demo: 'Demo', license: 'Lizenz', free: 'DeckConnector ist freie Software unter der AGPL-3.0.' },
+  en: {
+    docs: 'Docs',
+    flash: 'Flasher',
+    demo: 'Demo',
+    releases: 'Firmware releases',
+    source: 'Source code',
+    license: 'AGPL-3.0 license',
+    start: 'Getting started',
+    nav: 'Footer',
+    line: 'Free software for the Waveshare ESP32-P4-WIFI6-POE-ETH. Not affiliated with Elgato or Bitfocus.',
+  },
+  de: {
+    docs: 'Anleitung',
+    flash: 'Flasher',
+    demo: 'Demo',
+    releases: 'Firmware-Versionen',
+    source: 'Quellcode',
+    license: 'Lizenz AGPL-3.0',
+    start: 'Erste Schritte',
+    nav: 'Fußzeile',
+    line: 'Freie Software für die Waveshare ESP32-P4-WIFI6-POE-ETH. Kein Produkt von Elgato oder Bitfocus.',
+  },
 }
 
 export function SiteFooter({ lang }: { lang: Lang }) {
   const s = t[lang]
   const p = prefix(lang)
   const links: [string, string][] = [
-    [s.home, `${p}/`],
-    [s.docs, `${p}/docs/`],
     [s.flash, `${p}/flash/`],
     [s.demo, `${p}/demo/`],
-    ['GitHub', repo],
+    [s.docs, `${p}/docs/`],
+    [s.start, `${p}/docs/getting-started/`],
+    [s.releases, `${repo}/releases`],
+    [s.source, repo],
     [s.license, `${repo}/blob/main/LICENSE`],
   ]
   return (
     <footer className="mt-auto border-t text-sm text-fd-muted-foreground">
-      <div className="mx-auto flex max-w-(--fd-layout-width) flex-wrap items-center gap-x-5 gap-y-2 px-4 py-6">
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-start md:justify-between">
+        <p className="max-w-sm leading-relaxed">
+          <span className="mb-2 flex items-center gap-2 font-semibold text-fd-foreground">
+            <Logo />
+            DeckConnector
+          </span>
+          {s.line}
+        </p>
+        <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 md:gap-x-10">
           {links.map(([text, url]) => (
-            <a key={url} href={url} className="hover:text-fd-foreground">
+            <a key={url} href={url} className="flex min-h-11 items-center rounded-md transition-colors hover:text-fd-foreground md:min-h-9">
               {text}
             </a>
           ))}
         </nav>
-        <span className="md:ml-auto">{s.free}</span>
       </div>
     </footer>
   )
