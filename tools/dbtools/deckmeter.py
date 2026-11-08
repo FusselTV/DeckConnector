@@ -39,7 +39,7 @@ from PIL import Image, ImageDraw
 
 from dbtools.benchlock import bench_lock
 from dbtools.load import password
-from dbtools.safety import PRODUCTION, real_input_target, require_input_gate
+from dbtools.safety import PRODUCTION, host_addr, real_input_target, require_input_gate
 from dbtools.server import Server, local_ip
 
 CAMERA = os.environ.get("DECKBRIDGE_CAMERA", "rtsp://192.168.1.163:8554/stream")
@@ -297,9 +297,11 @@ class Run:
             self.wait_mine()
             yield
         finally:
-            if mode == "dock":
-                self.comp.dock("off")
-            self.restore()
+            try:
+                if mode == "dock":
+                    self.comp.dock("off")
+            finally:
+                self.restore()
 
     def wait_mine(self, timeout: float = 40):
         """On the bridge: until the host on this machine is the one that draws."""
@@ -309,7 +311,7 @@ class Run:
         while time.time() < end:
             s = self.bridge.status()
             drawing = [x["host"] for x in s["sources"] if x.get("drawing")]
-            if len(drawing) == 1 and self.me in drawing[0]:
+            if len(drawing) == 1 and host_addr(drawing[0]) == self.me:
                 return
             time.sleep(0.5)
         raise TimeoutError(f"this machine does not draw on the bridge: writer {s['writer']}, drawing {drawing}")
@@ -321,11 +323,14 @@ class Run:
         end = time.time() + 30
         while time.time() < end:
             s = self.bridge.status()
-            if s["writer"] == "satellite":
-                print("bridge back on production, writer satellite")
+            if any(
+                x.get("via") == "satellite" and x["host"] == PRODUCTION["satellite"] and x["connected"] and x["drawing"]
+                for x in s["sources"]
+            ):
+                print("bridge back on production, Satellite draws")
                 return
             time.sleep(1)
-        print(f"WARNING: bridge on production settings, but writer is {s['writer']}")
+        raise RuntimeError(f"bridge on production settings, but Satellite does not draw: {s['sources']}")
 
     def learn(self, timeout: float = 60):
         """Show pages 3, 2, 1 and the colour classes, and keep what the camera sees as references. Also waits until
@@ -541,10 +546,11 @@ def server_source(r: Run):
             time.sleep(0.1)
         yield loop, bridge
     finally:
-        if srv.url not in cfg["servers"]:
-            r.bridge.put({"servers": cfg["servers"]})
-        r.restore()
-        loop.run(srv.stop())
+        with contextlib.ExitStack() as undo:  # each step also when the one before failed, newest first
+            undo.callback(lambda: loop.run(srv.stop()))
+            undo.callback(r.restore)
+            if srv.url not in cfg["servers"]:
+                r.bridge.put({"servers": cfg["servers"]})
 
 
 def m_camdelay(r: Run) -> dict:
@@ -631,9 +637,10 @@ def m_image(r: Run) -> dict:
             sends = burst(rates, a.secs, draw)
             return {"source": "satellite fake", "kind": a.kind, "rates": analyse(r, sends, regions, cents)}
         finally:
-            r.restore()
-            fake.shutdown()
-            fake.server_close()
+            with contextlib.ExitStack() as undo:
+                undo.callback(fake.server_close)
+                undo.callback(fake.shutdown)
+                r.restore()
     if a.source == "server":
         with server_source(r) as (loop, bridge):
             if a.kind == "key":

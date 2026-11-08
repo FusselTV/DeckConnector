@@ -28,6 +28,11 @@ def require_input_gate(status: dict) -> None:
         )
 
 
+def host_addr(host: str) -> str:
+    """The address in a source's host: "addr", "addr:port" or a ws:// or wss:// URL."""
+    return (urlparse(host).hostname or "") if "://" in host else host.split(":")[0]
+
+
 def real_input_target(status: dict) -> str:
     """The address of the drawing host, if "real" presses may go to it: only a host on this test machine."""
     require_input_gate(status)
@@ -35,7 +40,7 @@ def real_input_target(status: dict) -> str:
     if len(drawing) != 1:
         raise UnsafeBridge(f"no single drawing host: {drawing}")
     host = drawing[0]["host"]
-    addr = urlparse(host).hostname if "://" in host else host.split(":")[0]
+    addr = host_addr(host)
     try:
         mine = bool(addr) and ipaddress.ip_address(addr) == ipaddress.ip_address(local_ip())
     except ValueError:  # a host name: it may resolve anywhere
