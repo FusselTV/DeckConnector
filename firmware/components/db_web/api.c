@@ -508,7 +508,17 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
     if (deck_refused(req)) {
         return ESP_OK;
     }
-    db_deck_reconnect();
+    char query[64];
+    char off[8];
+    int off_s = 0;
+    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
+        httpd_query_key_value(query, "off_s", off, sizeof(off)) == ESP_OK) {
+        off_s = atoi(off);
+        if (off_s < 1 || off_s > 600) {
+            return send_error(req, "400 Bad Request", "off_s is 1 to 600");
+        }
+    }
+    db_deck_reconnect(off_s ? off_s * 1000 : 500);
     return send_json(req, "{\"ok\":true}");
 }
 

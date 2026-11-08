@@ -539,17 +539,26 @@ const char *db_deck_source_name(db_source_t source)
 
 static void replug_task(void *arg)
 {
-    esp_err_t err = usb_port_replug((uint8_t)(uintptr_t)arg);
+    esp_err_t err = usb_port_replug((uint8_t)(uintptr_t)arg, 500);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
     }
     vTaskDelete(NULL);
 }
 
-void db_deck_reconnect(void)
+static void reconnect_task(void *arg)
 {
-    ESP_LOGI(TAG, "reconnecting the deck");
-    if (xTaskCreate(replug_task, "deck_replug", 3072, NULL, 5, NULL) != pdPASS) {
+    esp_err_t err = usb_port_replug(0, (uint32_t)(uintptr_t)arg);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
+    }
+    vTaskDelete(NULL);
+}
+
+void db_deck_reconnect(uint32_t off_ms)
+{
+    ESP_LOGI(TAG, "reconnecting the deck, %lu ms without power", (unsigned long)off_ms);
+    if (xTaskCreate(reconnect_task, "deck_replug", 3072, (void *)(uintptr_t)off_ms, 5, NULL) != pdPASS) {
         ESP_LOGE(TAG, "no task to reconnect the deck");
     }
 }

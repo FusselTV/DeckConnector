@@ -84,7 +84,7 @@ esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
     return ESP_OK;
 }
 
-void db_deck_reconnect(void)
+void db_deck_reconnect(uint32_t off_ms)
 {
 }
 db_source_t db_deck_writer(void)

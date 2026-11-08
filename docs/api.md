@@ -97,7 +97,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `DELETE /api/menu` | Close the menu on the deck, like its close key. It also hides the password, ends the reset question and denies a login request. The deck goes back to the host that draws |
 | `POST /api/dock` | Pairing of Companion and Elgato App hosts, see below |
 | `DELETE /api/pairing/denied/<ip>` | Take a refused host off the list in `pairing.denied` |
-| `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in |
+| `POST /api/deck/reconnect` | Switch the deck's USB port off and on, as if the cable were pulled and plugged in. `?off_s=N` (1 to 600) keeps it off for N seconds instead of half a second |
 | `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
 | `GET /api/events` | The last 32 events, oldest first: `[{since_s, at, kind, text}]`. `since_s` counts from the start, `at` is the Unix time or null before the clock is set. `kind` is `boot`, `source`, `wlan`, `lan`, `pairing` or `update` |
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckconnector.elf` with the ELF of the same build |

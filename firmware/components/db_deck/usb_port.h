@@ -29,5 +29,5 @@ const db_hid_io_t *usb_port_io(void);
 
 uint32_t usb_port_errors(void);
 /* Cut and restore the power of the root port, as if the cable were pulled and plugged in again; behind a hub
- * everything on it goes too. `address` (0: none) must be a present device. Blocks for half a second. */
-esp_err_t usb_port_replug(uint8_t address);
+ * everything on it goes too. `address` (0: none) must be a present device. Blocks for `off_ms`. */
+esp_err_t usb_port_replug(uint8_t address, uint32_t off_ms);

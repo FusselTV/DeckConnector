@@ -245,7 +245,7 @@ static void client_task(void *arg)
     }
 }
 
-esp_err_t usb_port_replug(uint8_t address)
+esp_err_t usb_port_replug(uint8_t address, uint32_t off_ms)
 {
     usb_device_handle_t dev;
     if (address && usb_host_device_open(s.client, address, &dev) != ESP_OK) {
@@ -258,9 +258,9 @@ esp_err_t usb_port_replug(uint8_t address)
      * Always the root port, so behind a hub everything on it goes too: switching a hub port from here (CLEAR_FEATURE
      * on the hub) tripped an assert in esp-usb's ext_hub.c:512 and restarted the bridge. */
     ESP_LOGI(TAG, "power cycling the root port");
-    s.replug_until = esp_timer_get_time() + 5000000;
+    s.replug_until = esp_timer_get_time() + (off_ms + 4500) * 1000LL;
     ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
-    vTaskDelay(pdMS_TO_TICKS(500));
+    vTaskDelay(pdMS_TO_TICKS(off_ms));
     keep_full_speed();
     esp_err_t err = ESP_FAIL;
     for (int i = 0; i < 3 && err != ESP_OK; i++) { /* off and never on again: the deck stays dark until a reboot */
@@ -278,7 +278,7 @@ esp_err_t usb_port_replug(uint8_t address)
 
 static void replug_task(void *arg)
 {
-    usb_port_replug(0); /* it sleeps: not in the esp_timer task */
+    usb_port_replug(0, 500); /* it sleeps: not in the esp_timer task */
     vTaskDelete(NULL);
 }
 
