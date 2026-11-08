@@ -125,15 +125,6 @@ static void test_decks_without_a_strip_are_a_grid_of_keys(void)
     }
 }
 
-static void test_base64(void)
-{
-    char s[] = "aGVsbG8gd29ybGQ=";
-    TEST_ASSERT_EQUAL_INT(11, db_base64_decode(s, strlen(s)));
-    TEST_ASSERT_EQUAL_MEMORY("hello world", s, 11);
-    char bad[] = "aGVs*G8=";
-    TEST_ASSERT_EQUAL_INT(-1, db_base64_decode(bad, strlen(bad)));
-}
-
 static void put_be32(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)(v >> 24);
@@ -268,7 +259,6 @@ int main(void)
     RUN_TEST(test_parse_a_line_as_companion_writes_it);
     RUN_TEST(test_stream_deck_plus_layout_matches_companion);
     RUN_TEST(test_decks_without_a_strip_are_a_grid_of_keys);
-    RUN_TEST(test_base64);
     RUN_TEST(test_png_decodes_to_bgr);
     RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
     RUN_TEST(test_host_of_every_satellite_address_form);

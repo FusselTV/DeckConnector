@@ -174,12 +174,18 @@ static void send_hello(int link)
     send_text(link, buf, db_json_end(&j));
 }
 
+#define STATUS_MAX 4096 /* as /api/status, and the most ws_send takes */
+
 static void send_status(void)
 {
-    char *buf = malloc(2048);
-    if (buf) {
-        send_text(ALL_LINKS, buf, s.hooks.status_json(buf, 2048));
+    char *buf = malloc(STATUS_MAX);
+    size_t n = buf ? s.hooks.status_json(buf, STATUS_MAX) : 0;
+    static bool warned;
+    if (buf && !n && !warned) {
+        warned = true;
+        ESP_LOGW(TAG, "status does not fit %d bytes, servers stop getting it", STATUS_MAX);
     }
+    send_text(ALL_LINKS, buf, n);
     free(buf);
 }
 
@@ -258,7 +264,8 @@ static int read_image(link_t *l, uint64_t len)
         return err;
     }
     db_image_hdr_t h;
-    size_t n = (size_t)len - sizeof(hdr);
+    uint64_t rest = len - sizeof(hdr);
+    size_t n = (size_t)rest; /* used only when len <= IMAGE_MAX */
     db_ack_result_t refuse = DB_ACK_SHOWN;
     uint8_t *img = NULL;
     if (db_proto_parse_image_hdr(hdr, sizeof(hdr), &h) != DB_OK) {
@@ -273,7 +280,7 @@ static int read_image(link_t *l, uint64_t len)
         uint8_t out[DB_ACK_LEN];
         db_proto_write_ack(out, refuse, h.display, h.seq, 0, 0, 0);
         send_inline(l->index, WS_OP_BINARY, out, sizeof(out), 0);
-        return ws_skip(&l->ws, n);
+        return ws_skip(&l->ws, rest);
     }
     err = ws_read(&l->ws, img, n);
     if (err) {
@@ -425,7 +432,7 @@ static void link_task(void *arg)
         bool set = strcmp(url, db_config_server_of(db_config(), l->index)) == 0;
         uint8_t pin[32];
         bool pinned = set && db_config_pin(db_config()->server_pins[l->index], pin);
-        int err = ws_connect(&l->ws, url, "deckconnector.v1, deckbridge.v1", s.headers[0] && set ? s.headers : NULL,
+        int err = ws_connect(&l->ws, url, "deckconnector.v1", s.headers[0] && set ? s.headers : NULL,
                              bound ? ifname : NULL, CONNECT_TIMEOUT, pinned ? pin : NULL);
         if (err) {
             db_health_fail(&l->health, strerror(-err));
@@ -507,26 +514,23 @@ static bool any_configured(void)
     return false;
 }
 
-/* Without configured servers, use the first ones that announce _deckconnector._tcp or the old _deckbridge._tcp. */
+/* Without configured servers, use the first ones that announce _deckconnector._tcp. */
 static void discover(void)
 {
-    static const char *const types[] = {"_deckconnector", "_deckbridge"};
-    int i = 0;
-    for (int t = 0; t < 2 && i < DB_MAX_SERVERS; t++) {
-        mdns_result_t *results = NULL;
-        if (mdns_query_ptr(types[t], "_tcp", 2000, DB_MAX_SERVERS, &results) != ESP_OK) {
-            continue;
-        }
-        for (mdns_result_t *r = results; r && i < DB_MAX_SERVERS; r = r->next, i++) {
-            link_t *l = &s.links[i];
-            if (r->addr && !l->connected) {
-                snprintf(l->url, sizeof(l->url), "ws://" IPSTR ":%u/deckbridge",
-                         IP2STR(&r->addr->addr.u_addr.ip4), r->port);
-                ESP_LOGI(TAG, "found server %s (%s)", l->url, r->instance_name ? r->instance_name : "?");
-            }
-        }
-        mdns_query_results_free(results);
+    mdns_result_t *results = NULL;
+    if (mdns_query_ptr("_deckconnector", "_tcp", 2000, DB_MAX_SERVERS, &results) != ESP_OK) {
+        return;
     }
+    int i = 0;
+    for (mdns_result_t *r = results; r && i < DB_MAX_SERVERS; r = r->next, i++) {
+        link_t *l = &s.links[i];
+        if (r->addr && !l->connected) {
+            snprintf(l->url, sizeof(l->url), "ws://" IPSTR ":%u/deckbridge",
+                     IP2STR(&r->addr->addr.u_addr.ip4), r->port);
+            ESP_LOGI(TAG, "found server %s (%s)", l->url, r->instance_name ? r->instance_name : "?");
+        }
+    }
+    mdns_query_results_free(results);
 }
 
 /* A link on WLAN goes back to LAN as soon as the server answers there again: after a start, when WLAN was up

@@ -46,6 +46,9 @@ bool db_net_ifname(bool wlan, char name[6]);
 bool db_net_pick(bool *wlan, char name[6]);
 /* True while the LAN or the WLAN has this address (network order). */
 bool db_net_has_ip(uint32_t ip);
+/* True once `local_ip` is ours again and the host `ip` (or its gateway) answers ARP over that interface: an
+ * address can be up before the switch port forwards, and a SYN sent then is lost. Asks again on each call. */
+bool db_net_path_ready(uint32_t local_ip, uint32_t ip);
 /* A SYN from an old local address and port to a peer (all network order), to end a session of the last boot: the
  * peer's stack answers with an ACK, ours with a reset. The non-blocking socket, or -1 when the old port cannot be
  * bound; the caller closes it once the reset is out. */

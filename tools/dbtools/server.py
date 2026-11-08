@@ -209,7 +209,7 @@ class Server:
             self._handler,
             "0.0.0.0",
             self.port,
-            subprotocols=["deckconnector.v1", "deckbridge.v1"],
+            subprotocols=["deckconnector.v1"],
             max_size=2**22,
             ping_interval=5 if self.ping else None,
             ping_timeout=15,

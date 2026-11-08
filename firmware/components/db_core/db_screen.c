@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#define NO_PART UINT32_MAX
+
 static uint32_t next_id; /* shared by all screens, so ids never repeat */
 
 void db_screen_seed_ids(uint32_t first)
@@ -47,14 +49,14 @@ db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c)
         s->pending.next_part = 0;
     } else if (c->part != s->pending.next_part || c->display != s->pending.display ||
                !db_rect_eq(c->rect, s->pending.rect)) {
-        s->pending.next_part = 0xffff; /* wait for the next first piece */
+        s->pending.next_part = NO_PART; /* wait for the next first piece */
         return DB_ERR_PROTO;
     }
     if (s->pending.len + c->len > DB_SCREEN_IMAGE_MAX) { /* a host that never sends the last piece */
         s->free_fn(s->pending.data);
         s->pending.data = NULL;
         s->pending.cap = 0;
-        s->pending.next_part = 0xffff;
+        s->pending.next_part = NO_PART;
         return DB_ERR_NOMEM;
     }
     if (s->pending.len + c->len > s->pending.cap) {
@@ -64,7 +66,7 @@ db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c)
         }
         uint8_t *p = s->realloc_fn(s->pending.data, cap);
         if (!p) {
-            s->pending.next_part = 0xffff;
+            s->pending.next_part = NO_PART;
             return DB_ERR_NOMEM;
         }
         s->pending.data = p;
@@ -77,7 +79,7 @@ db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c)
         return DB_OK;
     }
     if (s->pending.len == 0) {
-        s->pending.next_part = 0xffff;
+        s->pending.next_part = NO_PART;
         return DB_ERR_PROTO;
     }
     /* the shot takes the buffer; the next image starts a new one */
@@ -85,7 +87,7 @@ db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c)
     db_screen_put(s, s->pending.display, s->pending.rect, img ? img : s->pending.data, s->pending.len);
     s->pending.data = NULL;
     s->pending.cap = 0;
-    s->pending.next_part = 0xffff;
+    s->pending.next_part = NO_PART;
     return DB_OK;
 }
 
@@ -97,7 +99,7 @@ void db_screen_clear(db_screen_t *s)
     s->free_fn(s->pending.data);
     s->pending.data = NULL;
     s->pending.cap = 0;
-    s->pending.next_part = 0xffff;
+    s->pending.next_part = NO_PART;
 }
 
 db_err_t db_screen_blit(uint8_t *dst, uint16_t dw, uint16_t dh, uint16_t x, uint16_t y, const uint8_t *src,

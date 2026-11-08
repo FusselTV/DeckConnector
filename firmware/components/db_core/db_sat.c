@@ -191,43 +191,6 @@ const db_sat_control_t *db_sat_lcd_at(const db_sat_control_t *c, size_t n, uint1
     return NULL;
 }
 
-static int b64_value(char c)
-{
-    if (c >= 'A' && c <= 'Z') {
-        return c - 'A';
-    }
-    if (c >= 'a' && c <= 'z') {
-        return c - 'a' + 26;
-    }
-    if (c >= '0' && c <= '9') {
-        return c - '0' + 52;
-    }
-    return c == '+' ? 62 : (c == '/' ? 63 : -1);
-}
-
-int db_base64_decode(char *s, size_t len)
-{
-    while (len && s[len - 1] == '=') {
-        len--;
-    }
-    uint32_t acc = 0;
-    int bits = 0;
-    size_t n = 0;
-    for (size_t i = 0; i < len; i++) {
-        int v = b64_value(s[i]);
-        if (v < 0) {
-            return -1;
-        }
-        acc = acc << 6 | (uint32_t)v;
-        bits += 6;
-        if (bits >= 8) {
-            bits -= 8;
-            s[n++] = (char)(acc >> bits);
-        }
-    }
-    return (int)n;
-}
-
 static uint32_t be32(const uint8_t *p)
 {
     return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];

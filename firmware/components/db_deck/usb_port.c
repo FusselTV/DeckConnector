@@ -50,7 +50,7 @@ static struct {
     esp_timer_handle_t check;
     esp_timer_handle_t in_retry;
     uint32_t in_backoff_ms;
-    int64_t replug_until; /* our own replug empties the port for a moment */
+    uint32_t replug_until_ms; /* our own replug empties the port for a moment; 32 bits, see fail_since */
 } s;
 
 /* An unplug ends every transfer in flight; only other endings are errors. */
@@ -79,11 +79,16 @@ static void in_done(usb_transfer_t *t)
         s.cb.input(t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
     count_error(t->status);
-    if (!s.open || t->status == USB_TRANSFER_STATUS_NO_DEVICE || t->status == USB_TRANSFER_STATUS_CANCELED) {
+    /* CANCELED while open (a flush) is queued again below */
+    if (!s.open || t->status == USB_TRANSFER_STATUS_NO_DEVICE) {
         return;
     }
     if (t->status != USB_TRANSFER_STATUS_COMPLETED) {
         /* an error that repeats would otherwise spin the client task: wait longer each time, up to 1 s */
+        if (s.in_backoff_ms == 1000) {
+            ESP_LOGE(TAG, "input keeps failing (status %d): reconnecting the deck", t->status);
+            s.cb.stuck();
+        }
         s.in_backoff_ms = s.in_backoff_ms ? (s.in_backoff_ms * 2 > 1000 ? 1000 : s.in_backoff_ms * 2) : 100;
         if (s.in_backoff_ms < 1000) {
             ESP_LOGW(TAG, "input transfer ended with status %d", t->status);
@@ -101,7 +106,9 @@ static void in_resubmit(usb_transfer_t *t)
     if (usb_host_transfer_submit(t) != ESP_OK &&
         (usb_host_endpoint_clear(s.dev, s.ep_in) != ESP_OK || usb_host_transfer_submit(t) != ESP_OK)) {
         s.errors++;
-        ESP_LOGE(TAG, "input transfer could not be queued again, input stops until the device is replugged");
+        ESP_LOGE(TAG, "input transfer could not be queued: reconnecting the deck");
+        s.cb.stuck();
+        esp_timer_start_once(s.in_retry, 1000000); /* stuck() may hold back a replug for a while */
     }
 }
 
@@ -316,7 +323,8 @@ static esp_err_t replug(uint8_t address, uint32_t off_ms)
      * Always the root port, so behind a hub everything on it goes too: switching a hub port from here (CLEAR_FEATURE
      * on the hub) tripped an assert in esp-usb's ext_hub.c:512 and restarted the bridge. */
     ESP_LOGI(TAG, "power cycling the root port");
-    s.replug_until = esp_timer_get_time() + (off_ms + 4500) * 1000LL;
+    __atomic_store_n(&s.replug_until_ms, (uint32_t)(esp_timer_get_time() / 1000) + off_ms + 4500,
+                     __ATOMIC_RELAXED);
     ESP_RETURN_ON_ERROR(usb_host_lib_set_root_port_power(false), TAG, "port off");
     vTaskDelay(pdMS_TO_TICKS(off_ms));
     keep_full_speed();
@@ -357,7 +365,9 @@ static void check_speed(void *arg)
         return;
     }
     if (s.full) {
-        if (n == 0 && s.auto_speed && esp_timer_get_time() > s.replug_until) {
+        int32_t left = (int32_t)(__atomic_load_n(&s.replug_until_ms, __ATOMIC_RELAXED) -
+                                 (uint32_t)(esp_timer_get_time() / 1000));
+        if (n == 0 && s.auto_speed && left < 0) {
             ESP_LOGI(TAG, "nothing on the USB port any more: back to high speed");
             s.full = false;
             USB_DWC_HS.hcfg_reg.fslssupp = 0;
@@ -548,9 +558,8 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     s.next_out = 0;
     s.fail_since = 0;
     s.open = true;
-    if (usb_host_transfer_submit(s.in) != ESP_OK) {
-        ESP_LOGE(TAG, "input transfer could not be queued, the device will show images but send no input");
-    }
+    s.in_backoff_ms = 0;
+    in_resubmit(s.in);
     return ESP_OK;
 }
 

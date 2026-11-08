@@ -261,7 +261,12 @@ static int io_send(ws_t *ws, int sock, const void *buf, size_t len)
 {
     tls_t *t = ws->tls;
     if (!t) {
-        return send(sock, buf, len, 0);
+        int n = send(sock, buf, len, 0);
+        if (n >= 0 && (size_t)n != len) { /* the send timeout cut the frame */
+            errno = EIO;
+            return -1;
+        }
+        return n;
     }
     size_t done = 0;
     while (done < len) {
@@ -412,23 +417,23 @@ void ws_close(ws_t *ws)
     xSemaphoreGive(ws->tx);
 }
 
-/* Each recv() waits at most 1 s (SO_RCVTIMEO); a frame that stalls halfway gives up after STALL_LIMIT_S. */
-#define STALL_LIMIT_S 6
+/* A frame that stalls halfway gives up after STALL_LIMIT_US, whatever SO_RCVTIMEO the caller set. */
+#define STALL_LIMIT_US (6 * 1000 * 1000)
 
 static int read_exact(ws_t *ws, uint8_t *buf, size_t len, bool allow_idle)
 {
     size_t got = 0;
-    int stalls = 0;
+    int64_t since = esp_timer_get_time();
     while (got < len) {
         int n = io_recv(ws, ws->sock, buf + got, len - got);
         if (n > 0) {
             got += (size_t)n;
-            stalls = 0;
+            since = esp_timer_get_time();
         } else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             if (allow_idle && got == 0) {
                 return -EAGAIN;
             }
-            if (++stalls >= STALL_LIMIT_S) {
+            if (esp_timer_get_time() - since >= STALL_LIMIT_US) {
                 return -ETIMEDOUT;
             }
         } else {

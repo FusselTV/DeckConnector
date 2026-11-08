@@ -21,8 +21,11 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "lwip/etharp.h"
 #include "lwip/ip4_addr.h"
+#include "lwip/priv/tcpip_priv.h"
 #include "lwip/sockets.h"
+#include "lwip/tcpip.h"
 #include "mdns.h"
 #include "ping/ping_sock.h"
 
@@ -55,6 +58,8 @@ static struct {
     int missed;
     bool gateway_seen;
     int join_reason;
+    esp_timer_handle_t rejoin;
+    uint32_t rejoin_ms; /* doubles per failed try: an AP that is gone must not flood the log */
     bool join_got_ip; /* WLAN got an address after the join cleared it: not the old link's state */
 } s;
 
@@ -255,19 +260,24 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         snprintf(s.st.wlan_ssid, sizeof(s.st.wlan_ssid), "%.*s", c->ssid_len, c->ssid);
         strcpy(s.st.wlan_bssid, bssid);
         s.st.wlan_channel = c->channel;
+        s.rejoin_ms = 0;
         apply_static(s.wlan, &db_config()->wlan);
         break;
     }
     case WIFI_EVENT_STA_DISCONNECTED: {
         wifi_event_sta_disconnected_t *d = data;
-        ESP_LOGW(TAG, "WLAN lost, reason %d", d->reason);
+        if (s.st.wlan_up || d->reason != s.join_reason) {
+            ESP_LOGW(TAG, "WLAN lost, reason %d", d->reason);
+        }
         s.join_reason = d->reason;
         s.join_got_ip = false;
         s.st.wlan_up = false;
         set_ip(s.st.wlan_ip, NULL);
         changed();
         if (db_config()->wifi_ssid[0]) {
-            esp_wifi_connect();
+            s.rejoin_ms = s.rejoin_ms ? (s.rejoin_ms * 2 > 8000 ? 8000 : s.rejoin_ms * 2) : 250;
+            esp_timer_stop(s.rejoin);
+            esp_timer_start_once(s.rejoin, s.rejoin_ms * 1000ULL);
         }
         break;
     }
@@ -316,6 +326,11 @@ static wifi_config_t sta_config(const char *ssid, const char *pass, const char *
     return cfg;
 }
 
+static void rejoin_now(void *arg)
+{
+    esp_wifi_connect();
+}
+
 static esp_err_t start_wifi(void)
 {
     const db_config_t *c = db_config();
@@ -325,6 +340,8 @@ static esp_err_t start_wifi(void)
     esp_netif_set_hostname(s.wlan, host);
     wifi_init_config_t wc = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&wc), TAG, "wifi init");
+    esp_timer_create_args_t rejoin = {.callback = rejoin_now, .name = "wlan_rejoin"};
+    ESP_RETURN_ON_ERROR(esp_timer_create(&rejoin, &s.rejoin), TAG, "rejoin timer");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi, NULL), TAG,
                         "wifi ev");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip, NULL), TAG, "ip ev");
@@ -360,6 +377,9 @@ static void dns_task(void *arg)
     struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(53)};
     if (sock < 0 || bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         ESP_LOGE(TAG, "captive DNS not available");
+        if (sock >= 0) {
+            close(sock);
+        }
         vTaskDelete(NULL);
     }
     uint8_t pkt[512];
@@ -472,6 +492,42 @@ bool db_net_has_ip(uint32_t ip)
     db_net_status_t n;
     db_net_status(&n);
     return (n.lan_up && inet_addr(n.lan_ip) == ip) || (n.wlan_up && inet_addr(n.wlan_ip) == ip);
+}
+
+typedef struct {
+    struct tcpip_api_call_data call;
+    ip4_addr_t ip;
+    uint32_t local_ip;
+} arp_probe_t;
+
+/* asked on the interface with our address local_ip: WLAN is in the same subnet and answers when LAN does
+ * not */
+static err_t arp_probe(struct tcpip_api_call_data *call)
+{
+    arp_probe_t *q = (arp_probe_t *)call;
+    struct netif *n;
+    NETIF_FOREACH(n)
+    {
+        if (!(n->flags & NETIF_FLAG_ETHARP) || !netif_is_up(n) || !netif_is_link_up(n) ||
+            netif_ip4_addr(n)->addr != q->local_ip) {
+            continue;
+        }
+        const ip4_addr_t *hop =
+            ip4_addr_net_eq(&q->ip, netif_ip4_addr(n), netif_ip4_netmask(n)) ? &q->ip : netif_ip4_gw(n);
+        struct eth_addr *eth;
+        const ip4_addr_t *found;
+        if (etharp_find_addr(n, hop, &eth, &found) >= 0) {
+            return ERR_OK;
+        }
+        etharp_request(n, hop);
+    }
+    return ERR_VAL;
+}
+
+bool db_net_path_ready(uint32_t local_ip, uint32_t ip)
+{
+    arp_probe_t q = {.ip.addr = ip, .local_ip = local_ip};
+    return db_net_has_ip(local_ip) && tcpip_api_call(arp_probe, &q.call) == ERR_OK;
 }
 
 int db_net_syn_from(uint32_t local_ip, uint16_t local_port, uint32_t ip, uint16_t port)
@@ -664,6 +720,7 @@ static void join_task(void *arg)
     ESP_LOGI(TAG, "WLAN trying %s", j->ssid);
     wifi_config_t cfg = sta_config(j->ssid, j->pass, j->bssid);
     s.join_reason = 0;
+    s.rejoin_ms = 0;
     s.join_got_ip = false;
     esp_wifi_disconnect();
     esp_err_t set = esp_wifi_set_config(WIFI_IF_STA, &cfg);

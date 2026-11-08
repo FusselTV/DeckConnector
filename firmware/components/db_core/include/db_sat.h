@@ -54,9 +54,6 @@ const db_sat_control_t *db_sat_find(const db_sat_control_t *c, size_t n, const c
 /* The strip part under touch position `x`, or NULL. */
 const db_sat_control_t *db_sat_lcd_at(const db_sat_control_t *c, size_t n, uint16_t x);
 
-/* Decode base64 in place. Returns the length, or -1. */
-int db_base64_decode(char *s, size_t len);
-
 /*
  * An 8 bit RGB or RGBA PNG without interlacing and exactly w x h into B, G, R bytes, the order the JPEG
  * encoder reads. Alpha is dropped. `work` holds the inflated rows, h * (1 + 4 * w) bytes.

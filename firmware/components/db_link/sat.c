@@ -233,16 +233,18 @@ static esp_err_t to_jpeg(char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
 {
     bool png = strncmp(bitmap, PNG_PREFIX, strlen(PNG_PREFIX)) == 0;
     char *b64 = png ? bitmap + strlen(PNG_PREFIX) : bitmap;
-    int n = db_base64_decode(b64, strlen(b64));
+    size_t n = 0;
     size_t px = (size_t)r.w * r.h;
-    if (n < 0) {
+    /* in place: mbedtls writes 3 bytes only after it read the 4 characters they come from */
+    if (mbedtls_base64_decode((unsigned char *)b64, strlen(b64), &n, (const unsigned char *)b64,
+                              strlen(b64)) != 0) {
         return ESP_ERR_INVALID_ARG;
     }
     if (png) {
-        if (db_png_decode((uint8_t *)b64, (size_t)n, r.w, r.h, s.rgb, s.work, s.work_cap) != DB_OK) {
+        if (db_png_decode((uint8_t *)b64, n, r.w, r.h, s.rgb, s.work, s.work_cap) != DB_OK) {
             return ESP_ERR_INVALID_ARG;
         }
-    } else if ((size_t)n == px * 3) {
+    } else if (n == px * 3) {
         for (size_t i = 0; i < px; i++) {
             s.rgb[i * 3] = (uint8_t)b64[i * 3 + 2];
             s.rgb[i * 3 + 1] = (uint8_t)b64[i * 3 + 1];
@@ -560,8 +562,10 @@ static bool end_old_session(void)
     if (err != ESP_OK || !o.ip) {
         return true;
     }
-    if (!db_net_has_ip(o.local_ip)) {
-        return esp_timer_get_time() > BOOT_LAN_US; /* lwIP would send the SYN from the wrong address */
+    /* not before: lwIP would send the SYN from the wrong address, or into a switch port that does not forward
+     * yet */
+    if (!db_net_path_ready(o.local_ip, o.ip)) {
+        return esp_timer_get_time() > BOOT_LAN_US;
     }
     int sock = db_net_syn_from(o.local_ip, o.local, o.ip, o.port);
     if (sock >= 0) {
@@ -864,7 +868,9 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
         }
         int sock = ws_tcp_open(host, port, NULL, CONNECT_MS);
         if (sock < 0) {
-            return strerror(-sock);
+            static char why[64]; /* web handlers run one at a time */
+            snprintf(why, sizeof(why), "no connection: %s", strerror(-sock));
+            return why;
         }
         int64_t end = esp_timer_get_time() + CONNECT_MS * 1000LL; /* a byte at a time must not hold the web lock */
         for (int r; n < sizeof(line) - 1 && !memchr(line, '\n', n) && esp_timer_get_time() < end; n += (size_t)r) {

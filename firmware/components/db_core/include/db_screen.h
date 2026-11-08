@@ -36,7 +36,7 @@ typedef struct {
     struct {
         uint8_t display;
         db_rect_t rect;
-        uint16_t next_part;
+        uint32_t next_part; /* NO_PART: none expected; above any uint16_t part */
         uint8_t *data;
         size_t len;
         size_t cap;

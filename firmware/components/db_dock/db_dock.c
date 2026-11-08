@@ -242,6 +242,8 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     }
     xSemaphoreTake(c->tx, portMAX_DELAY);
     c->sock = -1;
+    c->kind = DB_CTRL_SERVER; /* a reader of this slot must never see a new host with the old one's kind */
+    c->ip = 0;
     xSemaphoreGive(c->tx);
     close(sock);
     if (c->device_port && kind != DB_CTRL_SERVER) {
@@ -337,8 +339,6 @@ static void keep_peers(void)
     xSemaphoreGive(s.info_lock);
 }
 
-static bool answers_arp(uint32_t ip, uint32_t local_ip);
-
 /* the Elgato App marks the dock offline and waits for the service to come online again; it misses an
  * announcement that comes before it has noticed */
 static void announce_anew(void)
@@ -383,10 +383,7 @@ static void reset_old_peers(void *arg)
             if (!peers[i].ip) {
                 continue;
             }
-            bool up = db_net_has_ip(peers[i].local_ip);
-            /* an address can be up before the switch port forwards (a fixed or restored one), and a SYN sent
-             * then is lost: the host's ARP answer shows the path works */
-            if (!up || !answers_arp(peers[i].ip, peers[i].local_ip)) {
+            if (!db_net_path_ready(peers[i].local_ip, peers[i].ip)) {
                 waiting = true;
                 continue;
             }
@@ -442,7 +439,7 @@ static void rejoin_app(void *arg)
         db_net_status_t n;
         db_net_status(&n);
         uint32_t from = n.lan_dead && n.wlan_up ? inet_addr(n.wlan_ip) : rejoin_local_ip; /* a dead LAN keeps its address */
-        if (answers_arp(rejoin_ip, from)) {
+        if (db_net_path_ready(from, rejoin_ip)) {
             announce_anew();
             break;
         }
@@ -459,6 +456,7 @@ static void rejoin_app(void *arg)
  * away and waits as a request that the deck or the web UI answers.
  */
 #define KNOWN_MAX  8
+#define NAMES_MAX  32
 #define DENIED_MAX 4
 #define REQUEST_US (60 * 1000000LL)
 
@@ -474,8 +472,9 @@ static struct {
         uint32_t ip;
         char name[DB_DNS_NAME_LEN];
         int64_t asked_at;
-    } names[KNOWN_MAX]; /* RAM only: a name is asked again after a boot, it may have changed */
+    } names[NAMES_MAX]; /* RAM only: a name is asked again after a boot, it may have changed */
     int next_name;
+    bool looking;                        /* one lookup task at a time */
     db_dock_denied_t denied[DENIED_MAX]; /* RAM only, oldest first */
     int n_denied;
 } pair = {.mux = portMUX_INITIALIZER_UNLOCKED};
@@ -517,11 +516,12 @@ static void lookup_task(void *arg)
         close(sock);
     }
     taskENTER_CRITICAL(&pair.mux);
-    for (int i = 0; i < KNOWN_MAX; i++) {
+    for (int i = 0; i < NAMES_MAX; i++) {
         if (pair.names[i].ip == ip) {
             snprintf(pair.names[i].name, sizeof(pair.names[i].name), "%s", name);
         }
     }
+    pair.looking = false;
     taskEXIT_CRITICAL(&pair.mux);
     if (name[0] && s.hosts_changed) {
         s.hosts_changed();
@@ -532,20 +532,23 @@ static void lookup_task(void *arg)
 /* Under the mux. Without an answer it asks again after a minute, not on every call. */
 static bool should_ask(uint32_t ip, int64_t now)
 {
-    for (int i = 0; i < KNOWN_MAX; i++) {
+    if (pair.looking) {
+        return false;
+    }
+    for (int i = 0; i < NAMES_MAX; i++) {
         if (pair.names[i].ip == ip) {
             if (pair.names[i].name[0] || now - pair.names[i].asked_at < 60000000) {
                 return false;
             }
             pair.names[i].asked_at = now;
-            return true;
+            return pair.looking = true;
         }
     }
-    int i = pair.next_name++ % KNOWN_MAX;
+    int i = pair.next_name++ % NAMES_MAX;
     pair.names[i].ip = ip;
     pair.names[i].name[0] = 0;
     pair.names[i].asked_at = now;
-    return true;
+    return pair.looking = true;
 }
 
 static void look_up(uint32_t ip)
@@ -554,8 +557,10 @@ static void look_up(uint32_t ip)
     taskENTER_CRITICAL(&pair.mux);
     bool ask = should_ask(ip, now);
     taskEXIT_CRITICAL(&pair.mux);
-    if (ask) {
-        xTaskCreate(lookup_task, "dock_name", 3072, (void *)(uintptr_t)ip, 2, NULL);
+    if (ask && xTaskCreate(lookup_task, "dock_name", 3072, (void *)(uintptr_t)ip, 2, NULL) != pdPASS) {
+        taskENTER_CRITICAL(&pair.mux);
+        pair.looking = false;
+        taskEXIT_CRITICAL(&pair.mux);
     }
 }
 
@@ -563,7 +568,7 @@ void db_dock_name(uint32_t ip, char name[DB_DNS_NAME_LEN])
 {
     name[0] = 0;
     taskENTER_CRITICAL(&pair.mux);
-    for (int i = 0; i < KNOWN_MAX; i++) {
+    for (int i = 0; i < NAMES_MAX; i++) {
         if (pair.names[i].ip == ip) {
             snprintf(name, DB_DNS_NAME_LEN, "%s", pair.names[i].name);
         }
@@ -579,7 +584,6 @@ static const uint8_t no_mac[6];
 typedef struct {
     struct tcpip_api_call_data call;
     ip4_addr_t ip;
-    uint32_t local_ip;
     uint8_t mac[6];
 } arp_query_t;
 
@@ -604,36 +608,6 @@ void db_dock_mac(uint32_t ip, uint8_t mac[6])
     arp_query_t q = {.ip.addr = ip};
     tcpip_api_call(arp_lookup, &q.call);
     memcpy(mac, q.mac, 6);
-}
-
-static err_t arp_probe(struct tcpip_api_call_data *call)
-{
-    arp_query_t *q = (arp_query_t *)call;
-    struct netif *n;
-    NETIF_FOREACH(n)
-    {
-        if (!(n->flags & NETIF_FLAG_ETHARP) || !netif_is_up(n) || !netif_is_link_up(n) ||
-            netif_ip4_addr(n)->addr != q->local_ip) {
-            continue;
-        }
-        const ip4_addr_t *hop =
-            ip4_addr_net_eq(&q->ip, netif_ip4_addr(n), netif_ip4_netmask(n)) ? &q->ip : netif_ip4_gw(n);
-        struct eth_addr *eth;
-        const ip4_addr_t *found;
-        if (etharp_find_addr(n, hop, &eth, &found) >= 0) {
-            return ERR_OK;
-        }
-        etharp_request(n, hop);
-    }
-    return ERR_VAL;
-}
-
-/* asked on the interface with our address local_ip: WLAN is in the same subnet and answers when LAN does not
- */
-static bool answers_arp(uint32_t ip, uint32_t local_ip)
-{
-    arp_query_t q = {.ip.addr = ip, .local_ip = local_ip};
-    return tcpip_api_call(arp_probe, &q.call) == ERR_OK;
 }
 
 static esp_err_t save_known(void)
