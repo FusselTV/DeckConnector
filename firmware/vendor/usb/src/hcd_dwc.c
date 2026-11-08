@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for deckbridge: see "deckbridge:" below.
  */
 
 #include <stdint.h>
@@ -2554,6 +2556,23 @@ static void IRAM_ATTR _buffer_fill(pipe_t *pipe)
     pipe->multi_buffer_control.buffer_num_to_exec++;
 }
 
+/* deckbridge: esp-usb #627, esp-idf #14412. A periodic channel enabled right at a (micro)frame boundary was seen
+ * to stay active for good, with no interrupt and no error: here the deck's OUT transfers stopped for hours.
+ * Enable it away from the boundary: wait, at most about 64 us, until 15 to 85 % of the frame is left. */
+static void IRAM_ATTR _periodic_frame_guard(pipe_t *pipe)
+{
+    usb_dwc_dev_t *hw = pipe->port->hal->dev;
+    uint32_t frint = hw->hfir_reg.frint;
+    uint32_t lo = frint * 15 / 100;
+    for (int i = 0; frint && i < 64; i++) {
+        uint32_t rem = usb_dwc_ll_hfnum_get_frame_time_rem(hw);
+        if (rem >= lo && rem <= frint - lo) {
+            return;
+        }
+        esp_rom_delay_us(1);
+    }
+}
+
 static void IRAM_ATTR _buffer_exec(pipe_t *pipe)
 {
     assert(pipe->multi_buffer_control.rd_idx != pipe->multi_buffer_control.wr_idx || pipe->multi_buffer_control.buffer_num_to_exec > 0);
@@ -2596,6 +2615,9 @@ static void IRAM_ATTR _buffer_exec(pipe_t *pipe)
     // Update buffer and multi buffer flags
     buffer_to_exec->status_flags.executing = 1;
     pipe->multi_buffer_control.buffer_is_executing = 1;
+    if (pipe->ep_char.type == USB_DWC_XFER_TYPE_INTR) {
+        _periodic_frame_guard(pipe);
+    }
     usb_dwc_hal_chan_activate(pipe->chan_obj, buffer_to_exec->xfer_desc_list, desc_list_len, start_idx);
 }
 
