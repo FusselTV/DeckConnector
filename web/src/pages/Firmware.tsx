@@ -287,7 +287,7 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   return (
     <>
       <div className="row acts">
-        {lead}
+        {st.state !== 'new' && lead /* the offer below has its own install button */}
         <Btn id="upd-check" icon={RefreshCw} disabled={st.state === 'checking'} onClick={() => void check()}>
           {t(st.state === 'checking' ? 'upd.checking' : 'upd.check')}
         </Btn>
@@ -357,7 +357,7 @@ export function Firmware() {
       (e: unknown) => setLoadErr(errText(e, t)),
     )
   }, [t])
-  useEffect(load, [load])
+  useEffect(load, [load, st.firmware]) /* after an update the slots changed */
   const running = slots?.find((s) => s.running)
   const target = slots?.find((s) => !s.running && !s.next && s.state !== 'pending') ?? slots?.find((s) => !s.running)
   const bootSlot = async (s: Slot) => {
@@ -543,7 +543,7 @@ export function Firmware() {
             </div>
           </div>
         )}
-        <UpdateCheckBox lead={install} />
+        <UpdateCheckBox key={st.firmware /* a new version drops the old offer */} lead={install} />
         <Row
           id="slots"
           icon={Layers}
