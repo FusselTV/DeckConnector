@@ -2558,13 +2558,14 @@ static void IRAM_ATTR _buffer_fill(pipe_t *pipe)
 
 /* deckbridge: esp-usb #627, esp-idf #14412. A periodic channel enabled right at a (micro)frame boundary was seen
  * to stay active for good, with no interrupt and no error: here the deck's OUT transfers stopped for hours.
- * Enable it away from the boundary: wait, at most about 64 us, until 15 to 85 % of the frame is left. */
+ * Enable it at least 10 us away from the boundary. HFNUM counts 48 per us at full and high speed, so the band is
+ * the same 20 us in a 1 ms frame and a 125 us microframe, and 32 us of waiting always leaves it. */
 static void IRAM_ATTR _periodic_frame_guard(pipe_t *pipe)
 {
     usb_dwc_dev_t *hw = pipe->port->hal->dev;
     uint32_t frint = hw->hfir_reg.frint;
-    uint32_t lo = frint * 15 / 100;
-    for (int i = 0; frint && i < 64; i++) {
+    const uint32_t lo = 10 * 48;
+    for (int i = 0; frint > 2 * lo && i < 32; i++) {
         uint32_t rem = usb_dwc_ll_hfnum_get_frame_time_rem(hw);
         if (rem >= lo && rem <= frint - lo) {
             return;

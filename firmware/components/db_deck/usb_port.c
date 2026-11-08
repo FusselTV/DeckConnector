@@ -40,7 +40,8 @@ static struct {
     SemaphoreHandle_t ctrl_done;
     SemaphoreHandle_t ctrl_lock;
     volatile uint32_t errors;
-    int64_t fail_since; /* first failed output since the last one that went through, 0: none */
+    uint32_t fail_since; /* ms of the first failed output since the last one that went through, 0: none. 32 bits:
+                          * written by the USB client task and read by writers, a 64-bit value could tear */
     uint32_t recoveries;
     db_hid_io_t io;
     bool auto_speed;
@@ -64,7 +65,7 @@ static void count_error(usb_transfer_status_t status)
 static void out_done(usb_transfer_t *t)
 {
     if (t->status == USB_TRANSFER_STATUS_COMPLETED) {
-        s.fail_since = 0;
+        __atomic_store_n(&s.fail_since, 0, __ATOMIC_RELAXED);
     }
     count_error(t->status);
     xSemaphoreGive(s.out_free);
@@ -118,11 +119,12 @@ static db_err_t control(uint8_t type, uint8_t request, uint8_t report_id, uint8_
 static db_err_t write_failed(db_err_t err)
 {
     s.errors++;
-    int64_t now = esp_timer_get_time();
-    if (!s.fail_since) {
-        s.fail_since = now;
-    } else if (now - s.fail_since >= STUCK_MS * 1000LL) {
-        s.fail_since = 0;
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000) | 1;
+    uint32_t since = __atomic_load_n(&s.fail_since, __ATOMIC_RELAXED);
+    if (!since) {
+        __atomic_store_n(&s.fail_since, now, __ATOMIC_RELAXED);
+    } else if (now - since >= STUCK_MS) {
+        __atomic_store_n(&s.fail_since, 0, __ATOMIC_RELAXED);
         s.recoveries++;
         /* Channel enabled and HCDMA unchanged over 100 ms: the host channel is stuck (esp-usb #627).
          * Channel done or gone: the deck refuses the data. */
@@ -287,7 +289,21 @@ static void client_task(void *arg)
     }
 }
 
+static esp_err_t replug(uint8_t address, uint32_t off_ms);
+
+/* one at a time: a second would switch the port on in the middle of the first one's off time */
 esp_err_t usb_port_replug(uint8_t address, uint32_t off_ms)
+{
+    static bool busy;
+    if (__atomic_exchange_n(&busy, true, __ATOMIC_RELAXED)) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t err = replug(address, off_ms);
+    __atomic_store_n(&busy, false, __ATOMIC_RELAXED);
+    return err;
+}
+
+static esp_err_t replug(uint8_t address, uint32_t off_ms)
 {
     usb_device_handle_t dev;
     if (address && usb_host_device_open(s.client, address, &dev) != ESP_OK) {

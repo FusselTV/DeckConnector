@@ -7,6 +7,7 @@
 #include "db_driver.h"
 #include "db_regions.h"
 #include "db_screen.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -223,13 +224,13 @@ static void writer_task(void *arg)
 {
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        int pct = __atomic_exchange_n(&brightness, 0, __ATOMIC_RELAXED);
-        if (pct && s.present) {
-            xSemaphoreTake(s.io_lock, portMAX_DELAY);
-            s.dev.driver->set_brightness(&s.dev, (uint8_t)(pct - 1));
-            xSemaphoreGive(s.io_lock);
-        }
         for (;;) {
+            int pct = __atomic_exchange_n(&brightness, 0, __ATOMIC_RELAXED); /* between images, also in a stream */
+            if (pct && s.present) {
+                xSemaphoreTake(s.io_lock, portMAX_DELAY);
+                s.dev.driver->set_brightness(&s.dev, (uint8_t)(pct - 1));
+                xSemaphoreGive(s.io_lock);
+            }
             if (s.replay) {
                 replay();
             }
@@ -275,16 +276,27 @@ static void notify_device(const db_device_info_t *info)
 
 static bool start_replug(uint8_t address, uint32_t off_ms);
 
-/* A replug that did not help within a minute leaves a restart; not before 10 min uptime, so a broken deck
- * cannot restart the bridge in a loop. */
+#define STUCK_RESTARTED 0x57a11ed0
+static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not over a power cut */
+
+/* A replug that did not help within a minute leaves one restart per power-on, not before 10 min uptime. A deck
+ * that keeps hanging after that is replugged less and less often, up to every 5 min, and the bridge stays up. */
 static void on_stuck(void)
 {
     static int64_t last;
+    static int64_t backoff;
     int64_t now = esp_timer_get_time();
-    if (last && now - last < 60000000LL && now > 600000000LL) {
+    bool again = last && now - last < 60000000LL + backoff;
+    if (again && now > 600000000LL && stuck_restarted != STUCK_RESTARTED) {
+        stuck_restarted = STUCK_RESTARTED;
         ESP_LOGE(TAG, "the deck hung again after its reconnect: restarting");
         db_ota_restart(0);
+        return;
     }
+    if (last && now - last < backoff) {
+        return;
+    }
+    backoff = again ? (backoff ? (backoff * 2 > 300000000LL ? 300000000LL : backoff * 2) : 10000000LL) : 0;
     last = now;
     start_replug(0, 500);
 }

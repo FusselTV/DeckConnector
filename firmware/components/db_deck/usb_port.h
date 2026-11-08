@@ -11,7 +11,8 @@ typedef struct {
     void (*attached)(uint8_t address);
     void (*detached)(void);
     void (*input)(const uint8_t *report, size_t len, uint64_t t_us);
-    void (*stuck)(void); /* output failed for STUCK_MS; runs in the writing task, holding its lock */
+    void (*stuck)(void); /* output failed for STUCK_MS; runs in the task that wrote (the deck writer or a dock
+                          * host), which holds the USB lock */
 } usb_port_cb_t;
 
 /* full_only: full speed always; else high speed, and full speed once when no deck comes up */
