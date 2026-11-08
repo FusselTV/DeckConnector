@@ -117,3 +117,13 @@ void db_json_null(db_json_t *j, const char *k)
     key(j, k);
     puts_raw(j, "null");
 }
+
+void db_hex(char *out, const uint8_t *in, size_t n)
+{
+    static const char digits[] = "0123456789abcdef";
+    for (size_t i = 0; i < n; i++) {
+        out[2 * i] = digits[in[i] >> 4];
+        out[2 * i + 1] = digits[in[i] & 15];
+    }
+    out[2 * n] = '\0';
+}

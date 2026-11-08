@@ -30,6 +30,7 @@ typedef enum { WEB_OPEN, WEB_CONTROL, WEB_FULL, WEB_ADMIN } web_level_t;
 typedef struct {
     esp_err_t (*handler)(httpd_req_t *req);
     web_level_t level;
+    bool deck; /* acts on a deck: checked by web_deck_refused() */
     uint32_t count;
     uint32_t max_us;
     uint64_t total_us;
@@ -38,6 +39,10 @@ typedef struct {
 extern httpd_uri_t web_uris[WEB_ROUTES_MAX];
 extern route_t web_routes[WEB_ROUTES_MAX];
 extern size_t web_route_count;
+
+/* `?deck=<serial>` names no attached deck, or a token asks while the deck shows a login: the reply is sent.
+ */
+bool web_deck_refused(httpd_req_t *req);
 
 /* Replies and request bodies, shared by the handlers in this component. */
 esp_err_t send_json(httpd_req_t *req, const char *json);

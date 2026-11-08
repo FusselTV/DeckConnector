@@ -25,6 +25,13 @@ def test_a_foreign_signature_is_named_before_the_upload():
 
 
 @pytest.mark.sim
+def test_a_junk_file_gets_a_whole_reply():
+    code, body = api("POST", "/api/ota/inspect", b"\x07" * dbfw.HEADER_LEN)
+    r = json.loads(body)
+    assert code == 200 and r["code"] == "ota_not_dbfw" and "version" not in r, r
+
+
+@pytest.mark.sim
 def test_a_short_header_is_refused():
     assert api("POST", "/api/ota/inspect", b"DBFW")[0] == 400
 

@@ -30,9 +30,11 @@
 #define LOG_CHUNK 4096 /* per listener and poll: a full log backlog goes out in about 1 s */
 /* a listener hears something this often, so it can tell a dead link from a quiet deck */
 #define PING_MS 5000
-/* httpd_queue_work posts to a UDP socket that holds 6 messages. A 7th is dropped while the send still succeeds,
- * and its job is never run nor freed. 4 leaves room for the close requests send_to makes. */
-#define JOBS_MAX 4
+/* httpd_queue_work posts to a UDP socket that holds 6 messages and silently drops a 7th. So messages wait in
+ * our own queue, and httpd only gets a "drain" request that owns nothing; one lost is asked again after
+ * DRAIN_RETRY_MS. */
+#define OUTBOX         8
+#define DRAIN_RETRY_MS 1000
 
 static const char *TAG = "events";
 
@@ -50,7 +52,11 @@ static struct {
     char *state;                     /* the last state sent, to send only changes */
     uint32_t screen;
     unsigned evict;
-    int jobs; /* queued and not yet run */
+    struct outbox {
+        httpd_handle_t server;
+        QueueHandle_t jobs;
+        uint32_t asked_ms; /* a drain is pending since then; 0: none */
+    } out[2];              /* HTTP and HTTPS */
 } e;
 
 /* A listener that stopped reading fills its socket, and the next send would block the sender for the send
@@ -72,7 +78,10 @@ static void send_to(httpd_handle_t server, int fd, const char *json)
         return;
     }
     httpd_ws_frame_t f = {.type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)json, .len = strlen(json)};
-    httpd_ws_send_frame_async(server, fd, &f);
+    if (httpd_ws_send_frame_async(server, fd, &f) != ESP_OK) { /* it reconnects and gets the whole state */
+        ESP_LOGW(TAG, "send to listener %d failed, closing it", fd);
+        httpd_sess_trigger_close(server, fd);
+    }
 }
 
 static void send_locked(httpd_handle_t server, int fd, const char *json)
@@ -97,9 +106,8 @@ typedef struct {
 
 /* In the server's own task: a socket checked here cannot close and come back as another connection before the
  * send, and a TLS session is never written while the server reads it. */
-static void send_job(void *arg)
+static void send_job(job_t *job)
 {
-    job_t *job = arg;
     xSemaphoreTake(e.lock, portMAX_DELAY);
     for (int i = 0; i < CLIENTS; i++) {
         int fd = e.fds[i];
@@ -115,29 +123,65 @@ static void send_job(void *arg)
     }
     xSemaphoreGive(e.lock);
     free(job);
-    __atomic_sub_fetch(&e.jobs, 1, __ATOMIC_RELAXED);
+}
+
+static void drain(void *arg)
+{
+    struct outbox *o = arg;
+    __atomic_store_n(&o->asked_ms, 0, __ATOMIC_RELAXED); /* before the queue: a job added now asks again */
+    job_t *job;
+    while (xQueueReceive(o->jobs, &job, 0) == pdTRUE) {
+        send_job(job);
+    }
+}
+
+static void ask_drain(struct outbox *o)
+{
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000) | 1;
+    uint32_t asked = __atomic_load_n(&o->asked_ms, __ATOMIC_RELAXED);
+    if ((asked && now - asked < DRAIN_RETRY_MS) ||
+        !__atomic_compare_exchange_n(&o->asked_ms, &asked, now, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
+        return;
+    }
+    if (httpd_queue_work(o->server, drain, o) != ESP_OK) {
+        __atomic_store_n(&o->asked_ms, 0, __ATOMIC_RELAXED);
+    }
+}
+
+/* Under e.lock. */
+static struct outbox *outbox(httpd_handle_t server)
+{
+    for (int k = 0; k < 2; k++) {
+        if (!e.out[k].server) {
+            e.out[k].server = server;
+        }
+        if (e.out[k].server == server) {
+            return &e.out[k];
+        }
+    }
+    return NULL;
 }
 
 static bool queue_job(httpd_handle_t server, int fd, const char *json, audience_t to)
 {
-    if (__atomic_add_fetch(&e.jobs, 1, __ATOMIC_RELAXED) > JOBS_MAX) {
-        __atomic_sub_fetch(&e.jobs, 1, __ATOMIC_RELAXED);
+    xSemaphoreTake(e.lock, portMAX_DELAY);
+    struct outbox *o = outbox(server);
+    xSemaphoreGive(e.lock);
+    size_t len = strlen(json) + 1;
+    job_t *job = o ? malloc(sizeof(*job) + len) : NULL;
+    if (!job) {
         return false;
     }
-    size_t len = strlen(json) + 1;
-    job_t *job = malloc(sizeof(*job) + len);
-    if (job) {
-        job->server = server;
-        job->fd = fd;
-        job->to = to;
-        memcpy(job->json, json, len);
-        if (httpd_queue_work(server, send_job, job) == ESP_OK) {
-            return true;
-        }
+    job->server = server;
+    job->fd = fd;
+    job->to = to;
+    memcpy(job->json, json, len);
+    bool queued = xQueueSend(o->jobs, &job, 0) == pdTRUE;
+    if (!queued) {
         free(job);
     }
-    __atomic_sub_fetch(&e.jobs, 1, __ATOMIC_RELAXED);
-    return false;
+    ask_drain(o);
+    return queued;
 }
 
 /* false: not every server got it, so a change should be sent again at the next poll */
@@ -373,7 +417,8 @@ static void command(httpd_handle_t server, int fd, const char *text)
     int code = 400;
     if (cJSON_IsString(t) && strcmp(t->valuestring, "log") == 0) {
         code = 403;
-        snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"needs the password, not a token\"}");
+        snprintf(reply, sizeof(reply),
+                 "{\"ok\":false,\"error\":\"needs the password, not a token\",\"code\":\"needs_password\"}");
         xSemaphoreTake(e.lock, portMAX_DELAY);
         for (int i = 0; i < CLIENTS; i++) {
             if (e.fds[i] == fd && e.servers[i] == server && !e.limited[i]) {
@@ -398,10 +443,12 @@ static void command(httpd_handle_t server, int fd, const char *text)
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
         if (set && token) {
-            snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"needs the password, not a token\"}");
+            snprintf(
+                reply, sizeof(reply),
+                "{\"ok\":false,\"error\":\"needs the password, not a token\",\"code\":\"needs_password\"}");
             code = 403;
         } else if (!web_lock_for(10000)) { /* as in http.c timed(): a hung handler must not hold this server */
-            snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"busy\"}");
+            snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"busy\",\"code\":\"busy\"}");
             code = 503;
         } else {
             code =
@@ -503,10 +550,12 @@ esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap), size_t (*scr
     e.inputs = xQueueCreate(16, INPUT_MAX);
     input_log = heap_caps_calloc(INPUT_LOG, sizeof(logged_t), MALLOC_CAP_SPIRAM);
     e.state = heap_caps_calloc(1, STATE_MAX, MALLOC_CAP_SPIRAM);
+    e.out[0].jobs = xQueueCreate(OUTBOX, sizeof(job_t *));
+    e.out[1].jobs = xQueueCreate(OUTBOX, sizeof(job_t *));
     for (int i = 0; i < CLIENTS; i++) {
         e.fds[i] = -1;
     }
-    if (!e.lock || !e.inputs || !e.state) {
+    if (!e.lock || !e.inputs || !e.state || !e.out[0].jobs || !e.out[1].jobs) {
         return ESP_ERR_NO_MEM;
     }
     db_deck_listener_t l = {.input = on_input};

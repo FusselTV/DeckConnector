@@ -82,9 +82,11 @@ def test_cors_is_off_until_an_origin_is_listed(token):
     try:
         assert api("PUT", "/api/config", json.dumps({"cors_origins": "http://frontend.test"}).encode())[0] == 200
         code, _, h = call("OPTIONS", "/api/status", headers=origin)
-        assert code == 204 and h["Access-Control-Allow-Origin"] == "http://frontend.test"
+        # browsers refuse a reply with the header twice
+        assert code == 204 and h.get_all("Access-Control-Allow-Origin") == ["http://frontend.test"]
         assert "Authorization" in h["Access-Control-Allow-Headers"]
-        assert call("GET", "/api/status", token, origin)[2]["Access-Control-Allow-Origin"] == "http://frontend.test"
+        h = call("GET", "/api/status", token, origin)[2]
+        assert h.get_all("Access-Control-Allow-Origin") == ["http://frontend.test"]
         other = {"Origin": "http://other.test"}
         assert "Access-Control-Allow-Origin" not in call("GET", "/api/status", token, other)[2]
     finally:
@@ -271,15 +273,21 @@ def test_cors_matches_whole_origins_only(origin):
         api("PUT", "/api/config", json.dumps({"cors_origins": ""}).encode())
 
 
-def test_wrong_tokens_lock_out_with_a_wait(token):
+def test_a_good_token_is_never_locked_out(token):
+    for _ in range(8):
+        assert call("GET", "/api/status", "wrong")[0] == 401
+    assert call("GET", "/api/status", token)[0] == 200
+    login = {"X-DeckConnector": "1", "Content-Type": "application/json"}
     for _ in range(12):
-        code, body, _ = call("GET", "/api/status", "wrong")
+        code, body, _ = call("POST", "/api/login", headers=login, body=b'{"password": "wrong"}')
         if code == 429:
             break
-    assert code == 429 and json.loads(body)["retry"] > 0
-    assert call("GET", "/api/status", token)[0] == 429, "a good token must wait too, not hear 'unknown token'"
-    time.sleep(json.loads(body)["retry"] + 1)
-    assert call("GET", "/api/status", token)[0] == 200  # a good try ends the count for the next tests
+        assert json.loads(body)["code"] == "wrong_password"
+    reply = json.loads(body)
+    assert code == 429 and reply["code"] == "locked" and reply["retry"] > 0
+    assert call("GET", "/api/status", token)[0] == 200, "a 256-bit token cannot be guessed, so it is never locked out"
+    time.sleep(reply["retry"] + 1)
+    assert api("GET", "/api/status")[0] == 200  # a good password ends the count for the next tests
 
 
 @pytest.mark.sim

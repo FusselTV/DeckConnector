@@ -11,6 +11,7 @@
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_ui.h"
+#include "esp_attr.h"
 #include "esp_check.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
@@ -55,10 +56,43 @@ esp_err_t send_json(httpd_req_t *req, const char *json)
     return httpd_resp_sendstr(req, json);
 }
 
+/* Matched by prefix: a text may carry details after it. */
+const char *db_web_error_code(const char *msg)
+{
+    static const char *const codes[][2] = {
+        {"ota_too_short", "file too short"},
+        {"ota_not_dbfw", "not a .dbfw file"},
+        {"ota_not_signed", "not signed for this DeckConnector"},
+        {"ota_wrong_target", "unknown target"},
+        {"ota_wrong_target", "not a bootloader for this chip"},
+        {"ota_too_old", "below the security level"},
+        {"url_http_only", "url: http://"},
+        {"no_releases", "no releases yet"},
+        {"probe_no_connection", "no connection"},
+        {"probe_no_answer", "no answer within"},
+        {"probe_not_companion", "it answers, but it is not Companion"},
+        {"strip_outside", "x and y (and x2, y2 for a swipe) must lie on the touch strip"},
+        {"busy", "busy"},
+        {"wrong_password", "wrong password"},
+        {"needs_password", "needs the password, not a token"},
+    };
+    for (size_t i = 0; msg && i < sizeof(codes) / sizeof(codes[0]); i++) {
+        if (strncmp(msg, codes[i][1], strlen(codes[i][1])) == 0) {
+            return codes[i][0];
+        }
+    }
+    return NULL;
+}
+
 esp_err_t send_error(httpd_req_t *req, const char *status, const char *msg)
 {
-    char buf[200];
-    snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}", msg);
+    char buf[240];
+    const char *code = db_web_error_code(msg);
+    if (code) {
+        snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\",\"code\":\"%s\"}", msg, code);
+    } else {
+        snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}", msg);
+    }
     httpd_resp_set_status(req, status);
     return send_json(req, buf);
 }
@@ -136,31 +170,47 @@ static httpd_handle_t tls_server;
 /* A server task stuck in a handler takes the whole web interface and API with it, and nothing else notices. Each
  * server runs an empty job every 10 s; none for 2 min restarts the bridge. A firmware upload takes 10 to 30 s. */
 #define HUNG_US (120 * 1000000LL)
+#define HUNG_RESTARTED 0x3eb0de4d
+#if CONFIG_IDF_TARGET_LINUX
+#undef RTC_NOINIT_ATTR
+#define RTC_NOINIT_ATTR
+#endif
+static RTC_NOINIT_ATTR uint32_t hung_restarted; /* kept over a restart, not over a power cut */
 static struct {
     httpd_handle_t hd;
     volatile int64_t ran;
+    volatile bool proven; /* ran a job since the start */
     int64_t queued; /* one job waits at a time: the server's control socket holds 6 and the live deck needs them */
 } alive[2];
 
 static void alive_job(void *arg)
 {
-    *(volatile int64_t *)arg = esp_timer_get_time();
+    typeof(alive[0]) *a = arg;
+    a->ran = esp_timer_get_time();
+    a->proven = true;
 }
 
+/* One restart per power-on: a server that hangs again after it keeps the rest of the bridge running. */
 static void alive_check(void *arg)
 {
     int64_t now = esp_timer_get_time();
     for (int i = 0; i < 2 && alive[i].hd; i++) {
-        if (now - alive[i].ran > HUNG_US) {
+        if (now - alive[i].ran > HUNG_US && hung_restarted != HUNG_RESTARTED) {
+            hung_restarted = HUNG_RESTARTED;
             ESP_LOGE(TAG, "the %s server ran nothing for 2 min: restarting", i ? "second" : "first");
             db_ota_restart(0);
             return;
         }
         if (alive[i].ran >= alive[i].queued || now - alive[i].queued > 30 * 1000000LL) { /* or it was dropped */
             alive[i].queued = now;
-            httpd_queue_work(alive[i].hd, alive_job, (void *)&alive[i].ran);
+            httpd_queue_work(alive[i].hd, alive_job, &alive[i]);
         }
     }
+}
+
+bool db_web_alive(void)
+{
+    return alive[0].hd && alive[0].proven && (!alive[1].hd || alive[1].proven);
 }
 
 static void watch(httpd_handle_t hd)
@@ -244,7 +294,7 @@ static esp_err_t get_api(httpd_req_t *req)
 
 /* A page from an origin in cors_origins may call the API with a token. Cookies never go cross-origin: no
  * Allow-Credentials. The headers point into `origin`, which must live until the reply is sent. */
-static bool cors(httpd_req_t *req, char origin[96])
+static bool cors_allowed(httpd_req_t *req, char origin[96])
 {
     if (httpd_req_get_hdr_value_str(req, "Origin", origin, 96) != ESP_OK || !origin[0]) {
         return false;
@@ -253,18 +303,25 @@ static bool cors(httpd_req_t *req, char origin[96])
     size_t n = strlen(origin);
     for (const char *p = list; (p = strstr(p, origin)) != NULL; p += n) {
         if ((p == list || p[-1] == ',' || p[-1] == ' ') && (p[n] == '\0' || p[n] == ',' || p[n] == ' ')) {
-            httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", origin);
-            httpd_resp_set_hdr(req, "Vary", "Origin");
             return true;
         }
     }
     return false;
 }
 
+static void cors(httpd_req_t *req, char origin[96])
+{
+    if (cors_allowed(req, origin)) {
+        httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", origin);
+        httpd_resp_set_hdr(req, "Vary", "Origin");
+    }
+}
+
+/* timed() already set Allow-Origin: a second copy makes browsers refuse the reply. */
 static esp_err_t cors_preflight(httpd_req_t *req)
 {
     char origin[96];
-    if (!cors(req, origin)) {
+    if (!cors_allowed(req, origin)) {
         return send_error(req, "403 Forbidden", "origin not in cors_origins");
     }
     httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
@@ -288,7 +345,8 @@ static esp_err_t timed(httpd_req_t *req)
     int64_t start = esp_timer_get_time();
     char origin[96];
     cors(req, origin);
-    esp_err_t err = r->level == WEB_OPEN || auth_check(req, r->level) ? r->handler(req) : ESP_OK;
+    bool allowed = (r->level == WEB_OPEN || auth_check(req, r->level)) && !(r->deck && web_deck_refused(req));
+    esp_err_t err = allowed ? r->handler(req) : ESP_OK;
     uint32_t us = (uint32_t)(esp_timer_get_time() - start);
     r->count++;
     r->total_us += us;
@@ -314,8 +372,6 @@ static void announce_api(void)
     const char *fw = esp_app_get_description()->version;
     mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
     esp_err_t err = mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
-    /* the old name, for Home Assistant integrations from before the rename */
-    err = err ? err : mdns_service_add(NULL, "_deckbridge-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
     }
@@ -453,6 +509,9 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         return err;
     }
     watch(server);
+    static esp_err_t (*const deck_routes[])(httpd_req_t *) = {
+        get_screen, get_screen_image, get_screen_jpg,      post_input,
+        post_menu,  delete_menu,      post_deck_reconnect, post_deck_stall};
     const struct {
         httpd_uri_t uri;
         web_level_t level;
@@ -532,6 +591,9 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     for (size_t i = 0; i < web_route_count; i++) {
         web_uris[i] = list[i].uri;
         web_routes[i].level = list[i].level;
+        for (size_t k = 0; k < sizeof(deck_routes) / sizeof(deck_routes[0]); k++) {
+            web_routes[i].deck |= list[i].uri.handler == deck_routes[k];
+        }
         if (!list[i].uri.is_websocket) {
             web_routes[i].handler = list[i].uri.handler;
             web_uris[i].handler = timed;

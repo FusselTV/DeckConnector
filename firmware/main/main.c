@@ -358,6 +358,9 @@ static void on_ota_progress(const char *target, const char *state, int pct, cons
     db_json_int(&j, "pct", pct);
     if (error) {
         db_json_str(&j, "error", error);
+        if (db_web_error_code(error)) {
+            db_json_str(&j, "code", db_web_error_code(error));
+        }
     }
     db_json_obj_close(&j);
     if (db_json_end(&j)) {
@@ -440,10 +443,29 @@ static void init_nvs(void)
 {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
+        db_log_event(TAG, "boot",
+                     "settings storage unreadable (%s): erased, all settings are back to defaults",
+                     esp_err_to_name(err));
+        err = nvs_flash_erase();
+        err = err == ESP_OK ? nvs_flash_init() : err;
     }
-    ESP_ERROR_CHECK(err);
+    if (err != ESP_OK) {
+        db_log_event(TAG, "boot", "settings storage failed: %s, running on defaults", esp_err_to_name(err));
+    }
+}
+
+/* A part that fails to start leaves the rest running: a restart would fail the same way, again and again. A
+ * new image that misses the network or the web server is never confirmed and goes back by itself. */
+static void started(const char *what, esp_err_t err)
+{
+    if (err != ESP_OK) {
+        db_log_event(TAG, "boot", "%s failed to start: %s", what, esp_err_to_name(err));
+    }
+}
+
+static bool healthy(void)
+{
+    return db_net_online() && db_web_alive();
 }
 
 void app_main(void)
@@ -454,14 +476,14 @@ void app_main(void)
     db_log_start();
     db_log_event(TAG, "boot", "started (%s)", boot_reason());
     init_nvs();
-    ESP_ERROR_CHECK(db_config_load());
+    started("settings", db_config_load());
     ESP_LOGI(TAG, "DeckConnector %s, controller %s", esp_app_get_description()->version,
              db_controller_name(db_config()->controller));
 
-    ESP_ERROR_CHECK(db_ui_start());
+    started("deck screen", db_ui_start());
     db_net_on_change(on_net);
-    ESP_ERROR_CHECK(db_deck_start(strcmp(db_config()->usb_speed, "full") == 0));
-    ESP_ERROR_CHECK(db_net_start());
+    started("deck", db_deck_start(strcmp(db_config()->usb_speed, "full") == 0));
+    started("network", db_net_start());
     db_ui_set_c6_version(db_ota_c6_version());
     db_ota_set_progress_cb(on_ota_progress);
 
@@ -469,12 +491,12 @@ void app_main(void)
                             .c6_version = db_ota_c6_version,
                             .ota_requested = on_ota_requested,
                             .active_changed = db_ui_set_active_link};
-    ESP_ERROR_CHECK(db_link_start(&link));
-    ESP_ERROR_CHECK(db_dock_start(db_ui_hosts_changed));
-    ESP_ERROR_CHECK(db_satellite_start(on_satellite));
+    started("servers", db_link_start(&link));
+    started("dock", db_dock_start(db_ui_hosts_changed));
+    started("Satellite", db_satellite_start(on_satellite));
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
     db_config_on_save(apply_controller);
-    ESP_ERROR_CHECK(db_web_start(web_status, web_state));
-    db_ota_confirm_when(db_net_online);
+    started("web", db_web_start(web_status, web_state));
+    db_ota_confirm_when(healthy);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);
 }

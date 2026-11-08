@@ -58,7 +58,22 @@ static struct {
 } triers[TRIERS];
 static int64_t all_since; /* the minute ALL_TRIES counts in: one guesser on many addresses */
 static int all_failures;
+/* Addresses that logged in this boot skip the ALL_TRIES lock, so a guesser on many addresses cannot keep the
+ * owner out for good. A new device of the owner's still gets in through a login request on the deck. */
+#define GOOD_MAX 4
+static uint32_t good[GOOD_MAX];
+static int next_good;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
+/* Under mux. */
+static bool known_good(uint32_t ip)
+{
+    bool known = false;
+    for (int i = 0; i < GOOD_MAX; i++) {
+        known |= good[i] == ip;
+    }
+    return known;
+}
 
 typedef struct {
     char name[24];
@@ -80,12 +95,10 @@ static bool equal(const char *a, const char *b)
     return diff == 0;
 }
 
-/* X-Deckbridge is the old name: scripts written before the rename still send it */
 static bool auth_marked(httpd_req_t *req)
 {
     char marker[4];
-    return httpd_req_get_hdr_value_str(req, "X-DeckConnector", marker, sizeof(marker)) == ESP_OK ||
-           httpd_req_get_hdr_value_str(req, "X-Deckbridge", marker, sizeof(marker)) == ESP_OK;
+    return httpd_req_get_hdr_value_str(req, "X-DeckConnector", marker, sizeof(marker)) == ESP_OK;
 }
 
 static bool session_valid(const char *token)
@@ -162,24 +175,28 @@ static int locked_s(httpd_req_t *req)
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     int64_t until = triers[trier(ip)].locked_until;
-    if (all_failures >= ALL_TRIES && all_since + 60000000 > until) {
+    if (!known_good(ip) && all_failures >= ALL_TRIES && all_since + 60000000 > until) {
         until = all_since + 60000000;
     }
     portEXIT_CRITICAL(&mux);
     return now < until ? (int)((until - now) / 1000000 + 1) : 0;
 }
 
-/* One count per client for the login form and for basic auth, so neither allows unlimited guessing. */
-static void count_try(httpd_req_t *req, bool ok)
+/* One count per client for the login form and for basic auth, so neither allows unlimited guessing. Only
+ * passwords count towards ALL_TRIES: a 256-bit token cannot be guessed. */
+static void count_try(httpd_req_t *req, bool ok, bool password)
 {
     uint32_t ip = peer_ip(req);
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
-    if (!ok && now - all_since >= 60000000) {
+    if (password && !ok && now - all_since >= 60000000) {
         all_since = now;
         all_failures = 0;
     }
-    all_failures += !ok;
+    all_failures += password && !ok;
+    if (ok && !known_good(ip)) {
+        good[next_good++ % GOOD_MAX] = ip;
+    }
     int i = trier(ip);
     int failures = ok ? 0 : ++triers[i].failures;
     triers[i].failures = failures;
@@ -213,7 +230,7 @@ static bool basic_auth_ok(httpd_req_t *req)
     mbedtls_platform_zeroize(given, sizeof(given));
     mbedtls_platform_zeroize(plain, sizeof(plain));
     mbedtls_platform_zeroize(expected, sizeof(expected));
-    count_try(req, ok);
+    count_try(req, ok, true);
     return ok;
 }
 
@@ -235,7 +252,7 @@ bool auth_by_token(httpd_req_t *req)
 static int token_index(httpd_req_t *req)
 {
     char given[96] = {0};
-    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK || locked_s(req)) {
+    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK) {
         return -1;
     }
     uint8_t sha[32];
@@ -252,7 +269,7 @@ static int token_index(httpd_req_t *req)
     }
     portEXIT_CRITICAL(&mux);
     if (found < 0) {
-        count_try(req, false); /* a hit must not reset the count: only the password does */
+        count_try(req, false, false); /* a hit must not reset the count: only the password does */
     }
     return found;
 }
@@ -272,7 +289,8 @@ static bool locked(httpd_req_t *req)
     int wait = locked_s(req);
     if (wait) {
         char msg[80];
-        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"locked\",\"retry\":%d}", wait);
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"locked\",\"code\":\"locked\",\"retry\":%d}",
+                 wait);
         httpd_resp_set_status(req, "429 Too Many Requests");
         send_json(req, msg);
     }
@@ -282,10 +300,13 @@ static bool locked(httpd_req_t *req)
 bool auth_check(httpd_req_t *req, web_level_t need)
 {
     char given[8];
-    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_ERR_NOT_FOUND && locked(req)) {
-        return false; /* a token client must not take the lockout for an unknown token and drop it */
+    bool bearer = auth_by_token(req);
+    if (!bearer &&
+        httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_ERR_NOT_FOUND &&
+        locked(req)) {
+        return false; /* a token is never locked out: it is checked before any lockout */
     }
-    if (auth_by_token(req)) {
+    if (bearer) {
         int i = token_index(req);
         if (i < 0) {
             send_error(req, "401 Unauthorized", "unknown token");
@@ -320,9 +341,7 @@ static void new_session(char *out)
 {
     uint8_t raw[TOKEN_BYTES];
     esp_fill_random(raw, sizeof(raw));
-    for (int i = 0; i < TOKEN_BYTES; i++) {
-        snprintf(out + 2 * i, 3, "%02x", raw[i]);
-    }
+    db_hex(out, raw, sizeof(raw));
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     int slot = 0;
@@ -379,7 +398,7 @@ esp_err_t auth_login(httpd_req_t *req)
         return ESP_OK;
     }
     bool ok = password_matches(req);
-    count_try(req, ok);
+    count_try(req, ok, true);
     if (!ok) {
         return send_error(req, "403 Forbidden", "wrong password");
     }
@@ -480,9 +499,7 @@ esp_err_t auth_login_request(httpd_req_t *req)
     uint8_t raw[ASK_ID / 2];
     char id[ASK_ID + 1];
     esp_fill_random(raw, sizeof(raw));
-    for (int i = 0; i < ASK_ID / 2; i++) {
-        snprintf(id + 2 * i, 3, "%02x", raw[i]);
-    }
+    db_hex(id, raw, sizeof(raw));
     portENTER_CRITICAL(&mux);
     if (ask_cur >= 0 && asks[ask_cur].state == ASK_PENDING) {
         asks[ask_cur].state = ASK_DENIED;
@@ -727,9 +744,7 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     char token[TOKEN_BYTES * 2 + 1];
     uint8_t raw[TOKEN_BYTES];
     esp_fill_random(raw, sizeof(raw));
-    for (int i = 0; i < TOKEN_BYTES; i++) {
-        snprintf(token + 2 * i, 3, "%02x", raw[i]);
-    }
+    db_hex(token, raw, sizeof(raw));
     api_token_t t = {0};
     strlcpy(t.name, wanted, sizeof(t.name));
     sha256(token, t.sha);

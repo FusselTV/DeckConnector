@@ -131,7 +131,13 @@ bool web_cert(const char *name, char **cert, char **key, char fp[96])
     ok = ok && *cert && *key;
     if (ok) {
         size_t cl = PEM_MAX, kl = PEM_MAX;
-        if (nvs_get_str(h, "cert", *cert, &cl) != ESP_OK || nvs_get_str(h, "key", *key, &kl) != ESP_OK) {
+        esp_err_t ce = nvs_get_str(h, "cert", *cert, &cl),
+                  ke = ce == ESP_OK ? nvs_get_str(h, "key", *key, &kl) : ce;
+        if (ke != ESP_OK && ke != ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGE(TAG, "own certificate unreadable (%s), no HTTPS until the next start",
+                     esp_err_to_name(ke));
+            ok = false;
+        } else if (ke == ESP_ERR_NVS_NOT_FOUND) {
             uint32_t t = esp_log_timestamp();
             ok = make(name, *cert, *key);
             bool saved = ok && nvs_set_str(h, "cert", *cert) == ESP_OK && nvs_set_str(h, "key", *key) == ESP_OK &&
@@ -212,9 +218,11 @@ esp_err_t web_cert_store(const char *cert, const char *key)
         err = ESP_ERR_NVS_NOT_ENOUGH_SPACE;
     } else if (cert) {
         err = nvs_set_blob(h, "ccert", cert, strlen(cert));
-        err = err == ESP_OK ? nvs_set_blob(h, "ckey", key, strlen(key)) : err;
-    }
-    if (!cert || err != ESP_OK) { /* never a new certificate next to the old key */
+        if (err == ESP_OK && (err = nvs_set_blob(h, "ckey", key, strlen(key))) != ESP_OK) {
+            nvs_erase_key(h, "ccert"); /* never a new certificate next to the old key */
+            nvs_erase_key(h, "ckey");
+        }
+    } else {
         nvs_erase_key(h, "ccert");
         nvs_erase_key(h, "ckey");
     }

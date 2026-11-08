@@ -49,7 +49,12 @@ size_t (*api_status_json)(char *buf, size_t cap);
 
 static int fail(char *reply, size_t cap, int status, const char *msg)
 {
-    snprintf(reply, cap, "{\"ok\":false,\"error\":\"%s\"}", msg);
+    const char *code = db_web_error_code(msg);
+    if (code) {
+        snprintf(reply, cap, "{\"ok\":false,\"error\":\"%s\",\"code\":\"%s\"}", msg, code);
+    } else {
+        snprintf(reply, cap, "{\"ok\":false,\"error\":\"%s\"}", msg);
+    }
     return status;
 }
 
@@ -408,7 +413,7 @@ esp_err_t put_config(httpd_req_t *req)
 
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck shows
  * a login code or a password, its pictures would hand a token a password session. */
-static bool deck_refused(httpd_req_t *req)
+bool web_deck_refused(httpd_req_t *req)
 {
     if (auth_by_token(req) && db_ui_login_shown()) {
         send_error(req, "403 Forbidden", "the deck shows a login: for the password only");
@@ -429,17 +434,11 @@ static bool deck_refused(httpd_req_t *req)
 
 esp_err_t post_input(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     return body_api(req, api_input);
 }
 
 esp_err_t post_menu(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     if (db_ui_open_menu() != ESP_OK) {
         return send_error(req, "409 Conflict", "no deck connected");
     }
@@ -448,9 +447,6 @@ esp_err_t post_menu(httpd_req_t *req)
 
 esp_err_t delete_menu(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     db_ui_close_menu();
     return send_json(req, "{\"ok\":true}");
 }
@@ -505,9 +501,6 @@ esp_err_t delete_denied(httpd_req_t *req)
 
 esp_err_t post_deck_reconnect(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     char query[128];
     char off[8];
     uint32_t off_ms = 500;
@@ -531,9 +524,6 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
 
 esp_err_t post_deck_stall(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     if (db_deck_stall() != ESP_OK) {
         return send_error(req, "409 Conflict", "no deck");
     }
@@ -552,14 +542,12 @@ esp_err_t post_ota_inspect(httpd_req_t *req)
     static const char *const targets[] = {"", "p4", "c6", "web", "bootloader", "ptable"};
     uint8_t h[145];
     if (read_body(req, (char *)h, sizeof(h)) != 144) {
-        return send_error(req, "400 Bad Request", "send the first 144 bytes of the file");
+        return send_error(req, "400 Bad Request", "file too short: send the first 144 bytes of the file");
     }
     const char *why = db_ota_inspect(h);
-    char version[33], sha[65], body[256];
+    char version[33], sha[65], body[512]; /* a version of control characters escapes to 6 bytes each */
     snprintf(version, sizeof(version), "%.32s", (const char *)h + 12);
-    for (int i = 0; i < 32; i++) {
-        snprintf(sha + 2 * i, 3, "%02x", h[44 + i]);
-    }
+    db_hex(sha, h + 44, 32);
     uint32_t len;
     memcpy(&len, h + 8, 4);
     db_json_t j;
@@ -567,8 +555,13 @@ esp_err_t post_ota_inspect(httpd_req_t *req)
     db_json_obj_open(&j, NULL);
     db_json_bool(&j, "ok", !why);
     db_json_str(&j, "error", why ? why : "");
+    if (db_web_error_code(why)) {
+        db_json_str(&j, "code", db_web_error_code(why));
+    }
     db_json_str(&j, "target", h[5] < 6 ? targets[h[5]] : "");
-    db_json_str(&j, "version", version);
+    if (memcmp(h, "DBFW", 4) == 0) { /* junk has no version */
+        db_json_str(&j, "version", version);
+    }
     db_json_int(&j, "length", len);
     db_json_str(&j, "sha256", sha);
     db_json_obj_close(&j);
@@ -593,8 +586,12 @@ esp_err_t post_ota(httpd_req_t *req)
             boot = strcmp(v, "0") != 0;
         }
     }
-    if (db_ota_begin(req->content_len, slot, boot) != ESP_OK) {
-        return send_error(req, "409 Conflict", "an update is already running or the file is empty");
+    esp_err_t begun = db_ota_begin(req->content_len, slot, boot);
+    if (begun == ESP_ERR_INVALID_SIZE) {
+        return send_error(req, "400 Bad Request", "file too short for a .dbfw file");
+    }
+    if (begun != ESP_OK) {
+        return send_error(req, "409 Conflict", "an update is already running");
     }
     /* Flash writes stall the network between chunks, so the whole file comes in first when PSRAM allows:
      * 1.5 MB took 28 s streamed. */
@@ -871,8 +868,9 @@ esp_err_t put_setup(httpd_req_t *req)
  * POST /api/ota/url. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
-    char body[96];
-    snprintf(body, sizeof(body), "{\"current\":\"%s\",\"latest\":null,\"error\":\"no releases yet\"}",
+    char body[160];
+    snprintf(body, sizeof(body),
+             "{\"current\":\"%s\",\"latest\":null,\"error\":\"no releases yet\",\"code\":\"no_releases\"}",
              esp_app_get_description()->version);
     return send_json(req, body);
 }
@@ -897,6 +895,9 @@ esp_err_t post_source_probe(httpd_req_t *req)
     db_json_obj_open(&j, NULL);
     db_json_bool(&j, "ok", !why);
     db_json_str(&j, "error", why ? why : "");
+    if (db_web_error_code(why)) {
+        db_json_str(&j, "code", db_web_error_code(why));
+    }
     db_json_str(&j, "version", version);
     db_json_obj_close(&j);
     db_json_end(&j);
@@ -1137,18 +1138,12 @@ size_t api_screen_json(char *buf, size_t cap)
 
 esp_err_t get_screen(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     return send_built(req, SCREEN_JSON_MAX, screen_json);
 }
 
 /* An image never changes under its id, so browsers may keep it. */
 esp_err_t get_screen_image(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     unsigned long id = strtoul(req->uri + strlen("/api/screen/"), NULL, 10);
     uint8_t *data = NULL;
     size_t len = 0;
@@ -1169,9 +1164,6 @@ esp_err_t get_screen_image(httpd_req_t *req)
 /* The picture on the deck as one JPEG, for a camera in Home Assistant. */
 esp_err_t get_screen_jpg(httpd_req_t *req)
 {
-    if (deck_refused(req)) {
-        return ESP_OK;
-    }
     uint8_t *jpeg = NULL;
     size_t len = 0;
     esp_err_t err = db_ui_snapshot(&jpeg, &len);

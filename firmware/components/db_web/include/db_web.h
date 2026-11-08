@@ -26,8 +26,14 @@ bool db_web_cert_custom(void);
 /* An uploaded certificate is kept but could not be read at this start (memory, flash): the own one serves. */
 bool db_web_cert_unread(void);
 
+/* Each web server ran a job since the start: it serves. */
+bool db_web_alive(void);
+
 /* The web wizard's step, 1 to 6, kept over restarts; 0 when it does not run. */
 int db_web_setup_step(void);
+
+/* The "code" a page translates for an error text it shows to users, or NULL. */
+const char *db_web_error_code(const char *msg);
 
 /* Send one JSON message to every listener of /api/ws. */
 void db_web_broadcast(const char *json);

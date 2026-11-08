@@ -29,3 +29,6 @@ void db_json_str(db_json_t *j, const char *key, const char *value);
 void db_json_int(db_json_t *j, const char *key, int64_t value);
 void db_json_bool(db_json_t *j, const char *key, bool value);
 void db_json_null(db_json_t *j, const char *key);
+
+/* Lowercase hex of `n` bytes, NUL-terminated: `out` holds 2n + 1. */
+void db_hex(char *out, const uint8_t *in, size_t n);

@@ -75,14 +75,14 @@ def test_a_signed_file_below_the_security_level_is_refused():
     """Refused at the header, before anything is written."""
     key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
     code, body = api("POST", "/api/ota", dbfw.build("p4", bytes(4096), "old", key, level=0))
-    assert (code, json.loads(body)["error"]) == (400, "ESP_ERR_INVALID_VERSION")
+    assert (code, json.loads(body)["code"]) == (400, "ota_too_old")
 
 
 @pytest.mark.sim
 @pytest.mark.parametrize(
-    ("headers", "code"), [({}, 403), ({"X-DeckConnector": "1"}, 200), ({"X-Deckbridge": "1"}, 200)]
+    ("headers", "code"), [({}, 403), ({"X-DeckConnector": "1"}, 200), ({"X-Deckbridge": "1"}, 403)]
 )
-def test_a_login_needs_the_marker_header_old_or_new(headers, code):
+def test_a_login_needs_the_marker_header(headers, code):
     body = json.dumps({"password": PASSWORD}).encode()
     assert post_raw("/api/login", body, {**headers, "Content-Type": "application/json"}) == code
 
