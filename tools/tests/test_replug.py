@@ -60,3 +60,15 @@ async def test_every_usb_address_keeps_the_deck_working(servers, bridges):
                 raise AssertionError(f"replug {n + 1}: the deck took no picture") from None
             assert ack.result.name == "SHOWN", f"replug {n + 1}: {ack.result.name}"
     assert (await asyncio.to_thread(status))["counters"]["usb_errors"] == errors, "an unplug is not a USB error"
+
+
+async def test_reconnect_takes_one_at_a_time_and_checks_off_s(servers, bridges):
+    assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect?off_s=5abc"))[0] == 400
+    assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect?off_s=00000002"))[0] == 400
+    assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect?off_s=2"))[0] == 200
+    assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect"))[0] == 409
+    await wait_device(False, 5)
+    await wait_device(True, 20)
+    assert (await asyncio.to_thread(api, "POST", "/api/deck/reconnect?x=1"))[0] == 200
+    await wait_device(False, 5)
+    await wait_device(True, 20)

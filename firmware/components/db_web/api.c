@@ -510,15 +510,22 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
     }
     char query[64];
     char off[8];
-    int off_s = 0;
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
-        httpd_query_key_value(query, "off_s", off, sizeof(off)) == ESP_OK) {
-        off_s = atoi(off);
-        if (off_s < 1 || off_s > 600) {
+    uint32_t off_ms = 500;
+    esp_err_t got = httpd_req_get_url_query_str(req, query, sizeof(query));
+    if (got == ESP_OK) {
+        got = httpd_query_key_value(query, "off_s", off, sizeof(off));
+    }
+    if (got != ESP_ERR_NOT_FOUND) { /* there, or cut off */
+        char *end = off;
+        long off_s = got == ESP_OK ? strtol(off, &end, 10) : 0;
+        if (*end || off_s < 1 || off_s > 600) {
             return send_error(req, "400 Bad Request", "off_s is 1 to 600");
         }
+        off_ms = off_s * 1000;
     }
-    db_deck_reconnect(off_s ? off_s * 1000 : 500);
+    if (!db_deck_reconnect(off_ms)) {
+        return send_error(req, "409 Conflict", "the deck is already reconnecting");
+    }
     return send_json(req, "{\"ok\":true}");
 }
 

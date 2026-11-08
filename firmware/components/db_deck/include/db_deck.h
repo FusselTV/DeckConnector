@@ -58,7 +58,7 @@ void db_deck_set_ack_handler(db_source_t source, db_deck_ack_cb_t cb, void *arg)
  * writer's picture stays until the new one draws, when the new one has none kept. */
 void db_deck_set_writer(db_source_t source, bool keep_picture);
 /* Unplug and plug in the deck by switching its USB port off for `off_ms` and on again; returns at once. */
-void db_deck_reconnect(uint32_t off_ms);
+bool db_deck_reconnect(uint32_t off_ms);
 /* Drop the kept picture of a source whose host left. */
 void db_deck_forget(db_source_t source);
 db_source_t db_deck_writer(void);

@@ -264,7 +264,7 @@ static void notify_device(const db_device_info_t *info)
     }
 }
 
-static void replug_task(void *arg);
+static bool start_replug(uint8_t address, uint32_t off_ms);
 
 static void handle_attach(uint8_t address)
 {
@@ -275,7 +275,7 @@ static void handle_attach(uint8_t address)
     uint16_t pid;
     if ((address & 0x0f) == 0 && usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
         ESP_LOGW(TAG, "USB address %u, plugging the deck in again", address);
-        xTaskCreate(replug_task, "deck_replug", 3072, (void *)(uintptr_t)address, 5, NULL);
+        start_replug(address, 500);
         return;
     }
     esp_err_t opened = usb_port_open(address, &vid, &pid);
@@ -537,30 +537,39 @@ const char *db_deck_source_name(db_source_t source)
     return source < DB_SOURCE_COUNT ? names[source] : "";
 }
 
+static bool replugging;
+
+/* arg: off_ms << 8 | USB address */
 static void replug_task(void *arg)
 {
-    esp_err_t err = usb_port_replug((uint8_t)(uintptr_t)arg, 500);
+    uintptr_t a = (uintptr_t)arg;
+    esp_err_t err = usb_port_replug(a & 0xff, a >> 8);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
     }
+    __atomic_store_n(&replugging, false, __ATOMIC_RELAXED);
     vTaskDelete(NULL);
 }
 
-static void reconnect_task(void *arg)
+/* one at a time: a second would switch the port on in the middle of the first one's off time */
+static bool start_replug(uint8_t address, uint32_t off_ms)
 {
-    esp_err_t err = usb_port_replug(0, (uint32_t)(uintptr_t)arg);
-    if (err != ESP_OK) {
-        ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
+    if (__atomic_exchange_n(&replugging, true, __ATOMIC_RELAXED)) {
+        return false;
     }
-    vTaskDelete(NULL);
+    if (xTaskCreate(replug_task, "deck_replug", 3072, (void *)((uintptr_t)off_ms << 8 | address), 5, NULL) !=
+        pdPASS) {
+        ESP_LOGE(TAG, "no task to reconnect the deck");
+        __atomic_store_n(&replugging, false, __ATOMIC_RELAXED);
+        return false;
+    }
+    return true;
 }
 
-void db_deck_reconnect(uint32_t off_ms)
+bool db_deck_reconnect(uint32_t off_ms)
 {
     ESP_LOGI(TAG, "reconnecting the deck, %lu ms without power", (unsigned long)off_ms);
-    if (xTaskCreate(reconnect_task, "deck_replug", 3072, (void *)(uintptr_t)off_ms, 5, NULL) != pdPASS) {
-        ESP_LOGE(TAG, "no task to reconnect the deck");
-    }
+    return start_replug(0, off_ms);
 }
 
 void db_deck_forget(db_source_t source)
