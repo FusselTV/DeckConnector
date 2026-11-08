@@ -202,7 +202,10 @@ static uint8_t paeth(int a, int b, int c)
     int pa = abs(p - a);
     int pb = abs(p - b);
     int pc = abs(p - c);
-    return (uint8_t)(pa <= pb && pa <= pc ? a : (pb <= pc ? b : c));
+    if (pa <= pb && pa <= pc) {
+        return (uint8_t)a;
+    }
+    return (uint8_t)(pb <= pc ? b : c);
 }
 
 /* Undo the filter of one row in place. `prev` is the row above, already undone, all zero for the first. */
@@ -239,6 +242,38 @@ static db_err_t unfilter(uint8_t type, uint8_t *row, const uint8_t *prev, size_t
     }
 }
 
+/* tinfl wants the compressed data in one piece: one IDAT chunk is the usual case, more are joined into `buf`,
+ * which is big enough for any image that inflates to w x h */
+static db_err_t join_idat(const uint8_t *png, size_t len, uint8_t *buf, size_t cap, const uint8_t **zdata,
+                          size_t *zlen)
+{
+    size_t idats = 0;
+    for (size_t off = 8; off + 12 <= len;) {
+        size_t at = off;
+        size_t clen = be32(png + at);
+        if (clen > len - at - 12) {
+            return DB_ERR_PROTO;
+        }
+        off += clen + 12;
+        if (memcmp(png + at + 4, "IDAT", 4) != 0) {
+            continue;
+        }
+        if (idats++ == 0) {
+            *zdata = png + at + 8;
+        } else if (*zlen + clen > cap) {
+            return DB_ERR_NOMEM;
+        } else {
+            if (idats == 2) {
+                memcpy(buf, *zdata, *zlen);
+                *zdata = buf;
+            }
+            memcpy(buf + *zlen, png + at + 8, clen);
+        }
+        *zlen += clen;
+    }
+    return DB_OK;
+}
+
 db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, uint8_t *bgr, uint8_t *work,
                        size_t work_cap)
 {
@@ -258,33 +293,11 @@ db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, u
     if ((size_t)h * stride > work_cap) {
         return DB_ERR_NOMEM;
     }
-    /* tinfl wants the compressed data in one piece: one IDAT chunk is the usual case, more are joined into
-     * `bgr`, which is big enough for any image that inflates to w x h */
     const uint8_t *zdata = NULL;
     size_t zlen = 0;
-    size_t idats = 0;
-    for (size_t off = 8; off + 12 <= len;) {
-        size_t clen = be32(png + off);
-        if (clen > len - off - 12) {
-            return DB_ERR_PROTO;
-        }
-        const uint8_t *data = png + off + 8;
-        if (memcmp(png + off + 4, "IDAT", 4) == 0) {
-            if (idats++ == 0) {
-                zdata = data;
-            } else {
-                if (zlen + clen > (size_t)w * h * 3) {
-                    return DB_ERR_NOMEM;
-                }
-                if (idats == 2) {
-                    memcpy(bgr, zdata, zlen);
-                    zdata = bgr;
-                }
-                memcpy(bgr + zlen, data, clen);
-            }
-            zlen += clen;
-        }
-        off += clen + 12;
+    db_err_t joined = join_idat(png, len, bgr, (size_t)w * h * 3, &zdata, &zlen);
+    if (joined != DB_OK) {
+        return joined;
     }
     if (!zdata || tinfl_decompress_mem_to_mem(work, h * stride, zdata, zlen, TINFL_FLAG_PARSE_ZLIB_HEADER) !=
                       h * stride) {

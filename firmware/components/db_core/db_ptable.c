@@ -82,7 +82,7 @@ static const char *check(const part_t *a, int na, const part_t *b, int nb, uint3
 const char *db_ptable_check(const uint8_t *now, const uint8_t *next, size_t len, uint32_t running_offset,
                             uint32_t image_len, uint32_t flash_size)
 {
-    part_t *a = calloc(2 * MAX, sizeof(part_t));
+    part_t *a = calloc((size_t)2 * MAX, sizeof(part_t));
     if (!a) {
         return "out of memory";
     }

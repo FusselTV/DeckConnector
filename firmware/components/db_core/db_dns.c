@@ -16,8 +16,9 @@ size_t db_dns_ptr_query(uint32_t ip, uint16_t id, uint8_t *out)
         out[n] = (uint8_t)len;
         n += (size_t)len + 1;
     }
-    memcpy(out + n, "\7in-addr\4arpa\0\0\x0c\0\1", 18); /* type PTR, class IN */
-    return n + 18;
+    static const uint8_t tail[] = {7, 'i', 'n', '-', 'a', 'd', 'd', 'r', 4, 'a', 'r', 'p', 'a', 0, 0, 0x0c, 0, 1};
+    memcpy(out + n, tail, sizeof(tail)); /* type PTR, class IN */
+    return n + sizeof(tail);
 }
 
 /* Past the name at `at`; 0 when it runs off the end. */
@@ -30,7 +31,7 @@ static size_t skip_name(const uint8_t *msg, size_t len, size_t at)
         if (msg[at] == 0) {
             return at + 1;
         }
-        at += msg[at] + 1u;
+        at += msg[at] + 1U;
     }
     return 0;
 }

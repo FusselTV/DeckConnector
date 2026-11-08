@@ -8,7 +8,7 @@
  */
 
 #define DB_SCREEN_MAX       48
-#define DB_SCREEN_IMAGE_MAX (512 * 1024) /* one JPEG; a full 800x480 screen is under 100 KB */
+#define DB_SCREEN_IMAGE_MAX ((size_t)512 * 1024) /* one JPEG; a full 800x480 screen is under 100 KB */
 
 typedef struct {
     uint32_t id; /* unique for the life of the bridge, changes with every new image */
