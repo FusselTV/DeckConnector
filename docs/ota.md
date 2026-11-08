@@ -69,7 +69,7 @@ cd tools
 uv run python -m dbtools.fw deploy          # sign firmware/build/deckconnector.bin, upload into a bench slot, start it
 uv run python -m dbtools.fw use 2           # start slot 2
 uv run python -m dbtools.fw ab REV_A REV_B  # build both (cached), start A in one bench slot, B waits in the other
-uv run python -m dbtools.fw web             # sign firmware/components/db_web/index.html and serve it from www
+uv run python -m dbtools.fw web             # sign web/dist/index.html and serve it from www
 uv run python -m dbtools.fw web --erase     # back to the page in the firmware
 uv run python -m dbtools.fw boot ptable     # write firmware/build/partition_table/partition-table.bin
 uv run python -m dbtools.fw boot bootloader # write firmware/build/bootloader/bootloader.bin

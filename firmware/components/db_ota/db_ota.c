@@ -507,8 +507,7 @@ static void url_task(void *arg)
     char *url = arg;
     esp_http_client_config_t cfg = {.url = url, .timeout_ms = 10000, .buffer_size = 4096};
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
-    uint8_t *buf = heap_caps_malloc(4096, MALLOC_CAP_INTERNAL);
-    esp_err_t err = buf && c ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
+    esp_err_t err = c ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
     int64_t len = err == ESP_OK ? esp_http_client_fetch_headers(c) : -1;
     int status = err == ESP_OK ? esp_http_client_get_status_code(c) : 0;
     char why[32] = "no Content-Length";
@@ -531,29 +530,26 @@ static void url_task(void *arg)
         /* All of it first, then one write, as an upload does: 4 KB writes between reads parked the other CPU
          * so often that its idle task got no turn for 5 s (task watchdog). */
         uint8_t *all = heap_caps_malloc((size_t)len, MALLOC_CAP_SPIRAM);
-        int n;
+        int n = 0;
         int64_t got = 0;
-        while (s.busy &&
-               (n = esp_http_client_read(c, all ? (char *)all + got : (char *)buf,
-                                         all ? (int)(len - got < 65536 ? len - got : 65536) : 4096)) > 0) {
+        while (all && s.busy && got < len &&
+               (n = esp_http_client_read(c, (char *)all + got,
+                                         (int)(len - got < 65536 ? len - got : 65536))) > 0) {
             got += n;
-            if (all) {
-                progress((int)(got * 100 / len));
-            } else if (db_ota_write(buf, (size_t)n) != ESP_OK) {
-                break;
-            }
+            progress((int)(got * 100 / len));
         }
         if (all && s.busy && got == len) {
             db_ota_write(all, (size_t)got);
         }
         heap_caps_free(all);
-        if (s.busy && got < len) {
+        if (s.busy && !all) {
+            db_ota_abort("no memory for the download");
+        } else if (s.busy && got < len) {
             db_ota_abort("download interrupted");
         } else if (s.busy) {
             db_ota_end();
         }
     }
-    heap_caps_free(buf);
     esp_http_client_cleanup(c);
     free(url);
     vTaskDelete(NULL);

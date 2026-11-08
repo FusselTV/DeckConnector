@@ -468,7 +468,9 @@ static void pick_writer(void)
 static void changed(void)
 {
     pick_writer();
-    xTaskNotifyGive(s.task);
+    if (s.task) { /* NULL when db_ui_start failed: the bridge runs on without the deck screens */
+        xTaskNotifyGive(s.task);
+    }
 }
 
 /* Under the edit lock, like a change from the web, so neither overwrites a save made in between. */
@@ -703,7 +705,9 @@ static void render(const ui_screen_t *sc)
 static void brightness_due(void *arg)
 {
     s.save_due = true;
-    xTaskNotifyGive(s.task);
+    if (s.task) {
+        xTaskNotifyGive(s.task);
+    }
 }
 
 static void ui_task(void *arg)
@@ -843,7 +847,9 @@ static void on_input(const db_input_t *ev)
     if (redraw || act.what != UI_DO_NOTHING) {
         /* the UI task switches the writer, once this event has reached every listener: a release that closes
          * the menu must not go on to the host that draws next */
-        xTaskNotifyGive(s.task);
+        if (s.task) {
+            xTaskNotifyGive(s.task);
+        }
     }
 }
 

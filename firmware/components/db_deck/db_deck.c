@@ -280,14 +280,17 @@ static bool start_replug(uint8_t address, uint32_t off_ms);
 #define STUCK_RESTARTED 0x57a11ed0
 static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not over a power cut */
 
-/* A replug that did not help within a minute leaves one restart per power-on, not before 10 min uptime. A
- * deck that keeps hanging after that is replugged less and less often, up to every 5 min, and the bridge
- * stays up. */
+/* A replug that did not help within a minute leaves one restart, not before 10 min uptime and not again until
+ * an hour passed without a hang. A deck that keeps hanging is replugged less and less often, up to every 5
+ * min, and the bridge stays up. */
 static void on_stuck(void)
 {
     static int64_t last;
     static int64_t backoff;
     int64_t now = esp_timer_get_time();
+    if (now - last > 3600000000LL) { /* an hour without a hang arms the restart again */
+        stuck_restarted = 0;
+    }
     bool again = last && now - last < 60000000LL + backoff;
     if (again && now > 600000000LL && stuck_restarted != STUCK_RESTARTED) {
         stuck_restarted = STUCK_RESTARTED;

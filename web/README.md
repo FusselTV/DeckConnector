@@ -31,5 +31,5 @@ cd ../tools
 uv run python -m dbtools.fw web
 ```
 
-It signs `dist/index.html` and uploads it. A firmware build also embeds `dist/index.html` when it exists, so run
+It signs `dist/index.html` and uploads it. A firmware build embeds `dist/index.html` and stops without it, so run
 `npm run build` before building the firmware.

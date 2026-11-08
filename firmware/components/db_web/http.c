@@ -192,10 +192,14 @@ static void alive_job(void *arg)
     a->proven = true;
 }
 
-/* One restart per power-on: a server that hangs again after it keeps the rest of the bridge running. */
+/* One restart per power-on, armed again after an hour of both servers running: a server that hangs again
+ * right after it keeps the rest of the bridge running. */
 static void alive_check(void *arg)
 {
     int64_t now = esp_timer_get_time();
+    if (hung_restarted == HUNG_RESTARTED && now > 3600 * 1000000LL && db_web_alive()) {
+        hung_restarted = 0;
+    }
     for (int i = 0; i < 2 && alive[i].hd; i++) {
         if (now - alive[i].ran > HUNG_US && hung_restarted != HUNG_RESTARTED) {
             hung_restarted = HUNG_RESTARTED;

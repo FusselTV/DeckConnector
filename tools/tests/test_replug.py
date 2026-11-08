@@ -1,6 +1,7 @@
 """The deck unplugged and plugged in again while it runs: the picture comes back by itself."""
 
 import asyncio
+import contextlib
 import json
 import time
 
@@ -81,10 +82,8 @@ async def test_a_hung_deck_is_reconnected_by_the_bridge(servers, bridges):
     start = time.time()
     while (await asyncio.to_thread(status))["device"] is not None:  # images keep failing until the bridge acts
         assert time.time() - start < 10, "the hung deck was never reconnected"
-        try:
+        with contextlib.suppress(TimeoutError):
             await active.send_image(FULL, jpeg((20, 20, 220)))
-        except TimeoutError:
-            pass
     await wait_device(True, 20)
     if active.ws.state.name != "OPEN":
         active = await newest(servers[0])
