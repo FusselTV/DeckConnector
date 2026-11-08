@@ -1,7 +1,7 @@
 # Web API
 
 Everything the web UI does goes through this JSON API on port 80, and the same over HTTPS on port 443. Scripts
-can use it the same way. The DeckConnector announces it over mDNS as `_deckconnector-api._tcp` (and the old `_deckbridge-api._tcp`), with `path` and
+can use it the same way. The DeckConnector announces it over mDNS as `_deckconnector-api._tcp`, with `path` and
 `fw` in the TXT record.
 
 The DeckConnector makes its own HTTPS certificate on the first start and keeps it. Browsers warn about it once.
@@ -12,7 +12,7 @@ network unencrypted. The setup access point stays on plain HTTP.
 ## Login
 
 Send the password as HTTP basic auth with the user `admin`. Every request that changes something also needs the
-header `X-DeckConnector: 1`. The old `X-Deckbridge: 1` works too.
+header `X-DeckConnector: 1`.
 
 ```
 curl -u admin:PASSWORD http://192.168.1.214/api/status
@@ -23,7 +23,10 @@ The web UI logs in with `POST /api/login`, the header `X-DeckConnector: 1` and `
 session cookie. The session ends after 12 hours without use, or with `POST /api/logout`. It stays over a restart of
 the connector. A power loss or a new password ends all sessions. After five wrong passwords from one address, that
 address waits a few seconds, up to a minute, for both kinds of login. After 30 wrong passwords in a minute from all
-addresses together, every address waits until that minute ends.
+addresses together, every address waits until that minute ends. The last four addresses that logged in since the
+start do not wait for that, so a guesser cannot lock the owner out. A token is never locked out, and a wrong token
+does not count towards the 30. A locked login gets 429 with
+`{"ok": false, "error": "locked", "code": "locked", "retry": 12}`, `retry` in seconds.
 
 Two routes help someone who lost the password. Both need no login, only the header `X-DeckConnector: 1`. They
 answer 409 when no deck is attached. A second call within 3 seconds changes nothing.
@@ -34,7 +37,8 @@ answer 409 when no deck is attached. A second call within 3 seconds changes noth
 | `POST /api/password/reset` | The deck asks for 60 seconds whether to reset all settings. Two taps on "Zurücksetzen" on the deck itself reset it and restart it. A reset also removes the API tokens, the paired hosts and an uploaded HTTPS certificate. Presses sent over the API do not count. Answers `{"ok": true, "s": 60}` with the seconds left |
 | `DELETE /api/password/reset` | Ends the question. Answers `{"ok": true}` |
 
-While the deck shows the password or the setup WLAN is open, a token gets 403 for the pictures of the deck.
+While the deck shows the password or the setup login code, or the setup WLAN is open, a token gets 403 for the
+routes that act on a deck (screen, input, menu, reconnect).
 
 A browser can also ask to log in without the password. The deck shows its address, the label it sent, its MAC
 address when it is on the same network, and its name when the router knows one. Someone at the deck taps
@@ -53,8 +57,8 @@ shows it. Every request over it has the rights of a password login. Changes stil
 
 ## For integrations
 
-Home Assistant and other programs use a token instead of the password. Make one in the web UI under System, or
-with the password:
+Home Assistant and other programs use a token instead of the password. The web UI calls it an API key. Make one
+there under Access, or with the password:
 
 ```
 curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -d '{"name":"home-assistant","right":"full"}' http://192.168.1.214/api/tokens
@@ -66,17 +70,26 @@ token needs no `X-DeckConnector` header. Each token has one right:
 
 | `right` | Reaches |
 |---|---|
-| `control` (default) | The routes `GET /api` lists with `"access": "control"`: status, screen, metrics, input, menu, reconnect, and the web socket without changing settings |
-| `full` | Also the `"access": "full"` routes: settings, restart, updates, slots, log, pairing |
+| `control` (default) | The routes `GET /api` lists with `"access": "control"`: the route list, status, screen, metrics, input, input log, events, menu, reconnect, `GET /api/frontend`, `POST /api/sources/retry`, and the web socket without settings and log |
+| `full` | Also the `"access": "full"` routes: settings (brightness and the source too), restart, updates, slots, log, pairing, Wi-Fi, `DELETE /api/coredump` and `DELETE /api/tls` |
 
-No token reaches the `"access": "admin"` routes (the tokens themselves, the crash dump and `PUT /api/tls`), and no token changes `admin_pass`, `setup_done` or `qr_login`. Those
-answer 403. `DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces
-the old one. Up to 8 tokens exist at a time.
+No token reaches the `"access": "admin"` routes (the tokens themselves, the backup, reading the crash dump and
+`PUT /api/tls`), and no token changes `admin_pass`, `setup_done` or `qr_login`. Those answer 403. A crash dump can
+hold the password, and an own certificate lets its owner read the traffic, so these need the password. Clearing the
+dump or going back to the DeckConnector's own certificate gives nothing away, so a `full` token may do it.
+`DELETE /api/tokens/<name>` ends a token at once. A new token with the same name replaces the old one. Up to 8
+tokens exist at a time.
 
 A page from another origin may call the API with a token when its origin is in `cors_origins` (comma separated).
 It is empty, so off, by default. Cookies never work across origins.
 
-Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login required"}`.
+Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login required"}`. `error` is English text.
+Errors a person can meet also carry `code`, which stays the same when the text changes:
+`{"ok": false, "error": "not signed for this DeckConnector", "code": "ota_not_signed"}`. The codes are
+`ota_too_short`, `ota_not_dbfw`, `ota_not_signed`, `ota_wrong_target`, `ota_too_old`, `url_http_only`,
+`no_releases`, `probe_no_connection`, `probe_no_answer`, `probe_not_companion`, `strip_outside`, `busy`, `locked`,
+`wrong_password` and `needs_password`. The replies of `POST /api/sources/probe`, `POST /api/ota/inspect` and
+`GET /api/update/check` carry it next to their `error` too.
 
 ## Endpoints
 
@@ -102,7 +115,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/log` | The last 16 KB of the log, as text. Each line has the time in UTC. `?boot=prev` gives the log of the boot before this one, also after a crash. It is 404 after a power cut |
 | `GET /api/events` | The last 32 events, oldest first: `[{since_s, at, kind, text}]`. `since_s` counts from the start, `at` is the Unix time or null before the clock is set. `kind` is `boot`, `source`, `wlan`, `lan`, `pairing` or `update` |
 | `GET /api/coredump` | What crashed last: `task`, `pc`, `ra`, `sp`, `mcause`, `mtval`, `elf_sha256`, `size`. 404 when there is none. `?raw=1` gives the dump itself, for `esp-coredump info_corefile -t raw -c core.elf build/deckconnector.elf` with the ELF of the same build |
-| `DELETE /api/coredump` | Clear it |
+| `DELETE /api/coredump` | Clear it. A `full` token may do this |
 | `GET /api/boot` | The bootloader (`version`, `idf`, `built`, `sha256`) and the partition table (`partitions`, `md5`, `sha256`). `?raw=bootloader` or `?raw=ptable` gives the region itself. Both are replaced with `POST /api/ota`, see [ota.md](ota.md) |
 | `POST /api/ota` | Upload a signed `.dbfw` file as the body. It goes into the slot after the running one, and the DeckConnector restarts into it. `?slot=N` writes into slot N instead, `?boot=0` keeps the running firmware. The running slot is never written |
 | `GET /api/slots` | The firmware slots: `slot` (1 to 4), `label`, `state` (`valid`, `pending` until a new start confirms itself, `invalid`, `empty`, `unknown` for an image the bootloader does not track, such as one written before a USB flash), `version`, `built`, `running`, `next` (starts at the next restart), `level` (security level, missing when not known), `bootable` and `why_not` (why `POST /api/slots/N/boot` would refuse it) |
@@ -119,7 +132,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/companion/found` | Companions in the network that announce their Satellite API over mDNS: `name`, `host`, `port`. The first call starts a 2 s search, so ask again after that. A Companion in Docker with bridge networking does not announce itself in the LAN. Enter its address by hand |
 | `GET /api/cert` | The certificate HTTPS serves, as a PEM file, without the key. Open to everyone. Import it into a trust store, or pin its SHA-256 (`https_fingerprint` in the status) |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate (its chain may follow it) and key, and answers `subject`, `issuer`, `not_after` and `sha256`. With `"apply": true` it is kept and the DeckConnector restarts. A key with a password is refused. `https_custom` in the status says it is in use. `https_custom_unread` says it is kept but could not be read at this start, so the DeckConnector's own certificate serves until the next start |
-| `DELETE /api/tls` | Back to the DeckConnector's own certificate, with a restart |
+| `DELETE /api/tls` | Back to the DeckConnector's own certificate, with a restart. A `full` token may do this |
 | `GET /api/input/log` | The last 200 inputs, oldest first: `seq`, `at_ms` (after the start), `origin` (`deck` pressed on the deck, `web` a person over the network, `tool` a script or test), `kind`, `index`, `value`, `x`, `y`, and the `writer` that got it. `?since=<seq>` returns only newer ones. Kept in RAM, gone at a restart |
 | `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. The DeckConnector connects to it now instead of after the wait. 404 for anything else. Dock hosts connect by themselves |
 | `GET /api/wifi/scan` | Networks in reach, one entry per access point, strongest first: `ssid`, `bssid`, `rssi` (dBm), `channel`, `open`. Only 2.4 GHz. Hidden networks and the setup network are left out. Takes 2 to 3 s |
@@ -127,7 +140,7 @@ Errors are JSON with a matching HTTP status: `{"ok": false, "error": "login requ
 | `GET /api/metrics` | CPU, RAM and PSRAM in percent every 5 s for the last 10 minutes, oldest first, and how full the flash is. Kept in RAM only |
 | `GET /api/profile` | Time spent per endpoint and CPU share per task since the previous call, and the smallest free stack each task ever had (`stack_free`) |
 | `GET /api/tokens` | The API tokens: `name` and `right` |
-| `POST /api/tokens` | `{"name": "...", "right": "control"\|"full"}` makes a token and shows it once |
+| `POST /api/tokens` | `{"name": "...", "right": "control"\|"full"}` makes a token and shows it once. `name` has 1 to 23 letters, digits, `-` or `_` |
 | `DELETE /api/tokens/<name>` | Ends that token |
 | `GET /api/ws` | Web socket with live changes, see below |
 
@@ -174,11 +187,11 @@ the WLAN address while the network stays the same, and the name in `.local`:
 {"name": "deckconnector-a1b2c3", "controller": "companion", "host": "192.168.1.15", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
- "wifi_ssid": "deckbridge", "wifi_pass_set": true,
- "servers": ["ws://192.168.1.128:8765/deckbridge", "wss://example.org/deckbridge", "", ""],
+ "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
+ "servers": ["ws://192.168.1.128:8765/deckconnector", "wss://example.org/deckconnector", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.15", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "usb_speed": "auto",
- "token_set": false}
+ "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
 ```
 
 `menu_chord` says which two controls open the menu on the deck when held together for `menu_hold_ms` (500 to
@@ -198,6 +211,10 @@ once, without the password. A code is good for 10 minutes and for one login. The
 [satellite.md](satellite.md#both-at-once). Removing `satellite` sets it to `false`, a new `satellite` to `true`.
 
 `ntp_server` sets the clock. Empty uses the one the DHCP server names, then `pool.ntp.org`.
+
+`wifi_bssid` locks the DeckConnector to one access point of the network, empty for any. `dock_paired_only` is
+explained under "Pairing". `setup_done` is false until setup ends. Setting it to `false` with the password starts the
+setup again.
 
 To change them, `PUT` the same keys. The secret ones are `wifi_pass`, `token` and `admin_pass`. `admin_pass`
 has 6 to 23 characters (bytes, so fewer for letters outside ASCII). `wifi_pass` has 8 to 63 characters, or 64 hex
@@ -228,10 +245,10 @@ again and upload the key again.
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.214"},
-             "wlan": {"ssid": "deckbridge", "ip": "192.168.1.237", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
+             "wlan": {"ssid": "studio", "ip": "192.168.1.237", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
                       "lock": "", "rssi": -48, "join": "", "join_error": ""},
              "ap": {"on": false, "ssid": ""}},
- "sources": [{"kind": "server", "host": "ws://192.168.1.128:8765/deckbridge", "name": "", "connected": false,
+ "sources": [{"kind": "server", "host": "ws://192.168.1.128:8765/deckconnector", "name": "", "connected": false,
               "chosen": false, "drawing": false},
              {"kind": "companion", "host": "192.168.1.15", "name": "studio", "connected": true, "chosen": true,
               "drawing": true}],

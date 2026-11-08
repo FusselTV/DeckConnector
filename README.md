@@ -37,16 +37,19 @@ The board powers the deck from its USB-A port. With PoE the whole setup runs fro
 
 ## Build and flash
 
-Needs ESP-IDF 6.0.2 and [uv](https://docs.astral.sh/uv/).
+Needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).
 
 ```
-git clone git@github.com:FusselTV/deckbridge.git
+git clone https://github.com/<owner>/deckbridge.git
 ```
 
+The firmware carries the web UI, so build it first. Then make your own update key once. The firmware takes only
+updates signed with the key it was built with.
+
 ```
-cd deckbridge/firmware
-idf.py build
-idf.py -p /dev/ttyACM0 flash
+cd deckbridge/web && npm ci && npm run build
+cd ../tools && uv run python -m dbtools.dbfw keygen
+cd ../firmware && idf.py build && idf.py -p /dev/ttyACM0 flash
 ```
 
 The first start creates a password for the web UI. The device shows it in its menu, on the strip under
@@ -56,16 +59,16 @@ Web-Zugang.
 
 1. Plug in LAN, or wait a minute. Without a network the board opens a setup WLAN. Its name and password are on
    the device.
-2. Open `http://<address>/` and log in as `admin`.
-3. Connect the program that should draw, then pick it under "Wer steuert das Deck?".
-   - Companion, best over its Satellite API. Enter the address of Companion under Settings, Companion über die
-     Satellite-API. The board then connects to Companion itself. This also works when Companion runs in Docker
+2. Open `http://<address>/` and log in. The setup wizard starts.
+3. Connect the program that should draw. Later you pick it under Active source on the overview.
+   - Companion, best over its Satellite API. Enter the Companion address in the wizard or under Sources. The
+     board then connects to Companion itself. This also works when Companion runs in Docker
      without host networking, as long as port 16622, or 16623 for `ws://`, is reachable. Without it, the board
      shows up in Companion under Surfaces, Discover, as a Network Dock. When Companion connects that way and its
      Satellite API answers, the board moves it to Satellite by itself.
    - Elgato App. It finds the board by itself.
-   - Your own servers. Add a server URL (`ws://host:port/deckbridge` or `wss://`). Without one, the board finds
-     servers that announce `_deckconnector._tcp` (or the old `_deckbridge._tcp`) over mDNS.
+   - Your own servers. Add a server URL (`ws://` or `wss://`). Without one, the board finds servers that
+     announce `_deckconnector._tcp` over mDNS.
 
 When nobody draws, the deck shows its home screen. Its top row lists the connected hosts. Tap one twice to let
 it draw, or Menü for the settings. While a host draws, hold the first and the last encoder for two seconds to
@@ -80,6 +83,12 @@ The web UI is optional. Plug in LAN. The deck shows its address and how to open 
   your network, the deck asks "Companion gefunden, verbinden?" instead. One key connects it over Satellite.
 - The first program that connects takes the deck. Later ones are picked on the deck's home screen.
 - Without a LAN cable, the deck shows a QR code for its setup WLAN after a minute.
+
+### Factory reset
+
+Open the menu on the deck and hold Neustart for 5 seconds, then let go. Without the deck menu, open the web UI's
+login page, pick the factory reset link and confirm twice on the deck. A reset removes every setting, the API
+keys, the paired hosts and an uploaded HTTPS certificate.
 
 ## Writing a server
 

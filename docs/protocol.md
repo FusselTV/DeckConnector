@@ -5,7 +5,8 @@ DeckConnector knows the USB protocol of the device and shows the newest image fo
 
 ## Connection
 
-- The DeckConnector is the client. It opens `ws://<server>/deckbridge` with the subprotocols `deckconnector.v1` and `deckbridge.v1`. The server picks one.
+- The DeckConnector is the client. It opens each URL in `servers` with the subprotocol `deckconnector.v1`. A server
+  found over mDNS (`_deckconnector._tcp`) is opened at `ws://<address>:<port>/deckbridge`.
   A `wss://` URL works too. The server's certificate must come from a public CA and name the host, or match the
   SHA-256 set for that server in `server_pins` ([api.md](api.md)).
 - The DeckConnector keeps a connection to every configured server, at most four. The first connected server in
