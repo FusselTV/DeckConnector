@@ -5,18 +5,19 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "db_json.h"
 #include "db_ptable.h"
 #include "esp_app_desc.h"
 #include "esp_flash.h"
-#include "esp_private/esp_flash_internal.h"
 #include "esp_flash_partitions.h"
-#include "esp_image_format.h"
 #include "esp_heap_caps.h"
 #include "esp_hosted.h"
 #include "esp_hosted_ota.h"
 #include "esp_http_client.h"
+#include "esp_image_format.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_private/esp_flash_internal.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -95,7 +96,10 @@ static void report(const char *state, int pct, const char *error)
 void db_ota_set_progress_cb(db_ota_progress_cb_t cb)
 {
     s.progress = cb;
-    s.lock = xSemaphoreCreateMutex(); /* here, at start: made on first use, two uploads at once both made one */
+    /* here, at start: made on first use, two uploads at once both made one. Not a mutex: other tasks give it
+     * back (abort), and a mutex held for a whole download kept an inherited priority 22 to its end. */
+    s.lock = xSemaphoreCreateBinary();
+    xSemaphoreGive(s.lock);
 }
 
 esp_err_t db_ota_begin(size_t total, int slot, bool boot)
@@ -274,6 +278,14 @@ static esp_err_t start_payload(void)
     return err;
 }
 
+static void progress(int pct)
+{
+    if (pct / 5 != s.last_pct / 5) {
+        s.last_pct = pct;
+        report("download", pct, NULL);
+    }
+}
+
 static esp_err_t write_payload(const uint8_t *p, size_t n)
 {
     if (s.written + n > s.payload_len) {
@@ -287,11 +299,7 @@ static esp_err_t write_payload(const uint8_t *p, size_t n)
         err = esp_ota_write(s.p4, p, n);
     }
     s.written += (uint32_t)n;
-    int pct = (int)((uint64_t)s.written * 100 / s.payload_len);
-    if (pct / 5 != s.last_pct / 5) {
-        s.last_pct = pct;
-        report("download", pct, NULL);
-    }
+    progress((int)((uint64_t)s.written * 100 / s.payload_len));
     return err;
 }
 
@@ -309,9 +317,8 @@ esp_err_t db_ota_write(const uint8_t *data, size_t len)
         if (s.header_got == HEADER_LEN) {
             esp_err_t err = start_payload();
             if (err != ESP_OK) {
-                db_ota_abort(err == ESP_ERR_INVALID_CRC       ? "signature"
-                             : err == ESP_ERR_INVALID_VERSION ? "older than the security level"
-                                                              : "header");
+                s.refusal = db_ota_inspect(s.header); /* the same checks, in words a page can show */
+                db_ota_abort(s.refusal ? s.refusal : "header");
                 return err;
             }
         }
@@ -512,14 +519,25 @@ static void url_task(void *arg)
             s.progress("unknown", "error", -1, why);
         }
     } else {
+        /* All of it first, then one write, as an upload does: 4 KB writes between reads parked the other CPU
+         * so often that its idle task got no turn for 5 s (task watchdog). */
+        uint8_t *all = heap_caps_malloc((size_t)len, MALLOC_CAP_SPIRAM);
         int n;
         int64_t got = 0;
-        while (s.busy && (n = esp_http_client_read(c, (char *)buf, 4096)) > 0) {
+        while (s.busy &&
+               (n = esp_http_client_read(c, all ? (char *)all + got : (char *)buf,
+                                         all ? (int)(len - got < 65536 ? len - got : 65536) : 4096)) > 0) {
             got += n;
-            if (db_ota_write(buf, (size_t)n) != ESP_OK) {
+            if (all) {
+                progress((int)(got * 100 / len));
+            } else if (db_ota_write(buf, (size_t)n) != ESP_OK) {
                 break;
             }
         }
+        if (all && s.busy && got == len) {
+            db_ota_write(all, (size_t)got);
+        }
+        heap_caps_free(all);
         if (s.busy && got < len) {
             db_ota_abort("download interrupted");
         } else if (s.busy) {
@@ -572,6 +590,7 @@ static void confirm_task(void *arg)
     xSemaphoreTake(s.lock, portMAX_DELAY); /* it restarts: not during an update */
     esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
     ESP_LOGE(TAG, "rolling back failed too: %s, the bootloader decides at the next start", esp_err_to_name(err));
+    xSemaphoreGive(s.lock);
     vTaskDelete(NULL);
 }
 
@@ -809,9 +828,7 @@ static void sha_hex(uint8_t target, char *out)
     size_t n = 0;
     if (buf && esp_partition_read(p, 0, buf, p->size) == ESP_OK &&
         psa_hash_compute(PSA_ALG_SHA_256, buf, p->size, sha, sizeof(sha), &n) == PSA_SUCCESS) {
-        for (int i = 0; i < 32; i++) {
-            snprintf(out + 2 * i, 3, "%02x", sha[i]);
-        }
+        db_hex(out, sha, 32);
     } else {
         ESP_LOGW(TAG, "%s region not read, no hash", target == TARGET_BOOT ? "bootloader" : "partition table");
     }
@@ -837,9 +854,7 @@ void db_ota_boot_info(db_ota_boot_t *out)
             out->partitions++;
         } else {
             if (e[0] == 0xEB && e[1] == 0xEB) {
-                for (int i = 0; i < 16; i++) {
-                    snprintf(out->table_md5 + 2 * i, 3, "%02x", e[16 + i]);
-                }
+                db_hex(out->table_md5, e + 16, 16);
             }
             break;
         }

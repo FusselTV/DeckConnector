@@ -34,8 +34,7 @@ CACHE = Path.home() / ".cache/deckbridge"
 BENCH_SLOTS = (4, 3)
 AUTH = basic_auth()
 
-# The old name too: deploys and rescues also go to slots with firmware from before the rename.
-MARKER = {"X-DeckConnector": "1", "X-Deckbridge": "1"}
+MARKER = {"X-DeckConnector": "1"}
 
 
 def api(method: str, path: str, body: bytes | None = None, timeout: float = 120):
@@ -131,6 +130,7 @@ def deploy(signed: bytes, slot: int, boot: bool) -> None:
     if boot:
         print(f"booted in {wait_version(version):.1f} s")
         gated()
+        confirmed()  # until then the new firmware refuses updates, and the OTA tests would fail
 
 
 def use(slot: int) -> None:
