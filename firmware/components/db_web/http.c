@@ -132,6 +132,46 @@ esp_err_t send_built(httpd_req_t *req, size_t cap, size_t (*build)(char *buf, si
 }
 
 static httpd_handle_t tls_server;
+
+/* A server task stuck in a handler takes the whole web interface and API with it, and nothing else notices. Each
+ * server runs an empty job every 10 s; none for 2 min restarts the bridge. A firmware upload takes 10 to 30 s. */
+#define HUNG_US (120 * 1000000LL)
+static struct {
+    httpd_handle_t hd;
+    volatile int64_t ran;
+} alive[2];
+
+static void alive_job(void *arg)
+{
+    *(volatile int64_t *)arg = esp_timer_get_time();
+}
+
+static void alive_check(void *arg)
+{
+    int64_t now = esp_timer_get_time();
+    for (int i = 0; i < 2 && alive[i].hd; i++) {
+        if (now - alive[i].ran > HUNG_US) {
+            ESP_LOGE(TAG, "the %s server ran nothing for 2 min: restarting", i ? "second" : "first");
+            db_ota_restart(0);
+            return;
+        }
+        httpd_queue_work(alive[i].hd, alive_job, (void *)&alive[i].ran);
+    }
+}
+
+static void watch(httpd_handle_t hd)
+{
+    static esp_timer_handle_t timer;
+    int i = alive[0].hd != NULL;
+    alive[i].ran = esp_timer_get_time();
+    alive[i].hd = hd;
+    if (!timer) {
+        esp_timer_create_args_t a = {.callback = alive_check, .name = "web_alive"};
+        if (esp_timer_create(&a, &timer) == ESP_OK) {
+            esp_timer_start_periodic(timer, 10 * 1000000LL);
+        }
+    }
+}
 static char fingerprint[96];
 
 bool web_tls(httpd_req_t *req)
@@ -237,8 +277,9 @@ static esp_err_t timed(httpd_req_t *req)
     }
     route_t *r = req->user_ctx;
     bool lock = r->handler != post_ota; /* an upload takes seconds and shares nothing */
-    if (lock) {
-        web_lock();
+    /* a handler that hangs must not take every other request on both ports with it */
+    if (lock && xSemaphoreTake(handler_lock, pdMS_TO_TICKS(10000)) != pdTRUE) {
+        return send_error(req, "503 Service Unavailable", "busy");
     }
     int64_t start = esp_timer_get_time();
     char origin[96];
@@ -341,6 +382,7 @@ static void start_tls(void)
     for (size_t i = 0; i < web_route_count; i++) {
         httpd_register_uri_handler(tls_server, &web_uris[i]);
     }
+    watch(tls_server);
     httpd_register_err_handler(tls_server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(tls_server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
 }
@@ -406,6 +448,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     if (err != ESP_OK) {
         return err;
     }
+    watch(server);
     const struct {
         httpd_uri_t uri;
         web_level_t level;

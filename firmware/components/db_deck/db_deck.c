@@ -217,10 +217,18 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
     xTaskNotifyGive(s.writer_task);
 }
 
+static int brightness; /* pct + 1, 0: nothing to set */
+
 static void writer_task(void *arg)
 {
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        int pct = __atomic_exchange_n(&brightness, 0, __ATOMIC_RELAXED);
+        if (pct && s.present) {
+            xSemaphoreTake(s.io_lock, portMAX_DELAY);
+            s.dev.driver->set_brightness(&s.dev, (uint8_t)(pct - 1));
+            xSemaphoreGive(s.io_lock);
+        }
         for (;;) {
             if (s.replay) {
                 replay();
@@ -623,15 +631,15 @@ static esp_err_t to_esp(db_err_t err)
     return err == DB_OK ? ESP_OK : ESP_FAIL;
 }
 
+/* The writer task sets it: the web server and the Satellite link must not wait for a hung deck. */
 esp_err_t db_deck_set_brightness(uint8_t pct)
 {
     if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
-    xSemaphoreTake(s.io_lock, portMAX_DELAY);
-    db_err_t err = s.dev.driver->set_brightness(&s.dev, pct);
-    xSemaphoreGive(s.io_lock);
-    return to_esp(err);
+    __atomic_store_n(&brightness, pct + 1, __ATOMIC_RELAXED);
+    xTaskNotifyGive(s.writer_task);
+    return ESP_OK;
 }
 
 /* An image report from a dock host is collected until its image is whole, and that goes to the queue like a
