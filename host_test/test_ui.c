@@ -458,7 +458,11 @@ static void test_setup_shows_the_login_code_and_the_wizard_step(void)
     ui_menu_screen(&m, &md, &l, &sc);
     TEST_ASSERT_EQUAL_INT(TILE_QR, sc.tiles[l.cols + 2].kind);
     TEST_ASSERT_EQUAL_STRING("0123456789abcdef", sc.tiles[l.cols + 2].value);
-    TEST_ASSERT_EQUAL_STRING("3/6", sc.tiles[2 * l.cols - 1].value);
+    TEST_ASSERT_EQUAL_STRING("2/5",
+                             sc.tiles[2 * l.cols - 1].value); /* the page's numbers: 3 is its password step */
+    md.setup_step = 6;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("5/5", sc.tiles[2 * l.cols - 1].value);
     md.login_qr.size = 0;
     ui_menu_screen(&m, &md, &l, &sc);
     TEST_ASSERT_NOT_EQUAL_INT(TILE_QR, sc.tiles[l.cols + 2].kind);

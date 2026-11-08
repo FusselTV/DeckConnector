@@ -460,8 +460,10 @@ static void setup_keys(page_t *p)
         p->sc->qr = md->login_qr;
     }
     if (md->setup_step) {
+        /* the page's 5 steps for the stored 1 to 6, as FROM_NUM in web/src/pages/Wizard.tsx */
+        static const uint8_t page_step[] = {1, 1, 2, 2, 3, 4, 5};
         char step[8];
-        snprintf(step, sizeof(step), "%u/6", md->setup_step);
+        snprintf(step, sizeof(step), "%u/5", page_step[md->setup_step < 7 ? md->setup_step : 6]);
         card(put(p, at(p, 1, -1), K_NONE), ICON_WEB, "Setup", step, fit(p, "im Browser", ""));
     }
 }

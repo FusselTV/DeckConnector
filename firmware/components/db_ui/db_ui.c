@@ -8,6 +8,7 @@
 #include "db_deck.h"
 #include "db_dns.h"
 #include "db_dock.h"
+#include "db_json.h"
 #include "db_link.h"
 #include "db_log.h"
 #include "db_net.h"
@@ -59,6 +60,7 @@ static struct {
     ui_menu_t menu;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
     esp_timer_handle_t save_timer;
+    bool save_due;
     int64_t handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
 } s = {.active_link = -1, .update_pct = -1, .full = true, .menu = {.confirm_key = -1}, .brightness = -1};
 
@@ -306,9 +308,7 @@ static void model_login(ui_model_t *md, const db_config_t *c)
     char fresh[17];
     uint8_t raw[8];
     esp_fill_random(raw, sizeof(raw));
-    for (int i = 0; i < 8; i++) {
-        snprintf(fresh + 2 * i, 3, "%02x", raw[i]);
-    }
+    db_hex(fresh, raw, sizeof(raw));
     portENTER_CRITICAL(&login_mux);
     if (!want) {
         login_token[0] = '\0';
@@ -496,7 +496,7 @@ static void note(const char *text, bool to_main)
     xSemaphoreGive(s.lock);
 }
 
-static void save_brightness(void *arg)
+static void save_brightness(void)
 {
     int b = s.brightness;
     if (b < 0) {
@@ -695,6 +695,13 @@ static void render(const ui_screen_t *sc)
     }
 }
 
+/* The save writes flash and stores a 1.4 KB copy of the settings: not on the esp_timer task. */
+static void brightness_due(void *arg)
+{
+    s.save_due = true;
+    xTaskNotifyGive(s.task);
+}
+
 static void ui_task(void *arg)
 {
     static ui_screen_t sc; /* 5 KB, kept off the task stack */
@@ -703,6 +710,9 @@ static void ui_task(void *arg)
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         vTaskDelay(pdMS_TO_TICKS(REDRAW_DELAY));
         ulTaskNotifyTake(pdTRUE, 0);
+        if (__atomic_exchange_n(&s.save_due, false, __ATOMIC_RELAXED)) {
+            save_brightness();
+        }
         pick_writer();
         if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
             continue;
@@ -1005,7 +1015,7 @@ esp_err_t db_ui_start(void)
     esp_timer_handle_t timer;
     esp_timer_create(&targs, &timer);
     esp_timer_start_periodic(timer, 200000);
-    const esp_timer_create_args_t save = {.callback = save_brightness, .name = "brightness_save"};
+    const esp_timer_create_args_t save = {.callback = brightness_due, .name = "brightness_save"};
     esp_timer_create(&save, &s.save_timer);
     return ESP_OK;
 }
