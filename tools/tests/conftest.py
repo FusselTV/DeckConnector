@@ -1,4 +1,4 @@
-"""End to end tests against a real bridge on the bench (DECKBRIDGE_HOST, see dbtools.load) or firmware/sim."""
+"""End to end tests against a real bridge on the bench (host in the bench file, see dbtools.site) or firmware/sim."""
 
 import asyncio
 import atexit
@@ -25,6 +25,7 @@ from dbtools.load import HOST as DEVICE
 from dbtools.load import password
 from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate, settings_to_restore
 from dbtools.server import Server
+from dbtools.site import CAMERA, need
 
 
 def _target() -> str:
@@ -78,9 +79,8 @@ def _start_sim() -> tuple[str, str]:
 if TARGET == "sim":
     HOST, PASSWORD = _start_sim()
 else:
-    HOST = DEVICE
+    HOST = need(DEVICE, "host")
     PASSWORD = password()
-CAMERA = os.environ.get("DECKBRIDGE_CAMERA", "rtsp://192.168.1.163:8554/stream")
 PORTS = (8765, 8766)
 
 
@@ -225,6 +225,7 @@ def wait_for_bridge(timeout: float = 60) -> dict:
 
 
 def camera_frame() -> Image.Image:
+    need_camera()
     raw = subprocess.run(
         [
             "ffmpeg",
@@ -306,9 +307,15 @@ STRIP_IN_CAMERA = (700, 700, 1500, 790)
 _stream: CameraStream | None = None
 
 
+def need_camera() -> None:
+    if not CAMERA:
+        pytest.skip("no camera: set camera in ~/.config/deckbridge/bench.json")
+
+
 def camera() -> CameraStream:
     """One running stream for the whole run: a new connection costs about 6 s, waiting for a key frame."""
     global _stream
+    need_camera()
     if _stream is None or _stream.proc.poll() is not None:
         _stream = CameraStream()
         atexit.register(_stream.close)
@@ -317,7 +324,8 @@ def camera() -> CameraStream:
 
 @pytest.fixture(scope="session", autouse=True)
 def camera_warm():
-    camera()  # its first frame arrives while the first tests run
+    if CAMERA:
+        camera()  # its first frame arrives while the first tests run
 
 
 def strip_color() -> tuple[int, int, int]:

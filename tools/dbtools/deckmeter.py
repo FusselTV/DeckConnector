@@ -2,10 +2,10 @@
 same commands for both: the target is the bridge's or the dock's IP. What needs the bridge's API (simulated
 presses, the Satellite and server paths, acks, boot_ms) runs only when the target answers it.
 
-Needs the bench Companion on this machine (~/deckbridge-bench: companion.sh start, node
+Needs the bench Companion on this machine (bench_dir in the bench file, dbtools.site: companion.sh start, node
 companion.mjs setup) and the camera that films the deck. Results go into --out as JSON, under --label.
 
-uv run python -m dbtools.deckmeter camdelay --target 192.168.1.214 --out ESP.json      (bridge only, run first)
+uv run python -m dbtools.deckmeter camdelay --target deckconnector.local --out ESP.json      (bridge only, run first)
 uv run python -m dbtools.deckmeter pages|image|input|restart|blip|boot|traffic --target IP --mode satellite|dock --out F
 
 Every command that uses the deck holds /tmp/deckbridge-bench.lock and, on the bridge, sets the production settings
@@ -41,11 +41,11 @@ from dbtools.benchlock import bench_lock
 from dbtools.load import password
 from dbtools.safety import PRODUCTION, host_addr, real_input_target, require_input_gate
 from dbtools.server import Server, local_ip
+from dbtools.site import BENCH_DIR, CAMERA, HOST, UNIFI, need
 
-CAMERA = os.environ.get("DECKBRIDGE_CAMERA", "rtsp://192.168.1.163:8554/stream")
 COMPANION = "http://127.0.0.1:8000"
 CONTAINER = "companion-bench"
-BENCH = Path(os.environ.get("DECKMETER_BENCH", Path.home() / "deckbridge-bench"))
+BENCH = Path(os.environ.get("DECKMETER_BENCH", BENCH_DIR))
 CAPTURES = Path(os.environ.get("DECKMETER_CAPTURES", BENCH.parent / "captures"))
 DRIVE = Path(__file__).resolve().parents[1] / "companion-check/drive.mjs"
 PORTS = {"dock": {5343, 5344, *range(20000, 20010)}, "satellite": {16622, 16623}}  # Elgato dock: deck on 2000x
@@ -103,6 +103,7 @@ class Camera:
     W, H = 1920 // SCALE, 1080 // SCALE
 
     def __init__(self):
+        need(CAMERA, "camera")
         h = HALF // SCALE
         self.boxes = [(x // SCALE - h, y // SCALE - h, x // SCALE + h, y // SCALE + h) for x, y in REGIONS.values()]
         self.frames: list[tuple[float, dict]] = []
@@ -1003,7 +1004,7 @@ def main():
     ap.add_argument(
         "metric", choices=["camdelay", "pages", "image", "input", "restart", "blip", "boot", "traffic", "snapshot"]
     )
-    ap.add_argument("--target", default="192.168.1.214", help="the bridge or the Network Dock")
+    ap.add_argument("--target", default=HOST, help="the bridge or the Network Dock")
     ap.add_argument("--mode", choices=["satellite", "dock"], default="dock")
     ap.add_argument("--out", type=Path, help="JSON file the results are added to")
     ap.add_argument("--label", help="key in --out, default esp-<mode> or dock-<mode>")
@@ -1016,8 +1017,8 @@ def main():
     ap.add_argument("--secs", type=float, default=4, help="per rate (image), idle phase (traffic), listening (manual)")
     ap.add_argument("--manual", action="store_true", help="input: a person presses, nothing is simulated")
     ap.add_argument("--blips", default="3,15", help="seconds without network, comma separated")
-    ap.add_argument("--port", type=int, default=4, help="boot: switch port, 4 the bridge, 2 the Network Dock")
-    ap.add_argument("--usb-unplugged", action="store_true", help="boot on port 4: the bridge's USB cable is out")
+    ap.add_argument("--port", type=int, default=UNIFI.get("port"), help="boot: switch port, default the bridge's")
+    ap.add_argument("--usb-unplugged", action="store_true", help="boot on the bridge's port: its USB cable is out")
     ap.add_argument(
         "--dock-log",
         default=r"StreamDeck connected: Stream Deck [^N]",

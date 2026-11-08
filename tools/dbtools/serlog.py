@@ -6,7 +6,7 @@ import time
 
 import serial
 
-URL = "rfc2217://192.168.1.170:4000?ign_set_control"
+from dbtools.site import SERIAL, need
 
 
 def main() -> None:
@@ -15,7 +15,7 @@ def main() -> None:
     ap.add_argument("--reset", action="store_true")
     a = ap.parse_args()
     # RTS and DTR must be low before open, or the board stays in reset.
-    s = serial.serial_for_url(URL, 115200, timeout=0.3, do_not_open=True)
+    s = serial.serial_for_url(need(SERIAL, "serial"), 115200, timeout=0.3, do_not_open=True)
     s.dtr = False
     s.rts = False
     s.open()

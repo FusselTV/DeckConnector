@@ -108,7 +108,7 @@ Upload `fw.dbfw` in the web UI, or let a server send `{"t": "ota", "url": ...}`.
 
 ```
 cmake -S host_test -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host
-cd tools && uv run pytest tests            # end to end, needs the bench
+cd tools && uv run pytest tests            # end to end, needs a board
 cd tools && uv run pytest tests -m ota     # updates, restarts the board
 ```
 
@@ -121,7 +121,27 @@ cd tools && uv run pytest tests --target sim -n auto
 
 Building for Linux needs `libbsd-dev`. Only tests marked `sim` run there.
 
+The end to end tests need the board's address as `host` in `~/.config/deckbridge/bench.json`. The other keys
+are in `tools/dbtools/site.py`. Tests that need a camera, a switch or a test Companion skip until those are set.
+
 ## Limits
 
 - The ESP32-C6 has no 5 GHz radio.
 - Up to four Network Dock hosts and four servers at once. Only the picked one draws and gets the input.
+
+## License
+
+AGPL-3.0, see [LICENSE](LICENSE).
+
+## Third-party code
+
+| Part | License |
+|---|---|
+| [ESP-IDF](https://github.com/espressif/esp-idf) and its components (esp_hosted, esp_wifi_remote, eppp_link, mdns, usb) | Apache-2.0 |
+| `firmware/vendor/esp_hal_usb`, `firmware/vendor/usb`, `firmware/vendor/mdns`: patched copies from esp-idf and esp-usb, each with its LICENSE | Apache-2.0 |
+| [cJSON](https://github.com/DaveGamble/cJSON) | MIT |
+| [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
+| DejaVu Sans, in `db_ui/font_data.c` | Bitstream Vera license |
+| Material Design Icons, in `db_ui/font_data.c` | Apache-2.0 |
+| React, React DOM | MIT |
+| Lucide icons (lucide-react) | ISC |

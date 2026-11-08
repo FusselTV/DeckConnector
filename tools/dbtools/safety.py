@@ -10,6 +10,7 @@ import ipaddress
 from urllib.parse import urlparse
 
 from dbtools.server import local_ip
+from dbtools.site import PRODUCTION
 
 
 class UnsafeBridge(RuntimeError):
@@ -48,10 +49,6 @@ def real_input_target(status: dict) -> str:
     if not mine:
         raise UnsafeBridge(f"{drawing[0]['kind']} at {host} draws: real presses go only to a host on this machine")
     return addr
-
-
-# CLAUDE.md: the bench is the owner's deck
-PRODUCTION = {"controller": "companion", "host": "satellite", "satellite": "wss://companion.example.com/satellite"}
 
 
 def settings_to_restore(cfg: dict) -> dict:

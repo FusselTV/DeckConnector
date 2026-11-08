@@ -1,6 +1,6 @@
 """Follow the bridge's log over the network, from the oldest line it still keeps (the boot, after a restart).
 
-uv run python -m dbtools.netlog [--secs 60] [--host 192.168.1.214]
+uv run python -m dbtools.netlog [--secs 60] [--host ADDRESS]
 Needs the password (~/.config/deckbridge/admin_pass): a token gets no log.
 """
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Flash over the serial bridge (serial bridge) and keep a serial log in /tmp/esp-live.log.
+# Flash over the RFC2217 serial bridge (serial in the bench file, dbtools.site) and keep a serial log in /tmp/esp-live.log.
 # Usage: flash.sh [app|all]   app writes only the running slot, all writes bootloader and partition table too.
 set -euo pipefail
-PORT='rfc2217://192.168.1.170:4000?ign_set_control'
+PORT=$(cd "$(dirname "$0")" && uv run --quiet python -m dbtools.site serial)
+[ -n "$PORT" ] || { echo "set serial in ~/.config/deckbridge/bench.json" >&2; exit 1; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 BUILD="$HERE/../firmware/build"
 

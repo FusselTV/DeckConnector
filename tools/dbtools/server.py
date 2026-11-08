@@ -18,7 +18,7 @@ def now_us() -> int:
     return time.monotonic_ns() // 1000
 
 
-def local_ip(towards: str = "192.168.1.1") -> str:
+def local_ip(towards: str = "192.0.2.1") -> str:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((towards, 9))
         return s.getsockname()[0]

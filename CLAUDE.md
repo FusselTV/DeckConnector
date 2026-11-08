@@ -1,7 +1,9 @@
 # Bench rules
 
-The bench bridge (192.168.1.214) is also the owner's production deck. Companion and the Elgato App behind it
-switch real lights, scenes, a vacuum and more through Home Assistant, MQTT and HTTP.
+The bench bridge may also be someone's production deck. Companion and the Elgato App behind it can switch real
+lights, scenes and more through Home Assistant, MQTT and HTTP. Bench values (bridge address, camera, test Companion,
+production settings, switch) live in `~/.config/deckbridge/bench.json`, read by `tools/dbtools/site.py`. Private
+bench facts go in `CLAUDE.local.md`, never in the repo.
 
 - Simulated presses (`POST /api/input`, `{"t": "input"}` on `/api/ws`, encoder turns, touches) must never reach a real
   host. Firmware that reports `simulated_input: "local"` in `/api/status` keeps them away from Companion, the Elgato
@@ -13,6 +15,6 @@ switch real lights, scenes, a vacuum and more through Home Assistant, MQTT and H
 - Never press anything on firmware without that gate: `dbtools.safety.require_input_gate` before the first press.
   `tests/conftest.py` ends the whole run when the bridge lacks it, also after a slot switch.
 - Ad-hoc scripts follow the same rules as tests. When in doubt, point them at a dock host or test Companion on this
-  machine (`tools/companion-check`, a local Companion container), never at the production Companion (192.168.1.15).
-- After any test, the bridge goes back to its production settings (`controller: companion`, `host: satellite`,
-  `satellite: wss://companion.example.com/satellite`), and core draws again.
+  machine (`tools/companion-check`, a local Companion container), never at the production Companion.
+- After any test, the bridge goes back to its production settings (`production` in the bench file), and the
+  production host draws again.

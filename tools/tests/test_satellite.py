@@ -1,9 +1,8 @@
 """Companion over its Satellite API. Needs a Companion the bridge can reach that is not the one in use, set as
-DECKBRIDGE_SATELLITE (host:port); skipped when nothing answers there. The bridge draws from it while the test
-runs, then goes back to what it had."""
+satellite_test (host:port) in the bench file; skipped when nothing answers there. The bridge draws from it while
+the test runs, then goes back to what it had."""
 
 import json
-import os
 import socket
 import time
 
@@ -11,11 +10,12 @@ import pytest
 from conftest import api, put_config, status
 
 from dbtools.safety import real_input_target
-
-SATELLITE = os.environ.get("DECKBRIDGE_SATELLITE", "192.168.1.128:16622")
+from dbtools.site import SATELLITE_TEST as SATELLITE
 
 
 def reachable(addr: str) -> bool:
+    if not addr:
+        return False
     host, port = addr.rsplit(":", 1)
     try:
         socket.create_connection((host, int(port)), timeout=2).close()
@@ -24,7 +24,9 @@ def reachable(addr: str) -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(not reachable(SATELLITE), reason=f"no Companion at {SATELLITE}")
+pytestmark = pytest.mark.skipif(
+    not reachable(SATELLITE), reason=f"no test Companion at {SATELLITE or 'satellite_test'}"
+)
 
 
 def satellite_source() -> dict | None:

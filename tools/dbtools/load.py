@@ -1,6 +1,6 @@
 """Load test for the HTTP API: latency per endpoint, throughput, and several Home Assistant instances at once.
 
-uv run python -m dbtools.load [--host 192.168.1.214] [--secs 20]
+uv run python -m dbtools.load [--host ADDRESS] [--secs 20]
 uv run python -m dbtools.load --json B0.json      adds this run's numbers to a baseline file (several runs = noise band)
 uv run python -m dbtools.load --compare B0.json new.json   lists what got worse beyond the noise; exit 1 if anything did
 
@@ -13,7 +13,6 @@ import asyncio
 import base64
 import http.client
 import json
-import os
 import signal
 import statistics
 import subprocess
@@ -24,6 +23,8 @@ from collections import Counter
 from pathlib import Path
 
 from websockets.sync.client import connect
+
+from dbtools.site import HOST
 
 ENDPOINTS = ["/api/status", "/api/config", "/api/screen", "/api/screen.jpg", "/api/metrics", "/api/slots", "/"]
 failures: Counter = Counter()  # every failed attempt by type, also the ones a retry hid
@@ -40,9 +41,6 @@ def report_failures() -> str:
         text = ", ".join(f"{k} {v}" for k, v in failures.most_common()) or "none"
         failures.clear()
     return f"failed attempts: {text}"
-
-
-HOST = os.environ.get("DECKBRIDGE_HOST", "192.168.1.214")
 
 
 def password() -> str:

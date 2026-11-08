@@ -14,3 +14,7 @@ host_test/ui/
 *.pem
 *.key
 .env*
+
+# private bench notes and values
+CLAUDE.local.md
+bench.json

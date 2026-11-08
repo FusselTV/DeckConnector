@@ -1,10 +1,10 @@
-"""A real power cut: the UniFi switch turns PoE on a port (4, the bridge) off and on (an action, no config change).
+"""A real power cut: the UniFi switch turns PoE on the bridge's port off and on (an action, no config change).
 
-Only with the USB serial cable unplugged, or USB keeps the board powered and nothing is cut. See
-~/projects/deckbridge-bench/poe-test.md.
+Only with the USB serial cable unplugged, or USB keeps the board powered and nothing is cut. The switch and its
+ports come from unifi in the bench file (dbtools.site).
 
 uv run python -m dbtools.poe --usb-unplugged
-uv run python -m dbtools.poe --port 2      the Elgato Network Dock
+uv run python -m dbtools.poe --port DOCK_PORT      the Elgato Network Dock
 """
 
 import argparse
@@ -14,11 +14,13 @@ import ssl
 import urllib.request
 from pathlib import Path
 
-KEY = Path.home() / ".config/deckbridge/unifi-api-key"
-SITE = "https://unifi.example/proxy/network/api/s/default"
-SWITCH = "000000000000000000000000"  # USW Flex 2.5G 8 PoE, as in tests/test_lan_failover.py
-PORT = 4
-DOCK_PORT = 2
+from dbtools.site import UNIFI
+
+SITE = UNIFI.get("url", "")
+KEY = Path(UNIFI.get("key_file", "")).expanduser()
+SWITCH = UNIFI.get("switch_id", "")
+PORT = UNIFI.get("port", 0)
+DOCK_PORT = UNIFI.get("dock_port", 0)
 TLS = ssl.create_default_context()
 TLS.check_hostname = False
 TLS.verify_mode = ssl.CERT_NONE
@@ -35,8 +37,10 @@ def call(path: str, body: dict | None = None) -> dict:
 
 
 def power_cut(usb_unplugged: bool = False, port: int = PORT) -> None:
-    """Power-cycle a PoE port, port 4 being the bridge's, after checking that it is powered. For the bridge, callers
+    """Power-cycle a PoE port, PORT being the bridge's, after checking that it is powered. For the bridge, callers
     confirm the unplugged USB cable with the flag or DECKBRIDGE_USB_UNPLUGGED=1."""
+    if not (SITE and SWITCH and PORT):
+        raise SystemExit("set unifi url, key_file, switch_id and port in ~/.config/deckbridge/bench.json")
     if port not in (DOCK_PORT, PORT):
         raise SystemExit(f"port {port}: only {DOCK_PORT} (the Elgato Network Dock) and {PORT} (the bridge)")
     if port == PORT and not (usb_unplugged or os.environ.get("DECKBRIDGE_USB_UNPLUGGED") == "1"):
@@ -51,7 +55,7 @@ def power_cut(usb_unplugged: bool = False, port: int = PORT) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--usb-unplugged", action="store_true", help="the bridge's USB serial cable is out")
-    ap.add_argument("--port", type=int, default=PORT, choices=(DOCK_PORT, PORT), help="2: the Elgato Network Dock")
+    ap.add_argument("--port", type=int, default=PORT, choices=(DOCK_PORT, PORT), help=f"{DOCK_PORT}: the Network Dock")
     a = ap.parse_args()
     power_cut(a.usb_unplugged, a.port)
     print(f"port {a.port} power-cycled")

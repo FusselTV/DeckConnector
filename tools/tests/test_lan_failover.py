@@ -7,20 +7,23 @@ not see a link-down event and has to notice the dead path by itself.
 import asyncio
 import base64
 import json
+import socket
 import ssl
 import time
 import urllib.request
-from pathlib import Path
 
 import pytest
 from conftest import PASSWORD
 
-pytestmark = pytest.mark.unifi
-KEY = Path.home() / ".config/deckbridge/unifi-api-key"
-SITE = "https://unifi.example/proxy/network/api/s/default"
-SWITCH_ID = "000000000000000000000000"
-PORT = 4
-LAN_IP = "192.168.1.214"
+from dbtools.poe import KEY, PORT, SITE
+from dbtools.poe import SWITCH as SWITCH_ID
+from dbtools.site import HOST
+
+pytestmark = [
+    pytest.mark.unifi,
+    pytest.mark.skipif(not (SITE and SWITCH_ID and PORT), reason="no switch: set unifi in the bench file"),
+]
+LAN_IP = socket.gethostbyname(HOST) if HOST else ""
 
 
 async def answers(ip: str) -> bool:
@@ -50,7 +53,7 @@ def set_port(ports: list) -> None:
 
 
 def blocked(ports: list) -> list:
-    """The port's other settings (STP off on port 4, for one) stay: PUT replaces the whole list."""
+    """The port's other settings (STP off, for one) stay: PUT replaces the whole list."""
     own = next((o for o in ports if o["port_idx"] == PORT), {"port_idx": PORT})
     rest = [o for o in ports if o["port_idx"] != PORT]
     return [*rest, {**own, "port_security_enabled": True, "port_security_mac_address": []}]
