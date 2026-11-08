@@ -3,47 +3,134 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  host-tests:
+  changes:
     runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read # paths-filter lists the files of a pull request
+    outputs:
+      firmware: ${{ steps.filter.outputs.firmware }}
+      host: ${{ steps.filter.outputs.host }}
+      lint: ${{ steps.filter.outputs.lint }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
-      - uses: actions/checkout@v4
+      # Pushes, tags and manual runs build everything; only pull requests skip by path.
+      - if: github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/workflows/ci.yml]
+            host: [host_test/**, firmware/components/**, .github/workflows/ci.yml]
+            lint: [tools/**, firmware/**, host_test/**, .clang-format, .clang-tidy, .github/workflows/ci.yml]
+            web: [web/**, .github/workflows/ci.yml]
+
+  host-tests:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.host == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: sudo apt-get install -y ninja-build
       - run: cmake -S host_test -B build-host -G Ninja && cmake --build build-host
       - run: ctest --test-dir build-host --output-on-failure
 
-  firmware:
+  lint:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.lint == 'true'
     runs-on: ubuntu-24.04
-    container: espressif/idf:v6.0.2
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - run: cd tools && uvx ruff@0.17.3 check . && uvx ruff@0.17.3 format --check .
+      - run: git ls-files 'firmware/components/db_*/*.c' 'firmware/components/db_*/*.h' 'firmware/components/db_*/include/*.h' 'firmware/main/*.c' 'firmware/components/db_core/drivers/*.c' 'host_test/*.c' | grep -v font_data.c | xargs pipx run clang-format==19.1.7 --dry-run --Werror
+      - run: sudo apt-get install -y ninja-build && cmake -S host_test -B build-host -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - run: pipx run clang-tidy==19.1.0 -p build-host firmware/components/db_core/*.c firmware/components/db_core/drivers/*.c
+
+  web:
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      needs.changes.outputs.web == 'true' || needs.changes.outputs.firmware == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: npm
+          # no cache on tags: the release builds from a clean slate
+          cache: ${{ github.ref_type != 'tag' && 'npm' || '' }}
           cache-dependency-path: web/package-lock.json
-      - name: Web UI
-        run: cd web && npm ci && npm run check
+      - run: cd web && npm ci && npm run check
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-page
+          path: web/dist/index.html
+          if-no-files-found: error
+
+  firmware:
+    needs: [changes, web]
+    if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+    permissions:
+      contents: read
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 500M
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # git describe sets the firmware version
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-page
+          path: web/dist
+      - if: github.ref_type != 'tag'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: ccache-${{ github.sha }}
+          restore-keys: ccache-
       - name: Build
         shell: bash
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           . "$IDF_PATH/export.sh"
-          cd firmware && idf.py build
-      - uses: actions/upload-artifact@v4
+          idf.py -C firmware build
+          cd tools && python -m dbtools.flashimage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deckconnector
           path: firmware/build/deckconnector.bin
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: flasher
+          path: firmware/build/web-flash/
+          if-no-files-found: error
 
-  lint:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: cd tools && uvx ruff@0.17.3 check . && uvx ruff@0.17.3 format --check .
-      - run: pipx run clang-format==19.1.7 --dry-run --Werror $(git ls-files 'firmware/components/db_*/*.c' 'firmware/components/db_*/*.h' 'firmware/components/db_*/include/*.h' 'firmware/main/*.c' 'firmware/components/db_core/drivers/*.c' 'host_test/*.c' | grep -v font_data.c)
-      - run: sudo apt-get install -y ninja-build && cmake -S host_test -B build-host -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-      - run: pipx run clang-tidy==19.1.0 -p build-host firmware/components/db_core/*.c firmware/components/db_core/drivers/*.c

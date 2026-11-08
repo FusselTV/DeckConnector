@@ -1,0 +1,108 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      pull-requests: read # ci.yml asks for it, used on pull requests only
+
+  sign:
+    needs: ci
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+    env:
+      OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+    steps:
+      - if: env.OTA_SIGNING_KEY == ''
+        run: echo "::notice::OTA_SIGNING_KEY is not set, the release has no .dbfw files"
+      - if: env.OTA_SIGNING_KEY != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: env.OTA_SIGNING_KEY != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: deckconnector
+          path: firmware/build
+      - if: env.OTA_SIGNING_KEY != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-page
+          path: web/dist
+      - if: env.OTA_SIGNING_KEY != ''
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - if: env.OTA_SIGNING_KEY != ''
+        name: Sign
+        working-directory: tools
+        run: |
+          mkdir -p ~/.config/deckbridge out
+          (umask 077 && printf '%s\n' "$OTA_SIGNING_KEY" > ~/.config/deckbridge/ota_key.pem)
+          uv run --no-project --with cryptography python - <<'EOF'
+          import os, re
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization
+          from dbtools import dbfw
+
+          key = serialization.load_pem_private_key(dbfw.KEY.read_bytes(), None)
+          raw = key.public_key().public_bytes(
+              serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+          )
+          built_in = bytes(int(b, 16) for b in re.findall(r"0x([0-9a-f]{2})", dbfw.PUBKEY_C.read_text().split("=", 1)[1]))
+          if raw != built_in:
+              print("::error::OTA_SIGNING_KEY does not match firmware/components/db_ota/ota_pubkey.c, no .dbfw files")
+              raise SystemExit(0)
+          tag = os.environ["GITHUB_REF_NAME"]
+          app = Path("../firmware/build/deckconnector.bin").read_bytes()
+          Path(f"out/deckconnector-{tag}.dbfw").write_bytes(dbfw.build("p4", app, tag, key))
+          Path(f"out/deckconnector-web-{tag}.dbfw").write_bytes(dbfw.web_image(key))
+          EOF
+          rm ~/.config/deckbridge/ota_key.pem
+      - if: env.OTA_SIGNING_KEY != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dbfw
+          path: tools/out/
+          if-no-files-found: ignore
+
+  publish:
+    needs: sign
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # create the release
+      actions: write # start the site deploy, a release made with GITHUB_TOKEN triggers no workflow
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: '{flasher,dbfw}'
+          path: assets
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd assets && sha256sum -- * > SHA256SUMS)
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$TAG^" 2>/dev/null || true)
+          git log --no-merges --format='- %s (%h)' ${prev:+"$prev.."}"$TAG" > notes.md
+          [ -n "$prev" ] && printf '\nChanges since %s.\n' "$prev" >> notes.md
+          pre=(); [[ "$TAG" == *-* ]] && pre=(--prerelease)
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md "${pre[@]}" assets/*
+          [ ${#pre[@]} -eq 0 ] && { gh workflow run site.yml || echo "::warning::could not start the site deploy"; }
+          true
