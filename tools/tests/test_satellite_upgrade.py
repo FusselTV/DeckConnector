@@ -18,7 +18,7 @@ from test_satellite_fake import Fake, Server, wait
 from dbtools.server import local_ip
 
 KEYS = ("satellite", "satellite_auto", "satellite_pin", "controller", "host")
-AUTO = {"satellite": "", "satellite_auto": True}  # no address, and the move allowed
+AUTO = {"satellite": "", "satellite_auto": True, "controller": "companion", "host": ""}  # the move allowed
 
 
 def logged(text: str, since: float) -> int:
@@ -190,7 +190,7 @@ def test_a_removed_address_stops_the_move_until_one_is_set_again():
         put_config(AUTO)
         assert get_config()["satellite_auto"] is True
     finally:
-        put_config({k: cfg[k] for k in ("satellite", "satellite_auto")})
+        put_config({k: cfg[k] for k in KEYS if k in cfg})
 
 
 def test_a_satellite_name_refuses_its_companion_while_the_session_is_down(me):
