@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for deckbridge: unique records are answered without the random delay (see "deckbridge:" below).
  */
 #include <string.h>
 #include "sdkconfig.h"
