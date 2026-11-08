@@ -1,0 +1,74 @@
+---
+title: Home Assistant
+description: Status der Platine lesen und sie aus Home Assistant über die API steuern.
+---
+
+Eine Home-Assistant-Integration gibt es noch nicht. Die [API](/de/docs/api) deckt Status, Helligkeit, die Wahl des Programms, das Deck-Bild und Neustarts ab, also kann die REST-Integration sie nutzen.
+
+## API-Schlüssel
+
+Leg unter **Zugang › API-Schlüssel** einen Schlüssel an. Zum Lesen reicht **Steuern**. Helligkeit, die Wahl des Programms und Neustarts brauchen **Vollzugriff**. Trag ihn in `secrets.yaml` ein.
+
+```yaml title="secrets.yaml"
+deckconnector_auth: "Bearer DEIN_SCHLUESSEL"
+```
+
+## Status und Steuerung
+
+```yaml title="configuration.yaml"
+rest:
+  - resource: http://192.168.1.50/api/status
+    headers:
+      Authorization: !secret deckconnector_auth
+    scan_interval: 30
+    sensor:
+      - name: DeckConnector writer
+        value_template: "{{ value_json.writer }}"
+      - name: DeckConnector uptime
+        value_template: "{{ value_json.uptime_s }}"
+        unit_of_measurement: s
+      - name: DeckConnector Wi-Fi signal
+        value_template: "{{ value_json.network.wlan.rssi }}"
+        unit_of_measurement: dBm
+    binary_sensor:
+      - name: DeckConnector deck
+        value_template: "{{ value_json.device is not none }}"
+
+rest_command:
+  deckconnector_brightness:
+    url: http://192.168.1.50/api/config
+    method: put
+    headers:
+      Authorization: !secret deckconnector_auth
+    content_type: application/json
+    payload: '{"brightness": {{ pct }}}'
+  deckconnector_use_companion:
+    url: http://192.168.1.50/api/config
+    method: put
+    headers:
+      Authorization: !secret deckconnector_auth
+    content_type: application/json
+    payload: '{"controller": "companion", "host": "satellite"}'
+  deckconnector_reboot:
+    url: http://192.168.1.50/api/reboot
+    method: post
+    headers:
+      Authorization: !secret deckconnector_auth
+```
+
+`GET /api/screen.jpg` liefert das Deck-Bild als ein JPEG, etwa für eine Kamera.
+
+## Was die API sonst bietet
+
+| Bedarf | Quelle |
+|---|---|
+| Platine finden | mDNS-Dienst `_deckconnector-api._tcp`. `id` im Status ist ihre MAC-Adresse und bleibt, wenn sich der Name ändert |
+| Live-Änderungen | Der WebSocket `/api/ws`. `state` bei jeder Änderung, `screen` bei neuem Bild, `input` bei jedem Druck und jeder Drehung, `ping` alle 5 s |
+| Taste drücken | `POST /api/input` mit `{"key": 3}`. Ohne `"real"` erreicht es nur die eigenen Bildschirme der Platine und deine eigenen Server |
+| Programme | `sources` im Status, je mit `connected` und `drawing` |
+| Last | `GET /api/metrics`, CPU und RAM |
+| Update | `firmware` im Status, `POST /api/ota/url` zum Installieren |
+
+Ein API-Schlüssel bekommt über den WebSocket nie simulierte Eingaben. Automationen, die auf `input` reagieren, sehen also nur echte Drücke am Deck.
+
+Mit **Nur HTTPS** nimmst du `https://` und Port 443 und vertraust dem eigenen Zertifikat der Platine. Siehe [Zugang und Sicherheit](/de/docs/security#https).

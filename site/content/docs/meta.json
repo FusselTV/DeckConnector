@@ -1,1 +1,26 @@
-{ "title": "Docs", "pages": ["index"] }
+{
+  "title": "Docs",
+  "pages": [
+    "---Start---",
+    "index",
+    "getting-started",
+    "flashing",
+    "first-setup",
+    "---Connect---",
+    "companion",
+    "elgato-app",
+    "own-server",
+    "hosts",
+    "home-assistant",
+    "---Use---",
+    "web-ui",
+    "network",
+    "security",
+    "updates",
+    "troubleshooting",
+    "---Reference---",
+    "api",
+    "hardware",
+    "license"
+  ]
+}

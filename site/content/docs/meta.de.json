@@ -1,1 +1,26 @@
-{ "title": "Anleitung", "pages": ["index"] }
+{
+  "title": "Anleitung",
+  "pages": [
+    "---Start---",
+    "index",
+    "getting-started",
+    "flashing",
+    "first-setup",
+    "---Verbinden---",
+    "companion",
+    "elgato-app",
+    "own-server",
+    "hosts",
+    "home-assistant",
+    "---Betrieb---",
+    "web-ui",
+    "network",
+    "security",
+    "updates",
+    "troubleshooting",
+    "---Referenz---",
+    "api",
+    "hardware",
+    "license"
+  ]
+}

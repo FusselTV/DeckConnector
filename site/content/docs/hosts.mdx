@@ -1,0 +1,41 @@
+---
+title: Multiple hosts
+description: Several programs connected at once, and how to pick the one that draws.
+---
+
+Every program that can draw is in one list: Companion over Satellite, the Network Dock hosts (Companion and the Elgato App) and your own servers. Up to 4 servers and up to 4 dock hosts can be connected at once, in any mix.
+
+One of them is **chosen**. It draws and gets the input. The others stay connected and keep drawing into their own picture in the background. When you switch, the deck shows the new host's picture at once.
+
+## Switching
+
+- **On the deck.** The top row of the home screen and of the menu lists the hosts. Tap one, then tap again while it says **Wechseln?** (switch?).
+- **In the web UI.** Pick another row under **Active source** on the overview.
+- **Over the API.** Send `controller` and `host` together, see below.
+
+When nobody draws, the deck shows its home screen. It says what is missing, for example **Warte auf Companion** (waiting for Companion).
+
+## When a host goes away
+
+- When the chosen host is not connected, the first connected host of the same program draws. For Companion the Satellite connection comes first.
+- For your own servers, the first connected one in the list draws. When it goes away, the next one takes over. That is at once when the connection closes, and within 6 s when the server goes silent.
+- When no host of the chosen program is connected, the deck shows its home screen.
+
+## Over the API
+
+Two settings pick the host. `controller` is the program, `host` names the entry from `sources` in the status.
+
+| `controller` | Program | `host` |
+|---|---|---|
+| `companion` | Companion, over Satellite or as a dock host | `satellite`, or the dock host's IP |
+| `app` | The Elgato App | The dock host's IP |
+| `server` | Your own servers | The server URL |
+
+An empty `host` means the first connected host of that program.
+
+```bash
+curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -X PUT \
+  -d '{"controller": "companion", "host": "satellite"}' http://192.168.1.50/api/config
+```
+
+The change works at once, without a restart.

@@ -1,0 +1,42 @@
+---
+title: Netzwerk
+description: LAN, WLAN, Ausfallsicherheit, feste Adressen und Namen.
+---
+
+Die Platine nutzt LAN und WLAN gleichzeitig. Jedes hat seine eigene Adresse.
+
+## Ausfallsicherheit
+
+- Verbindungen laufen über LAN, solange es geht.
+- Ist ein Server oder Companion über LAN nicht erreichbar, geht der nächste Versuch über WLAN. Antwortet das LAN wieder, wechselt die Verbindung zurück.
+- Die Platine pingt das Gateway. Ein LAN, das den Link hält, aber nichts mehr durchlässt, gilt nach etwa 6 s als tot.
+- Per mDNS meldet sich die Platine in jeweils einem Netz an. Das ist das LAN, oder das WLAN, solange das LAN keine Adresse hat oder als tot gilt.
+
+Richte WLAN auch mit Kabel als Ersatz ein. Die Weboberfläche listet die Netze in Reichweite.
+
+## WLAN
+
+- Nur 2,4 GHz. Versteckte Netze stehen nicht in der Liste, du kannst sie aber von Hand eintragen.
+- Die Platine testet ein neues Netz zuerst. Sie speichert es nur, wenn es ihr eine Adresse gibt. Sonst kommt das alte zurück.
+- Unter **Zugangspunkte (BSSID) zeigen** bindest du die Platine an einen Zugangspunkt. Ohne das nimmt sie den stärksten und wechselt bei Bedarf.
+
+## Feste Adresse
+
+LAN und WLAN nehmen jeweils DHCP oder eine feste Adresse. Eine feste Adresse braucht IP und Netzmaske. Das Gateway ist optional und muss im selben Netz liegen. `10.0.0.5/24` geht im IP-Feld auch.
+
+Eine Netzwerkänderung startet die Platine beim Speichern neu. Die Weboberfläche zeigt dann, wo sie zu finden ist.
+
+Auf einem Deck mit Drehreglern stellst du eine feste LAN-Adresse auch im Deck-Menü unter LAN ein.
+
+## Namen
+
+Die Platine meldet sich per mDNS als `<name>.local` an, zum Beispiel `deckconnector-a1b2c3.local`.
+
+| mDNS-Dienst | Was |
+|---|---|
+| `_deckconnector-api._tcp` | Weboberfläche und API |
+| `_elg._tcp` | Das Network Dock, nur solange ein Deck steckt |
+
+## Uhr
+
+Die Platine stellt ihre Uhr per NTP. Sie nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. Mit `ntp_server` in den Einstellungen legst du einen eigenen fest.

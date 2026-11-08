@@ -1,0 +1,61 @@
+---
+title: Troubleshooting
+description: What the deck screens mean, and what to do when something does not connect.
+---
+
+## The deck screens
+
+| On the deck | Meaning | What to do |
+|---|---|---|
+| **Kein Netz** | Neither LAN nor Wi-Fi has an address | Plug in a LAN cable. Before setup is done, the setup Wi-Fi opens after a minute. Later, start it in the menu under **Setup-WLAN** |
+| **Warte auf Companion** | Companion is the chosen program, but not connected | See [Companion does not connect](#companion-does-not-connect) |
+| **Warte auf die Elgato App** | The Elgato App is chosen, but not connected | See [The Elgato App does not find the deck](#the-elgato-app-does-not-find-the-deck) |
+| **Suche Server** | No server URL is set, and none announces itself over mDNS | Add the server URL under **Sources** |
+| **Server getrennt** | The server URL is set, but the server does not answer | Check that the server runs and that the URL and port are right |
+| **Verbindungsanfrage** | An unknown computer wants the deck, and only paired hosts may connect | **Annehmen** (accept) lets it in, **Ablehnen** (deny) keeps it out |
+| **Companion gefunden** | A Companion announces Satellite in the network | **Verbinden** (connect) connects it over Satellite. **Nein** (no) stops asking |
+| **Setup 2/5** | Someone runs the web wizard | Finish or skip it in the browser |
+
+## The deck stays dark or is slow
+
+- Check that the board has power. With PoE, the switch port must deliver PoE.
+- The deck must be in the board's **USB-A** port.
+- In the web UI, **Reconnect deck** turns its USB power off and on.
+- Behind a USB hub the deck may only run at full speed. Pictures then come about three times slower. Plug it in directly.
+
+## The web UI does not open
+
+- Use the IP from the deck menu instead of the `.local` name.
+- With **HTTPS only** on, the address must start with `https://`.
+- After a network change, the board has a new address. The deck menu shows it.
+- After too many wrong passwords, the login waits up to a minute.
+- Lost the password? See [Access and security](/docs/security#lost-password).
+
+## Companion does not connect
+
+- In Companion, **Settings › Satellite** must be on.
+- The board must reach Companion on TCP port 16622, or 16623 for `ws://`. A Companion in Docker needs that port published. It does not announce itself in the LAN, so enter its address by hand.
+- **Check** next to the address under **Sources** tells you whether Companion answers.
+- Companion shows two surfaces of the same deck? A proxy hides Companion's address from the board. Remove the remote surface in Companion.
+
+## The Elgato App does not find the deck
+
+- The computer must be in the same network as the board, not a guest Wi-Fi.
+- A firewall on the computer may block the app.
+- The deck must be plugged in. The app ignores a dock without a deck until the app restarts.
+- A denied app asks again only after it restarts.
+
+## An update does not stay
+
+A new firmware has two minutes to reach the network and stay up for 20 seconds. Otherwise the board goes back to the old one. The log of the start before shows why, under **Diagnostics › Log › Before the last restart**.
+
+## Logs and crash reports
+
+Under **Diagnostics** you find the log, the events, the inputs and the last crash report. The log of the start before the last restart stays until a power cut. A crash report can hold the password, so only the password opens it.
+
+To save the log from a shell:
+
+```bash
+curl -u admin:PASSWORD http://192.168.1.50/api/log > log.txt
+curl -u admin:PASSWORD 'http://192.168.1.50/api/log?boot=prev' > log-prev.txt
+```

@@ -1,0 +1,61 @@
+---
+title: Zugang und Sicherheit
+description: Passwort, Login am Deck, API-Schlüssel, Sperre, HTTPS und CORS.
+---
+
+## Passwort
+
+Die Weboberfläche hat einen Benutzer, `admin`. Die Platine erzeugt beim ersten Start ein zufälliges Passwort und zeigt es im Deck-Menü. Ein eigenes setzt du in der Einrichtung oder unter **Zugang**. Es hat 6 bis 23 Zeichen.
+
+Ein neues Passwort startet die Platine neu und beendet jede Sitzung. Eine Sitzung endet nach 12 Stunden ohne Nutzung. Einen Neustart übersteht sie, einen Stromausfall nicht.
+
+## Passwort vergessen
+
+Die Anmeldeseite bietet drei Wege, für die jemand am Deck stehen muss.
+
+| Weg | Was passiert |
+|---|---|
+| Login am Deck anfragen | Das Deck zeigt Adresse und Gerät des Browsers. Tippe innerhalb von 60 s auf **Annehmen** |
+| Passwort am Deck anzeigen | Das Deck zeigt das Passwort 30 s lang |
+| Auf Werkszustand zurücksetzen | Tippe innerhalb von 60 s zweimal auf **Zurücksetzen** am Deck. Alle Einstellungen sind weg |
+
+Eingaben über die API zählen dabei nie.
+
+## Sperre
+
+- Nach fünf falschen Passwörtern von einer Adresse wartet diese Adresse ein paar Sekunden, höchstens eine Minute.
+- Nach 30 falschen Passwörtern in einer Minute von allen Adressen zusammen wartet jede Adresse bis zum Ende der Minute. Die letzten vier Adressen, die sich seit dem Start angemeldet haben, sperrt das nicht aus.
+- Ein API-Schlüssel wird nie gesperrt.
+
+## API-Schlüssel
+
+Home Assistant, Skripte und andere Programme nutzen statt des Passworts einen API-Schlüssel. Du legst ihn unter **Zugang › API-Schlüssel** an. Die Weboberfläche zeigt ihn nur einmal. Schick ihn als Header mit.
+
+```bash
+curl -H 'Authorization: Bearer SCHLUESSEL' http://192.168.1.50/api/status
+```
+
+| Recht | Erreicht |
+|---|---|
+| Steuern | Status, Deck-Bild, Eingaben, Deck-Menü, Deck neu verbinden, Eingabe-Log, Ereignisse, Messwerte, den Live-WebSocket ohne Einstellungen und Log |
+| Vollzugriff | Dazu Einstellungen, Neustart, Updates, Firmware-Plätze, Log, Kopplung und WLAN |
+
+Nur das Passwort erreicht Passwort, API-Schlüssel, Sicherung, Absturzbericht und ein eigenes Zertifikat. Es gibt höchstens 8 Schlüssel gleichzeitig. Ein gelöschter Schlüssel gilt sofort nicht mehr. Ein neuer Schlüssel mit demselben Namen ersetzt den alten.
+
+Die Platine speichert von jedem Schlüssel nur einen Hash. Eine Sicherung enthält nie einen Schlüssel.
+
+## HTTPS
+
+Die Platine liefert Weboberfläche und API auf Port 80 und per HTTPS auf Port 443. Beim ersten Start erzeugt sie ihr eigenes Zertifikat, deshalb warnt der Browser einmal. Vergleiche den Fingerabdruck im Browser mit dem unter **Zugang**.
+
+- `GET /api/cert` liefert das Zertifikat als PEM. Importiere es in einen Trust Store oder pinne seinen SHA-256.
+- **Nur HTTPS** schaltet Plain HTTP ab. Die Seite leitet dann auf HTTPS um, und jeder API-Aufruf über HTTP bekommt 403. Solange das Setup-WLAN offen ist, bleibt Plain HTTP an.
+- Du kannst ein eigenes Zertifikat mit Schlüssel als PEM hochladen, zum Beispiel von deiner eigenen CA. Einen Schlüssel mit Passwort lehnt die Platine ab.
+
+## Setup-WLAN
+
+Ein Browser im Setup-WLAN braucht kein Web-Passwort. Das WLAN-Passwort zeigt nur das Deck. Zum Verbinden musst du also am Deck sein.
+
+## CORS
+
+Eine Webseite von einem anderen Origin, zum Beispiel dein eigenes Dashboard, darf die API mit einem API-Schlüssel aufrufen, wenn ihr Origin unter **Erlaubte Webseiten** steht. Das Feld ist anfangs leer. Cookies gelten nie über Origins hinweg.

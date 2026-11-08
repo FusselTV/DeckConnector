@@ -1,0 +1,42 @@
+---
+title: Network
+description: LAN, Wi-Fi, failover, fixed addresses and names.
+---
+
+The board uses LAN and Wi-Fi at the same time. Each has its own address.
+
+## Failover
+
+- Connections go over LAN while it works.
+- When a server or Companion cannot be reached over LAN, the next try goes over Wi-Fi. When the LAN answers again, the connection moves back.
+- The board pings the gateway. A LAN that keeps its link but passes no traffic counts as dead within about 6 s.
+- The board announces itself over mDNS on one network at a time. That is the LAN, or Wi-Fi while the LAN has no address or counts as dead.
+
+Set up Wi-Fi as a backup even with a cable. The web UI lists the networks in reach.
+
+## Wi-Fi
+
+- 2.4 GHz only. Hidden networks are not in the list, but you can enter one by hand.
+- The board tests a new network first. It saves it only when the network gives it an address. Otherwise the old one comes back.
+- Under **Show access points (BSSID)** you can lock the board to one access point. By default it takes the strongest one and roams.
+
+## Fixed address
+
+LAN and Wi-Fi each take DHCP or a fixed address. A fixed address needs IP and netmask. The gateway is optional and must be in the same network. `10.0.0.5/24` works in the IP field too.
+
+Saving a network change restarts the board. The web UI then shows where to find it.
+
+On a deck with dials, you can also set a fixed LAN address in the deck menu under LAN.
+
+## Names
+
+The board announces itself over mDNS as `<name>.local`, for example `deckconnector-a1b2c3.local`.
+
+| mDNS service | What |
+|---|---|
+| `_deckconnector-api._tcp` | The web UI and the API |
+| `_elg._tcp` | The Network Dock, only while a deck is plugged in |
+
+## Clock
+
+The board sets its clock over NTP. By default it uses the server that DHCP names, then `pool.ntp.org`. `ntp_server` in the settings sets your own.

@@ -1,0 +1,75 @@
+---
+title: Flashen
+description: Die Firmware im Browser oder mit esptool auf die Platine bringen.
+---
+
+## Im Browser
+
+Der [Flasher](/de/flash/) schreibt das neueste stabile [Release](/de/docs/updates#releases). Er läuft in Chrome oder Edge auf einem Rechner. Er nutzt Web Serial, deshalb gehen Firefox und Safari nicht.
+
+<Steps>
+<Step>
+
+Verbinde den **USB-C**-Port der Platine mit dem Rechner. Der USB-A-Port ist für das Deck.
+
+</Step>
+<Step>
+
+Öffne den [Flasher](/de/flash/), wähle den seriellen Port der Platine und was geschrieben werden soll.
+
+- **Neuinstallation** löscht den ganzen Flash und startet mit den Grundeinstellungen. Für eine neue Platine oder wenn vorher eine andere Firmware lief.
+- **Update** schreibt nur die Firmware. Einstellungen, gekoppelte Rechner und API-Schlüssel bleiben.
+
+</Step>
+<Step>
+
+Nach dem Flashen kann der Flasher die Platine über dasselbe Kabel einrichten: WLAN, Admin-Passwort und Gerätename. Du kannst das auch überspringen und später in der [Einrichtung im Browser](/de/docs/first-setup) erledigen.
+
+</Step>
+</Steps>
+
+<Callout title="Einrichtung über USB">
+Die Platine nimmt WLAN, Passwort und Namen über USB an, solange die Einrichtung nicht fertig ist, und in den ersten 5 Minuten nach jedem Start. Danach trennst du sie kurz vom Strom. Ein Passwort gibt sie nie zurück.
+</Callout>
+
+Der Flasher schreibt nur den Hauptchip. Der WLAN-Chip bekommt seine Firmware als normales [Update](/de/docs/updates) in der Weboberfläche.
+
+## Mit esptool
+
+Ohne Chrome oder Edge nimmst du [esptool](https://docs.espressif.com/projects/esptool/) ab Version 5. Die Dateien lädst du aus einem [Release](/de/docs/updates#releases) oder baust sie mit `uv run python -m dbtools.flashimage` in `tools/`.
+
+<Tabs items={['Neuinstallation', 'Update']}>
+<Tab value="Neuinstallation">
+
+```bash
+esptool --chip esp32p4 -p /dev/ttyUSB0 erase-flash
+esptool --chip esp32p4 -p /dev/ttyUSB0 -b 921600 write-flash 0x0 deckconnector-factory.bin
+```
+
+</Tab>
+<Tab value="Update">
+
+```bash
+esptool --chip esp32p4 -p /dev/ttyUSB0 -b 921600 write-flash 0xf000 ota_data_initial.bin 0x20000 deckconnector.bin
+```
+
+</Tab>
+</Tabs>
+
+Unter Windows heißt der Port etwa `COM3`, unter macOS `/dev/cu.usbserial-...`.
+
+## Aus dem Quellcode
+
+Zum Bauen brauchst du ESP-IDF 6.0.2, Node.js und [uv](https://docs.astral.sh/uv/).
+
+```bash
+git clone https://github.com/FusselTV/deck-connector.git
+```
+
+```bash
+cd deck-connector/web && npm ci && npm run build
+cd ../tools && uv run python -m dbtools.dbfw keygen
+cd ../firmware && idf.py build && idf.py -p /dev/ttyUSB0 flash
+```
+
+Die Weboberfläche steckt in der Firmware, deshalb wird sie zuerst gebaut. `keygen` erzeugt einmalig deinen eigenen Update-Schlüssel. Eine Platine nimmt nur Updates an, die mit dem Schlüssel ihrer Firmware signiert sind, siehe [Updates](/de/docs/updates).

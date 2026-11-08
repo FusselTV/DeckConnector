@@ -1,0 +1,74 @@
+---
+title: Home Assistant
+description: Read the board's status and control it from Home Assistant over the API.
+---
+
+There is no Home Assistant integration yet. The [API](/docs/api) covers status, brightness, the host choice, the deck picture and restarts, so the REST integration can use it.
+
+## API key
+
+Make an API key under **Access › API keys**. **Control** is enough to read. Brightness, the host choice and restarts need **Full access**. Put it into `secrets.yaml`.
+
+```yaml title="secrets.yaml"
+deckconnector_auth: "Bearer YOUR_KEY"
+```
+
+## Status and controls
+
+```yaml title="configuration.yaml"
+rest:
+  - resource: http://192.168.1.50/api/status
+    headers:
+      Authorization: !secret deckconnector_auth
+    scan_interval: 30
+    sensor:
+      - name: DeckConnector writer
+        value_template: "{{ value_json.writer }}"
+      - name: DeckConnector uptime
+        value_template: "{{ value_json.uptime_s }}"
+        unit_of_measurement: s
+      - name: DeckConnector Wi-Fi signal
+        value_template: "{{ value_json.network.wlan.rssi }}"
+        unit_of_measurement: dBm
+    binary_sensor:
+      - name: DeckConnector deck
+        value_template: "{{ value_json.device is not none }}"
+
+rest_command:
+  deckconnector_brightness:
+    url: http://192.168.1.50/api/config
+    method: put
+    headers:
+      Authorization: !secret deckconnector_auth
+    content_type: application/json
+    payload: '{"brightness": {{ pct }}}'
+  deckconnector_use_companion:
+    url: http://192.168.1.50/api/config
+    method: put
+    headers:
+      Authorization: !secret deckconnector_auth
+    content_type: application/json
+    payload: '{"controller": "companion", "host": "satellite"}'
+  deckconnector_reboot:
+    url: http://192.168.1.50/api/reboot
+    method: post
+    headers:
+      Authorization: !secret deckconnector_auth
+```
+
+`GET /api/screen.jpg` is the deck picture as one JPEG, for a camera.
+
+## What else the API offers
+
+| Need | Source |
+|---|---|
+| Find the board | mDNS service `_deckconnector-api._tcp`. `id` in the status is its MAC address and stays when the name changes |
+| Live changes | The WebSocket `/api/ws`. `state` on every change, `screen` when the picture changes, `input` for every press and turn, `ping` every 5 s |
+| Press a key | `POST /api/input` with `{"key": 3}`. Without `"real"`, it reaches only the board's own screens and your own servers |
+| Hosts | `sources` in the status, with `connected` and `drawing` for each |
+| Load | `GET /api/metrics`, CPU and RAM |
+| Update | `firmware` in the status, `POST /api/ota/url` to install |
+
+An API key never gets simulated presses over the WebSocket. So automations that react to `input` only see real presses on the deck.
+
+With **HTTPS only** on, use `https://` and port 443, and trust the board's own certificate. See [Access and security](/docs/security#https).

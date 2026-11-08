@@ -1,0 +1,310 @@
+---
+title: HTTP- und WebSocket-API
+description: Jede Route der JSON-API, die Einstellungen, der Status und der Live-WebSocket.
+---
+
+Alles, was die Weboberfläche tut, läuft über diese API, auf Port 80 und per HTTPS auf Port 443. `GET /api` listet jede Route mit ihrer Zugriffsstufe.
+
+## Anmeldung
+
+Nimm einen dieser Wege.
+
+| Weg | Wie | Hinweise |
+|---|---|---|
+| Passwort | HTTP Basic Auth, Benutzer `admin` | Jede Anfrage, die etwas ändert, braucht dazu den Header `X-DeckConnector: 1` |
+| Sitzung | `POST /api/login` mit `{"password": "..."}` und `X-DeckConnector: 1` | Setzt ein Cookie. Endet nach 12 Stunden ohne Nutzung oder mit `POST /api/logout` |
+| API-Schlüssel | `Authorization: Bearer SCHLUESSEL` | Braucht keinen `X-DeckConnector`-Header. Rechte siehe unten |
+| Setup-WLAN | Ein Client im Setup-WLAN | Rechte wie das Passwort. Änderungen brauchen trotzdem `X-DeckConnector: 1` |
+
+```bash
+curl -u admin:PASSWORT http://192.168.1.50/api/status
+curl -u admin:PASSWORT -H 'X-DeckConnector: 1' -X PUT -d '{"brightness": 60}' http://192.168.1.50/api/config
+curl -H 'Authorization: Bearer SCHLUESSEL' http://192.168.1.50/api/status
+```
+
+## Zugriffsstufen
+
+Jede Route hat eine Stufe. Die Tabellen unten zeigen sie in der letzten Spalte.
+
+| Stufe | Wer |
+|---|---|
+| `open` | Alle |
+| `control` | Das Passwort und API-Schlüssel mit dem Recht `control` oder `full` |
+| `full` | Das Passwort und API-Schlüssel mit dem Recht `full` |
+| `admin` | Nur das Passwort |
+
+Kein API-Schlüssel ändert `admin_pass`, `setup_done` oder `qr_login`. Das gibt 403.
+
+Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken.
+
+## Fehler
+
+Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. Fehler, die ein Mensch sehen kann, tragen zusätzlich `code`. Der bleibt gleich, auch wenn sich der Text ändert.
+
+```json
+{"ok": false, "error": "not signed for this DeckConnector", "code": "ota_not_signed"}
+```
+
+| `code` | Bedeutung |
+|---|---|
+| `ota_too_short` | Die Datei ist zu kurz für eine Firmware-Datei |
+| `ota_not_dbfw` | Keine `.dbfw`-Datei |
+| `ota_not_signed` | Nicht mit dem Schlüssel dieser Platine signiert |
+| `ota_wrong_target` | Für ein anderes Gerät oder einen anderen Teil |
+| `ota_too_old` | Unter der Sicherheitsstufe |
+| `url_http_only` | Die URL muss mit `http://` beginnen |
+| `no_releases` | Noch keine Releases zum Prüfen |
+| `probe_no_connection` | Unter dieser Adresse antwortet nichts |
+| `probe_no_answer` | Die Adresse nimmt die Verbindung an, schickt aber 3 s lang nichts |
+| `probe_not_companion` | Etwas antwortet, aber nicht Companion Satellite |
+| `strip_outside` | Der Punkt liegt außerhalb der Touchleiste |
+| `busy` | Die Platine ist beschäftigt. Versuch es noch einmal |
+| `locked` | Zu viele falsche Passwörter. Status 429, die Antwort hat `retry` in Sekunden |
+| `wrong_password` | Falsches Passwort |
+| `needs_password` | Braucht das Passwort, ein API-Schlüssel reicht nicht |
+
+## Routen
+
+Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im Status. Ohne das wirken sie auf das erste Deck. Ein Deck, das nicht steckt, gibt 404.
+
+### Anmeldung und Passwort
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `POST /api/login` | `{"password": "..."}`, setzt das Sitzungs-Cookie | open |
+| `POST /api/logout` | Beendet die Sitzung | open |
+| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage | open |
+| `GET /api/login/request/<id>` | `state` ist `pending`, `accepted`, `denied`, `expired` oder `used`. Bei `accepted` setzt die Antwort einmal das Sitzungs-Cookie | open |
+| `DELETE /api/login/request/<id>` | Zieht die Anfrage zurück | open |
+| `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck | open |
+| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}` | open |
+| `DELETE /api/password/reset` | Beendet die Frage | open |
+
+Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
+
+### Status und Einstellungen
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `GET /api` | Jede Route mit `method`, `path` und `access` | control |
+| `GET /api/status` | Zustand der Platine, siehe [Status](#status) | control |
+| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set` und `token_set` | full |
+| `PUT /api/config` | Einstellungen ändern. Schick nur die Schlüssel, die sich ändern. Die Antwort hat `restart` und `config` | full |
+| `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
+| `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
+| `POST /api/reboot` | Neustart | full |
+
+### Deck
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `GET /api/screen` | Was das Deck zeigt, siehe [Bild](#bild) | control |
+| `GET /api/screen/<id>.jpg` | Ein Bild aus diesem Bild | control |
+| `GET /api/screen.jpg` | Das ganze Bild als ein JPEG | control |
+| `POST /api/input` | Drücken, drehen oder berühren, siehe [Eingaben](#eingaben) | control |
+| `GET /api/input/log` | Die letzten 200 Eingaben. `?since=<seq>` nur für neuere | control |
+| `POST /api/menu` | Deck-Menü öffnen. 409 ohne Deck | control |
+| `DELETE /api/menu` | Schließt Deck-Menü, Passwort, Rücksetzfrage und Login-Anfrage | control |
+| `POST /api/deck/reconnect` | Schaltet den USB-Port aus und wieder an. `?off_s=N` (1 bis 600) lässt ihn N Sekunden aus | control |
+| `POST /api/deck/stall` | Stoppt die Bildausgabe wie bei einem hängenden Deck, für Tests | full |
+
+### Quellen und Kopplung
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `POST /api/sources/retry` | `{"host": "..."}` mit einer Server-URL oder der Satellite-Adresse. Verbindet sofort statt nach der Wartezeit | control |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version`. Bis zu 6 s | full |
+| `GET /api/companion/found` | Companions, die Satellite per mDNS anmelden. Der erste Aufruf startet eine Suche von 2 s | full |
+| `POST /api/dock` | Kopplung, siehe [Kopplung](#kopplung) | full |
+| `DELETE /api/pairing/denied/<ip>` | Nimmt einen Rechner von der Liste der Abgelehnten | full |
+
+### Netzwerk
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `GET /api/wifi/scan` | Netze in Reichweite, das stärkste zuerst: `ssid`, `bssid`, `rssi`, `channel`, `open`. Nur 2,4 GHz. Dauert 2 bis 3 s | full |
+| `POST /api/wifi/join` | `{"ssid": "...", "pass": "...", "bssid": ""}`. Antwortet 202. `network.wlan.join` im Status geht innerhalb von 15 s von `testing` auf `ok` oder `failed` | full |
+
+### Firmware
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
+| `POST /api/ota/url` | `{"url": "http://..."}`, die Platine lädt die Datei selbst. Der Fortschritt kommt über den WebSocket | full |
+| `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
+| `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, ...}` | full |
+| `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |
+| `POST /api/slots/<n>/boot` | Neustart in Platz N. 409, wenn er nicht starten kann | full |
+| `GET /api/frontend` | Die aktive Weboberfläche: `source` (`partition` oder `builtin`), `api` und bei einer hochgeladenen `version` | control |
+| `PUT /api/frontend` | Eine signierte Weboberfläche als Body. Sofort aktiv | full |
+| `DELETE /api/frontend` | Zurück zur Oberfläche aus der Firmware | full |
+| `GET /api/boot` | Bootloader und Partitionstabelle. `?raw=bootloader` oder `?raw=ptable` liefert die Bytes | full |
+
+### Zugang
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `GET /api/tokens` | Die API-Schlüssel, `name` und `right` | admin |
+| `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Zeigt den Schlüssel einmal. `name` hat 1 bis 23 Buchstaben, Ziffern, `-` oder `_` | admin |
+| `DELETE /api/tokens/<name>` | Beendet diesen Schlüssel sofort | admin |
+| `GET /api/cert` | Das HTTPS-Zertifikat als PEM | open |
+| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und die Platine startet neu | admin |
+| `DELETE /api/tls` | Zurück zum eigenen Zertifikat der Platine, mit Neustart | full |
+
+### Diagnose
+
+| Route | Was sie tut | Stufe |
+|---|---|---|
+| `GET /api/log` | Die letzten 16 KB des Logs als Text. `?boot=prev` für den Start davor | full |
+| `GET /api/events` | Die letzten 32 Ereignisse: `since_s`, `at`, `kind`, `text` | control |
+| `GET /api/metrics` | CPU, RAM und PSRAM alle 5 s für 10 Minuten, dazu die Flash-Belegung | control |
+| `GET /api/profile` | Zeit je Route und CPU je Task seit dem letzten Aufruf | full |
+| `GET /api/coredump` | Der letzte Absturz. `?raw=1` liefert den Dump. 404, wenn es keinen gibt | admin |
+| `DELETE /api/coredump` | Löscht ihn | full |
+
+## Einstellungen
+
+```json
+{"name": "deckconnector-a1b2c3", "controller": "companion", "host": "satellite", "brightness": 80,
+ "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
+ "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
+ "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
+ "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
+ "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
+ "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "usb_speed": "auto",
+ "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
+```
+
+| Schlüssel | Werte |
+|---|---|
+| `name` | 1 bis 31 Buchstaben, Ziffern und Bindestriche, kein Bindestrich am Anfang oder Ende. Auch der Hostname |
+| `controller`, `host` | Das Programm, das zeichnet, siehe [Mehrere Programme](/de/docs/hosts#über-die-api) |
+| `brightness` | 0 bis 100 |
+| `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
+| `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
+| `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
+| `servers` | Bis zu 4 `ws://`- oder `wss://`-URLs. Leer sucht Server per mDNS |
+| `server_pins` | SHA-256 je Server, an derselben Stelle wie in `servers` |
+| `satellite` | Die Adresse von Companion als `host`, `host:port` oder `ws://`- bzw. `wss://`-URL. Leer schaltet es ab |
+| `satellite_pin` | SHA-256 für ein Companion hinter `wss://` |
+| `satellite_auto` | Companion von selbst vom Dock auf Satellite umstellen |
+| `https_only` | Plain HTTP abschalten |
+| `cors_origins` | Origins mit Komma getrennt, die die API mit einem Schlüssel aufrufen dürfen |
+| `menu_chord` | `auto`, `keys`, `encoders` oder `off` |
+| `menu_hold_ms` | 500 bis 10000 |
+| `usb_speed` | `auto` oder `full` |
+| `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
+| `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
+| `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
+| `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
+| `setup_done` | `false` startet die Einrichtung neu. Nur mit Passwort |
+
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+
+```json
+{"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
+```
+
+Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter. Ein `PUT` davon stellt die Einstellungen wieder her.
+
+## Status
+
+```json
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0",
+ "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
+ "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
+ "menu_open": false,
+ "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
+            "width": 800, "height": 480},
+ "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
+             "wlan": {"ssid": "studio", "ip": "192.168.1.51", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
+                      "lock": "", "rssi": -48, "join": "", "join_error": ""},
+             "ap": {"on": false, "ssid": ""}},
+ "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
+              "connected": true, "chosen": true, "drawing": true}],
+ "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "usb_recoveries": 0,
+              "usb_speed": "high", "inputs": 0, "inputs_dropped": 0}}
+```
+
+| Feld | Bedeutung |
+|---|---|
+| `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
+| `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder das gewählte Programm nicht verbunden ist |
+| `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck |
+| `sources` | Jedes Programm. `chosen` markiert das, das zeichnet, wenn kein Menü darüber liegt. Server und Satellite haben dazu `error`, `since_s` und `iface` |
+| `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
+| `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
+| `menu_open` | Menü, Passwort, Rücksetzfrage oder Login-Anfrage liegen über dem Deck |
+| `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
+| `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
+| `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
+
+Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
+
+## Bild
+
+```json
+{"writer": "satellite", "width": 800, "height": 480,
+ "keys": [{"x": 13, "y": 12, "w": 120, "h": 120}], "touch": [{"x": 0, "y": 380, "w": 800, "h": 100}],
+ "encoders": 4, "menu_chord": {"on": "encoders", "first": 0, "last": 3, "hold_ms": 2000},
+ "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
+```
+
+Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
+
+## Eingaben
+
+`POST /api/input` tut so, als hätte jemand das Deck benutzt. Tasten und Drehregler zählen ab 0. Die Koordinaten sind die von `/api/screen`.
+
+```json
+{"key": 3}
+{"key": 3, "action": "down"}
+{"encoder": 0, "action": "turn", "ticks": -2}
+{"touch": "tap", "x": 100, "y": 430}
+{"touch": "long", "x": 100, "y": 430}
+{"touch": "swipe", "x": 700, "y": 430, "x2": 100, "y2": 430}
+```
+
+`action` ist `press` (Standard), `down`, `up` oder `turn` für Drehregler. Positive Rastungen drehen nach rechts.
+
+<Callout type="warn" title="Echte Eingaben">
+Companion, die Elgato App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme der Platine und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
+</Callout>
+
+Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, die einen Rechner reinlassen, gehen nur am Deck selbst.
+
+## Kopplung
+
+`POST /api/dock` nimmt eins davon. `pairing` öffnet die Kopplung für 0 bis 3600 Sekunden.
+
+```json
+{"accept": true, "ip": "192.168.1.15"}
+{"accept": false, "ip": "192.168.1.15"}
+{"pairing": 300}
+{"pairing": 0}
+{"forget": "192.168.1.15"}
+{"forget": true}
+```
+
+`pairing` im Status hat `only_paired`, die wartende `request`, `open` und `open_s`, solange die Kopplung offen ist, `denied` und die gekoppelten `hosts`. Eine Antwort, die einen anderen Rechner als den wartenden nennt, gibt 409.
+
+## WebSocket
+
+`/api/ws` nutzt dieselbe Anmeldung wie die anderen Routen. Eine Seite von einer anderen Website wird abgewiesen. Jede Nachricht ist ein JSON-Objekt, und `t` sagt, was es ist.
+
+| `t` | Wann |
+|---|---|
+| `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal und Zähler |
+| `screen` | Das Bild hat sich geändert |
+| `input` | Jemand hat das Deck benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
+| `ota` | Update-Fortschritt mit `target`, `state`, `pct` und `error` |
+| `ping` | Alle 5 s. Kommt 12 s lang gar nichts, neu verbinden |
+| `log` | Neuer Log-Text, erst nach `{"t": "log"}`. Braucht das Passwort oder einen `full`-Schlüssel |
+
+Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/input` mit einer `id`.
+
+```json
+{"t": "set", "id": 1, "brightness": 40}
+{"t": "input", "id": 2, "key": 3}
+{"t": "result", "id": 1, "status": 200, "reply": {"ok": true, "restart": false}}
+```

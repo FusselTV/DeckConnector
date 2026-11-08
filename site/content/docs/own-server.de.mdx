@@ -1,0 +1,115 @@
+---
+title: Eigener Server
+description: Das Deck per WebSocket aus dem eigenen Programm zeichnen. Protokoll Version 1.
+---
+
+Dein Server rendert die Bilder. Die Platine zeigt sie an und schickt jeden Druck, jede Drehung und jede Berührung zurück. `tools/dbtools/server.py` im Repository ist ein kleiner Python-Server als Ausgangspunkt.
+
+## Verbindung
+
+- Die Platine ist der Client. Sie öffnet jede URL aus ihrer Serverliste mit dem Subprotokoll `deckconnector.v1`. URLs trägst du in der Weboberfläche unter **Quellen** ein, bis zu vier.
+- Ist die Liste leer, sucht die Platine Server, die `_deckconnector._tcp` per mDNS anmelden. Sie öffnet sie unter `ws://<adresse>:<port>/deckbridge`.
+- `wss://` geht auch. Das Zertifikat muss von einer öffentlichen CA stammen und den Host nennen oder zum SHA-256-Pin dieses Servers passen.
+- Der erste verbundene Server der Liste ist **aktiv**. Die anderen stehen auf **Standby**. Nur der aktive Server darf zeichnen und bekommt die Eingaben.
+- Fällt der aktive Server weg, wird der nächste verbundene aktiv und bekommt eine `role`-Nachricht. Er muss dann alle Bereiche neu zeichnen.
+- Solange Companion oder die Elgato App gewählt ist, stehen alle Server auf Standby. Siehe [Mehrere Programme](/de/docs/hosts).
+- Die Platine schickt alle 2 s einen Ping. Ein Server, der 6 s lang nichts sendet, gilt als verloren.
+
+Text-Frames tragen JSON. Binäre Frames tragen Bilder, Bestätigungen, Eingaben und Zeitabgleich. Alle binären Ganzzahlen sind Little Endian.
+
+## Koordinaten
+
+Jedes Display hat ein Koordinatensystem in Pixeln, mit dem Ursprung oben links auf dem ganzen Glas. Tasten und Touchleisten sind Rechtecke darin. Schick jedes Rechteck, das das Display in `targets` nennt. Den passenden USB-Befehl wählt die Platine.
+
+Drehung und Spiegelung stehen je Display. Wende sie an, bevor du das JPEG kodierst.
+
+## Von der Platine
+
+```json
+{"t": "hello", "proto": 1, "id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3", "fw": "0.1.0",
+ "c6": "3.0.10", "board": "waveshare-p4-poe-eth", "active": true}
+```
+
+```json
+{"t": "device", "present": true, "vendor": "Elgato", "model": "Stream Deck +", "vid": 4057, "pid": 132,
+ "serial": "A00SA0000AA0A0", "fw": "1.01.008", "tested": true, "keys": 8, "encoders": 4,
+ "displays": [{"id": 0, "w": 800, "h": 480, "format": "jpeg", "rotate": 0, "flip_x": false, "flip_y": false,
+   "targets": [{"kind": "full", "x": 0, "y": 0, "w": 800, "h": 480},
+               {"kind": "key", "index": 0, "x": 13, "y": 12, "w": 120, "h": 120},
+               {"kind": "strip", "x": 0, "y": 380, "w": 800, "h": 100, "partial": true}]}],
+ "touch": [{"display": 0, "x": 0, "y": 380, "w": 800, "h": 100}]}
+```
+
+Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele nehmen nur genau ihr Rechteck. `{"t": "device", "present": false}` heißt, das Deck wurde abgezogen.
+
+```json
+{"t": "role", "active": true}
+{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "controller": "server", "writer": "server1"}
+{"t": "ota", "target": "p4", "state": "download", "pct": 40}
+{"t": "ota", "target": "p4", "state": "error", "error": "signature"}
+```
+
+`status` hat die Felder von [`GET /api/status`](/de/docs/api#status) ohne `memory`. OTA-`state` ist `download`, `verify`, `done` oder `error`. Nach `done` startet die Platine neu.
+
+## An die Platine
+
+```json
+{"t": "brightness", "pct": 70}
+{"t": "ota", "target": "p4", "url": "http://server:8000/deckconnector-0.2.0.dbfw"}
+{"t": "reboot"}
+```
+
+Die signierte Datei bestimmt, für welchen Chip sie ist. `target` kommt nur in den Fortschrittsmeldungen zurück. Siehe [Updates](/de/docs/updates).
+
+## Binäre Frames
+
+Das erste Byte ist der Typ.
+
+### Server an Platine
+
+| Typ | Name | Nach dem Typ-Byte |
+|---|---|---|
+| `0x01` | IMAGE | `u8 display, u16 x, u16 y, u16 w, u16 h, u32 seq`, dann das JPEG |
+| `0x02` | TIME | `u8[7] reserved, u64 server_time_us` |
+
+### Platine an Server
+
+| Typ | Name | Nach dem Typ-Byte |
+|---|---|---|
+| `0x81` | ACK | `u8 result, u8 display, u8 reserved, u32 seq, u64 t_recv, u64 t_start, u64 t_done` |
+| `0x82` | TIME | `u8[7] reserved, u64 server_time_us, u64 bridge_time_us` |
+| `0x83` | INPUT | `u8 kind, u8 index, u8 display, i16 value, u16 x, u16 y, u16 x2, u16 y2, u8[10] reserved, u64 t` |
+
+Zeiten sind Mikrosekunden auf der Uhr der Platine. `t_recv` ist der Moment, in dem das Bild vollständig war. `t_start` und `t_done` rahmen die USB-Übertragung ein. Bei INPUT ist `t` der Eingang des USB-Reports.
+
+### ACK result
+
+| Wert | Name | Bedeutung |
+|---|---|---|
+| 0 | `SHOWN` | An das Deck geschickt |
+| 1 | `SUPERSEDED` | Ein neueres Bild hat es vorher verdeckt |
+| 2 | `REJECTED_RECT` | Das Rechteck ist kein Ziel dieses Displays |
+| 3 | `REJECTED_ROLE` | Dieser Server ist nicht aktiv, oder Menü, Elgato App oder Companion haben das Deck |
+| 4 | `NO_DEVICE` | Kein Deck, oder die USB-Übertragung ist fehlgeschlagen |
+| 5 | `BUSY` | Der Platine ist der Bildspeicher ausgegangen |
+
+### INPUT kind
+
+| Wert | Art | Felder |
+|---|---|---|
+| 1 | `KEY_DOWN` | `index` |
+| 2 | `KEY_UP` | `index` |
+| 3 | `ENCODER_DOWN` | `index` |
+| 4 | `ENCODER_UP` | `index` |
+| 5 | `ENCODER_TURN` | `index`, `value` in Rastungen, positiv ist im Uhrzeigersinn |
+| 6 | `TOUCH_TAP` | `display`, `x`, `y` |
+| 7 | `TOUCH_LONG` | `display`, `x`, `y` |
+| 8 | `TOUCH_SWIPE` | `display`, von `x`, `y` nach `x2`, `y2` |
+
+Touch-Positionen sind Display-Koordinaten.
+
+## Flusskontrolle
+
+Schick das nächste Bild für einen Bereich erst nach dem ACK für das letzte dort. Verdeckte Bilder verwirft die Platine ohnehin, ein schneller Server baut also nie eine Warteschlange auf. Auf das ACK zu warten hält die Verzögerung auf langsamen Strecken wie WLAN klein. Auf einer überlasteten Strecke kann ein ACK verloren gehen. Gib einen Bereich deshalb nach 2 s ohne ACK wieder frei.
+
+`seq` wählst du selbst. Es kommt im ACK zurück. Ein neueres Bild, das ein wartendes verdeckt, ersetzt es, und das ältere bekommt `SUPERSEDED`.

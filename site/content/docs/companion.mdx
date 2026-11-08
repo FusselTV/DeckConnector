@@ -1,0 +1,66 @@
+---
+title: Connect Companion
+description: Bitfocus Companion over its Satellite API, or as a Network Dock.
+---
+
+Companion can use the deck in two ways. The Satellite API is the better one. It has all keys, dials and the touch strip, and it comes back by itself after a power cut.
+
+## Satellite API
+
+The board connects to Companion. Companion does not have to find the board, so this also works when Companion runs in Docker without host networking.
+
+<Steps>
+<Step>
+
+In Companion, keep **Settings › Satellite** on. The board needs Satellite API 1.9 or newer. It is tested with Companion 5.2.
+
+</Step>
+<Step>
+
+In the web UI, open **Sources** and enter the Companion address, for example `192.168.1.10`. The board also lists every Companion that announces itself in the network. One click connects it.
+
+</Step>
+<Step>
+
+Companion takes the deck within a few seconds. It shows up under **Surfaces** as `streamdeck:<serial>`, the same id as over USB. Your pages and surface settings stay.
+
+</Step>
+</Steps>
+
+### Address forms
+
+| Address | Goes to |
+|---|---|
+| `192.168.1.10` | TCP port 16622 |
+| `192.168.1.10:17000` | TCP on that port |
+| `ws://192.168.1.10:16623` | Companion's WebSocket port |
+| `wss://companion.example.org/satellite` | A reverse proxy with TLS in front of port 16623 |
+
+A `wss://` address needs a certificate from a public CA for that host name. For any other certificate, paste its SHA-256 as the pin. With an internal CA that renews often, pin the CA instead of the server certificate.
+
+```bash
+openssl x509 -noout -fingerprint -sha256 -in cert.pem
+```
+
+### Layout
+
+On a Stream Deck + Companion sees two rows of keys, then the touch strip as four zones of 200 × 100, then the four dials. This is the same as Companion's own Stream Deck plugin.
+
+- A tap on the strip presses the zone under the finger.
+- A swipe sideways changes the page.
+- A swipe up or down turns that zone like a dial.
+
+## Network Dock
+
+The board also acts like an Elgato Network Dock. Companion finds it under **Surfaces › Discover**, or you add the board's address as a remote surface.
+
+When Companion connects this way and its Satellite API answers on the same address, the board moves Companion to Satellite by itself. The dock connection then ends. When you remove the Companion address or say **Nein** (no) on the deck, the board stops doing this. A new address turns it on again.
+
+<Callout title="Behind a proxy">
+Behind a proxy the board sees only the proxy's address, so it cannot end Companion's dock connection. Companion then shows two surfaces of the same deck. The second one gets the id `streamdeck:<serial>-dev2`.
+</Callout>
+
+## Limits
+
+- One Companion over Satellite at a time.
+- On a Stream Deck Neo only the eight keys, not the small screen and the two touch keys.

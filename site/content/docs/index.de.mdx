@@ -1,6 +1,32 @@
 ---
-title: DeckConnector
-description: Platzhalter für die Anleitung.
+title: Einführung
+description: DeckConnector bringt ein Elgato Stream Deck ins Netzwerk.
 ---
 
-Hier beginnt die Anleitung.
+DeckConnector ist eine Firmware für eine kleine PoE-Platine. Die Platine steuert ein Elgato Stream Deck über USB und bringt es ins Netzwerk.
+Bitfocus Companion, die Elgato App und deine eigenen Programme nutzen das Deck dann, als hinge es direkt am Rechner.
+
+- Companion verbindet sich über seine Satellite-API oder sieht die Platine als Elgato Network Dock.
+- Die Elgato App sieht die Platine als Network Dock.
+- Dein eigener Server zeichnet die Tasten per WebSocket und bekommt jeden Druck, jede Drehung und jede Berührung.
+- Mehrere Programme können gleichzeitig verbunden sein. Welches zeichnet, wählst du am Deck oder in der Weboberfläche.
+- LAN und WLAN gleichzeitig. Fällt das LAN aus, läuft die Platine über WLAN weiter.
+- Signierte Updates. Startet eine neue Firmware nicht sauber, kommt die alte von selbst zurück.
+
+## Was du brauchst
+
+- Eine Platine [Waveshare ESP32-P4-WIFI6-POE-ETH](/de/docs/hardware).
+- Ein Stream Deck +. Andere Modelle stehen im Treiber, sind aber noch nicht getestet, siehe [Hardware](/de/docs/hardware).
+- Einen PoE-Port am Switch oder ein USB-C-Netzteil.
+- Einen Rechner mit Chrome oder Edge zum Flashen.
+
+## Erst ausprobieren
+
+Die [Demo](/de/demo/) zeigt die echte Weboberfläche mit einem virtuellen Deck im Browser. Es wird nichts installiert.
+
+<Cards>
+  <Card title="Erste Schritte" href="/de/docs/getting-started" description="Von der neuen Platine zum fertigen Deck." />
+  <Card title="Companion verbinden" href="/de/docs/companion" description="Satellite-API oder Network Dock." />
+  <Card title="Eigener Server" href="/de/docs/own-server" description="Die Tasten aus dem eigenen Programm zeichnen." />
+  <Card title="API-Referenz" href="/de/docs/api" description="Jede HTTP-Route und jede WebSocket-Nachricht." />
+</Cards>

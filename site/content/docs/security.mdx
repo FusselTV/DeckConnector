@@ -1,0 +1,61 @@
+---
+title: Access and security
+description: Password, login on the deck, API keys, lockout, HTTPS and CORS.
+---
+
+## Password
+
+The web UI has one user, `admin`. The board makes a random password on its first start and shows it in the deck menu. Set your own in the setup or under **Access**. It has 6 to 23 characters.
+
+A new password restarts the board and ends every session. A session ends after 12 hours without use. It stays over a restart, but not over a power cut.
+
+## Lost password
+
+The login page offers three ways that need someone at the deck.
+
+| Way | What happens |
+|---|---|
+| Ask the deck to let me in | The deck shows the browser's address and device. Tap **Annehmen** (accept) within 60 s |
+| Show password on the deck | The deck shows the password for 30 s |
+| Reset to factory settings | Tap **Zurücksetzen** (reset) on the deck twice within 60 s. Every setting is gone |
+
+Presses sent over the API never count for these.
+
+## Lockout
+
+- After five wrong passwords from one address, that address waits a few seconds, up to a minute.
+- After 30 wrong passwords in one minute from all addresses together, every address waits until the minute ends. The last four addresses that logged in since the start are not locked out this way.
+- An API key is never locked out.
+
+## API keys
+
+Home Assistant, scripts and other programs use an API key instead of the password. Make one under **Access › API keys**. The web UI shows it only once. Send it as a header.
+
+```bash
+curl -H 'Authorization: Bearer KEY' http://192.168.1.50/api/status
+```
+
+| Right | Reaches |
+|---|---|
+| Control | Status, deck picture, presses, deck menu, reconnect, input log, events, metrics, the live WebSocket without settings and log |
+| Full access | Also settings, restart, updates, slots, log, pairing and Wi-Fi |
+
+Only the password reaches the password, the API keys, the backup, the crash report and an own certificate. Up to 8 keys exist at a time. Deleting a key ends it at once. A new key with the same name replaces the old one.
+
+The board keeps only a hash of each key. A backup never holds a key.
+
+## HTTPS
+
+The board serves the web UI and the API on port 80 and over HTTPS on port 443. It makes its own certificate on the first start, so the browser warns once. Compare the fingerprint the browser shows with the one under **Access**.
+
+- `GET /api/cert` gives the certificate as PEM. Import it into a trust store, or pin its SHA-256.
+- **HTTPS only** turns plain HTTP off. The page then redirects to HTTPS, and every API call over HTTP gets 403. While the setup Wi-Fi is open, plain HTTP stays on.
+- You can upload your own certificate and key as PEM, for example from your own CA. The board refuses a key with a password.
+
+## Setup Wi-Fi
+
+A browser on the setup Wi-Fi needs no web password. Only the deck shows the Wi-Fi password, so you need to be at the deck to join.
+
+## CORS
+
+A web page from another origin, for example your own dashboard, may call the API with an API key when its origin is in **Allowed web pages**. It is empty by default. Cookies never work across origins.

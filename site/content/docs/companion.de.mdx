@@ -1,0 +1,66 @@
+---
+title: Companion verbinden
+description: Bitfocus Companion über die Satellite-API oder als Network Dock.
+---
+
+Companion kann das Deck auf zwei Wegen nutzen. Die Satellite-API ist der bessere. Sie kennt alle Tasten, Drehregler und die Touchleiste, und nach einem Stromausfall verbindet sie sich von selbst wieder.
+
+## Satellite-API
+
+Die Platine verbindet sich mit Companion. Companion muss die Platine nicht finden. Deshalb geht das auch, wenn Companion in Docker ohne Host-Netzwerk läuft.
+
+<Steps>
+<Step>
+
+Lass in Companion **Settings › Satellite** an. Die Platine braucht Satellite-API 1.9 oder neuer. Getestet ist sie mit Companion 5.2.
+
+</Step>
+<Step>
+
+Trag in der Weboberfläche unter **Quellen** die Companion-Adresse ein, zum Beispiel `192.168.1.10`. Die Platine listet auch jedes Companion, das sich im Netz meldet. Ein Klick verbindet es.
+
+</Step>
+<Step>
+
+Companion übernimmt das Deck nach wenigen Sekunden. Unter **Surfaces** erscheint es als `streamdeck:<seriennummer>`, mit derselben ID wie über USB. Deine Seiten und Surface-Einstellungen bleiben.
+
+</Step>
+</Steps>
+
+### Adressformen
+
+| Adresse | Geht an |
+|---|---|
+| `192.168.1.10` | TCP-Port 16622 |
+| `192.168.1.10:17000` | TCP auf diesem Port |
+| `ws://192.168.1.10:16623` | Den WebSocket-Port von Companion |
+| `wss://companion.example.org/satellite` | Einen Reverse Proxy mit TLS vor Port 16623 |
+
+Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA für diesen Hostnamen. Für jedes andere Zertifikat fügst du seinen SHA-256 als Pin ein. Bei einer internen CA, die oft erneuert, pinnst du die CA statt des Server-Zertifikats.
+
+```bash
+openssl x509 -noout -fingerprint -sha256 -in cert.pem
+```
+
+### Aufteilung
+
+Auf einem Stream Deck + sieht Companion zwei Tastenreihen, darunter die Touchleiste als vier Felder zu 200 × 100, darunter die vier Drehregler. Das entspricht dem eigenen Stream-Deck-Plugin von Companion.
+
+- Ein Tippen auf die Leiste drückt das Feld unter dem Finger.
+- Ein Wischen zur Seite wechselt die Seite.
+- Ein Wischen nach oben oder unten dreht dieses Feld wie einen Drehregler.
+
+## Network Dock
+
+Die Platine verhält sich außerdem wie ein Elgato Network Dock. Companion findet sie unter **Surfaces › Discover**, oder du trägst ihre Adresse als Remote Surface ein.
+
+Verbindet sich Companion so und antwortet seine Satellite-API unter derselben Adresse, stellt die Platine Companion von selbst auf Satellite um. Die Dock-Verbindung endet dann. Entfernst du die Companion-Adresse oder sagst am Deck **Nein**, hört die Platine damit auf. Eine neue Adresse schaltet es wieder ein.
+
+<Callout title="Hinter einem Proxy">
+Hinter einem Proxy sieht die Platine nur die Adresse des Proxys. Sie kann die Dock-Verbindung von Companion dann nicht beenden. Companion zeigt so zwei Surfaces desselben Decks. Die zweite bekommt die ID `streamdeck:<seriennummer>-dev2`.
+</Callout>
+
+## Grenzen
+
+- Ein Companion gleichzeitig über Satellite.
+- Auf einem Stream Deck Neo nur die acht Tasten, nicht das kleine Display und die zwei Touch-Tasten.

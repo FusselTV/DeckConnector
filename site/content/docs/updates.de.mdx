@@ -1,0 +1,62 @@
+---
+title: Updates
+description: Signierte Updates für Firmware, WLAN-Chip und Weboberfläche, mit Plätzen und Rückfall.
+---
+
+Die Platine nimmt signierte `.dbfw`-Dateien an. Eine Datei enthält einen Teil. Für welchen, erkennt die Platine selbst.
+
+| Teil | Nach dem Update |
+|---|---|
+| Firmware | Kommt in den nächsten Platz, dann startet die Platine davon neu |
+| WLAN-Chip | Beide Chips starten neu |
+| Weboberfläche | Sofort aktiv, kein Neustart |
+| Bootloader, Partitionstabelle | Wird an Ort und Stelle geschrieben, kein Neustart |
+
+## Installieren
+
+- **In der Weboberfläche** unter **Firmware** wählst du eine Datei oder gibst eine `http://`-URL an.
+- **Von einem Server** schickst du `{"t": "ota", "url": "http://..."}`. Siehe [Eigener Server](/de/docs/own-server).
+- **Über die API** mit `POST /api/ota` und der Datei als Body oder mit `POST /api/ota/url`. Siehe [API](/de/docs/api#firmware).
+
+## Releases
+
+Releases liegen auf der [GitHub-Release-Seite](https://github.com/FusselTV/deck-connector/releases). Ein Tag `vX.Y.Z` erzeugt ein Release. Ein Tag wie `vX.Y.Z-rc1` erzeugt ein Pre-Release.
+
+Jedes Release hat diese Dateien.
+
+| Datei | Wofür |
+|---|---|
+| `deckconnector-factory.bin`, `ota_data_initial.bin`, `deckconnector.bin`, `manifest.json` | Den [Flasher](/de/docs/flashing) und esptool |
+| `deckconnector-vX.Y.Z.dbfw`, `deckconnector-web-vX.Y.Z.dbfw` | Signierte Updates für Firmware und Weboberfläche. Ein Release ohne Signatur hat keine |
+| `SHA256SUMS` | Prüfsummen aller Dateien |
+
+Einen Download prüfst du mit `sha256sum -c SHA256SUMS --ignore-missing`.
+
+## Was die Platine prüft
+
+1. Die Signatur, bevor sie etwas schreibt. Eine Platine nimmt nur Dateien an, die mit dem Schlüssel ihrer Firmware signiert sind.
+2. Die Sicherheitsstufe. Die Platine lehnt eine Datei unter ihrer eigenen Stufe ab. So kommt eine alte Firmware mit bekannter Lücke nicht wieder drauf.
+3. Den SHA-256 des ganzen Abbilds, bevor sie umschaltet.
+4. Nach dem Neustart hat die neue Firmware zwei Minuten, um ins Netz zu kommen und dann 20 Sekunden zu laufen. Sonst, oder nach einem Absturz, startet wieder die alte.
+
+## Plätze
+
+Die Platine hat vier Firmware-Plätze. Ein Update kommt in den Platz nach dem laufenden, der davor behält die letzte Firmware. Unter **Firmware-Plätze (für Fortgeschrittene)** startest du einen älteren Platz wieder. Er muss sich bestätigen wie ein neues Update.
+
+## Weboberfläche
+
+Die Weboberfläche lässt sich ohne Firmware-Update ändern. Eine hochgeladene Oberfläche behält die Platine über Neustarts. Passt sie nicht zur Firmware, liefert die Platine die Oberfläche aus ihrer Firmware. **Hochgeladene Weboberfläche entfernen** kehrt zu dieser zurück.
+
+## Rettung über USB
+
+Startet die Platine nicht mehr, flasht du sie über USB-C neu. Ein **Update** im [Flasher](/de/docs/flashing) behält die Einstellungen. Endgültig kaputt machen kann man den Chip nicht, denn sein USB-Lader lässt sich nicht überschreiben.
+
+## Eigene Updates bauen und signieren
+
+```bash
+cd tools
+uv run python -m dbtools.dbfw keygen
+uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin fw.dbfw
+```
+
+`keygen` läuft einmal. Es legt den privaten Schlüssel in `~/.config/deckbridge/ota_key.pem` ab und schreibt den öffentlichen in die Firmware. Ohne den privaten Schlüssel muss die nächste Firmware über USB drauf.

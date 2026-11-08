@@ -1,0 +1,40 @@
+---
+title: Hardware
+description: Die Platine, die Stromversorgung und die Decks, die damit laufen.
+---
+
+## Platine
+
+Waveshare ESP32-P4-WIFI6-POE-ETH.
+
+| Teil | Zweck |
+|---|---|
+| ESP32-P4 | Führt die Firmware aus. Chip-Revision v3.1 oder neuer |
+| ESP32-C6 | WLAN, nur 2,4 GHz |
+| Ethernet mit PoE | LAN und Strom über ein Kabel |
+| USB-A | Das Deck. Die Platine versorgt es von hier |
+| USB-C | Flashen, Einrichtung über USB und Strom ohne PoE |
+
+## Strom
+
+Mit PoE laufen Platine und Deck an einem LAN-Kabel. Ohne PoE versorgst du die Platine über USB-C. Steckt beides, läuft die Platine weiter, wenn PoE wegfällt.
+
+## Decks
+
+| Deck | Stand |
+|---|---|
+| Stream Deck + | Getestet. 8 Tasten, 4 Drehregler, Touchleiste |
+| Stream Deck MK.2 | Im Treiber, noch nicht getestet |
+| Stream Deck XL | Im Treiber, noch nicht getestet |
+| Stream Deck Neo | Im Treiber, noch nicht getestet. Companion bekommt nur die acht Tasten |
+| Stream Deck (V2) | Im Treiber, noch nicht getestet |
+
+Die `device`-Nachricht an einen Server sagt `"tested": false` bei einem ungetesteten Modell.
+
+## Mehrere Decks
+
+Hinter einem USB-Hub steuert die Platine auch mehr als ein Deck. Das gewählte Programm steuert alle. Companion zeigt jedes Deck als eigene Surface, die Elgato App als eigenes Gerät. Ein Hub erzwingt oft Full Speed, dann kommen die Bilder langsamer.
+
+## Tempo
+
+Auf einem Stream Deck + über LAN braucht eine Taste 0,5 ms vom Server bis zum Ende der USB-Übertragung. Ein Vollbild von 9 KB braucht 1,7 ms.

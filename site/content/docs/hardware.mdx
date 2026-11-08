@@ -1,0 +1,40 @@
+---
+title: Hardware
+description: The board, power and the decks that work with it.
+---
+
+## Board
+
+Waveshare ESP32-P4-WIFI6-POE-ETH.
+
+| Part | Use |
+|---|---|
+| ESP32-P4 | Runs the firmware. Chip revision v3.1 or newer |
+| ESP32-C6 | Wi-Fi, 2.4 GHz only |
+| Ethernet with PoE | LAN and power over one cable |
+| USB-A | The deck. The board powers it from here |
+| USB-C | Flashing, setup over USB, and power without PoE |
+
+## Power
+
+With PoE the board and the deck run from one LAN cable. Without PoE, power the board over USB-C. With both plugged in, the board keeps running when PoE goes away.
+
+## Decks
+
+| Deck | State |
+|---|---|
+| Stream Deck + | Tested. 8 keys, 4 dials, touch strip |
+| Stream Deck MK.2 | In the driver, not tested yet |
+| Stream Deck XL | In the driver, not tested yet |
+| Stream Deck Neo | In the driver, not tested yet. Companion gets only the eight keys |
+| Stream Deck (V2) | In the driver, not tested yet |
+
+The `device` message to a server says `"tested": false` for an untested model.
+
+## Several decks
+
+Behind a USB hub, the board can drive more than one deck. The chosen program controls all of them. Companion shows each deck as its own surface, the Elgato App as its own device. A hub often forces full speed, which makes pictures slower.
+
+## Speed
+
+On a Stream Deck + over LAN, one key takes 0.5 ms from the server to the end of the USB transfer. A full screen image of 9 KB takes 1.7 ms.

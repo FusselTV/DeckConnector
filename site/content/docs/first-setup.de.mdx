@@ -1,0 +1,54 @@
+---
+title: Einrichtung
+description: Name, Passwort, Netzwerk und Programm für die Platine festlegen.
+---
+
+Es gibt drei Wege. Alle enden bei denselben Einstellungen.
+
+## Im Browser
+
+Mit LAN-Kabel zeigt das Deck seine Adresse und einen QR-Code. Scanne den Code mit dem Handy oder öffne `http://<adresse>/` auf einem Rechner im selben Netz.
+
+Der QR-Code meldet diesen Browser einmal ohne Passwort an. Das geht, bis die Einrichtung fertig ist. Jeder Code gilt 10 Minuten und für eine Anmeldung, dann zeigt das Deck einen neuen.
+
+Ohne QR-Code meldest du dich als `admin` mit dem Passwort aus dem Deck-Menü an. Die Platine erzeugt beim ersten Start ein zufälliges Passwort.
+
+Die Einrichtung fragt dann Schritt für Schritt:
+
+1. Sprache und Name. Der Name ist auch der Netzwerkname, zum Beispiel `deckconnector-a1b2c3.local`.
+2. Dein eigenes Passwort.
+3. Das Netzwerk. Mit LAN-Kabel ist das schon erledigt. Sonst wählst du dein WLAN.
+4. Das Programm, das das Deck steuert: [Companion](/de/docs/companion), die [Elgato App](/de/docs/elgato-app) oder ein [eigenes Programm](/de/docs/own-server).
+
+[Die Einrichtung in der Demo ausprobieren](/demo/app/?lang=de&setup).
+
+Während die Einrichtung läuft, zeigt das Deck den Schritt, zum Beispiel `Setup 3/5`. Unter **Firmware › Sicherung** kannst du sie später noch einmal starten.
+
+## Über das Setup-WLAN
+
+Solange die Einrichtung nicht fertig ist und kein Netz da ist, öffnet die Platine eine Minute nach dem Start ein eigenes WLAN. Du kannst es auch im Deck-Menü unter **Setup-WLAN** starten.
+
+Das Deck zeigt den Namen des WLANs, sein Passwort, einen QR-Code zum Verbinden, die Adresse zum Öffnen und das Web-Passwort. Verbinde dich, öffne die Adresse und folge der Einrichtung. Sobald die Platine in deinem eigenen WLAN ist, geht das Setup-WLAN aus. Das Deck zeigt dann einen neuen QR-Code mit der neuen Adresse.
+
+<Callout type="warn">
+Die Platine hat kein 5-GHz-Funkteil. Wähle ein 2,4-GHz-Netz.
+</Callout>
+
+## Nur am Deck
+
+Die Weboberfläche ist optional.
+
+1. Steck ein LAN-Kabel ein. Das Deck zeigt seine Adresse.
+2. Trag diese Adresse in der Elgato App oder in Companion ein. Siehe [Elgato App](/de/docs/elgato-app) und [Companion](/de/docs/companion).
+3. Das erste Programm, das sich verbindet, bekommt das Deck.
+
+Meldet Companion seine Satellite-API im Netz an, fragt das Deck **Companion gefunden, verbinden?** Eine Taste verbindet es.
+
+Auf einem Deck mit Drehreglern stellst du im Deck-Menü auch eine feste LAN-Adresse ein. Ein Drehregler ändert eine Zahl, Drücken springt zum nächsten Feld, dann tippst du auf **Speichern**.
+
+## Werkszustand
+
+- Am Deck öffnest du das Menü und hältst **Neustart** 5 Sekunden lang, dann loslassen.
+- Ohne Deck-Menü öffnest du die Anmeldeseite im Browser, wählst **Auf Werkszustand zurücksetzen** und bestätigst zweimal am Deck.
+
+Der Werkszustand löscht alle Einstellungen, die API-Schlüssel, die gekoppelten Rechner und ein hochgeladenes HTTPS-Zertifikat. Danach beginnt die Einrichtung neu.
