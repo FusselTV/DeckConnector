@@ -32,7 +32,7 @@
 #define KEEPALIVE_MS 2500  /* Companion drops a connection after 5 s without data */
 #define ANNOUNCE_MS  30000 /* the Elgato App drops a dock it has not heard from for a minute */
 #define FEATURE_LEN  64
-#define IDLE_TIMEOUT 10 /* s without data from the host */
+#define IDLE_TIMEOUT 6 /* s without data from the host: two missed answers to the keepalive */
 
 static const char *TAG = "dock";
 
