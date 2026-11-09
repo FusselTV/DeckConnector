@@ -22,14 +22,14 @@ typedef struct {
     uint16_t win_w, win_h; /* 0 without a window */
     bool touch;
     uint8_t encoders;
-    uint16_t rotate;  /* degrees clockwise the image is rotated before upload */
-    uint8_t tap_len;  /* payload length of a touch tap report */
+    uint16_t rotate; /* degrees clockwise the image is rotated before upload */
+    uint8_t tap_len; /* payload length of a touch tap report */
 } deck_model_t;
 
 typedef struct {
-    uint8_t cmd; /* gen2 0x07 0x08 0x0b 0x0c, six-key 0x01 */
-    uint8_t key; /* six-key: header byte minus one */
-    db_rect_t win; /* 0x0c header rect, window coordinates */
+    uint8_t cmd;           /* gen2 0x07 0x08 0x0b 0x0c, six-key 0x01 */
+    uint8_t key;           /* six-key: header byte minus one */
+    db_rect_t win;         /* 0x0c header rect, window coordinates */
     uint16_t img_w, img_h; /* from the JPEG SOF0 or BMP header */
     uint8_t *data;
     size_t len;
@@ -63,4 +63,5 @@ size_t deck_emu_key(uint8_t key, bool pressed, uint8_t *out, size_t cap);
 size_t deck_emu_encoder_press(uint8_t enc, bool pressed, uint8_t *out, size_t cap);
 size_t deck_emu_encoder_turn(uint8_t enc, int8_t ticks, uint8_t *out, size_t cap);
 /* kind 1 tap, 2 long press, 3 flick; window coordinates */
-size_t deck_emu_touch(uint8_t kind, uint16_t x, uint16_t y, uint16_t x2, uint16_t y2, uint8_t *out, size_t cap);
+size_t deck_emu_touch(uint8_t kind, uint16_t x, uint16_t y, uint16_t x2, uint16_t y2, uint8_t *out,
+                      size_t cap);

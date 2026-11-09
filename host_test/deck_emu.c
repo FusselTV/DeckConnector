@@ -5,17 +5,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OUT_LEN 1024
-#define FEATURE_LEN 32
-#define INPUT_LEN 512
+#define OUT_LEN          1024
+#define FEATURE_LEN      32
+#define INPUT_LEN        512
 #define SIXKEY_INPUT_LEN 65
-#define MAX_REPORTS 512
-#define MAX_IMAGES 16
-#define MAX_VIOLATIONS 64
+#define MAX_REPORTS      512
+#define MAX_IMAGES       16
+#define MAX_VIOLATIONS   64
 
 #define CLASSIC(pid, name) {pid, name, DECK_CLASSIC, 5, 3, 0, 72, 480, 272, 0, 0, false, 0, 180, 0}
-#define XL(pid, name) {pid, name, DECK_XL, 8, 4, 0, 96, 1024, 600, 0, 0, false, 0, 180, 0}
-#define SIXKEY(pid, name) {pid, name, DECK_SIXKEY, 3, 2, 0, 80, 320, 240, 0, 0, false, 0, 90, 0}
+#define XL(pid, name)      {pid, name, DECK_XL, 8, 4, 0, 96, 1024, 600, 0, 0, false, 0, 180, 0}
+#define SIXKEY(pid, name)  {pid, name, DECK_SIXKEY, 3, 2, 0, 80, 320, 240, 0, 0, false, 0, 90, 0}
 
 const deck_model_t deck_models[] = {
     SIXKEY(0x63, "Mini"),
@@ -112,9 +112,15 @@ static void what(char *buf, size_t cap, uint8_t cmd, uint8_t key, db_rect_t win)
 {
     switch (cmd) {
     case 0x01:
-    case 0x07: snprintf(buf, cap, "key %u image (cmd 0x%02x)", key, cmd); break;
-    case 0x08: snprintf(buf, cap, "full LCD image (cmd 0x08)"); break;
-    case 0x0b: snprintf(buf, cap, "window image (cmd 0x0b)"); break;
+    case 0x07:
+        snprintf(buf, cap, "key %u image (cmd 0x%02x)", key, cmd);
+        break;
+    case 0x08:
+        snprintf(buf, cap, "full LCD image (cmd 0x08)");
+        break;
+    case 0x0b:
+        snprintf(buf, cap, "window image (cmd 0x0b)");
+        break;
     default:
         snprintf(buf, cap, "partial window %u,%u %ux%u (cmd 0x0c)", win.x, win.y, win.w, win.h);
         break;
@@ -152,8 +158,8 @@ static void check_jpeg(const char *w, deck_image_t *im, uint16_t ew, uint16_t eh
             im->img_h = be16(d + p + 5);
             im->img_w = be16(d + p + 7);
             if (im->img_w != ew || im->img_h != eh) {
-                violation("%s: JPEG is %ux%u, the deck expects %ux%u after rotating %u", w, im->img_w, im->img_h,
-                          ew, eh, emu.m->rotate);
+                violation("%s: JPEG is %ux%u, the deck expects %ux%u after rotating %u", w, im->img_w,
+                          im->img_h, ew, eh, emu.m->rotate);
             }
             return;
         }
@@ -213,10 +219,18 @@ static void finish(void)
     const deck_model_t *m = emu.m;
     uint16_t ew, eh;
     switch (emu.x.cmd) {
-    case 0x08: rotated(m->lcd_w, m->lcd_h, &ew, &eh); break;
-    case 0x0b: rotated(m->win_w, m->win_h, &ew, &eh); break;
-    case 0x0c: rotated(emu.x.win.w, emu.x.win.h, &ew, &eh); break;
-    default: rotated(m->key_px, m->key_px, &ew, &eh); break;
+    case 0x08:
+        rotated(m->lcd_w, m->lcd_h, &ew, &eh);
+        break;
+    case 0x0b:
+        rotated(m->win_w, m->win_h, &ew, &eh);
+        break;
+    case 0x0c:
+        rotated(emu.x.win.w, emu.x.win.h, &ew, &eh);
+        break;
+    default:
+        rotated(m->key_px, m->key_px, &ew, &eh);
+        break;
     }
     if (sixkey()) {
         check_bmp(w, &im, ew, eh);
@@ -233,7 +247,8 @@ static void finish(void)
     }
 }
 
-static void feed(uint8_t cmd, uint8_t key, db_rect_t win, uint16_t chunk, bool last, const uint8_t *data, size_t len)
+static void feed(uint8_t cmd, uint8_t key, db_rect_t win, uint16_t chunk, bool last, const uint8_t *data,
+                 size_t len)
 {
     char w[80];
     what(w, sizeof(w), cmd, key, win);
@@ -301,8 +316,8 @@ static void gen2_output(const uint8_t *r)
             violation("partial window chunk %u: reserved byte 15 is 0x%02x", chunk, r[15]);
         }
         if (!win.w || !win.h || win.x + win.w > m->win_w || win.y + win.h > m->win_h) {
-            violation("partial window rect %u,%u %ux%u is not inside the %ux%u window", win.x, win.y, win.w, win.h,
-                      m->win_w, m->win_h);
+            violation("partial window rect %u,%u %ux%u is not inside the %ux%u window", win.x, win.y, win.w,
+                      win.h, m->win_w, m->win_h);
         }
     } else {
         key = r[2];
@@ -424,7 +439,8 @@ static bool gen2_get(uint8_t *a)
     case 0x0a:
         a[1] = 4;
         return true;
-    default: return false;
+    default:
+        return false;
     }
 }
 
@@ -433,10 +449,17 @@ static bool sixkey_get(uint8_t *a)
     switch (a[0]) {
     case 0xa0:
     case 0xa1:
-    case 0xa2: memcpy(a + 5, sixkey_fw, sizeof(sixkey_fw) - 1); return true;
-    case 0x03: memcpy(a + 5, sixkey_serial, sizeof(sixkey_serial) - 1); return true;
-    case 0xa3: a[1] = 4; return true;
-    default: return false;
+    case 0xa2:
+        memcpy(a + 5, sixkey_fw, sizeof(sixkey_fw) - 1);
+        return true;
+    case 0x03:
+        memcpy(a + 5, sixkey_serial, sizeof(sixkey_serial) - 1);
+        return true;
+    case 0xa3:
+        a[1] = 4;
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -466,15 +489,18 @@ static int gen2_set(const uint8_t *b)
         return -1;
     }
     switch (b[1]) {
-    case 0x02: return 0;
+    case 0x02:
+        return 0;
     case 0x08:
         if (b[2] > 100) {
             violation("brightness %u, expected 0..100", b[2]);
         }
         emu.brightness = b[2];
         return 1;
-    case 0x0d: return 4;
-    case 0x05: return pedal ? -1 : 3;
+    case 0x0d:
+        return 4;
+    case 0x05:
+        return pedal ? -1 : 3;
     case 0x06:
         if (pedal) {
             return -1;
@@ -483,8 +509,10 @@ static int gen2_set(const uint8_t *b)
             violation("fill key color for key %u, the %s has %u keys", b[2], m->name, input_keys());
         }
         return 4;
-    case 0x13: return m->family == DECK_XL ? 1 : -1;
-    default: return -1;
+    case 0x13:
+        return m->family == DECK_XL ? 1 : -1;
+    default:
+        return -1;
     }
 }
 
@@ -689,7 +717,8 @@ size_t deck_emu_encoder_turn(uint8_t enc, int8_t ticks, uint8_t *out, size_t cap
     return len;
 }
 
-size_t deck_emu_touch(uint8_t kind, uint16_t x, uint16_t y, uint16_t x2, uint16_t y2, uint8_t *out, size_t cap)
+size_t deck_emu_touch(uint8_t kind, uint16_t x, uint16_t y, uint16_t x2, uint16_t y2, uint8_t *out,
+                      size_t cap)
 {
     if (!emu.m->touch || kind < 1 || kind > 3) {
         return 0;

@@ -11,9 +11,9 @@
 #include "soc/usb_dwc_struct.h"
 #include "usb/usb_host.h"
 
-#define OUT_SLOTS  3    /* output reports in flight; more does not help, the device is the limit */
-#define REPORT_LEN 1024 /* every output report, sent in packets of the endpoint size like the Elgato dock */
-#define CTRL_BUF   (sizeof(usb_setup_packet_t) + 1024)
+#define OUT_SLOTS          3 /* output reports in flight; more does not help, the device is the limit */
+#define REPORT_LEN         1024 /* every output report, sent in packets of the endpoint size like the Elgato dock */
+#define CTRL_BUF           (sizeof(usb_setup_packet_t) + 1024)
 #define CTRL_TIMEOUT_MS    1000
 #define HID_CLASS          0x03
 #define HID_GET_REPORT     0x01
