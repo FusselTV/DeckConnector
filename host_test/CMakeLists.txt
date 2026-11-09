@@ -30,3 +30,7 @@ target_include_directories(test_ui PRIVATE ${ui})
 target_compile_definitions(test_ui PRIVATE UI_OUT="${CMAKE_BINARY_DIR}/ui")
 target_link_libraries(test_ui db_core unity m)
 add_test(NAME test_ui COMMAND test_ui)
+
+add_executable(test_decks test_decks.c deck_emu.c)
+target_link_libraries(test_decks db_core)
+add_test(NAME test_decks COMMAND test_decks)
