@@ -125,6 +125,30 @@ static void test_decks_without_a_strip_are_a_grid_of_keys(void)
     }
 }
 
+/* Companion's plugin: the Neo's sensors left and right of its info bar, the Pedal one row without pictures.
+ */
+static void test_buttons_without_a_picture(void)
+{
+    db_device_info_t neo = open_deck(0x009a);
+    db_sat_control_t c[DB_SAT_MAX_CONTROLS];
+    size_t n = db_sat_controls(&neo, c, DB_SAT_MAX_CONTROLS);
+    TEST_ASSERT_EQUAL_UINT(11, n);
+    TEST_ASSERT_EQUAL_UINT8(8, db_sat_find(c, n, "2/0")->index);
+    TEST_ASSERT_EQUAL_UINT8(9, db_sat_find(c, n, "2/3")->index);
+    TEST_ASSERT_EQUAL_INT(DB_SAT_LCD, db_sat_find(c, n, "2/1")->kind);
+    char buf[2048];
+    TEST_ASSERT_GREATER_THAN(0, db_sat_manifest(c, n, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"2/0\":{\"row\":2,\"column\":0,\"stylePreset\":\"none\"}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"1/3\":{\"row\":1,\"column\":3}"));
+
+    db_device_info_t pedal = open_deck(0x0086);
+    n = db_sat_controls(&pedal, c, DB_SAT_MAX_CONTROLS);
+    TEST_ASSERT_EQUAL_UINT(3, n);
+    TEST_ASSERT_EQUAL_UINT8(2, db_sat_find(c, n, "0/2")->index);
+    TEST_ASSERT_GREATER_THAN(0, db_sat_manifest(c, n, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"stylePresets\":{\"default\":{},\"none\":{}}"));
+}
+
 static void put_be32(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)(v >> 24);
@@ -261,6 +285,7 @@ int main(void)
     RUN_TEST(test_parse_a_line_as_companion_writes_it);
     RUN_TEST(test_stream_deck_plus_layout_matches_companion);
     RUN_TEST(test_decks_without_a_strip_are_a_grid_of_keys);
+    RUN_TEST(test_buttons_without_a_picture);
     RUN_TEST(test_png_decodes_to_bgr);
     RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
     RUN_TEST(test_host_of_every_satellite_address_form);

@@ -41,13 +41,13 @@ static void test_quarter_turns_move_corners_and_undo(void)
     db_image_orient(&cw, px, W, H, out, false);
     TEST_ASSERT_EQUAL_MEMORY(at(px, W, 0, 0), at(out, ow, H - 1, 0), 3); /* top left goes top right */
     TEST_ASSERT_EQUAL_MEMORY(at(px, W, W - 1, H - 1), at(out, ow, 0, W - 1), 3);
-    db_image_orient(&cw, out, ow, oh, back, true);
+    db_image_orient(&cw, out, W, H, back, true);
     TEST_ASSERT_EQUAL_MEMORY(px, back, sizeof(px));
 
     db_display_t ccw = {.rotate = 270};
     db_image_orient(&ccw, px, W, H, out, false);
     TEST_ASSERT_EQUAL_MEMORY(at(px, W, 0, 0), at(out, ow, 0, W - 1), 3); /* top left goes bottom left */
-    db_image_orient(&ccw, out, ow, oh, back, true);
+    db_image_orient(&ccw, out, W, H, back, true);
     TEST_ASSERT_EQUAL_MEMORY(px, back, sizeof(px));
 }
 
@@ -60,6 +60,23 @@ static void test_both_flips_are_a_half_turn(void)
     db_image_orient(&(db_display_t){.rotate = 180}, px, W, H, turned, false);
     TEST_ASSERT_EQUAL_MEMORY(turned, flipped, sizeof(px));
     TEST_ASSERT_EQUAL_MEMORY(at(px, W, 0, 0), at(flipped, W, W - 1, H - 1), 3);
+}
+
+/* The Mini's turn: pixel x,y of the upload is row x, column y of the picture. */
+static void test_turn_and_mirror_is_a_transpose(void)
+{
+    fill();
+    uint8_t out[sizeof(px)];
+    uint8_t back[sizeof(px)];
+    db_display_t mini = {.rotate = 90, .flip_x = true};
+    db_image_orient(&mini, px, W, H, out, false);
+    for (uint16_t y = 0; y < W; y++) {
+        for (uint16_t x = 0; x < H; x++) {
+            TEST_ASSERT_EQUAL_MEMORY(at(px, W, y, x), at(out, H, x, y), 3);
+        }
+    }
+    db_image_orient(&mini, out, W, H, back, true);
+    TEST_ASSERT_EQUAL_MEMORY(px, back, sizeof(px));
 }
 
 static void test_bmp_round_trip(void)
@@ -83,6 +100,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_quarter_turns_move_corners_and_undo);
     RUN_TEST(test_both_flips_are_a_half_turn);
+    RUN_TEST(test_turn_and_mirror_is_a_transpose);
     RUN_TEST(test_bmp_round_trip);
     return UNITY_END();
 }

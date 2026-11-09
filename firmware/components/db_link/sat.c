@@ -266,7 +266,7 @@ static void draw(const db_sat_control_t *c, uint8_t *jpeg, size_t len)
 static bool key_state(const db_sat_msg_t *m)
 {
     db_sat_control_t c;
-    if (!s.rgb || !s.work || !find_control(db_sat_get(m, "CONTROLID"), &c) || c.kind == DB_SAT_ENCODER) {
+    if (!s.rgb || !s.work || !find_control(db_sat_get(m, "CONTROLID"), &c) || !c.rect.w) {
         return true;
     }
     char *bitmap = (char *)db_sat_get(m, "BITMAP");
@@ -306,7 +306,7 @@ static void clear_keys(void)
         const db_sat_control_t *c = &s.ctl[i];
         uint8_t *jpeg = NULL;
         size_t len = 0;
-        if (c->kind != DB_SAT_ENCODER) {
+        if (c->rect.w) {
             memset(s.rgb, 0, (size_t)c->rect.w * c->rect.h * 3);
             if (jpeg_port_encode_for(&s.display, s.rgb, c->rect.w, c->rect.h, QUALITY, &jpeg, &len) ==
                 ESP_OK) {
@@ -384,7 +384,7 @@ static void apply_device(void)
     s.rgb = px ? jpeg_port_alloc_rgb(px, 1) : NULL;
     s.work_cap = px * 4 + 1024; /* rows of RGBA plus a filter byte each */
     s.work = px ? heap_caps_malloc(s.work_cap, MALLOC_CAP_SPIRAM) : NULL;
-    if (s.nctl && (!s.rgb || !s.work)) {
+    if (px && (!s.rgb || !s.work)) {
         ESP_LOGW(TAG, "no memory for the deck's pictures, trying again");
         s.device_dirty = true;
     } else if (s.nctl) {

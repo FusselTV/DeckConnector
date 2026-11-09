@@ -72,10 +72,15 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .pid = pid,
                                .key_count = KEYS,
                                .display_count = 1};
-    /* The deck wants each key turned 90 degrees clockwise. */
+    /* Each key image transposed (pixel x,y from row x, column y): turned 90 degrees clockwise and mirrored.
+     * Elgato's page says only "rotate".
+     */
     db_display_t *d = &info->displays[0];
-    *d = (db_display_t){
-        .width = COLS * KEY_PX, .height = ROWS * KEY_PX, .format = DB_FORMAT_BMP, .rotate = 90};
+    *d = (db_display_t){.width = COLS * KEY_PX,
+                        .height = ROWS * KEY_PX,
+                        .format = DB_FORMAT_BMP,
+                        .rotate = 90,
+                        .flip_x = true};
     for (uint8_t i = 0; i < KEYS; i++) {
         d->targets[d->target_count++] = (db_target_t){
             .kind = DB_TARGET_KEY,

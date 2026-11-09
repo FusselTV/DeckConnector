@@ -14,14 +14,14 @@ void db_image_upload_size(const db_display_t *display, uint16_t w, uint16_t h, u
 void db_image_orient(const db_display_t *display, const uint8_t *src, uint16_t w, uint16_t h, uint8_t *dst,
                      bool undo)
 {
-    uint16_t rot = undo ? (uint16_t)((360 - display->rotate) % 360) : display->rotate;
-    uint16_t ow = (rot == 90 || rot == 270) ? h : w;
-    uint16_t oh = (rot == 90 || rot == 270) ? w : h;
+    uint16_t ow = 0;
+    uint16_t oh = 0;
+    db_image_upload_size(display, w, h, &ow, &oh);
     for (uint16_t y = 0; y < h; y++) {
         for (uint16_t x = 0; x < w; x++) {
             uint16_t dx = x;
             uint16_t dy = y;
-            switch (rot) {
+            switch (display->rotate) {
             case 90:
                 dx = (uint16_t)(h - 1 - y);
                 dy = x;
@@ -39,7 +39,9 @@ void db_image_orient(const db_display_t *display, const uint8_t *src, uint16_t w
             }
             dx = display->flip_x ? (uint16_t)(ow - 1 - dx) : dx;
             dy = display->flip_y ? (uint16_t)(oh - 1 - dy) : dy;
-            memcpy(dst + ((size_t)dy * ow + dx) * 3, src + ((size_t)y * w + x) * 3, 3);
+            size_t up = ((size_t)y * w + x) * 3;
+            size_t turned = ((size_t)dy * ow + dx) * 3;
+            memcpy(dst + (undo ? up : turned), src + (undo ? turned : up), 3);
         }
     }
 }

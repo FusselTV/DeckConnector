@@ -79,6 +79,13 @@ size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_
         }
         strip = t->kind == DB_TARGET_STRIP ? t->rect : strip;
     }
+    uint8_t images = 0; /* keys with a picture; the rest (Neo sensors, Pedal) are buttons without one */
+    for (uint8_t i = 0; i < d->target_count; i++) {
+        images = (uint8_t)(images + (d->targets[i].kind == DB_TARGET_KEY));
+    }
+    if (!cols) {
+        cols = dev->key_count; /* no display: one row */
+    }
     if (!cols) {
         return 0;
     }
@@ -93,19 +100,26 @@ size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_
                                           .rect = t->rect};
         }
     }
-    uint8_t row = (uint8_t)((dev->key_count + cols - 1) / cols);
+    uint8_t row = (uint8_t)((images + cols - 1) / cols);
+    bool neo = strip.w && !dev->encoder_count && dev->key_count == images + 2;
     if (strip.w) {
+        /* The Neo's info bar sits between its two sensors, as in Companion's plugin. */
         uint8_t parts = dev->encoder_count ? dev->encoder_count : 1;
         uint16_t pw = (uint16_t)(strip.w / parts);
         for (uint8_t i = 0; i < parts && n < max; i++) {
             out[n++] = (db_sat_control_t){.kind = DB_SAT_LCD,
                                           .row = row,
-                                          .col = i,
+                                          .col = (uint8_t)(i + neo),
                                           .index = i,
                                           .rect = {(uint16_t)(strip.x + i * pw), strip.y, pw, strip.h}};
         }
-        row++;
+        row = (uint8_t)(row + !neo);
     }
+    for (uint8_t k = images; k < dev->key_count && n < max; k++) {
+        uint8_t col = neo ? (uint8_t)((k - images) * 3) : (uint8_t)(k - images);
+        out[n++] = (db_sat_control_t){.kind = DB_SAT_KEY, .row = row, .col = col, .index = k};
+    }
+    row = (uint8_t)(row + (neo || dev->key_count > images));
     for (uint8_t i = 0; i < dev->encoder_count && n < max; i++) {
         out[n++] = (db_sat_control_t){.kind = DB_SAT_ENCODER, .row = row, .col = i, .index = i};
     }
@@ -127,14 +141,19 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     db_rect_t key = {0};
     db_rect_t lcd = {0};
     for (size_t i = 0; i < n; i++) {
-        key = c[i].kind == DB_SAT_KEY ? c[i].rect : key;
+        key = c[i].kind == DB_SAT_KEY && c[i].rect.w ? c[i].rect : key;
         lcd = c[i].kind == DB_SAT_LCD ? c[i].rect : lcd;
     }
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     db_json_obj_open(&j, "stylePresets");
-    bitmap_preset(&j, "default", key);
+    if (key.w) {
+        bitmap_preset(&j, "default", key);
+    } else {
+        db_json_obj_open(&j, "default"); /* the Pedal: nothing to draw */
+        db_json_obj_close(&j);
+    }
     if (lcd.w) {
         bitmap_preset(&j, "lcd", lcd);
     }
@@ -148,8 +167,10 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
         db_json_obj_open(&j, id);
         db_json_int(&j, "row", c[i].row);
         db_json_int(&j, "column", c[i].col);
-        if (c[i].kind != DB_SAT_KEY) {
-            db_json_str(&j, "stylePreset", c[i].kind == DB_SAT_LCD ? "lcd" : "none");
+        if (c[i].kind == DB_SAT_LCD) {
+            db_json_str(&j, "stylePreset", "lcd");
+        } else if (c[i].kind == DB_SAT_ENCODER || (key.w && !c[i].rect.w)) {
+            db_json_str(&j, "stylePreset", "none");
         }
         db_json_obj_close(&j);
     }

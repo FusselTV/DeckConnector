@@ -7,8 +7,9 @@
 /* The size `display` wants an image of w x h uploaded in: 90 and 270 swap the sides. */
 void db_image_upload_size(const db_display_t *display, uint16_t w, uint16_t h, uint16_t *ow, uint16_t *oh);
 
-/* Turn `src` (w x h) the way `display` wants it into `dst`, which holds the same number of pixels.
- * `undo` turns an uploaded image back upright. Rotation and flips are never combined on one display. */
+/* Turn an upright picture of w x h the way `display` wants it: rotate first, then flip. `src` and `dst` hold
+ * the same number of pixels. With `undo`, `src` is the uploaded image and `dst` gets the upright w x h
+ * picture. */
 void db_image_orient(const db_display_t *display, const uint8_t *src, uint16_t w, uint16_t h, uint8_t *dst,
                      bool undo);
 

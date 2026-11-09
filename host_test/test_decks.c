@@ -64,8 +64,14 @@ static bool has_full_lcd(void)
 }
 
 /* Clockwise degrees the display really gets, -1 for a mirror. Both flips are a 180 degree turn. */
+#define TRANSPOSE                                                                                            \
+    1090 /* 90 degrees clockwise, then mirrored: the six-key image */
+
 static int orientation(const db_display_t *d)
 {
+    if (d->rotate == 90 && d->flip_x && !d->flip_y) {
+        return TRANSPOSE;
+    }
     if (d->flip_x != d->flip_y) {
         return -1;
     }
@@ -110,7 +116,7 @@ static void check_info(void)
         db_format_t fmt = M->family == DECK_SIXKEY ? DB_FORMAT_BMP : DB_FORMAT_JPEG;
         CHECK(dp->format == fmt, "display %u format %d, spec %s", d, dp->format,
               fmt == DB_FORMAT_BMP ? "BMP" : "JPEG");
-        CHECK(orientation(dp) == M->rotate,
+        CHECK(orientation(dp) == (M->family == DECK_SIXKEY ? TRANSPOSE : M->rotate),
               "display %u rotate %u flip_x %d flip_y %d, spec rotates %u clockwise", d, dp->rotate,
               dp->flip_x, dp->flip_y, M->rotate);
         CHECK(dp->target_count <= DB_MAX_TARGETS, "display %u target_count %u", d, dp->target_count);

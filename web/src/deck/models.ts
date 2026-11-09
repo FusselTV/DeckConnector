@@ -1,6 +1,6 @@
 // Fronts in real millimetres; --mm (px per mm) comes from the container width.
 // Stream Deck +: measured on a real deck and Elgato renders. + XL: SimDeck.
-// MK.2, XL, Mini, Neo: retail outer sizes, grids and native key sizes estimated.
+// MK.2, XL, Mini, Neo, Pedal: retail outer sizes, grids and native key sizes estimated.
 interface Box {
   x: number
   y: number
@@ -30,7 +30,7 @@ export interface Model {
   mark: { y: number }
 }
 
-export type ModelKey = 'plus' | 'plusxl' | 'mk2' | 'xl' | 'mini' | 'neo'
+export type ModelKey = 'plus' | 'plusxl' | 'mk2' | 'xl' | 'mini' | 'neo' | 'pedal'
 export const MODELS: Record<ModelKey, Model> = {
   plus: {
     name: 'Stream Deck +',
@@ -140,6 +140,22 @@ export const MODELS: Record<ModelKey, Model> = {
     ],
     mark: { y: 71.3 },
   },
+  pedal: {
+    name: 'Stream Deck Pedal',
+    W: 223,
+    H: 141,
+    R: 14,
+    cols: 3,
+    rows: 1,
+    k: 62,
+    kr: 6,
+    li: 0,
+    x0: 12.5,
+    y0: 34,
+    px: 70,
+    py: 70,
+    mark: { y: 126 },
+  },
 }
 
 export function modelOf(name = '', keys?: number): ModelKey {
@@ -147,6 +163,7 @@ export function modelOf(name = '', keys?: number): ModelKey {
   if (n.includes('+') && n.includes('xl')) return 'plusxl'
   if (n.includes('+') || n.includes('plus')) return 'plus'
   if (n.includes('neo')) return 'neo'
+  if (n.includes('pedal')) return 'pedal'
   if (n.includes('mini')) return 'mini'
   if (n.includes('xl')) return 'xl'
   if (keys === 6) return 'mini'

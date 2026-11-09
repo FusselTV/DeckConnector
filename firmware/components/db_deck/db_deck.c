@@ -48,6 +48,7 @@ static struct {
      * into a release nobody made. Swapped in for it: both run in the event task. */
     uint8_t sim_state[sizeof(((db_dev_t *)0)->state)];
     bool present;
+    bool host_wrote; /* a dock host wrote to this deck since it was plugged in */
     db_regions_t pending;
     db_source_t writer;
     db_deck_listener_t listeners[MAX_LISTENERS];
@@ -357,6 +358,7 @@ static void handle_attach(uint8_t address)
     xSemaphoreGive(s.shot_lock);
     xSemaphoreTake(s.lock, portMAX_DELAY);
     s.present = true;
+    s.host_wrote = false;
     s.replay = same;
     xSemaphoreGive(s.lock);
     notify_device(&s.dev.info);
@@ -672,6 +674,11 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
 {
     if (!s.present) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if (!s.host_wrote) {
+        s.host_wrote = true;
+        vTaskDelay(
+            pdMS_TO_TICKS(300)); /* wait as long before a host's first write */
     }
     const db_hid_io_t *io = usb_port_io();
     uint8_t padded[1024] = {0}; /* hosts may send short reports; the endpoint wants full ones */

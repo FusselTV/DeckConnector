@@ -198,7 +198,7 @@ esp_err_t jpeg_port_decode_for(const db_display_t *display, const uint8_t *data,
                   : jpeg_port_decode_into(data, len, up, ow, oh, 0, 0);
     }
     if (err == ESP_OK) {
-        db_image_orient(display, up, ow, oh, px, true);
+        db_image_orient(display, up, rect.w, rect.h, px, true);
         if (db_screen_blit(dst, dw, dh, rect.x, rect.y, px, (size_t)rect.w * 3, rect.w, rect.h) != DB_OK) {
             err = ESP_ERR_INVALID_SIZE;
         }
