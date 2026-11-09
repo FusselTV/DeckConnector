@@ -63,10 +63,10 @@ static bool has_full_lcd(void)
     return M->family != DECK_SIXKEY && M->family != DECK_PEDAL;
 }
 
-/* Clockwise degrees the display really gets, -1 for a mirror. Both flips are a 180 degree turn. */
-#define TRANSPOSE                                                                                            \
-    1090 /* 90 degrees clockwise, then mirrored: the six-key image */
+/* 90 degrees clockwise, then mirrored. */
+#define TRANSPOSE 1090
 
+/* Clockwise degrees the display really gets, -1 for a mirror. Both flips are a 180 degree turn. */
 static int orientation(const db_display_t *d)
 {
     if (d->rotate == 90 && d->flip_x && !d->flip_y) {
@@ -157,8 +157,7 @@ static void check_info(void)
         }
     }
     CHECK(keys == image_keys(), "%u key targets, the deck has %u image keys", keys, image_keys());
-    /* No full-LCD check: no source says where the keys sit on the Neo's or + XL's panel, so it is optional.
-     */
+    /* A full-LCD target is not required, because no source says where the keys sit on the panel. */
     if (M->win_w) {
         CHECK(strips >= 1, "no window target");
     }
@@ -326,7 +325,7 @@ static void check_images(void)
             switch (t->kind) {
             case DB_TARGET_KEY:
                 snprintf(w, sizeof(w), "display %u key %u image", d, t->index);
-                /* key 0 fills exactly two chunks, key 1 fits in one */
+                /* gen2: key 0 fills exactly two chunks, key 1 fits in one */
                 write_target(d, t, r, t->index == 0 ? 2032 : t->index == 1 ? 700 : 1000 + 150u * t->index, w);
                 break;
             case DB_TARGET_FULL:
@@ -348,10 +347,19 @@ static void check_images(void)
         }
     }
     if (dev.driver->parse_output) {
-        uint8_t zero[1024] = {0};
+        uint8_t r[1024] = {0};
         db_chunk_t c;
-        CHECK(!dev.driver->parse_output(&dev, zero, sizeof(zero), &c),
-              "parse_output accepts an all-zero report");
+        CHECK(!dev.driver->parse_output(&dev, r, sizeof(r), &c), "parse_output accepts an all-zero report");
+        if (M->family == DECK_SIXKEY) {
+            r[0] = 0x02;
+            r[1] = 0x01;
+            CHECK(!dev.driver->parse_output(&dev, r, sizeof(r), &c), "parse_output accepts key byte 0");
+            r[5] = 7;
+            CHECK(!dev.driver->parse_output(&dev, r, sizeof(r), &c), "parse_output accepts key byte 7");
+            r[5] = 1;
+            CHECK(!dev.driver->parse_output(&dev, r, sizeof(r) - 1, &c),
+                  "parse_output accepts a short report");
+        }
     }
 }
 
@@ -365,7 +373,9 @@ static void check_brightness(void)
     for (size_t k = 0; k < sizeof(levels); k++) {
         deck_emu_clear();
         db_err_t err = dev.driver->set_brightness(&dev, levels[k]);
-        if (M->family != DECK_PEDAL) {
+        if (M->family == DECK_PEDAL) {
+            CHECK(deck_emu_brightness() == -1, "set_brightness(%u) sent the Pedal a brightness", levels[k]);
+        } else {
             CHECK(err == DB_OK, "set_brightness(%u) returns %d", levels[k], err);
             CHECK(deck_emu_brightness() == levels[k], "set_brightness(%u): deck brightness is %d", levels[k],
                   deck_emu_brightness());
@@ -415,12 +425,13 @@ static void round_trip(const db_input_t *ev, const uint8_t *deck, const char *w)
     }
     uint8_t b[512];
     memset(b, 0xee, sizeof(b));
-    size_t n = dev.driver->build_input(&dev, ev, b, sizeof(b));
+    size_t n = dev.driver->build_input(&dev, ev, b, 65); /* db_deck's input event holds 65 bytes */
     CHECK(n > 0, "%s: build_input returns 0", w);
     if (!n) {
         return;
     }
-    /* a touch report's length field counts from byte 0 (tap 0x0a, flick 0x0e), unlike keys and encoders */
+    /* touch reports define 10 bytes for a tap or long press and 14 for a flick, whatever the length field
+     * says */
     size_t sig = M->family == DECK_SIXKEY ? 7
                  : deck[1] == 0x02        ? (deck[4] == 3 ? 14u : 10u)
                                           : 4u + db_get_u16(deck + 2);

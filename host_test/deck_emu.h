@@ -27,10 +27,9 @@ typedef struct {
 } deck_model_t;
 
 typedef struct {
-    uint8_t cmd;           /* gen2 0x07 0x08 0x0b 0x0c, six-key 0x01 */
-    uint8_t key;           /* six-key: header byte minus one */
-    db_rect_t win;         /* 0x0c header rect, window coordinates */
-    uint16_t img_w, img_h; /* from the JPEG SOF0 or BMP header */
+    uint8_t cmd;   /* gen2 0x07 0x08 0x0b 0x0c, six-key 0x01 */
+    uint8_t key;   /* six-key: header byte minus one */
+    db_rect_t win; /* 0x0c header rect, window coordinates */
     uint8_t *data;
     size_t len;
     size_t first_report; /* index for deck_emu_report() */
@@ -52,7 +51,6 @@ size_t deck_emu_violation_count(void);
 const char *deck_emu_violation(size_t i);
 size_t deck_emu_image_count(void);
 const deck_image_t *deck_emu_image(size_t i);
-size_t deck_emu_report_count(void);
 const uint8_t *deck_emu_report(size_t i); /* 1024 bytes, zero padded */
 int deck_emu_brightness(void);            /* -1 until set */
 const char *deck_emu_serial(void);

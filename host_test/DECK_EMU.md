@@ -5,8 +5,8 @@ through `db_driver_find()` against it. All expectations come from Elgato's HID p
 
 ## What the emulator checks
 
-- Output reports are 1024 bytes, report id `0x02`, a command the model has. Classic and XL take only
-  `0x07`. Neo, + and + XL also take `0x08`, `0x0b` and `0x0c`. Six-key decks take only `0x01`. The Pedal
+- Output reports are 1024 bytes, report id `0x02`, a command the model has. Classic and XL take `0x07`
+  and `0x08`. Neo, + and + XL also take `0x0b` and `0x0c`. Six-key decks take only `0x01`. The Pedal
   takes no image at all.
 - Gen2 headers: key index in range, reserved bytes zero, done flag 0 or 1, size field 1..1016 (1..1008 for
   `0x0c`), zero padding after the data. `0x0c` uses its own 16-byte header, and its rect must lie inside
@@ -45,13 +45,14 @@ line per PID and exits non-zero if any PID fails.
 The spec leaves these open. A failure here may be the emulator's fault, not the driver's.
 
 - Pedal input is the gen2 key report with 3 bytes. Its `0x08` answer is 1 row x 3 columns with zero image
-  sizes. It takes setters `03 02`, `03 08` and `03 0d`, and `set_brightness` may fail on it.
+  sizes. It takes setters `03 02`, `03 08` and `03 0d`. The driver sends it no brightness, as the Elgato
+  dock sends it no display reports.
 - Six-key BMPs are 24 bits per pixel with a BITMAPINFOHEADER. Row order is not checked.
 - Six-key chunks have no size field, so every chunk carries 1008 bytes and the BMP size field marks the end.
 - The Neo has `key_count` 10: 8 image keys plus the two sensors as input keys 8 and 9. Sensors get no image
   target, because the spec gives no command for the 96 x 16 sensor image.
-- A full LCD target is optional on every model with an LCD (classic, XL, Neo, + XL): no source gives where
-  the keys sit on the panel. When a driver offers one, it must match the LCD size.
+- A full LCD target is optional on every model with an LCD except the +, because no source gives where the
+  keys sit on the panel. When a driver offers one, it must match the LCD size.
 - The + XL sends a tap with payload length `0x10`, as its Elgato page says. Long press stays `0x0a`.
 - The touch area must equal the window target. Touch events are window coordinates plus the touch area's
   origin.

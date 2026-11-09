@@ -155,11 +155,10 @@ static void check_jpeg(const char *w, deck_image_t *im, uint16_t ew, uint16_t eh
             if (p + 9 > n) {
                 break;
             }
-            im->img_h = be16(d + p + 5);
-            im->img_w = be16(d + p + 7);
-            if (im->img_w != ew || im->img_h != eh) {
-                violation("%s: JPEG is %ux%u, the deck expects %ux%u after rotating %u", w, im->img_w,
-                          im->img_h, ew, eh, emu.m->rotate);
+            uint16_t ih = be16(d + p + 5), iw = be16(d + p + 7);
+            if (iw != ew || ih != eh) {
+                violation("%s: JPEG is %ux%u, the deck expects %ux%u after rotating %u", w, iw, ih, ew, eh,
+                          emu.m->rotate);
             }
             return;
         }
@@ -190,12 +189,10 @@ static void check_bmp(const char *w, deck_image_t *im, uint16_t ew, uint16_t eh)
     im->len = size;
     int32_t bw = (int32_t)db_get_u32(d + 18), bh = (int32_t)db_get_u32(d + 22);
     uint16_t bpp = db_get_u16(d + 28);
-    im->img_w = (uint16_t)bw;
-    im->img_h = (uint16_t)(bh < 0 ? -bh : bh);
     if (db_get_u32(d + 14) < 40) {
         violation("%s: BMP info header of %u bytes, expected BITMAPINFOHEADER (40)", w, db_get_u32(d + 14));
     }
-    if (bw != ew || im->img_h != eh) {
+    if (bw != ew || (bh < 0 ? -bh : bh) != eh) {
         violation("%s: BMP is %dx%d, the deck expects %ux%u", w, bw, bh, ew, eh);
     }
     if (bpp != 24) {
@@ -298,7 +295,7 @@ static void gen2_output(const uint8_t *r)
         return;
     }
     bool window = m->win_w != 0;
-    if (cmd != 0x07 && !(window && (cmd == 0x08 || cmd == 0x0b || cmd == 0x0c))) {
+    if (cmd != 0x07 && !(cmd == 0x08 && m->lcd_w) && !(window && (cmd == 0x0b || cmd == 0x0c))) {
         violation("output command 0x%02x is not one %s supports", cmd, m->name);
         return;
     }
@@ -626,11 +623,6 @@ size_t deck_emu_image_count(void)
 const deck_image_t *deck_emu_image(size_t i)
 {
     return &emu.images[i];
-}
-
-size_t deck_emu_report_count(void)
-{
-    return emu.nreports;
 }
 
 const uint8_t *deck_emu_report(size_t i)
