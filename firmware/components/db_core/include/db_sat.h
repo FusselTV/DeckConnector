@@ -32,7 +32,7 @@ void db_sat_addr_host(const char *addr, char *host, size_t cap);
 
 typedef enum {
     DB_SAT_KEY,
-    DB_SAT_LCD, /* one part of the touch strip */
+    DB_SAT_LCD, /* one part of the LCD strip */
     DB_SAT_ENCODER,
 } db_sat_kind_t;
 
@@ -45,7 +45,8 @@ typedef struct {
 } db_sat_control_t;
 
 /* Rows and columns as Companion's deck plugin lays out the deck over USB or a Network Dock, so the
- * same buttons show: the keys, then the strip in one part per encoder, then the encoders. */
+ * same buttons show. The image keys come first, then the strip in one part per encoder, then keys without a
+ * picture (on the Neo, in the strip's row around it), then the encoders. */
 size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_t max);
 /* The LAYOUT_MANIFEST JSON. Returns its length, 0 when it does not fit. */
 size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t cap);

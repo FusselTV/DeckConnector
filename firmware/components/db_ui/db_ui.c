@@ -52,7 +52,7 @@ static struct {
     ui_canvas_t canvas;
     uint32_t seq;
     bool enc_down[8];
-    bool key_down[32];
+    bool key_down[UI_MAX_KEYS];
     int64_t chord_since;
     bool covered;
     bool full;         /* the next picture goes out whole: someone else drew meanwhile */
@@ -808,7 +808,7 @@ static void check_menu_chord(void)
 {
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(s.dev.encoder_count, s.dev.key_count, &on_encoders, &last);
+    bool any = db_ui_menu_chord(s.dev.encoder_count, db_device_image_keys(&s.dev), &on_encoders, &last);
     const bool *down = on_encoders ? s.enc_down : s.key_down;
     int size = on_encoders ? sizeof(s.enc_down) : sizeof(s.key_down);
     bool held = any && last < size && down[0] && down[last];
@@ -827,8 +827,8 @@ static void on_input(const db_input_t *ev)
 {
     if (ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP) {
         s.enc_down[ev->index & 7] = ev->kind == DB_INPUT_ENCODER_DOWN;
-    } else if (ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP) {
-        s.key_down[ev->index & 31] = ev->kind == DB_INPUT_KEY_DOWN;
+    } else if ((ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP) && ev->index < UI_MAX_KEYS) {
+        s.key_down[ev->index] = ev->kind == DB_INPUT_KEY_DOWN;
     }
     check_menu_chord();
     /* the device UI only takes input while it is what the deck shows, and nothing during an update */

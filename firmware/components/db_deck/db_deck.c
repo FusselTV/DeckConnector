@@ -21,7 +21,7 @@
 
 #define MAX_LISTENERS  6
 #define PENDING_BUDGET (4 * 1024 * 1024)
-#define INPUT_REPORT   64
+#define INPUT_REPORT   65 /* the six-key report */
 #define EVENTS_PER_RPT 8
 
 static const char *TAG = "deck";
@@ -48,7 +48,7 @@ static struct {
      * into a release nobody made. Swapped in for it: both run in the event task. */
     uint8_t sim_state[sizeof(((db_dev_t *)0)->state)];
     bool present;
-    bool host_wrote; /* a dock host wrote to this deck since it was plugged in */
+    bool host_wrote; /* a host wrote since the deck was plugged in */
     db_regions_t pending;
     db_source_t writer;
     db_deck_listener_t listeners[MAX_LISTENERS];
@@ -349,7 +349,7 @@ static void handle_attach(uint8_t address)
     /* another deck: the kept pictures have its predecessor's layout. The same one: draw them again at once,
      * it lost its picture with its power, and a host may not send it again. */
     static char last_serial[sizeof(s.dev.info.serial)];
-    bool same = strcmp(last_serial, s.dev.info.serial) == 0;
+    bool same = s.dev.info.serial[0] && strcmp(last_serial, s.dev.info.serial) == 0;
     strlcpy(last_serial, s.dev.info.serial, sizeof(last_serial));
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
     for (int i = 0; i < DB_SOURCE_COUNT && !same; i++) {
@@ -675,10 +675,10 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
     if (!s.present) {
         return ESP_ERR_INVALID_STATE;
     }
+    /* Wait 300 ms before the first host write after a deck is plugged in. */
     if (!s.host_wrote) {
         s.host_wrote = true;
-        vTaskDelay(
-            pdMS_TO_TICKS(300)); /* wait as long before a host's first write */
+        vTaskDelay(pdMS_TO_TICKS(300));
     }
     const db_hid_io_t *io = usb_port_io();
     uint8_t padded[1024] = {0}; /* hosts may send short reports; the endpoint wants full ones */
@@ -778,7 +778,7 @@ size_t db_deck_shots(db_source_t *writer, db_shot_t *out, size_t max)
     return n;
 }
 
-esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
+static esp_err_t copy_shot(uint32_t id, uint8_t **data, size_t *len, db_rect_t *rect)
 {
     esp_err_t err = ESP_ERR_NOT_FOUND;
     xSemaphoreTake(s.shot_lock, portMAX_DELAY);
@@ -791,12 +791,47 @@ esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
                 if (*data) {
                     memcpy(*data, sc->shots[i].data, sc->shots[i].len);
                     *len = sc->shots[i].len;
+                    *rect = sc->shots[i].rect;
                 }
                 break;
             }
         }
     }
     xSemaphoreGive(s.shot_lock);
+    return err;
+}
+
+esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
+{
+    db_rect_t rect;
+    return copy_shot(id, data, len, &rect);
+}
+
+esp_err_t db_deck_shot_upright(uint32_t id, uint8_t **jpeg, size_t *len)
+{
+    db_display_t d = {0};
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    if (s.present) {
+        d = s.dev.info.displays[0];
+    }
+    xSemaphoreGive(s.lock);
+    uint8_t *data = NULL;
+    size_t dlen = 0;
+    db_rect_t r = {0};
+    esp_err_t err = copy_shot(id, &data, &dlen, &r);
+    if (err != ESP_OK || (!d.rotate && !d.flip_x && !d.flip_y && d.format == DB_FORMAT_JPEG)) {
+        *jpeg = data;
+        *len = dlen;
+        return err;
+    }
+    uint8_t *px = jpeg_port_alloc_rgb(r.w, r.h);
+    err =
+        px ? jpeg_port_decode_for(&d, data, dlen, px, r.w, r.h, (db_rect_t){0, 0, r.w, r.h}) : ESP_ERR_NO_MEM;
+    heap_caps_free(data);
+    if (err == ESP_OK) {
+        err = jpeg_port_encode(px, r.w, r.h, 80, jpeg, len);
+    }
+    heap_caps_free(px);
     return err;
 }
 

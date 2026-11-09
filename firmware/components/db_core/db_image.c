@@ -82,7 +82,7 @@ db_err_t db_bmp_read(const uint8_t *bmp, size_t len, uint16_t w, uint16_t h, uin
         return DB_ERR_PROTO;
     }
     size_t at = db_get_u32(bmp + 10);
-    if (at + row_bytes(w) * h > len) {
+    if (at > len || row_bytes(w) * h > len - at) {
         return DB_ERR_PROTO;
     }
     for (uint16_t y = 0; y < h; y++) {

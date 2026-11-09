@@ -229,7 +229,7 @@ static bool find_control(const char *id, db_sat_control_t *out)
     return c != NULL;
 }
 
-/* A bitmap as Companion sends it (a PNG data URL, or raw R, G, B) to a JPEG for the deck. */
+/* A bitmap as Companion sends it (a PNG data URL, or raw R, G, B) to an image in the deck's format. */
 static esp_err_t to_jpeg(char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
 {
     bool png = strncmp(bitmap, PNG_PREFIX, strlen(PNG_PREFIX)) == 0;

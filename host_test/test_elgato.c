@@ -35,6 +35,10 @@ static db_err_t fake_get_feature(uint8_t *buf, size_t len, size_t *out_len)
     } else if (buf[0] == 0x05) {
         buf[1] = sizeof(fw) - 1 + 4; /* 4 checksum bytes come first */
         memcpy(buf + 6, fw, sizeof(fw) - 1);
+    } else if (buf[0] == 0x08) {
+        static const uint8_t unit[] = {0x08, 0x02, 0x04, 0x78, 0x00, 0x78, 0x00, 0x20, 0x03, 0xe0, 0x01,
+                                       0x04, 0x05, 0x20, 0x00, 0x04, 0xaa, 0x20, 0x03, 0x64, 0x00};
+        memcpy(buf, unit, sizeof(unit));
     }
     *out_len = len;
     return DB_OK;
@@ -96,6 +100,14 @@ static void test_describes_stream_deck_plus(void)
         strstr(json, "\"kind\":\"key\",\"index\":5,\"x\":232,\"y\":172,\"w\":120,\"h\":120"));
     TEST_ASSERT_NOT_NULL(
         strstr(json, "\"kind\":\"strip\",\"x\":0,\"y\":380,\"w\":800,\"h\":100,\"partial\":true"));
+}
+
+/* The deck's 0x08 answer inside 03 1c: rows and columns first, its gap bytes zero. */
+static void test_unit_info_as_the_dock_keeps_it(void)
+{
+    static const uint8_t dock[] = {0x02, 0x04, 0x00, 0x78, 0x00, 0x78, 0x00, 0x20, 0x03, 0xe0, 0x01,
+                                   0x04, 0x05, 0x20, 0x00, 0x04, 0x00, 0x20, 0x03, 0x64, 0x00};
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(dock, dev.info.unit_info, sizeof(dock));
 }
 
 static void test_splits_key_image_into_reports(void)
@@ -292,6 +304,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_unknown_device_has_no_driver);
     RUN_TEST(test_describes_stream_deck_plus);
+    RUN_TEST(test_unit_info_as_the_dock_keeps_it);
     RUN_TEST(test_splits_key_image_into_reports);
     RUN_TEST(test_full_and_partial_strip_headers);
     RUN_TEST(test_reads_back_what_it_writes);

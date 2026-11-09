@@ -93,6 +93,21 @@ static void test_bmp_round_trip(void)
     TEST_ASSERT_EQUAL_INT(DB_OK, db_bmp_read(bmp, db_bmp_size(W, H), W, H, back));
     TEST_ASSERT_EQUAL_MEMORY(px, back, sizeof(px));
     TEST_ASSERT_EQUAL_INT(DB_ERR_PROTO, db_bmp_read(bmp, db_bmp_size(W, H), H, W, back));
+    TEST_ASSERT_EQUAL_INT(DB_ERR_PROTO, db_bmp_read(bmp, db_bmp_size(W, H) - 1, W, H, back));
+    db_put_u32(bmp + 10, 0xffffff00); /* a host's pixel offset that wraps on 32 bits */
+    TEST_ASSERT_EQUAL_INT(DB_ERR_PROTO, db_bmp_read(bmp, db_bmp_size(W, H), W, H, back));
+}
+
+/* Rows of an odd width are padded to 4 bytes. */
+static void test_bmp_pads_rows(void)
+{
+    fill();
+    uint8_t bmp[64];
+    TEST_ASSERT_EQUAL_UINT(54 + 2 * 4, db_bmp_size(1, 2));
+    db_bmp_write(px, 1, 2, bmp);
+    uint8_t back[6];
+    TEST_ASSERT_EQUAL_INT(DB_OK, db_bmp_read(bmp, db_bmp_size(1, 2), 1, 2, back));
+    TEST_ASSERT_EQUAL_MEMORY(px, back, sizeof(back));
 }
 
 int main(void)
@@ -102,5 +117,6 @@ int main(void)
     RUN_TEST(test_both_flips_are_a_half_turn);
     RUN_TEST(test_turn_and_mirror_is_a_transpose);
     RUN_TEST(test_bmp_round_trip);
+    RUN_TEST(test_bmp_pads_rows);
     return UNITY_END();
 }

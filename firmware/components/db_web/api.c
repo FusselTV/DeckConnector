@@ -1119,7 +1119,7 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_int(j, "encoders", dev->encoder_count);
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(dev->encoder_count, dev->key_count, &on_encoders, &last);
+    bool any = db_ui_menu_chord(dev->encoder_count, db_device_image_keys(dev), &on_encoders, &last);
     db_json_obj_open(j, "menu_chord");
     db_json_str(j, "on", !any ? "off" : on_encoders ? "encoders" : "keys");
     if (any) {
@@ -1175,18 +1175,21 @@ esp_err_t get_screen(httpd_req_t *req)
     return send_built(req, SCREEN_JSON_MAX, screen_json);
 }
 
-/* An image never changes under its id, so browsers may keep it. */
+/* An image never changes under its id, so browsers may keep it. It comes upright, as a JPEG. */
 esp_err_t get_screen_image(httpd_req_t *req)
 {
     unsigned long id = strtoul(req->uri + strlen("/api/screen/"), NULL, 10);
     uint8_t *data = NULL;
     size_t len = 0;
-    esp_err_t found = db_deck_shot_copy((uint32_t)id, &data, &len);
+    esp_err_t found = db_deck_shot_upright((uint32_t)id, &data, &len);
     if (found == ESP_ERR_NO_MEM) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
-    if (found != ESP_OK) {
+    if (found == ESP_ERR_NOT_FOUND) {
         return send_error(req, "404 Not Found", "image no longer shown");
+    }
+    if (found != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", esp_err_to_name(found));
     }
     httpd_resp_set_type(req, "image/jpeg");
     httpd_resp_set_hdr(req, "Cache-Control", "private, max-age=3600, immutable");

@@ -1,5 +1,5 @@
 /*
- * Elgato six-key decks (Mini family): the older HID protocol with BMP images.
+ * Elgato six-key decks (Mini family) with the older HID protocol and BMP images.
  * Protocol: https://docs.elgato.com/streamdeck/hid/mini/
  */
 #include <string.h>
@@ -15,24 +15,18 @@
 #define KEYS        (COLS * ROWS)
 #define KEY_PX      80
 
-static const struct {
-    uint16_t pid;
-    const char *name;
-} models[] = {
-    {0x0063, "Stream Deck Mini"},
-    {0x0090, "Stream Deck Mini"},
-    {0x00b3, "Stream Deck Mini"},
-    {0x00b8, "Stream Deck 6 Module"},
-};
-
 static const char *model_name(uint16_t pid)
 {
-    for (size_t i = 0; i < sizeof(models) / sizeof(models[0]); i++) {
-        if (models[i].pid == pid) {
-            return models[i].name;
-        }
+    switch (pid) {
+    case 0x0063:
+    case 0x0090:
+    case 0x00b3:
+        return "Stream Deck Mini";
+    case 0x00b8:
+        return "Stream Deck 6 Module";
+    default:
+        return NULL;
     }
-    return NULL;
 }
 
 static bool match(uint16_t vid, uint16_t pid)
@@ -72,9 +66,8 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .pid = pid,
                                .key_count = KEYS,
                                .display_count = 1};
-    /* Each key image transposed (pixel x,y from row x, column y): turned 90 degrees clockwise and mirrored.
-     * Elgato's page says only "rotate".
-     */
+    /* Each key image is transposed, so pixel x,y of the upload is row x, column y of the picture. That is a
+     * 90 degree turn clockwise, then a mirror. Elgato's page says only "rotate". */
     db_display_t *d = &info->displays[0];
     *d = (db_display_t){.width = COLS * KEY_PX,
                         .height = ROWS * KEY_PX,
@@ -95,7 +88,7 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
     return DB_OK;
 }
 
-/* [0x02, 0x01, chunk, 0, last, key + 1, 0 x 10, data]: no length field, the last chunk is padded. */
+/* [0x02, 0x01, chunk, 0, last, key + 1, 0 x 10, data]. There is no length field, the last chunk is padded. */
 static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect, const uint8_t *data,
                             size_t len)
 {

@@ -1,7 +1,7 @@
 /*
  * Elgato deck, second generation HID protocol (JPEG images in 1024 byte reports).
  * Protocol: https://docs.elgato.com/streamdeck/hid/stream-deck-plus/
- * Adding a model of this family only needs a new row in `models`.
+ * A new model of this family needs a row in `models` and its md= name in db_cora_model().
  */
 #include <string.h>
 
@@ -63,7 +63,7 @@ static const model_t models[] = {
      .strip = {0, 380, 800, 100},
      .encoders = 4,
      .touch = true},
-    /* Key positions on its 1280x800 panel are unknown, so it has no full image target: keys tile, the
+    /* Key positions on its 1280x800 panel are unknown, so it has no full image target. Keys tile, the
      * window sits below them. */
     {.pid = 0x00c6,
      .name = "Stream Deck + XL",
@@ -151,7 +151,7 @@ static const model_t models[] = {
      .width = 360,
      .height = 216,
      .flip = true},
-    /* No display: three pedals as keys. */
+    /* The Pedal has no display. Its three pedals are keys. */
     {.pid = 0x0086, .name = "Stream Deck Pedal", .cols = 3, .rows = 1},
 };
 
@@ -242,8 +242,8 @@ static void fill_display(const model_t *m, db_device_info_t *info)
     info->display_count = 1;
 }
 
-/* Feature report 0x08 laid out as the Elgato App reads it: rows and columns, a gap
- * byte, then the report's sizes and flags, a gap byte, the window size. Without an answer the table fills in
+/* Feature report 0x08 laid out as the Elgato App reads it. That is rows and columns,
+ * a gap byte, the report's sizes and flags, a gap byte, the window size. Without an answer the table fills in
  * rows, columns and sizes. */
 static void read_unit_info(db_dev_t *dev, const model_t *m)
 {
@@ -261,8 +261,10 @@ static void read_unit_info(db_dev_t *dev, const model_t *m)
     u[1] = m->cols;
     db_put_u16(u + 3, m->key_px);
     db_put_u16(u + 5, m->key_px);
-    db_put_u16(u + 7, m->width);
-    db_put_u16(u + 9, m->height);
+    if (m->full_image) { /* otherwise the table does not know the panel's size */
+        db_put_u16(u + 7, m->width);
+        db_put_u16(u + 9, m->height);
+    }
     db_put_u16(u + 17, m->strip.w);
     db_put_u16(u + 19, m->strip.h);
 }

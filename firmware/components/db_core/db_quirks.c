@@ -44,9 +44,9 @@ db_quirk_t db_quirk(uint16_t pid, uint8_t op, const uint8_t *p, size_t len)
         q.wait_ms = after_write(pid, p);
     } else if (op == DB_CORA_OP_SEND_REPORT) {
         if (six_key(pid) && p[0] == 0x03 && p[1] == 0x0b && p[2] == 0x00) {
-            q.block = true; /* "SD mini not this CMD" */
+            q.block = true; /* Mini decks do not take this command */
         } else if (six_key(pid) && p[0] == 0x0b && p[1] == 0x63 && p[2] == 0x02) {
-            q.wait_ms = 900; /* reset: the deck restarts */
+            q.wait_ms = 900; /* a reset restarts the deck */
         } else if (p[0] == 0x03 && (p[1] == 0x04 || p[1] == 0x11 || p[1] == 0x12)) {
             q.wait_ms = 50;
         }

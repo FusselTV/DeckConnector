@@ -28,7 +28,7 @@ typedef struct {
     uint16_t width;
     uint16_t height;
     db_format_t format;
-    uint16_t rotate; /* degrees clockwise the server applies before encoding */
+    uint16_t rotate; /* degrees clockwise, then flip_x and flip_y, before encoding (db_image_orient) */
     bool flip_x;
     bool flip_y;
     uint8_t target_count;
@@ -84,3 +84,5 @@ typedef struct {
 
 /* Returns the target that can show `rect` on `display`, or NULL. */
 const db_target_t *db_device_find_target(const db_device_info_t *info, uint8_t display, db_rect_t rect);
+/* Keys with a picture, numbered first. The rest of key_count (Neo sensors, Pedal) only give input. */
+uint8_t db_device_image_keys(const db_device_info_t *info);

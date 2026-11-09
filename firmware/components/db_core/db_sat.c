@@ -79,12 +79,9 @@ size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_
         }
         strip = t->kind == DB_TARGET_STRIP ? t->rect : strip;
     }
-    uint8_t images = 0; /* keys with a picture; the rest (Neo sensors, Pedal) are buttons without one */
-    for (uint8_t i = 0; i < d->target_count; i++) {
-        images = (uint8_t)(images + (d->targets[i].kind == DB_TARGET_KEY));
-    }
+    uint8_t images = db_device_image_keys(dev);
     if (!cols) {
-        cols = dev->key_count; /* no display: one row */
+        cols = dev->key_count; /* without a display all keys are one row */
     }
     if (!cols) {
         return 0;
@@ -101,9 +98,9 @@ size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_
         }
     }
     uint8_t row = (uint8_t)((images + cols - 1) / cols);
+    /* The Neo's info bar sits between its two sensors, as in Companion's plugin. */
     bool neo = strip.w && !dev->encoder_count && dev->key_count == images + 2;
     if (strip.w) {
-        /* The Neo's info bar sits between its two sensors, as in Companion's plugin. */
         uint8_t parts = dev->encoder_count ? dev->encoder_count : 1;
         uint16_t pw = (uint16_t)(strip.w / parts);
         for (uint8_t i = 0; i < parts && n < max; i++) {
@@ -151,7 +148,7 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     if (key.w) {
         bitmap_preset(&j, "default", key);
     } else {
-        db_json_obj_open(&j, "default"); /* the Pedal: nothing to draw */
+        db_json_obj_open(&j, "default"); /* nothing to draw on the Pedal */
         db_json_obj_close(&j);
     }
     if (lcd.w) {

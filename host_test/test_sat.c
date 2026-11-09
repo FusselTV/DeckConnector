@@ -149,6 +149,19 @@ static void test_buttons_without_a_picture(void)
     TEST_ASSERT_NOT_NULL(strstr(buf, "\"stylePresets\":{\"default\":{},\"none\":{}}"));
 }
 
+/* 36 keys, 6 LCD parts and 6 encoders fill DB_SAT_MAX_CONTROLS exactly. */
+static void test_plus_xl_fits(void)
+{
+    db_device_info_t xl = open_deck(0x00c6);
+    db_sat_control_t c[DB_SAT_MAX_CONTROLS];
+    size_t n = db_sat_controls(&xl, c, DB_SAT_MAX_CONTROLS);
+    TEST_ASSERT_EQUAL_UINT(48, n);
+    TEST_ASSERT_EQUAL_INT(DB_SAT_LCD, db_sat_find(c, n, "4/5")->kind);
+    TEST_ASSERT_EQUAL_INT(DB_SAT_ENCODER, db_sat_find(c, n, "5/5")->kind);
+    char buf[2048];
+    TEST_ASSERT_GREATER_THAN(0, db_sat_manifest(c, n, buf, sizeof(buf)));
+}
+
 static void put_be32(uint8_t *p, uint32_t v)
 {
     p[0] = (uint8_t)(v >> 24);
@@ -286,6 +299,7 @@ int main(void)
     RUN_TEST(test_stream_deck_plus_layout_matches_companion);
     RUN_TEST(test_decks_without_a_strip_are_a_grid_of_keys);
     RUN_TEST(test_buttons_without_a_picture);
+    RUN_TEST(test_plus_xl_fits);
     RUN_TEST(test_png_decodes_to_bgr);
     RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
     RUN_TEST(test_host_of_every_satellite_address_form);

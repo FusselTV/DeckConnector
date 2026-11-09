@@ -333,7 +333,7 @@ ui_layout_t ui_layout_of(const db_device_info_t *info)
             l.cols = (uint8_t)(l.cols + 1);
         }
     }
-    l.rows = (uint8_t)(l.cols ? info->key_count / l.cols : 0);
+    l.rows = (uint8_t)(l.cols ? db_device_image_keys(info) / l.cols : 0);
     return l;
 }
 

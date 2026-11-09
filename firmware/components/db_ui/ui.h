@@ -179,7 +179,7 @@ typedef struct {
     int field;
     uint8_t octets[4][4];
     ui_page_t pick_back; /* PAGE_SOURCES goes back here */
-    uint32_t keys_down;  /* pressed on this page */
+    uint64_t keys_down;  /* pressed on this page */
     uint8_t encoders_down;
 } ui_menu_t;
 

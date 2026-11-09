@@ -171,8 +171,8 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         err = q.block ? ESP_FAIL : db_deck_raw_set_feature(source_of(c), p, h->len);
         break;
     case DB_CORA_OP_GET_REPORT: {
-        /* Always a whole 32 byte report, op 0. Companion sends only the
-         * report id and needs all 32 bytes, or the serial number is lost. */
+        /* Always answer a whole 32 byte report with op 0. Companion sends
+         * only the report id and needs all 32 bytes, or the serial number is lost. */
         uint8_t buf[32] = {h->len ? p[0] : 0};
         size_t n = 0;
         if (db_deck_raw_get_feature(buf, sizeof(buf), &n) != ESP_OK) {
@@ -186,6 +186,9 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
     }
     if (q.block) {
         ESP_LOGI(TAG, "%02x %02x refused for this deck, as the Elgato dock does", p[0], p[1]);
+    } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "%02x %02x (op %u) not passed to the deck: %s", p[0], p[1], h->op,
+                 esp_err_to_name(err));
     }
     if (err == ESP_OK && q.wait_ms) {
         vTaskDelay(pdMS_TO_TICKS(q.wait_ms));

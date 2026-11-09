@@ -112,5 +112,7 @@ static inline uint32_t db_deck_shots_key(db_source_t writer, const db_shot_t *sh
     }
     return key;
 }
-/* Copy of one image (JPEG) in PSRAM; free it with heap_caps_free. */
+/* Copy of one image as uploaded (JPEG, BMP on six-key decks) in PSRAM; free it with heap_caps_free. */
 esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len);
+/* The same image as an upright JPEG; free it with heap_caps_free. */
+esp_err_t db_deck_shot_upright(uint32_t id, uint8_t **jpeg, size_t *len);

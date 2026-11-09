@@ -117,6 +117,11 @@ esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
     return ESP_ERR_NOT_FOUND;
 }
 
+esp_err_t db_deck_shot_upright(uint32_t id, uint8_t **jpeg, size_t *len)
+{
+    return ESP_ERR_NOT_FOUND;
+}
+
 esp_err_t db_dock_answer(bool accept)
 {
     return ESP_OK;

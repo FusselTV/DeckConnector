@@ -43,7 +43,7 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     if (dock->device->vendor) {
         strlcpy((char *)out + 30, dock->device->vendor, 32);
     }
-    /* The Elgato App reads the layout here: the deck's unit information and USB product string. */
+    /* The Elgato App reads the layout here. It is the deck's unit information and USB product string. */
     memcpy(out + 5, dock->device->unit_info, sizeof(dock->device->unit_info));
     strlcpy((char *)out + 62, dock->device->product, 32);
     size_t n = strnlen(dock->device->serial, 31);

@@ -794,7 +794,7 @@ static bool confirmed(ui_menu_t *m, int key, int64_t now)
 /* A release only counts when its press happened on this page: releasing the menu chord must not act. */
 static bool pressed_here(ui_menu_t *m, const db_input_t *ev)
 {
-    uint32_t key = 1u << (ev->index & 31);
+    uint64_t key = 1ull << (ev->index & 63);
     uint8_t enc = (uint8_t)(1u << (ev->index & 7));
     bool here = true;
     switch (ev->kind) {
