@@ -29,19 +29,6 @@ void db_cora_write_hdr(uint8_t out[DB_CORA_HDR_LEN], const db_cora_hdr_t *h)
     db_put_u32(out + 12, h->len);
 }
 
-/* Bytes 5 to 25 and the product name of 0x1c. The Elgato App reads the layout there.
- * ponytail: only these models are known; others send zeros, add them per model. */
-static const struct {
-    uint16_t pid;
-    uint8_t layout[21];
-    const char *product;
-} layouts[] = {
-    {0x0084,
-     {0x02, 0x04, 0x00, 0x78, 0x00, 0x78, 0x00, 0x20, 0x03, 0xe0, 0x01,
-      0x04, 0x05, 0x20, 0x00, 0x04, 0x00, 0x20, 0x03, 0x64, 0x00},
-     "Stream Deck Plus"},
-};
-
 static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
 {
     out[0] = 0x01;
@@ -56,12 +43,9 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     if (dock->device->vendor) {
         strlcpy((char *)out + 30, dock->device->vendor, 32);
     }
-    for (size_t i = 0; i < sizeof(layouts) / sizeof(layouts[0]); i++) {
-        if (layouts[i].pid == dock->device->pid) {
-            memcpy(out + 5, layouts[i].layout, sizeof(layouts[i].layout));
-            strlcpy((char *)out + 62, layouts[i].product, 32);
-        }
-    }
+    /* The Elgato App reads the layout here: the deck's unit information and USB product string. */
+    memcpy(out + 5, dock->device->unit_info, sizeof(dock->device->unit_info));
+    strlcpy((char *)out + 62, dock->device->product, 32);
     size_t n = strnlen(dock->device->serial, 31);
     memcpy(out + 94, dock->device->serial, n);
     db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
@@ -144,4 +128,39 @@ void db_cora_keepalive(uint8_t connection, uint8_t out[DB_CORA_REPORT_LEN])
     out[2] = 0x02;
     out[4] = 0x01;
     out[5] = connection;
+}
+
+const char *db_cora_model(uint16_t pid)
+{
+    switch (pid) {
+    case 0x0080:
+    case 0x00b9:
+        return "Stream Deck MK.2 20GBA9901";
+    case 0x00a5:
+    case 0x00e4:
+        return "Stream Deck MK.2 20GBL9901";
+    case 0x0063:
+    case 0x00b3:
+    case 0x00b8:
+        return "Stream Deck Mini 20GAI9901";
+    case 0x0090:
+        return "Stream Deck Mini 20GAI9902";
+    case 0x006c:
+        return "Stream Deck XL 20GAT9901";
+    case 0x008f:
+    case 0x00ba:
+        return "Stream Deck XL 20GAT9902";
+    case 0x006d:
+        return "Stream Deck 20GAA9901";
+    case 0x0084:
+        return "Stream Deck + 20GBD9901";
+    case 0x00c6:
+        return "Stream Deck + XL 20GBX9901";
+    case 0x009a:
+        return "Stream Deck Neo 20GBJ9901";
+    case 0x0086:
+        return "Stream Deck Pedal 20GBF9901";
+    default:
+        return "Stream Deck Series";
+    }
 }

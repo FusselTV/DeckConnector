@@ -11,8 +11,9 @@
 #include "soc/usb_dwc_struct.h"
 #include "usb/usb_host.h"
 
-#define OUT_SLOTS          3 /* output reports in flight; more does not help, the device is the limit */
-#define CTRL_BUF           (sizeof(usb_setup_packet_t) + 1024)
+#define OUT_SLOTS  3    /* output reports in flight; more does not help, the device is the limit */
+#define REPORT_LEN 1024 /* every output report, sent in packets of the endpoint size like the Elgato dock */
+#define CTRL_BUF   (sizeof(usb_setup_packet_t) + 1024)
 #define CTRL_TIMEOUT_MS    1000
 #define HID_CLASS          0x03
 #define HID_GET_REPORT     0x01
@@ -30,7 +31,6 @@ static struct {
     uint8_t intf;
     uint8_t ep_in;
     uint8_t ep_out;
-    uint16_t mps_out;
     volatile bool open;
     usb_transfer_t *out[OUT_SLOTS];
     int next_out;
@@ -160,7 +160,7 @@ static db_err_t write_failed(db_err_t err)
 
 static db_err_t io_write(const uint8_t *report, size_t len)
 {
-    if (!s.open || len > s.mps_out) {
+    if (!s.open || len > REPORT_LEN) {
         return DB_ERR_STATE;
     }
     /* A device that hangs without unplugging must not block the writer forever. */
@@ -451,14 +451,15 @@ static esp_err_t find_endpoints(const usb_config_desc_t *cd)
                 continue;
             }
             if (ep->bEndpointAddress & 0x80) {
-                if (!s.in && usb_host_transfer_alloc(USB_EP_DESC_GET_MPS(ep), 0, &s.in) != ESP_OK) {
+                /* IN sizes must be a multiple of the packet size; 512 also holds the Mini's 65 byte report */
+                int in_len = USB_EP_DESC_GET_MPS(ep) > 512 ? USB_EP_DESC_GET_MPS(ep) : 512;
+                if (!s.in && usb_host_transfer_alloc(in_len, 0, &s.in) != ESP_OK) {
                     return ESP_ERR_NO_MEM;
                 }
                 s.ep_in = ep->bEndpointAddress;
-                s.in->num_bytes = USB_EP_DESC_GET_MPS(ep);
+                s.in->num_bytes = in_len;
             } else {
                 s.ep_out = ep->bEndpointAddress;
-                s.mps_out = USB_EP_DESC_GET_MPS(ep);
             }
         }
         if (s.ep_in && s.ep_out) {
@@ -510,6 +511,20 @@ esp_err_t usb_port_ids(uint8_t address, uint16_t *vid, uint16_t *pid)
     return usb_host_device_close(s.client, d);
 }
 
+void usb_port_product(char *out, size_t cap)
+{
+    usb_device_info_t info;
+    const usb_str_desc_t *d = NULL;
+    if (s.dev && usb_host_device_info(s.dev, &info) == ESP_OK) {
+        d = info.str_desc_product;
+    }
+    size_t n = 0;
+    for (int i = 0; d && i < (d->bLength - 2) / 2 && n + 1 < cap; i++) {
+        out[n++] = d->wData[i] < 0x80 ? (char)d->wData[i] : '?';
+    }
+    out[n] = '\0';
+}
+
 esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
 {
     if (s.dev) {
@@ -531,14 +546,11 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     if (info.speed != USB_SPEED_HIGH) {
         clamp_fs_out_mps(cd);
     }
-    if (err == ESP_OK && s.mps_out > 1024) {
-        err = ESP_ERR_NOT_SUPPORTED; /* db_deck_raw_write pads a report to 1024 bytes */
-    }
     if (err == ESP_OK) {
         err = usb_host_interface_claim(s.client, s.dev, s.intf, 0);
     }
     for (int i = 0; err == ESP_OK && i < OUT_SLOTS; i++) {
-        err = usb_host_transfer_alloc(s.mps_out, 0, &s.out[i]);
+        err = usb_host_transfer_alloc(REPORT_LEN, 0, &s.out[i]);
         if (err == ESP_OK) {
             s.out[i]->device_handle = s.dev;
             s.out[i]->bEndpointAddress = s.ep_out;
@@ -560,7 +572,7 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid)
     s.in->device_handle = s.dev;
     s.in->bEndpointAddress = s.ep_in;
     s.in->callback = in_done;
-    s.io.out_report_size = s.mps_out;
+    s.io.out_report_size = REPORT_LEN;
     s.next_out = 0;
     s.fail_since = 0;
     s.open = true;

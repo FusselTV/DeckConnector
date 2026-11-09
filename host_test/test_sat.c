@@ -115,7 +115,7 @@ static void test_decks_without_a_strip_are_a_grid_of_keys(void)
         uint16_t pid;
         size_t keys;
         const char *last;
-    } decks[] = {{0x0080, 15, "2/4"}, {0x008f, 32, "3/7"}, {0x009a, 8, "1/3"}};
+    } decks[] = {{0x0080, 15, "2/4"}, {0x008f, 32, "3/7"}, {0x0063, 6, "1/2"}};
     for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
         db_device_info_t dev = open_deck(decks[d].pid);
         db_sat_control_t c[DB_SAT_MAX_CONTROLS];

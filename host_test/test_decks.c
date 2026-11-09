@@ -99,7 +99,8 @@ static void check_info(void)
     if (M->family == DECK_PEDAL) {
         CHECK(i->display_count == 0, "display_count %u, the Pedal has no display", i->display_count);
     } else {
-        CHECK(i->display_count >= 1 && i->display_count <= DB_MAX_DISPLAYS, "display_count %u", i->display_count);
+        CHECK(i->display_count >= 1 && i->display_count <= DB_MAX_DISPLAYS, "display_count %u",
+              i->display_count);
     }
 
     bool seen[64] = {0};
@@ -107,16 +108,19 @@ static void check_info(void)
     for (uint8_t d = 0; d < i->display_count && d < DB_MAX_DISPLAYS; d++) {
         const db_display_t *dp = &i->displays[d];
         db_format_t fmt = M->family == DECK_SIXKEY ? DB_FORMAT_BMP : DB_FORMAT_JPEG;
-        CHECK(dp->format == fmt, "display %u format %d, spec %s", d, dp->format, fmt == DB_FORMAT_BMP ? "BMP" : "JPEG");
-        CHECK(orientation(dp) == M->rotate, "display %u rotate %u flip_x %d flip_y %d, spec rotates %u clockwise", d,
-              dp->rotate, dp->flip_x, dp->flip_y, M->rotate);
+        CHECK(dp->format == fmt, "display %u format %d, spec %s", d, dp->format,
+              fmt == DB_FORMAT_BMP ? "BMP" : "JPEG");
+        CHECK(orientation(dp) == M->rotate,
+              "display %u rotate %u flip_x %d flip_y %d, spec rotates %u clockwise", d, dp->rotate,
+              dp->flip_x, dp->flip_y, M->rotate);
         CHECK(dp->target_count <= DB_MAX_TARGETS, "display %u target_count %u", d, dp->target_count);
         db_rect_t whole = {0, 0, dp->width, dp->height};
         for (uint8_t n = 0; n < dp->target_count && n < DB_MAX_TARGETS; n++) {
             const db_target_t *t = &dp->targets[n];
             db_rect_t r = t->rect;
-            CHECK(r.w && r.h && db_rect_contains(whole, r), "display %u target %u rect %u,%u %ux%u outside %ux%u", d, n,
-                  r.x, r.y, r.w, r.h, dp->width, dp->height);
+            CHECK(r.w && r.h && db_rect_contains(whole, r),
+                  "display %u target %u rect %u,%u %ux%u outside %ux%u", d, n, r.x, r.y, r.w, r.h, dp->width,
+                  dp->height);
             switch (t->kind) {
             case DB_TARGET_KEY:
                 keys++;
@@ -126,29 +130,29 @@ static void check_info(void)
                     CHECK(!seen[t->index], "key target %u appears twice", t->index);
                     seen[t->index] = true;
                 }
-                CHECK(r.w == M->key_px && r.h == M->key_px, "key target %u is %ux%u, key image is %ux%u", t->index,
-                      r.w, r.h, M->key_px, M->key_px);
+                CHECK(r.w == M->key_px && r.h == M->key_px, "key target %u is %ux%u, key image is %ux%u",
+                      t->index, r.w, r.h, M->key_px, M->key_px);
                 break;
             case DB_TARGET_FULL:
                 fulls++;
                 CHECK(has_full_lcd(), "full-display target, but the %s has no full LCD command", M->name);
-                CHECK(r.w == M->lcd_w && r.h == M->lcd_h, "full target %ux%u, LCD is %ux%u", r.w, r.h, M->lcd_w,
-                      M->lcd_h);
+                CHECK(r.w == M->lcd_w && r.h == M->lcd_h, "full target %ux%u, LCD is %ux%u", r.w, r.h,
+                      M->lcd_w, M->lcd_h);
                 break;
             case DB_TARGET_STRIP:
                 strips++;
                 CHECK(M->win_w, "strip target, but the %s has no window", M->name);
-                CHECK(r.w == M->win_w && r.h == M->win_h, "strip target %ux%u, window is %ux%u", r.w, r.h, M->win_w,
-                      M->win_h);
+                CHECK(r.w == M->win_w && r.h == M->win_h, "strip target %ux%u, window is %ux%u", r.w, r.h,
+                      M->win_w, M->win_h);
                 break;
-            default: CHECK(0, "target %u has unknown kind %d", n, t->kind);
+            default:
+                CHECK(0, "target %u has unknown kind %d", n, t->kind);
             }
         }
     }
     CHECK(keys == image_keys(), "%u key targets, the deck has %u image keys", keys, image_keys());
-    if (has_full_lcd()) {
-        CHECK(fulls >= 1, "no full-LCD target");
-    }
+    /* No full-LCD check: no source says where the keys sit on the Neo's or + XL's panel, so it is optional.
+     */
     if (M->win_w) {
         CHECK(strips >= 1, "no window target");
     }
@@ -164,16 +168,16 @@ static void check_info(void)
     uint8_t sd = 0;
     const db_target_t *strip = find_strip(&sd);
     const db_touch_area_t *a = &i->touch[0];
-    CHECK(a->rect.w == M->win_w && a->rect.h == M->win_h, "touch area %ux%u, window is %ux%u", a->rect.w, a->rect.h,
-          M->win_w, M->win_h);
+    CHECK(a->rect.w == M->win_w && a->rect.h == M->win_h, "touch area %ux%u, window is %ux%u", a->rect.w,
+          a->rect.h, M->win_w, M->win_h);
     CHECK(strip && a->display == sd && db_rect_eq(a->rect, strip->rect),
-          "touch area (display %u %u,%u %ux%u) is not the window target", a->display, a->rect.x, a->rect.y, a->rect.w,
-          a->rect.h);
+          "touch area (display %u %u,%u %ux%u) is not the window target", a->display, a->rect.x, a->rect.y,
+          a->rect.w, a->rect.h);
 }
 
 static size_t make_jpeg(uint16_t w, uint16_t h, size_t want, uint8_t *b)
 {
-    static const uint8_t sof[] = {0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0, 0, 0, 0,
+    static const uint8_t sof[] = {0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0,    0,    0,   0,
                                   0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01};
     size_t p = sizeof(sof);
     memcpy(b, sof, p);
@@ -219,8 +223,8 @@ static size_t make_bmp(uint16_t w, uint16_t h, uint8_t *b)
     return size;
 }
 
-static void check_parse_output(const deck_image_t *im, uint8_t display, db_rect_t rect, const uint8_t *img, size_t n,
-                               const char *w)
+static void check_parse_output(const deck_image_t *im, uint8_t display, db_rect_t rect, const uint8_t *img,
+                               size_t n, const char *w)
 {
     if (!dev.driver->parse_output) {
         return;
@@ -236,8 +240,8 @@ static void check_parse_output(const deck_image_t *im, uint8_t display, db_rect_
             break;
         }
         CHECK(c.part == k, "%s: parse_output part %u, expected %zu", w, c.part, k);
-        CHECK(c.last == (k + 1 == im->report_count), "%s: parse_output last %d on report %zu of %zu", w, c.last, k,
-              im->report_count);
+        CHECK(c.last == (k + 1 == im->report_count), "%s: parse_output last %d on report %zu of %zu", w,
+              c.last, k, im->report_count);
         CHECK(c.display == display, "%s: parse_output display %u, expected %u", w, c.display, display);
         CHECK(db_rect_eq(c.rect, rect), "%s: parse_output rect %u,%u %ux%u, written %u,%u %ux%u", w, c.rect.x,
               c.rect.y, c.rect.w, c.rect.h, rect.x, rect.y, rect.w, rect.h);
@@ -253,8 +257,8 @@ static void check_parse_output(const deck_image_t *im, uint8_t display, db_rect_
     if (M->family == DECK_SIXKEY) {
         CHECK(got >= n && !memcmp(cat, img, n), "%s: parse_output pieces do not rebuild the image", w);
     } else {
-        CHECK(got == n && !memcmp(cat, img, n), "%s: parse_output pieces (%zu bytes) do not rebuild the %zu-byte image",
-              w, got, n);
+        CHECK(got == n && !memcmp(cat, img, n),
+              "%s: parse_output pieces (%zu bytes) do not rebuild the %zu-byte image", w, got, n);
     }
     free(cat);
 }
@@ -271,25 +275,30 @@ static void write_target(uint8_t di, const db_target_t *t, db_rect_t rect, size_
     db_err_t err = dev.driver->write_image(&dev, t, rect, img, n);
     CHECK(err == DB_OK, "%s: write_image returns %d", w, err);
     deck_emu_check_idle();
-    CHECK(deck_emu_image_count() == 1, "%s: deck received %zu complete images, expected 1", w, deck_emu_image_count());
+    CHECK(deck_emu_image_count() == 1, "%s: deck received %zu complete images, expected 1", w,
+          deck_emu_image_count());
     if (deck_emu_image_count() >= 1) {
         const deck_image_t *im = deck_emu_image(0);
-        CHECK(im->len == n && !memcmp(im->data, img, n), "%s: image arrives with %zu bytes, %zu sent or changed", w,
-              im->len, n);
+        CHECK(im->len == n && !memcmp(im->data, img, n),
+              "%s: image arrives with %zu bytes, %zu sent or changed", w, im->len, n);
         bool six = M->family == DECK_SIXKEY;
         switch (t->kind) {
         case DB_TARGET_KEY:
-            CHECK(im->cmd == (six ? 0x01 : 0x07) && im->key == t->index, "%s: deck got cmd 0x%02x key %u", w, im->cmd,
-                  im->key);
+            CHECK(im->cmd == (six ? 0x01 : 0x07) && im->key == t->index, "%s: deck got cmd 0x%02x key %u", w,
+                  im->cmd, im->key);
             break;
-        case DB_TARGET_FULL: CHECK(im->cmd == 0x08, "%s: deck got cmd 0x%02x, expected 0x08", w, im->cmd); break;
+        case DB_TARGET_FULL:
+            CHECK(im->cmd == 0x08, "%s: deck got cmd 0x%02x, expected 0x08", w, im->cmd);
+            break;
         case DB_TARGET_STRIP: {
             bool whole = db_rect_eq(rect, t->rect);
             CHECK(im->cmd == 0x0c || (whole && im->cmd == 0x0b), "%s: deck got cmd 0x%02x", w, im->cmd);
             if (im->cmd == 0x0c) {
-                db_rect_t want_win = {(uint16_t)(rect.x - t->rect.x), (uint16_t)(rect.y - t->rect.y), rect.w, rect.h};
-                CHECK(db_rect_eq(im->win, want_win), "%s: partial header %u,%u %ux%u, expected window rect %u,%u %ux%u",
-                      w, im->win.x, im->win.y, im->win.w, im->win.h, want_win.x, want_win.y, want_win.w, want_win.h);
+                db_rect_t want_win = {(uint16_t)(rect.x - t->rect.x), (uint16_t)(rect.y - t->rect.y), rect.w,
+                                      rect.h};
+                CHECK(db_rect_eq(im->win, want_win),
+                      "%s: partial header %u,%u %ux%u, expected window rect %u,%u %ux%u", w, im->win.x,
+                      im->win.y, im->win.w, im->win.h, want_win.x, want_win.y, want_win.w, want_win.h);
             }
             break;
         }
@@ -322,9 +331,10 @@ static void check_images(void)
                 snprintf(w, sizeof(w), "display %u window image", d);
                 write_target(d, t, r, 4000, w);
                 if (t->partial) {
-                    db_rect_t sub = {(uint16_t)(r.x + r.w / 4), (uint16_t)(r.y + r.h / 4), (uint16_t)(r.w / 2),
-                                     (uint16_t)(r.h / 2)};
-                    snprintf(w, sizeof(w), "display %u partial window %u,%u %ux%u", d, sub.x, sub.y, sub.w, sub.h);
+                    db_rect_t sub = {(uint16_t)(r.x + r.w / 4), (uint16_t)(r.y + r.h / 4),
+                                     (uint16_t)(r.w / 2), (uint16_t)(r.h / 2)};
+                    snprintf(w, sizeof(w), "display %u partial window %u,%u %ux%u", d, sub.x, sub.y, sub.w,
+                             sub.h);
                     write_target(d, t, sub, 1500, w);
                 }
                 break;
@@ -334,7 +344,8 @@ static void check_images(void)
     if (dev.driver->parse_output) {
         uint8_t zero[1024] = {0};
         db_chunk_t c;
-        CHECK(!dev.driver->parse_output(&dev, zero, sizeof(zero), &c), "parse_output accepts an all-zero report");
+        CHECK(!dev.driver->parse_output(&dev, zero, sizeof(zero), &c),
+              "parse_output accepts an all-zero report");
     }
 }
 
@@ -373,19 +384,20 @@ static void expect_event(const uint8_t *rep, size_t len, const db_input_t *want,
           (unsigned long long)now_us);
     switch (want->kind) {
     case DB_INPUT_TOUCH_SWIPE:
-        CHECK(o->x2 == want->x2 && o->y2 == want->y2, "%s: swipe end %u,%u, expected %u,%u", w, o->x2, o->y2, want->x2,
-              want->y2);
+        CHECK(o->x2 == want->x2 && o->y2 == want->y2, "%s: swipe end %u,%u, expected %u,%u", w, o->x2, o->y2,
+              want->x2, want->y2);
         /* fall through */
     case DB_INPUT_TOUCH_TAP:
     case DB_INPUT_TOUCH_LONG:
         CHECK(o->display == want->display && o->x == want->x && o->y == want->y,
-              "%s: touch at display %u %u,%u, expected display %u %u,%u", w, o->display, o->x, o->y, want->display,
-              want->x, want->y);
+              "%s: touch at display %u %u,%u, expected display %u %u,%u", w, o->display, o->x, o->y,
+              want->display, want->x, want->y);
         break;
     case DB_INPUT_ENCODER_TURN:
         CHECK(o->value == want->value, "%s: turn value %d, expected %d", w, o->value, want->value);
         /* fall through */
-    default: CHECK(o->index == want->index, "%s: index %u, expected %u", w, o->index, want->index);
+    default:
+        CHECK(o->index == want->index, "%s: index %u, expected %u", w, o->index, want->index);
     }
 }
 
@@ -403,7 +415,9 @@ static void round_trip(const db_input_t *ev, const uint8_t *deck, const char *w)
         return;
     }
     /* a touch report's length field counts from byte 0 (tap 0x0a, flick 0x0e), unlike keys and encoders */
-    size_t sig = M->family == DECK_SIXKEY ? 7 : deck[1] == 0x02 ? (deck[4] == 3 ? 14u : 10u) : 4u + db_get_u16(deck + 2);
+    size_t sig = M->family == DECK_SIXKEY ? 7
+                 : deck[1] == 0x02        ? (deck[4] == 3 ? 14u : 10u)
+                                          : 4u + db_get_u16(deck + 2);
     if (M->family == DECK_SIXKEY) {
         CHECK(n == 65, "%s: build_input report of %zu bytes, the six-key report is 65", w, n);
     }
@@ -456,7 +470,8 @@ static void check_input(void)
     }
     static const int8_t turns[] = {3, -2, 1, -128, 127};
     for (uint8_t e = 0; e < M->encoders; e++) {
-        db_input_t down = {.kind = DB_INPUT_ENCODER_DOWN, .index = e}, up = {.kind = DB_INPUT_ENCODER_UP, .index = e};
+        db_input_t down = {.kind = DB_INPUT_ENCODER_DOWN, .index = e},
+                   up = {.kind = DB_INPUT_ENCODER_UP, .index = e};
         snprintf(w, sizeof(w), "encoder %u press", e);
         expect_event(rep, deck_emu_encoder_press(e, true, rep, sizeof(rep)), &down, w);
         snprintf(w, sizeof(w), "encoder %u release", e);

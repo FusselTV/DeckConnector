@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "db_image.h"
 #include "db_screen.h"
 
 #include "driver/jpeg_decode.h"
@@ -140,5 +141,69 @@ esp_err_t jpeg_port_decode_into(const uint8_t *jpg, size_t len, uint8_t *dst, ui
     xSemaphoreTake(lock, portMAX_DELAY);
     esp_err_t err = decode(jpg, len, dst, dw, dh, x, y);
     xSemaphoreGive(lock);
+    return err;
+}
+
+static bool turned(const db_display_t *d)
+{
+    return d->rotate || d->flip_x || d->flip_y;
+}
+
+esp_err_t jpeg_port_encode_for(const db_display_t *display, const uint8_t *rgb, uint16_t w, uint16_t h,
+                               uint8_t quality, uint8_t **out, size_t *out_len)
+{
+    uint8_t *up = NULL;
+    uint16_t ow = w;
+    uint16_t oh = h;
+    if (turned(display)) {
+        up = jpeg_port_alloc_rgb(w, h);
+        if (!up) {
+            return ESP_ERR_NO_MEM;
+        }
+        db_image_orient(display, rgb, w, h, up, false);
+        db_image_upload_size(display, w, h, &ow, &oh);
+    }
+    const uint8_t *src = up ? up : rgb;
+    esp_err_t err = ESP_OK;
+    if (display->format == DB_FORMAT_BMP) {
+        *out_len = db_bmp_size(ow, oh);
+        *out = heap_caps_malloc(*out_len, MALLOC_CAP_SPIRAM);
+        if (*out) {
+            db_bmp_write(src, ow, oh, *out);
+        } else {
+            err = ESP_ERR_NO_MEM;
+        }
+    } else {
+        err = jpeg_port_encode(src, ow, oh, quality, out, out_len);
+    }
+    heap_caps_free(up);
+    return err;
+}
+
+esp_err_t jpeg_port_decode_for(const db_display_t *display, const uint8_t *data, size_t len, uint8_t *dst,
+                               uint16_t dw, uint16_t dh, db_rect_t rect)
+{
+    if (!turned(display) && display->format == DB_FORMAT_JPEG) {
+        return jpeg_port_decode_into(data, len, dst, dw, dh, rect.x, rect.y);
+    }
+    uint16_t ow = 0;
+    uint16_t oh = 0;
+    db_image_upload_size(display, rect.w, rect.h, &ow, &oh);
+    uint8_t *up = heap_caps_calloc((size_t)ow * oh, 3, MALLOC_CAP_SPIRAM);
+    uint8_t *px = heap_caps_malloc((size_t)rect.w * rect.h * 3, MALLOC_CAP_SPIRAM);
+    esp_err_t err = up && px ? ESP_OK : ESP_ERR_NO_MEM;
+    if (err == ESP_OK) {
+        err = display->format == DB_FORMAT_BMP
+                  ? (db_bmp_read(data, len, ow, oh, up) == DB_OK ? ESP_OK : ESP_ERR_INVALID_ARG)
+                  : jpeg_port_decode_into(data, len, up, ow, oh, 0, 0);
+    }
+    if (err == ESP_OK) {
+        db_image_orient(display, up, ow, oh, px, true);
+        if (db_screen_blit(dst, dw, dh, rect.x, rect.y, px, (size_t)rect.w * 3, rect.w, rect.h) != DB_OK) {
+            err = ESP_ERR_INVALID_SIZE;
+        }
+    }
+    heap_caps_free(up);
+    heap_caps_free(px);
     return err;
 }

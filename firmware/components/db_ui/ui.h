@@ -12,7 +12,7 @@
 #include "canvas.h"
 #include "db_device.h"
 
-#define UI_MAX_KEYS 32
+#define UI_MAX_KEYS 36
 #define UI_SEGMENTS 4
 
 typedef enum { TILE_NONE, TILE_CARD, TILE_BUTTON, TILE_QR } ui_tile_kind_t; /* TILE_QR: ui_screen_t.qr */

@@ -68,7 +68,7 @@ static struct {
     volatile bool added;
     volatile bool broken;
     volatile bool device_dirty;
-    bool flip;
+    db_display_t display; /* format and orientation the deck takes */
     bool png;
     bool rotary_amount;
     bool caching;
@@ -254,13 +254,7 @@ static esp_err_t to_jpeg(char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
     } else {
         return ESP_ERR_INVALID_SIZE;
     }
-    for (size_t i = 0; s.flip && i < px / 2; i++) { /* turned by 180 degrees: the pixels backwards */
-        uint8_t t[3];
-        memcpy(t, s.rgb + i * 3, 3);
-        memcpy(s.rgb + i * 3, s.rgb + (px - 1 - i) * 3, 3);
-        memcpy(s.rgb + (px - 1 - i) * 3, t, 3);
-    }
-    return jpeg_port_encode(s.rgb, r.w, r.h, QUALITY, jpeg, len);
+    return jpeg_port_encode_for(&s.display, s.rgb, r.w, r.h, QUALITY, jpeg, len);
 }
 
 static void draw(const db_sat_control_t *c, uint8_t *jpeg, size_t len)
@@ -314,7 +308,8 @@ static void clear_keys(void)
         size_t len = 0;
         if (c->kind != DB_SAT_ENCODER) {
             memset(s.rgb, 0, (size_t)c->rect.w * c->rect.h * 3);
-            if (jpeg_port_encode(s.rgb, c->rect.w, c->rect.h, QUALITY, &jpeg, &len) == ESP_OK) {
+            if (jpeg_port_encode_for(&s.display, s.rgb, c->rect.w, c->rect.h, QUALITY, &jpeg, &len) ==
+                ESP_OK) {
                 draw(c, jpeg, len);
             }
         }
@@ -376,7 +371,7 @@ static void apply_device(void)
     if (present) {
         snprintf(s.serial, sizeof(s.serial), "%s", dev->serial);
         snprintf(s.model, sizeof(s.model), "%s", dev->model);
-        s.flip = dev->displays[0].flip_x && dev->displays[0].flip_y;
+        s.display = dev->displays[0];
     }
     free(dev);
     size_t px = 0;

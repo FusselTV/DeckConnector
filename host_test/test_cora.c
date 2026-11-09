@@ -70,7 +70,13 @@ static void test_reports_match_protocol(void)
 
 static void test_attached_device_info(void)
 {
-    db_device_info_t dev = {.vendor = "Elgato", .vid = 0x0fd9, .pid = 0x0084, .serial = "EL00K1A00001"};
+    db_device_info_t dev = {.vendor = "Elgato",
+                            .vid = 0x0fd9,
+                            .pid = 0x0084,
+                            .serial = "EL00K1A00001",
+                            .product = "Stream Deck Plus",
+                            .unit_info = {0x02, 0x04, 0x00, 0x78, 0x00, 0x78, 0x00, 0x20, 0x03, 0xe0, 0x01,
+                                          0x04, 0x05, 0x20, 0x00, 0x04, 0x00, 0x20, 0x03, 0x64, 0x00}};
     dock.device = &dev;
     uint8_t out[DB_CORA_REPORT_LEN];
     db_cora_dock_report(0x1c, &dock, out);
@@ -81,11 +87,20 @@ static void test_attached_device_info(void)
     TEST_ASSERT_EQUAL_UINT16(5344, db_get_u16(out + 126));
 }
 
+static void test_model_names_match_the_dock(void)
+{
+    TEST_ASSERT_EQUAL_STRING("Stream Deck + 20GBD9901", db_cora_model(0x0084));
+    TEST_ASSERT_EQUAL_STRING("Stream Deck Mini 20GAI9901", db_cora_model(0x00b8));
+    TEST_ASSERT_EQUAL_STRING("Stream Deck XL 20GAT9902", db_cora_model(0x00ba));
+    TEST_ASSERT_EQUAL_STRING("Stream Deck Series", db_cora_model(0x00aa));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_header_round_trip);
     RUN_TEST(test_reports_match_protocol);
     RUN_TEST(test_attached_device_info);
+    RUN_TEST(test_model_names_match_the_dock);
     return UNITY_END();
 }

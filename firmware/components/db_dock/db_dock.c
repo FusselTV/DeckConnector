@@ -10,6 +10,7 @@
 #include "db_cora.h"
 #include "db_deck.h"
 #include "db_dns.h"
+#include "db_quirks.h"
 #include "db_sat.h"
 #include "db_satellite.h"
 #include "esp_heap_caps.h"
@@ -31,8 +32,7 @@
 #define PAYLOAD_MAX  8192
 #define KEEPALIVE_MS 2500  /* Companion drops a connection after 5 s without data */
 #define ANNOUNCE_MS  30000 /* the Elgato App drops a dock it has not heard from for a minute */
-#define FEATURE_LEN  64
-#define IDLE_TIMEOUT 6 /* s without data from the host: two missed answers to the keepalive */
+#define IDLE_TIMEOUT 6     /* s without data from the host: two missed answers to the keepalive */
 
 static const char *TAG = "dock";
 
@@ -161,32 +161,40 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         }
         return;
     }
+    db_quirk_t q = s.info.device ? db_quirk(s.info.device->pid, h->op, p, h->len) : (db_quirk_t){0};
+    esp_err_t err = ESP_OK;
     switch (h->op) {
     case DB_CORA_OP_WRITE:
-        db_deck_raw_write(source_of(c), p, h->len);
+        err = q.block ? ESP_FAIL : db_deck_raw_write(source_of(c), p, h->len);
         break;
     case DB_CORA_OP_SEND_REPORT:
-        db_deck_raw_set_feature(source_of(c), p, h->len);
+        err = q.block ? ESP_FAIL : db_deck_raw_set_feature(source_of(c), p, h->len);
         break;
     case DB_CORA_OP_GET_REPORT: {
-        /* The Elgato App sends a whole report and gets the same length back. Companion sends only the
-         * report id and needs the full 32 bytes, or the serial number is lost. */
-        size_t want = h->len < 2 ? 32 : (h->len < FEATURE_LEN ? h->len : FEATURE_LEN);
-        uint8_t buf[FEATURE_LEN] = {h->len ? p[0] : 0};
+        /* Always a whole 32 byte report, op 0. Companion sends only the
+         * report id and needs all 32 bytes, or the serial number is lost. */
+        uint8_t buf[32] = {h->len ? p[0] : 0};
         size_t n = 0;
-        if (db_deck_raw_get_feature(buf, want, &n) != ESP_OK) {
+        if (db_deck_raw_get_feature(buf, sizeof(buf), &n) != ESP_OK) {
             ESP_LOGW(TAG, "feature report 0x%02x failed", buf[0]);
         }
-        send_frame(c, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT, DB_CORA_OP_GET_REPORT, h->id, buf, want);
+        send_frame(c, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT, 0, h->id, buf, sizeof(buf));
         return;
     }
     default:
         break;
     }
-    /* Only the Elgato App asks for acknowledgements; that also tells the hosts apart. */
+    if (q.block) {
+        ESP_LOGI(TAG, "%02x %02x refused for this deck, as the Elgato dock does", p[0], p[1]);
+    }
+    if (err == ESP_OK && q.wait_ms) {
+        vTaskDelay(pdMS_TO_TICKS(q.wait_ms));
+    }
+    /* Only the Elgato App asks for acknowledgements; that also tells the hosts apart. The dock answers 01
+     * when it could not pass the frame on. */
     if (h->flags & DB_CORA_FLAG_REQ_ACK) {
-        static const uint8_t zero[4];
-        send_frame(c, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_ACK_NAK, 0, h->id, zero, sizeof(zero));
+        const uint8_t ack[4] = {err == ESP_OK ? 0 : 1};
+        send_frame(c, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_ACK_NAK, 0, h->id, ack, sizeof(ack));
     }
 }
 
@@ -1017,8 +1025,9 @@ static void device_service(const db_device_info_t *info)
     snprintf(vid, sizeof(vid), "0x%04X", info->vid);
     snprintf(pid, sizeof(pid), "0x%04X", info->pid);
     mdns_txt_item_t txt[] = {
-        {"dt", "213"}, {"mf", "Elgato"}, {"md", info->model},    {"pv", "1.0"}, {"sn", info->serial},
-        {"vid", vid},  {"pid", pid},     {"fw", info->firmware}, {"prt", "2"},
+        {"dt", "213"}, {"mf", "Elgato"},       {"md", db_cora_model(info->pid)},
+        {"pv", "1.0"}, {"sn", info->serial},   {"vid", vid},
+        {"pid", pid},  {"fw", info->firmware}, {"prt", "2"},
     };
     strlcpy(device_instance, info->serial, sizeof(device_instance));
     esp_err_t err = mdns_service_add_for_host(device_instance, "_elg", "_tcp", NULL, DB_CORA_DEVICE_PORT, txt,

@@ -25,6 +25,8 @@ esp_err_t usb_port_open(uint8_t address, uint16_t *vid, uint16_t *pid);
 /* Vendor and product of a present device, without claiming it. */
 esp_err_t usb_port_ids(uint8_t address, uint16_t *vid, uint16_t *pid);
 void usb_port_close(void);
+/* The open device's USB product string as ASCII, empty without one. */
+void usb_port_product(char *out, size_t cap);
 
 /* Valid after usb_port_open() returned ESP_OK. */
 const db_hid_io_t *usb_port_io(void);

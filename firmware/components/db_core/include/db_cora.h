@@ -50,6 +50,9 @@ typedef struct {
  */
 /* True for the commands db_cora_dock_report() answers. */
 bool db_cora_is_query(uint8_t cmd);
+
+/* The mDNS md= value announced for an attached deck. */
+const char *db_cora_model(uint16_t pid);
 void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB_CORA_REPORT_LEN]);
 
 /* The dock's periodic keepalive; hosts drop the connection after 5 s without data. */

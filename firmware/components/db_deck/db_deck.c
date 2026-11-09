@@ -93,7 +93,7 @@ static void clear_display(void)
         if (rgb) {
             memset(rgb, 0, (size_t)full->rect.w * full->rect.h * 3);
             jpeg_port_init();
-            jpeg_port_encode(rgb, full->rect.w, full->rect.h, 80, &black, &black_len);
+            jpeg_port_encode_for(d, rgb, full->rect.w, full->rect.h, 80, &black, &black_len);
             heap_caps_free(rgb);
         }
     }
@@ -334,6 +334,7 @@ static void handle_attach(uint8_t address)
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
     s.dev = (db_dev_t){.driver = driver, .io = usb_port_io()};
     db_err_t err = driver->open(&s.dev, vid, pid);
+    usb_port_product(s.dev.info.product, sizeof(s.dev.info.product));
     memcpy(s.sim_state, s.dev.state, sizeof(s.sim_state));
     xSemaphoreGive(s.io_lock);
     if (err != DB_OK) {

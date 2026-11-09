@@ -664,7 +664,7 @@ static bool submit_rect(db_rect_t r)
     }
     uint8_t *jpeg = NULL;
     size_t len = 0;
-    esp_err_t err = jpeg_port_encode(src, r.w, r.h, QUALITY, &jpeg, &len);
+    esp_err_t err = jpeg_port_encode_for(&s.dev.displays[0], src, r.w, r.h, QUALITY, &jpeg, &len);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "encode %ux%u failed: %s", r.w, r.h, esp_err_to_name(err));
         return false;
@@ -1168,22 +1168,6 @@ void db_ui_set_c6_version(const char *version)
     changed();
 }
 
-/* Mirror one rectangle in both directions: decks with flipped displays get their images upside down. */
-static void turn_around(uint8_t *px, uint16_t w, db_rect_t r)
-{
-    for (int y = 0; y < r.h / 2 + (r.h & 1); y++) {
-        int y2 = r.h - 1 - y;
-        for (int x = 0; x < (y == y2 ? r.w / 2 : r.w); x++) {
-            uint8_t *a = px + ((size_t)(r.y + y) * w + r.x + x) * 3;
-            uint8_t *b = px + ((size_t)(r.y + y2) * w + r.x + r.w - 1 - x) * 3;
-            uint8_t t[3];
-            memcpy(t, a, 3);
-            memcpy(a, b, 3);
-            memcpy(b, t, 3);
-        }
-    }
-}
-
 /* *complete is false when an image that is still shown could not be drawn, e.g. out of memory. */
 static esp_err_t render_snapshot(const db_device_info_t *dev, const db_shot_t *shots, size_t n,
                                  uint8_t **jpeg, size_t *len, bool *complete)
@@ -1203,16 +1187,13 @@ static esp_err_t render_snapshot(const db_device_info_t *dev, const db_shot_t *s
             continue; /* replaced meanwhile; the newer one is in the list too */
         }
         if (err == ESP_OK) {
-            err =
-                jpeg_port_decode_into(data, dlen, px, d->width, d->height, shots[i].rect.x, shots[i].rect.y);
+            err = jpeg_port_decode_for(d, data, dlen, px, d->width, d->height, shots[i].rect);
         }
         heap_caps_free(data);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "snapshot: image %lu not drawn: %s", (unsigned long)shots[i].id,
                      esp_err_to_name(err));
             *complete = false;
-        } else if (d->flip_x && d->flip_y) {
-            turn_around(px, d->width, shots[i].rect);
         }
     }
     esp_err_t err = jpeg_port_encode(px, d->width, d->height, QUALITY, jpeg, len);

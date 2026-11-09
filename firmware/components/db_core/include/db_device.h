@@ -49,6 +49,8 @@ typedef struct {
     bool tested; /* checked end to end on real hardware */
     char serial[32];
     char firmware[16];
+    char product[32];      /* the USB product string, empty when unknown */
+    uint8_t unit_info[21]; /* layout as the Elgato dock reports it in 03 1c bytes 5 to 25 */
     uint8_t key_count;
     uint8_t encoder_count;
     uint8_t display_count;

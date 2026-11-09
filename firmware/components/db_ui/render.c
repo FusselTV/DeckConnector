@@ -324,7 +324,8 @@ ui_layout_t ui_layout_of(const db_device_info_t *info)
     bool seen = false;
     for (uint8_t i = 0; i < d->target_count; i++) {
         const db_target_t *t = &d->targets[i];
-        l.strip |= t->kind == DB_TARGET_STRIP;
+        l.strip |=
+            t->kind == DB_TARGET_STRIP && info->encoder_count; /* the Neo's info bar is no menu strip */
         if (t->kind == DB_TARGET_KEY && (!seen || t->rect.y == first_y)) {
             first_y = t->rect.y;
             l.key_px = t->rect.h;
@@ -344,7 +345,7 @@ int ui_render(ui_canvas_t *c, const db_device_info_t *dev, const ui_screen_t *sc
     int n = 0;
     for (uint8_t i = 0; i < d->target_count && n < max; i++) {
         const db_target_t *t = &d->targets[i];
-        strip = t->kind == DB_TARGET_STRIP ? t : strip;
+        strip = t->kind == DB_TARGET_STRIP && dev->encoder_count ? t : strip;
         if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_KEYS &&
             (!shown || memcmp(&sc->tiles[t->index], &shown->tiles[t->index], sizeof(ui_tile_t)) != 0)) {
             draw_tile(c, &sc->tiles[t->index], t->rect, &sc->qr);

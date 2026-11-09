@@ -10,8 +10,8 @@
 #define ELGATO_VID   0x0fd9
 #define REPORT_LEN   1024
 #define FEATURE_LEN  32
-#define MAX_KEYS     32
-#define MAX_ENCODERS 4
+#define MAX_KEYS     36
+#define MAX_ENCODERS 6
 
 enum {
     CMD_KEY = 0x07,
@@ -39,7 +39,10 @@ typedef struct {
     bool full_image;
     db_rect_t strip; /* w == 0: no strip */
     uint8_t encoders;
+    uint8_t sensors; /* input-only keys after the image keys (Neo) */
+    bool touch;      /* the strip takes touches */
     bool flip;
+    uint16_t rotate; /* degrees clockwise before upload, see db_display_t */
 } model_t;
 
 static const uint16_t plus_key_x[] = {13, 232, 451, 670};
@@ -58,7 +61,21 @@ static const model_t models[] = {
      .key_y = plus_key_y,
      .full_image = true,
      .strip = {0, 380, 800, 100},
-     .encoders = 4},
+     .encoders = 4,
+     .touch = true},
+    /* Key positions on its 1280x800 panel are unknown, so it has no full image target: keys tile, the
+     * window sits below them. */
+    {.pid = 0x00c6,
+     .name = "Stream Deck + XL",
+     .cols = 9,
+     .rows = 4,
+     .key_px = 112,
+     .width = 1200,
+     .height = 548,
+     .strip = {0, 448, 1200, 100},
+     .encoders = 6,
+     .touch = true,
+     .rotate = 270},
     {.pid = 0x0080,
      .name = "Stream Deck MK.2",
      .cols = 5,
@@ -98,7 +115,9 @@ static const model_t models[] = {
      .rows = 2,
      .key_px = 96,
      .width = 384,
-     .height = 192,
+     .height = 250,
+     .strip = {0, 192, 248, 58},
+     .sensors = 2,
      .flip = true},
     {.pid = 0x008f,
      .name = "Stream Deck XL",
@@ -108,6 +127,32 @@ static const model_t models[] = {
      .width = 768,
      .height = 384,
      .flip = true},
+    {.pid = 0x00ba,
+     .name = "Stream Deck 32 Module",
+     .cols = 8,
+     .rows = 4,
+     .key_px = 96,
+     .width = 768,
+     .height = 384,
+     .flip = true},
+    {.pid = 0x00b9,
+     .name = "Stream Deck 15 Module",
+     .cols = 5,
+     .rows = 3,
+     .key_px = 72,
+     .width = 360,
+     .height = 216,
+     .flip = true},
+    {.pid = 0x00e4,
+     .name = "Stream Deck 15 Module",
+     .cols = 5,
+     .rows = 3,
+     .key_px = 72,
+     .width = 360,
+     .height = 216,
+     .flip = true},
+    /* No display: three pedals as keys. */
+    {.pid = 0x0086, .name = "Stream Deck Pedal", .cols = 3, .rows = 1},
 };
 
 typedef struct {
@@ -167,10 +212,14 @@ static void add_target(db_display_t *d, db_target_kind_t kind, uint8_t index, db
 
 static void fill_display(const model_t *m, db_device_info_t *info)
 {
+    if (!m->key_px) {
+        return;
+    }
     db_display_t *d = &info->displays[0];
     *d = (db_display_t){.width = m->width,
                         .height = m->height,
                         .format = DB_FORMAT_JPEG,
+                        .rotate = m->rotate,
                         .flip_x = m->flip,
                         .flip_y = m->flip};
     if (m->full_image) {
@@ -186,9 +235,36 @@ static void fill_display(const model_t *m, db_device_info_t *info)
     }
     if (m->strip.w) {
         add_target(d, DB_TARGET_STRIP, 0, m->strip, true);
+    }
+    if (m->touch) {
         info->touch[info->touch_count++] = (db_touch_area_t){.display = 0, .rect = m->strip};
     }
     info->display_count = 1;
+}
+
+/* Feature report 0x08 laid out as the Elgato App reads it: rows and columns, a gap
+ * byte, then the report's sizes and flags, a gap byte, the window size. Without an answer the table fills in
+ * rows, columns and sizes. */
+static void read_unit_info(db_dev_t *dev, const model_t *m)
+{
+    uint8_t buf[FEATURE_LEN] = {0x08};
+    size_t n = 0;
+    uint8_t *u = dev->info.unit_info;
+    if (dev->io->get_feature(buf, sizeof(buf), &n) == DB_OK && n >= 21 && buf[0] == 0x08) {
+        u[0] = buf[1];
+        u[1] = buf[2];
+        memcpy(u + 3, buf + 3, 13);
+        memcpy(u + 17, buf + 17, 4);
+        return;
+    }
+    u[0] = m->rows;
+    u[1] = m->cols;
+    db_put_u16(u + 3, m->key_px);
+    db_put_u16(u + 5, m->key_px);
+    db_put_u16(u + 7, m->width);
+    db_put_u16(u + 9, m->height);
+    db_put_u16(u + 17, m->strip.w);
+    db_put_u16(u + 19, m->strip.h);
 }
 
 static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
@@ -206,9 +282,10 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .vid = ELGATO_VID,
                                .pid = pid,
                                .tested = m->tested,
-                               .key_count = (uint8_t)(m->cols * m->rows),
+                               .key_count = (uint8_t)(m->cols * m->rows + m->sensors),
                                .encoder_count = m->encoders};
     fill_display(m, info);
+    read_unit_info(dev, m);
     read_feature_string(dev, 0x06, 2, info->serial, sizeof(info->serial));
     read_feature_string(dev, 0x05, 6, info->firmware, sizeof(info->firmware));
     return DB_OK;
@@ -307,7 +384,7 @@ static size_t build_input(const db_dev_t *dev, const db_input_t *ev, uint8_t *r,
 {
     const state_t *st = (const state_t *)dev->state;
     const model_t *m = st->model;
-    size_t keys = (size_t)m->cols * m->rows;
+    size_t keys = (size_t)m->cols * m->rows + m->sensors;
     if (cap < 64) {
         return 0;
     }
@@ -344,11 +421,14 @@ static size_t build_input(const db_dev_t *dev, const db_input_t *ev, uint8_t *r,
     case DB_INPUT_TOUCH_TAP:
     case DB_INPUT_TOUCH_LONG:
     case DB_INPUT_TOUCH_SWIPE:
-        if (!m->strip.w) {
+        if (!m->touch) {
             return 0;
         }
         r[1] = IN_TOUCH;
-        db_put_u16(r + 2, 14);
+        /* Elgato's length per kind; the + XL page gives 0x10 for a tap */
+        db_put_u16(r + 2, ev->kind == DB_INPUT_TOUCH_SWIPE                     ? 0x0e
+                          : ev->kind == DB_INPUT_TOUCH_TAP && m->pid == 0x00c6 ? 0x10
+                                                                               : 0x0a);
         r[4] =
             (uint8_t)(TOUCH_TAP + (ev->kind - DB_INPUT_TOUCH_TAP)); /* both list tap, long, swipe in order */
         db_put_u16(r + 6, (uint16_t)(ev->x - m->strip.x));
@@ -447,7 +527,7 @@ static size_t parse_input(db_dev_t *dev, const uint8_t *r, size_t len, uint64_t 
     }
     switch (r[1]) {
     case IN_KEYS: {
-        size_t count = (size_t)m->cols * m->rows;
+        size_t count = (size_t)m->cols * m->rows + m->sensors;
         return len >= 4 + count ? edges(st(dev)->keys, r + 4, count, DB_INPUT_KEY_DOWN, t, out, max) : 0;
     }
     case IN_TOUCH:
@@ -461,6 +541,9 @@ static size_t parse_input(db_dev_t *dev, const uint8_t *r, size_t len, uint64_t 
 
 static db_err_t set_brightness(db_dev_t *dev, uint8_t pct)
 {
+    if (!st(dev)->model->key_px) {
+        return DB_OK; /* the Pedal has nothing to light; the Elgato dock sends it no display reports either */
+    }
     uint8_t buf[FEATURE_LEN] = {0x03, 0x08, pct > 100 ? 100 : pct};
     return dev->io->set_feature(buf, sizeof(buf));
 }
