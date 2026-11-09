@@ -50,8 +50,8 @@ The spec leaves these open. A failure here may be the emulator's fault, not the 
 - Six-key chunks have no size field, so every chunk carries 1008 bytes and the BMP size field marks the end.
 - The Neo has `key_count` 10: 8 image keys plus the two sensors as input keys 8 and 9. Sensors get no image
   target, because the spec gives no command for the 96 x 16 sensor image.
-- Classic and XL have no full LCD target, although Elgato's pages list `0x08`
-  for them.
+- A full LCD target is optional on every model with an LCD (classic, XL, Neo, + XL): no source gives where
+  the keys sit on the panel. When a driver offers one, it must match the LCD size.
 - The + XL sends a tap with payload length `0x10`, as its Elgato page says. Long press stays `0x0a`.
 - The touch area must equal the window target. Touch events are window coordinates plus the touch area's
   origin.

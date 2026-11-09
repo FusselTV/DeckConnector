@@ -60,7 +60,7 @@ static unsigned input_keys(void)
 
 static bool has_full_lcd(void)
 {
-    return M->family == DECK_NEO || M->family == DECK_PLUS;
+    return M->family != DECK_SIXKEY && M->family != DECK_PEDAL;
 }
 
 /* Clockwise degrees the display really gets, -1 for a mirror. Both flips are a 180 degree turn. */
