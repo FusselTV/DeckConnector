@@ -14,6 +14,8 @@ export interface DeckInfo {
   usb_speed?: 'high' | 'full'
   hub?: boolean
   surface?: number
+  /** In `decks`, from 1. */
+  number?: number
 }
 
 export interface Source {
@@ -278,7 +280,6 @@ export interface Coredump {
   mtval?: string
   elf_sha256?: string
   firmware?: string
-  at?: string
 }
 
 /** One entry of GET /api/input/log as the firmware sends it. */

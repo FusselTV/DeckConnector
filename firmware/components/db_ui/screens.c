@@ -276,7 +276,8 @@ static void firmware_card(const page_t *p, ui_tile_t *t)
     if (hash) {
         *hash = '\0';
     }
-    snprintf(chip, sizeof(chip), p->l->key_px >= 110 ? "WLAN %s" : "%s", md->wlan_fw[0] ? md->wlan_fw : "-");
+    snprintf(chip, sizeof(chip), p->l->key_px < 110 ? "%s" : "WLAN %s",
+             md->wlan_fw[0] ? md->wlan_fw : "-");
     card(t, ICON_FIRMWARE, "Firmware", ver, chip);
 }
 
@@ -344,15 +345,20 @@ static void main_menu(page_t *p)
     snprintf(login, sizeof(login), "Benutzer admin · Passwort %s", md->web_pass);
     brightness(p, 2);
     if (p->l->strip) {
-        segment(&p->sc->seg[1], 2, ICON_WEB, C_DIM, "Web-Zugang", web, p->m->note[0] ? p->m->note : login);
+        segment(&p->sc->seg[1], 2, ICON_WEB, C_DIM, "Web-Zugang", web,
+                p->m->note[0] ? p->m->note : (md->web_pass[0] ? login : ""));
         segment(&p->sc->seg[3], 1, ICON_CLOSE, C_DIM, "", "Schließen", "tippen oder drehen");
     } else {
-        if (cramped(
-                p)) { /* no third row: the address is on the LAN key beside it, so the password goes here */
-            card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "admin");
+        /* no third row when cramped: the address is on the LAN key beside it, so the password goes here */
+        if (cramped(p)) {
+            if (md->web_pass[0]) {
+                card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "admin");
+            }
         } else {
             card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz", "admin");
-            card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+            if (md->web_pass[0]) {
+                card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+            }
         }
     }
 }

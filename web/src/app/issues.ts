@@ -168,7 +168,8 @@ function useIssueList(): Issues {
     // A start the user did not ask for, with no crash report to explain it.
     const reason = st.boot?.reason
     const startedAt = st.boot?.at ?? 0
-    if (!crash && startedAt !== bootAck && (reason === 'watchdog' || reason === 'brownout' || reason === 'crash'))
+    const acked = startedAt === bootAck
+    if (!crash && !acked && (reason === 'watchdog' || reason === 'brownout' || reason === 'crash'))
       notes.push({
         id: 'boot',
         icon: Bug,

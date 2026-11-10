@@ -195,13 +195,15 @@ export function startSession(fresh = false) {
   started = true
   inputSeq = 0
   openWs()
-  if (!fresh) void refreshStatus()
+  void (fresh ? Promise.resolve(true) : refreshStatus()).then((ok) => {
+    if (!ok) return
+    api.coredump().then(
+      (c) => crashAtom.set(c.size > 0 ? c : null),
+      () => crashAtom.set(null),
+    )
+  })
   void refreshConfig()
   void loadInputs()
-  api.coredump().then(
-    (c) => crashAtom.set(c.size > 0 ? c : null),
-    () => crashAtom.set(null),
-  )
   poll()
   document.addEventListener('visibilitychange', poll)
 }

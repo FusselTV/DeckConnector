@@ -529,7 +529,6 @@ function Details() {
                       ? t('dia.cause_7')
                       : `mcause ${crash.mcause}`,
                 ],
-                [t('dia.when'), crash.at],
                 [
                   t('dia.regs'),
                   crash.pc
@@ -541,7 +540,7 @@ function Details() {
             />
             <div className="field">
               <span className="flabel">{t('dia.cd_cmd')}</span>
-              <code className="wrap small codebox">idf.py coredump-info -c {cdName}</code>
+              <code className="wrap small codebox">{`idf.py coredump-info -c ${cdName}`}</code>
             </div>
             <div className="row">
               <a className="btn sm" href={coredumpRawUrl} download={cdName}>

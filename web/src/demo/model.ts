@@ -584,9 +584,9 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
 export const RESTART_MS = 4500
 export const isDown = (s: Demo, now: number) => !!s.downUntil && now >= s.downFrom && now < s.downUntil
 
-export function restartSoon(s: Demo, now: number) {
+export function restartSoon(s: Demo, now: number, ms = RESTART_MS) {
   s.downFrom = now + 1000
-  s.downUntil = s.downFrom + RESTART_MS
+  s.downUntil = s.downFrom + ms
 }
 
 const u32 = (h: number[], i: number) => h.slice(i, i + 4).reduceRight((a, x) => a * 256 + x, 0)

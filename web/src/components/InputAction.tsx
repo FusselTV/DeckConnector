@@ -66,7 +66,7 @@ export function FilePick(p: {
   const { t } = useUi()
   const ref = useRef<HTMLInputElement>(null)
   return (
-    <InputAction>
+    <div className="inrow">
       <span className="in codebox" id={`${p.id}-name`}>
         {p.file?.name ?? '–'}
       </span>
@@ -82,6 +82,6 @@ export function FilePick(p: {
         <FolderOpen size={16} aria-hidden />
         {p.label ?? t('upd.choose')}
       </button>
-    </InputAction>
+    </div>
   )
 }
