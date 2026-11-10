@@ -1,6 +1,5 @@
 export type Lang = 'en' | 'de'
-/** narrow: the stage is phone sized, so the composition frames tighter and writes bigger. */
-export type LangProps = { lang: Lang; narrow?: boolean; light?: boolean }
+export type LangProps = { lang: Lang; light?: boolean }
 
 const en = {
   board: 'DeckConnector',
