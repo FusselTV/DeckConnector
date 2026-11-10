@@ -1,5 +1,4 @@
 /// <reference types="vitest/config" />
-import { readFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
@@ -39,29 +38,11 @@ export default defineConfig(({ mode }) => {
     },
   }
 
-  // The device page ships these packages, so THIRD_PARTY_LICENSES.txt must name each one with its version.
-  const licenses = {
-    name: 'third-party-licenses',
-    generateBundle(_: unknown, bundle: Record<string, { modules?: Record<string, unknown> }>) {
-      const listed = readFileSync(new URL('../THIRD_PARTY_LICENSES.txt', import.meta.url), 'utf8')
-      const ids = Object.values(bundle).flatMap((c) => Object.keys(c.modules ?? {}))
-      const pkgs = new Set(ids.map((id) => id.match(/.*node_modules\/((?:@[^/]+\/)?[^/]+)/)?.[1]).filter(Boolean))
-      if (!pkgs.has('react')) throw new Error('third-party-licenses: found no bundled packages, the module ids changed')
-      const missing = [...pkgs].filter((p) => {
-        const pkg = readFileSync(new URL(`node_modules/${p}/package.json`, import.meta.url), 'utf8')
-        const { version } = JSON.parse(pkg) as { version: string }
-        return !new RegExp(`(^|[\\s(,])${p} ${version.replaceAll('.', '\\.')}(?![\\w.])`).test(listed)
-      })
-      if (missing.length) throw new Error(`THIRD_PARTY_LICENSES.txt lacks ${missing.join(', ')} (name and version)`)
-    },
-  }
-
   return {
     // The device needs one file; the demo loads faster as files the browser fetches side by side and caches.
     plugins: [
       react(),
       !demo && viteSingleFile({ removeViteModuleLoader: true }),
-      !demo && licenses,
       demo && demoEntry,
       demo && preloadWasm,
     ],
@@ -72,6 +53,7 @@ export default defineConfig(({ mode }) => {
       reportCompressedSize: false,
       outDir: demo ? 'dist-demo' : 'dist',
       chunkSizeWarningLimit: 1000,
+      license: !demo && { fileName: 'licenses.md' },
     },
     server: {
       proxy: {

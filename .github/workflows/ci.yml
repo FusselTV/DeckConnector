@@ -32,7 +32,7 @@ jobs:
             firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/workflows/ci.yml]
             host: [host_test/**, firmware/components/**, .github/workflows/ci.yml]
             lint: [tools/**, firmware/**, host_test/**, .clang-format, .clang-tidy, .github/workflows/ci.yml]
-            web: [web/**, THIRD_PARTY_LICENSES.txt, .github/workflows/ci.yml]
+            web: [web/**, .github/workflows/ci.yml]
 
   host-tests:
     needs: changes
@@ -91,7 +91,9 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-page
-          path: web/dist/index.html
+          path: |
+            web/dist/index.html
+            web/dist/licenses.md
           if-no-files-found: error
 
   firmware:

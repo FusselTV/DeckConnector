@@ -103,15 +103,9 @@ GCC runtime libraries (libgcc, libstdc++)
 Web page
 --------
 
-The device serves this page. It is also inside the firmware image.
-
-MIT License (text B)
-  React (react 19.3.1, react-dom 19.3.1, scheduler 0.28.0), Copyright (c)
-    Meta Platforms, Inc. and affiliates. https://react.dev
-
-Lucide icons, ISC License (text E) and MIT License (text B)
-  lucide-react 1.70.0, Copyright (c) 2026 Lucide Icons and Contributors.
-  Icons derived from Feather: Copyright (c) 2013-present Cole Bemis (MIT).
+The device serves this page. It is also inside the firmware image. The npm
+packages it bundles (React, lucide-react) are listed at the end of the
+release copy of this file, each with its license text.
 
 SIL Open Font License 1.1 (text I)
   Geist, Copyright 2026 The Geist Project Authors
