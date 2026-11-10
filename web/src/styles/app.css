@@ -848,6 +848,10 @@
     font-size: 13px;
     line-height: 20px;
   }
+  .dl dd a {
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+  }
   .dl dd .row {
     display: inline-flex;
     align-items: baseline;

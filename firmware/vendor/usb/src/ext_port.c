@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for DeckConnector: a port whose device the Hub Driver could not add (esp-usb#605).
  */
 #include <string.h>
 #include <stdint.h>

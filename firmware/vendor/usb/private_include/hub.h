@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for DeckConnector: the hub_root_stop() return values.
  */
 
 #pragma once

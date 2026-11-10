@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deviceLabel } from './util'
+import { deviceLabel, REPO, sourceUrl } from './util'
 
 describe('deviceLabel', () => {
   it('names the device and browser the deck shows', () => {
@@ -13,5 +13,15 @@ describe('deviceLabel', () => {
       'Windows · Edge',
     )
     expect(deviceLabel('curl/8')).toBe('Browser')
+  })
+})
+
+describe('sourceUrl', () => {
+  it('points at the tag or commit the device runs', () => {
+    expect(sourceUrl('v1.2.0')).toBe(`${REPO}/tree/v1.2.0`)
+    expect(sourceUrl('v1.2.0-5-gabc1234')).toBe(`${REPO}/tree/abc1234`)
+    expect(sourceUrl('abc1234')).toBe(`${REPO}/tree/abc1234`)
+    expect(sourceUrl('v1.2.0-5-gabc1234-dirty')).toBe(REPO)
+    expect(sourceUrl(undefined)).toBe(REPO)
   })
 })

@@ -32,7 +32,7 @@ jobs:
             firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/workflows/ci.yml]
             host: [host_test/**, firmware/components/**, .github/workflows/ci.yml]
             lint: [tools/**, firmware/**, host_test/**, .clang-format, .clang-tidy, .github/workflows/ci.yml]
-            web: [web/**, .github/workflows/ci.yml]
+            web: [web/**, THIRD_PARTY_LICENSES.txt, .github/workflows/ci.yml]
 
   host-tests:
     needs: changes

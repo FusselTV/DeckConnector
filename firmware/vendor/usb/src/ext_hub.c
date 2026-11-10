@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for DeckConnector: a second release of a gone Hub is ignored (esp-usb#605).
  */
 #include <string.h>
 #include <stdint.h>

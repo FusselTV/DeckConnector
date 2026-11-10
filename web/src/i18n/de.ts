@@ -174,6 +174,9 @@ export const de: Dict = {
   'access.cors': 'Zugriff von anderen Webseiten (CORS)',
   'access.cors_h':
     'Nur nötig, wenn eine andere Webseite im Browser diese API aufrufen soll, z. B. ein eigenes Dashboard unter https://dash.example.org. Mehrere Adressen mit Komma trennen.',
+  'fw.license': 'Lizenz',
+  'fw.source': 'Quellcode',
+  'fw.licenses': 'Lizenzen',
   'fw.page': 'Weboberfläche',
   'fw.src_partition': 'hochgeladen',
   'fw.src_builtin': 'aus der Firmware',

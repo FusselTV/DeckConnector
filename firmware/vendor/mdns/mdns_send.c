@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for deckbridge: unique records are answered without the random delay (see "deckbridge:" below).
+ * Modified for DeckConnector: unique records are answered without the random delay (see "deckbridge:" below).
  */
 #include <string.h>
 #include "sdkconfig.h"

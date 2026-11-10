@@ -34,7 +34,7 @@ import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
 import type { T, TKey } from '../i18n'
 import { backupOf, planRestore } from '../lib/backup'
-import { download, roam } from '../lib/util'
+import { download, licensePage, roam, sourceUrl } from '../lib/util'
 import { httpUrlError } from '../lib/validate'
 
 type Target = 'p4' | 'c6' | 'page' | 'bootloader' | 'ptable' | null
@@ -334,6 +334,22 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   )
 }
 
+function Source({ version }: { version?: string }) {
+  const { t, lang } = useUi()
+  return (
+    <>
+      AGPL-3.0 ·{' '}
+      <a href={sourceUrl(version)} target="_blank" rel="noreferrer">
+        {t('fw.source')}
+      </a>{' '}
+      ·{' '}
+      <a href={licensePage(lang)} target="_blank" rel="noreferrer">
+        {t('fw.licenses')}
+      </a>
+    </>
+  )
+}
+
 export function Firmware() {
   const { t, fmt, act, ask } = useUi()
   const st = useStore((s) => s.status)
@@ -519,6 +535,7 @@ export function Firmware() {
             ],
             [t('dia.id'), st.id, true],
             [t('dia.api'), st.api, true],
+            [t('fw.license'), <Source version={st.firmware} />],
           ]}
         />
         {loadErr && (

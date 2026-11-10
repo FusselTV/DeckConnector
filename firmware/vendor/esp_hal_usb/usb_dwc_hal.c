@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Copied from ESP-IDF v6.0.2 and modified for deckbridge: see "deckbridge:" below.
+ * Copied from ESP-IDF v6.0.2 and modified for DeckConnector: see "deckbridge:" below.
  */
 
 #include <stddef.h>
