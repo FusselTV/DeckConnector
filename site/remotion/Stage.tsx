@@ -10,6 +10,7 @@ export default function Stage({ id }: StageProps) {
   const ref = useRef<PlayerRef>(null)
   const [lang] = useState<Lang>(() => (document.documentElement.lang === 'de' ? 'de' : 'en'))
   const [still] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches)
+  const [light, setLight] = useState(() => document.documentElement.classList.contains('light'))
   const [narrow, setNarrow] = useState(false)
   const [portrait, setPortrait] = useState(false)
   const size = (portrait && c.portrait) || c
@@ -23,6 +24,13 @@ export default function Stage({ id }: StageProps) {
     io.observe(el)
     return () => io.disconnect()
   }, [still])
+
+  useEffect(() => {
+    const html = document.documentElement
+    const mo = new MutationObserver(() => setLight(html.classList.contains('light')))
+    mo.observe(html, { attributeFilter: ['class'] })
+    return () => mo.disconnect()
+  }, [])
 
   // Measured before the first paint, so the player never draws one frame in the wrong framing.
   useLayoutEffect(() => {
@@ -43,12 +51,12 @@ export default function Stage({ id }: StageProps) {
     <Player
       ref={ref}
       lazyComponent={c.load}
-      inputProps={{ lang, narrow }}
+      inputProps={{ lang, narrow, light }}
       durationInFrames={c.durationInFrames}
       fps={c.fps}
       compositionWidth={size.width}
       compositionHeight={size.height}
-      initialFrame={still ? c.still : (c.start ?? 0)}
+      initialFrame={c.start}
       style={{ width: '100%', height: '100%' }}
       initiallyMuted
       clickToPlay={false}

@@ -3,11 +3,11 @@ title: Home Assistant
 description: Status der Platine lesen und sie aus Home Assistant über die API steuern.
 ---
 
-Eine Home-Assistant-Integration gibt es noch nicht. Die [API](/de/docs/api) deckt Status, Helligkeit, die Wahl des Programms, das Deck-Bild und Neustarts ab, also kann die REST-Integration sie nutzen.
+Eine Integration für [Home Assistant](https://www.home-assistant.io/) gibt es noch nicht. Die Home-Assistant-Integrationen [RESTful](https://www.home-assistant.io/integrations/rest/) und [RESTful Command](https://www.home-assistant.io/integrations/rest_command/) lesen den Status und schicken Befehle über die [API](/de/docs/api).
 
 ## API-Schlüssel
 
-Leg unter **Zugang › API-Schlüssel** einen Schlüssel an. Zum Lesen reicht **Steuern**. Helligkeit, die Wahl des Programms und Neustarts brauchen **Vollzugriff**. Trag ihn in `secrets.yaml` ein.
+Leg unter **Zugang › API-Schlüssel** einen [Schlüssel](/de/docs/security#api-schlüssel) an. Zum Lesen reicht **Steuern**. Helligkeit, die Wahl des Programms und Neustarts brauchen **Vollzugriff**.
 
 ```yaml title="secrets.yaml"
 deckconnector_auth: "Bearer DEIN_SCHLUESSEL"
@@ -69,6 +69,8 @@ rest_command:
 | Last | `GET /api/metrics`, CPU und RAM |
 | Update | `firmware` im Status, `POST /api/ota/url` zum Installieren |
 
-Ein API-Schlüssel bekommt über den WebSocket nie simulierte Eingaben. Automationen, die auf `input` reagieren, sehen also nur echte Drücke am Deck.
+Ein API-Schlüssel bekommt über den WebSocket nie simulierte Eingaben, Automationen auf `input` sehen also nur echte Drücke.
 
-Mit **Nur HTTPS** nimmst du `https://` und Port 443 und vertraust dem eigenen Zertifikat der Platine. Siehe [Zugang und Sicherheit](/de/docs/security#https).
+Mit **Nur HTTPS** nimmst du `https://` und vertraust dem [Zertifikat](/de/docs/security#https) der Platine.
+
+<Next lang="de" links={[['API', '/de/docs/api/'], ['Zugang und Sicherheit', '/de/docs/security/']]} />

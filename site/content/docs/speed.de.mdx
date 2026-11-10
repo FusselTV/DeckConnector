@@ -1,0 +1,60 @@
+---
+title: Messwerte
+description: Gemessenes Tempo von DeckConnector neben dem Elgato Network Dock, am selben Stream Deck +.
+---
+
+Am Deck ist DeckConnector so schnell wie das [Elgato Network Dock](https://www.elgato.com/de/de/p/network-dock-stream-deck) oder schneller. Hier sind die Zahlen.
+
+Beide Geräte steuerten dasselbe Stream Deck + am selben Messplatz, mit demselben Companion, derselben Kamera und denselben Werkzeugen (8. November 2026). Das Network Dock lief mit Firmware 1.01.014, die Elgato-App war 7.6.1. Die Werte sind Mediane. Ein Kamerabild dauert 17 ms, Unterschiede unter 5 bis 10 ms sind also Rauschen.
+
+## Companion
+
+<BenchBars lang="de" title="Zeit, bis das Deck es zeigt, weniger ist besser" unit="ms" rows={[
+  ['Companion-Variable bis zur Taste', 15, 29],
+  ['Companion-Seitenwechsel, 7 Tasten', 45, 49],
+  ['Ganze Seite, 8 Tasten und Leiste, ohne Companion', 31, 49],
+]} />
+
+<BenchBars lang="de" title="Sekunden, weniger ist besser" unit="s" rows={[
+  ['Companion-Neustart bis Startseite', 1.2, 1.96],
+  ['Netz weg, Deck verlässt den toten Host', 5.4, 6.5],
+]} />
+
+Die Companion-Werte gelten für beide Geräte im Network-Dock-Modus. Companion schickt beiden dieselben Bytes, etwa 26 KB/s bei einem Seitenwechsel pro Sekunde.
+
+## Elgato-App
+
+<BenchBars lang="de" title="Sekunden, weniger ist besser" unit="s" rows={[
+  ['Start der App bis Deck verbunden', 1.96, 2.62],
+  ['Seitenwechsel im Editor', 0.13, 0.12],
+]} />
+
+| Test | DeckConnector | Network Dock |
+|---|---|---|
+| 8 animierte Tasten | 252 Bilder/s | etwa 200 Bilder/s |
+| Bild bestätigt nach seinem letzten Teil | 0,8 ms | 4,6 ms |
+
+## Stromausfall
+
+| Test | DeckConnector | Network Dock |
+|---|---|---|
+| PoE-Stromausfall bis Companion-Bild, Network-Dock-Modus | 7,9 s | 17,6 s |
+| PoE-Stromausfall bis Companion-Bild, Satellite | 6,75 s | Kein Satellite |
+| PoE-Stromausfall, Elgato-App wieder verbunden | 9 bis 13,5 s, in 3 von 4 Versuchen | Nicht innerhalb von 4 Minuten (0 von 2) |
+
+Die Stromausfall-Werte von DeckConnector stammen vom 7. und 8. November 2026, mit einer älteren Firmware.
+
+## Eigenes Server-Protokoll
+
+Eine Taste, vom Bild bis zur Bestätigung nach der USB-Übertragung, braucht 1,2 bis 1,6 ms. Das Network Dock hat kein solches Protokoll.
+
+## Wo das Dock besser ist
+
+| Test | DeckConnector | Network Dock |
+|---|---|---|
+| TCP-Empfangsfenster | 23 KB | 36 bis 61 KB |
+| mDNS-Antwort auf eine PTR-Anfrage | 118 ms | etwa 1 ms |
+
+Beides sieht man am Deck nicht. Eine Seite kommt bei beiden in 2,8 ms an.
+
+<Next lang="de" links={[['Erste Schritte', '/de/docs/getting-started/']]} />

@@ -1,60 +1,66 @@
+import { Clock, EthernetPort, Globe, Settings, Sun, SunDim, Wifi } from 'lucide-react'
 import { spring, useCurrentFrame, useVideoConfig } from 'remotion'
-import { AMBER, at, Board, BOARD_USB, Cable, Deck, GREEN, INK, MONO, Pool, SANS, rounded, Trail, type Key, type Pt, showKeys, showStrip } from './hw'
-import { camAt, Caption, Scene, type Shot } from './scene'
+import { AMBER, at, Board, BOARD_USB, BOARD_USBC, Cable, Deck, GREEN, INK, MONO, Pool, SANS, rounded, Trail, type Key, type Pt, showKeys, showStrip } from './hw'
+import { breathe, Scene } from './scene'
 import { lin, pulse, ramp } from './time'
 import { TEXT, type LangProps, type Text } from './text'
 
-const W = 1280
-const H = 720
 // The browser is drawn at 700 x 608 and scaled up, so its UI reads like a real page.
 const WIN = { x: 0, y: 0, w: 700, h: 608 }
-const WS = 1.3
-const BOARD = { x: 1070, y: 70, s: 1.5 }
-const DECK = { x: 1180, y: 380, s: 3.4 }
-const USBC = rounded([[WIN.w * WS + 58, at(BOARD, [0, 115])[1]], at(BOARD, [-6, 115])])
-const USBA = rounded([at(BOARD, BOARD_USB), [1030, at(BOARD, BOARD_USB)[1]], [1030, 30], [1560, 30], [1560, 420]])
+
+// Landscape: the browser sits in a monitor bezel with a USB-C port on its right edge; deck above the board, so the two cables never cross.
+// Portrait (phones): browser on top, deck and board below; the USB-C cable leaves the bezel's bottom and comes in under the board, clear of the deck cable.
+function layout(port: boolean) {
+  const ws = port ? 1.3 : 1.04
+  const ox = port ? 85 : 24
+  const oy = 52
+  const bezel = { x: ox - 12, y: oy - 12, w: WIN.w * ws + 24, h: WIN.h * ws + 24 }
+  const deck = port ? { x: 130, y: 932, s: 2.6 } : { x: 862, y: 46, s: 2.85 }
+  const board = port ? { x: 640, y: 1000, s: 1.35 } : { x: 862, y: 478, s: 1.35 }
+  const c = at(board, BOARD_USBC)
+  const a = at(board, BOARD_USB)
+  const cIn: Pt = port ? [975, bezel.y + bezel.h] : [bezel.x + bezel.w, c[1]]
+  return {
+    ws,
+    ox,
+    oy,
+    bezel,
+    deck,
+    board,
+    cIn,
+    usbc: port ? rounded([[cIn[0], cIn[1] + 36], [cIn[0], 1290], [600, 1290], [600, c[1]], c], 24) : rounded([[cIn[0] + 36, cIn[1]], c]),
+    usba: port ? rounded([a, [470, a[1]]]) : rounded([a, [818, a[1]], [818, 360], [900, 360]], 24),
+    pool: port ? { x: 540, y: 1110 } : { x: 1060, y: 420 },
+    wide: port ? { x: 540, y: 670, z: 0.95, rx: 2, ry: 0 } : { x: 645, y: 366, z: 0.92, rx: 2, ry: 0 },
+  }
+}
 const SSID = 'Studio'
 const PASS = 10
 const NAME = 'deck-stage'
 const T = {
-  move1: [14, 30],
-  click1: 32,
-  chooser: [36, 48],
-  move2: [46, 60],
-  click2: 64,
-  flash: [76, 160],
-  form: 168,
-  ssid: [180, 196],
-  pass: [200, 214],
-  move3: [216, 230],
-  click3: 234,
-  boot: [240, 256],
-  lit: 262,
-  comp: 292,
+  move1: [8, 20],
+  click1: 22,
+  chooser: [24, 34],
+  move2: [32, 42],
+  click2: 44,
+  flash: [52, 116],
+  form: 122,
+  ssid: [130, 142],
+  pass: [144, 154],
+  move3: [156, 166],
+  click3: 168,
+  boot: [176, 188],
+  lit: 192,
+  comp: 228,
   out: [318, 330],
 } as const
 
-const SHOTS: Shot[] = [
-  [0, { x: 455, y: 250, z: 1.3, rx: 3, ry: 2 }],
-  [30, { x: 455, y: 262, z: 1.33, rx: 3, ry: 2 }],
-  [70, { x: 455, y: 262, z: 1.33, rx: 3, ry: 2 }],
-  [94, { x: 720, y: 300, z: 0.95, rx: 6, ry: -2 }],
-  [118, { x: 1180, y: 190, z: 2.1, rx: 4, ry: -10 }],
-  [156, { x: 1190, y: 200, z: 2.2, rx: 4, ry: -10 }],
-  [176, { x: 455, y: 460, z: 1.2, rx: 3, ry: 2 }],
-  [232, { x: 455, y: 465, z: 1.22, rx: 3, ry: 2 }],
-  [262, { x: 1418, y: 522, z: 1.8, rx: 10, ry: -8 }],
-  [316, { x: 1418, y: 520, z: 1.86, rx: 9, ry: -5 }],
-  [330, { x: 455, y: 250, z: 1.3, rx: 3, ry: 2 }],
-]
-// On a phone the browser shots move closer, so the page text stays readable.
-const SHOTS_NARROW: Shot[] = SHOTS.map(([f, c]) => [f, c.x === 455 ? { ...c, x: 440, z: c.z * 1.12 } : c])
-
-export default function Flash({ lang, narrow }: LangProps) {
+export default function Flash({ lang }: LangProps) {
   const f = useCurrentFrame()
-  const { fps } = useVideoConfig()
+  const { fps, width: W, height: H } = useVideoConfig()
+  const port = H > W
+  const { ws, ox, oy, bezel, deck, board, cIn, usbc: USBC, usba: USBA, pool, wide } = layout(port)
   const t = TEXT[lang]
-  const cap = narrow ? 76 : 56
   const out = ramp(f, T.out[0], T.out[1])
   const progress = lin(f, T.flash[0], T.flash[1])
   const flashing = f >= T.flash[0] && f < T.flash[1]
@@ -71,23 +77,13 @@ export default function Flash({ lang, narrow }: LangProps) {
     <Scene
       w={W}
       h={H}
-      cam={camAt(f, narrow ? SHOTS_NARROW : SHOTS)}
-      over={
-        <>
-          <Caption f={f} from={T.flash[0] + 30} to={T.flash[1] + 6} text={progress >= 1 ? t.verifying : t.flashing} big={`${Math.round(progress * 100)}%`} dot={progress >= 1 ? GREEN : AMBER} size={cap} />
-          <Caption f={f} from={T.lit + 4} to={T.comp + 2} text={t.flashReady} dot={GREEN} size={cap} />
-          <Caption f={f} from={T.comp + 2} to={T.out[0] + 6} text={t.flashComp} dot={GREEN} size={cap} />
-        </>
-      }
+      cam={breathe(f, 330, wide, 0.02)}
     >
-      <Pool x={1418} y={760} rx={460} ry={200} c={AMBER} o={0.1 + 0.25 * (lit[0] ?? 0)} />
-      <Cable pts={USBA} glow={Math.max(pulse(f, T.lit - 8, T.lit + 20, 4, 10), pulse(f, T.comp - 14, T.comp + 10, 4, 10))} opacity={ramp(f, T.form, T.form + 12) * (1 - out)} />
+      <Pool x={pool.x} y={pool.y} rx={300} ry={160} c={AMBER} o={0.1 + 0.25 * (lit[0] ?? 0)} />
+      <Cable pts={USBA} glow={Math.max(pulse(f, T.lit - 8, T.lit + 20, 4, 10), pulse(f, T.comp - 14, T.comp + 10, 4, 10))} />
       <Cable pts={USBC} w={10} glow={flashing ? 0.6 : 0} />
-      <g transform={`translate(${WIN.w * WS} ${at(BOARD, [0, 115])[1]})`}>
-        <rect x={0} y={-13} width={40} height={26} rx={6} fill="#25292f" />
-        <rect x={40} y={-8} width={18} height={16} rx={5} fill="#b9bec5" />
-      </g>
-      <Board {...BOARD} link={0} act={flashing ? Math.floor(f / 3) % 2 : 0} power={power} hot={flashing ? 0.4 + 0.6 * pulse(f, T.flash[0], T.flash[1], 10, 10) : booted ? pulse(f, T.boot[1], T.lit + 20, 4, 12) : 0} ring={flashing ? progress : 0} wifi={booted ? ramp(f, T.boot[1], T.boot[1] + 10) * (1 - out) : 0} sheen={Math.sin((f / 330) * Math.PI * 2)} />
+      <rect x={port ? cIn[0] - 12 : cIn[0]} y={port ? cIn[1] : cIn[1] - 12} width={port ? 24 : 38} height={port ? 38 : 24} rx={6} fill="#25292f" />
+      <Board {...board} link={0} act={flashing ? Math.floor(f / 3) % 2 : 0} power={power} hot={flashing ? 0.4 + 0.6 * pulse(f, T.flash[0], T.flash[1], 10, 10) : booted ? pulse(f, T.boot[1], T.lit + 20, 4, 12) : 0} ring={flashing ? progress : 0} wifi={booted ? ramp(f, T.boot[1], T.boot[1] + 10) * (1 - out) : 0} sheen={Math.sin((f / 330) * Math.PI * 2)} />
       {flashing && [0, 1, 2, 3].map((k) => <Trail key={k} pts={USBC} t={(((f - T.flash[0]) / 16 + k / 4) % 1) * 1.3} w={8} len={0.35} />)}
       {[0, 6, 12].map((d) => (
         <g key={d}>
@@ -95,31 +91,29 @@ export default function Flash({ lang, narrow }: LangProps) {
           <Trail pts={USBA} t={lin(f, T.comp - 22 + d, T.comp - 2 + d, 0, 1.3)} w={12} len={0.25} color={d === 6 ? '#ffffff' : AMBER} />
         </g>
       ))}
-      <Deck {...DECK} edge={AMBER} keys={keys} under={f >= T.comp ? first.keys : undefined} strip={f >= T.comp + 12 ? showStrip(t, 40) : first.strip} lit={lit} flash={flash} stripLit={ramp(f, T.lit + 12, T.lit + 20) * (1 - out)} sheen={0.4} />
-      <g transform={`scale(${WS})`}>
+      <Deck {...deck} edge={AMBER} keys={keys} under={f >= T.comp && f < T.out[0] ? first.keys : IDLE} strip={f >= T.comp + 12 ? showStrip(40) : first.strip} lit={lit} flash={flash} stripLit={ramp(f, T.lit + 12, T.lit + 20) * (1 - out)} sheen={0.4} />
+      <rect {...bezel} rx={22} fill="#1b1e22" stroke="#3b4148" strokeWidth={2} />
+      <rect x={port ? cIn[0] - 8 : cIn[0] - 3} y={port ? cIn[1] - 3 : cIn[1] - 8} width={port ? 16 : 5} height={port ? 5 : 16} rx={2} fill="#050607" />
+      <g transform={`translate(${ox} ${oy}) scale(${ws})`}>
         <Browser t={t} f={f} out={out} progress={progress} />
       </g>
     </Scene>
   )
 }
 
+// Powered but not flashed yet: the keys glow faintly instead of sitting black.
+const IDLE: Key[] = Array.from({ length: 8 }, () => ({ bg: '#22272d', glow: '#2f353c' }))
+
 function firstPicture(t: Text) {
-  const wifi = (
-    <g transform="translate(60 72) scale(1.35)" fill="none" stroke={INK} strokeWidth={7} strokeLinecap="round">
-      <path d="M-15 -4 a21 21 0 0 1 30 0" />
-      <path d="M-28 -17 a39 39 0 0 1 56 0" />
-      <circle r={4} cy={9} fill={INK} stroke="none" />
-    </g>
-  )
   const keys: (Key | null)[] = [
-    { bg: '#3a2a06', glow: AMBER, art: <Spinner /> },
-    { bg: '#1c7a45', glow: GREEN, art: wifi },
-    { bg: '#1c7a45', top: t.lan, big: 'OK', glow: GREEN },
-    { bg: '#262b32', big: t.later, glow: '#5a6470' },
-    { bg: '#262b32', big: t.menu, glow: '#5a6470' },
-    { bg: '#1b1f24', top: t.light, big: '−', glow: '#5a6470' },
-    { bg: '#1b1f24', top: t.light, big: '+', glow: '#5a6470' },
-    { bg: '#1f4f86', top: 'Web', big: 'IP', glow: '#3d8bff' },
+    { glow: AMBER, art: <Spinner /> },
+    { icon: Wifi, bg: '#30c060', glow: GREEN },
+    { icon: EthernetPort, word: t.lan, bg: '#30c060', glow: GREEN },
+    { icon: Clock, word: t.later },
+    { icon: Settings, word: t.menu },
+    { icon: SunDim },
+    { icon: Sun },
+    { icon: Globe, word: 'IP', bg: '#1f5fb8', glow: '#3d8bff' },
   ]
   return {
     keys,
@@ -136,7 +130,7 @@ function firstPicture(t: Text) {
   }
 }
 
-const C = { bg: '#0f1113', panel: '#171a1d', panel2: '#1e2226', well: '#0b0d0f', line: '#2a2f35', line2: '#3b4148', fg: '#e8e6e1', fg2: '#a6acb3', fg3: '#858c94' }
+const C = { bg: '#0f1113', panel: '#171a1d', panel2: '#1e2226', well: '#0b0d0f', line: '#2a2f35', line2: '#3b4148', fg: '#e8e6e1', fg2: '#afb4ba', fg3: '#858c94' }
 
 function Browser({ t, f, out, progress }: { t: Text; f: number; out: number; progress: number }) {
   const { x, y, w, h } = WIN

@@ -3,59 +3,61 @@ title: Fehlersuche
 description: Was die Deck-Bildschirme bedeuten und was hilft, wenn etwas nicht verbindet.
 ---
 
+Flashen klappt nicht? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooting).
+
 ## Die Deck-Bildschirme
 
-| Auf dem Deck | Bedeutung | Was hilft |
-|---|---|---|
-| **Kein Netz** | Weder LAN noch WLAN haben eine Adresse | Steck ein LAN-Kabel ein. Vor dem Ende der Einrichtung öffnet sich nach einer Minute das Setup-WLAN. Später startest du es im Menü unter **Setup-WLAN** |
-| **Warte auf Companion** | Companion ist gewählt, aber nicht verbunden | Siehe [Companion verbindet nicht](#companion-verbindet-nicht) |
-| **Warte auf die Elgato App** | Die Elgato App ist gewählt, aber nicht verbunden | Siehe [Die Elgato App findet das Deck nicht](#die-elgato-app-findet-das-deck-nicht) |
-| **Suche Server** | Keine Server-URL gesetzt, und keiner meldet sich per mDNS | Trag die Server-URL unter **Quellen** ein |
-| **Server getrennt** | Die Server-URL ist gesetzt, aber der Server antwortet nicht | Prüf, ob der Server läuft und ob URL und Port stimmen |
-| **Verbindungsanfrage** | Ein unbekannter Rechner will das Deck, und nur gekoppelte dürfen rein | **Annehmen** lässt ihn rein, **Ablehnen** hält ihn draußen |
-| **Companion gefunden** | Ein Companion meldet Satellite im Netz an | **Verbinden** verbindet es über Satellite. **Nein** fragt nicht mehr |
-| **Setup 2/5** | Jemand führt die Einrichtung im Browser durch | Im Browser beenden oder überspringen |
+| Auf dem Deck | Bedeutung und Lösung |
+|---|---|
+| **Kein Netz** | Weder LAN noch WLAN hat eine Adresse. Kabel einstecken oder im Menü **Setup-WLAN** starten |
+| **Warte auf Companion** | Companion ist gewählt, aber nicht verbunden. Siehe [unten](#companion-verbindet-sich-nicht) |
+| **Warte auf die Elgato App** | Die Elgato-App ist gewählt, aber nicht verbunden. Siehe [unten](#die-elgato-app-findet-das-deck-nicht) |
+| **Suche Server** | Keine Server-URL gesetzt, und keiner meldet sich. Eine unter **Quellen** eintragen |
+| **Server getrennt** | Der Server antwortet nicht. Prüfen, ob er läuft und URL und Port stimmen |
+| **Verbindungsanfrage** | Ein unbekannter Rechner will das Deck. **Annehmen** lässt ihn rein, **Ablehnen** hält ihn draußen |
+| **Companion gefunden** | Companion meldet Satellite an. **Verbinden** verbindet, **Nein** fragt nicht mehr |
+| **Setup 2/5** | Jemand ist in der Einrichtung im Browser. Dort beenden oder überspringen |
 
 ## Das Deck bleibt dunkel oder ist langsam
 
-- Prüf, ob die Platine Strom hat. Mit PoE muss der Switch-Port PoE liefern.
-- Das Deck muss im **USB-A**-Port der Platine stecken.
-- In der Weboberfläche schaltet **Deck neu verbinden** seinen USB-Strom aus und wieder an.
-- Hinter einem USB-Hub läuft das Deck oft nur mit Full Speed. Bilder kommen dann etwa dreimal langsamer. Steck es direkt an.
+- Die Platine braucht Strom. Mit PoE muss der Switch-Port ihn liefern.
+- Das Deck gehört in den **USB-A**-Port.
+- **Deck neu verbinden** in der Weboberfläche schaltet seinen USB-Strom aus und wieder an.
+- Hinter einem USB-Hub läuft das Deck oft nur mit Full Speed, Bilder kommen dann langsamer. Steck es direkt ein.
 
 ## Die Weboberfläche öffnet sich nicht
 
 - Nimm die IP aus dem Deck-Menü statt des `.local`-Namens.
 - Mit **Nur HTTPS** muss die Adresse mit `https://` beginnen.
-- Nach einer Netzwerkänderung hat die Platine eine neue Adresse. Das Deck-Menü zeigt sie.
+- Nach einer Netzwerkänderung ändert sich die Adresse. Das Deck-Menü zeigt die neue.
 - Nach zu vielen falschen Passwörtern wartet die Anmeldung bis zu einer Minute.
-- Passwort vergessen? Siehe [Zugang und Sicherheit](/de/docs/security#passwort-vergessen).
+- [Passwort vergessen?](/de/docs/security#passwort-vergessen)
 
-## Companion verbindet nicht
+## Companion verbindet sich nicht
 
 - In Companion muss **Settings › Satellite** an sein.
-- Die Platine muss Companion auf TCP-Port 16622 erreichen, oder 16623 für `ws://`. Ein Companion in Docker braucht diesen Port freigegeben. Es meldet sich nicht im LAN, also trägst du seine Adresse von Hand ein.
+- Die Platine muss Companion auf TCP 16622 erreichen, oder 16623 für `ws://`. In Docker gibst du den Port frei und trägst die Adresse von Hand ein.
 - **Prüfen** neben der Adresse unter **Quellen** zeigt, ob Companion antwortet.
-- Companion zeigt zwei Surfaces desselben Decks? Ein Proxy verbirgt die Adresse von Companion vor der Platine. Entferne die Remote Surface in Companion.
+- Das Deck erscheint doppelt? Ein Proxy verdeckt die Adresse von Companion. Entferne die Remote Surface in Companion.
 
-## Die Elgato App findet das Deck nicht
+## Die Elgato-App findet das Deck nicht
 
-- Der Rechner muss im selben Netz sein wie die Platine, nicht in einem Gäste-WLAN.
-- Eine Firewall auf dem Rechner kann die App blockieren.
-- Das Deck muss stecken. Ein Dock ohne Deck beachtet die App erst nach ihrem Neustart wieder.
+- Der Computer muss im selben Netz sein, nicht in einem Gast-WLAN.
+- Eine Firewall auf dem Computer kann die App blockieren.
+- Das Deck muss stecken. Ein Dock ohne Deck beachtet die App erst nach ihrem Neustart.
 - Eine abgelehnte App fragt erst nach ihrem Neustart wieder.
 
 ## Ein Update bleibt nicht
 
-Eine neue Firmware hat zwei Minuten, um ins Netz zu kommen und 20 Sekunden zu laufen. Sonst geht die Platine zur alten zurück. Warum, steht im Log vom Start davor, unter **Diagnose › Log › Vor dem letzten Neustart**.
+Die neue Firmware kam nicht innerhalb von zwei Minuten ins Netz oder lief keine 20 Sekunden. Warum, steht unter **Diagnose › Log › Vor dem letzten Neustart** ([Demo](/de/demo/#diagnose)).
 
 ## Logs und Absturzberichte
 
-Unter **Diagnose** findest du Log, Ereignisse, Eingaben und den letzten Absturzbericht. Das Log vom Start vor dem letzten Neustart bleibt bis zu einem Stromausfall erhalten. Ein Absturzbericht kann das Passwort enthalten, deshalb öffnet ihn nur das Passwort.
-
-So sicherst du das Log aus der Shell:
+**Diagnose** zeigt Log, Ereignisse, Eingaben und den letzten Absturzbericht. Das Log vom Start davor bleibt bis zu einem Stromausfall. Ein Absturzbericht kann das Passwort enthalten, deshalb öffnet ihn nur das Passwort.
 
 ```bash
 curl -u admin:PASSWORT http://192.168.1.50/api/log > log.txt
 curl -u admin:PASSWORT 'http://192.168.1.50/api/log?boot=prev' > log-prev.txt
 ```
+
+<Next lang="de" links={[['Probleme beim Flashen', '/de/docs/flash-troubleshooting/'], ['Netzwerk', '/de/docs/network/']]} />

@@ -3,22 +3,44 @@ import { notFound } from 'next/navigation'
 import defaultMdxComponents, { createRelativeLink } from 'fumadocs-ui/mdx'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page'
-import type { Lang } from '~/lib/i18n'
+import { DocsBody, DocsDescription, DocsPage, DocsTitle, MarkdownCopyButton, ViewOptionsPopover } from 'fumadocs-ui/layouts/docs/page'
+import { BenchBars } from '~/components/docs/bench'
+import { JsonLd } from '~/components/landing/ui'
+import * as diagrams from '~/components/docs/diagrams'
+import { Next } from '~/components/docs/figure'
+import { mdPath } from '~/lib/llm'
+import { prefix, type Lang } from '~/lib/i18n'
 import { pageMeta } from '~/lib/meta'
 import { source } from '~/lib/source'
+import { site } from '~/site.config'
 
 export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
   const page = source.getPage(slug, lang)
   if (!page) notFound()
   const MDX = page.data.body
   const Link = createRelativeLink(source, page)
+  const md = mdPath(lang, page.slugs)
   return (
-    <DocsPage toc={page.data.toc}>
-      <DocsTitle id="main">
+    <DocsPage toc={page.data.toc} footer={{ enabled: false }} className="pt-10 md:pt-14">
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'DeckConnector', item: `${site}${prefix(lang)}/` },
+            { '@type': 'ListItem', position: 2, name: lang === 'de' ? 'Anleitung' : 'Docs', item: `${site}${prefix(lang)}/docs/` },
+            ...(page.slugs.length ? [{ '@type': 'ListItem', position: 3, name: page.data.title, item: `${site}${page.url}/` }] : []),
+          ],
+        }}
+      />
+      <DocsTitle id="main" className="text-3xl tracking-tight text-balance sm:text-4xl">
         {page.data.title}
       </DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+      <div className="flex items-center gap-2 border-b pb-6">
+        <MarkdownCopyButton markdownUrl={md} />
+        <ViewOptionsPopover markdownUrl={md} pageUrl={`${site}${page.url}/`} />
+      </div>
       <DocsBody>
         <MDX
           components={{
@@ -27,9 +49,10 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
             Steps,
             Tab,
             Tabs,
-            // the demo is a static HTML file, not a Next route: a client-side Link would fetch a missing RSC payload
-            a: ({ children, ...p }) =>
-              p.href?.startsWith('/demo/app/') ? <a {...p}>{children}</a> : <Link {...p}>{children}</Link>,
+            ...diagrams,
+            BenchBars,
+            Next,
+            a: Link,
           }}
         />
       </DocsBody>
@@ -42,5 +65,6 @@ export const docParams = (lang: Lang) => source.getPages(lang).map((p) => ({ slu
 export function docMetadata(lang: Lang, slug?: string[]): Metadata {
   const page = source.getPage(slug, lang)
   if (!page) notFound()
-  return pageMeta(lang, `/docs/${page.slugs.map((x) => `${x}/`).join('')}`, { title: page.data.title, description: page.data.description })
+  const m = pageMeta(lang, `/docs/${page.slugs.map((x) => `${x}/`).join('')}`, { title: page.data.title, description: page.data.description })
+  return { ...m, alternates: { ...m.alternates, types: { 'text/markdown': mdPath(lang, page.slugs) } } }
 }

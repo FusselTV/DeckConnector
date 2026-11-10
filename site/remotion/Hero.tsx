@@ -1,55 +1,33 @@
 import { useCurrentFrame, useVideoConfig } from 'remotion'
-import { AMBER, Board, Cable, Deck, Face, GREEN, INK, keyCenter, Label, MONO, Pool, SANS, showKeys, showStrip, Switch, Trail, type Pt } from './hw'
+import { Air, AMBER, at, Board, BOARD_ANT, Cable, Deck, Face, GREEN, INK, keyCenter, Label, MONO, Plug, Pool, Router, SANS, showKeys, showStrip, Trail, Waves, type Pt } from './hw'
 import { LAND, PORT, type Layout } from './layout'
-import { camAt, Caption, Scene, type Shot } from './scene'
-import { lin, pulse, ramp } from './time'
+import { breathe, Caption, Scene } from './scene'
+import { lin, pulse } from './time'
 import { fill, TEXT, type LangProps, type Text } from './text'
 
 const rev = (p: Pt[]) => [...p].reverse()
 
-const P = 88
-const KEY = 1
-const T = {
-  inEth: [0, 12],
-  inUsb: [12, 20],
-  usbUp: [P + 4, P + 20],
-  ethUp: [P + 22, P + 52],
-  hit: P + 54,
-  live: P + 60,
-  ethDown: [P + 66, P + 90],
-  usbDown: [P + 90, P + 102],
-  land: P + 102,
-  dial: 262,
-  out: [340, 356],
-} as const
-const ORDER = [0, 1, 4, 2, 5, 3, 6, 7]
-const ignite = (i: number) => 18 + ORDER.indexOf(i) * 2
-
-function shots(L: Layout, W: number, H: number): Shot[] {
-  const w = L.wide
-  const [kx, ky] = keyCenter(L.deck, KEY)
-  const kz = 13.2 / L.deck.s
-  const mw = (480 + 28) * L.mon.s
-  const mh = (340 + 90) * L.mon.s
-  const mz = Math.min((W * (W > H ? 0.62 : 0.86)) / mw, (H * 0.8) / mh)
-  const mx = L.mon.x + 240 * L.mon.s
-  const my = L.mon.y + 185 * L.mon.s
-  const tilt = W > H ? 10 : 5
-  return [
-    [0, w],
-    [58, { ...w, z: w.z * 1.04, ry: -2 }],
-    [80, { x: kx, y: ky, z: kz, rx: 4, ry: -2 }],
-    [98, { x: kx + 8, y: ky + 4, z: kz * 1.03, rx: 3, ry: 0 }],
-    [120, { ...w, z: w.z * 1.02 }],
-    [134, { ...w, z: w.z * 1.04, ry: 3 }],
-    [152, { x: mx, y: my, z: mz, rx: 2, ry: tilt }],
-    [170, { x: mx - 4, y: my, z: mz * 1.025, rx: 2, ry: tilt }],
-    [194, w],
-    [320, { ...w, z: w.z * 1.05, ry: -3 }],
-    [360, w],
-  ]
+// Two presses: CAM2 goes live, later CAM1 again, so the loop ends where it starts.
+const PRESSES = [
+  { p: 36, key: 1 },
+  { p: 206, key: 0 },
+] as const
+const D = 360
+const ev = (p: number) =>
+  ({
+    usbUp: [p + 4, p + 20],
+    airUp: [p + 22, p + 52],
+    hit: p + 54,
+    airDown: [p + 66, p + 90],
+    usbDown: [p + 90, p + 102],
+    land: p + 102,
+  }) as const
+/** The key of the last press that reached Companion (hit) or came back to the deck (land); before the first, the loop's last. */
+const lastKey = (f: number, when: 'hit' | 'land') => {
+  let key: 0 | 1 = PRESSES[1].key
+  for (const pr of PRESSES) if (f >= ev(pr.p)[when]) key = pr.key
+  return key
 }
-const SHOTS = { land: shots(LAND, 1280, 720), port: shots(PORT, 1080, 1350) }
 
 export default function Hero({ lang }: LangProps) {
   const t = TEXT[lang]
@@ -57,25 +35,22 @@ export default function Hero({ lang }: LangProps) {
   const { width: W, height: H } = useVideoConfig()
   const port = H > W
   const L = port ? PORT : LAND
-  const ETH: Pt[] = [...L.poe, ...L.net]
+  const AIR: Pt[] = [...L.air, ...L.net]
   const USB = L.usb
-  const cam = camAt(f, port ? SHOTS.port : SHOTS.land)
+  const cam = breathe(f, D, L.wide, port ? 0.05 : 0.07, 4)
   const cap = L.cap
-  const off = 1 - ramp(f, T.out[0], T.out[1])
-  const deckLive = f >= T.land && f < T.out[1] ? 1 : 0
-  const keys = showKeys(t, f, deckLive)
-  const lit = keys.map((_, i) => ramp(f, ignite(i), ignite(i) + 7) * off)
-  const flash = keys.map((_, i) => Math.max(0.4 * pulse(f, ignite(i) + 4, ignite(i) + 16, 2, 10), i < 2 ? 0.6 * pulse(f, T.land, T.land + 16, 1, 14) : 0))
-  const down = keys.map((_, i) => (i === KEY ? pulse(f, P - 2, P + 9, 2, 6) : 0))
-  const ring = keys.map((_, i) => (i === KEY ? pulse(f, P, P + 40, 2, 14) : 0))
-  const music = 40 + 32 * ramp(f, T.dial + 40, T.dial + 52)
-  const dial = [0, 0, 36 * ramp(f, T.dial, T.dial + 14), 0]
-  const dialRing = [0, 0, pulse(f, T.dial, T.dial + 30, 2, 12), 0]
-  const usbHot = Math.max(pulse(f, T.inUsb[0] - 4, T.inUsb[1] + 4, 2, 6), pulse(f, T.usbUp[0], T.usbUp[1] + 6, 2, 6), pulse(f, T.usbDown[0], T.usbDown[1] + 6, 2, 6))
-  const ethHot = Math.max(pulse(f, T.inEth[0], T.inEth[1] + 4, 2, 6), pulse(f, T.ethUp[0], T.ethUp[1] + 6, 2, 6), pulse(f, T.ethDown[0], T.ethDown[1] + 6, 2, 6))
-  const hot = Math.max(pulse(f, T.inEth[1] - 2, T.inUsb[0] + 8, 2, 8), pulse(f, T.usbUp[1] - 2, T.ethUp[0] + 8, 2, 8), pulse(f, T.ethDown[1] - 2, T.usbDown[0] + 8, 2, 8), pulse(f, T.dial + 14, T.dial + 30, 2, 8))
-  const d0 = T.dial + 2
-  const cable = Math.min(ramp(f, 236, 250), 1 - ramp(f, T.out[0], T.out[0] + 10))
+  const keys = showKeys(t, f, lastKey(f, 'land'))
+  const lit = keys.map(() => 1)
+  const pulses = (fn: (p: number) => number) => keys.map((_, i) => Math.max(0, ...PRESSES.map(({ p, key }) => (i === key ? fn(p) : 0))))
+  const flash = keys.map((_, i) => (i < 2 ? Math.max(...PRESSES.map(({ p }) => 0.5 * pulse(f, ev(p).land, ev(p).land + 16, 1, 14))) : 0))
+  const down = pulses((p) => pulse(f, p - 2, p + 9, 2, 6))
+  const ring = pulses((p) => pulse(f, p, p + 40, 2, 14))
+  const any = (fn: (e: ReturnType<typeof ev>) => number) => Math.max(...PRESSES.map(({ p }) => fn(ev(p))))
+  const usbHot = any((e) => Math.max(pulse(f, e.usbUp[0], e.usbUp[1] + 6, 2, 6), pulse(f, e.usbDown[0], e.usbDown[1] + 6, 2, 6)))
+  const airHot = any((e) => Math.max(pulse(f, e.airUp[0], e.airUp[1] + 6, 2, 6), pulse(f, e.airDown[0], e.airDown[1] + 6, 2, 6)))
+  const hot = any((e) => Math.max(pulse(f, e.usbUp[1] - 2, e.airUp[0] + 8, 2, 8), pulse(f, e.airDown[1] - 2, e.usbDown[0] + 8, 2, 8)))
+  const ant = at(L.board, BOARD_ANT)
+  const tip: Pt = [L.router.x + 40, L.router.y - 46]
 
   return (
     <Scene
@@ -84,67 +59,65 @@ export default function Hero({ lang }: LangProps) {
       cam={cam}
       over={
         <>
-          <Caption f={f} from={4} to={P - 6} text={t.heroIn} size={cap} />
-          <Caption f={f} from={P + 4} to={144} text={t.heroOut} size={cap} />
-          <Caption f={f} from={176} to={232} text={t.heroBack} dot={GREEN} size={cap} />
-          <Caption f={f} from={232} to={T.out[1]} text={t.heroCable} sub={t.heroNoPc} dot={GREEN} size={cap} />
+          <Caption f={f} from={-30} to={390} text={t.heroWifi} sub={t.heroWifiSub} dot={GREEN} size={cap} />
         </>
       }
     >
-      <Pool x={L.deck.x + 70 * L.deck.s} y={L.deck.y + 125 * L.deck.s} rx={130 * L.deck.s} ry={28 * L.deck.s} o={0.07 + 0.08 * Math.max(...lit)} c={AMBER} />
+      <Pool x={L.deck.x + 70 * L.deck.s} y={L.deck.y + 125 * L.deck.s} rx={130 * L.deck.s} ry={28 * L.deck.s} o={0.22} c={AMBER} />
       <Pool x={L.mon.x + 240 * L.mon.s} y={L.mon.y + 170 * L.mon.s} rx={400 * L.mon.s} ry={300 * L.mon.s} c="#5aa9ff" o={0.12} />
       <Cable pts={USB} w={14} glow={usbHot} />
-      <Cable pts={L.net} w={12} color="#2a2f36" glow={ethHot} />
-      <Cable pts={L.poe} w={14} color="#2a2f36" glow={0.45 + 0.5 * ethHot} />
+      <Cable pts={L.net} w={12} color="#2a2f36" glow={airHot} />
+      {L.power && <Cable pts={L.power.pts} w={10} color="#2a2f36" />}
       <Monitor t={t} f={f} m={L.mon} />
-      <Switch f={f} {...L.sw} />
-      <Board {...L.board} act={hot > 0.3 && Math.floor(f / 3) % 2 ? 1 : 0} hot={hot} sheen={Math.sin((f / 360) * Math.PI * 2)} />
-      <Deck {...L.deck} keys={keys} strip={showStrip(t, music, pulse(f, T.dial + 40, T.dial + 70, 2, 12))} lit={lit} flash={flash} down={down} ring={ring} dial={dial} dialRing={dialRing} stripLit={ramp(f, 22, 34) * off} sheen={(cam.x - 600) / 800} />
-      {[0, 5, 10].map((k) => (
-        <g key={k}>
-          <Trail pts={rev(ETH)} t={lin(f, T.inEth[0] + k, T.inEth[1] + k, 0, 1.3)} w={16} len={0.28} color={k === 5 ? '#ffffff' : AMBER} />
-          <Trail pts={rev(USB)} t={lin(f, T.inUsb[0] + k, T.inUsb[1] + k, 0, 1.3)} w={16} len={0.3} color={k === 5 ? '#ffffff' : AMBER} />
-        </g>
+      <Pool x={ant[0]} y={ant[1]} rx={220} ry={160} c={GREEN} o={0.12 + 0.12 * airHot} />
+      <Router f={f} {...L.router} />
+      {L.power && <Plug {...L.power.plug} />}
+      <Air pts={L.air.slice(0, 17)} f={f} on={0.6 + 0.4 * airHot} />
+      <Waves x={tip[0]} y={tip[1]} f={f + 18} size={port ? 34 : 30} deg={-50} />
+      <Board {...L.board} link={0} wifi={0.55 + 0.45 * airHot} act={hot > 0.3 && Math.floor(f / 3) % 2 ? 1 : 0} hot={hot} sheen={Math.sin((f / 360) * Math.PI * 2)} />
+      <Deck {...L.deck} keys={keys} strip={showStrip(40)} lit={lit} flash={flash} down={down} ring={ring} sheen={0.1} />
+      {PRESSES.map(({ p }) => {
+        const e = ev(p)
+        return (
+          <g key={p}>
+            <Trail pts={USB} t={lin(f, e.usbUp[0], e.usbUp[1], 0, 1.3)} w={16} len={0.3} />
+            <Trail pts={AIR} t={lin(f, e.airUp[0], e.airUp[1], 0, 1.3)} w={16} len={0.28} />
+            {[0, 6].map((k) => (
+              <g key={k}>
+                <Trail pts={rev(AIR)} t={lin(f, e.airDown[0] + k, e.airDown[1] + k, 0, 1.3)} w={16} len={0.28} color={k ? '#ffffff' : GREEN} />
+                <Trail pts={rev(USB)} t={lin(f, e.usbDown[0] + k, e.usbDown[1] + k, 0, 1.3)} w={16} len={0.3} color={k ? '#ffffff' : GREEN} />
+              </g>
+            ))}
+          </g>
+        )
+      })}
+      {PRESSES.map(({ p, key }) => (
+        <PressBurst key={p} f={f} p={p} k={key} deck={L.deck} />
       ))}
-      <Trail pts={USB} t={lin(f, T.usbUp[0], T.usbUp[1], 0, 1.3)} w={16} len={0.3} />
-      <Trail pts={ETH} t={lin(f, T.ethUp[0], T.ethUp[1], 0, 1.3)} w={16} len={0.28} />
-      {[0, 6].map((k) => (
-        <g key={k}>
-          <Trail pts={rev(ETH)} t={lin(f, T.ethDown[0] + k, T.ethDown[1] + k, 0, 1.3)} w={16} len={0.28} color={k ? '#ffffff' : GREEN} />
-          <Trail pts={rev(USB)} t={lin(f, T.usbDown[0] + k, T.usbDown[1] + k, 0, 1.3)} w={16} len={0.3} color={k ? '#ffffff' : GREEN} />
-        </g>
-      ))}
-      <Trail pts={USB} t={lin(f, d0, d0 + 12, 0, 1.3)} w={12} />
-      <Trail pts={ETH} t={lin(f, d0 + 12, d0 + 32, 0, 1.3)} w={12} />
-      <Trail pts={rev(ETH)} t={lin(f, d0 + 34, d0 + 52, 0, 1.3)} w={12} color={GREEN} />
-      <Trail pts={rev(USB)} t={lin(f, d0 + 52, d0 + 62, 0, 1.3)} w={12} color={GREEN} />
-      <PressBurst f={f} deck={L.deck} />
-      {cable > 0 && <path d={L.poe.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join('')} fill="none" stroke={AMBER} strokeWidth={10} strokeLinecap="round" strokeDasharray="18 30" strokeDashoffset={-f * 3} opacity={cable} />}
-      <Label x={L.label.x} y={L.label.y} size={L.label.size} o={1 - ramp(cam.z / L.wide.z, 1.15, 1.45)}>
+      <Label x={L.label.x} y={L.label.y} size={L.label.size}>
         {t.board}
       </Label>
     </Scene>
   )
 }
 
-function PressBurst({ f, deck }: { f: number; deck: Layout['deck'] }) {
-  const k = lin(f, P, P + 18)
+function PressBurst({ f, p, k: key, deck }: { f: number; p: number; k: number; deck: Layout['deck'] }) {
+  const k = lin(f, p, p + 18)
   if (k <= 0 || k >= 1) return null
-  const [x, y] = keyCenter(deck, KEY)
+  const [x, y] = keyCenter(deck, key)
   const u = deck.s / 4.4
   return <circle cx={x} cy={y} r={(50 + 90 * k) * u} fill="none" stroke={AMBER} strokeWidth={6 * u * (1 - k)} opacity={1 - k} />
 }
 
 function Monitor({ t, f, m }: { t: Text; f: number; m: Layout['mon'] }) {
   const [x, y, w, h] = [0, 0, 480, 340]
-  const live: 0 | 1 = f >= T.live && f < T.out[1] ? 1 : 0
-  const keys = showKeys(t, f, live)
+  const keys = showKeys(t, f, lastKey(f, 'hit'))
   const btn = 92
   const gap = 12
   const gx = x + (w - (4 * btn + 3 * gap)) / 2
-  const hit = pulse(f, T.hit, T.hit + 34, 2, 14)
-  const log = f >= T.dial + 2 + 32 && f < T.out[1] ? fill(t.dialTurn, { n: 3, d: '+3' }) : f >= T.hit && f < T.out[1] ? fill(t.keyDown, { n: KEY + 1 }) : ''
-  const logHot = Math.max(hit, pulse(f, T.dial + 34, T.dial + 64, 2, 14))
+  const hits = PRESSES.map(({ p, key }) => ({ key, v: pulse(f, ev(p).hit, ev(p).hit + 34, 2, 14) }))
+  const log = fill(t.keyDown, { n: lastKey(f, 'hit') + 1 })
+  const logHot = Math.max(...hits.map((h) => h.v))
   return (
     <g transform={`translate(${m.x} ${m.y}) scale(${m.s})`}>
       <rect x={x + w / 2 - 36} y={y + h + 8} width={72} height={42} fill="#1b1e22" />
@@ -169,7 +142,7 @@ function Monitor({ t, f, m }: { t: Text; f: number; m: Layout['mon'] }) {
                 <Face k={k} />
               </g>
             </svg>
-            {i === KEY && hit > 0 && <rect x={bx - 5} y={by - 5} width={btn + 10} height={btn + 10} rx={14} fill="none" stroke={AMBER} strokeWidth={5} opacity={hit} />}
+            {hits.map((h) => i === h.key && h.v > 0 && <rect key={h.key} x={bx - 5} y={by - 5} width={btn + 10} height={btn + 10} rx={14} fill="none" stroke={AMBER} strokeWidth={5} opacity={h.v} />)}
           </g>
         )
       })}

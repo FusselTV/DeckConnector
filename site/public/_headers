@@ -4,6 +4,17 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), serial=()
 
+/demo/app/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
+  X-Robots-Tag: noindex
+
+/md/*
+  X-Robots-Tag: noindex
+
+/api/*
+  X-Robots-Tag: noindex
+
 /flash/*
   ! Permissions-Policy
   Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), serial=(self)
@@ -12,5 +23,18 @@
   ! Permissions-Policy
   Permissions-Policy: camera=(), microphone=(), geolocation=(), usb=(), serial=(self)
 
-/api/search
+/api/search/*
   Content-Type: application/json
+
+/md/*
+  Content-Type: text/markdown; charset=utf-8
+
+/llms.txt
+  Content-Type: text/plain; charset=utf-8
+
+/llms-full.txt
+  Content-Type: text/plain; charset=utf-8
+
+# The pages.dev address and the previews would compete with deckconnector.com in search.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex

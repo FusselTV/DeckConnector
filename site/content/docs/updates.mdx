@@ -3,55 +3,48 @@ title: Updates
 description: Signed updates for the firmware, the Wi-Fi chip and the web page, with slots and rollback.
 ---
 
-The board takes signed `.dbfw` files. One file holds one part. The board sees by itself which part it is for.
+The board takes signed `.dbfw` files. Each file holds one part, and the board sees which part it is.
 
 | Part | After the update |
 |---|---|
-| Firmware | Goes into the next slot, then the board restarts into it |
+| Firmware | Goes into the next slot, the board restarts into it |
 | Wi-Fi chip | Both chips restart |
-| Web page | Served at once, no restart |
+| Web page | Served at once |
 | Bootloader, partition table | Written in place, no restart |
 
 ## Install
 
-- **In the web UI**, under **Firmware**, pick a file or give an `http://` URL.
-- **From a server**, send `{"t": "ota", "url": "http://..."}`. See [Own server](/docs/own-server).
-- **Over the API**, `POST /api/ota` with the file as the body, or `POST /api/ota/url`. See [API](/docs/api#firmware).
+- In the web UI under **Firmware** ([demo](/demo/#firmware)), pick a file or give an `http://` URL.
+- From your [own server](/docs/own-server), send `{"t": "ota", "url": "http://..."}`.
+- Over the [API](/docs/api#firmware), `POST /api/ota` with the file, or `POST /api/ota/url`.
+
+## Checks and rollback
+
+<OtaFlow />
+
+A board takes only files signed with the key its firmware was built with. It refuses a file below its own security level, so an old firmware with a known hole cannot come back. Under **Firmware slots (advanced)** you can start an older slot. It must confirm itself like a new update.
 
 ## Releases
 
-Releases are on the [GitHub releases page](https://github.com/FusselTV/deck-connector/releases). A tag `vX.Y.Z` makes a release. A tag like `vX.Y.Z-rc1` makes a pre-release.
-
-Each release has these files.
+On the [GitHub releases page](https://github.com/FusselTV/deck-connector/releases). A tag `vX.Y.Z` makes a release, `vX.Y.Z-rc1` a pre-release.
 
 | File | Use |
 |---|---|
 | `deckconnector-factory.bin`, `ota_data_initial.bin`, `deckconnector.bin`, `manifest.json` | The [flasher](/docs/flashing) and esptool |
-| `deckconnector-vX.Y.Z.dbfw`, `deckconnector-web-vX.Y.Z.dbfw` | Signed updates for the firmware and the web page. A release without signing has none |
+| `deckconnector-vX.Y.Z.dbfw`, `deckconnector-web-vX.Y.Z.dbfw` | Signed firmware and web page. A release without signing has none |
 | `SHA256SUMS` | Checksums of all files |
 
 Check a download with `sha256sum -c SHA256SUMS --ignore-missing`.
 
-## What the board checks
-
-1. The signature, before it writes anything. A board only takes files signed with the key its firmware was built with.
-2. The security level. The board refuses a file below its own level, so an old firmware with a known hole cannot go back on.
-3. The SHA-256 of the whole image, before it switches over.
-4. After the restart, the new firmware has two minutes to reach the network and then stay up for 20 seconds. Otherwise, or after a crash, the old firmware starts again.
-
-## Slots
-
-The board has four firmware slots. An update goes into the slot after the running one, so the one before keeps the last firmware. Under **Firmware slots (advanced)** you can start an older slot again. It has to confirm itself like a new update.
-
 ## Web page
 
-The web page can change without a firmware update. The board keeps an uploaded page over restarts. When it does not fit the firmware, the board serves the page built into its firmware. **Remove uploaded web interface** goes back to that page.
+The web page can change without a firmware update and stays over restarts. When it does not fit the firmware, the board serves the page built into its firmware. **Remove uploaded web interface** goes back to that page.
 
 ## Recovery over USB
 
-When the board no longer starts, flash it again over USB-C. An **Update** in the [flasher](/docs/flashing) keeps the settings. The chip cannot be bricked for good, because its USB loader cannot be overwritten.
+When the board no longer starts, flash it over USB-C. An **Update** in the [flasher](/flash/) keeps the settings. The chip cannot be bricked, because its USB loader cannot be overwritten.
 
-## Make and sign your own
+## Sign your own
 
 ```bash
 cd tools
@@ -59,4 +52,6 @@ uv run python -m dbtools.dbfw keygen
 uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin fw.dbfw
 ```
 
-`keygen` runs once. It keeps the private key in `~/.config/deckbridge/ota_key.pem` and writes the public key into the firmware. Without the private key, the next firmware has to go on over USB.
+`keygen` runs once. It keeps the private key in `~/.config/deckbridge/ota_key.pem` and writes the public key into the firmware. Without the private key, the next firmware goes on over USB.
+
+<Next links={[['An update does not stay', '/docs/troubleshooting/#an-update-does-not-stay'], ['Flashing', '/docs/flashing/']]} />

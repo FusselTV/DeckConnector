@@ -5,62 +5,48 @@ description: Put the firmware on the board from the browser, or with esptool.
 
 ## In the browser
 
-The [flasher](/flash/) writes the latest stable [release](/docs/updates#releases). It runs in Chrome or Edge on a computer. It uses Web Serial, so Firefox and Safari do not work.
+The [flasher](/flash/) writes the latest stable [release](/docs/updates#releases). It needs Chrome or Edge on a computer.
 
-<Steps>
-<Step>
+<Ports />
 
-Connect the board's **USB-C** port to the computer. The USB-A port is for the deck.
+| Mode | What it does |
+|---|---|
+| **Full install** | Erases everything and starts with default settings. For a new board, or one that ran other firmware |
+| **Update** | Writes only the firmware. Settings, paired hosts and API keys stay |
 
-</Step>
-<Step>
+After flashing, the flasher can set Wi-Fi, the admin password and the name over the same cable. Or skip it and use the [web setup](/docs/first-setup). Over USB the board takes these only until setup is done, and in the first 5 minutes after each start.
 
-Open the [flasher](/flash/), pick the board's serial port and choose what to write.
+The flasher writes only the main chip. The Wi-Fi chip gets its firmware as a normal [update](/docs/updates).
 
-- **Full install** erases the whole flash and starts with default settings. Use it on a new board, or when the board ran other firmware.
-- **Update** writes only the firmware. Settings, paired hosts and API keys stay.
-
-</Step>
-<Step>
-
-After flashing, the flasher can set up the board over the same cable. It sets the Wi-Fi network, the admin password and the device name. You can skip this and do it later in the [web setup](/docs/first-setup).
-
-</Step>
-</Steps>
-
-<Callout title="Setup over USB">
-The board takes Wi-Fi, password and name over USB while its setup is not done, and in the first 5 minutes after each start. After that, power it off and on to open it again. It never sends a password back.
-</Callout>
-
-The flasher writes only the main chip. The Wi-Fi chip gets its firmware as a normal [update](/docs/updates) in the web UI.
+Something went wrong? See [Flashing problems](/docs/flash-troubleshooting).
 
 ## With esptool
 
-Without Chrome or Edge, use [esptool](https://docs.espressif.com/projects/esptool/) 5 or newer. Download the files from a [release](/docs/updates#releases), or build them with `uv run python -m dbtools.flashimage` in `tools/`.
+Use [esptool](https://docs.espressif.com/projects/esptool/) 5 or newer with the files from a [release](/docs/updates#releases).
 
 <Tabs items={['Full install', 'Update']}>
 <Tab value="Full install">
 
 ```bash
-esptool --chip esp32p4 -p /dev/ttyUSB0 erase-flash
-esptool --chip esp32p4 -p /dev/ttyUSB0 -b 921600 write-flash 0x0 deckconnector-factory.bin
+esptool --chip esp32p4 -p /dev/ttyACM0 erase-flash
+esptool --chip esp32p4 -p /dev/ttyACM0 -b 921600 write-flash 0x0 deckconnector-factory.bin
 ```
 
 </Tab>
 <Tab value="Update">
 
 ```bash
-esptool --chip esp32p4 -p /dev/ttyUSB0 -b 921600 write-flash 0xf000 ota_data_initial.bin 0x20000 deckconnector.bin
+esptool --chip esp32p4 -p /dev/ttyACM0 -b 921600 write-flash 0xf000 ota_data_initial.bin 0x20000 deckconnector.bin
 ```
 
 </Tab>
 </Tabs>
 
-On Windows the port is `COM3` or similar, on macOS `/dev/cu.usbserial-...`.
+On Windows the port is `COM3` or similar, on macOS `/dev/cu.*`.
 
 ## From source
 
-Build needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).
+Needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/FusselTV/deck-connector.git
@@ -69,7 +55,9 @@ git clone https://github.com/FusselTV/deck-connector.git
 ```bash
 cd deck-connector/web && npm ci && npm run build
 cd ../tools && uv run python -m dbtools.dbfw keygen
-cd ../firmware && idf.py build && idf.py -p /dev/ttyUSB0 flash
+cd ../firmware && idf.py build && idf.py -p /dev/ttyACM0 flash
 ```
 
-The web UI is part of the firmware, so it is built first. `keygen` makes your own update key once. A board only takes updates signed with the key its firmware was built with, see [Updates](/docs/updates).
+The web UI is part of the firmware, so it builds first. `keygen` makes your own update key once. A board takes only updates signed with the key its firmware was built with.
+
+<Next links={[['First setup', '/docs/first-setup/']]} />

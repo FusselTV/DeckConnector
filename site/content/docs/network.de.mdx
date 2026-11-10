@@ -1,42 +1,45 @@
 ---
 title: Netzwerk
-description: LAN, WLAN, Ausfallsicherheit, feste Adressen und Namen.
+description: WLAN und LAN gleichzeitig, Ausfallsicherheit, feste Adressen, Namen und Ports.
 ---
 
-Die Platine nutzt LAN und WLAN gleichzeitig. Jedes hat seine eigene Adresse.
+Die Platine nutzt WLAN und LAN gleichzeitig, jedes mit eigener Adresse. Sind beide da, laufen Verbindungen übers Kabel, und WLAN ist die Reserve.
 
 ## Ausfallsicherheit
 
-- Verbindungen laufen über LAN, solange es geht.
-- Ist ein Server oder Companion über LAN nicht erreichbar, geht der nächste Versuch über WLAN. Antwortet das LAN wieder, wechselt die Verbindung zurück.
-- Die Platine pingt das Gateway. Ein LAN, das den Link hält, aber nichts mehr durchlässt, gilt nach etwa 6 s als tot.
-- Per mDNS meldet sich die Platine in jeweils einem Netz an. Das ist das LAN, oder das WLAN, solange das LAN keine Adresse hat oder als tot gilt.
+<Failover lang="de" />
 
-Richte WLAN auch mit Kabel als Ersatz ein. Die Weboberfläche listet die Netze in Reichweite.
+Per mDNS meldet sich die Platine immer nur in einem Netz an. Das ist das LAN, außer es hat keine Adresse oder gilt als tot. Dann ist es das WLAN.
 
 ## WLAN
 
-- Nur 2,4 GHz. Versteckte Netze stehen nicht in der Liste, du kannst sie aber von Hand eintragen.
-- Die Platine testet ein neues Netz zuerst. Sie speichert es nur, wenn es ihr eine Adresse gibt. Sonst kommt das alte zurück.
-- Unter **Zugangspunkte (BSSID) zeigen** bindest du die Platine an einen Zugangspunkt. Ohne das nimmt sie den stärksten und wechselt bei Bedarf.
+- Nur 2,4 GHz. Ein verstecktes Netz steht nicht in der Liste, du kannst seinen Namen aber eintippen.
+- Die Platine testet ein neues Netz zuerst und behält es nur, wenn sie dort eine Adresse bekommt. Sonst kommt das alte zurück.
+- **Zugangspunkte (BSSID) zeigen** bindet die Platine an einen Zugangspunkt. Ohne das nimmt sie den stärksten und wechselt bei Bedarf.
 
 ## Feste Adresse
 
-LAN und WLAN nehmen jeweils DHCP oder eine feste Adresse. Eine feste Adresse braucht IP und Netzmaske. Das Gateway ist optional und muss im selben Netz liegen. `10.0.0.5/24` geht im IP-Feld auch.
+LAN und WLAN nehmen jeweils DHCP oder eine feste Adresse. Eine feste Adresse braucht IP und Netzmaske, das Gateway ist optional und muss im selben Netz liegen. Im IP-Feld geht auch `10.0.0.5/24`. Speichern startet die Platine neu, und die Weboberfläche zeigt, wo sie dann zu finden ist ([Demo](/de/demo/#network)).
 
-Eine Netzwerkänderung startet die Platine beim Speichern neu. Die Weboberfläche zeigt dann, wo sie zu finden ist.
-
-Auf einem Deck mit Drehreglern stellst du eine feste LAN-Adresse auch im Deck-Menü unter LAN ein.
+Auf einem Deck mit Drehreglern stellst du eine feste LAN-Adresse auch im Deck-Menü unter **LAN** ein.
 
 ## Namen
 
-Die Platine meldet sich per mDNS als `<name>.local` an, zum Beispiel `deckconnector-a1b2c3.local`.
+Der mDNS-Name der Platine ist `<name>.local`, zum Beispiel `deckconnector-a1b2c3.local`.
 
 | mDNS-Dienst | Was |
 |---|---|
 | `_deckconnector-api._tcp` | Weboberfläche und API |
 | `_elg._tcp` | Das Network Dock, nur solange ein Deck steckt |
 
+## Ports
+
+- **80 und 443** auf der Platine: Weboberfläche und API, über HTTP und HTTPS.
+- **5343 und 5344** auf der Platine: das Network Dock, für Companion und die Elgato-App.
+- **16622** auf dem Companion-Rechner: Satellite. **16623** für eine `ws://`-Adresse.
+
 ## Uhr
 
-Die Platine stellt ihre Uhr per NTP. Sie nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. Mit `ntp_server` in den Einstellungen legst du einen eigenen fest.
+Die Platine stellt ihre Uhr per NTP. Sie nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. `ntp_server` in den [Einstellungen](/de/docs/api#einstellungen) legt einen eigenen fest.
+
+<Next lang="de" links={[['Mehrere Programme', '/de/docs/hosts/']]} />

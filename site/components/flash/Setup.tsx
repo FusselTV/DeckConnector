@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, Lock, RefreshCw, RotateCcw } from 'lucide-react'
 import { fill, type Copy } from './copy'
 import { ImprovError, PROVISIONED, type AccessPoint, type Improv } from './improv'
-import { Btn, Field, Note, Secret, Spinner, Toggle, input, mono } from './ui'
+import { Btn, Field, Fix, Note, Secret, Spinner, Toggle, input, mono } from './ui'
 
 export interface Result {
   urls: string[]
@@ -16,10 +16,13 @@ const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
 const bytes = (v: string) => new TextEncoder().encode(v).length
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-export function improvText(c: Copy, e: unknown, ssid = '') {
-  if (!(e instanceof ImprovError)) return e instanceof Error ? e.message : String(e)
+type Err = { text: string; fix?: string }
+
+export function improvErr(c: Copy, e: unknown, ssid = ''): Err {
+  if (!(e instanceof ImprovError)) return { text: e instanceof Error ? e.message : String(e), fix: 'setup-no-answer' }
   const t: Record<number, string> = { 1: c.err1, 2: c.err2, 3: c.err3, 4: c.err4, 5: c.err5, 255: c.errFF, [-1]: c.errTimeout }
-  return fill(t[e.code] ?? c.errFF, { ssid })
+  const fix = e.code === 1 || e.code === 3 ? 'wifi-join' : e.code === 5 ? undefined : 'setup-no-answer'
+  return { text: fill(t[e.code] ?? c.errFF, { ssid }), fix }
 }
 
 function Signal({ rssi }: { rssi: number }) {
@@ -48,8 +51,8 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
   const [name, setName] = useState('')
   const [skipWiz, setSkipWiz] = useState(false)
   const [tried, setTried] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const [wifiErr, setWifiErr] = useState<string | null>(null)
+  const [err, setErr] = useState<Err | null>(null)
+  const [wifiErr, setWifiErr] = useState<Err | null>(null)
   const started = useRef(false)
 
   const secured = !other && !!aps?.some((a) => a.ssid === ssid && a.secured)
@@ -75,7 +78,7 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
       if (!list.length) setOther(true)
     } catch (e) {
       setAps([])
-      setErr(improvText(c, e))
+      setErr(improvErr(c, e))
     } finally {
       setScanning(false)
     }
@@ -130,7 +133,7 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
         try {
           await im.wifi(ssid, w)
         } catch (e) {
-          setWifiErr(improvText(c, e, ssid))
+          setWifiErr(improvErr(c, e, ssid))
           setPhase('form')
           setTimeout(() => document.getElementById('f-wpass')?.focus(), 0)
           return
@@ -142,7 +145,7 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
         setApass('')
         const r = await im.setup(pass, newName, skipWiz)
         if (!r.ok) {
-          setErr(r.message)
+          setErr({ text: r.message })
           setPhase('form')
           return
         }
@@ -156,7 +159,7 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
       const b = await read()
       onDone({ urls: b.urls, name: b.name })
     } catch (e) {
-      setErr(improvText(c, e, ssid))
+      setErr(improvErr(c, e, ssid))
       setPhase('form')
     }
   }
@@ -178,6 +181,7 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
           <>
             <Note lvl="bad" title={c.noBoot}>
               {c.noBootDo}
+              <Fix c={c} id="setup-no-answer" />
             </Note>
             <div className="flex flex-wrap gap-3">
               <Btn onClick={() => void boot()}>
@@ -275,7 +279,15 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
                   </Field>
                 )}
                 {!other && tried && wifiE === c.wifiPick && <p className="text-sm text-bad-fg">{wifiE}</p>}
-                <Field id="f-wpass" label={c.wifiPass} err={(tried && wifiE !== c.wifiPick ? wifiE : null) ?? wifiErr}>
+                <Field id="f-wpass" label={c.wifiPass} err={
+                    (tried && wifiE !== c.wifiPick ? wifiE : null) ??
+                    (wifiErr && (
+                      <>
+                        {wifiErr.text}
+                        {wifiErr.fix && <Fix c={c} id={wifiErr.fix} />}
+                      </>
+                    ))
+                  }>
                   <Secret
                     c={c}
                     id="f-wpass"
@@ -312,7 +324,11 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
 
       <Toggle id="f-skipwiz" label={c.skipWiz} hint={c.skipWizHint} checked={skipWiz} disabled={busy} onChange={(e) => setSkipWiz(e.target.checked)} />
 
-      {err && <Note lvl="bad" title={err} />}
+      {err && (
+        <Note lvl="bad" title={err.text}>
+          {err.fix && <Fix c={c} id={err.fix} />}
+        </Note>
+      )}
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <Btn type="submit" disabled={busy}>

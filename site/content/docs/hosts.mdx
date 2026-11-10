@@ -3,23 +3,25 @@ title: Multiple hosts
 description: Several programs connected at once, and how to pick the one that draws.
 ---
 
-Every program that can draw is in one list: Companion over Satellite, the Network Dock hosts (Companion and the Elgato App) and your own servers. Up to 4 servers and up to 4 dock hosts can be connected at once, in any mix.
+Companion over Satellite, the Network Dock hosts (Companion and the Elgato app) and your own servers share one list. Up to 4 servers and 4 dock hosts connect at once, in any mix.
 
-One of them is **chosen**. It draws and gets the input. The others stay connected and keep drawing into their own picture in the background. When you switch, the deck shows the new host's picture at once.
+One host is **chosen**. It draws and gets the input. The others stay connected and keep drawing into their own picture in the background. A switch shows the new host's picture at once.
 
 ## Switching
 
-- **On the deck.** The top row of the home screen and of the menu lists the hosts. Tap one, then tap again while it says **Wechseln?** (switch?).
-- **In the web UI.** Pick another row under **Active source** on the overview.
-- **Over the API.** Send `controller` and `host` together, see below.
+<HostSwitch />
 
-When nobody draws, the deck shows its home screen. It says what is missing, for example **Warte auf Companion** (waiting for Companion).
+- **On the deck.** On the home screen, tap a host, then tap again within 3 s while it says **Wechseln?** (switch?). In the menu one tap switches.
+- **In the web UI.** Pick a row under **Active source** on the overview ([demo](/demo/#overview)).
+- **Over the API.** Set `controller` and `host`, see below.
+
+When nobody draws, the deck shows its home screen and says what is missing, for example **Warte auf Companion** (waiting for Companion).
 
 ## When a host goes away
 
-- When the chosen host is not connected, the first connected host of the same program draws. For Companion the Satellite connection comes first.
-- For your own servers, the first connected one in the list draws. When it goes away, the next one takes over. That is at once when the connection closes, and within 6 s when the server goes silent.
-- When no host of the chosen program is connected, the deck shows its home screen.
+- The first connected host of the same program draws. For Companion, Satellite comes first.
+- Servers take over in list order. At once when the connection closes, within 6 s when the server goes silent.
+- With no host of the chosen program, the deck shows its home screen.
 
 ## Over the API
 
@@ -27,15 +29,15 @@ Two settings pick the host. `controller` is the program, `host` names the entry 
 
 | `controller` | Program | `host` |
 |---|---|---|
-| `companion` | Companion, over Satellite or as a dock host | `satellite`, or the dock host's IP |
-| `app` | The Elgato App | The dock host's IP |
+| `companion` | Companion, Satellite or dock | `satellite`, or the dock host's IP |
+| `app` | The Elgato app | The dock host's IP |
 | `server` | Your own servers | The server URL |
 
-An empty `host` means the first connected host of that program.
+An empty `host` means the first connected host of that program. The change works at once.
 
 ```bash
 curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -X PUT \
   -d '{"controller": "companion", "host": "satellite"}' http://192.168.1.50/api/config
 ```
 
-The change works at once, without a restart.
+<Next links={[['API', '/docs/api/#settings']]} />

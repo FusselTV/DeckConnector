@@ -1,0 +1,60 @@
+---
+title: Benchmarks
+description: Measured speed of DeckConnector next to the Elgato Network Dock, on the same Stream Deck +.
+---
+
+On the deck, DeckConnector is as fast as the [Elgato Network Dock](https://www.elgato.com/us/en/p/network-dock-stream-deck) or faster. Here are the numbers.
+
+Both devices drove the same Stream Deck + on the same bench, with the same Companion, the same camera and the same tools (8 November 2026). The Network Dock ran its firmware 1.01.014, the Elgato app was 7.6.1. Values are medians. A camera frame is 17 ms, so differences under 5 to 10 ms are noise.
+
+## Companion
+
+<BenchBars title="Time until the deck shows it, lower is better" unit="ms" rows={[
+  ['Companion variable to key', 15, 29],
+  ['Companion page change, 7 keys', 45, 49],
+  ['Full page, 8 keys and strip, without Companion', 31, 49],
+]} />
+
+<BenchBars title="Seconds, lower is better" unit="s" rows={[
+  ['Companion restart to home page', 1.2, 1.96],
+  ['Network gone, deck leaves the dead host', 5.4, 6.5],
+]} />
+
+Companion numbers are for both devices in Network Dock mode. Companion sends both the same bytes, about 26 KB/s on one page change per second.
+
+## Elgato app
+
+<BenchBars title="Seconds, lower is better" unit="s" rows={[
+  ['App start to deck connected', 1.96, 2.62],
+  ['Page change in the editor', 0.13, 0.12],
+]} />
+
+| Test | DeckConnector | Network Dock |
+|---|---|---|
+| 8 animated keys | 252 frames/s | about 200 frames/s |
+| Picture confirmed after its last part | 0.8 ms | 4.6 ms |
+
+## Power cut
+
+| Test | DeckConnector | Network Dock |
+|---|---|---|
+| PoE power cut to Companion picture, Network Dock mode | 7.9 s | 17.6 s |
+| PoE power cut to Companion picture, Satellite | 6.75 s | No Satellite |
+| PoE power cut, Elgato app connected again | 9 to 13.5 s, in 3 of 4 tries | Not within 4 minutes (0 of 2) |
+
+DeckConnector's power cut numbers are from 7 and 8 November 2026, with an older firmware.
+
+## Own server protocol
+
+One key, from the image to the confirmation after the USB transfer, takes 1.2 to 1.6 ms. The Network Dock has no such protocol.
+
+## Where the dock is better
+
+| Test | DeckConnector | Network Dock |
+|---|---|---|
+| TCP receive window | 23 KB | 36 to 61 KB |
+| mDNS answer to a PTR query | 118 ms | about 1 ms |
+
+Neither is visible on the deck. A page arrives in 2.8 ms on both.
+
+<Next links={[['Getting started', '/docs/getting-started/']]} />

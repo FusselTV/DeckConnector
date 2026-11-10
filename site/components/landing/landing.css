@@ -1,0 +1,53 @@
+@keyframes wave {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    translate: 0 1.5rem;
+  }
+}
+@keyframes grow {
+  from {
+    scale: 0 1;
+  }
+}
+
+/* Scroll-driven only: without support, or with reduced motion, everything just stands there. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 30%;
+    }
+    .bar {
+      animation: grow linear both;
+      animation-timeline: view();
+      animation-range: entry 20% cover 45%;
+    }
+  }
+}
+
+
+/* The frame each player opens on, so a stage never shows an empty box while its code loads. */
+.poster {
+  background: var(--p-dark) center / cover no-repeat;
+}
+:root.light .poster {
+  background-image: var(--p-light);
+}
+@media (max-width: 639.98px) {
+  .poster[data-port] {
+    background-image: var(--p-dark-port);
+  }
+  :root.light .poster[data-port] {
+    background-image: var(--p-light-port);
+  }
+}

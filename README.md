@@ -1,6 +1,8 @@
 # DeckConnector
 
-> TODO: rewrite this README for the website launch (link the site, flasher and demo).
+Flasher, live demo and docs are on [deckconnector.com](https://deckconnector.com).
+
+> TODO: rewrite this README for the website launch.
 
 Firmware for an ESP32-P4 board that drives an Elgato deck over USB and puts it on the network. Your own
 server renders the images and gets every key press, encoder turn and touch. The board also acts like an Elgato
@@ -141,3 +143,4 @@ AGPL-3.0, see [LICENSE](LICENSE).
 | DejaVu Sans, in `db_ui/font_data.c` | Bitstream Vera license |
 | React, React DOM | MIT |
 | Lucide icons (lucide-react, and in `db_ui/font_data.c`) | ISC |
+| Geist, the font of the web page | OFL-1.1 |

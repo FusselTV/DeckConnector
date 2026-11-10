@@ -122,3 +122,14 @@ test('md5 matches node', () => {
     assert.equal(md5(new Uint8Array(b)), createHash('md5').update(b).digest('hex'), `length ${n}`)
   }
 })
+
+test('every fix link in the flasher has its heading on the troubleshooting page', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = ['Flasher.tsx', 'Setup.tsx'].map((f) => readFileSync(new URL(`../components/flash/${f}`, import.meta.url), 'utf8')).join('\n')
+  const ids = ['browser', 'https', 'no-port', 'driver', 'port-busy', 'no-answer', 'wrong-chip', 'chip-revision', 'flash-stopped', 'read-back', 'firmware-download', 'setup-no-answer', 'wifi-join', 'find-board']
+  for (const id of ids) assert.ok(src.includes(`'${id}'`) || src.includes(`"${id}"`) || src.includes(`#${id}\``), `the flasher links #${id}`)
+  for (const page of ['flash-troubleshooting.mdx', 'flash-troubleshooting.de.mdx']) {
+    const md = readFileSync(new URL(`../content/docs/${page}`, import.meta.url), 'utf8')
+    for (const id of ids) assert.match(md, new RegExp(`^#+ .*\\[#${id}\\]$`, 'm'), `${page} has #${id}`)
+  }
+})

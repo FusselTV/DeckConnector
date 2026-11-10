@@ -1,32 +1,28 @@
 ---
 title: Introduction
-description: DeckConnector puts an Elgato Stream Deck on your network.
+description: DeckConnector puts an Elgato Stream Deck on Wi-Fi or Ethernet.
 ---
 
-DeckConnector is firmware for a small PoE board. The board drives an Elgato Stream Deck over USB and puts it on the network.
-Bitfocus Companion, the Elgato App and your own programs then use the deck as if it were plugged into the computer.
+DeckConnector is free firmware for a small board. The board drives an [Elgato Stream Deck +](https://www.elgato.com/us/en/p/stream-deck-plus) over USB and puts it on your network. It works like an [Elgato Network Dock](https://www.elgato.com/us/en/p/network-dock-stream-deck), and adds Wi-Fi.
 
-- Companion connects over its Satellite API, or sees the board as an Elgato Network Dock.
-- The Elgato App sees the board as a Network Dock.
-- Your own server draws the keys over WebSocket and gets every press, turn and touch.
-- Several programs can be connected at once. You pick the one that draws, on the deck or in the web UI.
-- LAN and Wi-Fi at the same time. When the LAN fails, the board keeps going over Wi-Fi.
-- Signed updates. A new firmware that does not start rolls back by itself.
+<Topology />
+
+- [Bitfocus Companion](https://bitfocus.io/companion) connects over Satellite, or as a Network Dock.
+- The [Elgato app](https://www.elgato.com/us/en/s/stream-deck-app) finds it as a Network Dock.
+- [Your own server](/docs/own-server) draws the keys over WebSocket.
+- Several programs connect at once. You [pick the one that draws](/docs/hosts) on the deck.
+- Wi-Fi and Ethernet at the same time. [When the cable fails](/docs/network), Wi-Fi takes over.
+- [Signed updates](/docs/updates). A firmware that does not start rolls back by itself.
 
 ## What you need
 
-- A [Waveshare ESP32-P4-WIFI6-POE-ETH](/docs/hardware) board.
-- A Stream Deck +. Other models are in the driver but not tested yet, see [Hardware](/docs/hardware).
-- A PoE switch port, or a USB-C power supply.
-- A computer with Chrome or Edge to flash the firmware.
+- **Board.** A [Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), see [Hardware](/docs/hardware).
+- **Deck.** A Stream Deck + (tested). Other models are in the driver.
+- **Power.** A USB-C power supply, or a PoE switch port.
+- **Computer.** Chrome or Edge, to [flash](/flash/) once.
 
 ## Try it first
 
-The [demo](/demo/) runs the real web UI with a virtual deck in your browser. Nothing is installed.
+The [demo](/demo/) runs the real web UI with a virtual deck in your browser. Nothing to install.
 
-<Cards>
-  <Card title="Getting started" href="/docs/getting-started" description="From a new board to a working deck." />
-  <Card title="Connect Companion" href="/docs/companion" description="Satellite API or Network Dock." />
-  <Card title="Own server" href="/docs/own-server" description="Draw the keys from your own program." />
-  <Card title="API reference" href="/docs/api" description="Every HTTP route and WebSocket message." />
-</Cards>
+<Next links={[['Connect Companion', '/docs/companion/'], ['Elgato app', '/docs/elgato-app/'], ['Benchmarks', '/docs/speed/']]} />

@@ -165,6 +165,11 @@
   --shadow-panel: var(--shadow);
 }
 
+/* /demo/ has no page scrollbar; without the gutter the header moves sideways when switching to it. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -174,6 +179,29 @@ body {
 #nd-sidebar *,
 #nd-toc * {
   overscroll-behavior: auto;
+}
+/* site-header.tsx sets --footer-in: the sidebar and TOC end at the footer instead of sliding under the header. */
+#nd-docs-layout > * {
+  --fd-docs-height: calc(100dvh - var(--footer-in, 0px));
+}
+/* The scroll area fades its last 12px, which ate the last link. */
+#nd-sidebar [class*='overscroll-contain'] {
+  padding-bottom: 2.5rem;
+}
+/* At 80 % the open TOC let the page headline show through its links. */
+[data-toc-popover] > header {
+  background-color: var(--bg);
+}
+/* Search gives focus back to its header button, which keeps the header in view, so the TOC bar must stay below it. */
+html[data-header-hidden]:has(body > header:focus-within) {
+  --fd-banner-height: 3.5rem;
+}
+@media (max-width: 767px) {
+  [data-toc-popover] a {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+  }
 }
 
 @layer base {
@@ -187,6 +215,113 @@ body {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
   --tw-ring-color: transparent;
+}
+
+/* type=search keeps password managers away; its native clear button would sit next to ESC. */
+[data-fd-search-dialog-input]::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+/* The new theme grows as a circle from the button that switched it (switchTheme in site-header.tsx). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-reveal 520ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--vt-x) var(--vt-y));
+  }
+  to {
+    clip-path: circle(var(--vt-r) at var(--vt-x) var(--vt-y));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme-switched] .theme-icon {
+    animation: theme-icon 450ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+}
+/* Every <details> opens and closes smoothly. */
+@media (prefers-reduced-motion: no-preference) {
+  details {
+    interpolate-size: allow-keywords;
+  }
+  details::details-content {
+    block-size: 0;
+    overflow-y: clip;
+    opacity: 0;
+    transition:
+      block-size 320ms cubic-bezier(0.2, 0.7, 0.2, 1),
+      opacity 240ms ease,
+      content-visibility 320ms allow-discrete;
+  }
+  details[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+  details[open][data-closing]::details-content {
+    block-size: 0;
+    opacity: 0;
+  }
+}
+@keyframes theme-icon {
+  from {
+    rotate: -90deg;
+    scale: 0.4;
+    opacity: 0;
+  }
+}
+
+[data-nav]::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0.75rem;
+  bottom: -0.6875rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--fg-2);
+  scale: 0 1;
+  transition: scale 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+[data-nav]:hover::after,
+[data-nav][aria-current='page']::after {
+  scale: 1 1;
+}
+[data-nav][aria-current='page']::after {
+  background: var(--amber);
+}
+
+/* On phones the header leaves while reading down and comes back on any scroll up. */
+@media (max-width: 767px) {
+  html[data-header-hidden] {
+    --fd-banner-height: 0px;
+  }
+  html[data-header-hidden] body > header:not(:focus-within) {
+    translate: 0 -100%;
+  }
+}
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  body > header {
+    transition: translate 200ms ease;
+  }
+  [data-toc-popover] {
+    transition: top 200ms ease;
+  }
+}
+
+/* The docs add a sidebar button to the phone header; the wordmark makes room for it. */
+@media (max-width: 400px) {
+  header:has(#docs-menu) [data-wordmark] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* The demo fills the screen under the header. */

@@ -1,54 +1,43 @@
 ---
 title: First setup
-description: Give the board a name, a password, a network and a program.
+description: Set up DeckConnector after flashing. Give the board a name, a password, a network and the program that drives the deck.
 ---
 
-There are three ways in. All of them end in the same settings.
+<SetupPaths />
 
 ## In the browser
 
-With a LAN cable, the deck shows its address and a QR code. Scan the code with a phone, or open `http://<address>/` on a computer in the same network.
+Without a cable, set Wi-Fi in the [flasher](/flash/) or use the [setup Wi-Fi](#over-the-setup-wi-fi) first. With a network cable, the deck shows its address and a QR code. Scan the code with a phone, or open `http://<address>/` on a computer in the same network.
 
-The QR code logs that browser in once, without the password. It works until setup is done. Each code is good for 10 minutes and one login, then the deck shows a new one.
+The QR code logs that browser in once, without the password. Each code is good for 10 minutes and one login, until setup is done. Without it, log in as `admin` with the password from the [deck menu](/docs/getting-started#the-deck-menu).
 
-Without the QR code, log in as `admin` with the password from the deck menu. The board makes a random password on its first start.
+The wizard asks for the language and name, your own password, the network, and the program that controls the deck. The name is also the network name, for example `deckconnector-a1b2c3.local`. [Try the wizard in the demo](/demo/?setup).
 
-The wizard then asks, step by step:
-
-1. Language and name. The name is also the network name, for example `deckconnector-a1b2c3.local`.
-2. Your own password.
-3. The network. With a LAN cable this is done. Otherwise pick your Wi-Fi.
-4. The program that controls the deck: [Companion](/docs/companion), the [Elgato App](/docs/elgato-app) or an [own program](/docs/own-server).
-
-[Try the wizard in the demo](/demo/app/?lang=en&setup).
-
-While the wizard runs, the deck shows the step, for example `Setup 3/5`. Under **Firmware › Backup** you can run it again later.
+You can run it again later under **Firmware › Backup**.
 
 ## Over the setup Wi-Fi
 
 Before setup is done and without a network, the board opens its own Wi-Fi one minute after the start. You can also start it in the deck menu under **Setup-WLAN** (setup Wi-Fi).
 
-The deck shows the network name, its password, a QR code to join it, the address to open and the web password. Join the network, open the address and follow the wizard. When the board joins your own Wi-Fi, the setup Wi-Fi closes. The deck then shows a new QR code with the new address.
+The deck shows the network name, its password, a QR code to join, the address and the web password. When the board joins your own Wi-Fi, the setup Wi-Fi closes and the deck shows the new address.
 
 <Callout type="warn">
-The board has no 5 GHz radio. Pick a 2.4 GHz network.
+The board has 2.4 GHz Wi-Fi only.
 </Callout>
 
 ## On the deck alone
 
-The web UI is optional.
+The web UI is optional. Plug in a network cable and enter the address from the deck in the [Elgato app](/docs/elgato-app) or in [Companion](/docs/companion).
 
-1. Plug in a LAN cable. The deck shows its address.
-2. Enter that address in the Elgato App or in Companion. See [Elgato App](/docs/elgato-app) and [Companion](/docs/companion).
-3. The first program that connects takes the deck.
+When Companion announces Satellite in the network, the deck asks **Companion gefunden, verbinden?** (Companion found, connect?). One key connects it.
 
-When Companion announces its Satellite API in the network, the deck asks **Companion gefunden, verbinden?** (Companion found, connect?). One key connects it.
-
-On a deck with dials you can also set a fixed LAN address in the deck menu. Turn a dial to change a number, press it for the next field, then tap **Speichern** (save).
+On a deck with dials you can set a fixed LAN address in the deck menu under **LAN**. Turn a dial to change a number, press it for the next field, then tap **Speichern** (save).
 
 ## Factory reset
 
-- On the deck, open the menu and hold **Neustart** (restart) for 5 seconds, then let go.
-- Without the deck menu, open the web login page, pick **Reset to factory settings** and confirm twice on the deck.
+- In the deck menu, hold **Neustart** (restart) for 5 seconds, then let go.
+- Or pick **Reset to factory settings** on the web login page and confirm twice on the deck.
 
-A reset removes every setting, the API keys, the paired hosts and an uploaded HTTPS certificate. Setup then starts again.
+A reset removes every setting, the API keys, the paired hosts and an uploaded certificate.
+
+<Next links={[['Elgato app', '/docs/elgato-app/'], ['Network', '/docs/network/']]} />

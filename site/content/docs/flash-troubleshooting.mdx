@@ -1,0 +1,134 @@
+---
+title: Flashing problems
+description: Flashing the ESP32-P4 board fails? Every error the flasher shows, what causes it, and how to fix it.
+---
+
+Find the message or symptom, then read its section.
+
+| Symptom | Section |
+|---|---|
+| This browser cannot flash | [Browser](#browser) |
+| Web Serial works only on https | [Not https](#https) |
+| The board is not in the port list | [No port](#no-port) |
+| Another program is using this port | [Port busy](#port-busy) |
+| The board did not answer | [Download mode](#no-answer) |
+| This is not the right board | [Wrong chip](#wrong-chip) |
+| This chip revision is not supported | [Chip revision](#chip-revision) |
+| The install stopped | [Stopped midway](#flash-stopped) |
+| What the board read back does not match | [Read-back](#read-back) |
+| Could not load, or the file is damaged | [Firmware download](#firmware-download) |
+| The board does not answer, after the install | [Setup over USB](#setup-no-answer) |
+| Could not join the Wi-Fi | [Wi-Fi](#wifi-join) |
+| Flashed, but where is the board? | [Find the board](#find-board) |
+
+## This browser cannot flash [#browser]
+
+**Cause.** The flasher uses [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API). Only Chrome, Edge and other Chromium browsers on a computer have it. Firefox, Safari, phones and tablets do not.
+
+**Fix.** Open the page in Chrome or Edge on Windows, macOS or Linux. Without them, use [esptool](/docs/flashing#with-esptool).
+
+## The page is not https [#https]
+
+**Cause.** Browsers allow Web Serial only on `https://` pages and on `localhost`.
+
+**Fix.** Open the flasher from its `https://` address.
+
+## No port in the list [#no-port]
+
+<Ports />
+
+| Cause | Fix |
+|---|---|
+| The cable only charges | Use a cable that carries data. If a phone shows no files over it, it is a charge-only cable |
+| The cable is in the USB-A port | Use the **USB-C** port. USB-A is for the deck |
+| A hub or dock in between | Plug the board straight into the computer |
+| The list hides other chips | Click **Show all ports**. The flasher first lists only the board's USB serial chip |
+| No driver for the USB serial chip | See [Driver](#driver) |
+
+### Driver [#driver]
+
+The USB-C port goes through a WCH CH343 USB serial chip. Windows 10 and 11, macOS and Linux usually need no extra driver. If the port still does not show up, install the driver from WCH, then replug the board.
+
+- Windows: [CH343SER](https://www.wch-ic.com/downloads/CH343SER_EXE.html)
+- macOS: [CH34XSER_MAC](https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html)
+
+On Linux the board shows up as `/dev/ttyACM0`. If Chrome cannot open it, add your user to the `dialout` group (`uucp` on Arch) and log in again.
+
+## Port busy [#port-busy]
+
+**Cause.** Only one program can open a serial port. Common ones: the Arduino IDE, PuTTY, `idf.py monitor`, `screen`, a 3D printer tool, or a second flasher tab.
+
+**Fix.** Close that program or tab, then click **Connect** again. If you do not know which one, unplug and replug the board.
+
+## The board does not answer [#no-answer]
+
+**Cause.** The flasher could not reset the board into download mode by itself.
+
+**Fix.** Put it into download mode by hand:
+
+1. Hold **BOOT**.
+2. Press and release **RST**.
+3. Release **BOOT**.
+4. Click **Connect** again.
+
+## Wrong chip [#wrong-chip]
+
+**Cause.** The port belongs to another board, for example an ESP32-S3 that is also plugged in.
+
+**Fix.** Click **Use another board** and pick the right port. DeckConnector runs only on the [ESP32-P4](https://www.espressif.com/en/products/socs/esp32-p4).
+
+## Chip revision too old [#chip-revision]
+
+**Cause.** Early ESP32-P4 chips (before v3.1, often v1.3) cannot run this firmware. Some boards of this model shipped with them. The flasher stops before it writes anything.
+
+**Fix.** None in software. Use a board with chip revision v3.1 or a later v3. The flasher shows the revision it found.
+
+## The install stops midway [#flash-stopped]
+
+**Cause.** The USB connection dropped. Usually a loose or long cable, a hub, a power-saving USB port, or the computer going to sleep.
+
+**Fix.** Use a short data cable straight into the computer, keep the tab open, and start again. The board is not damaged. It can always be flashed again.
+
+If it keeps failing, flash slower with [esptool](/docs/flashing#with-esptool) and `-b 115200`.
+
+## Read-back does not match [#read-back]
+
+**Cause.** The flasher reads each part back after writing. A mismatch means bytes got lost on the way, almost always the cable or the USB port.
+
+**Fix.** Another cable or port, then start again. If it repeats, choose **Full install**, which erases the flash first.
+
+## Firmware does not load [#firmware-download]
+
+**Cause.** The download broke, or the browser has an old copy.
+
+**Fix.** Reload the page. With **Use local files** you can load a `manifest.json` and its `.bin` files from a [release](/docs/updates#releases) instead.
+
+## Setup over USB does not answer [#setup-no-answer]
+
+| Cause | Fix |
+|---|---|
+| The board is still starting | Wait 15 seconds |
+| Setup is already done, and the board started more than 5 minutes ago | Press **RST**, then save again within 5 minutes |
+| An old firmware without USB setup | Install the current firmware |
+
+You can always skip this step and use the [web setup](/docs/first-setup).
+
+## Wi-Fi join fails [#wifi-join]
+
+| Cause | Fix |
+|---|---|
+| A 5 GHz network | The Wi-Fi chip, an [ESP32-C6](https://www.espressif.com/en/products/socs/esp32-c6), has 2.4 GHz only. Turn on 2.4 GHz in the router, or pick its 2.4 GHz network |
+| Wrong password | It has 8 to 63 characters, or 64 hex digits. Check capital letters |
+| A hidden network | It is not in the list. Choose **Other network** and type the name |
+| Out of range | Move the board closer, or use a network cable |
+
+## Cannot find the board afterwards [#find-board]
+
+- The flasher's last step shows the address and the `.local` name.
+- The deck shows the address on the touch strip.
+- Some networks block `.local` names. Use the IP address instead.
+- Look in your router's device list for a name like `deckconnector-a1b2c3`.
+- The computer must be in the same network, not a guest Wi-Fi.
+- Before setup is done and without a network, the board opens its own [setup Wi-Fi](/docs/first-setup#over-the-setup-wi-fi) after a minute. The deck shows its name and password.
+
+<Next links={[['Troubleshooting', '/docs/troubleshooting/']]} />

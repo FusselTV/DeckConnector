@@ -1,8 +1,13 @@
-import { pageMeta } from '~/lib/meta'
 import { Landing } from '~/components/landing/Landing'
+import { LandingLd, landingMeta } from '~/components/landing/seo'
 
 export default function Page() {
-  return <Landing lang="en" />
+  return (
+    <>
+      <LandingLd lang="en" />
+      <Landing lang="en" />
+    </>
+  )
 }
 
-export const metadata = pageMeta('en', '/')
+export const metadata = landingMeta('en')

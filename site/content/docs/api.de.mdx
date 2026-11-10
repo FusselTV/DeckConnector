@@ -24,14 +24,9 @@ curl -H 'Authorization: Bearer SCHLUESSEL' http://192.168.1.50/api/status
 
 ## Zugriffsstufen
 
-Jede Route hat eine Stufe. Die Tabellen unten zeigen sie in der letzten Spalte.
+Jede Route hat eine Stufe, in der letzten Spalte der Tabellen unten.
 
-| Stufe | Wer |
-|---|---|
-| `open` | Alle |
-| `control` | Das Passwort und API-Schlüssel mit dem Recht `control` oder `full` |
-| `full` | Das Passwort und API-Schlüssel mit dem Recht `full` |
-| `admin` | Nur das Passwort |
+<AuthLevels lang="de" />
 
 Kein API-Schlüssel ändert `admin_pass`, `setup_done` oder `qr_login`. Das gibt 403.
 
@@ -39,7 +34,7 @@ Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das
 
 ## Fehler
 
-Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. Fehler, die ein Mensch sehen kann, tragen zusätzlich `code`. Der bleibt gleich, auch wenn sich der Text ändert.
+Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`, wo vorhanden, bleibt gleich, auch wenn sich der Text ändert.
 
 ```json
 {"ok": false, "error": "not signed for this DeckConnector", "code": "ota_not_signed"}
@@ -132,7 +127,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
 | `POST /api/ota/url` | `{"url": "http://..."}`, die Platine lädt die Datei selbst. Der Fortschritt kommt über den WebSocket | full |
 | `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
-| `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, ...}` | full |
+| `GET /api/update/check` | `{"current": "v0.2.0", "latest": null, ...}` | full |
 | `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |
 | `POST /api/slots/<n>/boot` | Neustart in Platz N. 409, wenn er nicht starten kann | full |
 | `GET /api/frontend` | Die aktive Weboberfläche: `source` (`partition` oder `builtin`), `api` und bei einer hochgeladenen `version` | control |
@@ -210,7 +205,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 ## Status
 
 ```json
-{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0",
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.2.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
  "menu_open": false,
@@ -268,7 +263,7 @@ Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. E
 `action` ist `press` (Standard), `down`, `up` oder `turn` für Drehregler. Positive Rastungen drehen nach rechts.
 
 <Callout type="warn" title="Echte Eingaben">
-Companion, die Elgato App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme der Platine und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
+Companion, die Elgato-App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme der Platine und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
 </Callout>
 
 Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, die einen Rechner reinlassen, gehen nur am Deck selbst.
@@ -308,3 +303,5 @@ Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/inp
 {"t": "input", "id": 2, "key": 3}
 {"t": "result", "id": 1, "status": 200, "reply": {"ok": true, "restart": false}}
 ```
+
+<Next lang="de" links={[['Eigener Server', '/de/docs/own-server/'], ['Home Assistant', '/de/docs/home-assistant/']]} />

@@ -7,23 +7,25 @@ const t = {
     docs: 'Docs',
     flash: 'Flasher',
     demo: 'Demo',
+    compare: 'Compare',
     releases: 'Firmware releases',
     source: 'Source code',
     license: 'AGPL-3.0 license',
     start: 'Getting started',
     nav: 'Footer',
-    line: 'Free software for the Waveshare ESP32-P4-WIFI6-POE-ETH. Not affiliated with Elgato or Bitfocus.',
+    line: 'Free software for the Waveshare ESP32-P4-WIFI6-POE-ETH. Not affiliated with Elgato, Corsair or Bitfocus. Stream Deck is a trademark of Corsair.',
   },
   de: {
     docs: 'Anleitung',
     flash: 'Flasher',
     demo: 'Demo',
+    compare: 'Vergleich',
     releases: 'Firmware-Versionen',
     source: 'Quellcode',
     license: 'Lizenz AGPL-3.0',
     start: 'Erste Schritte',
     nav: 'Fußzeile',
-    line: 'Freie Software für die Waveshare ESP32-P4-WIFI6-POE-ETH. Kein Produkt von Elgato oder Bitfocus.',
+    line: 'Freie Software für die Platine Waveshare ESP32-P4-WIFI6-POE-ETH. Kein Produkt von Elgato, Corsair oder Bitfocus. Stream Deck ist eine Marke von Corsair.',
   },
 }
 
@@ -33,6 +35,7 @@ export function SiteFooter({ lang }: { lang: Lang }) {
   const links: [string, string][] = [
     [s.flash, `${p}/flash/`],
     [s.demo, `${p}/demo/`],
+    [s.compare, `${p}/compare/`],
     [s.docs, `${p}/docs/`],
     [s.start, `${p}/docs/getting-started/`],
     [s.releases, `${repo}/releases`],
@@ -51,7 +54,7 @@ export function SiteFooter({ lang }: { lang: Lang }) {
         </p>
         <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 md:gap-x-10">
           {links.map(([text, url]) => (
-            <a key={url} href={url} className="flex min-h-11 items-center rounded-md transition-colors hover:text-fd-foreground md:min-h-9">
+            <a key={url} href={url} className="flex min-h-11 items-center rounded-md transition-colors hover:text-fd-foreground lg:min-h-9">
               {text}
             </a>
           ))}

@@ -3,25 +3,23 @@ title: Eigener Server
 description: Das Deck per WebSocket aus dem eigenen Programm zeichnen. Protokoll Version 1.
 ---
 
-Dein Server rendert die Bilder. Die Platine zeigt sie an und schickt jeden Druck, jede Drehung und jede Berührung zurück. `tools/dbtools/server.py` im Repository ist ein kleiner Python-Server als Ausgangspunkt.
+Dein Server rendert die Bilder. Die Platine zeigt sie an und schickt jeden Druck, jede Drehung und jede Berührung zurück. Als Ausgangspunkt dient `tools/dbtools/server.py` im Repository, ein kleiner Python-Server.
 
 ## Verbindung
 
-- Die Platine ist der Client. Sie öffnet jede URL aus ihrer Serverliste mit dem Subprotokoll `deckconnector.v1`. URLs trägst du in der Weboberfläche unter **Quellen** ein, bis zu vier.
-- Ist die Liste leer, sucht die Platine Server, die `_deckconnector._tcp` per mDNS anmelden. Sie öffnet sie unter `ws://<adresse>:<port>/deckbridge`.
-- `wss://` geht auch. Das Zertifikat muss von einer öffentlichen CA stammen und den Host nennen oder zum SHA-256-Pin dieses Servers passen.
-- Der erste verbundene Server der Liste ist **aktiv**. Die anderen stehen auf **Standby**. Nur der aktive Server darf zeichnen und bekommt die Eingaben.
-- Fällt der aktive Server weg, wird der nächste verbundene aktiv und bekommt eine `role`-Nachricht. Er muss dann alle Bereiche neu zeichnen.
-- Solange Companion oder die Elgato App gewählt ist, stehen alle Server auf Standby. Siehe [Mehrere Programme](/de/docs/hosts).
-- Die Platine schickt alle 2 s einen Ping. Ein Server, der 6 s lang nichts sendet, gilt als verloren.
+- Die Platine ist der Client. Sie öffnet bis zu vier URLs aus **Quellen** mit dem Subprotokoll `deckconnector.v1`.
+- Ist die Liste leer, findet sie Server, die `_deckconnector._tcp` per mDNS anmelden, und öffnet `ws://<adresse>:<port>/deckbridge`.
+- `wss://` braucht ein Zertifikat einer öffentlichen CA für diesen Host oder den SHA-256-Pin dieses Servers.
+- Der erste verbundene Server ist **aktiv**, die anderen stehen auf **Standby**. Nur der aktive zeichnet und bekommt Eingaben.
+- Fällt er weg, wird der nächste aktiv, bekommt eine `role`-Nachricht und muss alle Bereiche neu zeichnen.
+- Solange Companion oder die Elgato-App gewählt ist, stehen alle Server auf Standby. Siehe [Mehrere Programme](/de/docs/hosts).
+- Die Platine pingt alle 2 s. Ein Server, der 6 s schweigt, gilt als verloren.
 
 Text-Frames tragen JSON. Binäre Frames tragen Bilder, Bestätigungen, Eingaben und Zeitabgleich. Alle binären Ganzzahlen sind Little Endian.
 
 ## Koordinaten
 
-Jedes Display hat ein Koordinatensystem in Pixeln, mit dem Ursprung oben links auf dem ganzen Glas. Tasten und Touchleisten sind Rechtecke darin. Schick jedes Rechteck, das das Display in `targets` nennt. Den passenden USB-Befehl wählt die Platine.
-
-Drehung und Spiegelung stehen je Display. Wende sie an, bevor du das JPEG kodierst.
+Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganzen Glas. Tasten und Leisten sind Rechtecke darin. Schick jedes Rechteck aus `targets` des Displays, den USB-Befehl wählt die Platine. Wende Drehung und Spiegelung an, bevor du das JPEG kodierst.
 
 ## Von der Platine
 
@@ -44,7 +42,7 @@ Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele
 
 ```json
 {"t": "role", "active": true}
-{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "controller": "server", "writer": "server1"}
+{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "v0.2.0", "controller": "server", "writer": "server1"}
 {"t": "ota", "target": "p4", "state": "download", "pct": 40}
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
@@ -89,7 +87,7 @@ Zeiten sind Mikrosekunden auf der Uhr der Platine. `t_recv` ist der Moment, in d
 | 0 | `SHOWN` | An das Deck geschickt |
 | 1 | `SUPERSEDED` | Ein neueres Bild hat es vorher verdeckt |
 | 2 | `REJECTED_RECT` | Das Rechteck ist kein Ziel dieses Displays |
-| 3 | `REJECTED_ROLE` | Dieser Server ist nicht aktiv, oder Menü, Elgato App oder Companion haben das Deck |
+| 3 | `REJECTED_ROLE` | Dieser Server ist nicht aktiv, oder Menü, Elgato-App oder Companion haben das Deck |
 | 4 | `NO_DEVICE` | Kein Deck, oder die USB-Übertragung ist fehlgeschlagen |
 | 5 | `BUSY` | Der Platine ist der Bildspeicher ausgegangen |
 
@@ -110,6 +108,8 @@ Touch-Positionen sind Display-Koordinaten.
 
 ## Flusskontrolle
 
-Schick das nächste Bild für einen Bereich erst nach dem ACK für das letzte dort. Verdeckte Bilder verwirft die Platine ohnehin, ein schneller Server baut also nie eine Warteschlange auf. Auf das ACK zu warten hält die Verzögerung auf langsamen Strecken wie WLAN klein. Auf einer überlasteten Strecke kann ein ACK verloren gehen. Gib einen Bereich deshalb nach 2 s ohne ACK wieder frei.
+Schick das nächste Bild für einen Bereich erst nach dem ACK für das letzte dort. Das hält die Verzögerung auf langsamen Strecken wie WLAN klein. Gib einen Bereich nach 2 s ohne ACK wieder frei, denn ein ACK kann verloren gehen.
 
-`seq` wählst du selbst. Es kommt im ACK zurück. Ein neueres Bild, das ein wartendes verdeckt, ersetzt es, und das ältere bekommt `SUPERSEDED`.
+`seq` wählst du selbst, es kommt im ACK zurück. Ein neueres Bild, das ein wartendes verdeckt, ersetzt es, und das ältere bekommt `SUPERSEDED`.
+
+<Next lang="de" links={[['API', '/de/docs/api/']]} />

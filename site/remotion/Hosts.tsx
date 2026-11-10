@@ -1,6 +1,7 @@
 import { useCurrentFrame } from 'remotion'
-import { AMBER, Deck, GREEN, keyBox, keyCenter, SD, Zone, type Key, showKeys, showStrip } from './hw'
-import { camAt, Caption, Scene, type Shot } from './scene'
+import { AppWindow, Blinds, Clapperboard, Clock, DoorClosed, EthernetPort, Fan, Flame, Globe, LayoutGrid, Lightbulb, Mail, MessageCircle, Mic, MicOff, Music, Play, Server, Settings, SkipForward, Sun, SunDim, Thermometer, Timer, Tv, Volume2, Wifi } from 'lucide-react'
+import { AMBER, Deck, GREEN, keyBox, RED, SD, Zone, type Key, showKeys, showStrip } from './hw'
+import { breathe, Caption, Scene } from './scene'
 import { lin, pulse, ramp } from './time'
 import { TEXT, type LangProps, type Text } from './text'
 
@@ -19,84 +20,74 @@ const HOSTS = [
 
 function pages(t: Text, f: number) {
   return [
-    { keys: showKeys(t, f, 0), strip: showStrip(t, 40) },
+    { keys: showKeys(t, f, 0), strip: showStrip(40) },
     {
       keys: [
-        { bg: '#3b2a6b', top: t.scene, big: 'A', glow: '#9b7bff' },
-        { bg: '#3b2a6b', top: t.scene, big: 'B', glow: '#9b7bff' },
-        { bg: '#1c7a45', big: t.play, glow: GREEN },
-        { bg: '#262b32', big: t.next, glow: '#5a6470' },
-        { bg: '#8a2219', big: t.mute, glow: '#ff4b3e' },
-        { bg: '#262b32', top: t.timer, big: '05:00', glow: '#5a6470' },
-        { bg: '#7b5cff', big: 'Web' },
-        { bg: '#262b32', big: 'Mail', glow: '#5a6470' },
+        { icon: Clapperboard, word: 'Intro', bg: '#5b3fc4', glow: '#9b7bff' },
+        { icon: Clapperboard, word: t.game },
+        { icon: Play, word: t.play, bg: '#30c060', glow: GREEN },
+        { icon: SkipForward, word: t.next },
+        { icon: MicOff, word: t.off, bg: RED },
+        { icon: Timer, word: '05:00' },
+        { icon: Globe, word: 'Web' },
+        { icon: Mail, word: 'Mail' },
       ] satisfies Key[],
       strip: (
         <>
-          <Zone i={0} label={t.volume} value={60} accent="#9b7bff" />
-          <Zone i={1} label={t.mic} value={70} accent={GREEN} />
-          <Zone i={2} label={t.music} value={35} accent="#9b7bff" />
-          <Zone i={3} label="Chat" value={50} accent="#9b7bff" />
+          <Zone i={0} icon={Volume2} value={60} accent="#9b7bff" />
+          <Zone i={1} icon={Mic} value={70} accent={GREEN} />
+          <Zone i={2} icon={Music} value={35} accent="#9b7bff" />
+          <Zone i={3} icon={MessageCircle} value={50} accent="#9b7bff" />
         </>
       ),
     },
     {
       keys: [
-        { bg: AMBER, fg: '#1a1200', top: t.light, big: '70%' },
-        { bg: '#1f4f86', top: t.blinds, big: '30%', glow: '#3d8bff' },
-        { bg: '#1c7a45', top: t.door, big: t.closed, glow: GREEN },
-        { bg: '#262b32', top: t.temp, big: '21°', glow: '#5a6470' },
-        { bg: '#1f4f86', top: t.fan, big: '2', glow: '#3d8bff' },
-        { bg: '#b0461c', top: t.heat, big: t.on, glow: '#ff7a3d' },
-        { bg: '#262b32', big: 'TV', glow: '#5a6470' },
-        { bg: '#000', big: '14:32', glow: '#3a3f46' },
+        { icon: Lightbulb, word: '70%', bg: AMBER, fg: '#1a1200' },
+        { icon: Blinds, word: '30%' },
+        { icon: DoorClosed, word: t.closed, bg: '#30c060', glow: GREEN },
+        { icon: Thermometer, word: '21°' },
+        { icon: Fan, word: '2' },
+        { icon: Flame, word: t.on.toUpperCase(), bg: '#d4561c', glow: '#ff7a3d' },
+        { icon: Tv, word: 'TV' },
+        { icon: Clock, word: '14:32' },
       ] satisfies Key[],
       strip: (
         <>
-          <Zone i={0} label={t.light} value={70} />
-          <Zone i={1} label={t.blinds} value={30} accent="#5aa9ff" />
-          <Zone i={2} label={t.temp} value={52} accent="#ff7a50" />
-          <Zone i={3} label={t.fan} value={40} accent="#5aa9ff" />
+          <Zone i={0} icon={Lightbulb} value={70} />
+          <Zone i={1} icon={Blinds} value={30} accent="#5aa9ff" />
+          <Zone i={2} icon={Thermometer} value={52} accent="#ff7a50" />
+          <Zone i={3} icon={Fan} value={40} accent="#5aa9ff" />
         </>
       ),
     },
   ] as const
 }
 
+const HOST_ICONS = [LayoutGrid, AppWindow, Server] as const
+
 /** The device's own menu: the hosts that can draw on the top row, the chosen one in amber. */
-function menuKeys(t: Text, chosen: number): Key[] {
+export function menuKeys(t: Text, chosen: number): Key[] {
   const host = (i: number): Key => {
-    const h = HOSTS[i] ?? HOSTS[0]
     const on = i === chosen
-    const fg = on ? '#1a1200' : h.color
-    return { bg: on ? AMBER : '#1b1f24', fg: on ? '#1a1200' : undefined, sub: [t.companion, t.app, t.server][i], glow: on ? AMBER : h.color, art: <Icon i={i} c={fg} /> }
+    return { icon: HOST_ICONS[i], bg: on ? AMBER : undefined, fg: on ? '#1a1200' : HOSTS[i]?.color, glow: on ? AMBER : HOSTS[i]?.color }
   }
   return [
     host(0),
     host(1),
     host(2),
-    { bg: '#262b32', big: t.menu, glow: '#5a6470' },
-    { bg: '#123d27', top: t.lan, big: 'OK', glow: GREEN },
-    { bg: '#1b1f24', top: t.wifi, big: 'OK', glow: '#5a6470' },
-    { bg: '#1b1f24', big: '−', glow: '#5a6470' },
-    { bg: '#1b1f24', big: '+', glow: '#5a6470' },
+    { icon: Settings, word: t.menu },
+    { icon: EthernetPort, word: t.lan, bg: '#30c060', glow: GREEN },
+    { icon: Wifi, word: t.wifi },
+    { icon: SunDim },
+    { icon: Sun },
   ]
 }
 
 // Where the sweep is: 0 at the top left key, 1 past the bottom right.
 const sweepAt = (i: number) => ((i % 4) + Math.floor(i / 4)) / 5
 
-const SHOTS: Shot[] = [0, 1, 2].flatMap((b): Shot[] => {
-  const B = b * BEAT
-  const [kx, ky] = keyCenter(DECK, (b + 1) % 3)
-  return [
-    [B, { x: CX, y: 290, z: 1.2, rx: 8, ry: -5 }],
-    [B + 22, { x: CX, y: 280, z: 1.24, rx: 6, ry: -3 }],
-    [B + TAP, { x: CX + (kx - CX) * 0.12, y: ky + 150, z: 1.38, rx: 4, ry: (kx - CX) / 80 }],
-    [B + SWEEP[1] + 6, { x: CX, y: 300, z: 1.16, rx: 9, ry: 5 }],
-  ]
-})
-SHOTS.push([3 * BEAT, { x: CX, y: 290, z: 1.2, rx: 8, ry: -5 }])
+const WIDE = { x: CX, y: 330, z: 1.0, rx: 5, ry: 0 }
 
 export default function Hosts({ lang }: LangProps) {
   const f = useCurrentFrame()
@@ -129,12 +120,11 @@ export default function Hosts({ lang }: LangProps) {
     <Scene
       w={S}
       h={S}
-      cam={camAt(f, SHOTS)}
+      cam={breathe(f, 3 * BEAT, WIDE)}
       over={
         <>
-          {b === 0 && <Caption f={f} from={-30} to={MENU + 2} text={names[from] ?? ''} sub={t.inControl} size={48} />}
-          <Caption f={f} from={B + MENU + 4} to={B + SWEEP[0] + 2} text={t.tapSwitch} size={48} />
-          <Caption f={f} from={B + SWEEP[0] + 4} to={B + BEAT + MENU + 2} text={names[to] ?? ''} sub={t.inControl} size={48} />
+          <Caption f={f} from={B - BEAT + SWEEP[0] + 2} to={B + SWEEP[0] + 2} text={names[from] ?? ''} sub={t.inControl} size={48} />
+          <Caption f={f} from={B + SWEEP[0] + 2} to={B + BEAT + SWEEP[0] + 2} text={names[to] ?? ''} sub={t.inControl} size={48} />
         </>
       }
     >
@@ -150,7 +140,7 @@ function Finger({ l, target }: { l: number; target: number }) {
   const o = Math.min(ramp(l, TAP - 16, TAP - 8), 1 - ramp(l, TAP + 2, TAP + 9))
   if (o <= 0) return null
   const b = keyBox(target)
-  const cx = b.x + b.s * 0.62
+  const cx = b.x + b.s / 2
   const cy = b.y + b.s * 0.36
   const k = ramp(l, TAP - 16, TAP - 1)
   const lift = (1 - k) * 10
@@ -162,33 +152,6 @@ function Finger({ l, target }: { l: number; target: number }) {
       {ripple > 0 && ripple < 1 && <circle cx={cx} cy={cy} r={5 + ripple * 11} fill="none" stroke="#fff" strokeWidth={1.2 * (1 - ripple)} opacity={1 - ripple} />}
       <circle cx={cx + lift * 0.4} cy={cy + lift * 0.6} r={6 - press * 0.8} fill="#fff" opacity={0.28 + press * 0.2} />
       <circle cx={cx + lift * 0.4} cy={cy + lift * 0.6} r={6 - press * 0.8} fill="none" stroke="#fff" strokeWidth={0.8} opacity={0.85} />
-    </g>
-  )
-}
-
-/** Small pictures for the host keys: a button grid, a deck, a server. */
-function Icon({ i, c }: { i: number; c: string }) {
-  if (i === 0)
-    return (
-      <g transform="translate(36 22)" fill={c}>
-        {[0, 1, 2, 3].map((j) => (
-          <rect key={j} x={(j % 2) * 26} y={Math.floor(j / 2) * 26} width={22} height={22} rx={5} />
-        ))}
-      </g>
-    )
-  if (i === 1)
-    return (
-      <g transform="translate(30 24)" fill="none" stroke={c} strokeWidth={6}>
-        <rect width={60} height={46} rx={8} />
-        <path d="M14 16 h8 M28 16 h8 M42 16 h4 M14 30 h8 M28 30 h8" strokeLinecap="round" />
-      </g>
-    )
-  return (
-    <g transform="translate(34 20)" fill="none" stroke={c} strokeWidth={6}>
-      <rect width={52} height={22} rx={5} />
-      <rect y={28} width={52} height={22} rx={5} />
-      <circle cx={40} cy={11} r={2} fill={c} />
-      <circle cx={40} cy={39} r={2} fill={c} />
     </g>
   )
 }

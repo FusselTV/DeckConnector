@@ -5,6 +5,7 @@
     "index",
     "getting-started",
     "flashing",
+    "flash-troubleshooting",
     "first-setup",
     "---Verbinden---",
     "companion",
@@ -21,6 +22,7 @@
     "---Referenz---",
     "api",
     "hardware",
+    "speed",
     "license"
   ]
 }

@@ -1,0 +1,134 @@
+---
+title: Probleme beim Flashen
+description: Das Flashen der ESP32-P4-Platine klappt nicht? Jede Meldung des Flashers, ihre Ursache und was hilft.
+---
+
+Such die Meldung oder das Problem und lies den passenden Abschnitt.
+
+| Problem | Abschnitt |
+|---|---|
+| Mit diesem Browser geht es nicht | [Browser](#browser) |
+| Web Serial funktioniert nur über https | [Kein https](#https) |
+| Die Platine fehlt in der Liste | [Kein Anschluss](#no-port) |
+| Ein anderes Programm benutzt diesen Anschluss | [Anschluss belegt](#port-busy) |
+| Die Platine hat nicht geantwortet | [Download-Modus](#no-answer) |
+| Das ist nicht die richtige Platine | [Falscher Chip](#wrong-chip) |
+| Diese Chip-Revision wird nicht unterstützt | [Chip-Revision](#chip-revision) |
+| Die Installation wurde abgebrochen | [Abbruch](#flash-stopped) |
+| Was die Platine zurückgelesen hat, passt nicht | [Zurücklesen](#read-back) |
+| Ließ sich nicht laden, oder die Datei ist beschädigt | [Firmware laden](#firmware-download) |
+| Die Platine antwortet nicht, nach der Installation | [Einrichtung über USB](#setup-no-answer) |
+| Verbindung mit dem WLAN fehlgeschlagen | [WLAN](#wifi-join) |
+| Geflasht, aber wo ist die Platine? | [Platine finden](#find-board) |
+
+## Mit diesem Browser geht es nicht [#browser]
+
+**Ursache.** Der Flasher nutzt [Web Serial](https://developer.mozilla.org/de/docs/Web/API/Web_Serial_API). Das haben nur Chrome, Edge und andere Chromium-Browser auf einem Computer. Firefox, Safari, Handys und Tablets haben es nicht.
+
+**Lösung.** Öffne die Seite in Chrome oder Edge unter Windows, macOS oder Linux. Ohne diese Browser nimm [esptool](/de/docs/flashing#mit-esptool).
+
+## Die Seite ist nicht https [#https]
+
+**Ursache.** Browser erlauben Web Serial nur auf `https://`-Seiten und auf `localhost`.
+
+**Lösung.** Öffne den Flasher über seine `https://`-Adresse.
+
+## Kein Anschluss in der Liste [#no-port]
+
+<Ports lang="de" />
+
+| Ursache | Lösung |
+|---|---|
+| Das Kabel lädt nur | Nimm ein Kabel, das Daten überträgt. Zeigt ein Handy daran keine Dateien, ist es ein reines Ladekabel |
+| Das Kabel steckt im USB-A-Port | Nimm den **USB-C**-Port. USB-A ist für das Deck |
+| Ein Hub oder Dock dazwischen | Steck die Platine direkt in den Computer |
+| Die Liste blendet andere Chips aus | Klick auf **Alle Anschlüsse zeigen**. Zuerst zeigt der Flasher nur den USB-Seriell-Chip der Platine |
+| Kein Treiber für den USB-Seriell-Chip | Siehe [Treiber](#driver) |
+
+### Treiber [#driver]
+
+Der USB-C-Port läuft über einen USB-Seriell-Chip CH343 von WCH. Windows 10 und 11, macOS und Linux brauchen meist keinen eigenen Treiber. Erscheint der Anschluss trotzdem nicht, installier den Treiber von WCH und steck die Platine neu ein.
+
+- Windows: [CH343SER](https://www.wch-ic.com/downloads/CH343SER_EXE.html)
+- macOS: [CH34XSER_MAC](https://www.wch-ic.com/downloads/CH34XSER_MAC_ZIP.html)
+
+Unter Linux heißt die Platine `/dev/ttyACM0`. Kann Chrome sie nicht öffnen, nimm deinen Benutzer in die Gruppe `dialout` auf (`uucp` unter Arch) und melde dich neu an.
+
+## Anschluss belegt [#port-busy]
+
+**Ursache.** Einen seriellen Anschluss kann nur ein Programm öffnen. Oft sind es die Arduino IDE, PuTTY, `idf.py monitor`, `screen`, ein 3D-Drucker-Programm oder ein zweiter Flasher-Tab.
+
+**Lösung.** Schließ das Programm oder den Tab und klick noch einmal auf **Verbinden**. Weißt du nicht, welches es ist, steck die Platine aus und wieder ein.
+
+## Die Platine antwortet nicht [#no-answer]
+
+**Ursache.** Der Flasher konnte die Platine nicht selbst in den Download-Modus bringen.
+
+**Lösung.** Bring sie von Hand in den Download-Modus:
+
+1. Halte **BOOT** gedrückt.
+2. Drück kurz **RST**.
+3. Lass **BOOT** los.
+4. Klick noch einmal auf **Verbinden**.
+
+## Falscher Chip [#wrong-chip]
+
+**Ursache.** Der Anschluss gehört zu einer anderen Platine, zum Beispiel einem ESP32-S3, der auch steckt.
+
+**Lösung.** Klick auf **Andere Platine verwenden** und wähl den richtigen Anschluss. DeckConnector läuft nur auf dem [ESP32-P4](https://www.espressif.com/en/products/socs/esp32-p4).
+
+## Chip-Revision zu alt [#chip-revision]
+
+**Ursache.** Frühe ESP32-P4-Chips (vor v3.1, oft v1.3) können diese Firmware nicht ausführen. Manche Platinen dieses Modells wurden damit ausgeliefert. Der Flasher hört auf, bevor er etwas schreibt.
+
+**Lösung.** In Software gibt es keine. Nimm eine Platine mit Chip-Revision v3.1 oder einer späteren v3. Der Flasher zeigt die gefundene Revision an.
+
+## Die Installation bricht ab [#flash-stopped]
+
+**Ursache.** Die USB-Verbindung ist abgerissen. Meist ein Wackelkontakt, ein langes Kabel, ein Hub, ein USB-Port mit Stromsparmodus oder der Computer geht in den Ruhezustand.
+
+**Lösung.** Nimm ein kurzes Datenkabel direkt am Computer, lass den Tab offen und starte neu. Die Platine nimmt keinen Schaden. Sie lässt sich immer wieder flashen.
+
+Klappt es weiter nicht, flash langsamer mit [esptool](/de/docs/flashing#mit-esptool) und `-b 115200`.
+
+## Zurückgelesene Daten passen nicht [#read-back]
+
+**Ursache.** Der Flasher liest jeden Teil nach dem Schreiben zurück. Passt er nicht, sind unterwegs Bytes verloren gegangen, fast immer am Kabel oder am USB-Port.
+
+**Lösung.** Nimm ein anderes Kabel oder einen anderen Port und starte neu. Passiert es wieder, wähl **Neuinstallation**, die den Speicher vorher löscht.
+
+## Firmware lädt nicht [#firmware-download]
+
+**Ursache.** Der Download ist abgebrochen, oder der Browser hat eine alte Kopie.
+
+**Lösung.** Lade die Seite neu. Mit **Lokale Dateien verwenden** lädst du stattdessen eine `manifest.json` mit ihren `.bin`-Dateien aus einem [Release](/de/docs/updates#releases).
+
+## Einrichtung über USB antwortet nicht [#setup-no-answer]
+
+| Ursache | Lösung |
+|---|---|
+| Die Platine startet noch | 15 Sekunden warten |
+| Die Einrichtung ist schon fertig, und der Start ist länger als 5 Minuten her | **RST** drücken, dann innerhalb von 5 Minuten noch einmal speichern |
+| Eine alte Firmware ohne Einrichtung über USB | Die aktuelle Firmware installieren |
+
+Du kannst diesen Schritt immer überspringen und die [Einrichtung im Browser](/de/docs/first-setup) nehmen.
+
+## WLAN-Verbindung scheitert [#wifi-join]
+
+| Ursache | Lösung |
+|---|---|
+| Ein 5-GHz-Netz | Der WLAN-Chip, ein [ESP32-C6](https://www.espressif.com/en/products/socs/esp32-c6), kann nur 2,4 GHz. Schalte 2,4 GHz im Router ein oder wähl dessen 2,4-GHz-Netz |
+| Falsches Passwort | Es hat 8 bis 63 Zeichen oder 64 Hex-Ziffern. Achte auf Großbuchstaben |
+| Ein verstecktes Netz | Es steht nicht in der Liste. Wähl **Anderes Netz** und tipp den Namen ein |
+| Zu weit weg | Platine näher an den Router, oder ein Netzwerkkabel nehmen |
+
+## Platine danach nicht gefunden [#find-board]
+
+- Der letzte Schritt im Flasher zeigt die Adresse und den `.local`-Namen.
+- Das Deck zeigt die Adresse auf der Touchleiste.
+- Manche Netze blockieren `.local`-Namen. Nimm dann die IP-Adresse.
+- Schau in der Geräteliste deines Routers nach einem Namen wie `deckconnector-a1b2c3`.
+- Der Computer muss im selben Netz sein, nicht in einem Gast-WLAN.
+- Solange die Einrichtung nicht fertig ist und kein Netz da ist, öffnet die Platine nach einer Minute ihr eigenes [Setup-WLAN](/de/docs/first-setup#über-das-setup-wlan). Das Deck zeigt Name und Passwort.
+
+<Next lang="de" links={[['Fehlersuche', '/de/docs/troubleshooting/']]} />

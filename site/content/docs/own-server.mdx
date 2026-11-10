@@ -3,25 +3,23 @@ title: Own server
 description: Draw the deck from your own program over WebSocket. Protocol version 1.
 ---
 
-Your server renders the images. The board shows them and sends back every press, turn and touch. `tools/dbtools/server.py` in the repository is a small Python server to start from.
+Your server renders the images. The board shows them and sends back every press, turn and touch. Start from `tools/dbtools/server.py` in the repository, a small Python server.
 
 ## Connection
 
-- The board is the client. It opens each URL in its server list with the subprotocol `deckconnector.v1`. Add URLs in the web UI under **Sources**, up to four.
-- With an empty list, the board looks for servers that announce `_deckconnector._tcp` over mDNS. It opens them at `ws://<address>:<port>/deckbridge`.
-- `wss://` works too. The certificate must come from a public CA and name the host, or match the SHA-256 pin set for that server.
-- The first connected server in the list is **active**. The others are **standby**. Only the active server may draw, and only it gets input.
-- When the active server is lost, the next connected one becomes active and gets a `role` message. It must then draw every area again.
-- While Companion or the Elgato App is picked, every server is standby. See [Multiple hosts](/docs/hosts).
-- The board sends a ping every 2 s. A server that sends nothing for 6 s counts as lost.
+- The board is the client. It opens up to four URLs from **Sources** with the subprotocol `deckconnector.v1`.
+- With an empty list, it finds servers that announce `_deckconnector._tcp` over mDNS and opens `ws://<address>:<port>/deckbridge`.
+- `wss://` needs a certificate from a public CA for that host, or the SHA-256 pin set for that server.
+- The first connected server is **active**, the others **standby**. Only the active one draws and gets input.
+- When it is lost, the next one becomes active, gets a `role` message, and must draw every area again.
+- While Companion or the Elgato app is chosen, every server is standby. See [Multiple hosts](/docs/hosts).
+- The board pings every 2 s. A server silent for 6 s counts as lost.
 
 Text frames carry JSON. Binary frames carry images, acknowledgements, input and time sync. All binary integers are little endian.
 
 ## Coordinates
 
-Each display has one coordinate system in pixels, with the origin at the top left of the whole glass. Keys and touch strips are rectangles in it. Send any rectangle the display lists in `targets`. The board picks the USB command.
-
-Rotation and flipping are listed per display. Apply them before you encode the JPEG.
+Each display has one pixel coordinate system, origin at the top left of the whole glass. Keys and strips are rectangles in it. Send any rectangle from the display's `targets`, and the board picks the USB command. Apply the listed rotation and flip before you encode the JPEG.
 
 ## From the board
 
@@ -44,7 +42,7 @@ A `strip` target with `partial: true` takes any rectangle inside it. Other targe
 
 ```json
 {"t": "role", "active": true}
-{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0", "controller": "server", "writer": "server1"}
+{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "v0.2.0", "controller": "server", "writer": "server1"}
 {"t": "ota", "target": "p4", "state": "download", "pct": 40}
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
@@ -89,7 +87,7 @@ Times are microseconds on the board's clock. `t_recv` is when the image was comp
 | 0 | `SHOWN` | Sent to the deck |
 | 1 | `SUPERSEDED` | A newer image covered it before it was sent |
 | 2 | `REJECTED_RECT` | The rectangle is not a target of this display |
-| 3 | `REJECTED_ROLE` | This server is not active, or the menu, the Elgato App or Companion has the deck |
+| 3 | `REJECTED_ROLE` | This server is not active, or the menu, the Elgato app or Companion has the deck |
 | 4 | `NO_DEVICE` | No deck, or the USB transfer failed |
 | 5 | `BUSY` | The board is out of image memory |
 
@@ -110,6 +108,8 @@ Touch positions are in display coordinates.
 
 ## Flow control
 
-Send the next image for an area only after the ACK for the last one there. The board drops covered images anyway, so a fast server never builds a queue. Waiting for the ACK keeps the delay low on slow links like Wi-Fi. An ACK can get lost on an overloaded link, so treat an area as free again after 2 s without one.
+Send the next image for an area only after the ACK for the last one there. That keeps the delay low on slow links like Wi-Fi. Treat an area as free again after 2 s without an ACK, because one can get lost.
 
-`seq` is yours. It comes back in the ACK. A newer image that covers a waiting one replaces it, and the older one gets `SUPERSEDED`.
+`seq` is yours and comes back in the ACK. A newer image that covers a waiting one replaces it, and the older one gets `SUPERSEDED`.
+
+<Next links={[['API', '/docs/api/']]} />

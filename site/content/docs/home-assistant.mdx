@@ -3,11 +3,11 @@ title: Home Assistant
 description: Read the board's status and control it from Home Assistant over the API.
 ---
 
-There is no Home Assistant integration yet. The [API](/docs/api) covers status, brightness, the host choice, the deck picture and restarts, so the REST integration can use it.
+There is no [Home Assistant](https://www.home-assistant.io/) integration yet. Its [RESTful](https://www.home-assistant.io/integrations/rest/) and [RESTful Command](https://www.home-assistant.io/integrations/rest_command/) integrations read the status and send commands over the [API](/docs/api).
 
 ## API key
 
-Make an API key under **Access › API keys**. **Control** is enough to read. Brightness, the host choice and restarts need **Full access**. Put it into `secrets.yaml`.
+Make an [API key](/docs/security#api-keys) under **Access › API keys**. **Control** is enough to read. Brightness, the host choice and restarts need **Full access**.
 
 ```yaml title="secrets.yaml"
 deckconnector_auth: "Bearer YOUR_KEY"
@@ -58,7 +58,7 @@ rest_command:
 
 `GET /api/screen.jpg` is the deck picture as one JPEG, for a camera.
 
-## What else the API offers
+## More from the API
 
 | Need | Source |
 |---|---|
@@ -69,6 +69,8 @@ rest_command:
 | Load | `GET /api/metrics`, CPU and RAM |
 | Update | `firmware` in the status, `POST /api/ota/url` to install |
 
-An API key never gets simulated presses over the WebSocket. So automations that react to `input` only see real presses on the deck.
+An API key never gets simulated presses over the WebSocket, so automations on `input` see only real presses.
 
-With **HTTPS only** on, use `https://` and port 443, and trust the board's own certificate. See [Access and security](/docs/security#https).
+With **HTTPS only** on, use `https://` and trust the board's [certificate](/docs/security#https).
+
+<Next links={[['API', '/docs/api/'], ['Access and security', '/docs/security/']]} />

@@ -7,7 +7,7 @@ import { Console, Esp, pickPort, serial, type Chip, type Progress, type WebSeria
 import { FirmwareError, loadBuild, localSource, siteSource, totalSize, type Image, type Manifest, type Mode, type Source } from './firmware'
 import { Improv } from './improv'
 import { Setup, type Result } from './Setup'
-import { BoardArt, Bar, Btn, LinkBtn, LogPanel, Note, Spinner, Stepper, card, duration, kib, mono } from './ui'
+import { BoardArt, Bar, Btn, Fix, LinkBtn, LogPanel, Note, Spinner, Stepper, card, duration, kib, mono } from './ui'
 
 type Support = 'ok' | 'mobile' | 'browser' | 'insecure'
 
@@ -21,7 +21,7 @@ function detect(): Support {
 const noop = () => () => undefined
 
 type Step = 'connect' | 'install' | 'flash' | 'setup' | 'ready'
-type ConnErr = { title: string; text?: string; buttons?: boolean }
+type ConnErr = { title: string; text?: string; fix: string; buttons?: boolean }
 type PartState = { status: 'wait' | 'write' | 'verify' | 'ok'; done: number; total: number }
 interface Flash {
   erase: 'run' | 'ok' | null
@@ -31,16 +31,24 @@ interface Flash {
   err: string | null
 }
 
+function FwErr({ c, err }: { c: Copy; err: string }) {
+  return (
+    <Note lvl="bad" title={err}>
+      {err !== c.fwLocalBad && <Fix c={c} id="firmware-download" />}
+    </Note>
+  )
+}
+
 const rev = (r: number) => `${Math.floor(r / 100)}.${r % 100}`
 const partName = (c: Copy, path: string) => (path.includes('factory') ? c.partFactory : path.includes('ota_data') ? c.partOta : c.partApp)
 
 function connErr(c: Copy, e: unknown): ConnErr {
   const msg = e instanceof Error ? `${e.name} ${e.message}` : String(e)
-  if (/InvalidStateError|Failed to open|NetworkError.*open|already open/i.test(msg)) return { title: c.errBusy, text: c.errBusyDo }
-  if (/lost|disconnected/i.test(msg)) return { title: c.errLost }
-  if (/Failed to connect|Serial data stream stopped|No serial data|Timeout/i.test(msg)) return { title: c.errNoAnswer, text: c.errNoAnswerDo, buttons: true }
-  if (/UnexpectedChip|Unexpected chip/i.test(msg)) return { title: c.wrongChipT, text: fill(c.wrongChip, { chip: msg.replace(/^.*?(0x[0-9a-f]+|\d+).*$/i, 'unknown chip ($1)') }) }
-  return { title: c.errOther, text: e instanceof Error ? e.message : msg }
+  if (/InvalidStateError|Failed to open|NetworkError.*open|already open/i.test(msg)) return { title: c.errBusy, text: c.errBusyDo, fix: 'port-busy' }
+  if (/lost|disconnected/i.test(msg)) return { title: c.errLost, fix: 'no-port' }
+  if (/Failed to connect|Serial data stream stopped|No serial data|Timeout/i.test(msg)) return { title: c.errNoAnswer, text: c.errNoAnswerDo, fix: 'no-answer', buttons: true }
+  if (/UnexpectedChip|Unexpected chip/i.test(msg)) return { title: c.wrongChipT, text: fill(c.wrongChip, { chip: msg.replace(/^.*?(0x[0-9a-f]+|\d+).*$/i, 'unknown chip ($1)') }), fix: 'wrong-chip' }
+  return { title: c.errOther, text: e instanceof Error ? e.message : msg, fix: 'no-answer' }
 }
 
 export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | null }) {
@@ -214,8 +222,7 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
   return (
     <main id="main" className="mx-auto w-full max-w-6xl px-4 pt-10 pb-20 sm:px-6 sm:pt-14">
       <header className="max-w-2xl">
-        <p className={`${mono} font-semibold tracking-[0.18em] text-amber-fg uppercase`}>{c.eyebrow}</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{c.title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{c.title}</h1>
         <p className="mt-3 text-base text-pretty text-fg-2 sm:text-lg">{c.lead}</p>
       </header>
 
@@ -242,7 +249,9 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
           ) : step === 'setup' && link ? (
             lost ? (
               <div className="space-y-5">
-                <Note lvl="bad" title={c.errLostSerial} />
+                <Note lvl="bad" title={c.errLostSerial}>
+                  <Fix c={c} id="setup-no-answer" />
+                </Note>
                 <Btn onClick={() => void startOver()}>
                   <RotateCcw aria-hidden />
                   {c.again}
@@ -296,17 +305,30 @@ function Unsupported({ c, kind, lang }: { c: Copy; kind: 'mobile' | 'browser' | 
         </span>
         <h2 className="text-xl font-semibold">{kind === 'mobile' ? c.mobileT : c.browserT}</h2>
       </div>
-      <p className="text-fg-2">{kind === 'mobile' ? c.mobile : kind === 'insecure' ? c.insecure : c.browser}</p>
+      <p className="text-fg-2">
+        {kind === 'mobile' ? c.mobile : kind === 'insecure' ? c.insecure : c.browser}
+        {kind !== 'mobile' && <Fix c={c} id={kind === 'insecure' ? 'https' : 'browser'} />}
+      </p>
       {kind === 'mobile' ? (
         <div className="space-y-2">
           <p className="text-sm font-medium">{c.mobileOpen}</p>
-          <div className="flex items-center gap-2 rounded-lg border border-line bg-well p-1.5 ps-3">
+          <div className="flex items-center gap-2 rounded-lg border border-line bg-well p-1 ps-3">
             <Laptop className="size-4 shrink-0 text-fg-3" aria-hidden />
-            <span className={`${mono} min-w-0 flex-1 truncate`}>{url}</span>
+            <span className={`${mono} min-w-0 flex-1 break-all`}>{url.replace(/^https?:\/\//, '')}</span>
             <button
               type="button"
-              onClick={() => void navigator.clipboard.writeText(url).then(() => setDone(true))}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-panel-2 px-3 text-sm font-medium hover:bg-line [&_svg]:size-4"
+              onClick={(e) => {
+                const text = e.currentTarget.previousElementSibling
+                const legacy = () => {
+                  if (text) getSelection()?.selectAllChildren(text)
+                  // navigator.clipboard does not exist on plain http (a LAN address); the old API still copies the selection there.
+                  // eslint-disable-next-line @typescript-eslint/no-deprecated
+                  setDone(document.execCommand('copy'))
+                }
+                if (!isSecureContext) return legacy()
+                navigator.clipboard.writeText(url).then(() => setDone(true), legacy)
+              }}
+              className="inline-flex h-11 items-center gap-1.5 rounded-md bg-panel-2 px-3 text-sm font-medium hover:bg-line [&_svg]:size-4"
             >
               {done ? <Check aria-hidden /> : <CopyIcon aria-hidden />}
               {done ? c.copied : c.copy}
@@ -332,7 +354,7 @@ function NoFirmware({ c, err, onFiles }: { c: Copy; err: string | null; onFiles:
         {c.fwNoneHint}
       </Note>
       <FilePick c={c} onFiles={onFiles} />
-      {err && <Note lvl="bad" title={err} />}
+      {err && <FwErr c={c} err={err} />}
     </div>
   )
 }
@@ -366,6 +388,7 @@ function ConnectStep({ c, busy, err, focus, onConnect }: { c: Copy; busy: boolea
       {err && (
         <Note lvl="bad" title={err.title}>
           {err.text}
+          <Fix c={c} id={err.fix} />
         </Note>
       )}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -377,7 +400,16 @@ function ConnectStep({ c, busy, err, focus, onConnect }: { c: Copy; busy: boolea
           {c.showAll}
         </button>
       </div>
-      <p className="text-sm text-fg-3">{c.cable}</p>
+      <p className="text-sm text-fg-3">
+        {c.cable}{' '}
+        <a href={`${c.fixUrl}#no-port`} className="underline decoration-line-2 underline-offset-4 hover:text-fg">
+          {c.noPort}
+        </a>
+        {' · '}
+        <a href={`${c.fixUrl}#driver`} className="underline decoration-line-2 underline-offset-4 hover:text-fg">
+          {c.driver}
+        </a>
+      </p>
       <details className="group rounded-lg border border-line" open={!!err?.buttons}>
         <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium hover:bg-panel-2 [&::-webkit-details-marker]:hidden">
           <ChevronRight className="size-4 text-fg-3 transition-transform group-open:rotate-90" aria-hidden />
@@ -402,6 +434,7 @@ function WrongChip({ c, m, bad, onRetry }: { c: Copy; m: Manifest; bad: { chip: 
     <div className="space-y-5">
       <Note lvl="bad" title={bad.why === 'chip' ? c.wrongChipT : c.wrongRevT}>
         {fill(bad.why === 'chip' ? c.wrongChip : c.wrongRev, v)}
+        <Fix c={c} id={bad.why === 'chip' ? 'wrong-chip' : 'chip-revision'} />
       </Note>
       <ChipLine c={c} chip={bad.chip} />
       <Btn kind="ghost" onClick={() => void onRetry()}>
@@ -489,7 +522,7 @@ function InstallStep(p: {
           </label>
         </div>
       )}
-      {p.err && <Note lvl="bad" title={p.err} />}
+      {p.err && <FwErr c={c} err={p.err} />}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <Btn kind={mode === 'factory' && ready ? 'bad' : 'pri'} disabled={!ready || p.busy} onClick={() => void p.onInstall()}>
           {p.busy ? <Spinner /> : <ArrowRight aria-hidden />}
@@ -524,7 +557,9 @@ function FlashStep({ c, f, names, onRetry }: { c: Copy; f: Flash; names: string[
         )}
       </div>
       {f.err ? (
-        <Note lvl="bad" title={f.err} />
+        <Note lvl="bad" title={f.err}>
+          <Fix c={c} id={f.err === c.flashMd5 ? 'read-back' : 'flash-stopped'} />
+        </Note>
       ) : (
         <Note lvl="warn" title={c.flashKeep}>
           {c.flashSafe}
@@ -609,7 +644,10 @@ function Ready({ c, r, lang, onNext }: { c: Copy; r: Result; lang: Lang; onNext:
         </span>
         <h2 className="text-xl font-semibold">{c.readyT}</h2>
       </div>
-      <p className="text-fg-2">{first ? c.readyText : r.later ? c.readyLater : c.readyOffline}</p>
+      <p className="text-fg-2">
+        {first ? c.readyText : r.later ? c.readyLater : c.readyOffline}
+        {!first && !r.later && <Fix c={c} id="find-board" />}
+      </p>
       <p className="flex items-center gap-2 text-sm text-fg-2">
         <Usb className="size-4 text-fg-3" aria-hidden />
         {c.unplug}
@@ -697,7 +735,12 @@ function FirmwareCard(p: { c: Copy; lang: Lang; src: Source | null; canChange: b
           ) : (
             <FilePick c={c} onFiles={p.onFiles} />
           )}
-          {p.err && <p className="mt-2 text-sm text-bad-fg">{p.err}</p>}
+          {p.err && (
+            <p className="mt-2 text-sm text-bad-fg">
+              {p.err}
+              {p.err !== c.fwLocalBad && <Fix c={c} id="firmware-download" />}
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -1,42 +1,61 @@
-import { rounded, type Pt } from './hw'
+import { arc, at, BOARD_ANT, BOARD_USB, BOARD_USBC, rounded, type Pt } from './hw'
 import type { Cam } from './scene'
 
+type Box = { x: number; y: number; w: number; h: number }
 export type Layout = {
   deck: { x: number; y: number; s: number }
   board: { x: number; y: number; s: number }
-  sw: { x: number; y: number; w: number; h: number }
+  router: Box
   mon: { x: number; y: number; s: number }
   usb: Pt[]
-  poe: Pt[]
   net: Pt[]
+  /** Board antenna to the router's left antenna, then along the router top to where net starts. */
+  air: Pt[]
+  power?: { pts: Pt[]; plug: { x: number; y: number; s: number } }
   label: { x: number; y: number; size: number }
   wide: Cam
   cap: number
 }
 
+const radio = (board: Layout['board'], r: Box, net0: Pt, lift: number): Pt[] => {
+  const tip: Pt = [r.x + 40, r.y - 46]
+  return [...arc(at(board, BOARD_ANT), tip, lift), [tip[0], r.y], [net0[0], r.y]]
+}
+
 // Monitor is drawn at 480 x 340 and scaled; everything must stay inside the wide frame, captions sit top left.
+// The deck cable runs straight into the board's USB-A, the power plug hangs from its USB-C, the name sits under the board.
+const landBoard = { x: 690, y: 440, s: 1.3 }
+const landRouter = { x: 1040, y: 450, w: 220, h: 90 }
+const landNet = rounded([[1160, 450], [1160, 310]], 20)
+const landC = at(landBoard, BOARD_USBC)
 export const LAND: Layout = {
-  deck: { x: 70, y: 196, s: 3.7 },
-  board: { x: 650, y: 470, s: 1.4 },
-  sw: { x: 990, y: 440, w: 230, h: 90 },
-  mon: { x: 800, y: 40, s: 0.88 },
-  usb: rounded([[540, 420], [608, 420], [608, 554], [631, 554]], 20),
-  poe: rounded([[964, 575], [1080, 575], [1080, 530]], 20),
-  net: rounded([[1180, 440], [1180, 330]], 20),
-  label: { x: 797, y: 452, size: 40 },
-  wide: { x: 650, y: 365, z: 0.96, rx: 4, ry: 0 },
+  deck: { x: 60, y: 196, s: 3.7 },
+  board: landBoard,
+  router: landRouter,
+  mon: { x: 820, y: 44, s: 0.8 },
+  usb: [[560, at(landBoard, BOARD_USB)[1]], at(landBoard, BOARD_USB)],
+  net: landNet,
+  air: radio(landBoard, landRouter, landNet[0] ?? [0, 0], 40),
+  power: { pts: rounded([landC, [640, landC[1]], [640, 660]], 14), plug: { x: 640, y: 652, s: 0.8 } },
+  label: { x: 826, y: 704, size: 34 },
+  wide: { x: 660, y: 380, z: 0.93, rx: 5, ry: 0 },
   cap: 46,
 }
-// Phones get a 4:5 stage: the deck fills the bottom, Companion sits above the frame and the camera pans up to it.
+// Phones get a 4:5 stage: caption top left, Companion top right, board and router in the middle, deck at the bottom.
+const portBoard = { x: 230, y: 470, s: 1.5 }
+const portRouter = { x: 720, y: 560, w: 240, h: 90 }
+const portNet = rounded([[880, 560], [880, 360]], 20)
+const portC = at(portBoard, BOARD_USBC)
 export const PORT: Layout = {
-  deck: { x: 176, y: 600, s: 5.2 },
-  board: { x: 372, y: 330, s: 1.6 },
-  sw: { x: 770, y: 150, w: 250, h: 90 },
-  mon: { x: 300, y: -720, s: 1 },
-  usb: rounded([[300, 700], [300, 426], [350, 426]], 24),
-  poe: rounded([[731, 450], [880, 450], [880, 240]], 24),
-  net: rounded([[960, 150], [960, -500], [794, -500]], 30),
-  label: { x: 540, y: 308, size: 44 },
-  wide: { x: 540, y: 690, z: 1, rx: 3, ry: 0 },
+  deck: { x: 274, y: 790, s: 3.8 },
+  board: portBoard,
+  router: portRouter,
+  mon: { x: 560, y: 70, s: 0.88 },
+  usb: rounded([[330, 805], [330, 772], [96, 772], [96, at(portBoard, BOARD_USB)[1]], at(portBoard, BOARD_USB)], 24),
+  net: portNet,
+  air: radio(portBoard, portRouter, portNet[0] ?? [0, 0], 70),
+  power: { pts: rounded([portC, [160, portC[1]], [160, 690]], 14), plug: { x: 160, y: 680, s: 0.85 } },
+  label: { x: 387, y: 748, size: 44 },
+  wide: { x: 540, y: 675, z: 0.97, rx: 2, ry: 0 },
   cap: 66,
 }

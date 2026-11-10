@@ -6,3 +6,5 @@ next-env.d.ts
 *.tsbuildinfo
 public/demo/
 public/firmware/
+.lighthouseci/
+public/pr-screens/

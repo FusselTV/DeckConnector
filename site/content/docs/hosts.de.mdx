@@ -3,23 +3,25 @@ title: Mehrere Programme
 description: Mehrere Programme gleichzeitig verbunden, und wie du das zeichnende wählst.
 ---
 
-Jedes Programm, das zeichnen kann, steht in einer Liste: Companion über Satellite, die Network-Dock-Rechner (Companion und die Elgato App) und deine eigenen Server. Bis zu 4 Server und bis zu 4 Dock-Rechner können gleichzeitig verbunden sein, in jeder Mischung.
+Companion über Satellite, die Network-Dock-Rechner (Companion und die Elgato-App) und deine eigenen Server stehen in einer Liste. Bis zu 4 Server und 4 Dock-Rechner sind gleichzeitig verbunden, in jeder Mischung.
 
-Eines davon ist **gewählt**. Es zeichnet und bekommt die Eingaben. Die anderen bleiben verbunden und zeichnen im Hintergrund in ihr eigenes Bild. Beim Wechsel zeigt das Deck sofort das Bild des neuen Programms.
+Eines davon ist **gewählt**. Es zeichnet und bekommt die Eingaben. Die anderen bleiben verbunden und zeichnen im Hintergrund in ihr eigenes Bild. Nach einem Wechsel zeigt das Deck sofort das Bild des neuen Programms.
 
 ## Wechseln
 
-- **Am Deck.** Die obere Reihe des Startbildschirms und des Menüs zeigt die Programme. Tippe eins an und dann noch einmal, solange **Wechseln?** dasteht.
-- **In der Weboberfläche.** Wähle unter **Aktive Quelle** auf der Übersicht eine andere Zeile.
-- **Über die API.** Schick `controller` und `host` zusammen, siehe unten.
+<HostSwitch lang="de" />
 
-Zeichnet niemand, zeigt das Deck seinen Startbildschirm. Dort steht, was fehlt, zum Beispiel **Warte auf Companion**.
+- **Am Deck.** Auf dem Startbildschirm tippst du ein Programm an und innerhalb von 3 s noch einmal, solange **Wechseln?** dasteht. Im Menü wechselt ein Tippen.
+- **In der Weboberfläche.** Unter **Aktive Quelle** auf der Übersicht eine andere Zeile wählen ([Demo](/de/demo/#overview)).
+- **Über die API.** `controller` und `host` setzen, siehe unten.
+
+Zeichnet niemand, zeigt das Deck seinen Startbildschirm und sagt, was fehlt, zum Beispiel **Warte auf Companion**.
 
 ## Wenn ein Programm wegfällt
 
-- Ist das gewählte Programm nicht verbunden, zeichnet der erste verbundene Rechner desselben Programms. Bei Companion kommt die Satellite-Verbindung zuerst.
-- Bei eigenen Servern zeichnet der erste verbundene der Liste. Fällt er weg, übernimmt der nächste. Das geht sofort, wenn die Verbindung schließt, und innerhalb von 6 s, wenn der Server verstummt.
-- Ist kein Rechner des gewählten Programms verbunden, zeigt das Deck seinen Startbildschirm.
+- Der erste verbundene Rechner desselben Programms zeichnet. Bei Companion kommt Satellite zuerst.
+- Server übernehmen in der Reihenfolge der Liste. Sofort, wenn die Verbindung schließt, innerhalb von 6 s, wenn der Server verstummt.
+- Ist kein Rechner des gewählten Programms da, zeigt das Deck seinen Startbildschirm.
 
 ## Über die API
 
@@ -27,15 +29,15 @@ Zwei Einstellungen wählen das Programm. `controller` ist das Programm, `host` n
 
 | `controller` | Programm | `host` |
 |---|---|---|
-| `companion` | Companion, über Satellite oder als Dock-Rechner | `satellite` oder die IP des Dock-Rechners |
-| `app` | Die Elgato App | Die IP des Dock-Rechners |
+| `companion` | Companion, Satellite oder Dock | `satellite` oder die IP des Dock-Rechners |
+| `app` | Die Elgato-App | Die IP des Dock-Rechners |
 | `server` | Deine eigenen Server | Die Server-URL |
 
-Ein leerer `host` heißt, der erste verbundene Rechner dieses Programms.
+Ist `host` leer, zeichnet der erste verbundene Rechner dieses Programms. Die Änderung wirkt sofort.
 
 ```bash
 curl -u admin:PASSWORT -H 'X-DeckConnector: 1' -X PUT \
   -d '{"controller": "companion", "host": "satellite"}' http://192.168.1.50/api/config
 ```
 
-Die Änderung wirkt sofort, ohne Neustart.
+<Next lang="de" links={[['API', '/de/docs/api/#einstellungen']]} />

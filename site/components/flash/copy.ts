@@ -1,7 +1,6 @@
 const en = {
-  eyebrow: 'Flasher',
   title: 'Install DeckConnector',
-  lead: 'Put the firmware on your board right from this page. Then set Wi-Fi, a password and a name over the same cable. There is nothing to install on your computer.',
+  lead: 'Flash over USB, nothing to install.',
   steps: ['Browser', 'Connect', 'Install', 'Set up', 'Ready'],
   step: 'Step {n} of {all}',
 
@@ -41,7 +40,7 @@ const en = {
   showAll: 'Board not in the list? Show all ports',
   cable: 'Still nothing in the list? Some USB-C cables only charge. Try another cable.',
   dlT: 'If the board does not answer',
-  dl: ['Hold the BOOT button on the board.', 'Press and release RESET.', 'Release BOOT.', 'Click Connect again.'],
+  dl: ['Hold the BOOT button on the board.', 'Press and release RST.', 'Release BOOT.', 'Click Connect again.'],
   errNoAnswer: 'The board did not answer.',
   errNoAnswerDo: 'Put it into download mode by hand as shown below, then click Connect again.',
   errBusy: 'Another program is using this port.',
@@ -99,7 +98,7 @@ const en = {
   booting: 'Waiting for the board to start…',
   bootingHint: 'It starts its network and web server first. That takes up to 15 seconds.',
   noBoot: 'The board does not answer.',
-  noBootDo: 'Press RESET on the board once and try again. If it still does not answer, look at the log below.',
+  noBootDo: 'Press RST on the board once and try again. If it still does not answer, look at the log below.',
   retry: 'Try again',
   installed: 'DeckConnector {v} is installed',
   board: 'Board',
@@ -141,7 +140,7 @@ const en = {
   err1: 'The board rejected the data. A Wi-Fi password has 8 to 63 characters, or 64 hex digits.',
   err2: 'This firmware does not know the command. Install the current firmware.',
   err3: 'Could not join "{ssid}". Check the password, and that the board is in range of the Wi-Fi.',
-  err4: 'The board takes settings over USB only during the first setup, or in the first 5 minutes after it starts. Press RESET on the board, then save again.',
+  err4: 'The board takes settings over USB only during the first setup, or in the first 5 minutes after it starts. Press RST on the board, then save again.',
   err5: 'The board rejected the name. Use letters, digits and hyphens only, up to 31.',
   errFF: 'The board reported an error. The log below has details.',
   errTimeout: 'The board did not answer in time. Check the cable and try again.',
@@ -149,7 +148,7 @@ const en = {
 
   readyT: 'Your board is ready',
   readyText: 'DeckConnector runs on your network. Open the web UI to connect your deck to Companion or the Elgato app.',
-  readyOffline: 'The board is not online yet. Plug in a network cable, or connect again and set up Wi-Fi.',
+  readyOffline: 'The board is not online yet. Connect again and set up Wi-Fi, or plug in a network cable.',
   readyLater: 'The firmware is installed. Finish the setup in the web UI. The deck shows a QR code that opens it.',
   open: 'Open web UI',
   mdns: 'Also as',
@@ -160,6 +159,11 @@ const en = {
   next: 'Flash another board',
   docs: 'Read the guide',
 
+  fix: 'How to fix this',
+  fixUrl: '/docs/flash-troubleshooting/',
+  noPort: 'Other causes',
+  driver: 'USB driver',
+
   log: 'Log',
   logEmpty: 'Nothing yet.',
   logNote: 'Stays in this tab. Passwords are never shown.',
@@ -168,9 +172,8 @@ const en = {
 export type Copy = typeof en
 
 const de: Copy = {
-  eyebrow: 'Flasher',
   title: 'DeckConnector installieren',
-  lead: 'Spiel die Firmware direkt von dieser Seite auf deine Platine. Danach stellst du WLAN, Passwort und Namen über dasselbe Kabel ein. Auf deinem Computer musst du nichts installieren.',
+  lead: 'Über USB flashen, nichts zu installieren.',
   steps: ['Browser', 'Verbinden', 'Installieren', 'Einrichten', 'Fertig'],
   step: 'Schritt {n} von {all}',
 
@@ -210,7 +213,7 @@ const de: Copy = {
   showAll: 'Platine fehlt in der Liste? Alle Anschlüsse zeigen',
   cable: 'Die Liste bleibt leer? Manche USB-C-Kabel laden nur. Nimm ein anderes Kabel.',
   dlT: 'Wenn die Platine nicht antwortet',
-  dl: ['Halte die Taste BOOT auf der Platine gedrückt.', 'Drück kurz RESET.', 'Lass BOOT los.', 'Klick noch einmal auf Verbinden.'],
+  dl: ['Halte die Taste BOOT auf der Platine gedrückt.', 'Drück kurz RST.', 'Lass BOOT los.', 'Klick noch einmal auf Verbinden.'],
   errNoAnswer: 'Die Platine hat nicht geantwortet.',
   errNoAnswerDo: 'Bring sie wie unten gezeigt von Hand in den Download-Modus und klick dann noch einmal auf Verbinden.',
   errBusy: 'Ein anderes Programm benutzt diesen Anschluss.',
@@ -268,7 +271,7 @@ const de: Copy = {
   booting: 'Warte, bis die Platine gestartet ist…',
   bootingHint: 'Sie startet zuerst ihr Netzwerk und den Webserver. Das dauert bis zu 15 Sekunden.',
   noBoot: 'Die Platine antwortet nicht.',
-  noBootDo: 'Drück einmal RESET auf der Platine und versuch es noch einmal. Antwortet sie weiter nicht, hilft ein Blick ins Protokoll unten.',
+  noBootDo: 'Drück einmal RST auf der Platine und versuch es noch einmal. Antwortet sie weiter nicht, hilft ein Blick ins Protokoll unten.',
   retry: 'Noch einmal',
   installed: 'DeckConnector {v} ist installiert',
   board: 'Platine',
@@ -310,7 +313,7 @@ const de: Copy = {
   err1: 'Die Platine hat die Daten abgelehnt. Ein WLAN-Passwort hat 8 bis 63 Zeichen oder 64 Hex-Ziffern.',
   err2: 'Diese Firmware kennt den Befehl nicht. Installiere die aktuelle Firmware.',
   err3: 'Verbindung mit „{ssid}“ fehlgeschlagen. Prüf das Passwort und ob die Platine in Reichweite des WLANs ist.',
-  err4: 'Über USB nimmt die Platine Einstellungen nur während der ersten Einrichtung an oder in den ersten 5 Minuten nach dem Start. Drück RESET auf der Platine und speichere dann noch einmal.',
+  err4: 'Über USB nimmt die Platine Einstellungen nur während der ersten Einrichtung an oder in den ersten 5 Minuten nach dem Start. Drück RST auf der Platine und speichere dann noch einmal.',
   err5: 'Die Platine hat den Namen abgelehnt. Nur Buchstaben, Ziffern und Bindestriche, höchstens 31.',
   errFF: 'Die Platine hat einen Fehler gemeldet. Details stehen im Protokoll unten.',
   errTimeout: 'Die Platine hat nicht rechtzeitig geantwortet. Prüf das Kabel und versuch es noch einmal.',
@@ -318,7 +321,7 @@ const de: Copy = {
 
   readyT: 'Deine Platine ist bereit',
   readyText: 'DeckConnector läuft in deinem Netz. Öffne die Weboberfläche und verbinde dein Deck mit Companion oder der Elgato-App.',
-  readyOffline: 'Die Platine ist noch nicht online. Steck ein Netzwerkkabel ein oder verbinde neu und richte WLAN ein.',
+  readyOffline: 'Die Platine ist noch nicht online. Verbinde neu und richte WLAN ein oder steck ein Netzwerkkabel ein.',
   readyLater: 'Die Firmware ist installiert. Schließ die Einrichtung in der Weboberfläche ab. Das Deck zeigt einen QR-Code, der sie öffnet.',
   open: 'Weboberfläche öffnen',
   mdns: 'Auch als',
@@ -328,6 +331,11 @@ const de: Copy = {
   wlan: 'WLAN',
   next: 'Weitere Platine flashen',
   docs: 'Zur Anleitung',
+
+  fix: 'So behebst du das',
+  fixUrl: '/de/docs/flash-troubleshooting/',
+  noPort: 'Weitere Ursachen',
+  driver: 'USB-Treiber',
 
   log: 'Protokoll',
   logEmpty: 'Noch nichts.',

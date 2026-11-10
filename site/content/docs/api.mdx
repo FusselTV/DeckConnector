@@ -24,14 +24,9 @@ curl -H 'Authorization: Bearer KEY' http://192.168.1.50/api/status
 
 ## Access levels
 
-Each route has one level. The tables below show it in the last column.
+Each route has one level, in the last column of the tables below.
 
-| Level | Who |
-|---|---|
-| `open` | Everyone |
-| `control` | Password, and API keys with the right `control` or `full` |
-| `full` | Password, and API keys with the right `full` |
-| `admin` | Password only |
+<AuthLevels />
 
 No API key changes `admin_pass`, `setup_done` or `qr_login`. Those answer 403.
 
@@ -39,7 +34,7 @@ While the deck shows the password or the setup login code, or the setup Wi-Fi is
 
 ## Errors
 
-Errors are JSON with a matching HTTP status. `error` is English text. Errors a person can meet also carry `code`, which stays the same when the text changes.
+Errors are JSON with a matching HTTP status. `error` is English text. `code`, where present, stays the same when the text changes.
 
 ```json
 {"ok": false, "error": "not signed for this DeckConnector", "code": "ota_not_signed"}
@@ -132,7 +127,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `POST /api/ota` | A signed `.dbfw` file as the body. Goes into the next slot and restarts. `?slot=N` writes into slot N, `?boot=0` keeps the running firmware | full |
 | `POST /api/ota/url` | `{"url": "http://..."}`, the board loads the file itself. Progress comes over the WebSocket | full |
 | `POST /api/ota/inspect` | The first 144 bytes of a file. Answers `target`, `version`, `length`, `sha256`, and `ok` with `error` | full |
-| `GET /api/update/check` | `{"current": "v0.1.0", "latest": null, ...}` | full |
+| `GET /api/update/check` | `{"current": "v0.2.0", "latest": null, ...}` | full |
 | `GET /api/slots` | The four slots with `state`, `version`, `running`, `next`, `bootable` and `why_not` | full |
 | `POST /api/slots/<n>/boot` | Restart into slot N. 409 when it cannot start | full |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api`, and `version` for an uploaded one | control |
@@ -210,7 +205,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 ## Status
 
 ```json
-{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.1.0",
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.2.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
  "menu_open": false,
@@ -250,7 +245,7 @@ The status also has `boot_ms`, `memory` and `https_fingerprint`.
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
 ```
 
-Draw the JPEGs in this order at their place to get the picture. An image keeps its URL until something covers it, so a browser may cache it. A URL that is gone answers 404.
+Draw the JPEGs in order at their place to get the picture. An image keeps its URL until something covers it, so a browser may cache it. A URL that is gone answers 404.
 
 ## Input
 
@@ -268,7 +263,7 @@ Draw the JPEGs in this order at their place to get the picture. An image keeps i
 `action` is `press` (the default), `down`, `up`, or `turn` for dials. Positive ticks turn right.
 
 <Callout type="warn" title="Real presses">
-Companion, the Elgato App and the Satellite connection get an API press only with `"real"`, because their keys switch real things. Without it, the press reaches only the board's own screens and your own servers. `"real": true` is for a person at a web page. A script names the host instead, `"real": "192.168.1.10"`, and the press goes out only while that host draws.
+Companion, the Elgato app and the Satellite connection get an API press only with `"real"`, because their keys switch real things. Without it, the press reaches only the board's own screens and your own servers. `"real": true` is for a person at a web page. A script names the host instead, `"real": "192.168.1.10"`, and the press goes out only while that host draws.
 </Callout>
 
 Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host in work only on the deck itself.
@@ -308,3 +303,5 @@ To change something, send the keys of `PUT /api/config` or `POST /api/input` wit
 {"t": "input", "id": 2, "key": 3}
 {"t": "result", "id": 1, "status": 200, "reply": {"ok": true, "restart": false}}
 ```
+
+<Next links={[['Own server', '/docs/own-server/'], ['Home Assistant', '/docs/home-assistant/']]} />

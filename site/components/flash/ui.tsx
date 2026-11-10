@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronRight, CircleAlert, Eye, EyeOff, Info, TriangleAlert } from 'lucide-react'
-import { AMBER, at, Board, BOARD_USB, BOARD_RJ45, Glow, GREEN, RED } from '~/remotion/hw'
+import { AMBER, at, Board, BOARD_USB, BOARD_RJ45, Glow, GREEN, RED } from '~/remotion/board'
 import { fill, type Copy } from './copy'
 
 export const card = 'rounded-xl border border-line bg-panel shadow-panel'
@@ -52,6 +52,14 @@ export function Note({ lvl, title, children }: { lvl: 'info' | 'warn' | 'bad' | 
         {children && <div className="text-fg-2">{children}</div>}
       </div>
     </div>
+  )
+}
+
+export function Fix({ c, id }: { c: Copy; id: string }) {
+  return (
+    <a href={`${c.fixUrl}#${id}`} className="mt-1 block w-fit font-medium text-fg underline decoration-line-2 underline-offset-4 hover:decoration-current">
+      {c.fix}
+    </a>
   )
 }
 
@@ -110,7 +118,7 @@ export function Bar({ value, tone = 'amber', label }: { value: number | null; to
   )
 }
 
-export function Field({ id, label, hint, err, children }: { id: string; label: string; hint?: ReactNode; err?: string | null; children: ReactNode }) {
+export function Field({ id, label, hint, err, children }: { id: string; label: string; hint?: ReactNode; err?: ReactNode; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm font-medium">
@@ -183,7 +191,7 @@ export function BoardArt({ focus, className = '' }: { focus: 'usb' | 'buttons' |
   const [rx, ry] = at(board, BOARD_RJ45)
   const keys = [
     ['BOOT', at(board, [86, 126])],
-    ['RESET', at(board, [106, 126])],
+    ['RST', at(board, [106, 126])],
   ] as const
   const ping = 'animate-ping [transform-box:fill-box] [transform-origin:center] motion-reduce:animate-none'
   const label = 'font-mono text-[10px] font-semibold tracking-wide'
@@ -191,7 +199,7 @@ export function BoardArt({ focus, className = '' }: { focus: 'usb' | 'buttons' |
   const usb = focus === 'usb'
   const btn = focus === 'buttons'
   return (
-    <svg viewBox="0 0 360 256" className={className} role="img" aria-label="ESP32-P4 PoE board: USB-C port, BOOT and RESET buttons">
+    <svg viewBox="0 0 360 256" className={className} role="img" aria-label="ESP32-P4 PoE board: USB-C port, BOOT and RST buttons">
       <defs>
         {[AMBER, GREEN, RED].map((c) => (
           <Glow key={c} c={c} />
