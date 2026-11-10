@@ -139,6 +139,5 @@ AGPL-3.0, see [LICENSE](LICENSE).
 | [cJSON](https://github.com/DaveGamble/cJSON) | MIT |
 | [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
 | DejaVu Sans, in `db_ui/font_data.c` | Bitstream Vera license |
-| Material Design Icons, in `db_ui/font_data.c` | Apache-2.0 |
 | React, React DOM | MIT |
-| Lucide icons (lucide-react) | ISC |
+| Lucide icons (lucide-react, and in `db_ui/font_data.c`) | ISC |
