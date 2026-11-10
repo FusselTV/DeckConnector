@@ -1,4 +1,4 @@
-// Compares the deck screens host_test/test_ui.c saves (build/ui/*.ppm) between main and a pull request.
+// Compares the deck screens firmware/host_test/test_ui.c saves (build/ui/*.ppm) between main and a pull request.
 // Writes before | after | diff as PNG for each changed screen and prints the Markdown for the PR comment,
 // with {{preview}} where the URL of the images goes.
 // node screen-diff.mjs <main ui dir> <pr ui dir> <png out dir>

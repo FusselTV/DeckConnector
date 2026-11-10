@@ -1,6 +1,6 @@
 """Generate firmware/components/db_ui/font_data.c and icons.h: anti-aliased 4 bit glyphs from DejaVu Sans and
 Lucide, the icons of the web page. Usage: gen_font.py <lucide.ttf> <dir with DejaVuSansCondensed.ttf>
-(npm pack lucide-static@1.70.0, the web's lucide-react version, and dejavu-fonts-ttf@2.37.3), then clang-format."""
+(npm pack lucide-static@1.71.0, the web's lucide-react version, and dejavu-fonts-ttf@2.37.3), then clang-format."""
 
 import json
 import sys

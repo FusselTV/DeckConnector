@@ -11,7 +11,7 @@ include(FetchContent)
 FetchContent_Declare(unity GIT_REPOSITORY https://github.com/ThrowTheSwitch/Unity.git GIT_TAG v2.6.1)
 FetchContent_MakeAvailable(unity)
 
-add_subdirectory(../firmware/components/db_core db_core)
+add_subdirectory(../components/db_core db_core)
 
 enable_testing()
 foreach(t test_regions test_proto test_elgato test_image test_cora test_screen test_dns test_ptable test_improv)
@@ -24,7 +24,7 @@ add_executable(test_sat test_sat.c)
 target_link_libraries(test_sat db_core unity z)
 add_test(NAME test_sat COMMAND test_sat)
 
-set(ui ../firmware/components/db_ui)
+set(ui ../components/db_ui)
 add_executable(test_ui test_ui.c ${ui}/screens.c ${ui}/render.c ${ui}/canvas.c ${ui}/font_data.c)
 target_include_directories(test_ui PRIVATE ${ui})
 target_compile_definitions(test_ui PRIVATE UI_OUT="${CMAKE_BINARY_DIR}/ui")

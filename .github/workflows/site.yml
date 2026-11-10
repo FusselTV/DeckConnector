@@ -2,11 +2,11 @@ name: site
 on:
   push:
     branches: [main]
-    paths: [site/**, web/**, THIRD_PARTY_LICENSES.txt, firmware/components/db_ui/**, firmware/components/db_core/**, host_test/**, .github/scripts/**, .github/workflows/site.yml]
+    paths: [site/**, web/**, THIRD_PARTY_LICENSES.txt, firmware/components/db_ui/**, firmware/components/db_core/**, firmware/host_test/**, .github/scripts/**, .github/workflows/site.yml]
   release:
     types: [published]
   pull_request:
-    paths: [site/**, web/**, THIRD_PARTY_LICENSES.txt, firmware/components/db_ui/**, firmware/components/db_core/**, host_test/**, .github/scripts/**, .github/workflows/site.yml]
+    paths: [site/**, web/**, THIRD_PARTY_LICENSES.txt, firmware/components/db_ui/**, firmware/components/db_core/**, firmware/host_test/**, .github/scripts/**, .github/workflows/site.yml]
   workflow_dispatch:
 
 permissions: {}
@@ -44,7 +44,7 @@ jobs:
           for side in base pr; do
             src=.; [ $side = base ] && src=.base
             b="$RUNNER_TEMP/ui-$side"
-            cmake -S "$src/host_test" -B "$b" > /dev/null && cmake --build "$b" --target test_ui -j4 > /dev/null \
+            cmake -S "$src/firmware/host_test" -B "$b" > /dev/null && cmake --build "$b" --target test_ui -j4 > /dev/null \
               && (cd "$b" && ./test_ui > /dev/null) || echo "::warning::the deck screens of $side were not drawn"
           done
           {

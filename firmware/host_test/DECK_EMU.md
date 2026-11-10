@@ -32,7 +32,7 @@ back with `parse_output` when the driver has it.
 
 ```
 export PATH=$HOME/.espressif/tools/cmake/4.0.3/bin:$HOME/.espressif/tools/ninja/1.12.1:$PATH
-cmake -S host_test -B build-host -G Ninja && cmake --build build-host
+cmake -S firmware/host_test -B build-host -G Ninja && cmake --build build-host
 ./build-host/test_decks                    # all 16 PIDs
 DECK_PIDS=84,c6 ./build-host/test_decks    # a subset, hex, 0x prefix optional
 ```
