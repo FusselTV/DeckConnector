@@ -172,6 +172,9 @@ export const en = {
   'access.cors': 'Access from other web pages (CORS)',
   'access.cors_h':
     'Only needed when another web page in the browser should call this API, for example your own dashboard at https://dash.example.org. Separate several addresses with commas.',
+  'fw.license': 'License',
+  'fw.source': 'Source code',
+  'fw.licenses': 'Licenses',
   'fw.page': 'Web interface',
   'fw.src_partition': 'uploaded',
   'fw.src_builtin': 'from the firmware',
