@@ -2,11 +2,11 @@ name: site
 on:
   push:
     branches: [main]
-    paths: [site/**, web/**, firmware/components/db_ui/**, firmware/components/db_core/**, host_test/**, .github/scripts/**, .github/workflows/site.yml]
+    paths: [site/**, web/**, THIRD_PARTY_LICENSES.txt, firmware/components/db_ui/**, firmware/components/db_core/**, host_test/**, .github/scripts/**, .github/workflows/site.yml]
   release:
     types: [published]
   pull_request:
-    paths: [site/**, web/**, firmware/components/db_ui/**, firmware/components/db_core/**, host_test/**, .github/scripts/**, .github/workflows/site.yml]
+    paths: [site/**, web/**, THIRD_PARTY_LICENSES.txt, firmware/components/db_ui/**, firmware/components/db_core/**, host_test/**, .github/scripts/**, .github/workflows/site.yml]
   workflow_dispatch:
 
 permissions: {}
