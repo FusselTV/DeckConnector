@@ -7,16 +7,36 @@ Firmware, Weboberfläche, Werkzeuge und diese Website stehen unter der [GNU Affe
 
 ## Fremder Code
 
+Die Firmware und die Weboberfläche auf dem Gerät enthalten den folgenden Code. In [THIRD_PARTY_LICENSES.txt](/firmware/THIRD_PARTY_LICENSES.txt) stehen die Copyright-Hinweise und die vollen Lizenztexte. Die Datei liegt auch jedem Release bei.
+
 | Teil | Lizenz |
 |---|---|
-| [ESP-IDF](https://github.com/espressif/esp-idf) und seine Komponenten (esp_hosted, esp_wifi_remote, eppp_link, mdns, usb) | Apache-2.0 |
-| Angepasste Kopien aus esp-idf und esp-usb in `firmware/vendor`, jede mit ihrer LICENSE | Apache-2.0 |
-| [cJSON](https://github.com/DaveGamble/cJSON) | MIT |
-| [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
+| [ESP-IDF](https://github.com/espressif/esp-idf) 6.0.2 und seine Komponenten (esp_hosted, esp_wifi_remote, mdns, usb) | Apache-2.0 |
+| Geänderte Kopien aus esp-idf, esp-usb und esp-protocols in `firmware/vendor`. Jede geänderte Datei sagt das oben im Kopf. | Apache-2.0 |
+| [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) 4.1 und TF-PSA-Crypto. Wir nutzen sie unter Apache-2.0. | Apache-2.0 oder GPL-2.0-or-later |
+| FreeRTOS-Kernel | MIT |
+| lwIP, der Speicher-Allokator TLSF | BSD-3-Clause |
+| protobuf-c, in esp_hosted | BSD-2-Clause |
+| SD/MMC-Treiber von ESP-IDF | ISC |
+| [cJSON](https://github.com/DaveGamble/cJSON), HTTP Parser, [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
+| [picolibc](https://github.com/picolibc/picolibc), die C-Bibliothek | BSD-artige Lizenzen |
+| Die CA-Stammzertifikate von Mozilla im Zertifikatsbündel von ESP-IDF | MPL-2.0 |
 | DejaVu Sans, in der Deck-Schrift | Bitstream-Vera-Lizenz |
+| [Lucide](https://lucide.dev)-Icons, in der Deck-Schrift, der Weboberfläche und dieser Website | ISC, MIT für die Icons aus Feather |
 | React, React DOM | MIT |
-| Lucide-Icons, auch in der Deck-Schrift | ISC |
-| Geist, die Schrift der Weboberfläche | OFL-1.1 |
+| Geist, die Schrift der Weboberfläche und dieser Website | OFL-1.1 |
+
+## Diese Website
+
+| Teil | Lizenz |
+|---|---|
+| Next.js, React, Fumadocs, Base UI, Floating UI, next-themes, micromark | MIT |
+| [esptool-js](https://github.com/espressif/esptool-js) und pako, im Flasher | Apache-2.0, MIT und Zlib |
+| zbsearch, class-variance-authority, @swc/helpers | Apache-2.0 |
+| [Remotion](https://www.remotion.dev), für die Animationen | Remotion License. Sie ist keine Open-Source-Lizenz und nicht Teil der AGPL-Lizenz dieser Website. |
+| JetBrains Mono, die Schrift für Code | OFL-1.1 |
+
+Die Demo auf dieser Website führt die Weboberfläche und die Deck-Bildschirme der Firmware aus. Für sie gilt auch die erste Tabelle.
 
 Elgato und Stream Deck sind Marken von Corsair. Bitfocus Companion ist ein Produkt der Bitfocus AS. DeckConnector gehört zu keinem der beiden.
 

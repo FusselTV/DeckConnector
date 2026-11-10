@@ -7,16 +7,36 @@ The firmware, the web UI, the tools and this site are licensed under the [GNU Af
 
 ## Third-party code
 
+The firmware and the web UI that the device serves contain the code below. [THIRD_PARTY_LICENSES.txt](/firmware/THIRD_PARTY_LICENSES.txt) has the copyright notices and the full license texts. It also comes with every release.
+
 | Part | License |
 |---|---|
-| [ESP-IDF](https://github.com/espressif/esp-idf) and its components (esp_hosted, esp_wifi_remote, eppp_link, mdns, usb) | Apache-2.0 |
-| Patched copies from esp-idf and esp-usb in `firmware/vendor`, each with its LICENSE | Apache-2.0 |
-| [cJSON](https://github.com/DaveGamble/cJSON) | MIT |
-| [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
+| [ESP-IDF](https://github.com/espressif/esp-idf) 6.0.2 and its components (esp_hosted, esp_wifi_remote, mdns, usb) | Apache-2.0 |
+| Changed copies from esp-idf, esp-usb and esp-protocols in `firmware/vendor`. Each changed file says so at the top. | Apache-2.0 |
+| [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) 4.1 and TF-PSA-Crypto. We use them under Apache-2.0. | Apache-2.0 or GPL-2.0-or-later |
+| FreeRTOS kernel | MIT |
+| lwIP, the TLSF memory allocator | BSD-3-Clause |
+| protobuf-c, in esp_hosted | BSD-2-Clause |
+| SD/MMC driver of ESP-IDF | ISC |
+| [cJSON](https://github.com/DaveGamble/cJSON), HTTP Parser, [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
+| [picolibc](https://github.com/picolibc/picolibc), the C library | BSD-style licenses |
+| The CA root certificates from Mozilla, in the certificate bundle of ESP-IDF | MPL-2.0 |
 | DejaVu Sans, in the deck font | Bitstream Vera license |
+| [Lucide](https://lucide.dev) icons, in the deck font, the web UI and this site | ISC, MIT for the icons from Feather |
 | React, React DOM | MIT |
-| Lucide icons, also in the deck font | ISC |
-| Geist, the font of the web page | OFL-1.1 |
+| Geist, the font of the web UI and this site | OFL-1.1 |
+
+## This site
+
+| Part | License |
+|---|---|
+| Next.js, React, Fumadocs, Base UI, Floating UI, next-themes, micromark | MIT |
+| [esptool-js](https://github.com/espressif/esptool-js) and pako, in the flasher | Apache-2.0, MIT and Zlib |
+| zbsearch, class-variance-authority, @swc/helpers | Apache-2.0 |
+| [Remotion](https://www.remotion.dev), for the animations | Remotion License. It is not open source and not part of the AGPL license of this site. |
+| JetBrains Mono, the code font | OFL-1.1 |
+
+The demo on this site runs the web UI and the deck screens of the firmware. The parts in the first table apply to it too.
 
 Elgato and Stream Deck are trademarks of Corsair. Bitfocus Companion is a product of Bitfocus AS. DeckConnector is not affiliated with either.
 
