@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-/* Layouts as in @elgato-stream-deck/tcp. */
+/* Network Dock protocol as Companion (@elgato-stream-deck/tcp) and the Elgato App expect it. */
 
 static const uint8_t magic[4] = {0x43, 0x93, 0x8a, 0x41};
 
@@ -51,8 +51,7 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
 }
 
-/* Fixed answers, byte for byte as the Elgato App expects them. It checks 0x81 to 0x8f.
- */
+/* Fixed answers the emulated dock reports to Companion and the Elgato App, which checks 0x81 to 0x8f. */
 static const struct {
     uint8_t cmd;
     uint8_t len;
@@ -111,7 +110,7 @@ void db_cora_dock_report(uint8_t cmd, const db_cora_dock_t *dock, uint8_t out[DB
         out[2] = 6;
         memcpy(out + 4, dock->mac, 6);
         break;
-    case 0x8f: /* 03 8f 02 00 01 with a device attached, 03 8f 02 00 02 without */
+    case 0x8f: /* 01 with a device attached, 02 without */
         out[2] = 0x02;
         out[4] = dock->device ? 0x01 : 0x02;
         break;
