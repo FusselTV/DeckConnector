@@ -8,7 +8,7 @@ export type Row = { k: string; a: Cell; b: Cell; win?: 'a' | 'b'; top?: true }
 
 const en = {
   meta: {
-    title: 'Wi-Fi alternative to the Elgato Network Dock',
+    title: 'Stream Deck on Wi-Fi vs. Elgato Network Dock',
     description:
       'DeckConnector vs the Elgato Network Dock: Wi-Fi, price, Companion, Elgato app, several computers. Honest table, tested on the bench.',
   },
@@ -109,7 +109,7 @@ const en = {
 
 const de: typeof en = {
   meta: {
-    title: 'WLAN-Alternative zum Elgato Network Dock',
+    title: 'Stream Deck im WLAN vs. Elgato Network Dock',
     description:
       'DeckConnector und Elgato Network Dock im Vergleich: WLAN, Preis, Companion, Elgato-App, mehrere Rechner. Ehrlich, auf dem Prüfstand getestet.',
   },

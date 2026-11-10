@@ -103,9 +103,10 @@ GCC runtime libraries (libgcc, libstdc++)
 Web page
 --------
 
-The device serves this page. It is also inside the firmware image. The
-release copy of this file lists the npm packages it bundles (React,
-lucide-react) at the end, each with its license text.
+The device serves this page. It is also inside the firmware image. The web
+build writes the npm packages it bundles (React, lucide-react) with their
+license texts to web/dist/licenses.md. The release copy of this file has
+them at the end.
 
 SIL Open Font License 1.1 (text I)
   Geist, Copyright 2026 The Geist Project Authors
