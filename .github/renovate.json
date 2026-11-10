@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigestsToSemver"],
+  "schedule": ["* 0-5 1 * *"],
+  "minimumReleaseAge": "7 days",
+  "lockFileMaintenance": { "enabled": true, "schedule": ["* 0-5 1 * *"] },
+  "packageRules": [
+    { "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"], "groupName": "all non-major" },
+    {
+      "description": "firmware/vendor/esp_hal_usb is a patched copy of this version's USB HAL. Update both and test on a board.",
+      "matchPackageNames": ["espressif/idf"],
+      "dependencyDashboardApproval": true
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Python tools the workflows run by version",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": ["uvx (?<depName>[\\w-]+)@(?<currentValue>[\\d.]+)", "pipx run (?<depName>[\\w-]+)==(?<currentValue>[\\d.]+)"],
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": "npm tools the workflows run by version",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": ["npx -y (?<depName>@?[\\w/.-]+)@(?<currentValue>[\\d.]+)"],
+      "datasourceTemplate": "npm"
+    }
+  ]
+}
