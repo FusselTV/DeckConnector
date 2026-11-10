@@ -6,7 +6,7 @@
     "dev": "node scripts/copy-firmware.mjs && node scripts/copy-demo.mjs && next dev",
     "build": "node scripts/copy-firmware.mjs && node scripts/copy-demo.mjs && next build && node scripts/de-404.mjs",
     "typecheck": "next typegen && tsc --noEmit",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "oxlint --type-aware --max-warnings 0 .",
     "check": "npm run typecheck && npm run lint && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs",
     "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs"
   },
@@ -25,24 +25,15 @@
     "zbsearch": "4.0.2"
   },
   "devDependencies": {
-    "@eslint/js": "10.0.1",
-    "@next/eslint-plugin-next": "16.4.6",
     "@tailwindcss/postcss": "4.3.5",
     "@types/mdx": "2.0.14",
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "10.14.0",
-    "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "17.14.0",
+    "oxlint": "1.93.0",
+    "oxlint-tsgolint": "7.0.2006",
     "tailwindcss": "4.3.5",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.72.2"
-  },
-  "overrides": {
-    "eslint-plugin-jsx-a11y": {
-      "eslint": "$eslint"
-    }
+    "typescript": "7.0.2"
   }
 }

@@ -20,7 +20,7 @@ describe('request', () => {
     const [url, init] = f.mock.calls[0] ?? []
     expect(url).toBe('/api/config')
     expect(init?.method).toBe('PUT')
-    expect((init?.headers as Record<string, string>)['X-DeckConnector']).toBe('1')
+    expect((init?.headers as Record<string, string> | undefined)?.['X-DeckConnector']).toBe('1')
     expect(init?.body).toBe('{"brightness":40}')
   })
 
@@ -70,7 +70,7 @@ describe('inspect', () => {
   it('sends only the 144-byte header for inspection', async () => {
     const f = mockFetch(reply(200, { ok: true, target: 'p4', version: 'v1' }))
     await api.inspect(new Blob([new Uint8Array(4096)]))
-    expect((f.mock.calls[0]?.[1]?.body as Blob).size).toBe(144)
+    expect((f.mock.calls[0]?.[1]?.body as Blob | undefined)?.size).toBe(144)
   })
 })
 

@@ -555,6 +555,7 @@ export function Firmware() {
             ],
             [t('dia.id'), st.id, true],
             [t('dia.api'), st.api, true],
+            // oxlint-disable-next-line react/jsx-key -- a table cell in a [label, value] pair, not a list item
             [t('fw.license'), <Source version={st.firmware} />],
           ]}
         />
