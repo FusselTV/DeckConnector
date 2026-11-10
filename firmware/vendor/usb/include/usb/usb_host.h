@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for DeckConnector: the usb_host_lib_set_root_port_power() return values.
  */
 
 #pragma once
