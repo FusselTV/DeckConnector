@@ -57,6 +57,8 @@ jobs:
         with:
           enable-cache: false
       - run: cd web && npm ci && npm run build:demo
+      # site's search test drives web's Playwright
+      - run: cd web && npx playwright install --with-deps --only-shell chromium
       # Release assets send no CORS headers, so the flasher gets its copy from the site.
       - name: Firmware of the latest release
         env:
