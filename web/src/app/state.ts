@@ -14,6 +14,9 @@ export const fromHash = (): Tab => {
 
 export const langAtom = atom<Lang>(ls.get<Lang>('dc.lang', guessLang()))
 export const themeAtom = atom<'light' | 'dark' | null>(ls.get<'light' | 'dark' | null>('dc.theme', null))
+// Stored on a change only: the demo must not write storage before the visitor does something.
+langAtom.subscribe(() => ls.set('dc.lang', langAtom.get()))
+themeAtom.subscribe(() => ls.set('dc.theme', themeAtom.get()))
 export const tabAtom = atom<Tab>(fromHash())
 
 export interface Toast {

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ')
 
-const store = (st: () => Storage) => ({
+export const store = (st: () => Storage) => ({
   get<V>(k: string, d: V): V {
     try {
       const v = st().getItem(k)

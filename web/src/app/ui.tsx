@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ApiError } from '../api/client'
 import { makeT, type Lang, type T, type TKey } from '../i18n'
 import { makeFmt, type Fmt } from '../lib/format'
-import { ls } from '../lib/util'
 import { getState } from './store'
 import { armAtom, ARM_MS, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
 
@@ -59,12 +58,10 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
 
   useEffect(() => {
     document.documentElement.lang = lang
-    ls.set('dc.lang', lang)
   }, [lang])
   useEffect(() => {
     if (theme) document.documentElement.dataset.theme = theme
     else delete document.documentElement.dataset.theme
-    ls.set('dc.theme', theme)
   }, [theme])
   useEffect(() => {
     const f = () => tabAtom.set(fromHash())

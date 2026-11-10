@@ -1,7 +1,8 @@
 import type { WsMsg } from '../api/types'
 import { fontsReady, paint } from './deck'
 import { deckUiReady } from './deck-ui'
-import { boot, face, fresh, history, input, isDown, putConfig, tick, wsState, type Demo } from './model'
+import { boot, face, fresh, history, input, isDown, PASS, putConfig, tick, wsState, type Demo } from './model'
+import { ls, store } from '../lib/util'
 import { handle, type Body } from './server'
 
 await deckUiReady
@@ -12,6 +13,8 @@ const KEY = 'dc.demo'
 const params = new URLSearchParams(location.search)
 const mode = params.has('setup') ? 'setup' : params.has('login') ? 'login' : ''
 
+// The demo's starting values live in memory: storage is written only once the visitor changes a setting.
+const start: Record<string, unknown> = {}
 for (const [k, ok] of [
   ['lang', ['de', 'en']],
   ['theme', ['light', 'dark']],
@@ -19,20 +22,22 @@ for (const [k, ok] of [
   // Without ?theme the demo takes the website's theme, which next-themes keeps under "theme" on this origin.
   const v = params.get(k) ?? (k === 'theme' ? localStorage.getItem('theme') : null)
   if (!v || !(ok as readonly string[]).includes(v)) continue
-  localStorage.setItem(`dc.${k}`, JSON.stringify(v))
+  start[`dc.${k}`] = v
   // React sets it only after its first render, and until then a light system theme flashed through the site's dark one.
   if (k === 'theme') document.documentElement.dataset.theme = v
   if (k === 'lang') document.documentElement.lang = v
 }
+const real = store(() => localStorage)
 // A visitor came to press keys: the live deck starts open, also on a phone.
-if (localStorage.getItem('dc.deckOpen') === null) localStorage.setItem('dc.deckOpen', 'true')
+ls.get = <V>(k: string, d: V): V => (k in start ? (start[k] as V) : real.get(k, k === 'dc.deckOpen' ? (true as V) : d))
+ls.set = (k, v) => real.set(k, v)
 if (window.parent !== window) document.documentElement.classList.add('embed')
 
 function load(): Demo {
   try {
     const raw = sessionStorage.getItem(KEY)
     const s = raw ? (JSON.parse(raw) as { v?: number; mode?: string }) : null
-    if (s?.v === 8 && s.mode === mode) return s as Demo
+    if (s?.v === 8 && s.mode === mode) return { ...(s as Demo), pass: PASS }
   } catch {
     /* a fresh demo */
   }
@@ -47,7 +52,8 @@ function load(): Demo {
 const s = load()
 const save = () => {
   try {
-    sessionStorage.setItem(KEY, JSON.stringify(s))
+    // A password the visitor typed is never stored: after a reload the demo's own one is back.
+    sessionStorage.setItem(KEY, JSON.stringify({ ...s, pass: undefined, join: s.join && { ...s.join, pass: '' } }))
   } catch {
     /* private mode: the demo still runs, a reload starts over */
   }
