@@ -146,3 +146,4 @@ AGPL-3.0, see [LICENSE](LICENSE).
 | React, React DOM | MIT |
 | Lucide icons (lucide-react, and in `db_ui/font_data.c`) | ISC |
 | Geist, the font of the web page | OFL-1.1 |
+| [Remotion](https://www.remotion.dev), only to render the site's animations into video files. It is not in the site or the firmware. Companies with more than 3 people need a paid Remotion license to render. | [Remotion License](https://www.remotion.dev/license), not open source |
