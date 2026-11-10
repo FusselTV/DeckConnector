@@ -20,6 +20,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs.h"
 
 #define LISTENERS 8
 
@@ -365,15 +366,22 @@ esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid
     return ESP_OK;
 }
 
-/* metrics.c reads task and flash statistics the host does not have. */
+/* metrics.c reads task and image statistics the host does not have: same keys, no samples, no image. */
 void metrics_start(void)
 {
 }
 
 esp_err_t get_metrics(httpd_req_t *req)
 {
+    nvs_stats_t nvs = {0};
+    nvs_get_stats(NULL, &nvs);
+    char body[192];
+    snprintf(body, sizeof(body),
+             "{\"every_s\":5,\"cpu\":[],\"heap\":[],\"psram\":[],\"flash\":{\"firmware\":{\"used\":0,\"size\":%d},"
+             "\"settings\":{\"used\":%u,\"size\":%u}}}",
+             0x400000, (unsigned)nvs.used_entries * 32, (unsigned)nvs.total_entries * 32);
     httpd_resp_set_type(req, "application/json");
-    return httpd_resp_sendstr(req, "{\"every_s\":5,\"cpu\":[],\"heap\":[],\"psram\":[]}");
+    return httpd_resp_sendstr(req, body);
 }
 
 esp_err_t get_profile(httpd_req_t *req)

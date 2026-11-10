@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "db_config.h"
 #include "db_json.h"
@@ -9,6 +10,7 @@
 #include "db_ui.h"
 #include "db_web.h"
 #include "esp_event.h"
+#include "esp_private/partition_linux.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -62,6 +64,8 @@ void app_main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* a browser that drops a socket mid-write would end the simulator */
     nvs_flash_init();
+    /* IDF deletes its /tmp flash file only on a clean exit; tests kill the simulator. */
+    unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
     esp_event_loop_create_default(); /* esp_http_server posts its events there */
     db_config_load();
     db_config_t cfg;

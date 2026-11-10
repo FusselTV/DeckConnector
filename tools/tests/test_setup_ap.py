@@ -5,7 +5,6 @@ import os
 import subprocess
 import time
 import urllib.request
-from pathlib import Path
 
 import pytest
 from conftest import HOST, SIM, TARGET, api, status
@@ -34,11 +33,10 @@ def ap_sim():
     """A second simulator whose setup AP has the loopback address: every request comes over the AP."""
     worker = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
     port = 18081 + 2 * worker  # between the workers' ports
-    log = Path(f"/tmp/deckbridge-sim-ap-{port}.log")
     sim = subprocess.Popen(
         [SIM],
         env={**os.environ, "DB_SIM_PORT": str(port), "DB_SIM_VIA_AP": "1"},
-        stdout=log.open("w"),
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
     )
     try:

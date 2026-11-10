@@ -102,10 +102,10 @@ def test_wrong_passwords_lock_the_login():
 def test_metrics_are_percentages():
     m = json.loads(api("GET", "/api/metrics")[1])
     assert m["every_s"] == 5
-    for key in ("cpu", "ram", "psram"):
+    for key in ("cpu", "heap", "psram"):
         assert len(m[key]) <= 120 and all(0 <= v <= 100 for v in m[key])
-    assert 0 < m["firmware"]["used"] < m["firmware"]["size"]
-    assert 0 < m["settings"]["used"] < m["settings"]["size"]
+    for part in ("firmware", "settings"):
+        assert 0 < m["flash"][part]["used"] < m["flash"][part]["size"]
 
 
 def test_a_listener_that_stops_reading_cannot_stall_the_api(servers):

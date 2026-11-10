@@ -54,9 +54,9 @@ static const style_t large = {.radius = 16,
                               .label_n = 3,
                               .sub_fonts = small_text,
                               .sub_n = 2,
-                              .card_icon_y = 29,
-                              .card_label_x = 34,
-                              .card_label_y = 25,
+                              .card_icon_y = 31,
+                              .card_label_x = 36,
+                              .card_label_y = 27,
                               .value_y = 72,
                               .value_fonts = big_value,
                               .value_n = 3,
@@ -72,9 +72,9 @@ static const style_t medium = {.radius = 13,
                                .label_n = 3,
                                .sub_fonts = small_text,
                                .sub_n = 2,
-                               .card_icon_y = 25,
-                               .card_label_x = 30,
-                               .card_label_y = 21,
+                               .card_icon_y = 26,
+                               .card_label_x = 31,
+                               .card_label_y = 22,
                                .value_y = 57,
                                .value_fonts = mid_value,
                                .value_n = 3,
@@ -90,9 +90,9 @@ static const style_t small = {.radius = 10,
                               .label_n = 2,
                               .sub_fonts = tiny_text,
                               .sub_n = 1,
-                              .card_icon_y = 21,
-                              .card_label_x = 26,
-                              .card_label_y = 17,
+                              .card_icon_y = 22,
+                              .card_label_x = 27,
+                              .card_label_y = 18,
                               .value_y = 44,
                               .value_fonts = small_text,
                               .value_n = 2,
@@ -121,8 +121,7 @@ static void badge(ui_canvas_t *c, const style_t *st, db_rect_t r, ui_badge_t b, 
     int d = st->badge;
     db_rect_t dot = {(uint16_t)(r.x + r.w - d - 5), (uint16_t)(r.y + 5), (uint16_t)d, (uint16_t)d};
     ui_round(c, dot, d / 2, b == BADGE_CLOSE ? color : C_TRACK);
-    ui_text(c, &ui_font_icon_small, dot, dot.y + d - 3 - (24 - d) / 2, C_TEXT,
-            b == BADGE_CLOSE ? ICON_CLOSE : ICON_OPEN);
+    ui_icon(c, &ui_font_icon_small, dot, C_TEXT, b == BADGE_CLOSE ? ICON_CLOSE : ICON_OPEN);
 }
 
 static bool fits(const ui_font_t *const *fonts, int n, int room, const char *s)
@@ -256,7 +255,8 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_
         if (!t->icon || !fits(st->sub_fonts, st->sub_n, r.w - label_x - right, t->label)) {
             label_x = pad + 2;
         } else {
-            ui_text_at(c, &ui_font_icon_small, (db_rect_t){(uint16_t)(r.x + pad), r.y, 26, r.h},
+            /* inside the frame of an active card, not on it */
+            ui_text_at(c, &ui_font_icon_small, (db_rect_t){(uint16_t)(r.x + st->frame + 3), r.y, 26, r.h},
                        r.y + st->card_icon_y, C_DIM, t->icon, UI_LEFT);
         }
         db_rect_t lab = {(uint16_t)(r.x + label_x), r.y, (uint16_t)(r.w - label_x - right), r.h};
@@ -287,32 +287,32 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_
 
 static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
 {
-    db_rect_t box = {(uint16_t)(r.x + 3), r.y, (uint16_t)(r.w - 6), r.h};
-    ui_fill(c, (db_rect_t){r.x, r.y, 3, r.h}, C_SCREEN);
-    ui_fill(c, (db_rect_t){(uint16_t)(box.x + box.w), r.y, (uint16_t)(r.w - 3 - box.w), r.h}, C_SCREEN);
-    ui_round_over(c, box, 10, C_LCD, C_SCREEN);
+    /* the same 3 px around every side, so no rounded corner runs into the edge of the strip */
+    db_rect_t box = inset(r, 3);
+    ui_fill(c, r, C_SCREEN);
+    ui_round(c, box, 10, C_LCD);
     bool wide = g->span > 1;
     int x = 12;
     if (g->icon) {
         const ui_font_t *f = wide ? &ui_font_icon : &ui_font_icon_small;
-        ui_text_at(c, f, (db_rect_t){(uint16_t)(box.x + 10), box.y, 56, box.h}, box.y + (wide ? 70 : 36),
+        ui_text_at(c, f, (db_rect_t){(uint16_t)(box.x + 10), box.y, 56, box.h}, r.y + (wide ? 70 : 36),
                    g->icon_color, g->icon, UI_LEFT);
         x = wide ? 76 : 40;
     }
     db_rect_t col = {(uint16_t)(box.x + x), box.y, (uint16_t)(box.w - x - 10), box.h};
     db_rect_t full = {(uint16_t)(box.x + 12), box.y, (uint16_t)(box.w - 22), box.h};
-    ui_text_fit(c, small_text, 2, col, box.y + 24, C_DIM, g->label, UI_LEFT);
-    ui_text_fit(c, title_fonts, 4, wide || g->icon ? col : full, box.y + (wide ? 64 : 66), C_TEXT, g->value,
+    ui_text_fit(c, small_text, 2, col, r.y + 24, C_DIM, g->label, UI_LEFT);
+    ui_text_fit(c, title_fonts, 4, wide || g->icon ? col : full, r.y + (wide ? 64 : 66), C_TEXT, g->value,
                 UI_LEFT);
     if (g->bar >= 0) {
-        db_rect_t track = {(uint16_t)(box.x + 12), (uint16_t)(box.y + 82), (uint16_t)(box.w - 24), 8};
+        db_rect_t track = {(uint16_t)(box.x + 12), (uint16_t)(r.y + 82), (uint16_t)(box.w - 24), 8};
         ui_round(c, track, 4, C_TRACK);
         uint16_t w = (uint16_t)(track.w * (g->bar > 100 ? 100 : g->bar) / 100);
         if (w >= 8) {
             ui_round(c, (db_rect_t){track.x, track.y, w, track.h}, 4, g->icon_color);
         }
     } else {
-        ui_text_fit(c, small_text, 2, wide ? col : full, box.y + 88, C_DIM, g->sub, UI_LEFT);
+        ui_text_fit(c, small_text, 2, wide ? col : full, r.y + 88, C_DIM, g->sub, UI_LEFT);
     }
 }
 

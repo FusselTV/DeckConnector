@@ -27,6 +27,8 @@ int ui_text_width_n(const ui_font_t *f, const char *utf8, const char *end);
 void ui_text(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *utf8);
 void ui_text_at(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *utf8,
                 ui_align_t align);
+/* The first glyph of `utf8` with its drawn pixels centred in `r`: an icon sits by its ink, not a baseline. */
+void ui_icon(ui_canvas_t *c, const ui_font_t *f, db_rect_t r, uint32_t color, const char *utf8);
 /* Texts cut with "…" so far; host_test/test_ui.c checks that no page needs it. */
 extern int ui_text_cuts;
 extern void (*ui_on_cut)(const char *text, int room);

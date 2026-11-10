@@ -12,6 +12,7 @@ import signal
 import ssl
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -53,21 +54,23 @@ WORKER = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
 
 def start_sim(port: int, **env: str) -> subprocess.Popen:
     """A simulator on 127.0.0.1:port that answers; DB_SIM_* settings come in `env`."""
-    log = Path(f"/tmp/deckbridge-sim-{port}.log")
-    sim = subprocess.Popen(
-        [SIM], env={**os.environ, "DB_SIM_PORT": str(port), **env}, stdout=log.open("w"), stderr=subprocess.STDOUT
-    )
-    atexit.register(sim.kill)
-    for _ in range(100):
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
-            return sim
-        except OSError:
-            if sim.poll() is not None:
-                break
-            time.sleep(0.05)
-    sim.kill()
-    raise RuntimeError(f"the simulator did not start, see {log}")
+    with tempfile.TemporaryFile() as log:  # the simulator keeps its own handle
+        sim = subprocess.Popen(
+            [SIM], env={**os.environ, "DB_SIM_PORT": str(port), **env}, stdout=log, stderr=subprocess.STDOUT
+        )
+        atexit.register(sim.kill)
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
+                return sim
+            except OSError:
+                if sim.poll() is not None:
+                    break
+                time.sleep(0.05)
+        sim.kill()
+        sim.wait()
+        log.seek(0)
+        raise RuntimeError(f"the simulator did not start:\n{log.read().decode(errors='replace')}")
 
 
 def _start_sim() -> tuple[str, str]:

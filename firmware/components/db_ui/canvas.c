@@ -203,6 +203,34 @@ void ui_text_at(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint3
     draw_run(c, f, clip, x, y, rgb, s, NULL);
 }
 
+void ui_icon(ui_canvas_t *c, const ui_font_t *f, db_rect_t r, uint32_t color, const char *s)
+{
+    const ui_glyph_t *g = glyph(f, next_codepoint(&s));
+    if (!g) {
+        return;
+    }
+    /* the bitmaps keep blank rows down to the baseline and blank columns: find the ink */
+    int x0 = g->w, y0 = g->h, x1 = -1, y1 = -1;
+    for (int i = 0; i < g->w * g->h; i++) {
+        unsigned alpha = (i & 1) ? f->bits[g->offset + i / 2] & 0x0f : f->bits[g->offset + i / 2] >> 4;
+        if (alpha) {
+            int x = i % g->w, y = i / g->w;
+            x0 = x < x0 ? x : x0;
+            x1 = x > x1 ? x : x1;
+            y0 = y < y0 ? y : y0;
+            y1 = y > y1 ? y : y1;
+        }
+    }
+    if (x1 < 0) {
+        return;
+    }
+    uint8_t rgb[3];
+    to_bytes(color, rgb);
+    int pen = r.x + (r.w - (x1 - x0 + 1) + 1) / 2 - x0 - g->x;
+    int base = r.y + (r.h - (y1 - y0 + 1) + 1) / 2 - y0 - g->y;
+    draw_glyph(c, g, f->bits, r, pen, base, rgb);
+}
+
 void ui_text(ui_canvas_t *c, const ui_font_t *f, db_rect_t clip, int y, uint32_t color, const char *s)
 {
     ui_text_at(c, f, clip, y, color, s, UI_CENTER);

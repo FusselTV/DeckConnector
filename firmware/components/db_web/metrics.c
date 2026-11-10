@@ -150,17 +150,19 @@ static void write_flash(db_json_t *j)
         esp_image_metadata_t meta;
         app_len = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &pos, &meta) == ESP_OK ? meta.image_len : 0;
     }
+    db_json_obj_open(j, "flash");
     db_json_obj_open(j, "firmware");
     db_json_int(j, "used", app_len);
     db_json_int(j, "size", part->size);
     db_json_obj_close(j);
     nvs_stats_t nvs;
-    if (nvs_get_stats(NULL, &nvs) == ESP_OK) {
+    if (nvs_get_stats(NULL, &nvs) == ESP_OK) { /* an NVS entry is 32 bytes */
         db_json_obj_open(j, "settings");
-        db_json_int(j, "used", nvs.used_entries);
-        db_json_int(j, "size", nvs.total_entries);
+        db_json_int(j, "used", nvs.used_entries * 32);
+        db_json_int(j, "size", nvs.total_entries * 32);
         db_json_obj_close(j);
     }
+    db_json_obj_close(j);
 }
 
 static size_t metrics_json(char *buf, size_t cap)
@@ -176,7 +178,7 @@ static size_t metrics_json(char *buf, size_t cap)
     db_json_obj_open(&j, NULL);
     db_json_int(&j, "every_s", METRIC_EVERY_US / 1000000);
     write_series(&j, "cpu", cpu);
-    write_series(&j, "ram", heap);
+    write_series(&j, "heap", heap);
     write_series(&j, "psram", psram);
     write_flash(&j);
     db_json_obj_close(&j);
