@@ -84,6 +84,9 @@ jobs:
           # no cache on tags: the release builds from a clean slate
           cache: ${{ github.ref_type != 'tag' && 'npm' || '' }}
           cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
       - run: cd web && npm ci && npm run check
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -134,3 +137,47 @@ jobs:
           path: firmware/build/web-flash/
           if-no-files-found: error
 
+
+  # A PR may grow the web page or the firmware by 1 % at most, or it needs the label
+  # size-increase (then re-run this job).
+  sizes:
+    needs: [web, firmware]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read # the artifacts of main
+      pull-requests: read # the label
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: pr
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          main=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch main --event push \
+            --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          for a in web-page deckconnector; do
+            [ -z "$main" ] || gh run download "$main" --repo "$GITHUB_REPOSITORY" --name "$a" --dir "main/$a" || true
+          done
+          size() {
+            f=$(find "$1" -name "$2" 2> /dev/null | head -1)
+            [ -z "$f" ] || case $2 in *.html) gzip -9c "$f" | wc -c ;; *) stat -c %s "$f" ;; esac
+          }
+          allowed=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq 'any(.labels[]; .name == "size-increase")')
+          over=
+          {
+            echo '| File | main | PR | Change |'
+            echo '|---|---|---|---|'
+            for f in index.html deckconnector.bin; do
+              b=$(size pr "$f"); a=$(size main "$f")
+              [ -n "$b" ] || continue
+              if [ -z "$a" ]; then echo "| $f | | $b | |"; continue; fi
+              echo "| $f | $a | $b | $(awk "BEGIN { printf \"%+.1f %%\", ($b - $a) * 100 / $a }") |"
+              [ $((b * 100)) -le $((a * 101)) ] || over="$over $f"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$over" ] && [ "$allowed" != true ]; then
+            echo "::error::more than 1 % bigger than main:$over. If that is intended, add the label size-increase and re-run this job."
+            exit 1
+          fi
