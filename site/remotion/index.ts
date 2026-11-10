@@ -3,9 +3,9 @@ export type Composition = {
   fps: number
   width: number
   height: number
-  /** First frame of the video and the reduced-motion still; public/stills/ holds it as the poster. */
+  /** Where playback starts (#t= on the video) and the frame of the poster in public/stills/. */
   start: number
-  /** Size used when the stage is taller than wide. */
+  /** Size of the -port video, which phones below 640px get. */
   portrait?: { width: number; height: number }
 }
 

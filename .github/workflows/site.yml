@@ -67,12 +67,15 @@ jobs:
           dir=site/public/firmware
           if gh release view --repo "$GITHUB_REPOSITORY" > /dev/null; then
             gh release download --repo "$GITHUB_REPOSITORY" --dir "$dir" \
-              --pattern manifest.json --pattern '*.bin' --pattern SHA256SUMS
+              --pattern manifest.json --pattern '*.bin' --pattern SHA256SUMS --pattern THIRD_PARTY_LICENSES.txt
             (cd "$dir" && sha256sum --check --ignore-missing SHA256SUMS && rm SHA256SUMS)
           else
             echo "::warning::no release to take the firmware from, the flasher has no files"
           fi
       - run: cd site && npm ci && npm run check
+        env:
+          # a deploy outside a pull request must not publish an imprint with TODO in it
+          LEGAL_STRICT: ${{ github.event_name != 'pull_request' && '1' || '' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: site

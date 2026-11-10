@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Composition, continueRender, delayRender, registerRoot, staticFile } from 'remotion'
+import { cancelRender, Composition, continueRender, delayRender, registerRoot, staticFile } from 'remotion'
 import Compare from './Compare'
 import Failover from './Failover'
 import Flash from './Flash'
@@ -13,7 +13,9 @@ const scenes: Record<CompositionId, ComponentType<LangProps>> = { hero: Hero, fl
 const fonts = delayRender('fonts')
 void Promise.all(
   [new FontFace('Geist Variable', `url(${staticFile('geist.woff2')})`, { weight: '100 900' }), new FontFace('JetBrains Mono Variable', `url(${staticFile('jetbrains-mono.woff2')})`, { weight: '100 800' })].map(async (f) => document.fonts.add(await f.load())),
-).then(() => continueRender(fonts))
+)
+  .then(() => continueRender(fonts))
+  .catch(cancelRender)
 
 function Root() {
   return (

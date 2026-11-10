@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, rmSync } from 'node:fs'
 
 const from = new URL('../../firmware/build/web-flash/', import.meta.url)
 const to = new URL('../public/firmware/', import.meta.url)
@@ -10,5 +10,6 @@ if (existsSync(new URL('manifest.json', from))) {
 } else if (!existsSync(new URL('manifest.json', to)))
   console.warn('copy-firmware: no firmware/build/web-flash, /flash offers only local files. Run uv run python -m dbtools.flashimage in tools/ first.')
 
-mkdirSync(to, { recursive: true })
-cpSync(new URL('../../THIRD_PARTY_LICENSES.txt', import.meta.url), new URL('THIRD_PARTY_LICENSES.txt', to))
+// The release's own list describes its binaries; the repo's is the fallback without one.
+if (!existsSync(new URL('THIRD_PARTY_LICENSES.txt', to)))
+  cpSync(new URL('../../THIRD_PARTY_LICENSES.txt', import.meta.url), new URL('THIRD_PARTY_LICENSES.txt', to))

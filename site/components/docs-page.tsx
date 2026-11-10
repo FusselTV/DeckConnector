@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ComponentProps } from 'react'
 import { notFound } from 'next/navigation'
 import defaultMdxComponents, { createRelativeLink } from 'fumadocs-ui/mdx'
 import { Step, Steps } from 'fumadocs-ui/components/steps'
@@ -52,7 +53,8 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
             ...diagrams,
             BenchBars,
             Next,
-            a: Link,
+            // a file such as THIRD_PARTY_LICENSES.txt is no page, and Next's prefetch of it 404s
+            a: (p: ComponentProps<'a'>) => (/\.\w+$/.test(p.href ?? '') ? <a {...p}>{p.children}</a> : <Link {...p} />),
           }}
         />
       </DocsBody>

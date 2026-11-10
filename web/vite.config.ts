@@ -46,9 +46,11 @@ export default defineConfig(({ mode }) => {
       const listed = readFileSync(new URL('../THIRD_PARTY_LICENSES.txt', import.meta.url), 'utf8')
       const ids = Object.values(bundle).flatMap((c) => Object.keys(c.modules ?? {}))
       const pkgs = new Set(ids.map((id) => id.match(/.*node_modules\/((?:@[^/]+\/)?[^/]+)/)?.[1]).filter(Boolean))
+      if (!pkgs.has('react')) throw new Error('third-party-licenses: found no bundled packages, the module ids changed')
       const missing = [...pkgs].filter((p) => {
-        const { version } = JSON.parse(readFileSync(`node_modules/${p}/package.json`, 'utf8')) as { version: string }
-        return !listed.includes(`${p} ${version}`)
+        const pkg = readFileSync(new URL(`node_modules/${p}/package.json`, import.meta.url), 'utf8')
+        const { version } = JSON.parse(pkg) as { version: string }
+        return !new RegExp(`(^|[\\s(,])${p} ${version.replaceAll('.', '\\.')}(?![\\w.])`).test(listed)
       })
       if (missing.length) throw new Error(`THIRD_PARTY_LICENSES.txt lacks ${missing.join(', ')} (name and version)`)
     },

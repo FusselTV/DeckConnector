@@ -11,12 +11,14 @@ The firmware and the web UI that the device serves contain the code below. [THIR
 
 | Part | License |
 |---|---|
-| [ESP-IDF](https://github.com/espressif/esp-idf) 6.0.2 and its components (esp_hosted, esp_wifi_remote, mdns, usb) | Apache-2.0 |
+| [ESP-IDF](https://github.com/espressif/esp-idf) 6.0.2 | Apache-2.0 |
+| Espressif components from the registry: esp_hosted, esp_wifi_remote, mdns, usb | Apache-2.0 |
 | Changed copies from esp-idf, esp-usb and esp-protocols in `firmware/vendor`. Each changed file says so at the top. | Apache-2.0 |
-| [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) 4.1 and TF-PSA-Crypto. We use them under Apache-2.0. | Apache-2.0 or GPL-2.0-or-later |
+| [Mbed TLS](https://github.com/Mbed-TLS/mbedtls) 4.1 and TF-PSA-Crypto. DeckConnector uses them under Apache-2.0. | Apache-2.0 or GPL-2.0-or-later |
 | FreeRTOS kernel | MIT |
 | lwIP, the TLSF memory allocator | BSD-3-Clause |
-| protobuf-c, in esp_hosted | BSD-2-Clause |
+| protobuf-c in esp_hosted, the UBSan handlers and the string functions from Red Hat | BSD-2-Clause |
+| The GCC runtime, libgcc and libstdc++ | GPL-3.0 with the GCC Runtime Library Exception |
 | SD/MMC driver of ESP-IDF | ISC |
 | [cJSON](https://github.com/DaveGamble/cJSON), HTTP Parser, [QR Code generator](https://github.com/nayuki/QR-Code-generator) (espressif/qrcode) | MIT |
 | [picolibc](https://github.com/picolibc/picolibc), the C library | BSD-style licenses |
@@ -35,10 +37,10 @@ The firmware and the web UI that the device serves contain the code below. [THIR
 | zbsearch, class-variance-authority, @swc/helpers | Apache-2.0 |
 | JetBrains Mono, the code font | OFL-1.1 |
 
-The demo on this site runs the web UI and the deck screens of the firmware. The parts in the first table apply to it too.
+The demo on this site runs the web UI and the deck screens of the firmware. The licenses in the first table apply to it too.
 
-The animations are videos. They are made with [Remotion](https://www.remotion.dev), which is not open source and has its own [license](https://www.remotion.dev/license). The site does not ship Remotion itself.
+The animations are videos. I make them with [Remotion](https://www.remotion.dev). Remotion is not open source and has its own [license](https://www.remotion.dev/license). The site does not ship Remotion itself.
 
-Elgato and Stream Deck are trademarks of Corsair. Bitfocus Companion is a product of Bitfocus AS. DeckConnector is not affiliated with either.
+Elgato and Stream Deck are trademarks of Corsair Memory, Inc. Bitfocus Companion is a product of Bitfocus AS. DeckConnector is not affiliated with either.
 
 <Next links={[['Hardware', '/docs/hardware/'], ['Getting started', '/docs/getting-started/']]} />

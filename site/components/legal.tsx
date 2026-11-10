@@ -94,9 +94,6 @@ export function Privacy({ lang }: { lang: Lang }) {
           <code>theme</code>: helles oder dunkles Design
         </li>
         <li>
-          <code>remotion.volumePreference</code>: Lautstärke der Videos
-        </li>
-        <li>
           Schlüssel, die mit <code>dc.</code> beginnen: Einstellungen in der Demo, zum Beispiel Sprache, Design und geschlossene Hinweise
         </li>
       </ul>
@@ -144,13 +141,13 @@ export function Privacy({ lang }: { lang: Lang }) {
       <h2>Hosting by Cloudflare</h2>
       <p>This website is hosted on Cloudflare Pages. The provider is Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA.</p>
       <p>
-        When you open a page, Cloudflare processes your IP address, the time, the address of the page and your browser&apos;s user agent. This is needed to deliver the page and to protect it from
-        attacks. The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not analyse this data.
+        When you open a page, Cloudflare processes your IP address, the time, the address of the page and your browser&apos;s user agent. Cloudflare needs this to deliver the page and to protect it
+        from attacks. The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not analyse this data.
       </p>
       <p>
         Cloudflare processes the data on my behalf (Art. 28 GDPR) under Cloudflare&apos;s <a href={DPA}>Data Processing Addendum</a>. Data can go to the USA. Cloudflare is certified under the
-        EU-US Data Privacy Framework (Art. 45 GDPR). The EU Standard Contractual Clauses in the Data Processing Addendum also apply (Art. 46(2)(c) GDPR). How long Cloudflare keeps the data is in{' '}
-        <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a>.
+        EU-US Data Privacy Framework (Art. 45 GDPR). The EU Standard Contractual Clauses in the Data Processing Addendum also apply (Art. 46(2)(c) GDPR). <a href={CF_PRIVACY}>Cloudflare&apos;s privacy
+        policy</a> says how long it keeps the data.
       </p>
 
       <h2>No cookies, no tracking</h2>
@@ -163,15 +160,12 @@ export function Privacy({ lang }: { lang: Lang }) {
           <code>theme</code> is the light or dark design.
         </li>
         <li>
-          <code>remotion.volumePreference</code> is the volume of the videos.
-        </li>
-        <li>
           Keys that start with <code>dc.</code> are settings in the demo, for example language, design and closed notices.
         </li>
       </ul>
       <p>
-        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with <code>dc.</code>). It ends when you close the tab or tap Reset. A password you type in
-        the demo is not stored.
+        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with <code>dc.</code>). It ends when you close the tab or tap Reset. The demo does not store
+        a password you type.
       </p>
       <p>
         This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because storing it is needed for a function you asked for. You can delete it in your
@@ -180,24 +174,24 @@ export function Privacy({ lang }: { lang: Lang }) {
 
       <h2>Installing the firmware in your browser</h2>
       <p>
-        The flasher talks to the board on your computer directly over Web Serial. It loads the firmware from this website. It reads files you pick only in your browser. It sends nothing to a
+        The flasher talks to the board on your computer directly over Web Serial. It loads the firmware from this website. It reads the files you pick inside your browser. It sends nothing to a
         server.
       </p>
 
       <h2>Links to other websites</h2>
       <p>
-        This website links to other websites, for example GitHub, shops that sell the board or donation pages. Only when you click a link does the other provider process your data, under its own
-        privacy policy. Links to shops can be affiliate links. They carry a partner ID, so the shop sees that you came from here. If you buy there, I may get a commission. You do not pay more.
+        This website links to other websites, for example GitHub, shops that sell the board or donation pages. The other provider gets your data only when you click a link. Its own privacy
+        policy then applies. Links to shops can be affiliate links. They carry a partner ID, so the shop sees that you came from here. If you buy there, I may get a commission. You do not pay more.
       </p>
 
       <h2>Your rights</h2>
       <p>
-        You have the right to access (Art. 15 GDPR), correction (Art. 16), deletion (Art. 17), restriction of processing (Art. 18) and data portability (Art. 20). Write to the email address above.
+        You have the right of access (Art. 15 GDPR), correction (Art. 16), deletion (Art. 17), restriction of processing (Art. 18) and data portability (Art. 20). Write to the email address above.
       </p>
       <p>
         <strong>Right to object.</strong> The processing is based on Art. 6(1)(f) GDPR. So you can object to it at any time, for reasons that come from your particular situation (Art. 21 GDPR).
       </p>
-      <p>You can complain to a data protection authority (Art. 77 GDPR). The authority for me is {authority}.</p>
+      <p>You can complain to a data protection authority (Art. 77 GDPR). The authority responsible for me is {authority}.</p>
 
       <h2>No duty to give data</h2>
       <p>You do not have to give any data. Without the connection data, Cloudflare cannot deliver the website.</p>

@@ -15,12 +15,19 @@ const mode = params.has('setup') ? 'setup' : params.has('login') ? 'login' : ''
 
 // The demo's starting values live in memory: storage is written only once the visitor changes a setting.
 const start: Record<string, unknown> = {}
+const siteTheme = (() => {
+  try {
+    return localStorage.getItem('theme')
+  } catch {
+    return null
+  }
+})()
 for (const [k, ok] of [
   ['lang', ['de', 'en']],
   ['theme', ['light', 'dark']],
 ] as const) {
   // Without ?theme the demo takes the website's theme, which next-themes keeps under "theme" on this origin.
-  const v = params.get(k) ?? (k === 'theme' ? localStorage.getItem('theme') : null)
+  const v = params.get(k) ?? (k === 'theme' ? siteTheme : null)
   if (!v || !(ok as readonly string[]).includes(v)) continue
   start[`dc.${k}`] = v
   // React sets it only after its first render, and until then a light system theme flashed through the site's dark one.

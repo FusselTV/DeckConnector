@@ -1,7 +1,7 @@
 export const repo = 'https://github.com/FusselTV/deck-connector'
 export const site = 'https://deckconnector.com'
 
-// Imprint and privacy policy. Fill in before launch: LEGAL_STRICT=1 fails the build while a TODO is left.
+// Imprint and privacy policy. Fill in before launch: site.yml builds with LEGAL_STRICT=1 outside pull requests, which fails on a TODO.
 export const owner = {
   name: 'TODO',
   street: 'TODO',
