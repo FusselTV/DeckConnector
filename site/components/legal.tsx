@@ -1,0 +1,206 @@
+import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
+import type { Lang } from '~/lib/i18n'
+import { owner } from '~/site.config'
+
+export const legalPath = {
+  imprint: { en: '/imprint/', de: '/de/impressum/' },
+  privacy: { en: '/privacy/', de: '/de/datenschutz/' },
+}
+const titles = { imprint: { en: 'Imprint', de: 'Impressum' }, privacy: { en: 'Privacy policy', de: 'Datenschutzerklärung' } }
+
+export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
+  const p = legalPath[page]
+  return { title: titles[page][lang], alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } } }
+}
+
+const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
+const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
+
+function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
+  return (
+    <main id="main" lang={lang} className="prose mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
+      <h1>{titles[page][lang]}</h1>
+      {lang === 'en' && (
+        <p>
+          This is a translation. Only the <a href={legalPath[page].de} hrefLang="de">German version</a> is legally binding.
+        </p>
+      )}
+      {children}
+    </main>
+  )
+}
+
+function Address({ lang }: { lang: Lang }) {
+  return (
+    <p>
+      {owner.name}
+      <br />
+      {owner.street}
+      <br />
+      {owner.city}
+      <br />
+      {lang === 'de' ? 'Deutschland' : 'Germany'}
+      <br />
+      {lang === 'de' ? 'E-Mail' : 'Email'}: <a href={`mailto:${owner.email}`}>{owner.email}</a>
+    </p>
+  )
+}
+
+export function Imprint({ lang }: { lang: Lang }) {
+  return lang === 'de' ? (
+    <Page lang="de" page="imprint">
+      <p>Angaben gemäß § 5 DDG</p>
+      <Address lang="de" />
+      <h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
+      <p>{owner.name}, Anschrift wie oben</p>
+    </Page>
+  ) : (
+    <Page lang="en" page="imprint">
+      <p>Information under § 5 DDG (German Digital Services Act)</p>
+      <Address lang="en" />
+      <h2>Responsible for the content under § 18 (2) MStV</h2>
+      <p>{owner.name}, address as above</p>
+    </Page>
+  )
+}
+
+export function Privacy({ lang }: { lang: Lang }) {
+  const authority = <a href={owner.authority.url}>{owner.authority.name}</a>
+  return lang === 'de' ? (
+    <Page lang="de" page="privacy">
+      <h2>Verantwortlicher</h2>
+      <Address lang="de" />
+
+      <h2>Hosting bei Cloudflare</h2>
+      <p>Diese Website liegt bei Cloudflare Pages. Anbieter ist Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA.</p>
+      <p>
+        Wenn du eine Seite aufrufst, verarbeitet Cloudflare deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und die Kennung deines Browsers. Das ist nötig, um die Seite auszuliefern und
+        vor Angriffen zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist eine sichere und schnelle Website. Ich werte diese Daten nicht aus.
+      </p>
+      <p>
+        Cloudflare verarbeitet die Daten in meinem Auftrag (Art. 28 DSGVO), auf Grundlage des <a href={DPA}>Data Processing Addendum</a> von Cloudflare. Dabei können Daten in die USA gehen.
+        Cloudflare ist nach dem EU-US Data Privacy Framework zertifiziert (Art. 45 DSGVO). Zusätzlich gelten die Standardvertragsklauseln der EU-Kommission aus dem Data Processing Addendum
+        (Art. 46 Abs. 2 lit. c DSGVO). Wie lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
+      </p>
+
+      <h2>Keine Cookies, kein Tracking</h2>
+      <p>Diese Website setzt keine Cookies und nutzt keine Analyse- oder Tracking-Dienste. Sie lädt nichts von fremden Servern. Auch die Suche läuft in deinem Browser.</p>
+
+      <h2>Speicher in deinem Browser</h2>
+      <p>Einige Einstellungen speichert die Website im lokalen Speicher deines Browsers (localStorage), sobald du sie änderst:</p>
+      <ul>
+        <li>
+          <code>theme</code>: helles oder dunkles Design
+        </li>
+        <li>
+          <code>remotion.volumePreference</code>: Lautstärke der Videos
+        </li>
+        <li>
+          Schlüssel, die mit <code>dc.</code> beginnen: Einstellungen in der Demo, zum Beispiel Sprache, Design und geschlossene Hinweise
+        </li>
+      </ul>
+      <p>
+        Wenn du die Demo öffnest, hält sie ihren Zustand im Sitzungsspeicher (sessionStorage, Schlüssel mit <code>dc.</code>). Er endet, wenn du den Tab schließt oder auf „Zurücksetzen“ tippst.
+        Ein Passwort, das du in der Demo eingibst, wird nicht gespeichert.
+      </p>
+      <p>
+        Diese Daten bleiben in deinem Browser und werden nicht übertragen. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, denn das Speichern ist für die Funktion nötig, die du ausdrücklich nutzt. Du
+        kannst die Daten in den Einstellungen deines Browsers löschen.
+      </p>
+
+      <h2>Firmware im Browser installieren</h2>
+      <p>
+        Der Flasher spricht über Web Serial direkt mit der Platine an deinem Rechner. Die Firmware lädt er von dieser Website. Dateien, die du auswählst, liest er nur in deinem Browser. Er sendet
+        nichts an einen Server.
+      </p>
+
+      <h2>Links zu anderen Websites</h2>
+      <p>
+        Diese Website verlinkt andere Websites, zum Beispiel GitHub, Shops für die Platine oder Seiten für Spenden. Erst wenn du einen Link anklickst, verarbeitet der andere Anbieter deine Daten,
+        nach seiner eigenen Datenschutzerklärung. Links zu Shops können Partnerlinks sein. Sie enthalten eine Partnerkennung, an der der Shop sieht, dass du von hier kommst. Kaufst du dort, bekomme
+        ich vielleicht eine Provision. Du zahlst dafür nicht mehr.
+      </p>
+
+      <h2>Deine Rechte</h2>
+      <p>
+        Du hast das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18) und Datenübertragbarkeit (Art. 20). Schreib mir dazu an
+        die E-Mail-Adresse oben.
+      </p>
+      <p>
+        <strong>Widerspruch:</strong> Die Verarbeitung beruht auf Art. 6 Abs. 1 lit. f DSGVO. Du kannst ihr deshalb jederzeit aus Gründen widersprechen, die sich aus deiner besonderen Situation
+        ergeben (Art. 21 DSGVO).
+      </p>
+      <p>Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO). Für mich zuständig ist {authority}.</p>
+
+      <h2>Pflicht zur Angabe von Daten</h2>
+      <p>Du musst keine Daten angeben. Ohne die Verbindungsdaten kann Cloudflare die Website aber nicht ausliefern.</p>
+    </Page>
+  ) : (
+    <Page lang="en" page="privacy">
+      <h2>Controller</h2>
+      <Address lang="en" />
+
+      <h2>Hosting by Cloudflare</h2>
+      <p>This website is hosted on Cloudflare Pages. The provider is Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA.</p>
+      <p>
+        When you open a page, Cloudflare processes your IP address, the time, the address of the page and your browser&apos;s user agent. This is needed to deliver the page and to protect it from
+        attacks. The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not analyse this data.
+      </p>
+      <p>
+        Cloudflare processes the data on my behalf (Art. 28 GDPR) under Cloudflare&apos;s <a href={DPA}>Data Processing Addendum</a>. Data can go to the USA. Cloudflare is certified under the
+        EU-US Data Privacy Framework (Art. 45 GDPR). The EU Standard Contractual Clauses in the Data Processing Addendum also apply (Art. 46(2)(c) GDPR). How long Cloudflare keeps the data is in{' '}
+        <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a>.
+      </p>
+
+      <h2>No cookies, no tracking</h2>
+      <p>This website sets no cookies and uses no analytics or tracking. It loads nothing from other servers. The search also runs in your browser.</p>
+
+      <h2>Storage in your browser</h2>
+      <p>The website keeps some settings in your browser&apos;s local storage (localStorage) once you change them.</p>
+      <ul>
+        <li>
+          <code>theme</code> is the light or dark design.
+        </li>
+        <li>
+          <code>remotion.volumePreference</code> is the volume of the videos.
+        </li>
+        <li>
+          Keys that start with <code>dc.</code> are settings in the demo, for example language, design and closed notices.
+        </li>
+      </ul>
+      <p>
+        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with <code>dc.</code>). It ends when you close the tab or tap Reset. A password you type in
+        the demo is not stored.
+      </p>
+      <p>
+        This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because storing it is needed for a function you asked for. You can delete it in your
+        browser&apos;s settings.
+      </p>
+
+      <h2>Installing the firmware in your browser</h2>
+      <p>
+        The flasher talks to the board on your computer directly over Web Serial. It loads the firmware from this website. It reads files you pick only in your browser. It sends nothing to a
+        server.
+      </p>
+
+      <h2>Links to other websites</h2>
+      <p>
+        This website links to other websites, for example GitHub, shops that sell the board or donation pages. Only when you click a link does the other provider process your data, under its own
+        privacy policy. Links to shops can be affiliate links. They carry a partner ID, so the shop sees that you came from here. If you buy there, I may get a commission. You do not pay more.
+      </p>
+
+      <h2>Your rights</h2>
+      <p>
+        You have the right to access (Art. 15 GDPR), correction (Art. 16), deletion (Art. 17), restriction of processing (Art. 18) and data portability (Art. 20). Write to the email address above.
+      </p>
+      <p>
+        <strong>Right to object.</strong> The processing is based on Art. 6(1)(f) GDPR. So you can object to it at any time, for reasons that come from your particular situation (Art. 21 GDPR).
+      </p>
+      <p>You can complain to a data protection authority (Art. 77 GDPR). The authority for me is {authority}.</p>
+
+      <h2>No duty to give data</h2>
+      <p>You do not have to give any data. Without the connection data, Cloudflare cannot deliver the website.</p>
+    </Page>
+  )
+}

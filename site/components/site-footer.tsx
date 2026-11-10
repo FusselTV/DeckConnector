@@ -1,5 +1,6 @@
 import { prefix, type Lang } from '~/lib/i18n'
 import { repo } from '~/site.config'
+import { legalPath } from './legal'
 import { Logo } from './site-header'
 
 const t = {
@@ -13,7 +14,9 @@ const t = {
     license: 'AGPL-3.0 license',
     start: 'Getting started',
     nav: 'Footer',
-    line: 'Free software for the Waveshare ESP32-P4-WIFI6-POE-ETH. Not affiliated with Elgato, Corsair or Bitfocus. Stream Deck is a trademark of Corsair.',
+    imprint: 'Imprint',
+    privacy: 'Privacy',
+    line: 'Free software for the Waveshare ESP32-P4-WIFI6-POE-ETH. Not affiliated with Elgato, Corsair or Bitfocus. Elgato and Stream Deck are trademarks of Corsair Memory, Inc.',
   },
   de: {
     docs: 'Anleitung',
@@ -25,7 +28,9 @@ const t = {
     license: 'Lizenz AGPL-3.0',
     start: 'Erste Schritte',
     nav: 'Fußzeile',
-    line: 'Freie Software für die Platine Waveshare ESP32-P4-WIFI6-POE-ETH. Kein Produkt von Elgato, Corsair oder Bitfocus. Stream Deck ist eine Marke von Corsair.',
+    imprint: 'Impressum',
+    privacy: 'Datenschutz',
+    line: 'Freie Software für die Platine Waveshare ESP32-P4-WIFI6-POE-ETH. Kein Produkt von Elgato, Corsair oder Bitfocus. Elgato und Stream Deck sind Marken der Corsair Memory, Inc.',
   },
 }
 
@@ -41,6 +46,8 @@ export function SiteFooter({ lang }: { lang: Lang }) {
     [s.releases, `${repo}/releases`],
     [s.source, repo],
     [s.license, `${repo}/blob/main/LICENSE`],
+    [s.imprint, legalPath.imprint[lang]],
+    [s.privacy, legalPath.privacy[lang]],
   ]
   return (
     <footer className="mt-auto border-t text-sm text-fd-muted-foreground">
