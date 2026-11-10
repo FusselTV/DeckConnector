@@ -5,6 +5,7 @@
 #include <unity.h>
 
 #include "db_driver.h"
+#include "icons.h"
 #include "ui.h"
 
 /* Every page in every state on every deck: nothing may be cut, and the pictures land in build/ui for review.
@@ -393,7 +394,6 @@ static void test_flows_without_encoders(void)
     TEST_ASSERT_FALSE(ui_menu_open(&m));
 }
 
-/* auto takes the outer encoders when there are some, else the outer keys; keys and off as named */
 static void test_menu_chord_on_every_deck(void)
 {
     for (size_t i = 0; i < sizeof(decks) / sizeof(decks[0]); i++) {

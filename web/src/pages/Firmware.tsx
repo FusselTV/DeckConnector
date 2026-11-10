@@ -350,6 +350,26 @@ function Source({ version }: { version?: string }) {
   )
 }
 
+function OtaProgress() {
+  const { t, fmt } = useUi()
+  const ota = useStore((s) => s.ota)
+  if (!ota) return null
+  return (
+    <div className="prog" role="status">
+      <div className="row">
+        <LoaderCircle size={18} className="spin" aria-hidden />
+        <b>{t(`tgt.${ota.target}` as 'tgt.p4')}</b> ·{' '}
+        {ota.error ? codeText(t, ota.code, ota.error) : t(`ota.${ota.state}` as 'ota.done')}
+        <span className="sp" />
+        <span className="mono">{fmt.pct(ota.pct)}</span>
+      </div>
+      <div className="bar" style={{ flex: 'none' }}>
+        <i style={{ width: `${ota.pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 export function Firmware() {
   const { t, fmt, act, ask } = useUi()
   const st = useStore((s) => s.status)
@@ -547,20 +567,7 @@ export function Firmware() {
             </Btn>
           </div>
         )}
-        {ota && (
-          <div className="prog" role="status">
-            <div className="row">
-              <LoaderCircle size={18} className="spin" aria-hidden />
-              <b>{t(`tgt.${ota.target}` as 'tgt.p4')}</b> ·{' '}
-              {ota.error ? codeText(t, ota.code, ota.error) : t(`ota.${ota.state}` as 'ota.done')}
-              <span className="sp" />
-              <span className="mono">{fmt.pct(ota.pct)}</span>
-            </div>
-            <div className="bar" style={{ flex: 'none' }}>
-              <i style={{ width: `${ota.pct}%` }} />
-            </div>
-          </div>
-        )}
+        <OtaProgress />
         <UpdateCheckBox key={st.firmware /* a new version drops the old offer */} lead={install} />
         <Row
           id="slots"

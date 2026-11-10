@@ -69,8 +69,8 @@ jobs:
   web:
     needs: changes
     if: >-
-      github.event_name != 'pull_request' ||
-      needs.changes.outputs.web == 'true' || needs.changes.outputs.firmware == 'true'
+      github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read

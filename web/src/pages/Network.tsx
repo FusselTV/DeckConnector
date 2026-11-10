@@ -120,7 +120,7 @@ export function Network() {
   const restart = changed
   const where = reachList(st, !!cfg?.https_only, v.name, patch)
   useDraft('network', {
-    dirty: restart || wifiChanged,
+    dirty: changed || wifiChanged,
     restart,
     reset: () => {
       setD({})

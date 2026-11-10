@@ -107,7 +107,7 @@ typedef struct {
     char menu_chord[12];
     int menu_hold_ms;
     char server_url[96];
-    char web_pass[24];
+    char web_pass[24]; /* empty: not shown */
     char fw[32];
     char wlan_fw[16];
     int brightness;

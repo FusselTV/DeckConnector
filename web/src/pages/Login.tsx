@@ -119,8 +119,9 @@ function Forgot() {
   const [shown, setShown] = useCountdown()
   const [reset, setReset] = useCountdown()
   const [err, setErr] = useState<string | null>(null)
-  const why = (x: unknown) =>
+  const why = (x: unknown) => {
     setErr(x instanceof ApiError && x.status === 409 ? t('login.no_deck') : t('login.offline'))
+  }
   const done = useCallback(() => {
     loginReasonAtom.set(null)
     dispatch({ type: 'auth', auth: 'app' })
