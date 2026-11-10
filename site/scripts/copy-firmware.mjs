@@ -1,4 +1,4 @@
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 
 const from = new URL('../../firmware/build/web-flash/', import.meta.url)
 const to = new URL('../public/firmware/', import.meta.url)
@@ -12,6 +12,7 @@ if (existsSync(new URL('manifest.json', from))) {
 
 // The release's own list describes its binaries; the repo's is the fallback without one.
 const web = new URL('../../web/dist/licenses.md', import.meta.url)
+mkdirSync(to, { recursive: true })
 if (!existsSync(new URL('THIRD_PARTY_LICENSES.txt', to)))
   writeFileSync(
     new URL('THIRD_PARTY_LICENSES.txt', to),
