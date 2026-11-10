@@ -8,10 +8,10 @@
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "check": "npm run typecheck && npm run lint && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs",
-    "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs",
-    "videos": "node scripts/videos.mjs"
+    "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs"
   },
   "dependencies": {
+    "@remotion/player": "4.0.541",
     "esptool-js": "0.7.1",
     "fumadocs-core": "16.18.3",
     "fumadocs-mdx": "15.5.2",
@@ -21,13 +21,12 @@
     "next-themes": "0.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "remotion": "4.0.541",
     "zbsearch": "4.0.2"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
     "@next/eslint-plugin-next": "16.4.5",
-    "@remotion/bundler": "4.0.541",
-    "@remotion/renderer": "4.0.541",
     "@tailwindcss/postcss": "4.3.5",
     "@types/mdx": "2.0.14",
     "@types/node": "24.19.2",
@@ -37,7 +36,6 @@
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.14.0",
-    "remotion": "4.0.541",
     "tailwindcss": "4.3.5",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1"
