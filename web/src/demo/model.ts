@@ -142,6 +142,8 @@ export const WIFI: WifiAp[] = [
 
 const ip = (empty = true) => ({ dhcp: empty, ip: '', mask: '', gateway: '', dns: '' })
 
+export const PASS = 'studio-demo'
+
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
@@ -151,7 +153,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
     downUntil: 0,
     started: now,
     authed: !o.login,
-    pass: 'studio-demo',
+    pass: PASS,
     cfg: {
       name: setup ? 'deckconnector-a1b2c3' : 'studio-deck',
       controller: 'companion',

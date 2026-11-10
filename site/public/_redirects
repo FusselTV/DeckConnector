@@ -1,0 +1,5 @@
+# The language switch only swaps the /de prefix, and the legal pages have their own name in each language.
+/de/imprint/* /de/impressum/:splat 301
+/de/privacy/* /de/datenschutz/:splat 301
+/impressum/* /imprint/:splat 301
+/datenschutz/* /privacy/:splat 301
