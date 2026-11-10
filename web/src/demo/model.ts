@@ -1,3 +1,5 @@
+import { DO, INPUT, withUi, type UiModel } from './deck-ui'
+import type { api } from '../api/client'
 import type {
   Config,
   ConfigPatch,
@@ -29,7 +31,8 @@ export interface Dock {
 export interface Faces {
   page: number
   mic: boolean
-  live: boolean
+  pause: boolean
+  title: boolean
   rec: boolean
   scene: number
   vol: number[]
@@ -40,12 +43,13 @@ export interface Faces {
   play: boolean
   track: number
   appVol: number[]
+  appMute: boolean[]
   presses: number[]
   dial: number[]
 }
 
 export interface Demo {
-  v: 3
+  v: 8
   bootAt: number
   /** A restart: answers stop at downFrom (1 s after it was asked, like the firmware) until downUntil. */
   downFrom: number
@@ -70,15 +74,30 @@ export interface Demo {
   inputs: InputLogEntry[]
   seq: number
   faces: Faces
-  menu: boolean
+  /** The deck menu's state (ui_menu_t of firmware/components/db_ui), which deck-ui.ts runs. */
+  ui: number[]
   pwUntil: number
   resetUntil: number
   loginReq: { id: string; at: number; state: 'pending' | 'accepted' | 'denied' | 'expired' | 'used' } | null
+  /** Wrong passwords in a row, and the end of the lock they bring, as the firmware's login. */
+  loginFails?: number
+  lockUntil?: number
+  /** The log of the run before the last restart. */
+  prev?: string[]
+  /** A download from an address that does not answer fails a moment after it was asked. */
+  otaFail?: { at: number; why: string } | null
+  /** A computer that asks again after its request was denied and then forgiven, or that comes along while pairing
+   *  is open. */
+  later?: { ip: string; name: string; kind: 'app' | 'companion'; at: number } | null
+  /** POST /api/deck/reconnect: the deck is gone for a moment and counts as a USB recovery. */
+  recoveries?: number
   join: { ssid: string; bssid: string; pass: string; until: number } | null
   joinState: '' | 'testing' | 'ok' | 'failed'
   joinError: string
   ota: { at: number; version: string; slot: number } | null
   setupStep: number
+  /** When setup reached the source step; a restart in between keeps it. */
+  setupSrcAt?: number
   bootReason: string
   images: number
   log: string[]
@@ -93,7 +112,7 @@ export const STRIP: Rect = { x: 0, y: 380, w: 800, h: 100 }
 
 export const LAN_IP = '192.168.1.214'
 const WLAN_IP = '192.168.1.215'
-const LATEST = 'v1.3.0'
+const LATEST = 'v0.3.0'
 const COMPANION = { name: 'Studio Companion', version: '5.2.0' }
 
 export const DECK: DeckInfo = {
@@ -107,6 +126,9 @@ export const DECK: DeckInfo = {
   usb_speed: 'high',
   hub: false,
 }
+
+/** The deck, at the USB speed the config asks for. */
+const deck = (s: Demo): DeckInfo => (s.cfg.usb_speed === 'full' ? { ...DECK, usb_speed: 'full' } : DECK)
 
 export const WIFI: WifiAp[] = [
   { ssid: 'Studio', bssid: '02:00:00:00:01:01', rssi: -47, channel: 6, open: false },
@@ -123,7 +145,7 @@ const ip = (empty = true) => ({ dhcp: empty, ip: '', mask: '', gateway: '', dns:
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
-    v: 3,
+    v: 8,
     bootAt: now - (setup ? 40_000 : 3 * 3600_000 + 17 * 60_000),
     downFrom: 0,
     downUntil: 0,
@@ -140,7 +162,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       wifi_ssid: setup ? '' : 'Studio',
       wifi_pass_set: !setup,
       wifi_bssid: '',
-      servers: setup ? ['', '', '', ''] : ['ws://192.168.1.40:8765/deckconnector', 'wss://deck.example.org/ws', '', ''],
+      servers: setup ? ['', '', '', ''] : ['ws://192.168.1.40:8765', '', '', ''],
       server_pins: ['', '', '', ''],
       satellite: setup ? '' : '192.168.1.20',
       satellite_auto: true,
@@ -156,13 +178,13 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       setup_done: !setup,
       token_set: false,
     },
-    firmware: 'v1.2.0',
+    firmware: 'v0.2.0',
     slots: [
       {
         slot: 1,
         label: 'ota_0',
         state: 'valid',
-        version: 'v1.1.4',
+        version: 'v0.1.0',
         built: '2026-09-28',
         running: false,
         next: false,
@@ -173,7 +195,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
         slot: 2,
         label: 'ota_1',
         state: 'valid',
-        version: 'v1.2.0',
+        version: 'v0.2.0',
         built: '2026-10-21',
         running: true,
         next: true,
@@ -193,37 +215,30 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
     requested: setup,
     denied: [],
     since: {},
-    tokens: setup
-      ? []
-      : [
-          {
-            name: 'home-assistant',
-            right: 'full',
-            created: '2026-10-02',
-            last_used: new Date(now - 60_000).toISOString(),
-          },
-        ],
+    tokens: setup ? [] : [{ name: 'home-assistant', right: 'full' }],
     events: [],
     inputs: [],
     seq: 0,
     faces: {
       page: 0,
       mic: true,
-      live: false,
-      rec: false,
-      scene: 0,
-      vol: [72, 45, 30, 80],
-      mute: [false, false, true, false],
+      pause: false,
+      title: true,
+      rec: true,
+      scene: 1,
+      vol: [80, 65, 45, 55],
+      mute: [false, false, false, false],
       lights: [true, true, false],
       light: [65, 40, 4800, 55],
       brb: false,
       play: true,
       track: 0,
       appVol: [60, 35, 50, 75],
+      appMute: [false, false, false, false],
       presses: [0, 0, 0, 0, 0, 0, 0, 0],
       dial: [0, 0, 0, 0],
     },
-    menu: false,
+    ui: [],
     pwUntil: 0,
     resetUntil: 0,
     loginReq: null,
@@ -238,15 +253,33 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
   }
 }
 
+/** A bridge that has run for hours has a past: a few events and log lines between its start and now. */
+export function history(s: Demo, now: number) {
+  const past: [number, string, string, string][] = [
+    [41, 'source', 'Companion reconnected after 3 s', 'W sat: connection lost, reconnecting'],
+    [42, 'source', 'Companion connected', `I sat: connected to ${s.cfg.satellite}:16622`],
+    [97, 'pairing', 'paired edit-pc (192.168.1.31)', 'I dock: 192.168.1.31 paired'],
+    [133, 'wlan', `WLAN ${s.cfg.wifi_ssid} 02:00:00:00:01:01, -47 dBm`, 'I net: WLAN roamed to channel 6'],
+  ]
+  for (const [min, kind, text, line] of past) {
+    const at = s.bootAt + min * 60_000
+    if (at >= now || (kind === 'wlan' && !s.cfg.wifi_ssid) || (kind === 'source' && !s.cfg.satellite)) continue
+    s.events.push({ since_s: Math.floor((at - s.bootAt) / 1000), at: Math.floor(at / 1000), kind, text })
+    logLine(s, at, line)
+  }
+}
+
 /** Seconds after the start of the bridge. */
 const up = (s: Demo, now: number) => Math.max(0, Math.floor((now - s.bootAt) / 1000))
 
-function event(s: Demo, now: number, kind: string, text: string) {
+export function event(s: Demo, now: number, kind: string, text: string) {
   s.events = [...s.events, { since_s: up(s, now), at: Math.floor(now / 1000), kind, text }].slice(-32)
 }
 
 export function logLine(s: Demo, now: number, text: string) {
-  const line = `${new Date(now).toISOString().slice(11, 23)} ${text}`
+  const d = new Date(now)
+  const ms = String(d.getMilliseconds()).padStart(3, '0')
+  const line = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${ms} ${text}`
   s.log = [...s.log, line].slice(-120)
   return line
 }
@@ -256,13 +289,14 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   s.bootAt = now
   s.bootReason = reason
   s.downUntil = 0
-  s.menu = false
+  s.ui = []
   s.inputs = []
   s.seq = 0
   s.ota = null
   s.join = null
   s.joinState = ''
   s.events = []
+  if (s.log.length) s.prev = s.log
   s.log = []
   s.since = {}
   const nx = s.slots.find((x) => x.next && x.version)
@@ -288,13 +322,17 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   ].filter(Boolean)
   // The clock stamp follows the uptime in brackets, so the lines read in order and end now.
   const ms = (l: string) => Number(/\((\d+)\)/.exec(l)?.[1] ?? 0)
-  for (const l of lines) logLine(s, now - 7665 + ms(l), l)
+  const last = ms(lines[lines.length - 1] ?? '')
+  for (const l of lines) logLine(s, now - last + ms(l), l)
 }
 
 const lanIp = (s: Demo) => (s.cfg.lan.dhcp || !s.cfg.lan.ip ? LAN_IP : s.cfg.lan.ip)
 
 /** Any address in the example LAN answers, everything else (the internet) does not: the demo has no network. */
 export const reachable = (addr: string) => /^(wss?:\/\/)?192\.168\.1\.\d{1,3}(?=[:/]|$)/.test(addr)
+/** Companion runs on these two hosts of the example LAN, so a typo in the address finds nothing. */
+export const companionAt = (addr: string) =>
+  ['192.168.1.20', '192.168.1.21'].includes(addr.replace(/^wss?:\/\//, '').replace(/[:/].*$/, ''))
 
 const connectingMs = 1500
 
@@ -314,7 +352,7 @@ export function sources(s: Demo, now: number): Source[] {
       connecting: busy,
       chosen: false,
       drawing: false,
-      error: ok || busy ? '' : 'no connection',
+      error: ok || busy ? '' : view.lang === 'de' ? 'keine Verbindung' : 'no connection',
       since_s: Math.max(0, Math.floor((t0 + (busy ? 0 : connectingMs) - s.bootAt) / 1000)),
       iface: ok ? 'lan' : undefined,
     })
@@ -322,17 +360,20 @@ export function sources(s: Demo, now: number): Source[] {
   if (s.cfg.satellite) {
     const t0 = sinceOf('satellite')
     const busy = now - t0 < connectingMs
-    const ok = reachable(s.cfg.satellite) && !busy
+    // Companion also runs on a computer paired over the dock, so its Satellite port answers too.
+    const ip = s.cfg.satellite.replace(/:.*$/, '')
+    const paired = s.docks.find((d) => d.ip === ip && d.kind === 'companion')
+    const ok = (companionAt(s.cfg.satellite) || !!paired) && !busy
     out.push({
       kind: 'companion',
       host: s.cfg.satellite,
-      name: ok ? COMPANION.name : '',
+      name: !ok ? '' : (paired?.name ?? (ip === '192.168.1.21' ? 'Backup Companion' : COMPANION.name)),
       via: 'satellite',
       connected: ok,
       connecting: busy,
       chosen: false,
       drawing: false,
-      error: ok || busy ? '' : 'no answer on port 16622',
+      error: ok || busy ? '' : view.lang === 'de' ? 'keine Antwort auf Port 16622' : 'no answer on port 16622',
       since_s: Math.max(0, Math.floor((t0 + (busy ? 0 : connectingMs) - s.bootAt) / 1000)),
       iface: ok ? 'lan' : undefined,
     })
@@ -350,7 +391,7 @@ export function sources(s: Demo, now: number): Source[] {
   const c = s.cfg
   const of = (x: Source) => (x.kind === 'server' ? 'server' : x.kind)
   let chosen = out.find((x) =>
-    c.host === 'satellite' ? x.via === 'satellite' : c.host ? x.host === c.host && of(x) === c.controller : false,
+    c.host === 'satellite' ? x.via === c.host : c.host ? x.host === c.host && of(x) === c.controller : false,
   )
   if (!c.host) chosen = out.find((x) => of(x) === c.controller && x.connected)
   if (chosen) chosen.chosen = true
@@ -360,7 +401,10 @@ export function sources(s: Demo, now: number): Source[] {
 }
 
 /** The deck shows the bridge's own screen instead of the host's picture. */
-const covered = (s: Demo, now: number) => s.menu || !!s.ota || now < s.pwUntil || now < s.resetUntil
+/** db_ui_menu_open: the menu, the password, the reset question or a login request is on the deck. */
+const overlay = (s: Demo, now: number) =>
+  ui(s, now, (u) => !!u.deck_is_open()) || now < s.pwUntil || now < s.resetUntil || s.loginReq?.state === 'pending'
+const covered = (s: Demo, now: number) => overlay(s, now) || !!s.ota || !!s.request
 
 export function writer(s: Demo, now: number, list = sources(s, now)): string {
   const d = list.find((x) => x.drawing)
@@ -375,6 +419,9 @@ export function status(s: Demo, now: number): Status {
   const w = writer(s, now, list)
   const c = s.cfg
   const u = up(s, now)
+  const ap = c.wifi_ssid
+    ? (WIFI.find((w) => w.bssid === c.wifi_bssid) ?? WIFI.find((w) => w.ssid === c.wifi_ssid))
+    : undefined
   return {
     via_ap: false,
     id: '02005e0a1b2c',
@@ -388,21 +435,21 @@ export function status(s: Demo, now: number): Status {
     uptime_s: u,
     controller: c.controller,
     writer: w,
-    menu_open: covered(s, now) && !s.ota,
+    menu_open: overlay(s, now),
     boot: { reason: s.bootReason, at: Math.floor(s.bootAt / 1000) },
     setup: { active: !c.setup_done || s.setupStep > 0, step: s.setupStep, rerun: c.setup_done && s.setupStep > 0 },
-    device: DECK,
-    decks: [DECK],
+    device: deck(s),
+    decks: [deck(s)],
     https_custom: s.tls,
     network: {
       lan: { cable: true, dead: false, ip: lanIp(s) },
       wlan: {
         ssid: c.wifi_ssid,
         ip: c.wifi_ssid ? (c.wlan.dhcp || !c.wlan.ip ? WLAN_IP : c.wlan.ip) : '',
-        bssid: c.wifi_ssid ? c.wifi_bssid || '02:00:00:00:01:01' : '',
-        channel: c.wifi_ssid ? 6 : 0,
+        bssid: c.wifi_ssid ? (ap?.bssid ?? '02:00:00:00:09:01') : '',
+        channel: c.wifi_ssid ? (ap?.channel ?? 11) : 0,
         lock: c.wifi_bssid,
-        rssi: c.wifi_ssid ? -47 - Math.round(Math.abs(Math.sin(now / 9000)) * 6) : 0,
+        rssi: c.wifi_ssid ? (ap?.rssi ?? -58) - Math.round(Math.abs(Math.sin(now / 9000)) * 6) : 0,
         join: s.joinState,
         join_error: s.joinError,
       },
@@ -424,8 +471,8 @@ export function status(s: Demo, now: number): Status {
       superseded: Math.floor(s.images / 40),
       rejected: 0,
       usb_errors: 0,
-      usb_recoveries: 0,
-      usb_speed: 'high',
+      usb_recoveries: s.recoveries ?? 0,
+      usb_speed: deck(s).usb_speed,
       inputs: s.seq,
       inputs_dropped: 0,
     },
@@ -474,6 +521,12 @@ const LIVE: (keyof ConfigPatch)[] = [
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
 
 export type Reply = { status: number; body: unknown }
+type Api = typeof api
+/** A 200 reply typed as the page reads it. `more` holds fields the firmware sends that the page does not read. */
+export const res = <K extends keyof Api>(_route: K, body: Awaited<ReturnType<Api[K]>>, more: object = {}): Reply => ({
+  status: 200,
+  body: body && typeof body === 'object' && !Array.isArray(body) ? { ...body, ...more } : body,
+})
 const bad = (status: number, error: string, code?: string): Reply => ({ status, body: { ok: false, error, code } })
 
 /** PUT /api/config. A change outside LIVE restarts the bridge, like the firmware. */
@@ -501,7 +554,7 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   }
   for (const u of next.servers) if (u && !old.servers.includes(u)) s.since[u] = now
   if (p.controller !== undefined || p.host !== undefined) {
-    s.menu = false
+    ui(s, now, (u) => u.deck_close())
     event(s, now, 'source', `picked ${next.controller}${next.host ? ` ${next.host}` : ''}`)
   }
   const restart =
@@ -514,22 +567,16 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
     p.admin_pass !== undefined ||
     p.wifi_pass !== undefined
   s.cfg = next
-  if (p.admin_pass !== undefined) {
-    s.pass = p.admin_pass
-    s.authed = false
-  }
-  if (!restart) return { status: 200, body: { ok: true, restart: false, config: config(s) } }
+  // Like the firmware: a new password ends the other sessions, the browser that set it gets a fresh one.
+  if (p.admin_pass !== undefined) s.pass = p.admin_pass
+  if (!restart) return res('putConfig', { ok: true, restart: false }, { config: config(s) })
   restartSoon(s, now)
   const sch = next.https_only ? 'https' : 'http'
-  return {
-    status: 200,
-    body: {
-      ok: true,
-      restart: true,
-      reach: [`${sch}://${lanIp(s)}`, `${sch}://${next.name}.local`],
-      config: config(s),
-    },
-  }
+  return res(
+    'putConfig',
+    { ok: true, restart: true, reach: [`${sch}://${lanIp(s)}`, `${sch}://${next.name}.local`] },
+    { config: config(s) },
+  )
 }
 
 export const RESTART_MS = 4500
@@ -538,6 +585,28 @@ export const isDown = (s: Demo, now: number) => !!s.downUntil && now >= s.downFr
 export function restartSoon(s: Demo, now: number) {
   s.downFrom = now + 1000
   s.downUntil = s.downFrom + RESTART_MS
+}
+
+const u32 = (h: number[], i: number) => h.slice(i, i + 4).reduceRight((a, x) => a * 256 + x, 0)
+
+const TARGETS = ['', 'p4', 'c6', 'web', 'bootloader', 'ptable']
+
+/** What the bridge reads from a .dbfw header (tools/dbtools/dbfw.py) before it takes a file. The signature it
+ *  checks too is left out: the demo has no key. */
+export function dbfw(
+  h: number[],
+  len: number,
+): { target: string; version: string; length: number; error?: string; code?: string } {
+  const version = String.fromCharCode(...h.slice(12, 43)).replace(/\0.*$/s, '')
+  const out = { target: TARGETS[h[5] ?? 0] ?? '', version, length: u32(h, 8) }
+  if (len < 144) return { ...out, error: 'file too short', code: 'ota_too_short' }
+  if (String.fromCharCode(...h.slice(0, 4)) !== 'DBFW' || h[4] !== 1)
+    return { ...out, error: 'not a dbfw file', code: 'ota_not_dbfw' }
+  // The page sends only the header to check a file (144 bytes); an upload brings all of it.
+  if (out.length + 144 !== len && len !== 144)
+    return { ...out, error: 'the length in the header does not match', code: 'ota_not_dbfw' }
+  if (!out.target) return { ...out, error: 'not for this device', code: 'ota_wrong_target' }
+  return out
 }
 
 /** Turns, presses and taps on what the deck shows. `origin` 'web' is a person at the live deck. */
@@ -555,12 +624,12 @@ export function input(s: Demo, now: number, b: InputBody, origin: 'web' | 'deck'
     const act = b.action ?? 'press'
     if (act !== 'up') log('key_down', b.key)
     if (act !== 'down') log('key_up', b.key)
-    if (act === 'up') return ok()
-    if (now < s.pwUntil || now < s.resetUntil) {
-      s.pwUntil = 0
+    if (w === 'ui') {
+      if (act !== 'up') uiInput(s, now, INPUT.keyDown, b.key)
+      if (act !== 'down') uiInput(s, now, INPUT.keyUp, b.key)
       return ok()
     }
-    if (s.menu) return menuKey(s, now, b.key)
+    if (act === 'up') return ok()
     if (w === 'satellite' || (w.startsWith('dock') && s.docks[+w.slice(4) - 1]?.kind === 'companion'))
       studioKey(f, b.key)
     else if (w.startsWith('dock')) appKey(f, b.key)
@@ -574,8 +643,8 @@ export function input(s: Demo, now: number, b: InputBody, origin: 'web' | 'deck'
     if (act === 'turn') {
       const n = b.ticks ?? 1
       log('encoder_turn', i, n)
-      if (s.menu) {
-        s.cfg = { ...s.cfg, brightness: clamp(s.cfg.brightness + n * 5) }
+      if (w === 'ui') {
+        uiInput(s, now, INPUT.turn, i, n)
         return ok()
       }
       if (w === 'satellite' || isCompDock(s, w)) {
@@ -588,7 +657,10 @@ export function input(s: Demo, now: number, b: InputBody, origin: 'web' | 'deck'
     }
     if (act !== 'up') log('encoder_down', i)
     if (act !== 'down') log('encoder_up', i)
-    if (act !== 'up') dialPress(s, w, i)
+    if (w === 'ui') {
+      if (act !== 'up') uiInput(s, now, INPUT.encDown, i)
+      if (act !== 'down') uiInput(s, now, INPUT.encUp, i)
+    } else if (act !== 'up') dialPress(s, w, i)
     return ok()
   }
   if ('touch' in b) {
@@ -596,6 +668,11 @@ export function input(s: Demo, now: number, b: InputBody, origin: 'web' | 'deck'
     if (y < STRIP.y || y >= STRIP.y + STRIP.h || x < 0 || x >= WIDTH)
       return bad(400, 'touch outside the strip', 'strip_outside')
     log(`touch_${b.touch}`, undefined, x)
+    if (w === 'ui') {
+      const kind = b.touch === 'swipe' ? INPUT.swipe : b.touch === 'long' ? INPUT.long : INPUT.tap
+      uiInput(s, now, kind, 0, 0, x, y, b.x2 ?? x)
+      return ok()
+    }
     if (b.touch === 'swipe' && b.x2 !== undefined) {
       if (w === 'satellite' || isCompDock(s, w)) f.page = b.x2 < x ? 1 : 0
       return ok()
@@ -611,21 +688,20 @@ const isCompDock = (s: Demo, w: string) => w.startsWith('dock') && s.docks[+w.sl
 
 function dialPress(s: Demo, w: string, i: number) {
   const f = s.faces
-  if (s.menu) return
   if (w === 'satellite' || isCompDock(s, w)) {
     if (f.page === 0) f.mute[i] = !f.mute[i]
     else if (i < 2 || i === 3) f.lights[i === 3 ? 2 : i] = !f.lights[i === 3 ? 2 : i]
-  } else if (w.startsWith('dock')) {
-    if (i === 0) f.play = !f.play
-  } else if (w.startsWith('server')) f.dial[i] = 0
+  } else if (w.startsWith('dock')) f.appMute[i] = !f.appMute[i]
+  else if (w.startsWith('server')) f.dial[i] = 0
 }
 
 function studioKey(f: Faces, k: number) {
   if (f.page === 0) {
-    if (k === 1) f.mic = !f.mic
-    if (k === 2) f.live = !f.live
-    if (k === 3) f.rec = !f.rec
-    if (k >= 4 && k <= 6) f.scene = k - 4
+    if (k <= 2) f.scene = k
+    if (k === 3) f.pause = !f.pause
+    if (k === 4) f.mic = !f.mic
+    if (k === 5) f.title = !f.title
+    if (k === 6) f.rec = !f.rec
     if (k === 7) f.page = 1
     return
   }
@@ -640,23 +716,108 @@ function appKey(f: Faces, k: number) {
   if (k === 2) f.lights[0] = !f.lights[0]
 }
 
-function menuKey(s: Demo, now: number, k: number): Reply {
-  const list = sources(s, now).filter((x) => x.kind !== 'unknown')
-  if (k < 4) {
-    const x = list[k]
-    if (!x) return ok()
+function lanOctets(s: Demo) {
+  const l = s.cfg.lan
+  return [l.ip || lanIp(s), l.mask || '255.255.255.0', l.gateway || '192.168.1.1', l.dns || '192.168.1.1'].map((a) =>
+    a.split('.').map(Number),
+  )
+}
+
+const BARE: UiModel = { fields: {}, sources: [], lan_cfg: [] }
+const CTRL = { server: 0, companion: 1, app: 2 } as const
+const VIA = { server: 0, satellite: 1, dock: 2 } as const
+
+/** What db_ui.c model() fills in from the bridge, here from the demo's state. */
+function uiModel(s: Demo, now: number): UiModel {
+  // model_sources' order: Satellite, dock hosts, servers.
+  const rank = { satellite: 0, dock: 1, server: 2 } as const
+  const list = sources(s, now)
+    .filter((x) => x.connected && x.kind !== 'unknown')
+    .sort((a, b) => rank[a.via ?? 'server'] - rank[b.via ?? 'server'])
+  const ip = lanIp(s)
+  const wlan = s.cfg.wifi_ssid ? (s.cfg.wlan.dhcp || !s.cfg.wlan.ip ? WLAN_IP : s.cfg.wlan.ip) : ''
+  const login = s.loginReq?.state === 'pending'
+  return {
+    fields: {
+      controller: (CTRL as Record<string, number>)[s.cfg.controller] ?? CTRL.companion,
+      lan_link: true,
+      lan_up: true,
+      lan_dhcp: s.cfg.lan.dhcp,
+      lan_ip: ip,
+      wlan_chip: true,
+      wlan_up: !!wlan,
+      wlan_rssi: -47,
+      wlan_ip: wlan,
+      wifi_ssid: s.cfg.wifi_ssid,
+      request: s.request?.ip ?? '',
+      request_name: s.request?.name ?? '',
+      menu_chord: s.cfg.menu_chord,
+      menu_hold_ms: s.cfg.menu_hold_ms,
+      server_url: s.cfg.servers.find(Boolean) ?? '',
+      web_pass: s.pass,
+      fw: s.firmware,
+      wlan_fw: '3.0.10',
+      brightness: s.cfg.brightness,
+      update_pct: s.ota ? otaPct(s, now) : -1,
+      update_what: s.ota?.version ?? '',
+      setup_done: s.cfg.setup_done,
+      setup_step: s.setupStep,
+      picked: !!s.cfg.host || s.cfg.controller !== 'companion',
+      show_pass: now < s.pwUntil,
+      reset_ask: now < s.resetUntil,
+      login_ip: login ? '192.168.1.77' : '',
+      login_who: login ? 'Firefox on Linux' : '',
+    },
+    sources: list.map((x) => ({
+      kind: CTRL[x.kind as keyof typeof CTRL],
+      via: VIA[x.via ?? 'server'],
+      chosen: x.chosen,
+      label: x.kind === 'server' ? x.host.replace(/^wss?:\/\//, '').split('/')[0] || x.host : x.name || x.host,
+      id: x.via === 'satellite' ? 'satellite' : x.host,
+    })),
+    lan_cfg: lanOctets(s),
+  }
+}
+
+/** Runs the firmware's device UI (deck-ui.ts) on this bridge's menu state. Opening, closing and the tick need no
+ *  model but the time, as in db_ui.c. */
+function ui<T>(s: Demo, now: number, run: Parameters<typeof withUi<T>>[3], m: UiModel = BARE): T {
+  const [r, menu] = withUi(s.ui, m, now, run)
+  s.ui = menu
+  return r
+}
+
+// Every press in the demo comes from the web UI, so Neustart, Setup-WLAN, Speichern and the factory reset do
+// nothing, as on a real bridge (db_ui screens.c, from_deck).
+function uiInput(s: Demo, now: number, kind: number, index: number, value = 0, x = 0, y = 0, x2 = 0) {
+  const m = uiModel(s, now)
+  const [what, v] = ui(s, now, (u) => [DO[u.deck_input(kind, index, value, x, y, x2, 0)], u.deck_act_value()], m)
+  const src = m.sources[v]
+  if (what === 'source' && src) {
     s.cfg = {
       ...s.cfg,
-      controller: x.kind === 'server' ? 'server' : x.kind,
-      host: x.via === 'satellite' ? 'satellite' : x.host,
+      controller: (Object.keys(CTRL) as (keyof typeof CTRL)[])[src.kind] ?? 'companion',
+      host: src.id,
+      setup_done: true,
     }
-    s.menu = false
-    event(s, now, 'source', `picked on the deck: ${x.name || x.host}`)
+    event(s, now, 'source', `picked on the deck: ${src.label}`)
   }
-  if (k === 4) s.cfg = { ...s.cfg, brightness: Math.max(10, s.cfg.brightness - 10) }
-  if (k === 5) s.cfg = { ...s.cfg, brightness: Math.min(100, s.cfg.brightness + 10) }
-  if (k === 7) s.menu = false
-  return ok()
+  if (what === 'answer' && s.request) dock(s, now, { accept: v === 1, ip: s.request.ip })
+  if (what === 'brightness') s.cfg = { ...s.cfg, brightness: Math.max(0, Math.min(100, s.cfg.brightness + v)) }
+  if (what === 'hide_password') s.pwUntil = 0
+  if (what === 'cancel_reset') s.resetUntil = 0
+  if (what === 'login' && s.loginReq) s.loginReq.state = v ? 'accepted' : 'denied'
+  if (what === 'setup_done') s.cfg = { ...s.cfg, setup_done: true }
+}
+
+export const openMenu = (s: Demo, now: number) => ui(s, now, (u) => u.deck_open())
+
+/** db_ui_close_menu: also hides the password, the reset question and a login request. */
+export function closeMenu(s: Demo, now: number) {
+  ui(s, now, (u) => u.deck_close())
+  s.pwUntil = 0
+  s.resetUntil = 0
+  if (s.loginReq?.state === 'pending') s.loginReq.state = 'denied'
 }
 
 export const TRACKS = ['Opening Theme', 'Lo-Fi Break', 'Outro Groove']
@@ -669,24 +830,11 @@ export interface KeyFace {
   fg?: string
   on?: boolean
   bar?: number
-  icon?:
-    | 'mic'
-    | 'live'
-    | 'rec'
-    | 'cam'
-    | 'light'
-    | 'next'
-    | 'back'
-    | 'play'
-    | 'pause'
-    | 'skip'
-    | 'clock'
-    | 'host'
-    | 'sun'
-    | 'x'
-    | 'info'
-    | 'brb'
-    | 'dot'
+  /** The website's key look (site/remotion/hw.tsx Face): this icon over t. */
+  site?: 'cam' | 'slides' | 'pause' | 'mic' | 'title' | 'rec' | 'clock' | 'next'
+  /** Colour of the rec dot. */
+  dot?: string
+  icon?: 'light' | 'next' | 'back' | 'play' | 'pause' | 'skip' | 'clock' | 'brb' | 'dot'
 }
 export interface StripZone {
   t: string
@@ -695,115 +843,50 @@ export interface StripZone {
   off?: boolean
   color: string
 }
-export type StripFace = { zones: StripZone[] } | { text: string; sub?: string; bar?: number }
-export interface Face {
-  keys: KeyFace[]
-  strip: StripFace
-}
+/** What a host draws, or `ui`: the bridge's own screen, a hash of what db_ui built. */
+export type Face = { keys: KeyFace[]; strip: { zones: StripZone[] } } | { ui: number }
 
 const pad = (n: number) => String(n).padStart(2, '0')
+
+const AMBER = '#ffb020'
+const TILE = '#2b2d31'
 
 function faceEn(s: Demo, now: number): Face {
   const f = s.faces
   const w = writer(s, now)
   const d = new Date(now)
   const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  if (now < s.pwUntil)
-    return {
-      keys: [
-        { t: 'admin', sub: 'user', bg: '#1b1e22' },
-        { t: s.pass, sub: 'password', bg: '#1b1e22', fg: '#ffb020' },
-        ...blank(6),
-      ],
-      strip: { text: 'Password shown for 30 s', sub: 'any key hides it' },
-    }
-  if (now < s.resetUntil)
-    return {
-      keys: [
-        ...blank(4),
-        { t: 'Reset', sub: 'tap twice', bg: '#5a1714', fg: '#ff5b4f', icon: 'x' },
-        ...blank(2),
-        { t: 'Keep', bg: '#1b1e22', icon: 'back' },
-      ],
-      strip: { text: 'Reset all settings?', sub: `${Math.ceil((s.resetUntil - now) / 1000)} s` },
-    }
-  if (s.ota) {
-    const pct = otaPct(s, now)
-    return {
-      keys: blank(8),
-      strip: { text: `Update ${s.ota.version}`, sub: pct < 100 ? 'downloading' : 'verifying', bar: pct },
-    }
-  }
-  if (s.menu) {
-    const list = sources(s, now)
-      .filter((x) => x.kind !== 'unknown')
-      .slice(0, 4)
-    const keys: KeyFace[] = list.map((x) => ({
-      t: x.name || x.host.replace(/^wss?:\/\//, '').split('/')[0] || x.host,
-      sub: x.drawing || x.chosen ? 'in use' : x.connected ? x.kind : 'offline',
-      bg: x.chosen ? '#3a2a07' : '#1b1e22',
-      fg: x.connected ? '#e8e6e1' : '#6b7178',
-      on: x.chosen,
-      icon: 'host',
-    }))
-    while (keys.length < 4) keys.push({ t: '', bg: '#0f1113' })
-    keys.push(
-      { t: 'Dimmer', sub: `${s.cfg.brightness}%`, bg: '#1b1e22', icon: 'sun' },
-      { t: 'Brighter', sub: `${s.cfg.brightness}%`, bg: '#1b1e22', icon: 'sun' },
-      { t: s.cfg.name, sub: lanIp(s), bg: '#1b1e22', icon: 'info' },
-      { t: 'Close', bg: '#1b1e22', icon: 'x' },
-    )
-    return { keys, strip: { text: 'DeckConnector menu', sub: `${s.firmware} · ${lanIp(s)}` } }
-  }
+  // The bridge's own screen: the firmware's db_ui code draws it (deck-ui.ts).
+  if (w === 'ui') return { ui: ui(s, now, (u) => u.deck_screen(s.ota ? 1 : 0), uiModel(s, now)) }
   if (w === 'satellite' || isCompDock(s, w)) {
+    // The show page of the animations on the website: same labels, same colours.
     if (f.page === 0)
       return {
         keys: [
-          { t: clock, sub: 'Clock', bg: '#101418', fg: '#e8e6e1', icon: 'clock' },
-          {
-            t: f.mic ? 'Mic on' : 'Muted',
-            bg: f.mic ? '#123a22' : '#5a1714',
-            fg: f.mic ? '#3ddc84' : '#ff5b4f',
-            icon: 'mic',
-            on: f.mic,
-          },
-          {
-            t: f.live ? 'ON AIR' : 'Go live',
-            bg: f.live ? '#b3261e' : '#22262b',
-            fg: '#ffffff',
-            icon: 'live',
-            on: f.live,
-          },
-          {
-            t: f.rec ? 'REC' : 'Record',
-            bg: f.rec ? '#5a1714' : '#22262b',
-            fg: f.rec ? '#ff5b4f' : '#e8e6e1',
-            icon: 'rec',
-            on: f.rec,
-          },
-          ...['Cam 1', 'Cam 2', 'Wide'].map((n, i): KeyFace => ({
-            t: n,
-            sub: 'Scene',
-            bg: f.scene === i ? '#ffb020' : '#1d2a3a',
-            fg: f.scene === i ? '#0f1113' : '#cfe3ff',
-            icon: 'cam',
-            on: f.scene === i,
+          ...(['CAM 1', 'CAM 2', 'Slides'] as const).map((t, i): KeyFace => ({
+            t,
+            site: i < 2 ? 'cam' : 'slides',
+            bg: f.scene === i ? '#ff4b3e' : TILE,
           })),
-          { t: 'Lights', sub: 'Page 2', bg: '#262b31', icon: 'next' },
+          { t: 'Pause', site: 'pause', bg: f.pause ? '#9b7bff' : TILE, fg: f.pause ? '#140d26' : undefined },
+          f.mic ? { t: 'ON', site: 'mic', bg: '#30c060' } : { t: 'OFF', site: 'mic', bg: TILE, fg: '#ff7a70' },
+          { t: 'Title', site: 'title', bg: f.title ? AMBER : TILE, fg: f.title ? '#1a1200' : undefined },
+          { t: 'REC', site: 'rec', bg: TILE, dot: f.rec ? '#ff4b3e' : '#5a2420' },
+          { t: 'Lights', site: 'next', bg: TILE },
         ],
         strip: {
-          zones: ['Mic', 'Music', 'Game', 'Master'].map((t, i) => ({
+          zones: ['Master', 'Mic', 'Music', 'Room'].map((t, i) => ({
             t,
             v: f.vol[i] ?? 0,
-            text: f.mute[i] ? 'muted' : `${f.vol[i]}%`,
+            text: f.mute[i] ? 'muted' : String(f.vol[i]),
             off: f.mute[i],
-            color: ['#3ddc84', '#4fa3ff', '#c08cff', '#ffb020'][i] ?? '#ffb020',
+            color: i === 1 ? '#3ddc84' : '#ffb020',
           })),
         },
       }
     return {
       keys: [
-        ...['Key', 'Fill', 'Back'].map((t, i): KeyFace => ({
+        ...['Front', 'Fill', 'Rim'].map((t, i): KeyFace => ({
           t,
           sub: f.lights[i] ? 'on' : 'off',
           bg: f.lights[i] ? '#4a3a0c' : '#1b1e22',
@@ -822,12 +905,12 @@ function faceEn(s: Demo, now: number): Face {
         { t: clock, sub: 'Clock', bg: '#101418', icon: 'clock' },
         { t: '', bg: '#0f1113' },
         { t: '', bg: '#0f1113' },
-        { t: 'Studio', sub: 'Page 1', bg: '#262b31', icon: 'back' },
+        { t: 'Show', bg: '#262b31', icon: 'back' },
       ],
       strip: {
         zones: [
           {
-            t: 'Key',
+            t: 'Front',
             v: f.light[0] ?? 0,
             text: f.lights[0] ? `${f.light[0]}%` : 'off',
             off: !f.lights[0],
@@ -842,7 +925,7 @@ function faceEn(s: Demo, now: number): Face {
           },
           { t: 'Colour', v: (((f.light[2] ?? 4800) - 2900) / 4100) * 100, text: `${f.light[2]} K`, color: '#9fd3ff' },
           {
-            t: 'Back',
+            t: 'Rim',
             v: f.light[3] ?? 0,
             text: f.lights[2] ? `${f.light[3]}%` : 'off',
             off: !f.lights[2],
@@ -872,7 +955,7 @@ function faceEn(s: Demo, now: number): Face {
           on: f.lights[0],
         },
         { t: clock, sub: 'Clock', bg: '#101418', icon: 'clock' },
-        { t: 'Folder', sub: 'Elgato App', bg: '#262b31', icon: 'next' },
+        { t: '', bg: '#0f1113' },
         { t: '', bg: '#0f1113' },
         { t: '', bg: '#0f1113' },
         { t: '', bg: '#0f1113' },
@@ -881,30 +964,21 @@ function faceEn(s: Demo, now: number): Face {
         zones: ['System', 'Music', 'Browser', 'Mic'].map((t, i) => ({
           t,
           v: f.appVol[i] ?? 0,
-          text: `${f.appVol[i]}%`,
-          off: i === 0 && !f.play ? false : undefined,
+          text: f.appMute[i] ? 'muted' : `${f.appVol[i]}%`,
+          off: f.appMute[i],
           color: '#8c9cff',
         })),
       },
     }
-  if (w.startsWith('server'))
-    return {
-      keys: f.presses.map((n, i) => ({ t: String(n), sub: `key ${i + 1}`, bg: '#14262a', fg: '#7fe0d0', icon: 'dot' })),
-      strip: {
-        zones: f.dial.map((n, i) => ({
-          t: `dial ${i + 1}`,
-          v: 50 + Math.max(-50, Math.min(50, n)),
-          text: String(n),
-          color: '#7fe0d0',
-        })),
-      },
-    }
-  const chosen = sources(s, now).find((x) => x.chosen)
   return {
-    keys: blank(8),
+    keys: f.presses.map((n, i) => ({ t: String(n), sub: `Key ${i + 1}`, bg: '#14262a', fg: '#7fe0d0' })),
     strip: {
-      text: chosen ? `Waiting for ${chosen.name || chosen.host}` : 'No host picked',
-      sub: `${s.cfg.name} · ${lanIp(s)}`,
+      zones: f.dial.map((n, i) => ({
+        t: `Dial ${i + 1}`,
+        v: 50 + Math.max(-50, Math.min(50, n)),
+        text: String(n),
+        color: '#7fe0d0',
+      })),
     },
   }
 }
@@ -913,75 +987,45 @@ function faceEn(s: Demo, now: number): Face {
 export const view = { lang: 'en' as 'en' | 'de' }
 
 const DE: Record<string, string> = {
-  user: 'Benutzer',
-  password: 'Passwort',
-  'Password shown for 30 s': 'Passwort 30 s sichtbar',
-  'any key hides it': 'jede Taste blendet es aus',
-  Reset: 'Löschen',
-  'tap twice': 'zweimal tippen',
-  Keep: 'Behalten',
-  'Reset all settings?': 'Alle Einstellungen löschen?',
-  downloading: 'lädt',
-  verifying: 'prüft',
-  'in use': 'aktiv',
-  Dimmer: 'Dunkler',
-  Brighter: 'Heller',
-  Close: 'Schließen',
-  'DeckConnector menu': 'DeckConnector-Menü',
   Clock: 'Uhr',
-  'Mic on': 'Mikro an',
-  Muted: 'Stumm',
-  'Go live': 'Live gehen',
-  Record: 'Aufnahme',
   Scene: 'Szene',
-  Lights: 'Licht',
-  'Page 1': 'Seite 1',
-  'Page 2': 'Seite 2',
   Mic: 'Mikro',
   Music: 'Musik',
-  Game: 'Spiel',
-  Master: 'Gesamt',
+  Master: 'Summe',
+  Room: 'Saal',
+  Slides: 'Folien',
+  Title: 'Titel',
+  ON: 'AN',
+  OFF: 'AUS',
   muted: 'stumm',
-  Key: 'Haupt',
+  Front: 'Haupt',
+  Rim: 'Hinten',
+  Lights: 'Licht',
   Fill: 'Fülllicht',
-  Back: 'Hinten',
   Colour: 'Farbe',
   on: 'an',
   off: 'aus',
   showing: 'läuft',
   Next: 'Weiter',
-  Folder: 'Ordner',
-  'No host picked': 'Kein Host gewählt',
 }
 
-const de = (x: string) =>
-  DE[x] ??
-  x
-    .replace(/^Waiting for /, 'Warte auf ')
-    .replace(/^key (\d+)$/, 'Taste $1')
-    .replace(/^dial (\d+)$/, 'Regler $1')
+const de = (x: string) => DE[x] ?? x.replace(/^Key (\d+)$/, 'Taste $1').replace(/^Dial (\d+)$/, 'Regler $1')
 
 export function face(s: Demo, now: number): Face {
   const f = faceEn(s, now)
-  if (view.lang === 'en') return f
-  const strip = f.strip
+  if (view.lang === 'en' || 'ui' in f) return f
   return {
     keys: f.keys.map((k) => ({ ...k, t: de(k.t), sub: k.sub && de(k.sub) })),
-    strip:
-      'zones' in strip
-        ? { zones: strip.zones.map((z) => ({ ...z, t: de(z.t), text: de(z.text) })) }
-        : { ...strip, text: de(strip.text), sub: strip.sub && de(strip.sub) },
+    strip: { zones: f.strip.zones.map((z) => ({ ...z, t: de(z.t), text: de(z.text) })) },
   }
 }
-
-const blank = (n: number): KeyFace[] => Array.from({ length: n }, () => ({ t: '', bg: '#040506' }))
 
 export const OTA_MS = 9000
 export const otaPct = (s: Demo, now: number) =>
   s.ota ? Math.min(100, Math.floor(((now - s.ota.at) / OTA_MS) * 100)) : 0
 
 export interface Out {
-  ota?: { target: string; state: string; pct: number }
+  ota?: { target: string; state: string; pct: number; error?: string }
   log?: string[]
 }
 
@@ -994,6 +1038,7 @@ export function tick(s: Demo, now: number): Out {
     return out
   }
   if (isDown(s, now)) return out
+  ui(s, now, (u) => u.deck_tick()) // closes an idle menu, ends a confirm
   if (s.ota) {
     const pct = otaPct(s, now)
     if (pct >= 100) {
@@ -1024,16 +1069,18 @@ export function tick(s: Demo, now: number): Out {
     const j = s.join
     s.join = null
     const known = WIFI.find((w) => w.ssid === j.ssid)
+    // A name the scan did not list is a hidden network: it joins like any other with a good password.
     const okPass = known?.open || j.pass.length >= 8
-    if (known && okPass && j.pass !== 'wrongpass') {
+    // Neighbour is too far away to answer; every other network takes any password of 8 or more characters.
+    if (okPass && j.pass !== 'wrongpass' && j.ssid !== 'Neighbour') {
       s.joinState = 'ok'
       s.joinError = ''
-      s.cfg = { ...s.cfg, wifi_ssid: j.ssid, wifi_bssid: j.bssid, wifi_pass_set: !known.open }
+      s.cfg = { ...s.cfg, wifi_ssid: j.ssid, wifi_bssid: j.bssid, wifi_pass_set: !known?.open }
       event(s, now, 'wlan', `joined ${j.ssid}`)
       say(`I net: WLAN ${j.ssid} joined, ${WLAN_IP}`)
     } else {
       s.joinState = 'failed'
-      s.joinError = known ? 'wrong password' : 'network not found'
+      s.joinError = j.ssid === 'Neighbour' ? 'no answer from the access point' : 'wrong password'
       say(`W net: WLAN ${j.ssid}: ${s.joinError}`)
     }
   }
@@ -1041,15 +1088,38 @@ export function tick(s: Demo, now: number): Out {
     if (now - s.loginReq.at > 4000) s.loginReq.state = 'accepted'
   }
   if (s.resetUntil && now >= s.resetUntil) s.resetUntil = 0
+  // During setup an Elgato app finds the bridge a few seconds into the source step. Pairing is open until the first
+  // computer, so it pairs without a question, and it takes the deck while nobody else has it.
+  const appAt = s.setupSrcAt
+  if (!s.cfg.setup_done && appAt && now - appAt > 5000 && !s.docks.length) {
+    s.docks = [{ ip: '192.168.1.31', mac: '02:00:5e:10:00:31', name: 'edit-pc', kind: 'app', connected: true }]
+    if (!s.cfg.host) s.cfg = { ...s.cfg, controller: 'app', host: '192.168.1.31' }
+    event(s, now, 'pairing', 'paired edit-pc (192.168.1.31), the first computer')
+    say('I dock: 192.168.1.31 paired, pairing was open')
+  }
   // Like the firmware, an unanswered pairing request lapses after a minute.
   if (s.request && now - s.request.at > 60_000) s.request = null
-  // A second host asks to pair a little after the visitor arrives, so the pairing flow can be tried.
-  if (s.authed && !s.requested && s.cfg.setup_done && now - s.started > 25_000) {
-    s.requested = true
-    s.request = { ip: '192.168.1.52', name: 'stage-laptop', at: now }
-    event(s, now, 'pairing', 'stage-laptop (192.168.1.52) asks to pair')
-    say('I dock: 192.168.1.52 asks to pair')
+  const l = s.later
+  if (l && now >= l.at && !s.request) {
+    s.later = null
+    // While pairing is open a computer pairs without a question (dock_paired_only).
+    if (now < s.pairOpenUntil) {
+      s.docks = [...s.docks.filter((d) => d.ip !== l.ip), { ...l, mac: '02:00:5e:10:00:53', connected: true }]
+      event(s, now, 'pairing', `paired ${l.name} (${l.ip}), pairing was open`)
+      say(`I dock: ${l.ip} paired, pairing was open`)
+    } else {
+      s.request = { ip: l.ip, name: l.name, at: now }
+      event(s, now, 'pairing', `${l.name} (${l.ip}) asks to pair`)
+      say(`I dock: ${l.ip} asks to pair`)
+    }
   }
+  if (s.otaFail && now >= s.otaFail.at) {
+    out.ota = { target: 'unknown', state: 'error', pct: -1, error: s.otaFail.why }
+    say(`E ota: download failed: ${s.otaFail.why}`)
+    s.otaFail = null
+  }
+  // Nobody stands at the demo's deck to tap "Zurücksetzen" twice, so after a few seconds someone does.
+  if (s.resetUntil && now > s.resetUntil - 55_000) factoryReset(s, now)
   if (Math.floor(now / 7000) !== Math.floor((now - 1000) / 7000))
     say(
       ['D web: GET /api/status 200', 'D link: satellite ping 3 ms', 'D deck: frame 18 ms', 'D net: WLAN -47 dBm'][
@@ -1066,9 +1136,15 @@ export function dock(
 ): Reply {
   if (b.pairing !== undefined) {
     s.pairOpenUntil = b.pairing > 0 ? now + b.pairing * 1000 : 0
+    if (b.pairing > 0 && !s.later && !s.docks.some((d) => d.ip === '192.168.1.53'))
+      s.later = { ip: '192.168.1.53', name: 'studio-mac', kind: 'app', at: now + 6000 }
     return ok()
   }
   if (b.forget !== undefined) {
+    // A computer that is forgotten keeps looking for the dock, so it asks to pair again a few seconds later.
+    const gone = s.docks.find((d) => d.ip === b.forget)
+    if (gone && !s.later)
+      s.later = { ip: gone.ip, name: gone.name, kind: gone.kind === 'companion' ? 'companion' : 'app', at: now + 5000 }
     s.docks = b.forget === true ? [] : s.docks.filter((d) => d.ip !== b.forget)
     return ok()
   }
@@ -1091,13 +1167,26 @@ export function dock(
   return bad(400, 'nothing to do')
 }
 
-export function makeToken(s: Demo, name: string, right: 'control' | 'full', now: number): Reply {
+export function makeToken(s: Demo, name: string, right: 'control' | 'full'): Reply {
   if (!/^[A-Za-z0-9_-]{1,23}$/.test(name)) return bad(400, 'name: 1 to 23 letters, digits, - or _')
   const rest = s.tokens.filter((t) => t.name !== name)
   if (rest.length >= 8) return bad(409, 'at most 8 tokens')
-  const tok = Array.from({ length: 40 }, (_, i) => 'abcdefghjkmnpqrstuvwxyz23456789'[(i * 7 + now) % 31]).join('')
-  s.tokens = [...rest, { name, right, created: new Date(now).toISOString().slice(0, 10) }]
-  return { status: 200, body: { name, right, token: `dc_${tok}` } }
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789'
+  const tok = Array.from(crypto.getRandomValues(new Uint8Array(40)), (b) => abc[b % abc.length]).join('')
+  s.tokens = [...rest, { name, right }]
+  return res('makeToken', { name, right, token: `dc_${tok}` })
+}
+
+/** What a reset confirmed on the deck does: every setting goes, the bridge restarts into setup with a new
+ *  password on the deck. */
+function factoryReset(s: Demo, now: number) {
+  const f = fresh(now, { setup: true })
+  const abc = 'abcdefghjkmnpqrstuvwxyz23456789'
+  const pass = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => abc[b % abc.length]).join('')
+  Object.assign(s, { cfg: f.cfg, pass, docks: [], tokens: [], denied: [], request: null, later: null })
+  Object.assign(s, { resetUntil: 0, pwUntil: 0, authed: false, requested: true, tls: false, setupStep: 0 })
+  event(s, now, 'reset', 'factory reset confirmed on the deck')
+  restartSoon(s, now)
 }
 
 export function startOta(s: Demo, now: number, version = LATEST): Reply {

@@ -1,8 +1,26 @@
-import type { Face, KeyFace, StripFace } from './model'
+import { renderUi } from './deck-ui'
+import { HEIGHT, KEYS, STRIP, WIDTH, type Face, type KeyFace, type StripZone } from './model'
 import type { Paint } from './server'
 
-const SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+const SANS = '"Geist Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const cache = new Map<string, string>()
+
+// lucide 1.70 paths (video, presentation, pause, mic, type, clock, chevron-right) on their 24 px grid, as the website draws them.
+const SITE_ICONS: Record<Exclude<NonNullable<KeyFace['site']>, 'rec'>, string[]> = {
+  cam: [
+    'm16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5',
+    'M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
+  ],
+  slides: ['M2 3h20', 'M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3', 'm7 21 5-5 5 5'],
+  pause: [
+    'M15 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z',
+    'M6 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z',
+  ],
+  mic: ['M12 19v3', 'M19 10v2a7 7 0 0 1-14 0v-2', 'M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z'],
+  title: ['M12 4v16', 'M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2', 'M9 20h6'],
+  clock: ['M2 12a10 10 0 1 0 20 0a10 10 0 1 0-20 0', 'M12 6v6l4 2'],
+  next: ['m9 18 6-6-6-6'],
+}
 
 function canvas(w: number, h: number) {
   const c = document.createElement('canvas')
@@ -37,51 +55,13 @@ function icon(g: CanvasRenderingContext2D, k: KeyFace, cx: number, cy: number) {
   g.lineJoin = 'round'
   g.beginPath()
   switch (k.icon) {
-    case 'mic':
-      g.roundRect(cx - 7, cy - 18, 14, 24, 7)
-      g.stroke()
-      g.beginPath()
-      g.arc(cx, cy - 2, 13, 0.15 * Math.PI, 0.85 * Math.PI)
-      g.moveTo(cx, cy + 11)
-      g.lineTo(cx, cy + 17)
-      g.stroke()
-      if (!k.on) {
-        g.beginPath()
-        g.moveTo(cx - 16, cy - 18)
-        g.lineTo(cx + 16, cy + 16)
-        g.stroke()
-      }
-      return
-    case 'live':
+    case 'dot':
       g.arc(cx, cy, 6, 0, 2 * Math.PI)
       g.fill()
-      for (const r of [13, 20]) {
-        g.beginPath()
-        g.arc(cx, cy, r, -0.3 * Math.PI, 0.3 * Math.PI)
-        g.stroke()
-        g.beginPath()
-        g.arc(cx, cy, r, 0.7 * Math.PI, 1.3 * Math.PI)
-        g.stroke()
-      }
-      return
-    case 'rec':
-    case 'dot':
-      g.arc(cx, cy, k.icon === 'rec' ? 13 : 6, 0, 2 * Math.PI)
-      if (k.on || k.icon === 'dot') g.fill()
-      else g.stroke()
-      return
-    case 'cam':
-      g.roundRect(cx - 20, cy - 12, 28, 24, 4)
-      g.moveTo(cx + 10, cy - 4)
-      g.lineTo(cx + 20, cy - 10)
-      g.lineTo(cx + 20, cy + 10)
-      g.lineTo(cx + 10, cy + 4)
-      g.stroke()
       return
     case 'light':
-    case 'sun':
       g.arc(cx, cy, 9, 0, 2 * Math.PI)
-      if (k.on || k.icon === 'sun') g.fill()
+      if (k.on) g.fill()
       else g.stroke()
       for (let i = 0; i < 8; i++) {
         const a = (i * Math.PI) / 4
@@ -116,25 +96,6 @@ function icon(g: CanvasRenderingContext2D, k: KeyFace, cx: number, cy: number) {
       g.fill()
       g.fillRect(cx + 7, cy - 13, 5, 26)
       return
-    case 'host':
-      g.roundRect(cx - 18, cy - 14, 36, 22, 3)
-      g.moveTo(cx - 8, cy + 15)
-      g.lineTo(cx + 8, cy + 15)
-      g.stroke()
-      return
-    case 'x':
-      g.moveTo(cx - 12, cy - 12)
-      g.lineTo(cx + 12, cy + 12)
-      g.moveTo(cx + 12, cy - 12)
-      g.lineTo(cx - 12, cy + 12)
-      g.stroke()
-      return
-    case 'info':
-      g.arc(cx, cy, 16, 0, 2 * Math.PI)
-      g.stroke()
-      g.fillRect(cx - 2, cy - 3, 4, 12)
-      g.fillRect(cx - 2, cy - 10, 4, 4)
-      return
     case 'brb':
       g.roundRect(cx - 14, cy - 10, 22, 22, 4)
       g.moveTo(cx + 8, cy - 4)
@@ -152,7 +113,27 @@ function paintKey(k: KeyFace) {
     g.textAlign = 'center'
     g.textBaseline = 'middle'
     g.fillStyle = k.fg ?? '#e8e6e1'
-    if (k.icon === 'clock') {
+    if (k.site) {
+      // The key look of the website (site/remotion/hw.tsx Face): a 24 px lucide icon over one bold word.
+      g.save()
+      g.translate(38, 16)
+      g.scale(44 / 24, 44 / 24)
+      g.strokeStyle = k.fg ?? '#fff'
+      g.lineWidth = 2.4
+      g.lineCap = 'round'
+      g.lineJoin = 'round'
+      if (k.site === 'rec') {
+        g.fillStyle = k.dot ?? '#ff4b3e'
+        g.beginPath()
+        g.arc(12, 12, 8, 0, 2 * Math.PI)
+        g.fill()
+      } else for (const d of SITE_ICONS[k.site]) g.stroke(new Path2D(d))
+      g.restore()
+      g.fillStyle = k.fg ?? '#fff'
+      g.textBaseline = 'alphabetic'
+      fit(g, k.t, 104, 28, 800)
+      g.fillText(k.t, 60, 98)
+    } else if (k.icon === 'clock') {
       fit(g, k.t, 108, 38)
       g.fillText(k.t, 60, 54)
     } else if (k.icon) {
@@ -162,7 +143,7 @@ function paintKey(k: KeyFace) {
       g.fillText(k.t, 60, k.sub ? 82 : 90)
     } else if (k.t) {
       fit(g, k.t, 108, 26)
-      g.fillText(k.t, 60, k.sub ? 54 : 60)
+      g.fillText(k.t, 60, 54)
     }
     if (k.sub) {
       g.globalAlpha = 0.7
@@ -174,55 +155,47 @@ function paintKey(k: KeyFace) {
   })
 }
 
-function paintStrip(s: StripFace) {
-  return memo(JSON.stringify(s), () => {
+function paintStrip(zones: StripZone[]) {
+  return memo(JSON.stringify(zones), () => {
     const [c, g] = canvas(800, 100)
     g.fillStyle = '#040506'
     g.fillRect(0, 0, 800, 100)
     g.textBaseline = 'middle'
-    if ('zones' in s) {
-      s.zones.forEach((z, i) => {
-        const x = i * 200
-        g.fillStyle = '#0d1014'
-        g.fillRect(x + 6, 6, 188, 88)
-        g.globalAlpha = z.off ? 0.45 : 1
-        g.fillStyle = '#9aa1a9'
-        g.font = `600 15px ${SANS}`
-        g.textAlign = 'left'
-        g.fillText(z.t, x + 18, 26)
-        g.fillStyle = z.off ? '#ff5b4f' : '#e8e6e1'
-        g.font = `700 26px ${SANS}`
-        g.textAlign = 'right'
-        g.fillText(z.text, x + 182, 30)
-        g.fillStyle = '#22272d'
-        g.beginPath()
-        g.roundRect(x + 18, 64, 164, 12, 6)
-        g.fill()
-        g.fillStyle = z.color
-        g.beginPath()
-        g.roundRect(x + 18, 64, Math.max(12, (164 * Math.max(0, Math.min(100, z.v))) / 100), 12, 6)
-        g.fill()
-        g.globalAlpha = 1
-      })
-    } else {
-      g.textAlign = 'center'
-      g.fillStyle = '#e8e6e1'
-      fit(g, s.text, 760, 26)
-      g.fillText(s.text, 400, s.sub || s.bar !== undefined ? 34 : 50)
-      if (s.sub) {
-        g.fillStyle = '#9aa1a9'
-        g.font = `500 16px ${SANS}`
-        g.fillText(s.sub, 400, 66)
-      }
-      if (s.bar !== undefined) {
-        g.fillStyle = '#22272d'
-        g.fillRect(200, 84, 400, 8)
-        g.fillStyle = '#ffb020'
-        g.fillRect(200, 84, 4 * s.bar, 8)
-      }
-    }
+    zones.forEach((z, i) => {
+      const x = i * 200
+      g.fillStyle = '#0d0f12'
+      g.beginPath()
+      g.roundRect(x + 4, 4, 192, 92, 8)
+      g.fill()
+      g.globalAlpha = z.off ? 0.45 : 1
+      g.textAlign = 'left'
+      g.fillStyle = '#a3a9b1'
+      fit(g, z.t, 164, 18, 600)
+      g.fillText(z.t, x + 18, 28)
+      g.fillStyle = z.off ? '#ff5b4f' : '#fff'
+      fit(g, z.text, 164, 34, 800)
+      g.fillText(z.text, x + 18, 60)
+      g.fillStyle = '#2a2e34'
+      g.beginPath()
+      g.roundRect(x + 18, 80, 164, 6, 3)
+      g.fill()
+      g.fillStyle = z.color
+      g.beginPath()
+      g.roundRect(x + 18, 80, Math.max(6, (164 * Math.max(0, Math.min(100, z.v))) / 100), 6, 3)
+      g.fill()
+      g.globalAlpha = 1
+    })
     return c.toDataURL('image/png')
   })
 }
 
-export const paint: Paint = (f: Face) => ({ keys: f.keys.map(paintKey), strip: paintStrip(f.strip) })
+/** The keys drew with a fallback font until Geist arrived. */
+export const fontsReady = document.fonts.load(`700 20px ${SANS}`).then(() => cache.clear())
+
+export const paint: Paint = (f: Face) =>
+  'ui' in f
+    ? [{ x: 0, y: 0, w: WIDTH, h: HEIGHT, url: memo(`ui${f.ui}`, () => renderUi(WIDTH, HEIGHT)) }]
+    : [
+        ...KEYS.map((r, i) => ({ ...r, url: paintKey(f.keys[i] ?? { t: '', bg: '#000' }) })),
+        { ...STRIP, url: paintStrip(f.strip.zones) },
+      ]

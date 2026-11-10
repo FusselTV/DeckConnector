@@ -1,39 +1,10 @@
-/* Demo build only: the look of the website around it. Unlayered, so it wins over the app's layered styles.
-   The fonts are inlined: the demo makes no request of its own. */
-@font-face {
-  font-family: 'Geist Variable';
-  src: url('../../../site/public/fonts/geist.woff2') format('woff2-variations');
-  font-weight: 100 900;
-  font-display: swap;
-}
+/* Demo build only: the website around it. Unlayered, so it wins over the app's layered styles.
+   The mono font is inlined: the demo makes no request of its own. */
 @font-face {
   font-family: 'JetBrains Mono Variable';
   src: url('../../../site/public/fonts/jetbrains-mono.woff2') format('woff2-variations');
   font-weight: 100 800;
   font-display: swap;
-}
-:root {
-  --f-ui: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --f-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --r: 8px;
-  --fg-2: #afb4ba;
-}
-:root[data-theme='light'] {
-  --bg: #f5f6f8;
-  --panel: #ffffff;
-  --panel-2: #f0f2f4;
-  --well: #eceef1;
-  --line: #dfe2e6;
-  --line-2: #c9ced4;
-  --edge: #8a929b;
-  --fg: #15181b;
-  --fg-2: #474f58;
-  --fg-3: #5c656e;
-}
-.card,
-.notice,
-.modal {
-  border-radius: 12px;
 }
 /* The site header above the frame already carries the name. */
 .embed .side .brand {
@@ -42,4 +13,18 @@
 .mtop {
   background: var(--bg);
   backdrop-filter: none;
+}
+/* The site header switches language and theme for the page around the frame. */
+.embed .sidefoot > button:has(> .lucide-languages, > .lucide-sun, > .lucide-moon),
+.embed .acctsheet > .field:has(#m-lang, #m-theme) {
+  display: none;
+}
+/* A visitor came to press keys: on a phone the deck comes first, not last. */
+@media (max-width: 599px) {
+  .ov > .deckcard {
+    order: -2;
+  }
+}
+.armleft {
+  display: none;
 }

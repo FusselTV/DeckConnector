@@ -1,5 +1,10 @@
-import type { InputBody, Route } from '../api/types'
+import type { InputBody, Inspect, Rect, Route } from '../api/types'
 import {
+  closeMenu,
+  dbfw,
+  event,
+  reachable,
+  openMenu,
   companion,
   config,
   dock,
@@ -10,7 +15,7 @@ import {
   latest,
   makeToken,
   putConfig,
-  reachable,
+  companionAt,
   restartSoon,
   startOta,
   status,
@@ -19,14 +24,15 @@ import {
   WIFI,
   type Demo,
   type Face,
+  res,
   type Reply,
 } from './model'
 
 /** Turns a face into one image URL per key and one for the strip. */
-export type Paint = (f: Face) => { keys: string[]; strip: string }
+export type Paint = (f: Face) => (Rect & { url: string })[]
 
-/** A request body as the fetch shim hands it over: parsed JSON, or the size of an upload. */
-export type Body = Record<string, unknown> | { blob: number } | undefined
+/** A request body as the fetch shim hands it over: parsed JSON, or the size and first 144 bytes of an upload. */
+export type Body = Record<string, unknown> | { blob: number; head: number[] } | undefined
 
 const ok = (extra: object = {}): Reply => ({ status: 200, body: { ok: true, ...extra } })
 const fail = (status: number, error: string, code?: string): Reply => ({ status, body: { ok: false, error, code } })
@@ -45,6 +51,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/menu', 'control'],
   ['DELETE', '/api/menu', 'control'],
   ['POST', '/api/deck/reconnect', 'control'],
+  ['POST', '/api/deck/stall', 'full'],
   ['POST', '/api/dock', 'full'],
   ['DELETE', '/api/pairing/denied/*', 'full'],
   ['GET', '/api/screen.jpg', 'control'],
@@ -108,7 +115,17 @@ function series(now: number, base: number, swing: number, seed: number) {
   return out
 }
 
+const UPDATE_URL = `http://192.168.1.10/deckconnector/${latest}.dbfw`
+const RELEASES = 'https://github.com/FusselTV/deck-connector/releases'
+
+/** The header of an uploaded file, as the bridge reads it (dbfw in model.ts). */
+const file = (body: Body) => {
+  const b = (body ?? { blob: 0 }) as { blob?: number; head?: number[] }
+  return dbfw(b.head ?? [], typeof b.blob === 'number' ? b.blob : 0)
+}
+
 function prevLog(s: Demo) {
+  if (s.prev) return s.prev.join('\n') + '\n'
   return [
     `00:00:00.021 I (21) boot: DeckConnector ${s.firmware}, ESP32-P4 rev v3.1`,
     '00:00:00.412 I (412) deck: Stream Deck + EL00K1A00001 at high speed',
@@ -127,7 +144,22 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
   const route = `${method} ${path}`
 
   if (route === 'POST /api/login') {
-    if (!str('password')) return fail(401, 'wrong password', 'wrong_password')
+    // Like the firmware: the password counts, and five wrong ones in a row lock the login for a while.
+    if (now < (s.lockUntil ?? 0))
+      return {
+        status: 429,
+        body: { ok: false, error: 'locked', code: 'locked', retry: Math.ceil(((s.lockUntil ?? 0) - now) / 1000) },
+      }
+    if (str('password') !== s.pass) {
+      s.loginFails = (s.loginFails ?? 0) + 1
+      if (s.loginFails >= 5) {
+        s.loginFails = 0
+        s.lockUntil = now + 15_000
+        return { status: 429, body: { ok: false, error: 'locked', code: 'locked', retry: 15 } }
+      }
+      return fail(401, 'wrong password', 'wrong_password')
+    }
+    s.loginFails = 0
     s.authed = true
     return ok()
   }
@@ -137,11 +169,11 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
   }
   if (route === 'POST /api/password/show') {
     s.pwUntil = now + 30_000
-    return ok({ decks: 1 })
+    return res('showPassword', { ok: true }, { decks: 1 })
   }
   if (route === 'POST /api/password/reset') {
     s.resetUntil = now + 60_000
-    return ok({ s: 60 })
+    return res('askReset', { ok: true, s: 60 })
   }
   if (route === 'DELETE /api/password/reset') {
     s.resetUntil = 0
@@ -149,7 +181,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
   }
   if (route === 'POST /api/login/request') {
     s.loginReq = { id: 'd3m0'.padEnd(32, '0'), at: now, state: 'pending' }
-    return { status: 200, body: { id: s.loginReq.id, s: 60 } }
+    return res('askLogin', { id: s.loginReq.id, s: 60 })
   }
   if (path.startsWith('/api/login/request/')) {
     const r = s.loginReq
@@ -164,18 +196,25 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       s.authed = true
       r.state = 'used'
     }
-    return { status: 200, body: { state, s: left } }
+    return res('loginState', { state, s: left })
   }
   if (route === 'GET /api/cert') return { status: 200, body: CERT }
   if (!OPEN.has(path) && !s.authed) return fail(401, 'login required')
 
   switch (route) {
     case 'GET /api':
-      return { status: 200, body: ROUTES.map(([m, p, access]) => ({ method: m, path: p, access })) }
+      return {
+        status: 200,
+        body: ROUTES.map(([m, p, access]) => ({
+          method: m,
+          path: p,
+          access,
+        })),
+      }
     case 'GET /api/status':
-      return { status: 200, body: status(s, now) }
+      return res('status', status(s, now), { t: 'status' })
     case 'GET /api/config':
-      return { status: 200, body: config(s) }
+      return res('config', config(s))
     case 'GET /api/backup':
       return {
         status: 200,
@@ -187,38 +226,34 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'PUT /api/config':
       return putConfig(s, now, b)
     case 'GET /api/screen': {
-      const f = face(s, now)
-      const p = paint(f)
-      return {
-        status: 200,
-        body: {
-          writer: status(s, now).writer,
-          width: WIDTH,
-          height: HEIGHT,
-          keys: KEYS,
-          touch: [STRIP],
-          encoders: 4,
-          menu_chord: {
-            on: s.cfg.menu_chord === 'auto' ? 'encoders' : s.cfg.menu_chord,
-            first: 0,
-            last: s.cfg.menu_chord === 'keys' ? 7 : 3,
-            hold_ms: s.cfg.menu_hold_ms,
-          },
-          images: [...KEYS.map((r, i) => ({ ...r, url: p.keys[i] ?? '' })), { ...STRIP, url: p.strip }],
+      return res('screen', {
+        writer: status(s, now).writer,
+        width: WIDTH,
+        height: HEIGHT,
+        keys: KEYS,
+        touch: [STRIP],
+        encoders: 4,
+        menu_chord: {
+          on: s.cfg.menu_chord === 'auto' ? 'encoders' : s.cfg.menu_chord,
+          first: 0,
+          last: s.cfg.menu_chord === 'keys' ? 7 : 3,
+          hold_ms: s.cfg.menu_hold_ms,
         },
-      }
+        images: paint(face(s, now)),
+      })
     }
     case 'POST /api/input':
       return input(s, now, b as unknown as InputBody)
     case 'POST /api/menu':
-      s.menu = true
+      openMenu(s, now)
       return ok()
     case 'DELETE /api/menu':
-      s.menu = false
-      s.pwUntil = 0
-      s.resetUntil = 0
+      closeMenu(s, now)
       return ok()
     case 'POST /api/deck/reconnect':
+      s.recoveries = (s.recoveries ?? 0) + 1
+      event(s, now, 'deck', 'deck reconnected on request, USB recovery')
+      return ok()
     case 'POST /api/deck/stall':
       return ok()
     case 'POST /api/reboot':
@@ -227,23 +262,35 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'POST /api/dock':
       return dock(s, now, b)
     case 'GET /api/log':
-      return { status: 200, body: q.get('boot') === 'prev' ? prevLog(s) : s.log.join('\n') + '\n' }
+      return res('log', q.get('boot') === 'prev' ? prevLog(s) : s.log.join('\n') + '\n')
     case 'GET /api/events':
-      return { status: 200, body: s.events }
+      return res('events', s.events)
     case 'GET /api/coredump':
       return fail(404, 'no coredump')
     case 'DELETE /api/coredump':
       return ok()
     case 'GET /api/slots':
-      return { status: 200, body: s.slots }
+      return res('slots', s.slots)
     case 'GET /api/boot':
       return {
         status: 200,
-        body: { version: 'v1.0.0', idf: 'v5.5.1', built: '2026-09-01', sha256: 'demo', partitions: [], md5: 'demo' },
+        body: {
+          bootloader: { version: 1, idf: 'v6.0.2', built: 'Oct 21 2026', sha256: '5c1e0a7d93b4f2e6a8c0d1b7e4f39a2c' },
+          ptable: {
+            partitions: 9,
+            md5: 'b2f4e81c06d3a7953e0c4f1a2d8b6e70',
+            sha256: '0d7a4c19e3b5f8a2c6e1d9b4a7f03c58',
+          },
+        },
       }
     case 'POST /api/ota': {
-      const size = typeof body?.blob === 'number' ? body.blob : 0
-      if (size < 144) return fail(400, 'file too short', 'ota_too_short')
+      const h = file(body)
+      if (h.error) return fail(400, h.error, h.code)
+      if (h.target === 'c6') {
+        event(s, now, 'update', `WLAN chip firmware ${h.version} written`)
+        return ok()
+      }
+      if (h.target !== 'p4') return fail(400, 'not for this device', 'ota_wrong_target')
       const n = Number(q.get('slot') ?? 0)
       const into = n || ((s.slots.find((x) => x.running)?.slot ?? 1) % s.slots.length) + 1
       const keep = q.get('boot') === '0'
@@ -252,7 +299,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
           ? {
               ...x,
               state: 'valid',
-              version: latest,
+              version: h.version,
               built: '2026-11-04',
               level: 1,
               bootable: true,
@@ -262,76 +309,71 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
           : { ...x, next: keep ? x.next : false },
       )
       if (!keep) restartSoon(s, now)
-      return ok(keep ? {} : { restart: true })
+      return res('ota', { ok: true }, keep ? {} : { restart: true })
     }
     case 'POST /api/ota/inspect': {
-      const size = typeof body?.blob === 'number' ? body.blob : 0
-      if (size < 144) return { status: 200, body: { ok: false, error: 'file too short', code: 'ota_too_short' } }
-      return {
-        status: 200,
-        body: {
-          ok: true,
-          target: 'p4',
-          version: latest,
-          length: 1_835_008,
-          sha256: '9f2c41e07b3d58a6c1e2f04d7a96b3c8e5d21f0a4b7c6e9d8f1a2b3c4d5e6f70',
-        },
-      }
+      const h = file(body)
+      const sha256 = '9f2c41e07b3d58a6c1e2f04d7a96b3c8e5d21f0a4b7c6e9d8f1a2b3c4d5e6f70'
+      return res('inspect', { ok: !h.error, ...h, target: h.target as Inspect['target'], sha256 })
     }
     case 'POST /api/ota/url': {
       const url = str('url')
-      if (!/^https?:\/\//.test(url)) return fail(400, 'http or https URL', 'url_http_only')
+      if (!url.startsWith('http://')) return fail(400, 'url: http://… to a signed .dbfw file expected', 'url_http_only')
+      // The download runs on the bridge; an address that does not answer fails there, a moment later.
+      if (url !== UPDATE_URL && !reachable(url.replace(/^http:\/\//, ''))) {
+        s.otaFail = { at: now + 2500, why: 'ESP_ERR_HTTP_CONNECT' }
+        return ok()
+      }
       return startOta(s, now)
     }
     case 'GET /api/update/check':
-      return {
-        status: 200,
-        body:
-          s.firmware === latest
-            ? { current: s.firmware, latest }
-            : { current: s.firmware, latest, url: `https://updates.example.org/deckconnector/${latest}.dbfw` },
-      }
+      return res(
+        'updateCheck',
+        s.firmware === latest
+          ? { current: s.firmware, latest }
+          : { current: s.firmware, latest, url: UPDATE_URL, notes: `${RELEASES}/tag/${latest}` },
+      )
     case 'GET /api/frontend':
-      return {
-        status: 200,
-        body: s.pagePartition
+      return res(
+        'frontend',
+        s.pagePartition
           ? { source: 'partition', api: 2, version: s.pagePartition, api_min: 2, size: 168_440 }
           : { source: 'builtin', api: 2 },
-      }
-    case 'PUT /api/frontend':
-      s.pagePartition = latest
+      )
+    case 'PUT /api/frontend': {
+      const h = file(body)
+      if (h.error) return fail(400, h.error, h.code)
+      if (h.target !== 'web') return fail(400, 'not a web page file', 'ota_wrong_target')
+      s.pagePartition = h.version
       return ok()
+    }
     case 'DELETE /api/frontend':
       s.pagePartition = null
       return ok()
     case 'GET /api/companion/found':
-      return {
-        status: 200,
-        body: [
-          { name: companion.name, host: '192.168.1.20', port: 16622, version: companion.version, surfaces: 1 },
-          { name: 'Backup Companion', host: '192.168.1.21', port: 16622, version: companion.version, surfaces: 0 },
-        ],
-      }
+      return res('found', [
+        { name: companion.name, host: '192.168.1.20', port: 16622 },
+        { name: 'Backup Companion', host: '192.168.1.21', port: 16622 },
+      ])
     case 'GET /api/wifi/scan':
-      return { status: 200, body: WIFI }
+      return res('wifiScan', WIFI)
     case 'POST /api/wifi/join': {
       s.join = { ssid: str('ssid'), bssid: str('bssid'), pass: str('pass'), until: now + 3000 }
       s.joinState = 'testing'
       s.joinError = ''
-      return { status: 202, body: { ok: true } }
+      return { ...res('wifiJoin', { ok: true }), status: 202 }
     }
     case 'GET /api/metrics':
       return {
         status: 200,
         body: {
           every_s: 5,
-          cpu: series(now, 14, 6, 1),
           heap: series(now, 63, 2, 2),
+          cpu: series(now, 14, 6, 1),
           psram: series(now, 8, 0.6, 3),
           flash: {
-            nvs: { used: 9_216, size: 24_576 },
-            ota: { used: 3_670_016, size: 16_777_216 },
-            web: { used: 168_440, size: 1_048_576 },
+            firmware: { used: 1_835_008, size: 4_194_304 },
+            settings: { used: 6_784, size: 24_192 },
           },
         },
       }
@@ -350,12 +392,15 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
         },
       }
     case 'GET /api/tokens':
-      return { status: 200, body: s.tokens }
+      return res('tokens', s.tokens)
     case 'POST /api/tokens':
-      return makeToken(s, str('name'), str('right') === 'full' ? 'full' : 'control', now)
+      return makeToken(s, str('name'), str('right') === 'full' ? 'full' : 'control')
     case 'GET /api/input/log': {
       const since = Number(q.get('since') ?? 0)
-      return { status: 200, body: s.inputs.filter((e) => e.seq > since) }
+      return res(
+        'inputLog',
+        s.inputs.filter((e) => e.seq > since),
+      )
     }
     case 'POST /api/sources/retry': {
       const h = str('host')
@@ -365,12 +410,13 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     }
     case 'POST /api/sources/probe': {
       const a = str('addr')
-      if (!reachable(a))
-        return { status: 200, body: { ok: false, error: 'no connection', code: 'probe_no_connection' } }
-      return { status: 200, body: { ok: true, version: companion.version, surfaces: 1 } }
+      if (!companionAt(a))
+        return res('probe', { ok: false, error: 'no connection', code: 'probe_no_connection', version: '' })
+      return res('probe', { ok: true, error: '', version: companion.version })
     }
     case 'PUT /api/setup':
       s.setupStep = Math.max(0, Math.min(6, Number(b.step) || 0))
+      if (s.setupStep === 5) s.setupSrcAt ??= now
       return ok()
     case 'PUT /api/tls': {
       const cert = str('cert')
@@ -381,15 +427,12 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
         s.tls = true
         restartSoon(s, now)
       }
-      return {
-        status: 200,
-        body: {
-          subject: 'CN=studio-deck.example.org',
-          issuer: 'CN=Example Studio CA',
-          not_after: '2027-11-08',
-          sha256: '6E:B4:09:C3:A7:58:F2:1D',
-        },
-      }
+      return res('tlsCheck', {
+        subject: 'CN=studio-deck.example.org',
+        issuer: 'CN=Example Studio CA',
+        not_after: '2027-11-08',
+        sha256: '6E:B4:09:C3:A7:58:F2:1D',
+      })
     }
     case 'DELETE /api/tls':
       s.tls = false
@@ -412,7 +455,10 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
   }
   if (method === 'DELETE' && path.startsWith('/api/pairing/denied/')) {
     const ip = decodeURIComponent(path.slice(20))
-    s.denied = s.denied.filter((d) => d.ip !== ip)
+    const d = s.denied.find((x) => x.ip === ip)
+    s.denied = s.denied.filter((x) => x.ip !== ip)
+    // A real computer keeps asking: once forgiven, it asks again a few seconds later.
+    if (d && !s.later) s.later = { ip, name: d.name ?? ip, kind: 'companion', at: now + 6000 }
     return ok()
   }
   return fail(404, 'no such endpoint')

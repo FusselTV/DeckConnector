@@ -20,14 +20,40 @@ export default defineConfig(({ mode }) => {
       handler: (html: string) =>
         html
           .replace('/src/main.tsx', '/src/demo/main.ts')
-          .replace('<title>DeckConnector</title>', '<title>DeckConnector demo</title>'),
+          .replace(
+            '<title>DeckConnector</title>',
+            '<title>DeckConnector demo</title><meta name="robots" content="noindex">',
+          ),
     },
   }
+  // The deck's WebAssembly starts loading with the page, not after the script that asks for it.
+  const preloadWasm = {
+    name: 'demo-preload-wasm',
+    transformIndexHtml: {
+      order: 'post' as const,
+      handler: (_html: string, ctx: { bundle?: Record<string, unknown> }) =>
+        Object.keys(ctx.bundle ?? {})
+          .filter((f) => f.endsWith('.wasm'))
+          .map((f) => ({ tag: 'link', attrs: { rel: 'preload', href: `./${f}`, as: 'fetch', crossorigin: '' } })),
+    },
+  }
+
   return {
-    plugins: [react(), viteSingleFile({ removeViteModuleLoader: true }), demo && demoEntry],
+    // The device needs one file; the demo loads faster as files the browser fetches side by side and caches.
+    plugins: [
+      react(),
+      !demo && viteSingleFile({ removeViteModuleLoader: true }),
+      demo && demoEntry,
+      demo && preloadWasm,
+    ],
     define: { __DC_READONLY__: JSON.stringify(!demo && mode !== 'production' && readonly) },
     base: demo ? './' : undefined,
-    build: { target: 'es2022', reportCompressedSize: false, outDir: demo ? 'dist-demo' : 'dist' },
+    build: {
+      target: 'es2022',
+      reportCompressedSize: false,
+      outDir: demo ? 'dist-demo' : 'dist',
+      chunkSizeWarningLimit: 1000,
+    },
     server: {
       proxy: {
         '/api': {

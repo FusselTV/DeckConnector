@@ -97,7 +97,13 @@ export function reduce(s: State, a: Action): State {
       if (m.t === 'state') {
         // `state` leaves out uptime, signal and counters: keep the values from the last full status.
         const { t: _t, ...rest } = m
-        const status = share(s.status, { ...s.status, ...rest })
+        // One level deeper for the network, or the Wi-Fi signal from the last full status would be lost.
+        const net = s.status.network
+        const network = rest.network && {
+          ...rest.network,
+          wlan: rest.network.wlan && { rssi: net?.wlan?.rssi, ...rest.network.wlan },
+        }
+        const status = share(s.status, { ...s.status, ...rest, ...(network && { network }) })
         return status === s.status ? s : { ...s, status }
       }
       if (m.t === 'screen') return { ...s, screenRev: s.screenRev + 1, pushed: m.screen ?? null }

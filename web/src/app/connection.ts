@@ -42,10 +42,13 @@ export async function refreshStatus() {
     dispatch({ type: 'status', status: gen === stateGen ? status : { ...status, ...lastState }, now: Date.now() })
     if (getState().auth !== 'app') dispatch({ type: 'auth', auth: 'app' })
     const up = status.uptime_s ?? 0
-    if (!getState().restarting) live()
-    else if (restartSawDown || up < upAtRestart || up <= 5) {
+    const r = getState().restarting
+    // A restart asked in the first seconds after a start would otherwise end before the device goes down.
+    if (!r) live()
+    else if (restartSawDown || up < upAtRestart || (up <= 5 && upAtRestart > 5)) {
       dispatch({ type: 'restart', on: false, now: Date.now() })
       live()
+      void refreshConfig() // what was saved before the restart
     }
     statusErrAtom.set(null)
     return true
@@ -62,7 +65,11 @@ let cfgBackoff = 2000
 export async function refreshConfig() {
   clearTimeout(cfgTimer)
   try {
-    dispatch({ type: 'config', config: await api.config() })
+    const before = getState().config
+    const config = await api.config()
+    // A save that landed while this was on its way is newer than this answer.
+    if (getState().config !== before) return
+    dispatch({ type: 'config', config })
     configErrAtom.set(null)
     cfgBackoff = 2000
   } catch (e) {
@@ -142,6 +149,8 @@ function openWs() {
       logFresh = false
     }
     if (m.t === 'input') scheduleInputs()
+    // The deck menu can change settings, brightness for one: read them once it closes.
+    if (m.t === 'state' && m.menu_open === false && getState().status.menu_open) void refreshConfig()
     dispatch({ type: 'ws', msg: m, now: Date.now() })
   }
   sock.onclose = () => {

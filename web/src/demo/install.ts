@@ -1,7 +1,10 @@
 import type { WsMsg } from '../api/types'
-import { paint } from './deck'
-import { boot, face, fresh, input, isDown, putConfig, tick, wsState, type Demo } from './model'
+import { fontsReady, paint } from './deck'
+import { deckUiReady } from './deck-ui'
+import { boot, face, fresh, history, input, isDown, putConfig, tick, wsState, type Demo } from './model'
 import { handle, type Body } from './server'
+
+await deckUiReady
 
 // Demo mode: every /api request and the /api/ws socket are answered here, in the browser. Nothing goes out.
 
@@ -15,7 +18,11 @@ for (const [k, ok] of [
 ] as const) {
   // Without ?theme the demo takes the website's theme, which next-themes keeps under "theme" on this origin.
   const v = params.get(k) ?? (k === 'theme' ? localStorage.getItem('theme') : null)
-  if (v && (ok as readonly string[]).includes(v)) localStorage.setItem(`dc.${k}`, JSON.stringify(v))
+  if (!v || !(ok as readonly string[]).includes(v)) continue
+  localStorage.setItem(`dc.${k}`, JSON.stringify(v))
+  // React sets it only after its first render, and until then a light system theme flashed through the site's dark one.
+  if (k === 'theme') document.documentElement.dataset.theme = v
+  if (k === 'lang') document.documentElement.lang = v
 }
 // A visitor came to press keys: the live deck starts open, also on a phone.
 if (localStorage.getItem('dc.deckOpen') === null) localStorage.setItem('dc.deckOpen', 'true')
@@ -25,12 +32,15 @@ function load(): Demo {
   try {
     const raw = sessionStorage.getItem(KEY)
     const s = raw ? (JSON.parse(raw) as { v?: number; mode?: string }) : null
-    if (s?.v === 3 && s.mode === mode) return s as Demo
+    if (s?.v === 8 && s.mode === mode) return s as Demo
   } catch {
     /* a fresh demo */
   }
-  const s = Object.assign(fresh(Date.now(), { setup: mode === 'setup', login: mode === 'login' }), { mode })
+  const s = Object.assign(fresh(Date.now(), { setup: mode.startsWith('setup'), login: mode.startsWith('login') }), {
+    mode,
+  })
   boot(s, s.bootAt, s.bootReason)
+  if (!mode.startsWith('setup')) history(s, Date.now())
   return s
 }
 
@@ -51,8 +61,7 @@ const SLOW: Record<string, number> = {
   '/api/ota/inspect': 400,
 }
 
-function bodyOf(init: RequestInit | undefined): Body {
-  const b = init?.body
+async function bodyOf(b: BodyInit | null | undefined): Promise<Body> {
   if (b == null) return undefined
   if (typeof b === 'string') {
     try {
@@ -61,9 +70,14 @@ function bodyOf(init: RequestInit | undefined): Body {
       return {}
     }
   }
-  if (b instanceof Blob) return { blob: b.size }
+  if (b instanceof Blob) return { blob: b.size, head: [...new Uint8Array(await b.slice(0, 144).arrayBuffer())] }
   return {}
 }
+
+// Every answer the mock gave, for the crawler in e2e-demo: a 404 there is an endpoint the mock lacks.
+const calls: { method: string; url: string; status: number }[] = []
+const busy = { n: 0 }
+Object.assign(window, { __demoCalls: calls, __demoBusy: busy })
 
 const realFetch = window.fetch.bind(window)
 window.fetch = async (req: RequestInfo | URL, init?: RequestInit) => {
@@ -71,11 +85,14 @@ window.fetch = async (req: RequestInfo | URL, init?: RequestInit) => {
   const path = new URL(url, location.href).pathname
   if (!url.startsWith('/api') && !/\/api(\/|$)/.test(path)) return realFetch(req, init)
   const apiUrl = url.startsWith('/api') ? url : url.slice(url.indexOf('/api'))
-  const body = bodyOf(init)
+  const body = await bodyOf(init?.body)
+  busy.n++
   await new Promise((r) => setTimeout(r, SLOW[path.replace(/.*(?=\/api)/, '')] ?? 40 + Math.random() * 80))
+  busy.n--
   init?.signal?.throwIfAborted()
   if (down()) throw new TypeError('Failed to fetch')
   const r = handle(s, Date.now(), init?.method ?? 'GET', apiUrl, body, paint)
+  calls.push({ method: init?.method ?? 'GET', url: apiUrl, status: r.status })
   save()
   after()
   const text = typeof r.body === 'string'
@@ -126,6 +143,7 @@ class DemoSocket {
     }
     const { t: _t, id, ...rest } = m
     const r = m.t === 'set' ? putConfig(s, now, rest) : m.t === 'input' ? input(s, now, rest as never) : null
+    calls.push({ method: 'WS', url: String(m.t), status: r?.status ?? 404 })
     if (r && id !== undefined) this.push({ t: 'result', id, status: r.status, reply: r.body })
     save()
     after()
@@ -151,6 +169,7 @@ window.WebSocket = new Proxy(RealWs, {
 
 let lastState = ''
 let lastFace = ''
+let lastSeq = s.seq
 const broadcast = (m: WsMsg, logOnly = false) => sockets.forEach((x) => (!logOnly || x.log) && x.push(m))
 
 /** Tells every socket what changed: the state, the deck picture. */
@@ -165,6 +184,11 @@ function after() {
   if (st !== lastState) {
     lastState = st
     broadcast({ t: 'state', ...(JSON.parse(st) as object) })
+  }
+  // Each press, turn or tap: the page reloads the input log, as it does on the firmware's `input` message.
+  if (s.seq !== lastSeq) {
+    lastSeq = s.seq
+    broadcast({ t: 'input', kind: 'key' })
   }
   const f = JSON.stringify(face(s, now))
   if (f !== lastFace) {
@@ -211,15 +235,111 @@ document.addEventListener(
   true,
 )
 
+// Demo helpers inside the real page, added next to its own fields:
+// - the login form says the demo's password (it changes with a password change or a factory reset), with a
+//   button that fills it in;
+// - the firmware dialog offers sample files, so the whole update flow can be tried without a real .dbfw.
+// React keeps an input's value, so it is set the way typing sets it.
+const setValue = (el: HTMLInputElement, v: string) =>
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, v)
+
+/** A .dbfw file with a valid header (tools/dbtools/dbfw.py) and an empty body, for `target`. */
+function sample(target: number, version: string, name: string) {
+  const body = 4096
+  const h = new Uint8Array(144 + body)
+  const enc = new TextEncoder()
+  h.set(enc.encode('DBFW'))
+  h[4] = 1
+  h[5] = target
+  new DataView(h.buffer).setUint32(8, body, true)
+  h.set(enc.encode(version), 12)
+  return new File([h], name)
+}
+
+function helpers() {
+  const de = document.documentElement.lang === 'de'
+  const pw = document.getElementById('lpw')
+  if (pw instanceof HTMLInputElement) {
+    let p = document.getElementById('demo-pw')
+    if (!p) {
+      p = document.createElement('p')
+      p.id = 'demo-pw'
+      p.className = 'demo-hint'
+      p.innerHTML = '<span></span> <code></code> <button type="button" class="btn sm"></button>'
+      ;(p.querySelector('button') as HTMLButtonElement).onclick = () => {
+        setValue(pw, s.pass)
+        pw.dispatchEvent(new Event('input', { bubbles: true }))
+        pw.focus()
+      }
+      pw.closest('.field, .inrow')?.after(p)
+    }
+    // Only real changes: each write is a mutation that calls this again.
+    const put = (sel: string, v: string) => {
+      const el = p.querySelector(sel) as HTMLElement
+      if (el.textContent !== v) el.textContent = v
+    }
+    put('span', de ? 'Demo-Passwort:' : 'Demo password:')
+    put('code', s.pass)
+    put('button', de ? 'Einsetzen' : 'Fill in')
+  }
+  const up = document.getElementById('upd-file')
+  if (up instanceof HTMLInputElement && !document.getElementById('demo-files')) {
+    const p = document.createElement('p')
+    p.id = 'demo-files'
+    p.className = 'demo-hint'
+    const files = [
+      sample(1, 'v0.3.0', 'deckconnector-v0.3.0.dbfw'),
+      sample(3, 'web demo 3f9a1c', 'deckconnector-web.dbfw'),
+    ]
+    p.append(de ? 'Demo, Beispieldatei: ' : 'Demo, sample file: ')
+    for (const f of files) {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'btn sm'
+      b.textContent = f.name
+      b.onclick = () => {
+        const dt = new DataTransfer()
+        dt.items.add(f)
+        up.files = dt.files
+        up.dispatchEvent(new Event('change', { bubbles: true }))
+      }
+      p.append(b, ' ')
+    }
+    up.closest('.inrow')?.after(p)
+  }
+}
+// Demo passwords are not worth saving: password managers skip these fields. Browsers that can draw dots in a
+// text field (Chromium, Safari) get one, so their own password manager does not ask either; the eye button next
+// to it still decides whether the text shows.
+const dots = CSS.supports('-webkit-text-security', 'disc')
+function noSave() {
+  for (const el of document.querySelectorAll<HTMLInputElement>('input[type=password], input[data-demo-pw]')) {
+    if (!el.dataset.demoPw) {
+      el.dataset.demoPw = '1'
+      const skip = { autocomplete: 'off', 'data-1p-ignore': '', 'data-lpignore': 'true', 'data-bwignore': '' }
+      for (const [k, v] of Object.entries({ ...skip, 'data-form-type': 'other' })) el.setAttribute(k, v)
+    }
+    if (!dots) continue
+    const shown = el.parentElement?.querySelector('[aria-pressed]')?.getAttribute('aria-pressed') === 'true'
+    if (el.type !== 'text') el.type = 'text'
+    const want = shown ? 'none' : 'disc'
+    if (el.style.getPropertyValue('-webkit-text-security') !== want) el.style.setProperty('-webkit-text-security', want)
+  }
+}
+new MutationObserver(() => (helpers(), noSave())).observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['type', 'aria-pressed'],
+})
+
 function badge() {
   const el = document.createElement('div')
   el.className = 'demo-badge'
-  el.innerHTML = '<b>Demo</b><span></span><button type="button"></button>'
+  el.innerHTML = '<b>Demo</b><button type="button"></button>'
   const btn = el.querySelector('button') as HTMLButtonElement
-  const hint = el.querySelector('span') as HTMLSpanElement
   const label = () => {
     const de = document.documentElement.lang === 'de'
-    hint.textContent = document.getElementById('lpw') ? (de ? 'jedes Passwort geht' : 'any password works') : ''
     btn.textContent = de ? 'Zurücksetzen' : 'Reset'
     btn.title = de ? 'Demo von vorn beginnen' : 'Start the demo over'
     el.title = de
@@ -234,10 +354,13 @@ function badge() {
   relabel = label
   label()
   const css = document.createElement('style')
-  css.textContent = `.demo-badge{position:fixed;z-index:60;right:12px;top:calc(5px + env(safe-area-inset-top));display:flex;align-items:center;gap:6px;padding:2px 2px 2px 9px;border-radius:999px;background:var(--panel,#171a1d);border:1px solid var(--line,#2a2f35);color:var(--fg,#e8e6e1);font:600 11px/1 var(--mono,ui-monospace,monospace);box-shadow:0 4px 16px #0004;opacity:.92}
+  css.textContent = `.demo-badge{position:fixed;z-index:59;right:12px;top:calc(5px + env(safe-area-inset-top));display:flex;align-items:center;gap:6px;padding:2px 2px 2px 9px;border-radius:999px;background:var(--panel,#171a1d);border:1px solid var(--line,#2a2f35);color:var(--fg,#e8e6e1);font:600 11px/1 var(--mono,ui-monospace,monospace);box-shadow:0 4px 16px #0004;opacity:.92}
 .demo-badge b{color:var(--accent,#ffb020);letter-spacing:.08em;text-transform:uppercase}
-.demo-badge span:empty{display:none}
-.demo-badge button{font:inherit;font-weight:500;color:inherit;background:transparent;border:1px solid var(--line,#2a2f35);border-radius:999px;padding:4px 8px;cursor:pointer}
+.demo-hint{margin:6px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--fg-2)}
+.demo-hint code{font:600 13px var(--f-mono);color:var(--fg)}
+.demo-hint .btn{width:auto;min-height:0;padding:3px 10px;font-size:12px}
+.demo-badge button{position:relative;font:inherit;font-weight:500;color:inherit;background:transparent;border:1px solid var(--line,#2a2f35);border-radius:999px;padding:4px 8px;cursor:pointer}
+.demo-badge button::after{content:"";position:absolute;inset:-12px -6px}
 .demo-badge button:hover{border-color:var(--accent,#ffb020)}
 @media (max-width:599px){.demo-badge{top:calc(16px + env(safe-area-inset-top))}}`
   document.head.append(css)
@@ -245,3 +368,7 @@ function badge() {
 }
 badge()
 save()
+void fontsReady.then(() => {
+  lastFace = ''
+  after()
+})

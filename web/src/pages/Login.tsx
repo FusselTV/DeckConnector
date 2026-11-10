@@ -18,7 +18,7 @@ import { Btn, describedBy, Field } from '../components/controls'
 import { PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { Logo } from '../deck/DeckFront'
-import { deviceLabel } from '../lib/util'
+import { deviceLabel, ls } from '../lib/util'
 
 function useLogin() {
   const { t } = useUi()
@@ -201,7 +201,8 @@ export function Login() {
   const { t, lang } = useUi()
   const reason = loginReasonAtom.use()
   const L = useLogin()
-  const plain = location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname)
+  const [httpOk, setHttpOk] = useState(() => ls.get('dc.httpOk', false))
+  const plain = location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname) && !httpOk
   return (
     <div className="center">
       <div className="panelbox login">
@@ -240,7 +241,25 @@ export function Login() {
         </form>
         <Forgot />
         {plain && (
-          <Notice n={{ id: 'http', icon: KeyRound, lvl: 'info', title: t('login.http'), text: t('login.http_h') }} />
+          <Notice
+            n={{
+              id: 'http',
+              icon: KeyRound,
+              lvl: 'info',
+              title: t('login.http'),
+              text: t('login.http_h'),
+              acts: [
+                {
+                  label: t('is.hide'),
+                  ghost: true,
+                  run: () => {
+                    ls.set('dc.httpOk', true)
+                    setHttpOk(true)
+                  },
+                },
+              ],
+            }}
+          />
         )}
       </div>
     </div>

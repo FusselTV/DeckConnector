@@ -560,63 +560,49 @@ const HitIcon = ({ kind }: { kind: Hit }) => (
   </span>
 )
 
+// The mark printed on the case: Logo without its tile, in one colour.
 function DeckMark() {
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <g fill="currentColor">
-        {[0, 1].map((r) =>
-          [0, 1, 2, 3].map((c) => (
-            <rect
-              key={`${r}-${c}`}
-              x={4.5 + c * 6.2}
-              y={5 + r * 6.2}
-              width="4.6"
-              height="4.6"
-              rx="1"
-              opacity={r === 0 && c === 2 ? 1 : 0.7}
-            />
-          )),
-        )}
-      </g>
-      <path
-        d="M6.8 18v2.6h18.6V18M16.1 20.6v4.2"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="4 3 24 26" aria-hidden="true" fill="currentColor">
+      {[0, 1].map((r) =>
+        [0, 1, 2].map((c) => (
+          <rect
+            key={`${r}${c}`}
+            x={6 + c * 7.2}
+            y={5 + r * 7.2}
+            width="5.2"
+            height="5.2"
+            rx="1.2"
+            opacity={r + c ? 0.7 : 1}
+          />
+        )),
+      )}
+      <rect x="13.5" y="19.8" width="5" height="5" rx="1" />
+      <path d="M16 24.8V29" stroke="currentColor" strokeWidth="2.4" />
     </svg>
   )
 }
 
+// The same mark as the site's header and favicons: fixed colours, one version for light and dark.
 export function Logo({ s = 34 }: { s?: number }) {
   return (
     <svg width={s} height={s} viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="0.5" y="0.5" width="31" height="31" rx="7" fill="var(--well)" stroke="var(--line-2)" />
+      <rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="#1b1e22" stroke="#3b4148" />
       {[0, 1].map((r) =>
-        [0, 1, 2, 3].map((c) => (
+        [0, 1, 2].map((c) => (
           <rect
-            key={`${r}-${c}`}
-            x={4.5 + c * 6.2}
-            y={5 + r * 6.2}
-            width="4.6"
-            height="4.6"
-            rx="1"
-            fill={r === 0 && c === 2 ? 'var(--amber)' : 'var(--fg)'}
-            opacity={r === 0 && c === 2 ? 1 : 0.86}
+            key={`${r}${c}`}
+            x={6 + c * 7.2}
+            y={5 + r * 7.2}
+            width="5.2"
+            height="5.2"
+            rx="1.2"
+            fill={r + c ? '#e8e6e1' : '#ffb020'}
           />
         )),
       )}
-      <path
-        d="M6.8 18v2.6h18.6V18M16.1 20.6v4.2"
-        stroke="var(--amber)"
-        strokeWidth="1.6"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="16.1" cy="26.4" r="1.9" fill="var(--amber)" />
+      <rect x="13.5" y="19.8" width="5" height="5" rx="1" fill="#ffb020" />
+      <path d="M16 24.8V32" stroke="#ffb020" strokeWidth="2.4" />
     </svg>
   )
 }

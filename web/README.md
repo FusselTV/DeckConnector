@@ -24,6 +24,15 @@ npm run e2e     # browser tests against a fresh simulator
 
 The build fails above 200 KB gzip.
 
+## Demo
+
+`npm run build:demo` builds this page with a mock of the device in `src/demo` (only `fetch` and the web socket are
+replaced). `npm run e2e:demo` clicks through it. Three checks keep the mock true to the firmware:
+
+- `src/demo/routes.test.ts` reads the route table in `firmware/components/db_web/http.c`. It fails when the page calls a route the mock or the firmware lacks, or when the mock has a route the firmware lacks.
+- Every mock reply is typed with the return type of its `api.*` call in `src/api/client.ts`, so `tsc` fails when a shape drifts.
+- `e2e-demo/contract.spec.ts` sends the main GET requests to the mock and to the simulator from `firmware/sim` and compares keys and value types. A key only the mock sends must appear in the firmware sources.
+
 ## Upload to the device
 
 ```

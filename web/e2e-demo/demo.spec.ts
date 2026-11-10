@@ -1,70 +1,7 @@
-import { test as base, expect, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { en, de, expect, openTab, TABS, test, type Dict } from './helpers.ts'
 
-// The few labels the clicks need, as src/i18n has them (importing it would pull the app's tsconfig in here).
-const en = {
-  'tab.overview': 'Overview',
-  'tab.sources': 'Sources',
-  'tab.deck': 'Deck',
-  'tab.network': 'Network',
-  'tab.access': 'Access',
-  'tab.firmware': 'Firmware',
-  'tab.diagnose': 'Diagnostics',
-  'tab.more': 'More',
-  'ov.key': 'Key {n}, row {r}',
-  'login.req': 'Ask the deck to let me in',
-  'net.wlan': 'Wi-Fi',
-  'btn.install': 'Install',
-  'ota.download': 'downloading',
-}
-const de: Record<keyof typeof en, string> = {
-  ...en,
-  'tab.overview': 'Übersicht',
-  'tab.sources': 'Quellen',
-  'tab.network': 'Netzwerk',
-  'tab.access': 'Zugang',
-  'tab.diagnose': 'Diagnose',
-  'tab.more': 'Mehr',
-  'ov.key': 'Taste {n}, Reihe {r}',
-}
-
-const TABS = ['overview', 'sources', 'deck', 'network', 'access', 'firmware', 'diagnose'] as const
-const MOBILE = ['overview', 'sources', 'network']
-
-// Every console error fails the test, and no request may leave the page: the demo answers everything itself.
-const test = base.extend<{ demo: Page }>({
-  demo: async ({ page, baseURL }, use) => {
-    const errors: string[] = []
-    const out: string[] = []
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
-    page.on('pageerror', (e) => errors.push(e.message))
-    page.on('request', (r) => {
-      const u = r.url()
-      if (!u.startsWith('data:') && !u.startsWith('blob:') && !u.startsWith(baseURL ?? '')) out.push(u)
-      if (u.includes('/api/')) out.push(u)
-    })
-    await use(page)
-    expect(errors, 'console errors').toEqual([])
-    expect(out, 'requests that left the page').toEqual([])
-  },
-})
-
-async function openTab(page: Page, dict: Record<keyof typeof en, string>, tab: (typeof TABS)[number]) {
-  const name = dict[`tab.${tab}`]
-  await page.locator('#tabpanel').waitFor()
-  if (await page.locator('.side').isVisible()) await page.getByRole('tab', { name: new RegExp(`^${name}`) }).click()
-  else if (MOBILE.includes(tab))
-    await page
-      .locator('.tabbar')
-      .getByRole('button', { name: new RegExp(name) })
-      .click()
-  else {
-    await page.locator('.tabbar').getByRole('button', { name: dict['tab.more'] }).click()
-    await page.getByRole('dialog').getByRole('button', { name }).click()
-  }
-  await expect(page.locator('#tabpanel > .stack:not([hidden])').first()).toBeVisible()
-}
-
-const keySrc = (page: Page, dict: Record<keyof typeof en, string>, n: number) =>
+const keySrc = (page: Page, dict: Dict, n: number) =>
   page
     .getByRole('button', { name: dict['ov.key'].replace('{n}', String(n)).replace('{r}', '1') })
     .locator('img')
@@ -79,11 +16,13 @@ for (const [lang, dict] of [
     await page.goto(`?lang=${lang}`)
     await expect(page.locator('html')).toHaveAttribute('lang', lang)
     await expect(page.locator('.deckToggle')).toHaveAttribute('aria-expanded', 'true')
-    await expect.poll(() => keySrc(page, dict, 2)).toMatch(/^data:image\/png/)
-    const before = await keySrc(page, dict, 2)
+    // The deck is the first thing a visitor sees, on a phone too.
+    expect((await page.locator('#card-deck').boundingBox())?.y).toBeLessThan(200)
+    await expect.poll(() => keySrc(page, dict, 1)).toMatch(/^data:image\/png/)
+    const before = await keySrc(page, dict, 1)
     await expect(page.locator('#arm')).toHaveAttribute('aria-checked', 'true')
-    await page.getByRole('button', { name: dict['ov.key'].replace('{n}', '2').replace('{r}', '1') }).click()
-    await expect.poll(() => keySrc(page, dict, 2)).not.toBe(before)
+    await page.getByRole('button', { name: dict['ov.key'].replace('{n}', '1').replace('{r}', '1') }).click()
+    await expect.poll(() => keySrc(page, dict, 1)).not.toBe(before)
     for (const tab of TABS) await openTab(page, dict, tab)
     await expect(page.locator('.demo-badge')).toBeVisible()
   })
@@ -127,9 +66,12 @@ test('setup mode starts the wizard', async ({ demo: page }) => {
   await expect(page.locator('#wz-step')).toBeVisible()
 })
 
-test('login mode takes any password', async ({ demo: page }) => {
+test('login mode wants the demo password, which the page shows next to the field', async ({ demo: page }) => {
   await page.goto('?login=1&lang=en')
   await page.locator('#lpw').fill('anything')
+  await page.keyboard.press('Enter')
+  await expect(page.getByText(en['login.wrong'])).toBeVisible()
+  await page.getByRole('button', { name: 'Fill in' }).click()
   await page.keyboard.press('Enter')
   await expect(page.locator('#lpw')).toHaveCount(0)
 })
@@ -157,9 +99,9 @@ test('an update installs with progress and restarts into the new version', async
   await page.locator('#ntc-upd-new').getByRole('button', { name: en['btn.install'] }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: en['btn.install'] }).click()
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
-  await expect(page.getByText('v1.3.0').first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText('v0.3.0').first()).toBeVisible({ timeout: 30_000 })
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.3.0"')), {
+    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v0.3.0"')), {
       timeout: 30_000,
     })
     .toBe(true)

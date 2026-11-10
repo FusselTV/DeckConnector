@@ -1,4 +1,6 @@
 import { armAtom, langAtom, themeAtom, toast } from '../app/state'
+import { de } from '../i18n/de'
+import { en } from '../i18n/en'
 import { view } from './model'
 import './demo.css'
 
@@ -16,6 +18,16 @@ view.lang = langAtom.get()
 langAtom.subscribe(() => {
   view.lang = langAtom.get()
   if (window.parent !== window) window.parent.postMessage({ demoLang: view.lang }, location.origin)
+})
+
+// The device's warning that presses reach a real host would alarm here: the demo deck is virtual.
+Object.assign(en, {
+  'ov.real': 'Remote control is on: taps go to the virtual deck.',
+  'ov.real_ui': 'Remote control is on: taps go to the virtual deck menu.',
+})
+Object.assign(de, {
+  'ov.real': 'Fernsteuerung ist an: Eingaben gehen an das virtuelle Deck.',
+  'ov.real_ui': 'Fernsteuerung ist an: Eingaben gehen an das Menü des virtuellen Decks.',
 })
 
 // Remote control starts on and stays on while it is on: the demo has no host a stray press could reach.

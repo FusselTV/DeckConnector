@@ -1,5 +1,5 @@
 import { Monitor, Radio, Server, CircleHelp, type LucideIcon } from 'lucide-react'
-import type { DeckInfo, Source, Status } from '../api/types'
+import type { DeckInfo, IpConf, Source, Status } from '../api/types'
 import type { T, TKey } from '../i18n'
 import { modelOf, type ModelKey } from '../deck/models'
 
@@ -51,12 +51,25 @@ export const compDock = (st: Status, satellite: string | undefined) =>
   (st.sources ?? []).filter((s) => s.kind === 'companion' && s.via === 'dock' && s.connected && satellite !== s.host)
 
 /** Addresses the device answers on after a restart, scheme from https_only (until the firmware sends `reach`). */
-export function reachList(st: Status, https: boolean, name: string): string[] {
+/** Where the device answers after a restart. `next`: the IP settings about to be saved; DHCP gives an address
+ *  nobody knows yet, so only the name is left for that interface. */
+export function reachList(
+  st: Status,
+  https: boolean,
+  name: string,
+  next: { lan?: Partial<IpConf>; wlan?: Partial<IpConf> } = {},
+): string[] {
   const sch = https ? 'https' : 'http'
   const out: string[] = []
   const n = st.network
-  if (n?.lan?.cable && n.lan.ip) out.push(`${sch}://${n.lan.ip}`)
-  if (n?.wlan?.ip) out.push(`${sch}://${n.wlan.ip}`)
+  const ip = (k: 'lan' | 'wlan', now?: string) => {
+    const c = next[k]
+    return !c ? now : c.dhcp ? undefined : c.ip
+  }
+  const lan = ip('lan', n?.lan?.ip)
+  const wlan = ip('wlan', n?.wlan?.ip)
+  if (n?.lan?.cable && lan) out.push(`${sch}://${lan}`)
+  if (n?.wlan?.ip && wlan) out.push(`${sch}://${wlan}`)
   if (name) out.push(`${sch}://${name}.local`)
   return out
 }

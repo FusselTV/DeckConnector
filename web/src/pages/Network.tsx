@@ -116,8 +116,9 @@ export function Network() {
     ...(d.lan && !same(v.lan, base.lan) ? { lan: v.lan } : {}),
     ...(d.wlan && !same(v.wlan, base.wlan) ? { wlan: v.wlan } : {}),
   }
-  const restart = Object.keys(patch).length > 0
-  const where = reachList(st, !!cfg?.https_only, v.name)
+  const changed = Object.keys(patch).length > 0
+  const restart = changed
+  const where = reachList(st, !!cfg?.https_only, v.name, patch)
   useDraft('network', {
     dirty: restart || wifiChanged,
     restart,
@@ -197,53 +198,55 @@ export function Network() {
   return (
     <fieldset className="cards gate" disabled={!cfg}>
       <Card id="card-conn" icon={NetIcon} title={t('net.conn')}>
-        <Row
-          id="row-lan"
-          group="net"
-          icon={EthernetPort}
-          tone={!n?.lan?.cable ? '' : n.lan.dead ? 'bad' : 'ok'}
-          title={t('net.lan')}
-          status={lanSt}
-          open={!base.lan.dhcp}
-        >
-          <NetBlock id="lan" v={v.lan} set={(lan) => set({ lan })} err={err.lan} cur={n?.lan?.ip} />
-        </Row>
-        <Row
-          id="row-wlan"
-          group="net"
-          icon={Wifi}
-          tone={w?.ip ? ((w.rssi ?? 0) < -72 ? 'warn' : 'ok') : ''}
-          title={t('net.wlan')}
-          status={wlanSt}
-          open={!base.wlan.dhcp}
-        >
-          <Switch
-            id="wifi-x"
-            on={expert}
-            onChange={(x) => {
-              setExpert(x)
-              ls.set('dc.bssid', x)
-            }}
-            label={t('wifi.expert')}
-            hint={t('wifi.expert_h')}
-          />
-          {expert && w?.bssid && (
-            <p className="small muted">{t('wifi.joined', { b: w.bssid, c: w.channel ?? '', r: w.rssi ?? '' })}</p>
-          )}
-          <WifiPicker
-            id="wifi"
-            expert={expert}
-            value={v.wifi}
-            current={w?.ssid}
-            curBssid={w?.bssid}
-            err={joinErr}
-            onChange={(wifi) => {
-              setJoinErr(null)
-              set({ wifi })
-            }}
-          />
-          <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
-        </Row>
+        <>
+          <Row
+            id="row-lan"
+            group="net"
+            icon={EthernetPort}
+            tone={!n?.lan?.cable ? '' : n.lan.dead ? 'bad' : 'ok'}
+            title={t('net.lan')}
+            status={lanSt}
+            open={!base.lan.dhcp}
+          >
+            <NetBlock id="lan" v={v.lan} set={(lan) => set({ lan })} err={err.lan} cur={n?.lan?.ip} />
+          </Row>
+          <Row
+            id="row-wlan"
+            group="net"
+            icon={Wifi}
+            tone={w?.ip ? ((w.rssi ?? 0) < -72 ? 'warn' : 'ok') : ''}
+            title={t('net.wlan')}
+            status={wlanSt}
+            open={!base.wlan.dhcp}
+          >
+            <Switch
+              id="wifi-x"
+              on={expert}
+              onChange={(x) => {
+                setExpert(x)
+                ls.set('dc.bssid', x)
+              }}
+              label={t('wifi.expert')}
+              hint={t('wifi.expert_h')}
+            />
+            {expert && w?.bssid && (
+              <p className="small muted">{t('wifi.joined', { b: w.bssid, c: w.channel ?? '', r: w.rssi ?? '' })}</p>
+            )}
+            <WifiPicker
+              id="wifi"
+              expert={expert}
+              value={v.wifi}
+              current={w?.ssid}
+              curBssid={w?.bssid}
+              err={joinErr}
+              onChange={(wifi) => {
+                setJoinErr(null)
+                set({ wifi })
+              }}
+            />
+            <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
+          </Row>
+        </>
       </Card>
       <Card id="card-names" icon={TagIcon} title={t('net.names')}>
         <Field id="name" label={t('net.name')} err={err.name && t(err.name)}>

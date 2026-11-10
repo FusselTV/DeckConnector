@@ -46,6 +46,7 @@ import { inputText } from './Overview'
 const LOG_LINES = 1000
 const NONE: string[] = []
 
+const FLASH = { firmware: 'dia.fl_firmware', settings: 'dia.fl_settings' } as const
 function Spark({ label, data, fmt }: { label: string; data: number[]; fmt: (n: number) => string }) {
   const n = data.length
   if (n < 2)
@@ -261,7 +262,7 @@ function Health() {
         Object.entries(m.flash).map(([k, v]) => (
           <div key={k} className="fill">
             <div className="hd">
-              <span>{k}</span>
+              <span>{k in FLASH ? t(FLASH[k as keyof typeof FLASH]) : k}</span>
               <span className="mono">
                 {fmt.bytes(v.used)} / {fmt.bytes(v.size)} · {fmt.pct(Math.round((v.used / v.size) * 100))}
               </span>
@@ -443,7 +444,7 @@ function Events() {
                   <tr key={`${e.since_s}-${e.kind}-${e.text}`}>
                     <td className="mono">{fmt.clock(e.at ? e.at * 1000 : bootAt + e.since_s * 1000)}</td>
                     <td>
-                      <span className="ino">
+                      <span className="ino ev">
                         <I size={14} aria-hidden />
                         <span>{e.text}</span>
                       </span>

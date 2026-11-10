@@ -9,7 +9,8 @@ export function makeFmt(lang: Lang) {
     return f
   }
   const dec = (n: number) => nf('dec', { maximumFractionDigits: 1 }).format(n)
-  const unit = (v: number, u: string) => nf(u, { style: 'unit', unit: u, unitDisplay: 'long' }).format(v)
+  // short: "3 Std. 17 Min." fits the overview tile on a phone, "3 Stunden 17 Minuten" did not
+  const unit = (v: number, u: string) => nf(u, { style: 'unit', unit: u, unitDisplay: 'short' }).format(v)
   return {
     num: (n: number) => nf('num').format(n),
     dec,

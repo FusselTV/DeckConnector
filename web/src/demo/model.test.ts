@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import type { Config, Source, Status } from '../api/types'
 import { boot, face, fresh, input, OTA_MS, putConfig, RESTART_MS, status, tick, view, writer, type Demo } from './model'
+import { deckUiReady } from './deck-ui'
 import { handle, type Paint } from './server'
 
 const T0 = Date.UTC(2026, 10, 8, 18, 0)
-const paint: Paint = (f) => ({ keys: f.keys.map((k) => `k:${k.t}`), strip: 'strip' })
+const paint: Paint = (f) => [{ x: 0, y: 0, w: 1, h: 1, url: 'ui' in f ? 'ui' : f.keys.map((k) => k.t).join() }]
+beforeAll(() => deckUiReady)
 
 function demo(o?: { setup?: boolean; login?: boolean }) {
   const s = fresh(T0, o)
@@ -13,6 +15,12 @@ function demo(o?: { setup?: boolean; login?: boolean }) {
 }
 const call = (s: Demo, method: string, url: string, body?: object, now = T0) =>
   handle(s, now, method, url, body as Record<string, unknown> | undefined, paint)
+/** What the host draws: the keys and strip the demo paints itself. */
+function host(s: Demo, now = T0) {
+  const f = face(s, now)
+  if ('ui' in f) throw new Error('the bridge draws')
+  return f
+}
 const drawing = (s: Demo, now = T0) => status(s, now).sources?.find((x: Source) => x.drawing)
 
 describe('demo bridge', () => {
@@ -25,22 +33,22 @@ describe('demo bridge', () => {
 
   it('presses toggle keys, page over and turn dials within 0 to 100', () => {
     const s = demo()
-    expect(face(s, T0).keys[1]?.t).toBe('Mic on')
-    input(s, T0, { key: 1 })
-    expect(face(s, T0).keys[1]?.t).toBe('Muted')
+    expect(host(s).keys.map((k) => k.t)).toEqual(['CAM 1', 'CAM 2', 'Slides', 'Pause', 'ON', 'Title', 'REC', 'Lights'])
+    input(s, T0, { key: 4 })
+    expect(host(s).keys[4]?.t).toBe('OFF')
     input(s, T0, { encoder: 0, action: 'turn', ticks: 50 })
     expect(s.faces.vol[0]).toBe(100)
     input(s, T0, { key: 7 })
-    expect(face(s, T0).keys[0]?.t).toBe('Key')
+    expect(host(s).keys[0]?.t).toBe('Front')
     expect(s.inputs.map((e) => e.kind)).toEqual(['key_down', 'key_up', 'encoder_turn', 'key_down', 'key_up'])
   })
 
   it('labels the host pages in German and lets a pairing request lapse after a minute', () => {
     const s = demo()
     view.lang = 'de'
-    const f = face(s, T0)
+    const f = host(s)
     view.lang = 'en'
-    expect([f.keys[1]?.t, f.keys[0]?.sub]).toEqual(['Mikro an', 'Uhr'])
+    expect([f.keys[2]?.t, f.keys[4]?.t]).toEqual(['Folien', 'AN'])
     s.requested = true
     s.request = { ip: '192.168.1.52', name: 'stage-laptop', at: T0 }
     tick(s, T0 + 59_000)
@@ -52,7 +60,7 @@ describe('demo bridge', () => {
   it('maps a strip tap to the dial above it and refuses a touch outside the strip', () => {
     const s = demo()
     input(s, T0, { touch: 'tap', x: 450, y: 430 })
-    expect(s.faces.mute[2]).toBe(false)
+    expect(s.faces.mute[2]).toBe(true)
     expect(input(s, T0, { touch: 'tap', x: 10, y: 10 })).toMatchObject({ status: 400, body: { code: 'strip_outside' } })
   })
 
@@ -74,12 +82,19 @@ describe('demo bridge', () => {
     expect(s.cfg.name).toBe('studio-deck')
   })
 
-  it('ends the session when the password changes and takes any password at the login', () => {
+  it('keeps the browser that changed the password logged in, then wants the new one and locks after 5 wrong', () => {
     const s = demo()
     putConfig(s, T0, { admin_pass: 'new-secret' })
+    expect(call(s, 'GET', '/api/config').status).toBe(200)
+    call(s, 'POST', '/api/logout')
     expect(call(s, 'GET', '/api/config').status).toBe(401)
-    expect(call(s, 'POST', '/api/login', { password: '' }).status).toBe(401)
-    expect(call(s, 'POST', '/api/login', { password: 'whatever' }).status).toBe(200)
+    expect(call(s, 'POST', '/api/login', { password: 'studio-demo' }).status).toBe(401)
+    expect(call(s, 'POST', '/api/login', { password: 'new-secret' }).status).toBe(200)
+    call(s, 'POST', '/api/logout')
+    for (let i = 0; i < 4; i++) call(s, 'POST', '/api/login', { password: 'wrong' })
+    expect(call(s, 'POST', '/api/login', { password: 'wrong' }).status).toBe(429)
+    expect(call(s, 'POST', '/api/login', { password: 'new-secret' }).status).toBe(429)
+    expect(call(s, 'POST', '/api/login', { password: 'new-secret' }, T0 + 16_000).status).toBe(200)
     expect((call(s, 'GET', '/api/config').body as Config).name).toBe('studio-deck')
   })
 
@@ -93,31 +108,108 @@ describe('demo bridge', () => {
     expect(call(s, 'GET', `/api/login/request/${id}`, undefined, T0 + 6000).body).toMatchObject({ state: 'used' })
   })
 
-  it('has a host ask to pair, then pairs or refuses it', () => {
+  it('has a forgotten computer ask to pair again, then pairs or refuses it', () => {
     const a = demo()
-    tick(a, T0 + 26_000)
-    expect(status(a, T0 + 26_000).pairing?.request).toBe('192.168.1.52')
+    tick(a, T0 + 25_000)
+    expect(status(a, T0 + 25_000).pairing?.request).toBeFalsy() // nothing asks by itself
+    call(a, 'POST', '/api/dock', { forget: '192.168.1.31' })
+    tick(a, T0 + 6000)
+    expect(status(a, T0 + 6000).pairing?.request).toBe('192.168.1.31')
     expect(call(a, 'POST', '/api/dock', { accept: true, ip: '192.168.1.99' }).status).toBe(409)
-    call(a, 'POST', '/api/dock', { accept: true, ip: '192.168.1.52' })
-    expect(a.docks.map((d) => d.name)).toEqual(['edit-pc', 'stage-laptop'])
+    call(a, 'POST', '/api/dock', { accept: true, ip: '192.168.1.31' })
+    expect(a.docks.map((d) => d.name)).toEqual(['edit-pc'])
     const b = demo()
-    tick(b, T0 + 26_000)
-    call(b, 'POST', '/api/dock', { accept: false, ip: '192.168.1.52' })
-    expect(status(b, T0 + 26_000).pairing?.denied?.map((d) => d.ip)).toEqual(['192.168.1.52'])
-    call(b, 'DELETE', '/api/pairing/denied/192.168.1.52')
+    call(b, 'POST', '/api/dock', { forget: '192.168.1.31' })
+    tick(b, T0 + 6000)
+    call(b, 'POST', '/api/dock', { accept: false, ip: '192.168.1.31' })
+    expect(status(b, T0 + 6000).pairing?.denied?.map((d) => d.ip)).toEqual(['192.168.1.31'])
+    call(b, 'DELETE', '/api/pairing/denied/192.168.1.31')
     expect(b.denied).toEqual([])
+    tick(b, T0 + 13_000)
+    expect(b.request?.name).toBe('edit-pc') // and asks again
   })
 
-  it('shows the menu over the host and picks a host from it', () => {
+  it("shows the firmware's menu over the host and picks a host from it", () => {
     const s = demo()
     call(s, 'POST', '/api/menu')
     expect(writer(s, T0)).toBe('ui')
     expect(status(s, T0).menu_open).toBe(true)
-    const app = face(s, T0).keys.findIndex((k) => k.t === 'edit-pc')
-    input(s, T0, { key: app })
-    expect(s.menu).toBe(false)
+    expect(face(s, T0)).toHaveProperty('ui')
+    input(s, T0, { key: 1 }) // the chosen host first, then the Elgato App on edit-pc
     expect(s.cfg).toMatchObject({ controller: 'app', host: '192.168.1.31' })
+    expect(status(s, T0).menu_open).toBe(false)
     expect(writer(s, T0)).toBe('dock1')
+  })
+
+  it('acts on menu input as the firmware does from the web UI', () => {
+    const s = demo()
+    const open = () => call(s, 'POST', '/api/menu')
+    const menuOpen = () => status(s, T0).menu_open
+    open()
+    const main = face(s, T0)
+    input(s, T0, { encoder: 0, action: 'turn', ticks: 2 })
+    expect(s.cfg.brightness).toBe(90)
+    input(s, T0, { key: 7 })
+    input(s, T0, { key: 5 })
+    expect(menuOpen()).toBe(true) // Neustart and Setup-WLAN take only presses on the deck itself
+    expect(s.downUntil).toBe(0)
+    input(s, T0, { key: 4 })
+    expect(face(s, T0)).not.toEqual(main) // the LAN editor
+    input(s, T0, { key: 4 })
+    input(s, T0, { key: 3 })
+    expect(menuOpen()).toBe(false)
+    open()
+    input(s, T0, { touch: 'tap', x: 700, y: 430 })
+    expect(menuOpen()).toBe(false)
+    open()
+    tick(s, T0 + 5 * 60_000)
+    expect(menuOpen()).toBe(false) // an idle menu closes
+  })
+
+  it('shows the password on the deck until a key is pressed', () => {
+    const s = demo()
+    call(s, 'POST', '/api/password/show')
+    expect(writer(s, T0)).toBe('ui')
+    input(s, T0, { key: 0 })
+    expect(s.pwUntil).toBe(0)
+    expect(writer(s, T0)).toBe('satellite')
+  })
+
+  it('reads a firmware file the way the bridge does: header, target and version', () => {
+    const s = demo()
+    const head = (target: number, version: string) => [
+      ...[68, 66, 70, 87, 1, target, 0, 0, 0, 16, 0, 0],
+      ...Array.from({ length: 132 }, (_, i) => version.charCodeAt(i) || 0),
+    ]
+    const inspect = (h: number[], blob: number) => call(s, 'POST', '/api/ota/inspect', { blob, head: h }).body
+    expect(
+      inspect(
+        Array.from({ length: 144 }, () => 0),
+        4240,
+      ),
+    ).toMatchObject({ ok: false, code: 'ota_not_dbfw' })
+    expect(inspect(head(1, 'v0.3.0'), 4240)).toMatchObject({ ok: true, target: 'p4', version: 'v0.3.0' })
+    expect(inspect(head(6, 'v0.5.0'), 4240)).toMatchObject({ ok: false, code: 'ota_wrong_target' })
+    expect(call(s, 'PUT', '/api/frontend', { blob: 4240, head: head(3, 'web demo') }).status).toBe(200)
+    expect(call(s, 'GET', '/api/frontend').body).toMatchObject({ source: 'partition', version: 'web demo' })
+  })
+
+  it('pairs a computer without a question while pairing is open, and asks otherwise', () => {
+    const s = demo()
+    call(s, 'POST', '/api/dock', { pairing: 300 })
+    tick(s, T0 + 7000)
+    expect(s.docks.map((d) => d.name)).toContain('studio-mac')
+    expect(s.request).toBeNull()
+  })
+
+  it('confirms a factory reset on the deck after a few seconds and starts over in setup', () => {
+    const s = demo({ login: true })
+    call(s, 'POST', '/api/password/reset')
+    tick(s, T0 + 6000)
+    tick(s, T0 + 6000 + 1000 + RESTART_MS)
+    expect(s.cfg.setup_done).toBe(false)
+    expect(s.pass).not.toBe('studio-demo')
+    expect(call(s, 'POST', '/api/login', { password: s.pass }, T0 + 20_000).status).toBe(200)
   })
 
   it('connects to example LAN hosts only, after a short wait', () => {
@@ -148,17 +240,18 @@ describe('demo bridge', () => {
 
   it('installs an update with progress and starts the new version from the next slot', () => {
     const s = demo()
-    expect((call(s, 'GET', '/api/update/check').body as { latest: string }).latest).toBe('v1.3.0')
-    call(s, 'POST', '/api/ota/url', { url: 'https://updates.example.org/x.dbfw' })
+    expect((call(s, 'GET', '/api/update/check').body as { latest: string }).latest).toBe('v0.3.0')
+    const { url } = call(s, 'GET', '/api/update/check').body as { url: string }
+    call(s, 'POST', '/api/ota/url', { url })
     expect(tick(s, T0 + OTA_MS / 2).ota).toMatchObject({ state: 'download', pct: 50 })
     expect(writer(s, T0 + OTA_MS / 2)).toBe('ui')
     expect(tick(s, T0 + OTA_MS).ota).toMatchObject({ state: 'done', pct: 100 })
     tick(s, T0 + OTA_MS + 1000 + RESTART_MS)
-    expect(s.firmware).toBe('v1.3.0')
+    expect(s.firmware).toBe('v0.3.0')
     expect(s.slots.find((x) => x.running)?.slot).toBe(3)
     expect(call(s, 'GET', '/api/update/check', undefined, T0 + OTA_MS + 1000 + RESTART_MS).body).toEqual({
-      current: 'v1.3.0',
-      latest: 'v1.3.0',
+      current: 'v0.3.0',
+      latest: 'v0.3.0',
     })
   })
 
@@ -181,11 +274,22 @@ describe('demo bridge', () => {
     expect(status(s, T0).setup).toMatchObject({ active: false })
   })
 
-  it('serves a screen with one picture per key and one for the strip', () => {
+  it("serves the host's picture, or the bridge's own screen while it covers the deck", () => {
     const s = demo()
-    const sc = call(s, 'GET', '/api/screen').body as { images: { url: string }[]; keys: unknown[] }
-    expect(sc.keys).toHaveLength(8)
-    expect(sc.images).toHaveLength(9)
-    expect(sc.images[1]?.url).toBe('k:Mic on')
+    const screen = () => call(s, 'GET', '/api/screen').body as { images: { url: string }[]; keys: unknown[] }
+    expect(screen().keys).toHaveLength(8)
+    expect(screen().images[0]?.url).toContain('CAM 2')
+    call(s, 'POST', '/api/menu')
+    expect(screen().images[0]?.url).toBe('ui')
+  })
+
+  it('finds Companion only where it runs, and an Elgato app pairs by itself in the setup source step', () => {
+    const probe = (addr: string) => call(demo(), 'POST', '/api/sources/probe', { addr, pin: '' }).body
+    expect(probe('192.168.1.20')).toMatchObject({ ok: true })
+    expect(probe('192.168.1.99')).toMatchObject({ ok: false, code: 'probe_no_connection' })
+    const s = demo({ setup: true })
+    call(s, 'PUT', '/api/setup', { step: 5 })
+    tick(s, T0 + 6000)
+    expect(drawing(s, T0 + 6000)).toMatchObject({ kind: 'app', name: 'edit-pc' })
   })
 })

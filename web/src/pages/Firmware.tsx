@@ -359,7 +359,8 @@ export function Firmware() {
   }, [t])
   useEffect(load, [load, st.firmware]) /* after an update the slots changed */
   const running = slots?.find((s) => s.running)
-  const target = slots?.find((s) => !s.running && !s.next && s.state !== 'pending') ?? slots?.find((s) => !s.running)
+  // esp_ota_get_next_update_partition: the slot after the running one, round the list.
+  const target = slots && running ? slots[(slots.indexOf(running) + 1) % slots.length] : undefined
   const bootSlot = async (s: Slot) => {
     if (
       !(await ask({
@@ -573,17 +574,23 @@ export function Firmware() {
                   <SIcon icon={Layers} tone={k} />
                   <div className="grow">
                     <b>
-                      {t('th.slot')} {s.slot} · <span className="mono">{s.version ?? t('slot.unknown')}</span>
+                      {t('th.slot')} {s.slot}
+                      {s.state !== 'empty' && (
+                        <>
+                          {' · '}
+                          <span className="mono">{s.version ?? t('slot.unknown')}</span>
+                        </>
+                      )}
                     </b>
                     <br />
                     <span className="small muted">
                       {s.built}
-                      {reason && ` · ${reason}`}
+                      {reason && s.state !== 'empty' && ` · ${reason}`}
                     </span>
                   </div>
                   <span className={`tag ${k}`}>
                     {(k === 'warn' || k === 'bad') && <TriangleAlert size={12} aria-hidden />}
-                    {s.state === 'empty' ? '–' : t(w)}
+                    {t(s.state === 'empty' ? 'slot.empty' : w)}
                   </span>
                   {!s.running && (
                     <div className="slotacts">
