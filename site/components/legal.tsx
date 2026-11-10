@@ -11,7 +11,7 @@ const titles = { imprint: { en: 'Imprint', de: 'Impressum' }, privacy: { en: 'Pr
 
 export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
   const p = legalPath[page]
-  return { title: titles[page][lang], alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } } }
+  return { title: titles[page][lang], robots: { index: false, follow: true }, alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } } }
 }
 
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
@@ -20,7 +20,7 @@ const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
 function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
   return (
     <main id="main" lang={lang} className="prose mx-auto w-full max-w-3xl px-4 py-16 sm:px-6">
-      <h1>{titles[page][lang]}</h1>
+      <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{titles[page][lang]}</h1>
       {lang === 'en' && (
         <p>
           This is a translation. Only the <a href={legalPath[page].de} hrefLang="de">German version</a> is legally binding.
@@ -85,7 +85,7 @@ export function Privacy({ lang }: { lang: Lang }) {
       </p>
 
       <h2>Keine Cookies, kein Tracking</h2>
-      <p>Diese Website setzt keine Cookies und nutzt keine Analyse- oder Tracking-Dienste. Sie lädt nichts von fremden Servern. Auch die Suche läuft in deinem Browser.</p>
+      <p>Diese Website setzt keine Cookies und nutzt keine Analyse- oder Tracking-Dienste. Sie lädt nichts von fremden Servern.</p>
 
       <h2>Speicher in deinem Browser</h2>
       <p>Einige Einstellungen speichert die Website im lokalen Speicher deines Browsers (localStorage), sobald du sie änderst:</p>
@@ -99,24 +99,10 @@ export function Privacy({ lang }: { lang: Lang }) {
       </ul>
       <p>
         Wenn du die Demo öffnest, hält sie ihren Zustand im Sitzungsspeicher (sessionStorage, Schlüssel mit <code>dc.</code>). Er endet, wenn du den Tab schließt oder auf „Zurücksetzen“ tippst.
-        Ein Passwort, das du in der Demo eingibst, wird nicht gespeichert.
       </p>
       <p>
         Diese Daten bleiben in deinem Browser und werden nicht übertragen. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, denn das Speichern ist für die Funktion nötig, die du ausdrücklich nutzt. Du
         kannst die Daten in den Einstellungen deines Browsers löschen.
-      </p>
-
-      <h2>Firmware im Browser installieren</h2>
-      <p>
-        Der Flasher spricht über Web Serial direkt mit der Platine an deinem Rechner. Die Firmware lädt er von dieser Website. Dateien, die du auswählst, liest er nur in deinem Browser. Er sendet
-        nichts an einen Server.
-      </p>
-
-      <h2>Links zu anderen Websites</h2>
-      <p>
-        Diese Website verlinkt andere Websites, zum Beispiel GitHub, Shops für die Platine oder Seiten für Spenden. Erst wenn du einen Link anklickst, verarbeitet der andere Anbieter deine Daten,
-        nach seiner eigenen Datenschutzerklärung. Links zu Shops können Partnerlinks sein. Sie enthalten eine Partnerkennung, an der der Shop sieht, dass du von hier kommst. Kaufst du dort, bekomme
-        ich vielleicht eine Provision. Du zahlst dafür nicht mehr.
       </p>
 
       <h2>Deine Rechte</h2>
@@ -151,7 +137,7 @@ export function Privacy({ lang }: { lang: Lang }) {
       </p>
 
       <h2>No cookies, no tracking</h2>
-      <p>This website sets no cookies and uses no analytics or tracking. It loads nothing from other servers. The search also runs in your browser.</p>
+      <p>This website sets no cookies and uses no analytics or tracking. It loads nothing from other servers.</p>
 
       <h2>Storage in your browser</h2>
       <p>The website keeps some settings in your browser&apos;s local storage (localStorage) once you change them.</p>
@@ -164,24 +150,11 @@ export function Privacy({ lang }: { lang: Lang }) {
         </li>
       </ul>
       <p>
-        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with <code>dc.</code>). It ends when you close the tab or tap Reset. The demo does not store
-        a password you type.
+        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with <code>dc.</code>). It ends when you close the tab or tap Reset.
       </p>
       <p>
         This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because storing it is needed for a function you asked for. You can delete it in your
         browser&apos;s settings.
-      </p>
-
-      <h2>Installing the firmware in your browser</h2>
-      <p>
-        The flasher talks to the board on your computer directly over Web Serial. It loads the firmware from this website. It reads the files you pick inside your browser. It sends nothing to a
-        server.
-      </p>
-
-      <h2>Links to other websites</h2>
-      <p>
-        This website links to other websites, for example GitHub, shops that sell the board or donation pages. The other provider gets your data only when you click a link. Its own privacy
-        policy then applies. Links to shops can be affiliate links. They carry a partner ID, so the shop sees that you came from here. If you buy there, I may get a commission. You do not pay more.
       </p>
 
       <h2>Your rights</h2>

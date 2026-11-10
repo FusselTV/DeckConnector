@@ -46,8 +46,6 @@ export function SiteFooter({ lang }: { lang: Lang }) {
     [s.releases, `${repo}/releases`],
     [s.source, repo],
     [s.license, `${repo}/blob/main/LICENSE`],
-    [s.imprint, legalPath.imprint[lang]],
-    [s.privacy, legalPath.privacy[lang]],
   ]
   return (
     <footer className="mt-auto border-t text-sm text-fd-muted-foreground">
@@ -58,6 +56,14 @@ export function SiteFooter({ lang }: { lang: Lang }) {
             DeckConnector
           </span>
           {s.line}
+          <span className="mt-3 flex gap-4">
+            <a href={legalPath.imprint[lang]} className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9">
+              {s.imprint}
+            </a>
+            <a href={legalPath.privacy[lang]} className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9">
+              {s.privacy}
+            </a>
+          </span>
         </p>
         <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 md:gap-x-10">
           {links.map(([text, url]) => (
