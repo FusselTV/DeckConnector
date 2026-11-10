@@ -1,6 +1,6 @@
 import { useId } from 'react'
 
-// The board drawing, without Remotion: the flasher draws it too and must not load the player for it.
+// The board drawing, without Remotion: the flasher draws it too and must not ship Remotion.
 
 export const MONO = "'JetBrains Mono Variable', ui-monospace, Menlo, monospace"
 export const AMBER = '#ffb020'
