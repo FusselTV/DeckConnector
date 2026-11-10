@@ -11,7 +11,7 @@ const titles = { imprint: { en: 'Imprint', de: 'Impressum' }, privacy: { en: 'Pr
 
 export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
   const p = legalPath[page]
-  return { title: titles[page][lang], robots: { index: false, follow: true }, alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } } }
+  return { title: titles[page][lang], robots: { index: false }, alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } } }
 }
 
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'

@@ -57,12 +57,11 @@ export function SiteFooter({ lang }: { lang: Lang }) {
           </span>
           {s.line}
           <span className="mt-3 flex gap-4">
-            <a href={legalPath.imprint[lang]} className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9">
-              {s.imprint}
-            </a>
-            <a href={legalPath.privacy[lang]} className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9">
-              {s.privacy}
-            </a>
+            {(['imprint', 'privacy'] as const).map((k) => (
+              <a key={k} href={legalPath[k][lang]} className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9">
+                {s[k]}
+              </a>
+            ))}
           </span>
         </p>
         <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 md:gap-x-10">

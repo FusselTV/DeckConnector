@@ -135,8 +135,8 @@ are in `tools/dbtools/site.py`. Tests that need a camera, a switch or a test Com
 AGPL-3.0, see [LICENSE](LICENSE).
 
 **Additional permission under GNU AGPL version 3 section 7.** If you modify this program, or any covered work, by
-combining it with Remotion (or a modified version of Remotion), the licensors of this program grant you
-additional permission to convey the resulting work. Remotion stays under its own license.
+combining it with Remotion (or a modified version of Remotion), containing parts covered by the terms of the
+Remotion License, the licensors of this program grant you additional permission to convey the resulting work.
 
 ## Third-party code
 
@@ -150,4 +150,4 @@ additional permission to convey the resulting work. Remotion stays under its own
 | React, React DOM | MIT |
 | Lucide icons (lucide-react, and in `db_ui/font_data.c`) | ISC |
 | Geist, the font of the web page | OFL-1.1 |
-| [Remotion](https://www.remotion.dev), the animations of the site (`site/remotion`). Companies with more than 3 people need a paid Remotion license. | [Remotion License](https://www.remotion.dev/license), not open source and not under the AGPL |
+| [Remotion](https://www.remotion.dev), the animations of the site (`site/remotion`). A company with more than 3 people needs a Remotion company license to use it. | [Remotion License](https://www.remotion.dev/license), not open source and not under the AGPL |
