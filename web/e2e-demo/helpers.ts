@@ -25,6 +25,11 @@ export const test = base.extend<{ demo: Page }>({
   demo: async ({ page, baseURL }, use) => {
     const errors: string[] = []
     const out: string[] = []
+    // Links out open in a new tab. Without this a host that never answers opens a tab Playwright never reports.
+    await page.context().route(
+      (u) => !u.href.startsWith(baseURL ?? ''),
+      (r) => r.fulfill({ body: '' }),
+    )
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
     page.on('pageerror', (e) => errors.push(e.message))
     page.on('request', (r) => {

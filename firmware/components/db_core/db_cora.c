@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-/* Network Dock protocol as Companion (@elgato-stream-deck/tcp) and the Elgato App expect it. */
+/* Layouts as in @elgato-stream-deck/tcp. */
 
 static const uint8_t magic[4] = {0x43, 0x93, 0x8a, 0x41};
 
