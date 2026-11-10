@@ -107,7 +107,7 @@ const about = `# DeckConnector
 - Install: open ${site}/flash/ in Chrome or Edge, connect the board's USB-C port, flash (about a minute), then set Wi-Fi, admin password and name over USB. No tools to install.
 - Updates: signed firmware files, installed from the web UI. New firmware that does not start rolls back by itself.
 - Speed: the same as the Elgato Network Dock or faster, measured on a bench with a Stream Deck +.
-- Not affiliated with Elgato, Corsair or Bitfocus. Stream Deck is a trademark of Corsair. Community project, no official support.
+- Not affiliated with Elgato, Corsair or Bitfocus. Elgato and Stream Deck are trademarks of Corsair Memory, Inc. Community project, no official support.
 - Source code: ${repo}
 
 ## How to install
