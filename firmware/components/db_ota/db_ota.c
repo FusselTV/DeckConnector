@@ -226,7 +226,18 @@ static int known_level(const esp_partition_t *part)
     return found ? level : -1;
 }
 
-/* Header layout: docs/ota.md. */
+/*
+ * The 144 byte .dbfw header, then the image:
+ *   0  4  "DBFW"
+ *   4  1  format, 1
+ *   5  1  target: 1 P4, 2 C6, 3 web page, 4 bootloader, 5 partition table
+ *   6  2  security level, for a web page api_min (the oldest DB_WEB_API it works with)
+ *   8  4  image length
+ *  12 32  version text
+ *  44 32  SHA-256 of the image
+ *  76 64  ECDSA P-256 signature (r, s) over bytes 0 to 75
+ * 140  4  reserved
+ */
 static esp_err_t start_payload(void)
 {
     if (memcmp(s.header, "DBFW", 4) != 0 || s.header[4] != 1) {

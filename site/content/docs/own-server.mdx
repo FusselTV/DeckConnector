@@ -11,7 +11,8 @@ Your server renders the images. The board shows them and sends back every press,
 - With an empty list, it finds servers that announce `_deckconnector._tcp` over mDNS and opens `ws://<address>:<port>/deckbridge`.
 - `wss://` needs a certificate from a public CA for that host, or the SHA-256 pin set for that server.
 - The first connected server is **active**, the others **standby**. Only the active one draws and gets input.
-- When it is lost, the next one becomes active, gets a `role` message, and must draw every area again.
+- When it is lost, the next one becomes active, gets a `role` message, and must draw every area again. Until then the deck shows what that server drew last, which may be old.
+- The active server also gets `role` after the menu or an update drew over its picture.
 - While Companion or the Elgato app is chosen, every server is standby. See [Multiple hosts](/docs/hosts).
 - The board pings every 2 s. A server silent for 6 s counts as lost.
 

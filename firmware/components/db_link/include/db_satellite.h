@@ -6,9 +6,9 @@
 #include "esp_err.h"
 
 /*
- * Bitfocus Companion over its Satellite API (TCP 16622, docs/satellite.md): the bridge connects to the
- * address in the config `satellite` and offers the attached deck. Companion then draws on it like on a deck
- * over USB, with the same rows and columns, so its pages show unchanged.
+ * Bitfocus Companion over its Satellite API (TCP 16622, https://deckconnector.com/docs/companion): the bridge
+ * connects to the address in the config `satellite` and offers the attached deck. Companion then draws on it
+ * like on a deck over USB, with the same rows and columns, so its pages show unchanged.
  */
 
 /* `changed` runs when a session began and when Companion took the deck or let it go. */

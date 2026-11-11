@@ -1,4 +1,4 @@
-"""API tokens for integrations, the route list in GET /api, CORS, and that docs/api.md lists every route."""
+"""API tokens for integrations, the route list in GET /api, CORS, and that the site API page lists every route."""
 
 import asyncio
 import base64
@@ -14,7 +14,7 @@ from websockets.asyncio.client import connect
 
 pytestmark = pytest.mark.sim
 
-DOCS = Path(__file__).resolve().parents[2] / "docs/api.md"
+DOCS = Path(__file__).resolve().parents[2] / "site/content/docs/api.mdx"
 
 
 def call(method: str, path: str, token: str | None = None, headers: dict | None = None, body: bytes | None = None):
@@ -103,7 +103,7 @@ def test_a_deck_that_is_not_attached_is_a_404(token):
 def test_the_docs_list_every_route():
     docs = DOCS.read_text()
     missing = [f"{r['method']} {r['path']}" for r in routes() if f"`{r['method']} {r['path'].rstrip('*')}" not in docs]
-    assert not missing, f"docs/api.md misses {missing}"
+    assert not missing, f"site/content/docs/api.mdx misses {missing}"
 
 
 async def test_a_simulated_press_reaches_no_integration(token):

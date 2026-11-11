@@ -1,4 +1,4 @@
-"""The coredump over the API. The crash itself needs a test build (idf.py -DDB_DEBUG_CRASH=1), see docs/api.md."""
+"""The coredump over the API. The crash itself needs a test build, see .github/CONTRIBUTING.md."""
 
 import json
 import time

@@ -82,6 +82,8 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | Route | What it does | Level |
 |---|---|---|
 | `GET /api` | Every route with `method`, `path` and `access` | control |
+| `OPTIONS /api/...` | The CORS preflight for the origins in `cors_origins` | open |
+| `GET /api/ws` | The live [WebSocket](#websocket) | control |
 | `GET /api/status` | State of the board, see [Status](#status) | control |
 | `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set` and `token_set` | full |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config` | full |

@@ -2,7 +2,7 @@
 
 #include "db_device.h"
 
-/* Binary and JSON encoding of the server protocol. See docs/protocol.md. */
+/* Binary and JSON encoding of the server protocol. See https://deckconnector.com/docs/own-server. */
 
 #define DB_PROTO_VERSION 1
 
