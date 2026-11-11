@@ -4,7 +4,8 @@
 
 /*
  * The parts of the Bitfocus Companion Satellite API (TCP 16622) that need no network: reading a line, the
- * layout of a deck, and PNG pictures. The client is db_link/sat.c, the protocol docs/satellite.md.
+ * layout of a deck, and PNG pictures. The client is db_link/sat.c, the user docs
+ * https://deckconnector.com/docs/companion.
  */
 
 #define DB_SAT_PORT         16622

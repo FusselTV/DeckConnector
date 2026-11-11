@@ -1,4 +1,4 @@
-"""Encoding of the deckbridge protocol, see docs/protocol.md."""
+"""Encoding of the deckbridge protocol, see https://deckconnector.com/docs/own-server."""
 
 import struct
 from dataclasses import dataclass

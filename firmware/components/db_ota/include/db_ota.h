@@ -7,8 +7,8 @@
 #include "esp_err.h"
 
 /*
- * Signed updates for the bridge (P4) and its WLAN chip (C6), see docs/ota.md. The header of a .dbfw image is
- * checked before anything is written, the payload hash before anything is switched over.
+ * Signed updates for the bridge (P4) and its WLAN chip (C6), header layout in db_ota.c. The header of a .dbfw
+ * image is checked before anything is written, the payload hash before anything is switched over.
  */
 
 typedef void (*db_ota_progress_cb_t)(const char *target, const char *state, int pct, const char *error);

@@ -11,7 +11,8 @@ Dein Server rendert die Bilder. Die Platine zeigt sie an und schickt jeden Druck
 - Ist die Liste leer, findet sie Server, die `_deckconnector._tcp` per mDNS anmelden, und öffnet `ws://<adresse>:<port>/deckbridge`.
 - `wss://` braucht ein Zertifikat einer öffentlichen CA für diesen Host oder den SHA-256-Pin dieses Servers.
 - Der erste verbundene Server ist **aktiv**, die anderen stehen auf **Standby**. Nur der aktive zeichnet und bekommt Eingaben.
-- Fällt er weg, wird der nächste aktiv, bekommt eine `role`-Nachricht und muss alle Bereiche neu zeichnen.
+- Fällt er weg, wird der nächste aktiv, bekommt eine `role`-Nachricht und muss alle Bereiche neu zeichnen. Bis dahin zeigt das Deck, was dieser Server zuletzt gezeichnet hat. Das kann alt sein.
+- Der aktive Server bekommt `role` auch, wenn das Menü oder ein Update über sein Bild gezeichnet hat.
 - Solange Companion oder die Elgato-App gewählt ist, stehen alle Server auf Standby. Siehe [Mehrere Programme](/de/docs/hosts).
 - Die Platine pingt alle 2 s. Ein Server, der 6 s schweigt, gilt als verloren.
 

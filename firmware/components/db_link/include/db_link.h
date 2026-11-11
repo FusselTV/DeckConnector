@@ -34,9 +34,9 @@ static inline void db_health_ok(db_health_t *h, bool over_wlan)
 }
 
 /*
- * Connections to the deckbridge servers (docs/protocol.md). The server the config names in `host` is active
- * while it is connected, else the first connected one; only the active one may draw, the others wait as
- * standby.
+ * Connections to the deckbridge servers (https://deckconnector.com/docs/own-server). The server the config
+ * names in `host` is active while it is connected, else the first connected one; only the active one may
+ * draw, the others wait as standby.
  */
 
 /* All hooks are required. */
