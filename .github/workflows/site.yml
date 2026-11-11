@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     if: github.event_name != 'release' || !github.event.release.prerelease
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read # also reads the release assets of this repo
     outputs:
@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false # a deploy builds from a clean slate
       - if: github.event_name == 'pull_request'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,7 +84,7 @@ jobs:
 
   lighthouse:
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       actions: read # the Lighthouse reports of main
     outputs:
@@ -103,11 +103,11 @@ jobs:
           path: site/out
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
       # Budgets and minimum scores live in site/lighthouserc.json.
       - id: lighthouse
-        run: cd site && npx -y @lhci/cli@0.15.1 autorun
+        run: cd site && npx -y @lhci/cli@0.16.0 autorun
       - name: Scores
         id: scores
         if: ${{ !cancelled() }}
@@ -138,7 +138,7 @@ jobs:
     needs: build
     # no secrets for pull requests from forks
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment: cloudflare-pages
     permissions: {}
     outputs:
@@ -172,7 +172,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: 4.158.0
+          wranglerVersion: 4.160.0
           command: pages deploy out --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'deckconnector' }} --branch=${{ steps.branch.outputs.name }}
 
   # One comment per PR, updated on every push. Forks get a read-only token, so they have the run summaries only.
@@ -181,7 +181,7 @@ jobs:
     if: >-
       !cancelled() && github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       pull-requests: write
     env:

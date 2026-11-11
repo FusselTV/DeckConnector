@@ -276,8 +276,7 @@ static void firmware_card(const page_t *p, ui_tile_t *t)
     if (hash) {
         *hash = '\0';
     }
-    snprintf(chip, sizeof(chip), p->l->key_px < 110 ? "%s" : "WLAN %s",
-             md->wlan_fw[0] ? md->wlan_fw : "-");
+    snprintf(chip, sizeof(chip), p->l->key_px < 110 ? "%s" : "WLAN %s", md->wlan_fw[0] ? md->wlan_fw : "-");
     card(t, ICON_FIRMWARE, "Firmware", ver, chip);
 }
 

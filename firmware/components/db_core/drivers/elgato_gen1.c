@@ -154,7 +154,7 @@ static size_t build_input(const db_dev_t *dev, const db_input_t *ev, uint8_t *r,
     }
     memset(r, 0, 65);
     r[0] = 0x01;
-    memcpy(r + 1, dev->state, KEYS);
+    memcpy(r + 1, dev->state, (size_t)KEYS);
     r[1 + ev->index] = ev->kind == DB_INPUT_KEY_DOWN;
     return 65;
 }

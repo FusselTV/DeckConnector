@@ -11,33 +11,38 @@
     "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs"
   },
   "dependencies": {
-    "@remotion/player": "4.0.541",
+    "@remotion/player": "4.0.542",
     "esptool-js": "0.7.1",
-    "fumadocs-core": "16.18.3",
-    "fumadocs-mdx": "15.5.2",
-    "fumadocs-ui": "npm:@fumadocs/base-ui@16.18.3",
-    "lucide-react": "1.70.0",
-    "next": "16.4.5",
+    "fumadocs-core": "16.18.4",
+    "fumadocs-mdx": "15.5.3",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.18.4",
+    "lucide-react": "1.71.0",
+    "next": "16.4.6",
     "next-themes": "0.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "remotion": "4.0.541",
+    "remotion": "4.0.542",
     "zbsearch": "4.0.2"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.5",
-    "@next/eslint-plugin-next": "16.4.5",
+    "@eslint/js": "10.0.1",
+    "@next/eslint-plugin-next": "16.4.6",
     "@tailwindcss/postcss": "4.3.5",
     "@types/mdx": "2.0.14",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "9.39.5",
+    "eslint": "10.14.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.14.0",
     "tailwindcss": "4.3.5",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.72.1"
+    "typescript-eslint": "8.72.2"
+  },
+  "overrides": {
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
+    }
   }
 }

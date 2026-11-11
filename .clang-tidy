@@ -1,6 +1,7 @@
 # Off on purpose: memcpy_s and friends (C11 Annex K) exist in neither newlib nor glibc; trailing commas fight
-# clang-format; padding and operator precedence hints are noise for this code. Comparisons yield int and uint8_t
-# promotes to int in C, so the bool-conversion and signed-bitwise checks only flag correct C.
+# clang-format; padding and operator precedence hints are noise for this code; chained ?: reads as a table here.
+# Comparisons yield int and uint8_t promotes to int in C, so the bool-conversion and signed-bitwise checks only flag
+# correct C.
 Checks: >
   -*,
   bugprone-*,
@@ -21,6 +22,7 @@ Checks: >
   -clang-analyzer-optin.performance.Padding,
   -readability-trailing-comma,
   -readability-math-missing-parentheses,
+  -readability-avoid-nested-conditional-operator,
   -readability-implicit-bool-conversion,
   -bugprone-signed-bitwise,
   readability-function-size

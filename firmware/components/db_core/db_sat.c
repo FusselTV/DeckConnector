@@ -335,7 +335,7 @@ db_err_t db_png_decode(const uint8_t *png, size_t len, uint16_t w, uint16_t h, u
         memcpy(cur, row + 1, n);
         err = unfilter(row[0], cur, prev, n, bpp);
         for (size_t x = 0; x < n; x += bpp, bgr += 3) {
-            bgr[0] = cur[x + 2];
+            bgr[0] = cur[x + 2]; // NOLINT(clang-analyzer-security.ArrayBound): n is a multiple of bpp
             bgr[1] = cur[x + 1];
             bgr[2] = cur[x];
         }
