@@ -15,6 +15,7 @@ concurrency:
 jobs:
   changes:
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       pull-requests: read # paths-filter lists the files of a pull request
     outputs:
@@ -38,6 +39,7 @@ jobs:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.host == 'true'
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -52,6 +54,7 @@ jobs:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.lint == 'true'
     runs-on: ubuntu-26.04
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -72,6 +75,7 @@ jobs:
       github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-26.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -86,7 +90,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          enable-cache: false
+          enable-cache: ${{ github.ref_type != 'tag' }} # zig for the demo's deck screens
       # release.yml appends licenses.md to THIRD_PARTY_LICENSES.txt
       - run: cd web && npm ci && npm run check && test -s dist/licenses.md
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -97,38 +101,51 @@ jobs:
             web/dist/licenses.md
           if-no-files-found: error
 
+  # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
+  # comes down in the background while the page builds. The build needs the room of the runner's Android, .NET and GHC.
   firmware:
-    needs: [changes, web]
+    needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-26.04
-    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 500M
+      IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     steps:
+      - run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup > /dev/null 2>&1 < /dev/null &
+          (docker pull -q "$IDF_IMAGE"; echo $? > "$RUNNER_TEMP/pull-status") > "$RUNNER_TEMP/pull.log" 2>&1 < /dev/null &
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # git describe sets the firmware version
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          name: web-page
-          path: web/dist
+          node-version: 26
+          cache: ${{ github.ref_type != 'tag' && 'npm' || '' }}
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci && npx vite build
       - if: github.ref_type != 'tag'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .ccache
           key: ccache-${{ github.sha }}
           restore-keys: ccache-
-      - name: Build
-        shell: bash
+      - name: Wait for the ESP-IDF image
+        timeout-minutes: 8
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          . "$IDF_PATH/export.sh"
-          idf.py -C firmware build
-          cd tools && python -m dbtools.flashimage
+          until test -s "$RUNNER_TEMP/pull-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/pull.log"
+          exit "$(cat "$RUNNER_TEMP/pull-status")"
+      - name: Build
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" -w /w -e CCACHE_DIR=/w/.ccache -e CCACHE_MAXSIZE=500M "$IDF_IMAGE" bash -c '
+            set -e
+            git config --global --add safe.directory /w
+            idf.py -C firmware build
+            cd tools && python -m dbtools.flashimage
+          '
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deckconnector
@@ -147,6 +164,7 @@ jobs:
     needs: [web, firmware]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-26.04
+    timeout-minutes: 5
     permissions:
       actions: read # the artifacts of main
       pull-requests: read # the label
@@ -184,3 +202,17 @@ jobs:
             echo "::error::more than 1 % bigger than main:$over. If that is intended, add the label size-increase and re-run this job."
             exit 1
           fi
+
+  # The one check branch protection needs: it fails when any job above failed or was cancelled.
+  ci-ok:
+    needs: [changes, host-tests, lint, web, firmware, sizes]
+    if: always()
+    runs-on: ubuntu-26.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac
