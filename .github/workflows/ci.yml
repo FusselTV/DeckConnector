@@ -101,19 +101,24 @@ jobs:
             web/dist/licenses.md
           if-no-files-found: error
 
-  # Builds its own copy of the web page, so the 3 minute pull of the ESP-IDF image runs beside the web job.
+  # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
+  # comes down in the background while the page builds; the runner's Android, .NET and GHC make room for it.
   firmware:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
-    container: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     permissions:
       contents: read
     env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 500M
+      IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     steps:
+      - run: |
+          (
+            sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+            docker pull -q "$IDF_IMAGE"
+            echo $? > "$RUNNER_TEMP/pull-status"
+          ) > "$RUNNER_TEMP/pull.log" 2>&1 < /dev/null &
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # git describe sets the firmware version
@@ -130,13 +135,20 @@ jobs:
           path: .ccache
           key: ccache-${{ github.sha }}
           restore-keys: ccache-
-      - name: Build
-        shell: bash
+      - name: Wait for the ESP-IDF image
+        timeout-minutes: 8
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          . "$IDF_PATH/export.sh"
-          idf.py -C firmware build
-          cd tools && python -m dbtools.flashimage
+          until test -s "$RUNNER_TEMP/pull-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/pull.log"
+          exit "$(cat "$RUNNER_TEMP/pull-status")"
+      - name: Build
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" -w /w -e CCACHE_DIR=/w/.ccache -e CCACHE_MAXSIZE=500M "$IDF_IMAGE" bash -c '
+            set -e
+            git config --global --add safe.directory /w
+            idf.py -C firmware build
+            cd tools && python -m dbtools.flashimage
+          '
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deckconnector
