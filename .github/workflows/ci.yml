@@ -102,7 +102,7 @@ jobs:
           if-no-files-found: error
 
   # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
-  # comes down in the background while the page builds; the runner's Android, .NET and GHC make room for it.
+  # comes down in the background while the page builds. The build needs the room of the runner's Android, .NET and GHC.
   firmware:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
@@ -114,11 +114,8 @@ jobs:
       IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     steps:
       - run: |
-          (
-            sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
-            docker pull -q "$IDF_IMAGE"
-            echo $? > "$RUNNER_TEMP/pull-status"
-          ) > "$RUNNER_TEMP/pull.log" 2>&1 < /dev/null &
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup > /dev/null 2>&1 < /dev/null &
+          (docker pull -q "$IDF_IMAGE"; echo $? > "$RUNNER_TEMP/pull-status") > "$RUNNER_TEMP/pull.log" 2>&1 < /dev/null &
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # git describe sets the firmware version
