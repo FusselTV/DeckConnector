@@ -34,7 +34,7 @@ export function Docs({ lang, tree, children }: { lang: Lang; tree: PageTree.Root
     }
   }, [])
   return (
-    <DocsLayout tree={tree} nav={{ component: <DocsMenu />, children: home }} slots={{ navTitle: () => null, languageSelect: false, themeSwitch: false, searchTrigger: false }}>
+    <DocsLayout tree={tree} nav={{ children: home }} slots={{ header: () => <DocsMenu />, navTitle: () => null, languageSelect: false, themeSwitch: false, searchTrigger: false }}>
       {children}
     </DocsLayout>
   )

@@ -1,3 +1,4 @@
+/* oxlint-disable jsx-a11y/no-redundant-roles, jsx-a11y/no-interactive-element-to-noninteractive-role, jsx-a11y/control-has-associated-label -- display: grid on phones drops the table semantics, the roles bring them back */
 import { Check, Minus, X } from 'lucide-react'
 import { Fragment } from 'react'
 import type { Cell, Row } from './data'
