@@ -7,7 +7,7 @@
   </a>
 </p>
 
-<h1 align="center">DeckConnector</h1>
+<h1 align="center"><img src="site/public/favicon.svg" width="36" height="36" alt=""> DeckConnector</h1>
 
 <p align="center">
   Your Stream Deck on the network. A small ESP32-P4 board drives it over USB,<br>

@@ -892,7 +892,7 @@ esp_err_t put_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-/* TODO: ask the GitHub releases of FusselTV/deck-connector once there are any, and install the release's
+/* TODO: ask the GitHub releases of FusselTV/DeckConnector once there are any, and install the release's
  * .dbfw with POST /api/ota/url. */
 esp_err_t get_update_check(httpd_req_t *req)
 {

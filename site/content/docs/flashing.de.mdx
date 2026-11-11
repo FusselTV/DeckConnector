@@ -49,11 +49,11 @@ Unter Windows heißt der Port `COM3` oder ähnlich, unter macOS `/dev/cu.*`.
 Du brauchst ESP-IDF 6.0.2, Node.js und [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/FusselTV/deck-connector.git
+git clone https://github.com/FusselTV/DeckConnector.git
 ```
 
 ```bash
-cd deck-connector/web && npm ci && npm run build
+cd DeckConnector/web && npm ci && npm run build
 cd ../tools && uv run python -m dbtools.dbfw keygen
 cd ../firmware && idf.py build && idf.py -p /dev/ttyACM0 flash
 ```

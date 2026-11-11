@@ -103,7 +103,7 @@ export function deviceLabel(ua: string) {
 /** Lowercase without accents, for matching typed text. */
 export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
 
-export const REPO = 'https://github.com/FusselTV/deck-connector'
+export const REPO = 'https://github.com/FusselTV/DeckConnector'
 export const licensePage = (lang: string) => `https://deckconnector.com/${lang === 'de' ? 'de/' : ''}docs/license/`
 
 /** The source of a `git describe --tags --always --dirty` version; the repo itself for local changes. */
