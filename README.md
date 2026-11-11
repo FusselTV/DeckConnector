@@ -1,13 +1,8 @@
 <p align="center">
-  <a href="https://deckconnector.com">
-    <picture>
-      <source media="(prefers-color-scheme: light)" srcset="site/public/stills/hero-en-light.webp">
-      <img src="site/public/stills/hero-en-dark.webp" width="720" alt="A Stream Deck + on a DeckConnector board, controlled by Companion over Wi-Fi">
-    </picture>
-  </a>
+  <a href="https://deckconnector.com"><img src="site/public/favicon.svg" width="96" height="96" alt="DeckConnector logo"></a>
 </p>
 
-<h1 align="center"><img src="site/public/favicon.svg" width="36" height="36" alt=""> DeckConnector</h1>
+<h1 align="center">DeckConnector</h1>
 
 <p align="center">
   Your Stream Deck on the network. A small ESP32-P4 board drives it over USB,<br>
