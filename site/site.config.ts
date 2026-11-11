@@ -1,4 +1,4 @@
-export const repo = 'https://github.com/FusselTV/deck-connector'
+export const repo = 'https://github.com/FusselTV/DeckConnector'
 export const site = 'https://deckconnector.com'
 
 // Imprint and privacy policy. Fill in before launch: site.yml builds with LEGAL_STRICT=1 outside pull requests, which fails on a TODO.

@@ -2,7 +2,7 @@ DeckConnector third-party licenses
 ==================================
 
 DeckConnector is free software under the GNU Affero General Public License v3.0
-(the file LICENSE). Source code: https://github.com/FusselTV/deck-connector
+(the file LICENSE). Source code: https://github.com/FusselTV/DeckConnector
 
 This file lists the third-party code in the DeckConnector firmware for the
 ESP32-P4 (the .bin files of the web flasher and the .dbfw update files) and in

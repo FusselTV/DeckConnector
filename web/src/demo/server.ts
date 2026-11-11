@@ -116,7 +116,7 @@ function series(now: number, base: number, swing: number, seed: number) {
 }
 
 const UPDATE_URL = `http://192.168.1.10/deckconnector/${latest}.dbfw`
-const RELEASES = 'https://github.com/FusselTV/deck-connector/releases'
+const RELEASES = 'https://github.com/FusselTV/DeckConnector/releases'
 
 /** The header of an uploaded file, as the bridge reads it (dbfw in model.ts). */
 const file = (body: Body) => {
