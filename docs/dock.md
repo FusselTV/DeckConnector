@@ -24,7 +24,7 @@ Every connection gets a keepalive at once and then every 2.5 s. Hosts drop a con
 data. A plug or unplug of the deck sends a new `0x1c` report to every host that has asked the dock something.
 
 The framing ("Cora") is a 16 byte header (`43 93 8a 41`, flags, HID op, message id, length) and a HID report.
-`db_core/db_cora.c` builds the answers. `host_test/test_cora.c` checks them.
+`db_core/db_cora.c` builds the answers. `firmware/host_test/test_cora.c` checks them.
 
 ## The two hosts
 
