@@ -470,6 +470,10 @@ export const en = {
   'pal.setup': 'Run setup again',
   'cf.setup': 'Run setup again?',
   'cf.setup_b': 'Your settings stay. You go through the steps again.',
+  'fw.reset': 'Factory reset',
+  'cf.reset': 'Reset the connector?',
+  'cf.reset_b':
+    'This deletes all settings, the password, API keys, paired hosts and Wi-Fi. The firmware stays. Save a backup first if you want to keep them.',
   'wiz.step': 'Step {n} of {all}: {name}',
   'cf.skip': 'Skip setup?',
   'cf.skip_b':

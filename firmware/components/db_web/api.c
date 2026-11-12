@@ -1062,6 +1062,17 @@ esp_err_t post_reboot(httpd_req_t *req)
     return ESP_OK;
 }
 
+esp_err_t post_reset(httpd_req_t *req)
+{
+    if (db_config_reset() != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "reset failed");
+    }
+    ESP_LOGW(TAG, "factory reset from the web page");
+    send_json(req, "{\"ok\":true}");
+    restart_soon();
+    return ESP_OK;
+}
+
 esp_err_t get_log(httpd_req_t *req)
 {
     char *buf = heap_caps_malloc(16 * 1024, MALLOC_CAP_SPIRAM);

@@ -44,6 +44,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['PUT', '/api/config', 'full'],
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
+  ['POST', '/api/reset', 'full'],
   ['GET', '/api/log', 'full'],
   ['GET', '/api/screen', 'control'],
   ['GET', '/api/screen/*', 'control'],
@@ -257,6 +258,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'POST /api/deck/stall':
       return ok()
     case 'POST /api/reboot':
+    case 'POST /api/reset':
       restartSoon(s, now)
       return ok()
     case 'POST /api/dock':

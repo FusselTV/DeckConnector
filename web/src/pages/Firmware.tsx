@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   Power,
   RefreshCw,
+  RotateCcw,
   Settings,
   Sparkles,
   Trash2,
@@ -20,7 +21,7 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
-import { putConfig } from '../app/actions'
+import { putConfig, useActions } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { toast } from '../app/state'
 import { useStore } from '../app/store'
@@ -372,6 +373,7 @@ function OtaProgress() {
 
 export function Firmware() {
   const { t, fmt, act, ask } = useUi()
+  const a = useActions()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const ota = useStore((s) => s.ota)
@@ -677,6 +679,9 @@ export function Firmware() {
             }
           >
             {t('pal.setup')}
+          </Btn>
+          <Btn id="fw-reset" kind="danger" icon={RotateCcw} onClick={() => void a.reset()}>
+            {t('fw.reset')}
           </Btn>
         </div>
         <input

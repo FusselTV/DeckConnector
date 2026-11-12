@@ -474,6 +474,10 @@ export const de: Dict = {
   'pal.setup': 'Einrichtung erneut starten',
   'cf.setup': 'Einrichtung erneut starten?',
   'cf.setup_b': 'Deine Einstellungen bleiben. Du gehst nur die Schritte noch einmal durch.',
+  'fw.reset': 'Auf Werkseinstellungen zurücksetzen',
+  'cf.reset': 'Connector zurücksetzen?',
+  'cf.reset_b':
+    'Das löscht alle Einstellungen, das Passwort, API-Schlüssel, gekoppelte Hosts und das WLAN. Die Firmware bleibt. Sichere vorher ein Backup, wenn du sie behalten willst.',
   'wiz.step': 'Schritt {n} von {all}: {name}',
   'cf.skip': 'Einrichtung überspringen?',
   'cf.skip_b':

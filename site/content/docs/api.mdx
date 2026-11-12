@@ -90,6 +90,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
+| `POST /api/reset` | Factory reset: settings, password, API keys, paired hosts and Wi-Fi are deleted, the firmware stays. Then a restart | full |
 
 ### Deck
 
