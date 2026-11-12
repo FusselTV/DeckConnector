@@ -22,7 +22,7 @@ The board takes signed `.dbfw` files. Each file holds one part, and the board se
 
 <OtaFlow />
 
-A board takes only files signed with the key its firmware was built with. It refuses a file below its own security level, so an old firmware with a known hole cannot come back. Under **Firmware slots (advanced)** you can start an older slot. It must confirm itself like a new update.
+A board takes only files signed with the key its firmware was built with. It refuses a file below its own security level, so an old firmware with a known hole cannot come back. Under **Firmware slots** you can start an older slot. It must confirm itself like a new update.
 
 ## Releases
 
@@ -38,7 +38,7 @@ Check a download with `sha256sum -c SHA256SUMS --ignore-missing`.
 
 ## Web page
 
-The web page can change without a firmware update and stays over restarts. When it does not fit the firmware, the board serves the page built into its firmware. **Remove uploaded web interface** goes back to that page.
+The web page can change without a firmware update and stays over restarts. When it does not fit the firmware, the board serves the page built into its firmware. **Remove uploaded page** goes back to that page.
 
 ## Recovery over USB
 

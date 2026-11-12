@@ -118,7 +118,7 @@ def test_a_satellite_address_set_by_hand_ends_that_hosts_dock_connection(me):
     host, _ = start_dock_host()
     try:
         assert wait(lambda: any(x["kind"] == "companion" for x in dock_hosts(me)), 10)
-        put_config({"satellite": me})  # what the web's "Auf Satellite umstellen" does
+        put_config({"satellite": me})  # what the web's "Satellite nutzen" does
         assert wait(lambda: not dock_hosts(me), 10), "the dock connection of this host stayed"
         assert not dock_takes(2)
         put_config({"controller": "companion", "host": me})  # a person picks the dock path for this host
