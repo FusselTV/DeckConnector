@@ -29,7 +29,9 @@
 #define FREE_TRIES  5
 #define MAX_LOCK_S  60
 #define ALL_TRIES   30 /* wrong passwords per minute from all clients together */
-#define COOKIE      "db_session"
+/* One name per scheme: a browser drops a plain cookie named like a Secure one it holds, the old "db_session"
+ * included. */
+#define COOKIE(req) (web_tls(req) ? "__Host-dc_session" : "dc_session")
 #define API_TOKENS  8
 
 static const char *TAG = "auth";
@@ -328,7 +330,7 @@ bool auth_check(httpd_req_t *req, web_level_t need)
     bool allowed = req->method == HTTP_GET || marked;
     char token[TOKEN_BYTES * 2 + 1] = {0};
     size_t len = sizeof(token);
-    bool cookie = httpd_req_get_cookie_val(req, COOKIE, token, &len) == ESP_OK && session_valid(token);
+    bool cookie = httpd_req_get_cookie_val(req, COOKIE(req), token, &len) == ESP_OK && session_valid(token);
     if (allowed && (cookie || auth_via_ap(req) || basic_auth_ok(req))) {
         return true;
     }
@@ -378,12 +380,15 @@ static bool password_matches(httpd_req_t *req)
 
 void auth_session_cookie(httpd_req_t *req)
 {
-    static char cookie[160]; /* the header must live until the reply is sent; handlers run one at a time */
+    /* the header must live until the reply is sent; one slot per server, each runs its handlers one at a time
+     */
+    static char cookies[2][160];
+    char *cookie = cookies[web_tls(req)];
     /* 30 days: the 12 h idle limit is the bridge's, and a browser must not end a session in use any sooner */
     char token[TOKEN_BYTES * 2 + 1];
     new_session(token);
-    snprintf(cookie, sizeof(cookie), COOKIE "=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000%s",
-             token, web_tls(req) ? "; Secure" : "");
+    snprintf(cookie, sizeof(cookies[0]), "%s=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000%s",
+             COOKIE(req), token, web_tls(req) ? "; Secure" : "");
     httpd_resp_set_hdr(req, "Set-Cookie", cookie);
 }
 
@@ -592,7 +597,7 @@ esp_err_t auth_logout(httpd_req_t *req)
 {
     char token[TOKEN_BYTES * 2 + 1] = {0};
     size_t len = sizeof(token);
-    if (httpd_req_get_cookie_val(req, COOKIE, token, &len) == ESP_OK) {
+    if (httpd_req_get_cookie_val(req, COOKIE(req), token, &len) == ESP_OK) {
         portENTER_CRITICAL(&mux);
         for (int i = 0; i < SESSIONS; i++) {
             if (sessions[i].token[0] && equal(sessions[i].token, token)) {
@@ -601,7 +606,10 @@ esp_err_t auth_logout(httpd_req_t *req)
         }
         portEXIT_CRITICAL(&mux);
     }
-    httpd_resp_set_hdr(req, "Set-Cookie", COOKIE "=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+    httpd_resp_set_hdr(req, "Set-Cookie",
+                       web_tls(req)
+                           ? "__Host-dc_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0; Secure"
+                           : "dc_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
     return send_json(req, "{\"ok\":true}");
 }
 

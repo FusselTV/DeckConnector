@@ -685,6 +685,7 @@ export const en = {
   'in.hint':
     'The connector keeps the last 200 inputs (about 3 KB). Older ones are overwritten. A restart clears the list.',
   'meter.slow_n': 'Deck {n} slow',
+  'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
   'login.pw': 'Password changed. Log in with the new one.',

@@ -236,6 +236,10 @@ export async function boot() {
         dispatch({ type: 'restart', on: false, now: Date.now() })
         if (loginReasonAtom.get() !== 'pw') loginReasonAtom.set('expired')
         dispatch({ type: 'auth', auth: 'login' })
+      } else if (getState().asOf === null) {
+        // Never a status: the login answered but the browser did not keep its cookie. No stale page to show.
+        loginReasonAtom.set('cookie')
+        dispatch({ type: 'auth', auth: 'login' })
       } else dispatch({ type: 'auth', auth: 'expired' })
     } else if (code === 0) lost()
   })

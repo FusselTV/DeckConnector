@@ -363,6 +363,17 @@ test('a failed logout keeps the page and says the session may still be valid', a
   errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 500')))
 })
 
+test('a login the browser does not keep goes back to the login page and says why', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await page.goto('/')
+  await page.route('**/api/status', (r) => r.fulfill({ status: 401, json: { ok: false, error: 'login required' } }))
+  await page.locator('#lpw').fill('simulator-pass')
+  await page.keyboard.press('Enter')
+  await expect(page.getByText('The browser did not keep the login.')).toBeVisible()
+  await expect(page.locator('#lpw')).toBeVisible()
+  await expect(page.getByText('No deck attached')).toHaveCount(0)
+})
+
 test('a login that fails for another reason than the password says why', async ({ page, errors }) => {
   await sim('PUT', '/api/setup', { step: 0 })
   await sim('PUT', '/api/config', { setup_done: true })

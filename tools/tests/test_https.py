@@ -39,9 +39,9 @@ def https_only():
     assert get_config()["https_only"] == before
 
 
-def logout(headers) -> None:
+def logout(headers, scheme: str = "https") -> None:
     cookie = headers["Set-Cookie"].split(";")[0]
-    assert get(f"https://{HOST}/api/logout", {"X-DeckConnector": "1", "Cookie": cookie}, b"", "POST")[0] == 200
+    assert get(f"{scheme}://{HOST}/api/logout", {"X-DeckConnector": "1", "Cookie": cookie}, b"", "POST")[0] == 200
 
 
 def test_the_api_and_the_page_over_https():
@@ -56,9 +56,11 @@ def test_a_login_over_https_gets_a_secure_cookie():
     _, tls_headers, _ = get(f"https://{HOST}/api/login", {"X-DeckConnector": "1"}, body, "POST")
     _, plain_headers, _ = get(f"http://{HOST}/api/login", {"X-DeckConnector": "1"}, body, "POST")
     logout(tls_headers)
-    logout(plain_headers)
+    logout(plain_headers, "http")
     assert "; Secure" in tls_headers["Set-Cookie"]
     assert "Secure" not in plain_headers["Set-Cookie"]
+    # one shared name kept the http login from sticking after an https one
+    assert tls_headers["Set-Cookie"].split("=")[0] != plain_headers["Set-Cookie"].split("=")[0]
 
 
 async def test_the_live_socket_over_https():

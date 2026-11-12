@@ -696,6 +696,8 @@ export const de: Dict = {
   'in.hint':
     'Der Connector merkt sich die letzten 200 Eingaben (etwa 3 KB). Ältere werden überschrieben. Ein Neustart leert die Liste.',
   'meter.slow_n': 'Deck {n} langsam',
+  'login.cookie':
+    'Der Browser hat die Anmeldung nicht behalten. Erlaube Cookies für diese Adresse und melde dich noch einmal an.',
   'login.expired': 'Sitzung abgelaufen. Deine Eingaben bleiben erhalten.',
   'login.logout': 'Du hast dich abgemeldet.',
   'login.pw': 'Passwort geändert. Melde dich mit dem neuen an.',
