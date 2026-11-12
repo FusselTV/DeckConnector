@@ -70,6 +70,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/password/reset', 'open'],
   ['DELETE', '/api/password/reset', 'open'],
   ['POST', '/api/login/request', 'open'],
+  ['POST', '/api/setup/claim', 'open'],
   ['GET', '/api/login/request/*', 'open'],
   ['DELETE', '/api/login/request/*', 'open'],
   ['GET', '/api/profile', 'full'],
@@ -178,6 +179,11 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
   }
   if (route === 'DELETE /api/password/reset') {
     s.resetUntil = 0
+    return ok()
+  }
+  if (route === 'POST /api/setup/claim') {
+    if (s.cfg.setup_done || s.claimed) return fail(409, s.claimed ? 'claimed' : 'set up')
+    s.claimed = s.authed = true
     return ok()
   }
   if (route === 'POST /api/login/request') {

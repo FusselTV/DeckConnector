@@ -68,6 +68,7 @@ Routes that act on a deck take `?deck=<serial>` from `decks` in the status. With
 |---|---|---|
 | `POST /api/login` | `{"password": "..."}`, sets the session cookie | open |
 | `POST /api/logout` | Ends the session | open |
+| `POST /api/setup/claim` | Before setup: a session without the password, see [Password](/docs/security/#password). 403 from another site's name, 409 with `set up`, `claimed` or `too late` | open |
 | `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request | open |
 | `GET /api/login/request/<id>` | `state` is `pending`, `accepted`, `denied`, `expired` or `used`. With `accepted` the reply sets the session cookie once | open |
 | `DELETE /api/login/request/<id>` | Takes the request back | open |
@@ -195,7 +196,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
 | `admin_pass` | 6 to 23 characters. Password only |
-| `setup_done` | `false` starts the setup again. Password only |
+| `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
 `brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 

@@ -215,8 +215,8 @@ static esp_err_t erase(const char *ns, const char *key)
 esp_err_t db_config_reset(void)
 {
     /* "ota" stays (each slot's security level), and so does the bridge's own HTTPS certificate */
-    const char *const wipe[][2] = {{"auth", NULL},   {"dock", NULL},  {"satellite", NULL},
-                                   {"web", "ccert"}, {"web", "ckey"}, {"web", "step"}};
+    const char *const wipe[][2] = {{"auth", NULL},  {"dock", NULL},  {"satellite", NULL}, {"web", "ccert"},
+                                   {"web", "ckey"}, {"web", "step"}, {"web", "claimed"}};
     esp_err_t err = ESP_OK;
     for (size_t i = 0; i < sizeof(wipe) / sizeof(wipe[0]); i++) {
         esp_err_t e = erase(wipe[i][0], wipe[i][1]);

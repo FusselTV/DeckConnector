@@ -47,6 +47,10 @@ esp_err_t auth_logout(httpd_req_t *req);
 esp_err_t auth_password_show(httpd_req_t *req);
 /* POST asks on the deck, DELETE takes the question back. */
 esp_err_t auth_password_reset(httpd_req_t *req);
+/* Before setup, the first browser within CLAIM_S after the start gets a session without the password, once
+ * until a factory reset. Setting a password uses that chance up too. */
+esp_err_t auth_setup_claim(httpd_req_t *req);
+void auth_claim_close(void);
 /* No login: POST asks on the deck to let this browser in. /<id>: GET polls and logs in once accepted, DELETE
  * takes the request back. */
 esp_err_t auth_login_request(httpd_req_t *req);

@@ -1,5 +1,6 @@
 """Attacks from the LAN, each found in a review, each must fail."""
 
+import base64
 import json
 import subprocess
 import time
@@ -138,3 +139,41 @@ def test_a_new_password_ends_the_other_sessions(own_sim):
     assert get(f"{base}/api/status", other) == 401
     assert get(f"{base}/api/status", mine) == 401
     assert get(f"{base}/api/status", renewed) == 200, "the browser that set the password stays logged in"
+
+
+def claim(port: int, host: str) -> tuple[int, str]:
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/setup/claim",
+        data=b"",
+        method="POST",
+        headers={"X-DeckConnector": "1", "Host": host},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status, r.headers.get("Set-Cookie", "")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="takes the one chance of a fresh simulator")
+def test_before_setup_the_first_browser_gets_in_once_and_only_on_a_local_name(own_sim):
+    assert claim(own_sim, "evil.example")[0] == 403, "DNS rebinding: another site's name must not reach it"
+    code, cookie = claim(own_sim, f"127.0.0.1:{own_sim}")
+    assert code == 200 and cookie.startswith("dc_session="), cookie
+    assert claim(own_sim, f"127.0.0.1:{own_sim}") == (409, '{"ok":false,"error":"claimed"}')
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="changes the password of a fresh simulator")
+def test_a_password_set_before_setup_closes_the_first_browser_way(own_sim):
+    auth = "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
+    body = json.dumps({"admin_pass": "chosen-in-the-flasher"}).encode()
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{own_sim}/api/config",
+        data=body,
+        method="PUT",
+        headers={"X-DeckConnector": "1", "Authorization": auth, "Content-Type": "application/json"},
+    )
+    assert urllib.request.urlopen(req, timeout=5).status == 200
+    assert claim(own_sim, f"127.0.0.1:{own_sim}") == (409, '{"ok":false,"error":"claimed"}')

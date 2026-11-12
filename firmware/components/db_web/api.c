@@ -77,7 +77,11 @@ static int config_edit(const char *body, char *reply, size_t cap)
         return fail(reply, cap, 500, "saving failed");
     }
     if (strcmp(cfg.admin_pass, old.admin_pass) != 0) {
+        auth_claim_close();
         auth_end_sessions();
+    }
+    if (cfg.setup_done && !old.setup_done) {
+        auth_end_sessions(); /* a session from the first-browser setup must not outlive it */
     }
     db_config_t live = cfg;
     live.brightness = old.brightness;
@@ -419,9 +423,12 @@ esp_err_t put_config(httpd_req_t *req)
     bool token = auth_by_token(req);
     static char old_pass[sizeof(db_config()->admin_pass)];
     strlcpy(old_pass, db_config()->admin_pass, sizeof(old_pass));
+    bool was_done = db_config()->setup_done;
     int code = (token ? api_config_token : api_config)(body, reply, 320);
-    /* a new password ends every session, also this one: the setup wizard's next step would get a 401 */
-    if (code == 200 && !token && strcmp(old_pass, db_config()->admin_pass) != 0) {
+    /* a new password or the end of setup ends every session, also this one: the wizard's next step would get
+     * a 401 */
+    if (code == 200 && !token &&
+        (strcmp(old_pass, db_config()->admin_pass) != 0 || (!was_done && db_config()->setup_done))) {
         auth_session_cookie(req);
     }
     mbedtls_platform_zeroize(old_pass, sizeof(old_pass));

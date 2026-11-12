@@ -9,7 +9,7 @@ description: Set up DeckConnector after flashing. Give the board a name, a passw
 
 Without a cable, set Wi-Fi in the [flasher](/flash/) or use the [setup Wi-Fi](#over-the-setup-wi-fi) first. With a network cable, the deck shows its address and a QR code. Scan the code with a phone, or open `http://<address>/` on a computer in the same network.
 
-The QR code logs that browser in once, without the password. Each code is good for 10 minutes and one login, until setup is done. Without it, log in as `admin` with the password from the [deck menu](/docs/getting-started#the-deck-menu).
+The first browser that opens the page within 30 minutes after the start goes straight into setup. Every later one scans the QR code, which logs a browser in once (each code for 10 minutes, until setup is done), or logs in as `admin` with the password from the [deck menu](/docs/getting-started#the-deck-menu).
 
 The wizard asks for the language and name, your own password, the network, and the program that controls the deck. The name is also the network name, for example `deckconnector-a1b2c3.local`. [Try the wizard in the demo](/demo/?setup).
 

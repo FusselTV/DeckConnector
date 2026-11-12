@@ -567,6 +567,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/password/reset", .method = HTTP_POST, .handler = auth_password_reset}, WEB_OPEN},
         {{.uri = "/api/password/reset", .method = HTTP_DELETE, .handler = auth_password_reset}, WEB_OPEN},
         {{.uri = "/api/login/request", .method = HTTP_POST, .handler = auth_login_request}, WEB_OPEN},
+        {{.uri = "/api/setup/claim", .method = HTTP_POST, .handler = auth_setup_claim}, WEB_OPEN},
         {{.uri = "/api/login/request/*", .method = HTTP_GET, .handler = auth_login_request_id}, WEB_OPEN},
         {{.uri = "/api/login/request/*", .method = HTTP_DELETE, .handler = auth_login_request_id}, WEB_OPEN},
         {{.uri = "/api/profile", .method = HTTP_GET, .handler = get_profile}, WEB_FULL},

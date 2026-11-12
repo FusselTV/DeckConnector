@@ -274,6 +274,7 @@ test('saving a backup asks whether passwords go in', async ({ app: page }) => {
 })
 
 test('without the password, the login page shows it on the deck or asks the deck for a reset', async ({ page }) => {
+  await sim('PUT', '/api/config', { setup_done: true })
   const calls: string[] = []
   await page.route('**/api/password/**', (r) => {
     calls.push(`${r.request().method()} ${new URL(r.request().url()).pathname}`)
@@ -301,6 +302,7 @@ test('the deck menu button closes the menu it opened', async ({ app: page }) => 
 })
 
 test('the deck can let a browser in without the password', async ({ page }) => {
+  await sim('PUT', '/api/config', { setup_done: true })
   // The simulator accepts every login request after a second (DB_SIM_LOGIN_ACCEPT).
   await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
   await page.goto('/')
@@ -364,6 +366,7 @@ test('a failed logout keeps the page and says the session may still be valid', a
 })
 
 test('a login the browser does not keep goes back to the login page and says why', async ({ page }) => {
+  await sim('PUT', '/api/config', { setup_done: true })
   await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
   await page.goto('/')
   await page.route('**/api/status', (r) => r.fulfill({ status: 401, json: { ok: false, error: 'login required' } }))

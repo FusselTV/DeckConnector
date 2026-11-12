@@ -1,5 +1,31 @@
 import { expect, login, sim, test } from './fixtures.ts'
 
+test('a device nobody set up opens the wizard without the login page', async ({ page, errors: _errors }) => {
+  // The simulator's one chance may be used up, so the claim is answered here, with a real session behind it.
+  await page.route('**/api/setup/claim', async (r) => {
+    await page.request.post('/api/login', {
+      headers: { 'X-DeckConnector': '1' },
+      data: { password: 'simulator-pass' },
+    })
+    await r.fulfill({ json: { ok: true } })
+  })
+  await sim('PUT', '/api/config', { setup_done: false })
+  await page.goto('/')
+  await expect(page.locator('#wz-step')).toBeVisible()
+  await expect(page.locator('#lpw')).toHaveCount(0)
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: true })
+})
+
+test('a second browser during setup hears that another one took it over', async ({ page, errors: _errors }) => {
+  await page.route('**/api/setup/claim', (r) => r.fulfill({ status: 409, json: { ok: false, error: 'claimed' } }))
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await sim('PUT', '/api/config', { setup_done: false })
+  await page.goto('/')
+  await expect(page.getByText('Another browser is already setting up this connector.')).toBeVisible()
+  await sim('PUT', '/api/config', { setup_done: true })
+})
+
 test('the setup wizard goes forward and back and keeps what was entered', async ({ page, errors: _errors }) => {
   await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
   // The simulator has no cable and its Wi-Fi join never finishes, so the join test is answered here too.

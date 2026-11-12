@@ -373,7 +373,7 @@ export function AuthLevels({ lang }: { lang?: Lang }) {
     title: 'API access levels',
     desc: 'Four levels, each includes the one above. open: everyone. control: the password, or an API key with control or full access. full: the password, or a full access key. admin: the password only.',
     rows: [
-      ['open', 'Everyone', 'Login, certificate, lost password help'],
+      ['open', 'Everyone', 'Login, certificate, lost password help, first setup'],
       ['control', 'Password, control or full key', 'Status, deck picture, presses, menu, metrics'],
       ['full', 'Password, full key', 'Settings, restart, updates, slots, log, pairing, Wi-Fi'],
       ['admin', 'Password only', 'Password, API keys, backup, crash report, own certificate, factory reset'],
@@ -382,7 +382,7 @@ export function AuthLevels({ lang }: { lang?: Lang }) {
     title: 'Zugriffsstufen der API',
     desc: 'Vier Stufen, jede enthält die darüber. open: alle. control: das Passwort oder ein API-Schlüssel mit Steuern oder Vollzugriff. full: das Passwort oder ein Schlüssel mit Vollzugriff. admin: nur das Passwort.',
     rows: [
-      ['open', 'Alle', 'Login, Zertifikat, Hilfe bei vergessenem Passwort'],
+      ['open', 'Alle', 'Login, Zertifikat, Hilfe bei vergessenem Passwort, erste Einrichtung'],
       ['control', 'Passwort, Schlüssel Steuern oder Vollzugriff', 'Status, Deck-Bild, Tastendrücke, Menü, Messwerte'],
       ['full', 'Passwort, Schlüssel Vollzugriff', 'Einstellungen, Neustart, Updates, Firmware-Plätze, Log, Kopplung, WLAN'],
       ['admin', 'Nur das Passwort', 'Passwort, API-Schlüssel, Backup, Absturzbericht, eigenes Zertifikat, Werkszustand'],

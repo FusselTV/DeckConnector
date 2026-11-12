@@ -583,6 +583,77 @@ esp_err_t auth_login_request_id(httpd_req_t *req)
     return send_json(req, reply);
 }
 
+#define CLAIM_S 1800
+static int64_t started; /* esp_timer counts from the host's start in the simulator, not from ours */
+
+static bool claim_used(void)
+{
+    nvs_handle_t h;
+    uint8_t used = 0;
+    if (nvs_open("web", NVS_READONLY, &h) == ESP_OK) {
+        nvs_get_u8(h, "claimed", &used);
+        nvs_close(h);
+    }
+    return used;
+}
+
+void auth_claim_close(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("web", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u8(h, "claimed", 1);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
+
+/* DNS rebinding: another site's page could reach us under its own name, so only an address or name.local */
+static bool host_is_local(httpd_req_t *req)
+{
+    char host[72];
+    if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
+        return false;
+    }
+    if (host[0] == '[') {
+        return true;
+    }
+    char *colon = strchr(host, ':');
+    if (colon) {
+        *colon = '\0';
+    }
+    size_t n = strlen(host);
+    if (n > 6 && strcmp(host + n - 6, ".local") == 0) {
+        return true;
+    }
+    return n && strspn(host, "0123456789.") == n;
+}
+
+esp_err_t auth_setup_claim(httpd_req_t *req)
+{
+    static bool busy;
+    if (!auth_marked(req) || !host_is_local(req)) {
+        return send_error(req, "403 Forbidden", "X-DeckConnector header or local address missing");
+    }
+    if (db_config()->setup_done) {
+        return send_error(req, "409 Conflict", "set up");
+    }
+    if (esp_timer_get_time() - started > CLAIM_S * 1000000LL) {
+        return send_error(req, "409 Conflict", "too late");
+    }
+    portENTER_CRITICAL(&mux);
+    bool first = !busy;
+    busy = true;
+    portEXIT_CRITICAL(&mux);
+    if (!first || claim_used()) {
+        return send_error(req, "409 Conflict", "claimed");
+    }
+    auth_claim_close();
+    struct in_addr ip = {.s_addr = peer_ip(req)};
+    ESP_LOGW(TAG, "setup taken over without the password by %s", inet_ntoa(ip));
+    auth_session_cookie(req);
+    return send_json(req, "{\"ok\":true}");
+}
+
 esp_err_t auth_qr_login(httpd_req_t *req, const char *token)
 {
     if (db_ui_login_take(token)) {
@@ -675,6 +746,7 @@ static void restore_sessions(void)
 
 void auth_start(void)
 {
+    started = esp_timer_get_time();
     restore_sessions();
     nvs_handle_t h;
     size_t len = sizeof(tokens);
