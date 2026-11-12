@@ -696,7 +696,7 @@ export function Firmware() {
               )
             }
           >
-            {t('login.forgot')}
+            {t('btn.reset')}
           </Btn>
         </div>
         <input
