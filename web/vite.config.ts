@@ -56,6 +56,7 @@ export default defineConfig(({ mode }) => {
       license: !demo && { fileName: 'licenses.md' },
     },
     server: {
+      fs: { allow: ['.', '../site/public'] }, // the fonts come from site/public
       proxy: {
         '/api': {
           target,
