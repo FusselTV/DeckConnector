@@ -89,6 +89,12 @@ jobs:
         env:
           # a deploy outside a pull request must not publish an imprint with TODO in it
           LEGAL_STRICT: ${{ github.event_name != 'pull_request' && '1' || '' }}
+          OWNER_NAME: ${{ secrets.OWNER_NAME }}
+          OWNER_STREET: ${{ secrets.OWNER_STREET }}
+          OWNER_CITY: ${{ secrets.OWNER_CITY }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          OWNER_AUTHORITY_NAME: ${{ secrets.OWNER_AUTHORITY_NAME }}
+          OWNER_AUTHORITY_URL: ${{ secrets.OWNER_AUTHORITY_URL }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: site
