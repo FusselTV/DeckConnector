@@ -256,7 +256,7 @@ test('the plus on the overview opens the add dialog, and the certificate pin wai
   await expect(dlg).toBeVisible()
   await dlg.locator('#m-sat').fill('wss://companion.example/satellite')
   await expect(dlg.locator('#m-satpin')).toHaveCount(0)
-  await dlg.getByRole('button', { name: 'Pin a certificate (optional)' }).click()
+  await dlg.getByRole('button', { name: 'Pin certificate' }).click()
   await expect(dlg.locator('#m-satpin')).toBeVisible()
 })
 
@@ -268,7 +268,7 @@ test('saving a backup asks whether passwords go in', async ({ app: page }) => {
   await dlg.getByRole('radio', { name: /With passwords/ }).click()
   const [file] = await Promise.all([
     page.waitForEvent('download'),
-    dlg.getByRole('button', { name: 'Save backup' }).click(),
+    dlg.getByRole('button', { name: 'Save', exact: true }).click(),
   ])
   expect(file.suggestedFilename()).toMatch(/-backup\.json$/)
 })
@@ -282,9 +282,9 @@ test('without the password, the login page shows it on the deck or asks the deck
   })
   await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
   await page.goto('/')
-  await page.getByRole('button', { name: 'Show password on the deck' }).click()
+  await page.getByRole('button', { name: 'Password on the deck' }).click()
   await expect(page.getByRole('button', { name: /On the deck for/ })).toBeDisabled()
-  await page.getByRole('button', { name: 'Reset to factory settings…' }).click()
+  await page.getByRole('button', { name: 'Reset…' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm on the deck' }).click()
   await expect(page.getByText(/Confirm on the deck\. \d+ s left/)).toBeVisible()
   await page.getByRole('button', { name: 'Cancel' }).click()
@@ -306,7 +306,7 @@ test('the deck can let a browser in without the password', async ({ page }) => {
   // The simulator accepts every login request after a second (DB_SIM_LOGIN_ACCEPT).
   await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
   await page.goto('/')
-  await page.getByRole('button', { name: 'Ask the deck to let me in' }).click()
+  await page.getByRole('button', { name: 'Ask the deck' }).click()
   await expect(page.getByText(/Accept on the deck\. \d+ s left/)).toBeVisible()
   await expect(page.locator('#lpw')).toHaveCount(0, { timeout: 8000 })
   await expect(page.getByRole('heading', { name: 'Overview' }).first()).toBeAttached()
