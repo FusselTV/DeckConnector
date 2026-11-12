@@ -199,7 +199,9 @@ jobs:
 
   # The contact form's backend (site/contact-worker), from main only: a PR preview has no form backend.
   contact-worker:
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'release') && !github.event.release.prerelease
+    needs: build # the Worker's tests run there
+    # Not on a release: its ref is the tag, which can be older than main.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'release'
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     environment: cloudflare-pages

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Bug, Check, Mail } from 'lucide-react'
 import { Btn, Field, Note, Spinner, card, input } from './flash/ui'
 import type { Lang } from '~/lib/i18n'
+import { EMAIL, MAX } from '~/contact-worker/mail'
 
 const t = {
   en: {
@@ -55,7 +56,6 @@ const t = {
   },
 }
 
-const EMAIL = /^[^\s@<>"(),;:\\]+@[^\s@<>"(),;:\\]+\.[^\s@<>"(),;:\\]+$/
 const link = 'font-medium text-fg underline decoration-line-2 underline-offset-4 hover:decoration-current'
 
 export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: string; issues: string; privacy: string }) {
@@ -69,8 +69,10 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
   useEffect(() => {
     opened.current = Date.now()
   }, [])
+  const again = useRef(false)
   useEffect(() => {
     if (state === 'sent') done.current?.focus()
+    if (state === 'idle' && again.current) document.getElementById('c-name')?.focus()
   }, [state])
 
   const err = {
@@ -84,6 +86,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
   )
 
   async function submit() {
+    if (state === 'sending') return
     setTried(true)
     const bad = (['email', 'message'] as const).find((k) => err[k])
     if (bad) return form.current?.querySelector<HTMLElement>(`#c-${bad}`)?.focus()
@@ -114,7 +117,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
       </header>
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <section className={`${card} min-w-0 p-5 sm:p-7`} aria-live="polite">
+        <section className={`${card} min-w-0 p-5 sm:p-7`}>
           {state === 'sent' ? (
             <div className="flex flex-col items-center py-10 text-center">
               <span className="flex size-14 items-center justify-center rounded-full bg-ok-soft text-ok-fg ring-8 ring-ok-soft/40">
@@ -125,7 +128,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
               </h2>
               <p className="mt-2 text-fg-2">{c.thanks}</p>
               <div className="mt-8">
-                <Btn kind="ghost" onClick={() => (setV({ name: '', email: '', message: '' }), setTried(false), setState('idle'))}>
+                <Btn kind="ghost" onClick={() => ((again.current = true), setV({ name: '', email: '', message: '' }), setTried(false), setState('idle'))}>
                   {c.again}
                 </Btn>
               </div>
@@ -146,7 +149,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
                     </>
                   }
                 >
-                  <input id="c-name" className={input} value={v.name} maxLength={100} autoComplete="name" onChange={(e) => setV({ ...v, name: e.target.value })} />
+                  <input id="c-name" className={input} value={v.name} maxLength={MAX.name} autoComplete="name" onChange={(e) => setV({ ...v, name: e.target.value })} />
                 </Field>
                 <Field id="c-email" label={c.email} err={tried && err.email}>
                   <input
@@ -154,7 +157,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
                     type="email"
                     className={input}
                     value={v.email}
-                    maxLength={254}
+                    maxLength={MAX.email}
                     autoComplete="email"
                     required
                     onChange={(e) => setV({ ...v, email: e.target.value })}
@@ -168,7 +171,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
                   className={`${input} h-auto min-h-44 resize-y py-2.5 leading-relaxed`}
                   rows={7}
                   value={v.message}
-                  maxLength={5000}
+                  maxLength={MAX.message}
                   required
                   onChange={(e) => setV({ ...v, message: e.target.value })}
                   {...inv('message')}
@@ -178,17 +181,19 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
                 <label htmlFor="c-hp">Leave empty</label>
                 <input id="c-hp" name="c-hp" tabIndex={-1} autoComplete="off" />
               </div>
-              {(state === 'rate' || state === 'failed') && (
-                <Note lvl="bad">
-                  {state === 'rate' ? (
-                    c.rate
-                  ) : (
-                    <>
-                      {c.failed} {mailto}.
-                    </>
-                  )}
-                </Note>
-              )}
+              <div role="status">
+                {(state === 'rate' || state === 'failed') && (
+                  <Note lvl="bad">
+                    {state === 'rate' ? (
+                      c.rate
+                    ) : (
+                      <>
+                        {c.failed} {mailto}.
+                      </>
+                    )}
+                  </Note>
+                )}
+              </div>
               <div className="flex flex-col-reverse gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-fg-3">
                   {c.consent[0]}
@@ -198,7 +203,7 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
                   {c.consent[2]}
                 </p>
                 <div className="shrink-0 [&>button]:w-full">
-                  <Btn type="submit" disabled={state === 'sending'} aria-busy={state === 'sending'}>
+                  <Btn type="submit" aria-disabled={state === 'sending'} aria-busy={state === 'sending'}>
                     {state === 'sending' ? (
                       <>
                         <Spinner /> {c.sending}

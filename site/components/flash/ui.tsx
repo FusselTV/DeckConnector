@@ -8,7 +8,7 @@ export const card = 'rounded-xl border border-line bg-panel shadow-panel'
 export const mono = 'font-mono text-[0.8125rem] tracking-tight'
 
 const btnBase =
-  'inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus) disabled:cursor-not-allowed disabled:border-transparent disabled:bg-panel-2 disabled:text-fg-3 disabled:brightness-100 [&_svg]:size-4'
+  'inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus) disabled:cursor-not-allowed disabled:border-transparent disabled:bg-panel-2 disabled:text-fg-3 disabled:brightness-100 aria-disabled:cursor-not-allowed aria-disabled:border-transparent aria-disabled:bg-panel-2 aria-disabled:text-fg-3 aria-disabled:brightness-100 [&_svg]:size-4'
 
 export function Btn({
   kind = 'pri',
