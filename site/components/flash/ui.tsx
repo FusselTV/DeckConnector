@@ -118,7 +118,7 @@ export function Bar({ value, tone = 'amber', label }: { value: number | null; to
   )
 }
 
-export function Field({ id, label, hint, err, children }: { id: string; label: string; hint?: ReactNode; err?: ReactNode; children: ReactNode }) {
+export function Field({ id, label, hint, err, children }: { id: string; label: ReactNode; hint?: ReactNode; err?: ReactNode; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm font-medium">
