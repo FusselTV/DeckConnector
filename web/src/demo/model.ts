@@ -56,6 +56,7 @@ export interface Demo {
   downUntil: number
   started: number
   authed: boolean
+  claimed: boolean
   pass: string
   cfg: Config
   firmware: string
@@ -153,6 +154,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
     downUntil: 0,
     started: now,
     authed: !o.login,
+    claimed: false,
     pass: PASS,
     cfg: {
       name: setup ? 'deckconnector-a1b2c3' : 'studio-deck',
@@ -570,7 +572,10 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
     p.wifi_pass !== undefined
   s.cfg = next
   // Like the firmware: a new password ends the other sessions, the browser that set it gets a fresh one.
-  if (p.admin_pass !== undefined) s.pass = p.admin_pass
+  if (p.admin_pass !== undefined) {
+    s.pass = p.admin_pass
+    s.claimed = true
+  }
   if (!restart) return res('putConfig', { ok: true, restart: false }, { config: config(s) })
   restartSoon(s, now)
   const sch = next.https_only ? 'https' : 'http'
@@ -1186,7 +1191,15 @@ function factoryReset(s: Demo, now: number) {
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'
   const pass = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => abc[b % abc.length]).join('')
   Object.assign(s, { cfg: f.cfg, pass, docks: [], tokens: [], denied: [], request: null, later: null })
-  Object.assign(s, { resetUntil: 0, pwUntil: 0, authed: false, requested: true, tls: false, setupStep: 0 })
+  Object.assign(s, {
+    resetUntil: 0,
+    pwUntil: 0,
+    authed: false,
+    claimed: false,
+    requested: true,
+    tls: false,
+    setupStep: 0,
+  })
   event(s, now, 'reset', 'factory reset confirmed on the deck')
   restartSoon(s, now)
 }

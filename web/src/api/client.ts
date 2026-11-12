@@ -174,6 +174,7 @@ export const api = {
   backup: () => request<unknown>('/api/backup?secrets=1'),
   undeny: (ip: string) => request<{ ok: boolean }>('/api/pairing/denied/' + enc(ip), { method: 'DELETE' }),
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
+  claimSetup: () => request<{ ok: boolean }>('/api/setup/claim', { method: 'POST' }),
   events: () => list(request<DeviceEvent[]>('/api/events')),
 }
 

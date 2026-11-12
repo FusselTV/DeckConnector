@@ -22,7 +22,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
 import { putConfig } from '../app/actions'
-import { expectRestart } from '../app/connection'
+import { expectRestart, refreshStatus } from '../app/connection'
 import { loginReasonAtom, toast } from '../app/state'
 import { useStore } from '../app/store'
 import { codeText, errText, useUi } from '../app/ui'
@@ -673,7 +673,7 @@ export function Firmware() {
             icon={Sparkles}
             onClick={() =>
               void ask({ title: t('cf.setup'), body: t('cf.setup_b'), ok: t('pal.setup') }).then((ok) =>
-                ok ? act(() => putConfig({ setup_done: false })) : undefined,
+                ok ? act(() => api.setup(1).then(refreshStatus)) : undefined,
               )
             }
           >

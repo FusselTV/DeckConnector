@@ -68,6 +68,7 @@ Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im St
 |---|---|---|
 | `POST /api/login` | `{"password": "..."}`, setzt das Sitzungs-Cookie | open |
 | `POST /api/logout` | Beendet die Sitzung | open |
+| `POST /api/setup/claim` | Vor der Einrichtung: eine Sitzung ohne Passwort, siehe [Passwort](/de/docs/security/#passwort). 403 unter dem Namen einer fremden Seite, 409 mit `set up`, `claimed` oder `too late` | open |
 | `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage | open |
 | `GET /api/login/request/<id>` | `state` ist `pending`, `accepted`, `denied`, `expired` oder `used`. Bei `accepted` setzt die Antwort einmal das Sitzungs-Cookie | open |
 | `DELETE /api/login/request/<id>` | Zieht die Anfrage zurück | open |
@@ -195,7 +196,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
-| `setup_done` | `false` startet die Einrichtung neu. Nur mit Passwort |
+| `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
 `brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 

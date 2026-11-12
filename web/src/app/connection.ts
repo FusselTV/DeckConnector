@@ -226,6 +226,22 @@ export function stopSession() {
   ws = null
 }
 
+async function firstStatus() {
+  try {
+    return await api.status()
+  } catch (e) {
+    // A device nobody has set up lets the first browser straight into the wizard.
+    if (!(e instanceof ApiError && e.status === 401)) throw e
+    const refused = await api.claimSetup().then(
+      () => null,
+      (x: unknown) => x,
+    )
+    if (refused instanceof ApiError && refused.message === 'claimed') loginReasonAtom.set('claimed')
+    if (refused) throw e
+    return api.status()
+  }
+}
+
 /** First load: a session cookie or basic auth from the browser makes /api/status answer. */
 export async function boot() {
   onAuthLost((code) => {
@@ -244,7 +260,7 @@ export async function boot() {
     } else if (code === 0) lost()
   })
   try {
-    dispatch({ type: 'status', status: await api.status(), now: Date.now() })
+    dispatch({ type: 'status', status: await firstStatus(), now: Date.now() })
     dispatch({ type: 'auth', auth: 'app' })
     startSession(true)
   } catch (e) {

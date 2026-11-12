@@ -10,6 +10,7 @@ import urllib.request
 
 import pytest
 from conftest import HOST, PASSWORD, TARGET, api
+from websockets.asyncio.client import connect
 
 
 def opener():
@@ -176,3 +177,19 @@ def test_the_profile_answers():  # the simulator's profile is a stand-in
     code, body = api("GET", "/api/profile")
     assert code == 200, body  # it outgrew its buffer once and answered 500, which the load test read as 100 % busy
     assert "cpu_permille" in json.loads(body)
+
+
+@pytest.mark.sim
+async def test_a_socket_of_an_ended_session_may_not_change_anything():
+    _, _, headers = login(opener(), PASSWORD)
+    cookie = headers["Set-Cookie"].split(";")[0]
+    async with connect(f"ws://{HOST}/api/ws", additional_headers={"Cookie": cookie}) as ws:
+        assert json.loads(await ws.recv())["t"] == "state"
+        req = urllib.request.Request(
+            f"http://{HOST}/api/logout", data=b"", method="POST", headers={"X-DeckConnector": "1", "Cookie": cookie}
+        )
+        assert urllib.request.urlopen(req, timeout=5).status == 200
+        await ws.send(json.dumps({"t": "set", "id": 7, "brightness": 40}))
+        while (frame := json.loads(await ws.recv()))["t"] != "result":
+            pass
+        assert (frame["id"], frame["status"]) == (7, 401)

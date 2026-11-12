@@ -72,6 +72,19 @@ static void defaults(db_config_t *c)
     db_config_random_password(c->admin_pass, 9);
 }
 
+/* web/claimed 0: the first browser may set the device up without the password (db_web auth.c) */
+static esp_err_t open_claim(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, "claimed", 0);
+        err = err == ESP_OK ? nvs_commit(h) : err;
+        nvs_close(h);
+    }
+    return err;
+}
+
 esp_err_t db_config_load(void)
 {
     lock = xSemaphoreCreateMutex();
@@ -134,7 +147,8 @@ esp_err_t db_config_load(void)
                    current.admin_pass); /* serial only: not in the log /api/log serves */
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGI(TAG, "first start, saving defaults");
-        return db_config_save(&current);
+        err = db_config_save(&current);
+        return err == ESP_OK ? open_claim() : err;
     }
     return err;
 }
@@ -225,7 +239,8 @@ esp_err_t db_config_reset(void)
     db_config_t c;
     defaults(&c);
     esp_err_t saved = db_config_save(&c);
-    return err == ESP_OK ? saved : err;
+    err = err == ESP_OK ? saved : err;
+    return err == ESP_OK ? open_claim() : err;
 }
 
 static void ip_to_json(db_json_t *j, const char *key, const db_ip_config_t *ip)

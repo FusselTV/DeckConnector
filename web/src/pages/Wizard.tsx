@@ -117,7 +117,7 @@ export function Wizard() {
   const cfgErr = configErrAtom.use()
   const cable = !!st.network?.lan?.cable
   const onAp = st.via_ap ?? !!st.network?.ap?.on
-  const rerun = !onAp && !!cfg?.wifi_ssid
+  const rerun = !onAp && !!st.setup?.rerun
   const drawer = st.sources?.find((s) => s.drawing)
   const decks = decksOf(st)
   const [pw, setPw] = useState('')

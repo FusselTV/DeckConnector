@@ -37,7 +37,7 @@ export const dismissToast = (id: number) => toastsAtom.set((x) => x.filter((y) =
 export const ARM_MS = 60_000
 export const armAtom = atom(0)
 export const nudgeAtom = atom(0)
-export const loginReasonAtom = atom<'logout' | 'pw' | 'expired' | 'cookie' | 'reset' | null>(null)
+export const loginReasonAtom = atom<'logout' | 'pw' | 'expired' | 'cookie' | 'reset' | 'claimed' | null>(null)
 export const deckSelAtom = atom(0)
 
 /** A tab's unsaved settings. The save bar merges every dirty draft into one PUT with at most one confirm. */

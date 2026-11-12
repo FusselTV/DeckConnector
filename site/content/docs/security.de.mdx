@@ -7,6 +7,8 @@ description: Passwort, Login am Deck, API-Schlüssel, Sperre, HTTPS und CORS.
 
 Die Weboberfläche hat einen Benutzer, `admin`. Beim ersten Start erzeugt die Platine ein zufälliges Passwort und zeigt es im Deck-Menü. Ein eigenes (6 bis 23 Zeichen) setzt du in der Einrichtung oder unter **Zugang** ([Demo](/de/demo/#access)).
 
+Vor der Einrichtung kommt der erste Browser, der in den 30 Minuten nach dem Start die Adresse der Platine oder `name.local` öffnet, ohne Passwort hinein. Das geht einmal bis zum nächsten Werkszustand, und ein im Flasher gesetztes Passwort schließt es auch. Diese Anmeldung endet mit der Einrichtung, der Browser, der sie abschließt, bekommt eine neue.
+
 Ein neues Passwort startet die Platine neu und beendet jede Sitzung. Eine Sitzung endet nach 12 Stunden ohne Nutzung und bei einem Stromausfall.
 
 ## Passwort vergessen

@@ -48,6 +48,7 @@ static struct {
     bool by_token[CLIENTS];          /* an integration: no simulated presses are sent to it */
     bool limited[CLIENTS];           /* a control token: may press, but not change settings or read the log */
     bool log[CLIENTS];               /* asked for the log with {"t":"log"} */
+    char session[CLIENTS][65];       /* the cookie it opened with, checked again per command; empty: none */
     uint64_t log_pos[CLIENTS];
     char *state; /* the last state sent, to send only changes */
     uint32_t screen;
@@ -118,6 +119,11 @@ static void send_job(job_t *job)
         }
         if (httpd_ws_get_fd_info(job->server, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
             e.fds[i] = -1; /* gone */
+            continue;
+        }
+        if (e.session[i][0] && !auth_session_alive(e.session[i])) {
+            httpd_sess_trigger_close(job->server, fd); /* logged out, a new password or the setup over */
+            e.fds[i] = -1;
             continue;
         }
         send_to(job->server, fd, job->json);
@@ -443,16 +449,23 @@ static void command(httpd_handle_t server, int fd, const char *text)
         bool set = t->valuestring[0] == 's';
         bool token = false;
         bool any_token = false;
+        char session[sizeof(e.session[0])] = "";
         xSemaphoreTake(e.lock, portMAX_DELAY);
         for (int i = 0; i < CLIENTS; i++) {
-            token |= e.fds[i] == fd && e.servers[i] == server && e.limited[i];
-            any_token |= e.fds[i] == fd && e.servers[i] == server && e.by_token[i];
+            if (e.fds[i] == fd && e.servers[i] == server) {
+                token |= e.limited[i];
+                any_token |= e.by_token[i];
+                strcpy(session, e.session[i]);
+            }
         }
         xSemaphoreGive(e.lock);
         cJSON_DeleteItemFromObjectCaseSensitive(root, "t");
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
-        if (set && token) {
+        if (session[0] && !auth_session_alive(session)) {
+            snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"login required\"}");
+            code = 401;
+        } else if (set && token) {
             snprintf(
                 reply, sizeof(reply),
                 "{\"ok\":false,\"error\":\"needs the password, not a token\",\"code\":\"needs_password\"}");
@@ -473,6 +486,9 @@ static void command(httpd_handle_t server, int fd, const char *text)
     snprintf(out, sizeof(out), "{\"t\":\"result\",\"id\":%d,\"status\":%d,\"reply\":%s}", id, code, reply);
     cJSON_Delete(root);
     send_locked(server, fd, out);
+    if (code == 401) {
+        httpd_sess_trigger_close(server, fd); /* the page opens a new one with its next login */
+    }
 }
 
 /* Before the upgrade, so a refused socket gets a plain 401 or 403 and never opens. */
@@ -515,6 +531,9 @@ esp_err_t events_open(httpd_req_t *req)
     e.by_token[slot] = auth_by_token(req);
     e.limited[slot] = !auth_full(req);
     e.log[slot] = false;
+    if (!auth_session_of(req, e.session[slot], sizeof(e.session[slot]))) {
+        e.session[slot][0] = '\0';
+    }
     char *buf = heap_caps_malloc(STATE_MAX, MALLOC_CAP_SPIRAM);
     if (buf && e.state_json(buf, STATE_MAX)) {
         send_to(req->handle, fd, buf); /* under the lock: the current state comes before any change */
