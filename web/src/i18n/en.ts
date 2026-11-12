@@ -690,8 +690,7 @@ export const en = {
   'meter.slow_n': 'Deck {n} slow',
   'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
   'login.reset': 'DeckConnector was reset. The new password shows on the deck.',
-  'login.claimed':
-    'Another browser is already setting up this connector. Scan the QR code on the deck, or log in with the password from the deck.',
+  'login.claimed': 'This connector was already opened in another browser. Log in with the password from the deck.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
   'login.pw': 'Password changed. Log in with the new one.',

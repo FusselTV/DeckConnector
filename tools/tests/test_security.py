@@ -176,4 +176,6 @@ def test_a_password_set_before_setup_closes_the_first_browser_way(own_sim):
         headers={"X-DeckConnector": "1", "Authorization": auth, "Content-Type": "application/json"},
     )
     assert urllib.request.urlopen(req, timeout=5).status == 200
+    # before the restart the new password causes: the answer comes from the stored flag, the password path
+    # never sets the one in memory
     assert claim(own_sim, f"127.0.0.1:{own_sim}") == (409, '{"ok":false,"error":"claimed"}')

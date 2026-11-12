@@ -7,7 +7,7 @@ description: Password, login on the deck, API keys, lockout, HTTPS and CORS.
 
 The web UI has one user, `admin`. On its first start the board makes a random password and shows it in the deck menu. Set your own (6 to 23 characters) in the setup or under **Access** ([demo](/demo/#access)).
 
-Before setup, the first browser on the board's address or `name.local` in the 30 minutes after the start gets in without the password. That works once, until a factory reset, and a password set in the flasher or the setup closes it too. Finishing setup ends every session.
+Before setup, the first browser on the board's address or `name.local` in the 30 minutes after the start gets in without the password. That works once until a factory reset, and a password set in the flasher closes it too. This login ends when setup is done; the browser that finishes setup gets a new one.
 
 A new password restarts the board and ends every session. A session ends after 12 hours without use, and on a power cut.
 

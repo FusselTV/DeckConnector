@@ -182,7 +182,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     return ok()
   }
   if (route === 'POST /api/setup/claim') {
-    if (s.cfg.setup_done || s.claimed) return fail(409, s.claimed ? 'claimed' : 'set up')
+    if (s.cfg.setup_done) return fail(409, 'set up')
+    if (s.claimed) return fail(409, 'claimed')
     s.claimed = s.authed = true
     return ok()
   }

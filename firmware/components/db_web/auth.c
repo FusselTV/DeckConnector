@@ -48,6 +48,7 @@ static const char *TAG = "auth";
 static RTC_NOINIT_ATTR struct {
     char token[TOKEN_BYTES * 2 + 1];
     int64_t last_used;
+    bool claimed; /* from the first-browser setup: ends with the setup */
 } sessions[SESSIONS];
 static RTC_NOINIT_ATTR uint8_t kept_sum[32];
 static uint8_t pass_sha[32]; /* of the password this boot started with: the live one already is the new one */
@@ -111,7 +112,7 @@ static bool session_valid(const char *token)
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < SESSIONS; i++) {
         if (sessions[i].token[0] && now - sessions[i].last_used < IDLE_US &&
-            equal(sessions[i].token, token)) {
+            !(sessions[i].claimed && db_config()->setup_done) && equal(sessions[i].token, token)) {
             sessions[i].last_used = now;
             ok = true;
         }
@@ -339,7 +340,7 @@ bool auth_check(httpd_req_t *req, web_level_t need)
     return false;
 }
 
-static void new_session(char *out)
+static void new_session(char *out, bool claimed)
 {
     uint8_t raw[TOKEN_BYTES];
     esp_fill_random(raw, sizeof(raw));
@@ -354,6 +355,7 @@ static void new_session(char *out)
     }
     strcpy(sessions[slot].token, out);
     sessions[slot].last_used = now;
+    sessions[slot].claimed = claimed;
     portEXIT_CRITICAL(&mux);
 }
 
@@ -378,7 +380,7 @@ static bool password_matches(httpd_req_t *req)
     return ok;
 }
 
-void auth_session_cookie(httpd_req_t *req)
+static void set_cookie(httpd_req_t *req, bool claimed)
 {
     /* the header must live until the reply is sent; one slot per server, each runs its handlers one at a time
      */
@@ -386,10 +388,34 @@ void auth_session_cookie(httpd_req_t *req)
     char *cookie = cookies[web_tls(req)];
     /* 30 days: the 12 h idle limit is the bridge's, and a browser must not end a session in use any sooner */
     char token[TOKEN_BYTES * 2 + 1];
-    new_session(token);
+    new_session(token, claimed);
     snprintf(cookie, sizeof(cookies[0]), "%s=%s; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000%s",
              COOKIE(req), token, web_tls(req) ? "; Secure" : "");
     httpd_resp_set_hdr(req, "Set-Cookie", cookie);
+}
+
+void auth_session_cookie(httpd_req_t *req)
+{
+    set_cookie(req, false);
+}
+
+bool auth_session_of(httpd_req_t *req, char *out, size_t cap)
+{
+    return httpd_req_get_cookie_val(req, COOKIE(req), out, &cap) == ESP_OK && session_valid(out);
+}
+
+bool auth_session_alive(const char *token)
+{
+    int64_t now = esp_timer_get_time();
+    bool ok = false;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < SESSIONS;
+         i++) { /* no last_used update: an open socket alone must not keep a session */
+        ok |= sessions[i].token[0] && now - sessions[i].last_used < IDLE_US &&
+              !(sessions[i].claimed && db_config()->setup_done) && equal(sessions[i].token, token);
+    }
+    portEXIT_CRITICAL(&mux);
+    return ok;
 }
 
 esp_err_t auth_login(httpd_req_t *req)
@@ -586,25 +612,29 @@ esp_err_t auth_login_request_id(httpd_req_t *req)
 #define CLAIM_S 1800
 static int64_t started; /* esp_timer counts from the host's start in the simulator, not from ours */
 
-static bool claim_used(void)
+/* Open only where a first start or a factory reset wrote 0; a device from an older firmware has no key:
+ * closed */
+static bool claim_open(void)
 {
     nvs_handle_t h;
-    uint8_t used = 0;
+    uint8_t used = 1;
     if (nvs_open("web", NVS_READONLY, &h) == ESP_OK) {
         nvs_get_u8(h, "claimed", &used);
         nvs_close(h);
     }
-    return used;
+    return !used;
 }
 
-void auth_claim_close(void)
+esp_err_t auth_claim_close(void)
 {
     nvs_handle_t h;
-    if (nvs_open("web", NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_u8(h, "claimed", 1);
-        nvs_commit(h);
+    esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, "claimed", 1);
+        err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
+    return err;
 }
 
 /* DNS rebinding: another site's page could reach us under its own name, so only an address or name.local */
@@ -622,7 +652,10 @@ static bool host_is_local(httpd_req_t *req)
         *colon = '\0';
     }
     size_t n = strlen(host);
-    if (n > 6 && strcmp(host + n - 6, ".local") == 0) {
+    if (n && host[n - 1] == '.') {
+        host[--n] = '\0';
+    }
+    if (n > 6 && strcasecmp(host + n - 6, ".local") == 0) {
         return true;
     }
     return n && strspn(host, "0123456789.") == n;
@@ -644,13 +677,15 @@ esp_err_t auth_setup_claim(httpd_req_t *req)
     bool first = !busy;
     busy = true;
     portEXIT_CRITICAL(&mux);
-    if (!first || claim_used()) {
+    if (!first || !claim_open()) {
         return send_error(req, "409 Conflict", "claimed");
     }
-    auth_claim_close();
+    if (auth_claim_close() != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "saving failed");
+    }
     struct in_addr ip = {.s_addr = peer_ip(req)};
     ESP_LOGW(TAG, "setup taken over without the password by %s", inet_ntoa(ip));
-    auth_session_cookie(req);
+    set_cookie(req, true);
     return send_json(req, "{\"ok\":true}");
 }
 
