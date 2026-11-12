@@ -19,7 +19,7 @@ def visit(path: str) -> tuple[int, str]:
     r = c.getresponse()
     r.read()
     cookie = (r.getheader("Set-Cookie") or "").split(";")[0]
-    return r.status, cookie if cookie.startswith("db_session=") else ""
+    return r.status, cookie if cookie.startswith("dc_session=") else ""
 
 
 def logged_in(cookie: str) -> bool:

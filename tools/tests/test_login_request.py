@@ -123,7 +123,7 @@ def test_an_accepted_request_logs_in_once(accepting_sim):
     assert call("GET", f"/api/login/request/{rid}", host=host)[1]["state"] == "pending"
     time.sleep(1.2)
     code, reply, cookie = call("GET", f"/api/login/request/{rid}", host=host)
-    assert (code, reply["state"]) == (200, "accepted") and cookie.startswith("db_session="), (reply, cookie)
+    assert (code, reply["state"]) == (200, "accepted") and cookie.startswith("dc_session="), (reply, cookie)
     session = cookie.split(";")[0]
     assert call("GET", "/api/status", host=host, cookie=session)[0] == 200
     code, reply, cookie = call("GET", f"/api/login/request/{rid}", host=host)
