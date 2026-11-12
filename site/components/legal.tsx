@@ -6,8 +6,13 @@ import { owner } from '~/site.config'
 export const legalPath = {
   imprint: { en: '/imprint/', de: '/de/impressum/' },
   privacy: { en: '/privacy/', de: '/de/datenschutz/' },
+  contact: { en: '/contact/', de: '/de/kontakt/' },
 }
-const titles = { imprint: { en: 'Imprint', de: 'Impressum' }, privacy: { en: 'Privacy policy', de: 'Datenschutzerklärung' } }
+const titles = {
+  imprint: { en: 'Imprint', de: 'Impressum' },
+  privacy: { en: 'Privacy policy', de: 'Datenschutzerklärung' },
+  contact: { en: 'Contact', de: 'Kontakt' },
+}
 
 export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
   const p = legalPath[page]
@@ -52,6 +57,9 @@ export function Imprint({ lang }: { lang: Lang }) {
     <Page lang="de" page="imprint">
       <p>Angaben gemäß § 5 DDG</p>
       <Address lang="de" />
+      <p>
+        Oder über das <a href={legalPath.contact.de}>Kontaktformular</a>.
+      </p>
       <h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
       <p>{owner.name}, Anschrift wie oben</p>
     </Page>
@@ -59,6 +67,9 @@ export function Imprint({ lang }: { lang: Lang }) {
     <Page lang="en" page="imprint">
       <p>Information under § 5 DDG (German Digital Services Act)</p>
       <Address lang="en" />
+      <p>
+        Or use the <a href={legalPath.contact.en}>contact form</a>.
+      </p>
       <h2>Responsible for the content under § 18 (2) MStV</h2>
       <p>{owner.name}, address as above</p>
     </Page>
@@ -83,6 +94,18 @@ export function Privacy({ lang }: { lang: Lang }) {
         Cloudflare ist nach dem EU-US Data Privacy Framework zertifiziert (Art. 45 DSGVO). Zusätzlich gelten die Standardvertragsklauseln der EU-Kommission aus dem Data Processing Addendum
         (Art. 46 Abs. 2 lit. c DSGVO). Wie lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
       </p>
+
+      <h2>Kontaktformular und E-Mail</h2>
+      <p>
+        Wenn du mir über das <a href={legalPath.contact.de}>Kontaktformular</a> oder per E-Mail schreibst, verarbeite ich deine E-Mail-Adresse, deine Nachricht und, wenn du ihn angibst, deinen
+        Namen. Ich nutze sie nur, um dir zu antworten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, wenn es um einen Vertrag oder seine Anbahnung geht, sonst Art. 6 Abs. 1 lit. f DSGVO. Mein
+        berechtigtes Interesse ist, deine Anfrage zu beantworten.
+      </p>
+      <p>
+        Das Formular schickt deine Angaben an Cloudflare Workers. Cloudflare Email Routing leitet sie als E-Mail an mein Postfach weiter, genauso wie E-Mails an die Adresse oben. Dabei verarbeitet
+        Cloudflare auch die Verbindungsdaten aus dem Abschnitt „Hosting bei Cloudflare“. Cloudflare handelt in meinem Auftrag, auf Grundlage desselben Data Processing Addendum.
+      </p>
+      <p>Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger aufzubewahren.</p>
 
       <h2>Keine Cookies, kein Tracking</h2>
       <p>Diese Website setzt keine Cookies und nutzt keine Analyse- oder Tracking-Dienste. Sie lädt nichts von fremden Servern.</p>
@@ -111,13 +134,13 @@ export function Privacy({ lang }: { lang: Lang }) {
         die E-Mail-Adresse oben.
       </p>
       <p>
-        <strong>Widerspruch:</strong> Die Verarbeitung beruht auf Art. 6 Abs. 1 lit. f DSGVO. Du kannst ihr deshalb jederzeit aus Gründen widersprechen, die sich aus deiner besonderen Situation
+        <strong>Widerspruch:</strong> Soweit die Verarbeitung auf Art. 6 Abs. 1 lit. f DSGVO beruht, kannst du ihr jederzeit aus Gründen widersprechen, die sich aus deiner besonderen Situation
         ergeben (Art. 21 DSGVO).
       </p>
       <p>Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO). Für mich zuständig ist {authority}.</p>
 
       <h2>Pflicht zur Angabe von Daten</h2>
-      <p>Du musst keine Daten angeben. Ohne die Verbindungsdaten kann Cloudflare die Website aber nicht ausliefern.</p>
+      <p>Du musst keine Daten angeben. Ohne die Verbindungsdaten kann Cloudflare die Website aber nicht ausliefern, und ohne E-Mail-Adresse kann ich dir nicht antworten.</p>
     </Page>
   ) : (
     <Page lang="en" page="privacy">
@@ -135,6 +158,17 @@ export function Privacy({ lang }: { lang: Lang }) {
         EU-US Data Privacy Framework (Art. 45 GDPR). The EU Standard Contractual Clauses in the Data Processing Addendum also apply (Art. 46(2)(c) GDPR). <a href={CF_PRIVACY}>Cloudflare&apos;s privacy
         policy</a> says how long it keeps the data.
       </p>
+
+      <h2>Contact form and email</h2>
+      <p>
+        When you write to me with the <a href={legalPath.contact.en}>contact form</a> or by email, I process your email address, your message and your name if you give it. I use them only to
+        answer you. The legal basis is Art. 6(1)(b) GDPR when it is about a contract or the steps before one, else Art. 6(1)(f) GDPR. My legitimate interest is to answer your question.
+      </p>
+      <p>
+        The form sends your details to Cloudflare Workers. Cloudflare Email Routing forwards them as an email to my mailbox, the same as emails to the address above. Cloudflare also processes the
+        connection data from the section on hosting. Cloudflare acts on my behalf under the same Data Processing Addendum.
+      </p>
+      <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
 
       <h2>No cookies, no tracking</h2>
       <p>This website sets no cookies and uses no analytics or tracking. It loads nothing from other servers.</p>
@@ -162,12 +196,12 @@ export function Privacy({ lang }: { lang: Lang }) {
         You have the right of access (Art. 15 GDPR), correction (Art. 16), deletion (Art. 17), restriction of processing (Art. 18) and data portability (Art. 20). Write to the email address above.
       </p>
       <p>
-        <strong>Right to object.</strong> The processing is based on Art. 6(1)(f) GDPR. So you can object to it at any time, for reasons that come from your particular situation (Art. 21 GDPR).
+        <strong>Right to object.</strong> Where the processing is based on Art. 6(1)(f) GDPR, you can object to it at any time, for reasons that come from your particular situation (Art. 21 GDPR).
       </p>
       <p>You can complain to a data protection authority (Art. 77 GDPR). The authority responsible for me is {authority}.</p>
 
       <h2>No duty to give data</h2>
-      <p>You do not have to give any data. Without the connection data, Cloudflare cannot deliver the website.</p>
+      <p>You do not have to give any data. Without the connection data, Cloudflare cannot deliver the website, and without an email address I cannot answer you.</p>
     </Page>
   )
 }

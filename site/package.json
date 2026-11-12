@@ -7,7 +7,7 @@
     "build": "node scripts/copy-firmware.mjs && node scripts/copy-demo.mjs && next build && node scripts/de-404.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "oxlint --type-aware --max-warnings 0 .",
-    "check": "npm run typecheck && npm run lint && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs",
+    "check": "npm run typecheck && npm run lint && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs contact-worker/mail.test.mjs",
     "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs"
   },
   "dependencies": {
