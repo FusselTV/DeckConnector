@@ -94,13 +94,6 @@ export function useActions() {
           expectRestart()
         })
       },
-      reset: async () => {
-        if (!(await ask({ title: t('cf.reset'), body: t('cf.reset_b'), ok: t('fw.reset'), danger: true }))) return
-        await act(async () => {
-          await api.reset()
-          expectRestart()
-        })
-      },
       accept: (ip: string, name: string) => answer(true, ip, t('ban.paired', { name })),
       deny: (ip: string) => answer(false, ip, t('ban.denied', { ip })),
       retry: (s: Source) =>

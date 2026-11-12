@@ -234,7 +234,7 @@ export async function boot() {
       // A restart ends every session: back to the login page, which says why. Otherwise keep the page.
       if (getState().restarting) {
         dispatch({ type: 'restart', on: false, now: Date.now() })
-        if (loginReasonAtom.get() !== 'pw') loginReasonAtom.set('expired')
+        if (loginReasonAtom.get() !== 'pw' && loginReasonAtom.get() !== 'reset') loginReasonAtom.set('expired')
         dispatch({ type: 'auth', auth: 'login' })
       } else if (getState().asOf === null) {
         // Never a status: the login answered but the browser did not keep its cookie. No stale page to show.

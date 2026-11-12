@@ -1064,7 +1064,7 @@ esp_err_t post_reboot(httpd_req_t *req)
 
 esp_err_t post_reset(httpd_req_t *req)
 {
-    if (db_config_reset() != ESP_OK) {
+    if (db_ui_factory_reset() != ESP_OK) {
         return send_error(req, "500 Internal Server Error", "reset failed");
     }
     ESP_LOGW(TAG, "factory reset from the web page");

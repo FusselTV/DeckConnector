@@ -534,7 +534,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/config", .method = HTTP_PUT, .handler = put_config}, WEB_FULL},
         {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
-        {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_FULL},
+        {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
         {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_FULL},
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},
         {{.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image}, WEB_CONTROL},

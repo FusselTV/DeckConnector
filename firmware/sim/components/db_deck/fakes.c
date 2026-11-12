@@ -6,14 +6,14 @@
 #include <string.h>
 #include <time.h>
 
+#include "db_config.h"
 #include "db_deck.h"
 #include "db_dock.h"
-#include "db_log.h"
-#include "db_config.h"
 #include "db_link.h"
+#include "db_log.h"
 #include "db_net.h"
-#include "db_satellite.h"
 #include "db_ota.h"
+#include "db_satellite.h"
 #include "db_ui.h"
 #include "esp_http_server.h"
 #include "esp_system.h"
@@ -192,6 +192,11 @@ int db_ui_show_password(void)
     return 1;
 }
 
+esp_err_t db_ui_factory_reset(void)
+{
+    return db_config_reset();
+}
+
 int db_ui_ask_reset(void)
 {
     reset_until = esp_timer_get_time() + 60000000;
@@ -335,7 +340,8 @@ size_t db_net_companions(db_net_found_t *out, size_t max)
 
 static const char *sim_join = "";
 
-/* DB_SIM_VIA_AP=1: the setup AP is on and has the loopback address, so every request counts as over the AP. */
+/* DB_SIM_VIA_AP=1: the setup AP is on and has the loopback address, so every request counts as over the AP.
+ */
 void db_net_status(db_net_status_t *out)
 {
     *out = (db_net_status_t){.lan_link = true, .lan_up = true, .join_state = sim_join};
@@ -376,10 +382,11 @@ esp_err_t get_metrics(httpd_req_t *req)
     nvs_stats_t nvs = {0};
     nvs_get_stats(NULL, &nvs);
     char body[192];
-    snprintf(body, sizeof(body),
-             "{\"every_s\":5,\"cpu\":[],\"heap\":[],\"psram\":[],\"flash\":{\"firmware\":{\"used\":0,\"size\":%d},"
-             "\"settings\":{\"used\":%u,\"size\":%u}}}",
-             0x400000, (unsigned)nvs.used_entries * 32, (unsigned)nvs.total_entries * 32);
+    snprintf(
+        body, sizeof(body),
+        "{\"every_s\":5,\"cpu\":[],\"heap\":[],\"psram\":[],\"flash\":{\"firmware\":{\"used\":0,\"size\":%d},"
+        "\"settings\":{\"used\":%u,\"size\":%u}}}",
+        0x400000, (unsigned)nvs.used_entries * 32, (unsigned)nvs.total_entries * 32);
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, body);
 }
@@ -462,8 +469,10 @@ bool db_ui_login_take(const char *token)
 
 bool db_ui_login_shown(void)
 {
-    const db_config_t *c = db_config(); /* the deck's rule: a code until setup is done, the password, the setup WLAN */
-    return (!c->setup_done && !c->qr_login_off) || esp_timer_get_time() < pass_until || getenv("DB_SIM_VIA_AP");
+    const db_config_t *c =
+        db_config(); /* the deck's rule: a code until setup is done, the password, the setup WLAN */
+    return (!c->setup_done && !c->qr_login_off) || esp_timer_get_time() < pass_until ||
+           getenv("DB_SIM_VIA_AP");
 }
 
 void db_ui_setup_step(int step)

@@ -159,6 +159,7 @@ FULL = [
 ]
 # a crash dump holds task stacks, where the password can linger; a TLS key a token chose could read the next login
 PASSWORD_ONLY = [
+    ("POST", "/api/reset"),
     ("POST", "/api/debug/crash"),
     ("PUT", "/api/tls"),
     ("DELETE", "/api/tokens/x"),
