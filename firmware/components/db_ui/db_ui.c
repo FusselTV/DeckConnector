@@ -15,6 +15,7 @@
 #include "db_ota.h"
 #include "db_satellite.h"
 #include "esp_app_desc.h"
+#include "esp_core_dump.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -577,7 +578,7 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_RESET:
         ESP_LOGW(TAG, "factory reset from the deck");
-        if (db_config_reset() == ESP_OK) {
+        if (db_ui_factory_reset() == ESP_OK) {
             db_ota_restart(800);
             break;
         }
@@ -1057,6 +1058,15 @@ int db_ui_show_password(void)
         changed();
     }
     return 1;
+}
+
+esp_err_t db_ui_factory_reset(void)
+{
+    esp_err_t err = db_config_reset();
+    esp_err_t dump = esp_core_dump_image_erase();
+    esp_err_t page = db_ota_web_erase();
+    err = err == ESP_OK && dump != ESP_ERR_NOT_FOUND ? dump : err;
+    return err == ESP_OK && page != ESP_ERR_NOT_FOUND ? page : err;
 }
 
 int db_ui_ask_reset(void)

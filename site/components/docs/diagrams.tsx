@@ -376,7 +376,7 @@ export function AuthLevels({ lang }: { lang?: Lang }) {
       ['open', 'Everyone', 'Login, certificate, lost password help'],
       ['control', 'Password, control or full key', 'Status, deck picture, presses, menu, metrics'],
       ['full', 'Password, full key', 'Settings, restart, updates, slots, log, pairing, Wi-Fi'],
-      ['admin', 'Password only', 'Password, API keys, backup, crash report, own certificate'],
+      ['admin', 'Password only', 'Password, API keys, backup, crash report, own certificate, factory reset'],
     ],
   }, {
     title: 'Zugriffsstufen der API',
@@ -385,7 +385,7 @@ export function AuthLevels({ lang }: { lang?: Lang }) {
       ['open', 'Alle', 'Login, Zertifikat, Hilfe bei vergessenem Passwort'],
       ['control', 'Passwort, Schlüssel Steuern oder Vollzugriff', 'Status, Deck-Bild, Tastendrücke, Menü, Messwerte'],
       ['full', 'Passwort, Schlüssel Vollzugriff', 'Einstellungen, Neustart, Updates, Firmware-Plätze, Log, Kopplung, WLAN'],
-      ['admin', 'Nur das Passwort', 'Passwort, API-Schlüssel, Backup, Absturzbericht, eigenes Zertifikat'],
+      ['admin', 'Nur das Passwort', 'Passwort, API-Schlüssel, Backup, Absturzbericht, eigenes Zertifikat, Werkszustand'],
     ],
   })
   const icons = [<Globe key="g" />, <MonitorSmartphone key="m" />, <KeyRound key="k" />, <Lock key="l" />]

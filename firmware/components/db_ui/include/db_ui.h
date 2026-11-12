@@ -49,6 +49,10 @@ bool db_ui_menu_open(void);
 int db_ui_show_password(void);
 /* The deck asks for 60 s whether to reset every setting; only taps on the deck itself answer. Seconds left,
  * -1 when no deck is connected. */
+/** Factory reset, the deck's and the web page's: settings, API keys, pairings, the crash report (its stacks
+ * can hold the password) and an uploaded web page. The firmware, its slots and the bridge's own certificate
+ * stay. */
+esp_err_t db_ui_factory_reset(void);
 int db_ui_ask_reset(void);
 void db_ui_cancel_reset(void);
 /* The deck asks for `seconds` whether the browser at `ip` (network order) may log in; a newer call replaces

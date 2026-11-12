@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   Power,
   RefreshCw,
+  RotateCcw,
   Settings,
   Sparkles,
   Trash2,
@@ -22,7 +23,7 @@ import { api } from '../api/client'
 import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
-import { toast } from '../app/state'
+import { loginReasonAtom, toast } from '../app/state'
 import { useStore } from '../app/store'
 import { codeText, errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -677,6 +678,25 @@ export function Firmware() {
             }
           >
             {t('pal.setup')}
+          </Btn>
+          <Btn
+            id="fw-reset"
+            kind="danger"
+            icon={RotateCcw}
+            onClick={() =>
+              void ask({ title: t('login.reset_t'), body: t('cf.reset_b'), ok: t('btn.reset'), danger: true }).then(
+                (ok) =>
+                  ok
+                    ? act(async () => {
+                        await api.reset()
+                        loginReasonAtom.set('reset')
+                        expectRestart()
+                      })
+                    : undefined,
+              )
+            }
+          >
+            {t('btn.reset')}
           </Btn>
         </div>
         <input

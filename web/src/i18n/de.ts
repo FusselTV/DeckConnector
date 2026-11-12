@@ -298,6 +298,7 @@ export const de: Dict = {
   'cf.cd': 'Absturzbericht löschen?',
   'cf.cd_b': 'Der Bericht ist danach weg.',
   'cf.typed': 'Tippe „{w}“ zur Bestätigung',
+  'btn.reset': 'Zurücksetzen',
   'btn.restart': 'Neu starten',
   'btn.install': 'Installieren',
   'btn.forget_all': 'Alle vergessen',
@@ -474,6 +475,8 @@ export const de: Dict = {
   'pal.setup': 'Einrichtung erneut starten',
   'cf.setup': 'Einrichtung erneut starten?',
   'cf.setup_b': 'Deine Einstellungen bleiben. Du gehst nur die Schritte noch einmal durch.',
+  'cf.reset_b':
+    'Einstellungen, Netzwerk, Quellen, API-Schlüssel und Kopplungen gehen verloren. Eine Sicherung bringt die Einstellungen zurück. Danach startet die Einrichtung, das neue Passwort steht auf dem Deck.',
   'wiz.step': 'Schritt {n} von {all}: {name}',
   'cf.skip': 'Einrichtung überspringen?',
   'cf.skip_b':
@@ -698,6 +701,7 @@ export const de: Dict = {
   'meter.slow_n': 'Deck {n} langsam',
   'login.cookie':
     'Der Browser hat die Anmeldung nicht behalten. Erlaube Cookies für diese Adresse und melde dich noch einmal an.',
+  'login.reset': 'Der DeckConnector wurde zurückgesetzt. Das neue Passwort steht auf dem Deck.',
   'login.expired': 'Sitzung abgelaufen. Deine Eingaben bleiben erhalten.',
   'login.logout': 'Du hast dich abgemeldet.',
   'login.pw': 'Passwort geändert. Melde dich mit dem neuen an.',

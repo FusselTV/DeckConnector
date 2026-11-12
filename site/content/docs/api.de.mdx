@@ -90,6 +90,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
+| `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
 ### Deck
 

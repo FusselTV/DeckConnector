@@ -131,6 +131,7 @@ export const api = {
   closeMenu: (deck?: string) => request<{ ok: boolean }>('/api/menu' + q(deck), { method: 'DELETE' }),
   reconnect: () => request<{ ok: boolean }>('/api/deck/reconnect', { method: 'POST' }),
   reboot: () => request<{ ok: boolean }>('/api/reboot', { method: 'POST' }),
+  reset: () => request<{ ok: boolean }>('/api/reset', { method: 'POST' }),
   dock: (body: { accept: boolean; ip: string } | { pairing: number } | { forget: string | true }) =>
     request<{ ok: boolean }>('/api/dock', { body }),
   log: (prev = false) => request<string>('/api/log' + (prev ? '?boot=prev' : '')),

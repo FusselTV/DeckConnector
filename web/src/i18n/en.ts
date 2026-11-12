@@ -295,6 +295,7 @@ export const en = {
   'cf.cd': 'Clear the crash report?',
   'cf.cd_b': 'The report is gone afterwards.',
   'cf.typed': 'Type "{w}" to confirm',
+  'btn.reset': 'Reset',
   'btn.restart': 'Restart',
   'btn.install': 'Install',
   'btn.forget_all': 'Forget all',
@@ -470,6 +471,8 @@ export const en = {
   'pal.setup': 'Run setup again',
   'cf.setup': 'Run setup again?',
   'cf.setup_b': 'Your settings stay. You go through the steps again.',
+  'cf.reset_b':
+    'Settings, network, sources, API keys and paired hosts go. A backup brings the settings back. Setup starts afterwards, and the new password shows on the deck.',
   'wiz.step': 'Step {n} of {all}: {name}',
   'cf.skip': 'Skip setup?',
   'cf.skip_b':
@@ -686,6 +689,7 @@ export const en = {
     'The connector keeps the last 200 inputs (about 3 KB). Older ones are overwritten. A restart clears the list.',
   'meter.slow_n': 'Deck {n} slow',
   'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
+  'login.reset': 'DeckConnector was reset. The new password shows on the deck.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
   'login.pw': 'Password changed. Log in with the new one.',
