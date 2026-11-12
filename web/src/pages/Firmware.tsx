@@ -672,7 +672,7 @@ export function Firmware() {
           <Btn
             icon={Sparkles}
             onClick={() =>
-              void ask({ title: t('cf.setup'), body: t('cf.setup_b'), ok: t('pal.setup') }).then((ok) =>
+              void ask({ title: t('cf.setup'), body: t('cf.setup_b'), ok: t('btn.start') }).then((ok) =>
                 ok ? act(() => api.setup(1).then(refreshStatus)) : undefined,
               )
             }

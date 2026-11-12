@@ -293,6 +293,7 @@ export const de: Dict = {
   'cf.cd': 'Absturzbericht löschen?',
   'cf.cd_b': 'Der Bericht ist danach weg.',
   'cf.typed': 'Tippe „{w}“ zur Bestätigung',
+  'btn.start': 'Starten',
   'btn.reset': 'Zurücksetzen',
   'btn.restart': 'Neu starten',
   'btn.install': 'Installieren',

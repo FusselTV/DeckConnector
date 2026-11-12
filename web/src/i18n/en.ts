@@ -289,6 +289,7 @@ export const en = {
   'cf.cd': 'Clear the crash report?',
   'cf.cd_b': 'The report is gone afterwards.',
   'cf.typed': 'Type "{w}" to confirm',
+  'btn.start': 'Start',
   'btn.reset': 'Reset',
   'btn.restart': 'Restart',
   'btn.install': 'Install',
