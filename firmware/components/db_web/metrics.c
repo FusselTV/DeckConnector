@@ -187,7 +187,7 @@ static size_t metrics_json(char *buf, size_t cap)
 
 esp_err_t get_metrics(httpd_req_t *req)
 {
-    return send_built(req, STATUS_JSON_MAX, metrics_json);
+    return send_built(req, 4096, metrics_json);
 }
 
 esp_err_t get_profile(httpd_req_t *req)

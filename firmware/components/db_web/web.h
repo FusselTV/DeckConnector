@@ -18,7 +18,7 @@
 #include "lwip/sockets.h"
 #endif
 
-#define STATUS_JSON_MAX 4096
+#define STATUS_JSON_MAX 8192 /* 2.4 KB in use; the bench reached 4 KB with test servers and pairings */
 
 /* Who may call a route: anyone; any token or the password (cookie or basic auth); a full-rights token or the
  * password; the password only. */
