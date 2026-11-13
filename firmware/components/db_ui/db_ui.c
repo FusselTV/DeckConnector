@@ -46,7 +46,7 @@ static struct {
     SemaphoreHandle_t qr_lock; /* the QR buffers, which model() fills on both tasks */
     int active_link;
     int update_pct;
-    char update_what[24];
+    bool update_wlan;
     char c6[16];
     db_device_info_t dev;
     bool present;
@@ -60,7 +60,10 @@ static struct {
     ui_screen_t shown; /* what is on the deck, to send only what changed */
     ui_menu_t menu;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
-    int lit; /* what the device UI last set on the deck; -1: someone else may have changed it */
+    int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
+    int before;    /* the deck's brightness when the menu opened; -1: none */
+    bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
+    bool menu_lit; /* the UI lit the deck for the menu */
     esp_timer_handle_t save_timer;
     bool save_due;
     int64_t
@@ -70,7 +73,8 @@ static struct {
        .full = true,
        .menu = {.confirm_key = -1},
        .brightness = -1,
-       .lit = -1};
+       .lit = -1,
+       .before = -1};
 
 static void octets_of(const char *ip, uint8_t out[4])
 {
@@ -300,7 +304,8 @@ bool db_ui_login_shown(void)
     portENTER_CRITICAL(&login_mux);
     bool shown = (wanted && login_token[0] != '\0') || now < pass_until || n.ap_active;
     portEXIT_CRITICAL(&login_mux);
-    return shown;
+    /* the menu and the setup pages show the password too (POST /api/menu takes a control token) */
+    return shown || !db_config()->setup_done || db_ui_menu_open();
 }
 
 void db_ui_setup_step(int step)
@@ -375,7 +380,11 @@ static void model(ui_model_t *md)
         .picked = c->host[0] || c->controller != DB_CTRL_COMPANION,
         .menu_hold_ms = c->menu_hold_ms,
         .english = strcmp(c->lang, "en") == 0,
+        .sat_failed = db_satellite_health().error[0] != '\0',
     };
+    if (ui_menu_open(&s.menu) && !s.turned && s.before >= 0) {
+        md->brightness = s.before; /* the deck shows at least 20 %, the number stays what it had */
+    }
     md->show_pass = md->now_us < until(&pass_until);
     md->reset_ask = md->now_us < until(&reset_until);
     uint32_t ask_ip = 0;
@@ -424,7 +433,7 @@ static void model(ui_model_t *md)
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);
     snprintf(md->fw, sizeof(md->fw), "%s", esp_app_get_description()->version);
     snprintf(md->wlan_fw, sizeof(md->wlan_fw), "%s", s.c6);
-    snprintf(md->update_what, sizeof(md->update_what), "%s", s.update_what);
+    md->update_wlan = s.update_wlan;
     db_ip_config_t lan = c->lan;
     if (lan.ip[0] == '\0') {
         snprintf(lan.ip, sizeof(lan.ip), "%s", n.lan_ip); /* start from the address DHCP gave */
@@ -468,6 +477,13 @@ static void pick_writer(void)
     db_source_t wanted = wanted_writer();
     if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
         s.full = true;
+    }
+    if (wanted != DB_SOURCE_UI && db_deck_writer() == DB_SOURCE_UI && s.menu_lit) {
+        int back = ui_after_menu(s.lit, s.before);
+        if (back >= 0) {
+            db_deck_set_brightness((uint8_t)back); /* a host that sends its own sets it again after this */
+        }
+        s.menu_lit = false;
     }
     db_deck_set_writer(wanted, esp_timer_get_time() < s.handover_until);
     if (s.covered && !covering && s.active_link >= 0) {
@@ -576,6 +592,7 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
     case UI_DO_BRIGHTNESS: {
         int b = md->brightness + act->value;
         s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b); /* the UI task puts it on the deck */
+        s.turned = true;
         esp_timer_stop(s.save_timer);
         esp_timer_start_once(s.save_timer, SAVE_AFTER_US);
         break;
@@ -743,16 +760,23 @@ static void ui_task(void *arg)
         pick_writer();
         if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
             s.lit = -1; /* a host sets its own; when the UI draws again it sets its own once more */
+            s.menu_lit = false;
             continue;
         }
-        model(&md);
         xSemaphoreTake(s.lock, portMAX_DELAY);
-        int light = ui_light(&s.menu, md.brightness);
+        bool menu = ui_menu_open(&s.menu);
         xSemaphoreGive(s.lock);
+        if (menu && !s.menu_lit) { /* just opened: what the deck has now, before the floor */
+            s.before = db_deck_brightness();
+            s.turned = false;
+        }
+        model(&md);
+        int light = ui_light(menu, md.brightness);
         if (light != s.lit) {
             s.lit = light;
             db_deck_set_brightness((uint8_t)light);
         }
+        s.menu_lit = menu;
         ui_action_t first;
         if (ui_first_source(&md, &first)) {
             ESP_LOGI(TAG, "first host draws: %s", md.sources[0].id);
@@ -1179,10 +1203,10 @@ void db_ui_hosts_changed(void)
     changed();
 }
 
-void db_ui_set_update(int pct, const char *what)
+void db_ui_set_update(int pct, bool wlan_chip)
 {
     s.update_pct = pct;
-    snprintf(s.update_what, sizeof(s.update_what), "%s", what ? what : "");
+    s.update_wlan = wlan_chip;
     changed();
 }
 

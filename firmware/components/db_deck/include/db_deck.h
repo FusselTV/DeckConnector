@@ -80,6 +80,8 @@ void db_deck_submit(db_source_t source, uint8_t display, db_rect_t rect, uint32_
                     size_t len, uint64_t t_recv);
 
 esp_err_t db_deck_set_brightness(uint8_t pct);
+/* The brightness the deck has now, from whoever set it last; -1 before anyone did. */
+int db_deck_brightness(void);
 
 size_t db_deck_input_space(void);
 /* Handle `in` as if the device had sent it. External listeners get it only when `real`; with `only_ip` set,

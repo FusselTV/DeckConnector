@@ -42,7 +42,7 @@ static const db_hid_io_t io = {no_write, no_flush, feature, set_feature, 1024};
 static const struct {
     uint16_t pid;
     const char *name;
-} decks[] = {{0x0084, "plus"}, {0x0080, "mk2"}, {0x008f, "xl"}, {0x009a, "neo"}};
+} decks[] = {{0x0084, "plus"}, {0x0080, "mk2"}, {0x008f, "xl"}, {0x009a, "neo"}, {0x0063, "mini"}};
 
 static db_device_info_t open_deck(uint16_t pid)
 {
@@ -137,6 +137,7 @@ static ui_model_t variant(int v)
         md.source_count = 0;
         md.wlan_up = false;
         strcpy(md.satellite, "wss://companion.int.example.com/satellite");
+        md.sat_failed = true;
         break;
     case 3: /* server chosen and away, nothing configured, no WLAN chip */
         md.controller = 0;
@@ -176,8 +177,32 @@ static void print_cut(const char *text, int room)
     printf("  \"%s\" in %d px\n", text, room);
 }
 
+static bool english;     /* the page under test is meant to be in English */
+static int german_pages; /* English pages with an umlaut or ß left in a text */
+
+static bool german(const char *t)
+{
+    return strstr(t, "ä") || strstr(t, "ö") || strstr(t, "ü") || strstr(t, "ß") || strstr(t, "Ä") ||
+           strstr(t, "Ö") || strstr(t, "Ü");
+}
+
 static void check_page(const db_device_info_t *dev, const ui_screen_t *sc, const char *name)
 {
+    for (int i = 0; english && i < UI_MAX_KEYS + UI_SEGMENTS; i++) {
+        const char *texts[3];
+        if (i < UI_MAX_KEYS) {
+            texts[0] = sc->tiles[i].label, texts[1] = sc->tiles[i].value, texts[2] = sc->tiles[i].sub;
+        } else {
+            const ui_segment_t *g = &sc->seg[i - UI_MAX_KEYS];
+            texts[0] = g->label, texts[1] = g->value, texts[2] = g->sub;
+        }
+        for (int k = 0; k < 3; k++) {
+            if (german(texts[k])) {
+                printf("German on %s: \"%s\"\n", name, texts[k]);
+                german_pages++;
+            }
+        }
+    }
     ui_canvas_t c = {dev->displays[0].width, dev->displays[0].height, NULL};
     c.px = calloc((size_t)c.w * c.h, 3);
     db_rect_t dirty[DB_MAX_TARGETS + UI_SEGMENTS];
@@ -203,7 +228,7 @@ static void test_no_page_cuts_a_text(void)
         for (int v = 0; v < 10; v++) { /* 0 to 4 in German, 5 to 9 the same in English */
             int k = v % 5;
             ui_model_t md = variant(k);
-            md.english = v >= 5;
+            md.english = english = v >= 5;
             for (size_t p = 0; p < sizeof(pages) / sizeof(pages[0]); p++) {
                 for (int fixed = 0; fixed < (pages[p] == PAGE_LAN ? 2 : 1); fixed++) {
                     ui_menu_t m = {.page = pages[p], .confirm_key = -1, .lan_dhcp = !fixed};
@@ -277,13 +302,15 @@ static void test_no_page_cuts_a_text(void)
             snprintf(name, sizeof(name), "%s_wizard_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             md.update_pct = 100;
-            strcpy(md.update_what, "WLAN-Chip");
+            md.update_wlan = true;
             ui_update_screen(&md, &l, &sc);
             snprintf(name, sizeof(name), "%s_update_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
         }
     }
+    english = false;
     TEST_ASSERT_EQUAL_INT_MESSAGE(0, cut_pages, "pages with a cut text, see above");
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, german_pages, "German left on an English deck, see above");
 }
 
 static bool press(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, uint8_t key, ui_action_t *act)
@@ -398,6 +425,10 @@ static void test_menu_language_waiting_home_and_light(void)
     ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
     ui_action_t act;
     ui_screen_t sc;
+    md.sat_failed = false; /* just started: still trying */
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("Warte auf Companion", sc.seg[1].value);
+    md.sat_failed = true;
     ui_menu_screen(&m, &md, &l, &sc);
     TEST_ASSERT_EQUAL_STRING("Companion nicht erreichbar", sc.seg[1].value);
     TEST_ASSERT_NOT_NULL(strstr(sc.seg[1].sub, md.satellite));
@@ -405,6 +436,10 @@ static void test_menu_language_waiting_home_and_light(void)
     TEST_ASSERT_EQUAL_INT(UI_DO_AP_START, act.what);
     TEST_ASSERT_EQUAL_INT(PAGE_SETUP_AP, m.page);
     m.page = PAGE_HOME;
+    md.from_deck = false; /* a press over the API must not put the password where a token reads the picture */
+    press(&m, &md, &l, 6, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    md.from_deck = true;
     press(&m, &md, &l, 6, &act); /* Web: address and password */
     TEST_ASSERT_EQUAL_INT(UI_DO_SHOW_PASSWORD, act.what);
     press(&m, &md, &l, 4, &act); /* LAN from home goes back home */
@@ -412,10 +447,14 @@ static void test_menu_language_waiting_home_and_light(void)
     press(&m, &md, &l, 4, &act);
     TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
 
-    TEST_ASSERT_EQUAL_INT(5, ui_light(&m, 5)); /* home: the brightness as set */
+    TEST_ASSERT_EQUAL_INT(5, ui_light(false, 5)); /* home: the brightness as set */
+    TEST_ASSERT_EQUAL_INT(20, ui_light(true, 0)); /* the menu: at least 20 % */
+    TEST_ASSERT_EQUAL_INT(60, ui_light(true, 60));
+    TEST_ASSERT_EQUAL_INT(10,
+                          ui_after_menu(20, 10)); /* a host at 10 % that never sends its own gets 10 back */
+    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(60, 60)); /* the menu did not change it */
+    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(20, -1)); /* nobody had set one */
     ui_menu_open_main(&m, md.now_us);
-    TEST_ASSERT_EQUAL_INT(20, ui_light(&m, 0)); /* the menu: at least 20 % */
-    TEST_ASSERT_EQUAL_INT(60, ui_light(&m, 60));
     press(&m, &md, &l, 0, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_LANG, act.what);
     ui_menu_screen(&m, &md, &l, &sc);

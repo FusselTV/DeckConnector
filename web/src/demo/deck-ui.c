@@ -60,7 +60,7 @@ static const struct {
     F(ap_pass, T_STR),     F(ap_ip, T_STR),      F(request, T_STR),    F(request_name, T_STR),
     F(offer_name, T_STR),  F(offer_addr, T_STR), F(menu_chord, T_STR), F(menu_hold_ms, T_INT),
     F(server_url, T_STR),  F(web_pass, T_STR),   F(fw, T_STR),
-    F(wlan_fw, T_STR),     F(brightness, T_INT), F(update_pct, T_INT), F(update_what, T_STR),
+    F(wlan_fw, T_STR),     F(brightness, T_INT), F(update_pct, T_INT), F(update_wlan, T_BOOL),
     F(setup_done, T_BOOL), F(setup_step, T_INT), F(picked, T_BOOL),    F(show_pass, T_BOOL),
     F(reset_ask, T_BOOL),  F(login_ip, T_STR),   F(login_who, T_STR),  F(login_mac, T_STR),
     F(login_name, T_STR),  F(satellite, T_STR),  F(english, T_BOOL),

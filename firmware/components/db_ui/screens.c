@@ -62,7 +62,6 @@ typedef struct {
 
 /* The German or the English text, as the deck's language is set. */
 #define L(de, en) (p->md->english ? (en) : (de))
-#define md_en(p)  ((p)->md->english ? 1 : 0)
 
 /* The long text on big keys, the short one on 72 and 96 px keys. */
 static const char *fit(const page_t *p, const char *wide, const char *narrow)
@@ -184,7 +183,7 @@ static void host_row(page_t *p, bool ask, bool welcome)
     }
     if (more) {
         char count[24];
-        snprintf(count, sizeof(count), L("%d Rechner", "%d sources"), n);
+        snprintf(count, sizeof(count), fit(p, L("%d Rechner", "%d computers"), L("%d Rechner", "%d")), n);
         ui_tile_t *t = put(p, at(p, 0, room - 1), K_ALL);
         button(t, ICON_OPEN, L("Alle", "All"), count);
         t->badge = BADGE_OPEN;
@@ -249,7 +248,11 @@ static void status_message(page_t *p, const char *icon, uint32_t color, const ch
         segment(&p->sc->seg[1], 3, icon, color, label, title, sub);
         return;
     }
-    card(put(p, at(p, 1, -1), K_NONE), icon, "Status", short_title, short_sub);
+    /* a 3 column deck has no Web key: its status key is it */
+    bool web = p->l->cols < 4;
+    ui_tile_t *t = put(p, at(p, 1, -1), web ? K_WEB : K_NONE);
+    card(t, icon, "Status", short_title, short_sub);
+    t->badge = web ? BADGE_OPEN : BADGE_NONE;
     (void)label;
 }
 
@@ -271,10 +274,15 @@ static void home_status(page_t *p)
         status_message(p, controller_icon(md->controller), C_ACTIVE, program, title,
                        L("Zeichnet gleich", "Draws in a moment"), program, L("verbunden", "connected"));
     } else if (md->controller == UI_CTRL_COMPANION && md->satellite[0]) {
-        snprintf(sub, sizeof(sub), L("%s · im Web ändern", "%s · change it on the web page"), md->satellite);
+        /* not reachable only once an attempt failed: right after the start it is still trying */
+        bool failed = md->sat_failed;
+        snprintf(sub, sizeof(sub),
+                 failed ? L("%s · im Web ändern", "%s · change it on the web page") : "Satellite %s",
+                 md->satellite);
         status_message(p, ICON_ALERT, C_WARN, program,
-                       L("Companion nicht erreichbar", "Companion not reachable"), sub, program,
-                       L("nicht da", "away"));
+                       failed ? L("Companion nicht erreichbar", "Companion not reachable")
+                              : L("Warte auf Companion", "Waiting for Companion"),
+                       sub, program, failed ? L("nicht da", "away") : L("wartet", "waiting"));
     } else if (md->controller == UI_CTRL_COMPANION) {
         snprintf(sub, sizeof(sub),
                  L("In Companion unter Surfaces als Remote Surface eintragen: %s",
@@ -334,7 +342,8 @@ static void home(page_t *p)
         wlan->badge = BADGE_OPEN;
     }
     if (cramped(p)) {
-        brightness_step(p, at(p, 1, 2)); /* the address and password are in the menu */
+        /* 3 x 2: the middle key, the setup WLAN is in the menu; the address and password are on Status */
+        brightness_step(p, at(p, 1, p->l->cols < 4 ? 1 : 2));
     } else {
         ui_tile_t *web = put(p, at(p, 1, 2), K_WEB);
         button(web, ICON_WEB, "Web",
@@ -412,8 +421,7 @@ static void main_menu(page_t *p)
     } else {
         /* no third row when cramped: the address is on the LAN key beside it, so the password goes here */
         if (cramped(p)) {
-            if (md->web_pass[0] &&
-                at(p, 1, 2) != at(p, 1, -1)) { /* not over the restart key of a 3 x 2 deck */
+            if (md->web_pass[0] && p->l->cols >= 4) { /* 3 x 2: Status on the home screen shows it */
                 card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass,
                      "admin");
             }
@@ -443,13 +451,14 @@ static void lan_page(page_t *p)
         octets_str(m->octets[f], v, sizeof(v));
         if (turn) {
             ui_tile_t *t = put(p, at(p, 0, f), (key_act_t)(K_FIELD0 + f));
-            button(t, ICON_IP, field_names[md_en(p)][f], m->lan_dhcp ? L("automatisch", "automatic") : v);
+            button(t, ICON_IP, field_names[p->md->english][f],
+                   m->lan_dhcp ? L("automatisch", "automatic") : v);
             t->active = !m->lan_dhcp && f == m->field;
             t->color = C_EDIT;
             t->dim = m->lan_dhcp;
         } else {
-            card(put(p, at(p, 0, f), K_NONE), ICON_IP, field_names[md_en(p)][f], m->lan_dhcp ? "auto" : v,
-                 "");
+            card(put(p, at(p, 0, f), K_NONE), ICON_IP, field_names[p->md->english][f],
+                 m->lan_dhcp ? "auto" : v, "");
         }
     }
     close_key(put(p, at(p, 1, 0), K_LAN_CLOSE), ICON_CLOSE, L("Zurück", "Back"),
@@ -474,8 +483,8 @@ static void lan_page(page_t *p)
     for (int o = 0; o < 4; o++) {
         char label[32];
         char v[12];
-        snprintf(label, sizeof(label), L("%s · %d. Stelle", "%s · part %d"), field_names[md_en(p)][m->field],
-                 o + 1);
+        snprintf(label, sizeof(label), L("%s · %d. Stelle", "%s · part %d"),
+                 field_names[p->md->english][m->field], o + 1);
         snprintf(v, sizeof(v), "%u", m->octets[m->field][o]);
         segment(&p->sc->seg[o], 1, NULL, 0, label, v,
                 o == 0 ? L("drehen", "turn")
@@ -519,7 +528,7 @@ static void chord_words(const page_t *p, char *which, size_t cap, char *hold, si
         return;
     }
     if (enc) {
-        snprintf(which, cap, "%s 1 + %d", fit(p, L("Drehregler", "Dials"), L("Regler", "Dials")), last + 1);
+        snprintf(which, cap, "%s 1 + %d", L(fit(p, "Drehregler", "Regler"), "Dials"), last + 1);
     } else { /* the first and the last key: holding all four corners works too */
         snprintf(which, cap, "%s", fit(p, L("Tasten in den Ecken", "Corner keys"), L("Ecken", "Corners")));
     }
@@ -593,7 +602,8 @@ static void welcome_net(page_t *p)
     ui_tile_t *ap = put(p, at(p, 0, 2), md->wlan_chip ? K_AP : K_NONE);
     button(ap, ICON_SETUP_AP, fit(p, L("Setup-WLAN", "Setup Wi-Fi"), "Setup"),
            fit(p,
-               md->lan_up || md->wlan_up ? L("WLAN einrichten", "set up Wi-Fi") : L("ohne Kabel", "no cable"),
+               md->lan_up || md->wlan_up ? L("WLAN einrichten", "set up Wi-Fi")
+                                         : L("ohne Kabel", "without cable"),
                L("WLAN", "Wi-Fi")));
     ap->badge = md->wlan_chip ? BADGE_OPEN : BADGE_NONE;
     ap->dim = !md->wlan_chip;
@@ -845,8 +855,7 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
 {
     memset(sc, 0, sizeof(*sc));
     bool en = md->english;
-    /* db_ui_set_update names the target in German */
-    const char *what = en && strcmp(md->update_what, "WLAN-Chip") == 0 ? "Wi-Fi chip" : md->update_what;
+    const char *what = md->update_wlan ? (en ? "Wi-Fi chip" : "WLAN-Chip") : "Firmware";
     char v[48];
     snprintf(v, sizeof(v), "Update %s: %d %%", what, md->update_pct);
     if (l->strip) {
@@ -862,9 +871,14 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
     }
 }
 
-int ui_light(const ui_menu_t *m, int brightness)
+int ui_light(bool menu, int brightness)
 {
-    return ui_menu_open(m) && brightness < 20 ? 20 : brightness;
+    return menu && brightness < 20 ? 20 : brightness;
+}
+
+int ui_after_menu(int lit, int before)
+{
+    return before >= 0 && lit >= 0 && lit != before ? before : -1;
 }
 
 bool ui_menu_open(const ui_menu_t *m)
@@ -1023,7 +1037,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     build(&shown, md, l, sc, acts);
     key_act_t what = ev->index < UI_MAX_KEYS ? (key_act_t)acts[ev->index] : K_NONE;
     if (!md->from_deck && (what == K_RESTART || what == K_SAVE_LAN || what == K_AP || what == K_AP_CLOSE ||
-                           what == K_ACCEPT || what == K_DENY)) {
+                           what == K_ACCEPT || what == K_DENY || what == K_WEB)) {
         return false;
     }
     if (what == K_RESTART) {
@@ -1072,12 +1086,13 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         act->what = UI_DO_SHOW_PASSWORD;
         return true;
     case K_AP:
+        m->pick_back = shown.page == PAGE_HOME ? PAGE_HOME : PAGE_MAIN;
         act->what = UI_DO_AP_START;
         go(m, PAGE_SETUP_AP, md->now_us);
         return true;
     case K_AP_CLOSE:
         act->what = UI_DO_AP_STOP;
-        go(m, m->page != PAGE_SETUP_AP ? m->page : (md->setup_done ? PAGE_MAIN : PAGE_WELCOME_NET),
+        go(m, m->page != PAGE_SETUP_AP ? m->page : (md->setup_done ? m->pick_back : PAGE_WELCOME_NET),
            md->now_us);
         return true;
     case K_DIMMER:
@@ -1104,7 +1119,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     case K_SAVE_LAN:
         if (m->lan_dhcp == md->lan_dhcp &&
             (m->lan_dhcp || memcmp(m->octets, md->lan_cfg, sizeof(m->octets)) == 0)) {
-            go(m, PAGE_MAIN, md->now_us);
+            go(m, m->pick_back, md->now_us);
             snprintf(m->note, sizeof(m->note), "%s", md->english ? "LAN unchanged" : "LAN unverändert");
             return true;
         }

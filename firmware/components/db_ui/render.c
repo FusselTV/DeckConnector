@@ -302,8 +302,11 @@ static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     db_rect_t col = {(uint16_t)(box.x + x), box.y, (uint16_t)(box.w - x - 10), box.h};
     db_rect_t full = {(uint16_t)(box.x + 12), box.y, (uint16_t)(box.w - 22), box.h};
     ui_text_fit(c, small_text, 2, col, r.y + 24, C_DIM, g->label, UI_LEFT);
-    ui_text_fit(c, title_fonts, 4, wide || g->icon ? col : full, r.y + (wide ? 64 : 66), C_TEXT, g->value,
-                UI_LEFT);
+    /* a one-part key with an icon and no bar (Schließen) never in the largest size: "Close" would be twice
+     * its German word */
+    int top = !wide && g->icon && g->bar < 0;
+    ui_text_fit(c, title_fonts + top, 4 - top, wide || g->icon ? col : full, r.y + (wide ? 64 : 66), C_TEXT,
+                g->value, UI_LEFT);
     if (g->bar >= 0) {
         db_rect_t track = {(uint16_t)(box.x + 12), (uint16_t)(r.y + 82), (uint16_t)(box.w - 24), 8};
         ui_round(c, track, 4, C_TRACK);

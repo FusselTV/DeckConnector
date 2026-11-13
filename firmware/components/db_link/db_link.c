@@ -236,7 +236,9 @@ static void handle_command(link_t *l, const char *text)
         if (cJSON_IsNumber(pct) && l->index == s.active) {
             int v = pct->valueint;
             s.pct = v < 0 ? 0 : (v > 100 ? 100 : v);
-            db_deck_set_brightness((uint8_t)s.pct);
+            if (db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + l->index)) { /* else after the menu */
+                db_deck_set_brightness((uint8_t)s.pct);
+            }
         }
     } else if (strcmp(t->valuestring, "ota") == 0) {
         const cJSON *target = cJSON_GetObjectItemCaseSensitive(root, "target");

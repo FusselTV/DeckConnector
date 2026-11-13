@@ -1,6 +1,7 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import { SIM_PORT } from './ports.ts'
 
-export const SIM = 'http://127.0.0.1:18210'
+export const SIM = `http://127.0.0.1:${SIM_PORT}`
 const AUTH = 'Basic ' + Buffer.from('admin:simulator-pass').toString('base64')
 
 export async function sim(method: string, path: string, body?: unknown) {

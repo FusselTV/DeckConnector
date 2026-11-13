@@ -20,7 +20,7 @@ void db_ui_set_active_link(int index);
 /* A Network Dock host came, left or told what it is. */
 void db_ui_hosts_changed(void);
 /* pct < 0 ends the update screen. */
-void db_ui_set_update(int pct, const char *what);
+void db_ui_set_update(int pct, bool wlan_chip);
 void db_ui_set_c6_version(const char *version);
 /* The source that draws once no menu or update covers it: the configured host, else the first of its kind. */
 db_source_t db_ui_chosen_source(void);

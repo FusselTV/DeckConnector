@@ -109,12 +109,13 @@ typedef struct {
     char server_url[96];
     char satellite[64]; /* Companion's Satellite address; empty: Companion comes as a dock host */
     bool english;       /* the deck speaks English, else German */
+    bool sat_failed;    /* the last Satellite attempt failed */
     char web_pass[24];  /* empty: not shown */
     char fw[32];
     char wlan_fw[16];
     int brightness;
-    int update_pct; /* < 0: no update running */
-    char update_what[24];
+    int update_pct;   /* < 0: no update running */
+    bool update_wlan; /* the update is for the WLAN chip, else for the firmware */
     bool setup_done;
     uint8_t setup_step;   /* the web wizard's step, 0 when it does not run */
     char login_token[17]; /* one login for whoever scans login_qr; empty: none */
@@ -182,7 +183,7 @@ typedef struct {
     bool lan_dhcp;
     int field;
     uint8_t octets[4][4];
-    ui_page_t pick_back; /* PAGE_SOURCES and PAGE_LAN go back here */
+    ui_page_t pick_back; /* PAGE_SOURCES, PAGE_LAN and the setup WLAN go back here */
     uint64_t keys_down;  /* pressed on this page */
     uint8_t encoders_down;
 } ui_menu_t;
@@ -190,7 +191,10 @@ typedef struct {
 ui_layout_t ui_layout_of(const db_device_info_t *info);
 
 /* The brightness the device UI puts on the deck: never below 20 % while the menu shows. */
-int ui_light(const ui_menu_t *m, int brightness);
+int ui_light(bool menu, int brightness);
+/* What the deck gets back when a host draws again after the menu: the brightness from before, when the menu
+ * changed it; -1: nothing to do. */
+int ui_after_menu(int lit, int before);
 /* The menu is open (anything but the home screen and the welcome pages). */
 bool ui_menu_open(const ui_menu_t *m);
 void ui_menu_open_main(ui_menu_t *m, int64_t now);

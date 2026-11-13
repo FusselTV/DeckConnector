@@ -1,8 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
+import { SIM_PORT as SIM, WEB_PORT as WEB } from './e2e/ports.ts'
 
 // The simulator from firmware/sim on its own port, and the dev server pointed at it. Never the bench bridge.
-const SIM = 18210
-const WEB = 5181
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: false,

@@ -770,7 +770,7 @@ function uiModel(s: Demo, now: number): UiModel {
       wlan_fw: '3.0.10',
       brightness: s.cfg.brightness,
       update_pct: s.ota ? otaPct(s, now) : -1,
-      update_what: s.ota?.version ?? '',
+      update_wlan: false,
       setup_done: s.cfg.setup_done,
       setup_step: s.setupStep,
       picked: !!s.cfg.host || s.cfg.controller !== 'companion',
