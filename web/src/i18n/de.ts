@@ -545,10 +545,10 @@ export const de: Dict = {
   'meter.conn': 'Connector',
   'wifi.forget': 'Vergessen',
   'wifi.forget_t': '{s} vergessen?',
-  'wifi.forget_b':
-    'Der Connector verbindet sich nicht mehr mit diesem WLAN und startet neu. Über das Kabel bleibt er erreichbar.',
-  'wifi.forget_b_ap':
-    'Der Connector verbindet sich nicht mehr mit diesem WLAN und startet neu. Ohne Kabel erreichst du ihn danach nur über sein Setup-WLAN.',
+  'wifi.forget_btn': 'WLAN vergessen',
+  'wifi.forget_b': 'Der Connector vergisst dieses WLAN und startet neu. Über das Kabel bleibt er erreichbar.',
+  'wifi.forget_b_none':
+    'Der Connector vergisst dieses WLAN und startet neu. Danach hat er kein Netz. Um ihn wieder zu erreichen, startest du im Deck-Menü das Setup-WLAN oder steckst ein Kabel ein.',
   'wifi.search': 'Suchen',
   'wifi.rescan': 'Neu suchen',
   'wifi.band': 'Der Connector sieht nur 2,4-GHz-Netze.',

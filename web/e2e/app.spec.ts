@@ -416,7 +416,7 @@ test('a stored Wi-Fi can be forgotten after a confirm', async ({ app: page }) =>
   await page.route('**/api/config', async (r) => {
     if (r.request().method() === 'PUT') {
       sent = r.request().postDataJSON() as unknown
-      return r.fulfill({ json: { ok: true, restart: false } })
+      return r.fulfill({ json: { ok: true, restart: true, reach: ['http://127.0.0.1'] } })
     }
     const res = await r.fetch()
     await r.fulfill({ response: res, json: { ...((await res.json()) as object), wifi_ssid: 'Nachbar' } })
@@ -425,9 +425,10 @@ test('a stored Wi-Fi can be forgotten after a confirm', async ({ app: page }) =>
   await expect(page.locator('.side:visible, .tabbar:visible').first()).toBeVisible()
   await openTab(page, 'Network')
   await page.locator('#row-wlan').click()
-  await page.locator('#wifi-forget').click()
+  await page.getByRole('button', { name: 'Forget Wi-Fi' }).click()
   await expect(page.getByText('Forget Nachbar?')).toBeVisible()
-  await page.getByRole('button', { name: 'Forget', exact: true }).last().click()
+  await expect(page.getByText('It then has no network.')).toBeVisible() // the simulator has no cable
+  await page.getByRole('button', { name: 'Forget', exact: true }).click()
   await expect.poll(() => sent).toEqual({ wifi_ssid: '', wifi_pass: '', wifi_bssid: '' })
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })

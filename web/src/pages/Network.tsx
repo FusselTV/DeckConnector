@@ -257,26 +257,31 @@ export function Network() {
                 set({ wifi })
               }}
             />
-            <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
             {cfg?.wifi_ssid && (
               <Btn
                 id="wifi-forget"
                 kind="ghost"
                 icon={WifiOff}
-                onClick={() =>
-                  void ask({
+                onClick={async () => {
+                  const lan = !!(n?.lan?.cable && !n.lan.dead && n.lan.ip)
+                  const ok = await ask({
                     title: t('wifi.forget_t', { s: cfg.wifi_ssid }),
-                    body: t(n?.lan?.cable ? 'wifi.forget_b' : 'wifi.forget_b_ap'),
+                    body: t(lan ? 'wifi.forget_b' : 'wifi.forget_b_none'),
                     ok: t('wifi.forget'),
                     danger: true,
-                  }).then((ok) =>
-                    ok ? act(() => putConfig({ wifi_ssid: '', wifi_pass: '', wifi_bssid: '' })) : undefined,
-                  )
-                }
+                  })
+                  if (!ok) return
+                  await act(async () => {
+                    await putConfig({ wifi_ssid: '', wifi_pass: '', wifi_bssid: '' })
+                    setD(({ wifi: _gone, ...rest }) => rest) // an unsaved pick must not bring a Wi-Fi back
+                    setJoinErr(null)
+                  })
+                }}
               >
-                {t('wifi.forget')}
+                {t('wifi.forget_btn')}
               </Btn>
             )}
+            <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
           </Row>
         </>
       </Card>

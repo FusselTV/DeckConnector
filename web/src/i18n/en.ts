@@ -535,9 +535,10 @@ export const en = {
   'meter.conn': 'Connector',
   'wifi.forget': 'Forget',
   'wifi.forget_t': 'Forget {s}?',
-  'wifi.forget_b': 'The connector stops joining this Wi-Fi and restarts. It stays reachable over the cable.',
-  'wifi.forget_b_ap':
-    'The connector stops joining this Wi-Fi and restarts. Without a cable it is then only reachable over its setup Wi-Fi.',
+  'wifi.forget_btn': 'Forget Wi-Fi',
+  'wifi.forget_b': 'The connector forgets this Wi-Fi and restarts. It stays reachable over the cable.',
+  'wifi.forget_b_none':
+    'The connector forgets this Wi-Fi and restarts. It then has no network. To reach it again, start Setup Wi-Fi in the deck menu or plug in a cable.',
   'wifi.search': 'Search',
   'wifi.rescan': 'Search again',
   'wifi.band': 'The connector only sees 2.4 GHz networks.',
