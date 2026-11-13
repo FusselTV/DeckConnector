@@ -113,7 +113,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `POST /api/sources/retry` | `{"host": "..."}` mit einer Server-URL oder der Satellite-Adresse. Verbindet sofort statt nach der Wartezeit | control |
-| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version`. Bis zu 6 s | full |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version` oder einen `code` dafür, was scheiterte (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). Höchstens etwa 10 s. Die Webseite probiert mehrere Formen einer Adresse nacheinander | full |
 | `GET /api/companion/found` | Companions, die Satellite per mDNS anmelden. Der erste Aufruf startet eine Suche von 2 s | full |
 | `POST /api/dock` | Kopplung, siehe [Kopplung](#kopplung) | full |
 | `DELETE /api/pairing/denied/<ip>` | Nimmt einen Rechner von der Liste der Abgelehnten | full |

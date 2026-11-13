@@ -84,6 +84,40 @@ test('closing the Companion dialog while it tests the address saves nothing', as
   expect(puts).toEqual([])
 })
 
+test('a sloppy Companion address finds Companion on its port, and a miss says why and what was tried', async ({
+  app: page,
+}) => {
+  const tried: string[] = []
+  const answers: Record<string, object> = {
+    'ws://10.9.9.9:8000': { ok: false, code: 'probe_not_ws', error: 'not a WebSocket' },
+    'wss://10.9.9.9:8000': { ok: false, code: 'probe_tls', error: 'TLS failed' },
+    'ws://10.9.9.9:8000/satellite': { ok: false, code: 'probe_not_ws', error: 'not a WebSocket' },
+    '10.9.9.9': { ok: false, code: 'probe_refused', error: 'connection refused' },
+    'ws://10.9.9.9:16623': { ok: true, version: '5.2.0' },
+  }
+  await page.route('**/api/sources/probe', async (r) => {
+    const addr = (r.request().postDataJSON() as { addr: string }).addr
+    tried.push(addr)
+    await r.fulfill({ json: answers[addr] ?? { ok: false, code: 'probe_no_name', error: 'name not found' } })
+  })
+  await openTab(page, 'Sources')
+  await page.locator('#src-add').click()
+  await page.locator('#m-sat').fill('http://10.9.9.9:8000')
+  await page.getByRole('dialog').getByRole('button', { name: /^Save/ }).click()
+  await expect(page.getByText('Found Companion 5.2.0 at ws://10.9.9.9:16623.')).toBeVisible()
+  expect(tried).toEqual(Object.keys(answers))
+  expect(await sim('GET', '/api/config')).toMatchObject({ satellite: 'ws://10.9.9.9:16623' })
+  await sim('PUT', '/api/config', { satellite: '' })
+
+  tried.length = 0
+  await page.locator('#src-add').click()
+  await page.locator('#m-sat').fill('nobody.invalid')
+  await page.getByRole('dialog').getByRole('button', { name: /^Save/ }).click()
+  await expect(page.getByText('This name is not known in the network.')).toBeVisible()
+  await expect(page.getByText('Tried nobody.invalid.')).toBeVisible()
+  expect(tried).toEqual(['nobody.invalid'])
+})
+
 test('broken replies show a worded error and leave the rest of the page working', async ({ app: page, errors }) => {
   await page.route('**/api/tokens', (r) => r.fulfill({ json: null }))
   await page.route('**/api/config', (r) =>

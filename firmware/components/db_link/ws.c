@@ -109,7 +109,7 @@ int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout
     struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
     struct addrinfo *res = NULL;
     if (getaddrinfo(host, port_s, &hints, &res) != 0 || !res) {
-        return -EHOSTUNREACH;
+        return -ENXIO; /* the name: not the network, which says EHOSTUNREACH */
     }
     int s = socket(AF_INET, SOCK_STREAM, 0);
     struct timeval tv = {.tv_sec = timeout_ms / 1000, .tv_usec = (timeout_ms % 1000) * 1000};
@@ -213,6 +213,7 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
     if (err) {
         ESP_LOGW(TAG, "TLS with %s failed: -0x%04x%s", host, (unsigned)-err,
                  err == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ? ", certificate not trusted" : "");
+        ws->fail = err == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ? "certificate not trusted" : "TLS failed";
         tls_free(t);
         return -ECONNREFUSED;
     }
@@ -334,6 +335,7 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
                      "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n%s%s\r\n",
                      path, host, port, key, proto, extra ? extra : "");
     if (n >= (int)sizeof(req) || io_send(ws, s, req, (size_t)n) != n) {
+        ws->fail = "no answer within 3 s";
         return -EIO;
     }
     char resp[RESPONSE_MAX];
@@ -341,6 +343,8 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
     /* Read byte by byte up to the blank line, so no frame bytes are swallowed. */
     while (got + 1 < sizeof(resp)) {
         if (io_recv(ws, s, resp + got, 1) != 1) {
+            ws->fail =
+                "no answer within 3 s"; /* also Companion's TCP port: it sends BEGIN, never a blank line */
             return -EIO;
         }
         got++;
@@ -350,6 +354,7 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
     }
     resp[got] = '\0';
     if (strncmp(resp, "HTTP/1.1 101", 12) != 0 || !accept_matches(key, resp)) {
+        ws->fail = "not a WebSocket";
         return -ECONNREFUSED;
     }
     return 0;
@@ -362,6 +367,7 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     unsigned port;
     const char *path;
     bool tls;
+    ws->fail = NULL;
     int err = parse_url(url, host, sizeof(host), &port, &path, &tls);
     if (err) {
         return err;

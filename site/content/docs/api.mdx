@@ -113,7 +113,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | Route | What it does | Level |
 |---|---|---|
 | `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. Connects now instead of after the wait | control |
-| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` tries Companion once and returns its `version`. Up to 6 s | full |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` tries Companion once and returns its `version`, or a `code` for what failed (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). About 10 s at most. The web page tries several forms of an address in turn | full |
 | `GET /api/companion/found` | Companions that announce Satellite over mDNS. The first call starts a 2 s search | full |
 | `POST /api/dock` | Pairing, see [Pairing](#pairing) | full |
 | `DELETE /api/pairing/denied/<ip>` | Takes a host off the denied list | full |
