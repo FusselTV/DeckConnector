@@ -134,6 +134,9 @@ static uint32_t sock_ip(httpd_req_t *req, bool local)
     if (addr.sin6_family == AF_INET) {
         return ((struct sockaddr_in *)&addr)->sin_addr.s_addr;
     }
+    if (!IN6_IS_ADDR_V4MAPPED(&addr.sin6_addr)) {
+        return 0;
+    }
     uint32_t v4;
     memcpy(&v4, (const uint8_t *)&addr.sin6_addr + 12, 4); /* the last 4 bytes of ::ffff:a.b.c.d */
     return v4;

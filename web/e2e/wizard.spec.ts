@@ -183,3 +183,60 @@ test('with four servers stored, the wizard refuses a fifth instead of replacing 
   await sim('PUT', '/api/setup', { step: 0 })
   await sim('PUT', '/api/config', { setup_done: true })
 })
+
+test('on the setup Wi-Fi the wizard only joins the Wi-Fi, stores no step, and closes the setup Wi-Fi', async ({
+  page,
+  errors: _errors,
+}) => {
+  const puts: unknown[] = []
+  let closed = false
+  await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() !== 'GET') puts.push(r.request().postDataJSON())
+    await r.fallback()
+  })
+  await page.route('**/api/ap', (r) => ((closed = r.request().method() === 'DELETE'), r.fallback()))
+  const steps: unknown[] = []
+  page.on('request', (r) => r.method() === 'PUT' && r.url().endsWith('/api/setup') && steps.push(r.postDataJSON()))
+  // The simulator is not on its setup Wi-Fi here, and its join never finishes: status and socket are patched.
+  let joined = false
+  type St = { t?: string; via_ap?: boolean; network?: Record<string, object> }
+  const patch = (j: St) => {
+    j.via_ap = true
+    j.network = { ...j.network, ap: { ...j.network?.ap, on: true } }
+    if (joined) j.network.wlan = { ...j.network.wlan, join: 'ok', ip: '192.168.1.50', ssid: 'Gast' }
+    return j
+  }
+  await page.route('**/api/wifi/join', (r) => ((joined = true), r.fulfill({ json: { ok: true } })))
+  await page.route('**/api/status', async (r) => {
+    const res = await r.fetch()
+    await r.fulfill({ response: res, json: patch((await res.json()) as St) })
+  })
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    const server = ws.connectToServer()
+    server.onMessage((m) => {
+      const j = JSON.parse(String(m)) as St
+      ws.send(JSON.stringify(j.t === 'state' ? patch(j) : j))
+    })
+  })
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: false })
+  await page.goto('/')
+  await login(page)
+  await expect(page.locator('#wz-step')).toHaveText('How does the connector get online?')
+  await expect(page.locator('#w-back')).toHaveCount(0)
+  await page.getByRole('button', { name: /Gast/ }).first().click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.locator('#wz-step')).toHaveText('Done')
+  await expect(page.locator('a[href="http://192.168.1.50"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Close setup Wi-Fi' }).click()
+  await expect.poll(() => closed).toBe(true)
+  expect(puts).toEqual([])
+  // No step stored: the browser on the user's network starts at the beginning, with name and password.
+  expect(steps).toEqual([])
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await page.close()
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: true })
+})

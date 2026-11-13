@@ -419,8 +419,6 @@ static void ap_page(page_t *p)
     card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, fit(p, "WLAN-Passwort", "Kennwort"), md->ap_pass, "");
     card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, fit(p, "Dann öffnen", "Öffnen"), md->ap_ip,
          fit(p, "im Browser", ""));
-    card(put(p, at(p, 0, 3), K_NONE), ICON_PASSWORD, fit(p, "Web-Login", "Login"), md->web_pass,
-         fit(p, "Benutzer admin", "admin"));
     close_key(put(p, at(p, 1, 1), K_AP_CLOSE), ICON_SETUP_AP, "Beenden", fit(p, "Setup-WLAN aus", ""));
     if (md->ap_qr.size) {
         ui_tile_t *qr = put(p, at(p, 1, 0), K_NONE);
@@ -430,7 +428,7 @@ static void ap_page(page_t *p)
     }
     if (p->l->strip) {
         segment(&p->sc->seg[0], 4, ICON_SETUP_AP, C_ACTIVE, "Setup-WLAN", "Setup-WLAN ist an",
-                "Code mit der Handykamera scannen oder von Hand verbinden und die Adresse öffnen");
+                "Code mit der Handykamera scannen, die Seite öffnet sich dann von selbst");
     }
 }
 

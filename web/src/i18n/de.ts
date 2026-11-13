@@ -356,7 +356,7 @@ export const de: Dict = {
   'login.http_h':
     'Für HTTPS öffne die Adresse mit https://. Der Browser warnt einmal, weil das Zertifikat selbst ausgestellt ist.',
   'wiz.title': 'Einrichtung',
-  'wiz.ap': 'Verbunden mit dem Einrichtungs-WLAN des Connectors',
+  'wiz.ap': 'Verbunden mit dem Setup-WLAN des Connectors',
   'wiz.s_lang': 'Sprache und Name',
   'wiz.s_pw': 'Passwort',
   'wiz.s_net': 'Netz',
@@ -372,10 +372,7 @@ export const de: Dict = {
   'wiz.lan_none': 'Kein Netzwerkkabel. Verbinde den Connector mit deinem WLAN.',
   'wiz.use_wlan': 'Zusätzlich ins WLAN',
   'wiz.use_wlan_h': 'Als Ersatz, falls das Kabel mal fehlt.',
-  'wiz.find_q': 'Gleich wechselt der Connector in dein Netz',
-  'wiz.find_h': 'Danach zeigt das Deck einen neuen QR-Code mit der neuen Adresse. Diese Adressen gehen auch:',
-  'wiz.find_go': 'Speichern und wechseln',
-  'wiz.moving': 'Fast fertig',
+  'wiz.moving': 'Geschafft',
   'wiz.src_q': 'Mit welchem Programm steuerst du dein Deck?',
   'wiz.src_later': 'Später',
   'wiz.app_wait': 'Warte auf die App…',
@@ -439,6 +436,14 @@ export const de: Dict = {
   'access.pw_long': 'Zu lang: höchstens 23 Zeichen.',
   'access.cors_bad': 'Adressen wie http://host:port eingeben, durch Kommas getrennt. Höchstens 127 Zeichen.',
   'fw.bad_url': 'Gib eine Adresse ein, die mit http:// beginnt.',
+  'wifi.e_found': 'Der Connector sieht dieses Netz nicht. Stell ihn näher an den Router und versuch es noch einmal.',
+  'wifi.e_weak':
+    'Der Connector konnte sich nicht verbinden. Vielleicht ist das Signal zu schwach, oder der Router hat ihn abgelehnt. Stell ihn näher an den Router und versuch es noch einmal.',
+  'wifi.e_dhcp':
+    'Verbunden, aber der Router hat keine Adresse vergeben. Prüfe, ob der Router Adressen vergibt (DHCP), und versuch es noch einmal.',
+  'wifi.e_other': 'Der Connector kommt nicht in dieses Netz. Versuch es noch einmal.',
+  'wifi.e_save':
+    'Der Connector ist im Netz, konnte das WLAN aber nicht speichern. Starte ihn neu und versuch es noch einmal.',
   'wifi.lost':
     'Die Seite hat den Connector beim Test verloren. Hat er sich verbunden, ist er jetzt unter der Adresse im neuen Netz erreichbar.',
   'wifi.pass_len': 'Ein WLAN-Passwort hat 8 bis 63 Zeichen oder 64 Hex-Ziffern.',
@@ -475,7 +480,7 @@ export const de: Dict = {
   'wiz.step': 'Schritt {n} von {all}: {name}',
   'cf.skip': 'Einrichtung überspringen?',
   'cf.skip_b':
-    'Der Connector bleibt im Einrichtungs-WLAN, bis er ein Netz hat. Die Einrichtung startest du unter Firmware › Sicherung neu.',
+    'Der Connector bleibt im Setup-WLAN, bis er ein Netz hat. Die Einrichtung startest du unter Firmware › Sicherung neu.',
   'wiz.pw_why': 'Das Deck-Menü zeigt das Passwort vom ersten Start. Ein eigenes merkst du dir leichter.',
   'wiz.testing': 'Teste…',
   'wiz.test_ok': 'Verbunden mit „{ssid}“. Adresse {ip}.',
@@ -483,10 +488,9 @@ export const de: Dict = {
     'Beim Neuladen hat die Seite das neue Passwort vergessen. Gib es noch einmal ein oder behalte das bisherige.',
   'wiz.test_bad': 'Das Passwort passt nicht. Prüfe Groß- und Kleinschreibung.',
   'wiz.expert': 'Für Fortgeschrittene',
-  'wiz.mv_1': 'Verbinde dein Gerät (Handy, Laptop) wieder mit deinem WLAN.',
-  'wiz.mv_2': 'Scanne den neuen QR-Code am Deck. Du bist dann gleich angemeldet.',
-  'wiz.mv_fallback': 'Kein QR-Code? Öffne eine dieser Adressen:',
-  'wiz.mv_fail': 'Klappt es nicht? Nach 2 Minuten zeigt das Deck wieder den Einrichtungs-QR-Code.',
+  'wiz.mv_1': 'Schließe das Setup-WLAN. Dein Handy wechselt dann zurück in dein WLAN.',
+  'wiz.mv_2': 'Scanne den neuen QR-Code am Deck. Oder öffne eine dieser Adressen:',
+  'wiz.ap_close': 'Setup-WLAN schließen',
   'wiz.p_app_h': 'Die App auf deinem Computer.',
   'wiz.p_comp': 'Bitfocus Companion',
   'wiz.p_comp_h': 'Für Shows, Studios und Streams.',

@@ -76,6 +76,18 @@ export function NetBlock(p: { id: string; v: IpConf; set: (v: IpConf) => void; e
   )
 }
 
+const JOIN_TEXT: Record<string, Key> = {
+  lost: 'wifi.lost',
+  'wrong password': 'wiz.test_bad',
+  'network not found': 'wifi.e_found',
+  'weak signal': 'wifi.e_weak',
+  'no connection': 'wifi.e_weak',
+  'no address': 'wifi.e_dhcp',
+  'not saved': 'wifi.e_save',
+}
+/** The message for a failed join, from the firmware's join_error. */
+export const joinText = (t: (k: Key) => string, e: string) => t(JOIN_TEXT[e] ?? 'wifi.e_other')
+
 /** POST /api/wifi/join, then the status until the device says ok or failed (at most 20 s). 'lost' means the
  *  page lost the device on the way, which happens when it is reached over the WLAN being changed. */
 export async function joinWifi(w: WifiChoice): Promise<string | null> {
@@ -162,7 +174,7 @@ export function Network() {
         if (!restart) setD(({ wifi: _w, ...o }) => o)
         return true
       }
-      setJoinErr(e === 'lost' ? t('wifi.lost') : t('wiz.test_bad') + ` (${e})`)
+      setJoinErr(joinText(t, e))
       return false
     },
   })

@@ -1,6 +1,7 @@
 """Attacks from the LAN, each found in a review, each must fail."""
 
 import base64
+import http.client
 import json
 import subprocess
 import time
@@ -179,3 +180,29 @@ def test_a_password_set_before_setup_closes_the_first_browser_way(own_sim):
     # before the restart the new password causes: the answer comes from the stored flag, the password path
     # never sets the one in memory
     assert claim(own_sim, f"127.0.0.1:{own_sim}") == (409, '{"ok":false,"error":"claimed"}')
+
+
+def raw(port: int, addr: str, path: str, host: str) -> tuple[int, str]:
+    c = http.client.HTTPConnection(addr, port, timeout=5)
+    c.request("GET", path, headers={"Host": host})
+    r = c.getresponse()
+    r.read()
+    return r.status, r.getheader("Location") or ""
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="the setup WLAN of the simulator")
+@pytest.mark.parametrize("own_sim", [{"DB_SIM_VIA_AP": "1"}], indirect=True)
+def test_phones_on_the_setup_wlan_get_the_captive_portal_and_the_lan_does_not(own_sim):
+    portal = (302, "http://127.0.0.1/")
+    for path, host in [
+        ("/hotspot-detect.html", "captive.apple.com"),  # Apple
+        ("/generate_204", "connectivitycheck.gstatic.com"),  # Android
+        ("/connecttest.txt", "www.msftconnecttest.com"),  # Windows
+        ("/canonical.html", "detectportal.firefox.com"),  # Firefox
+        ("/", "example.com"),  # an address typed by hand
+    ]:
+        assert raw(own_sim, "127.0.0.1", path, host) == portal, (path, host)
+    assert raw(own_sim, "127.0.0.1", "/", f"127.0.0.1:{own_sim}")[0] == 200, "the portal itself"
+    assert raw(own_sim, "127.0.0.2", "/generate_204", "connectivitycheck.gstatic.com")[0] == 404, "not on the LAN"
+    assert raw(own_sim, "127.0.0.2", "/", "example.com")[0] == 200, "the LAN keeps its page under any name"

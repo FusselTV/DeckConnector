@@ -352,6 +352,11 @@ void db_net_status(db_net_status_t *out)
     }
 }
 
+esp_err_t db_net_ap_stop(void)
+{
+    return ESP_OK;
+}
+
 int db_net_wifi_scan(db_net_ap_t *out, size_t max)
 {
     db_net_ap_t sim[] = {{"Zuhause", "aa:bb:cc:00:00:01", -48, 1, false},

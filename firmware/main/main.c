@@ -27,6 +27,7 @@
 #include "nvs_flash.h"
 
 #define SETUP_AP_AFTER_S 60
+#define SETUP_LINK_S     5
 
 static const char *TAG = "main";
 
@@ -422,13 +423,19 @@ static void on_satellite(void)
     db_dock_drop_satellite_host(); /* the peer of a new session, if it is a dock host as well */
 }
 
-/* A new bridge without any network opens the setup WLAN by itself. It closes again once the network is there
- * and no phone is on it: the wizard joins the WLAN over it and still has to save. */
+/* A new bridge without any network opens the setup WLAN by itself: at once when it has neither a cable link
+ * nor a WLAN to join, else after SETUP_AP_AFTER_S if neither worked. It closes once the network is there and
+ * no phone is on it, or when the page on it closes it after the join. */
 static void setup_ap_task(void *arg)
 {
-    vTaskDelay(pdMS_TO_TICKS(SETUP_AP_AFTER_S * 1000));
+    vTaskDelay(pdMS_TO_TICKS(SETUP_LINK_S * 1000)); /* time for a cable to show its link */
+    db_net_status_t st;
+    db_net_status(&st);
+    if (st.lan_link || db_config()->wifi_ssid[0]) {
+        vTaskDelay(pdMS_TO_TICKS((SETUP_AP_AFTER_S - SETUP_LINK_S) * 1000));
+    }
     if (!db_config()->setup_done && !db_net_online() && db_net_ap_start() == ESP_OK) {
-        ESP_LOGW(TAG, "no network after %d s, opening the setup WLAN", SETUP_AP_AFTER_S);
+        ESP_LOGW(TAG, "no network, opening the setup WLAN");
         db_net_status_t n;
         do {
             vTaskDelay(pdMS_TO_TICKS(5000));
