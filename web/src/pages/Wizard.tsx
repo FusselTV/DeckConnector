@@ -30,7 +30,7 @@ import { decksOf, hostLabel, reachList } from '../app/derive'
 import { configErrAtom, langAtom, loginReasonAtom, wifiScanAtom } from '../app/state'
 import { RestartOverlay } from '../app/Shell'
 import { getState, useStore } from '../app/store'
-import { codeText, errText, useUi } from '../app/ui'
+import { errText, notFound, useUi } from '../app/ui'
 import { Btn, Choice, describedBy, Field, SIcon, Switch } from '../components/controls'
 import { CopyField, PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
@@ -41,7 +41,6 @@ import { MODELS } from '../deck/models'
 import type { TKey } from '../i18n'
 import { roam, ss, useLatest } from '../lib/util'
 import {
-  companionError,
   ipErrors,
   nameError,
   normPin,
@@ -51,6 +50,7 @@ import {
   wifiError,
   wsUrlError,
 } from '../lib/validate'
+import { companionError, findCompanion } from '../lib/companion'
 import { chordSentence } from './DeckTab'
 import { EMPTY, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
@@ -154,6 +154,7 @@ export function Wizard() {
   const [busy, setBusy] = useState<string | null>(null)
   const [mErr, setMErr] = useState<{ to: string; m: string } | null>(null)
   const [linked, setLinked] = useState<string | null>(null)
+  const [trying, setTrying] = useState<string | null>(null)
   const [url, setUrl] = useState('')
   const [uPin, setUPin] = useState('')
   const [uErr, setUErr] = useState<string | null>(null)
@@ -237,21 +238,23 @@ export function Wizard() {
     setLinked(null)
     setBusy(target)
     try {
-      const r = await api.probe(target, normPin(p)).catch((x: unknown) => setMErr({ to: target, m: errText(x, t) }))
+      const r = await findCompanion(target, normPin(p), setTrying).catch((x: unknown) =>
+        setMErr({ to: target, m: errText(x, t) }),
+      )
       if (!r) return
-      if (!r.ok)
-        return setMErr({ to: target, m: r.error ? codeText(t, r.code, r.error) : t('wiz.no_answer', { a: target }) })
+      if ('tried' in r) return setMErr({ to: target, m: notFound(t, r.tried) })
       const ok = await act(() =>
         putConfig({
-          satellite: target,
-          satellite_pin: target.startsWith('wss://') ? normPin(p) : '',
+          satellite: r.addr,
+          satellite_pin: r.addr.startsWith('wss://') ? normPin(p) : '',
           controller: 'companion',
           host: 'satellite',
         }),
       )
-      if (ok !== undefined) setLinked(target)
+      if (ok !== undefined) setLinked(r.addr)
     } finally {
       setBusy(null)
+      setTrying(null)
     }
   }
   const srvConnect = async () => {
@@ -656,7 +659,12 @@ export function Wizard() {
               </p>
             )}
             <p className="small muted">{t('wiz.docker')}</p>
-            <Field id="w-sat" label={t('src.addr')} hint={t('src.addr_hint')} err={satErr}>
+            <Field
+              id="w-sat"
+              label={t('src.addr')}
+              hint={trying ? t('src.trying', { a: trying }) : t('src.addr_hint')}
+              err={satErr}
+            >
               <div className="inrow">
                 <input
                   {...describedBy('w-sat', satErr, true)}
@@ -670,7 +678,7 @@ export function Wizard() {
                 </Btn>
               </div>
             </Field>
-            {addr.startsWith('wss://') && (
+            {/^(wss|https):\/\//.test(addr) && (
               <Field id="w-satpin" label={t('src.pin')} hint={t('src.pin_hint')}>
                 <input
                   {...describedBy('w-satpin', null, true)}

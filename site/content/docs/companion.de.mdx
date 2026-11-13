@@ -33,6 +33,8 @@ Unter **Surfaces** erscheint das Deck als `streamdeck:<seriennummer>`, mit derse
 | `ws://192.168.1.10:16623` | Den WebSocket-Port von Companion |
 | `wss://companion.example.org/satellite` | Einen Reverse Proxy mit TLS vor Port 16623 |
 
+Du kannst auch die Adresse der Companion-Webseite einfügen oder den Port weglassen. Dann probiert die Platine die Formen oben der Reihe nach, behält die erste, die antwortet, und sagt, welche sie gefunden hat.
+
 Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA. Für jedes andere Zertifikat fügst du seinen SHA-256 als Pin ein. Erneuert eine interne CA ihre Zertifikate oft, pinnst du die CA selbst.
 
 ```bash

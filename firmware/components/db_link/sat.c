@@ -830,11 +830,43 @@ uint32_t db_satellite_resolved(void)
     return ip;
 }
 
+static const char *connect_error(int err)
+{
+    static char why[64]; /* web handlers run one at a time */
+    if (err == -ETIMEDOUT) {
+        return "no connection within 3 s";
+    }
+    if (err == -ECONNREFUSED || err == -ECONNRESET) {
+        return "connection refused";
+    }
+    snprintf(why, sizeof(why), "no connection: %s", strerror(-err));
+    return why;
+}
+
 const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap)
 {
-    char line[160];
+    char line[160], host[64];
+    unsigned port = DB_SAT_PORT;
     size_t n = 0;
-    if (strncmp(addr, "ws://", 5) == 0 || strncmp(addr, "wss://", 6) == 0) {
+    bool ws_mode = strncmp(addr, "ws://", 5) == 0 || strncmp(addr, "wss://", 6) == 0;
+    if (ws_mode) {
+        ws_url_host(addr, host, sizeof(host), &port);
+    } else {
+        snprintf(host, sizeof(host), "%s", addr);
+        char *colon = strchr(host, ':');
+        if (colon) {
+            port = (unsigned)atoi(colon + 1);
+            *colon = '\0';
+        }
+    }
+    /* first on its own: the connect below says "unreachable" for a name nobody knows too */
+    struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(host, NULL, &hints, &res) != 0 || !res) {
+        return "name not found";
+    }
+    freeaddrinfo(res);
+    if (ws_mode) {
         ws_t *w = calloc(1, sizeof(*w));
         if (!w || ws_init(w)) {
             free(w);
@@ -846,28 +878,22 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
         bool fin;
         uint64_t len = 0;
         int err = ws_connect(w, addr, NULL, NULL, NULL, CONNECT_MS, pinned ? pin : NULL);
-        err = err ? err : ws_read_header(w, &op, &fin, &len);
-        n = len < sizeof(line) - 1 ? (size_t)len : sizeof(line) - 1;
-        err = err ? err : ws_read(w, line, n);
+        const char *why = err ? (w->fail ? w->fail : connect_error(err)) : NULL;
+        if (!why) {
+            err = ws_read_header(w, &op, &fin, &len);
+            n = len < sizeof(line) - 1 ? (size_t)len : sizeof(line) - 1;
+            why = err || ws_read(w, line, n) ? "no answer within 3 s" : NULL;
+        }
         ws_close(w);
         ws_deinit(w);
         free(w);
-        if (err) {
-            return err == -ETIMEDOUT ? "no answer within 3 s" : "no connection";
+        if (why) {
+            return why;
         }
     } else {
-        char host[64];
-        snprintf(host, sizeof(host), "%s", addr);
-        char *colon = strchr(host, ':');
-        unsigned port = colon ? (unsigned)atoi(colon + 1) : DB_SAT_PORT;
-        if (colon) {
-            *colon = '\0';
-        }
         int sock = ws_tcp_open(host, port, NULL, CONNECT_MS);
         if (sock < 0) {
-            static char why[64]; /* web handlers run one at a time */
-            snprintf(why, sizeof(why), "no connection: %s", strerror(-sock));
-            return why;
+            return connect_error(sock);
         }
         int64_t end =
             esp_timer_get_time() + CONNECT_MS * 1000LL; /* a byte at a time must not hold the web lock */
@@ -878,6 +904,9 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
             }
         }
         close(sock);
+        if (!n) {
+            return "no answer within 3 s";
+        }
     }
     line[n] = '\0';
     line[strcspn(line, "\r\n")] = '\0';

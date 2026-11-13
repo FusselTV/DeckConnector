@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   cidrMask,
-  companionError,
   corsError,
   httpUrlError,
   ipErrors,
@@ -55,11 +54,6 @@ describe('pins and URLs', () => {
   it('wants ws:// or wss:// for servers', () => {
     expect(wsUrlError('wss://example.org/x')).toBeNull()
     expect(wsUrlError('http://example.org')).toBe('src.bad_url')
-  })
-  it('takes the Companion address forms', () => {
-    for (const ok of ['192.168.1.5', 'studio.local:16622', 'wss://c.example/satellite', ''])
-      expect(companionError(ok), ok).toBeNull()
-    for (const bad of ['999.1.1.1', 'host:99999', 'a b']) expect(companionError(bad), bad).toBe('wiz.addr_bad')
   })
   it('wants origins without a path for CORS', () => {
     expect(corsError('https://a.example, http://b:8123')).toBeNull()
@@ -118,7 +112,6 @@ describe('values the firmware refuses or that lock the device out', () => {
     expect(wsUrlError('wss://h /x')).toBe('src.bad_url')
     expect(wsUrlError('wss://h/"x')).toBe('src.bad_url')
     expect(wsUrlError(`wss://${'h'.repeat(64)}/x`)).toBe('src.bad_url')
-    expect(companionError('a'.repeat(64))).toBe('wiz.addr_bad')
   })
   it('limits CORS and the Wi-Fi fields', () => {
     expect(corsError('http://' + 'a'.repeat(130))).toBe('access.cors_bad')

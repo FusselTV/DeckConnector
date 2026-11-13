@@ -4,6 +4,7 @@ import { makeT, type Lang, type T, type TKey } from '../i18n'
 import { makeFmt, type Fmt } from '../lib/format'
 import { getState } from './store'
 import { armAtom, ARM_MS, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
+import { type Tried, worst } from '../lib/companion'
 
 export interface AskOpts {
   title: string
@@ -118,6 +119,13 @@ export function codeText(t: T, code: string | undefined, english: string) {
   const k = `err.${code}`
   const s = code ? t(k as TKey) : k
   return s === k ? english : s
+}
+
+/** One line for a search that found nothing: what went wrong where it says the most, and every address tried. */
+export const notFound = (t: T, tried: Tried[]) => {
+  const w = worst(tried)
+  const why = w ? codeText(t, w.code, w.error) : ''
+  return `${why} ${t('src.tried', { a: tried.map((x) => x.addr).join(', ') })}`.trim()
 }
 
 /** Words an error for a person: the firmware's reason where it gave one, never a proxy page or a script error. */

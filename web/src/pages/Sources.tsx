@@ -24,14 +24,15 @@ import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
 import { getState, useStore } from '../app/store'
-import { codeText, errText, useUi } from '../app/ui'
+import { errText, notFound, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Btn, describedBy, Empty, Field, Help, IconBtn, Seg, SIcon, Switch, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
 import { CopyField } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { mmss } from '../lib/format'
-import { companionError, normPin, pinError, wsUrlError } from '../lib/validate'
+import { candidates, companionError, findCompanion } from '../lib/companion'
+import { normPin, pinError, wsUrlError } from '../lib/validate'
 
 type SrcType = 'comp' | 'app' | 'srv'
 interface SrcRow extends Source {
@@ -118,17 +119,20 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
   const [showPin, setShowPin] = useState(!!pin)
   // Cancel or Escape while the address is tested abandons the save.
   const gone = useRef(false)
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    gone.current = false // StrictMode mounts twice: the first cleanup must not count
+    return () => {
       gone.current = true
-    },
-    [],
-  )
+    }
+  }, [])
   const [busy, setBusy] = useState(false)
+  const [trying, setTrying] = useState<string | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
-  const save = async (addr: string, p: string) => {
+  const save = async (input: string, p: string) => {
+    let addr = input
+    let found = ''
     const e1 = companionError(addr)
-    const e2 = addr.startsWith('wss://') ? pinError(p) : null
+    const e2 = /^(wss|https):\/\//.test(addr) ? pinError(p) : null
     if (e1 || e2 || !addr) {
       setErr({ sat: e1 ? t(e1) : !addr ? t('src.addr_hint') : undefined, pin: e2 ? t(e2) : undefined })
       document.getElementById(e2 && !e1 ? 'm-satpin' : 'm-sat')?.focus()
@@ -137,20 +141,25 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
     // A failed test is shown once; saving the same address again keeps it anyway (Companion may start later).
     if (failed !== addr) {
       setBusy(true)
-      const r = await api.probe(addr, normPin(p)).catch((x: unknown) => errText(x, t))
+      const r = await findCompanion(addr, normPin(p), setTrying).catch((x: unknown) => errText(x, t))
       if (gone.current) return
       setBusy(false)
+      setTrying(null)
       if (typeof r === 'string') return setErr({ sat: r })
-      if (!r.ok) {
+      if ('tried' in r) {
         setFailed(addr)
-        setErr({ sat: `${t('wiz.no_answer', { a: addr })}${r.error ? ` (${codeText(t, r.code, r.error)})` : ''}` })
+        setErr({ sat: notFound(t, r.tried) })
         return
       }
+      addr = r.addr
+      found = t('src.found_at', { v: r.version, a: r.addr })
+    } else {
+      addr = candidates(addr)[0] ?? addr // saved anyway: Companion may start later
     }
     const prev = { satellite: cfg.satellite, satellite_pin: cfg.satellite_pin }
     const ok = await act(async () => {
       await putConfig({ satellite: addr, satellite_pin: addr.startsWith('wss://') ? normPin(p) : '' })
-      toast(t('c.saved'), { undo: () => void act(() => putConfig(prev)) })
+      toast(found || t('c.saved'), { undo: () => void act(() => putConfig(prev)) })
       return true
     })
     if (ok) close()
@@ -197,7 +206,7 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
       <Field
         id="m-sat"
         label={t('src.addr')}
-        hint={t('src.addr_hint')}
+        hint={trying ? t('src.trying', { a: trying }) : t('src.addr_hint')}
         help={[t('src.t1'), t('src.t2'), t('src.t3'), t('src.t5')].join(' ')}
         err={err.sat}
       >
@@ -213,7 +222,7 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
           spellCheck={false}
         />
       </Field>
-      {sat.startsWith('wss://') &&
+      {/^(wss|https):\/\//.test(sat) &&
         (showPin || err.pin ? (
           <PinField id="m-satpin" value={pin} set={(v) => (setPin(v), setErr({}))} err={err.pin} />
         ) : (

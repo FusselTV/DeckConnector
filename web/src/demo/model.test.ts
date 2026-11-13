@@ -223,7 +223,7 @@ describe('demo bridge', () => {
     expect(writer(s, T0 + 4000)).toBe('satellite')
     expect(call(s, 'POST', '/api/sources/probe', { addr: 'example.org' }).body).toMatchObject({
       ok: false,
-      code: 'probe_no_connection',
+      code: 'probe_refused',
     })
   })
 
@@ -286,7 +286,7 @@ describe('demo bridge', () => {
   it('finds Companion only where it runs, and an Elgato app pairs by itself in the setup source step', () => {
     const probe = (addr: string) => call(demo(), 'POST', '/api/sources/probe', { addr, pin: '' }).body
     expect(probe('192.168.1.20')).toMatchObject({ ok: true })
-    expect(probe('192.168.1.99')).toMatchObject({ ok: false, code: 'probe_no_connection' })
+    expect(probe('192.168.1.99')).toMatchObject({ ok: false, code: 'probe_refused' })
     const s = demo({ setup: true })
     call(s, 'PUT', '/api/setup', { step: 5 })
     tick(s, T0 + 6000)

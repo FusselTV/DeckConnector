@@ -77,17 +77,6 @@ export const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9\x2d]{0,29}[A-Za-z0-9])?$/ // \
 export const nameError = (v: string): Key | null => (NAME_RE.test(v) ? null : 'net.bad_name')
 
 /** Companion address: IP, host, host:port, or a ws(s):// URL. */
-export const companionError = (v: string): Key | null => {
-  const s = v.trim()
-  if (!s) return null
-  if (s.length > 63) return 'wiz.addr_bad'
-  if (/^wss?:\/\//i.test(s)) return wsUrlError(s) ? 'wiz.addr_bad' : null
-  const m = /^([a-z0-9.-]+)(?::(\d{1,5}))?$/i.exec(s)
-  if (!m?.[1] || (m[2] && Number(m[2]) > 65535)) return 'wiz.addr_bad'
-  if (/^[\d.]+$/.test(m[1]) && !isIP(m[1])) return 'wiz.addr_bad'
-  return null
-}
-
 export const httpUrlError = (v: string): Key | null => {
   try {
     return new URL(v.trim()).protocol === 'http:' ? null : 'fw.bad_url'

@@ -33,6 +33,8 @@ The deck shows up under **Surfaces** as `streamdeck:<serial>`, the same id as ov
 | `ws://192.168.1.10:16623` | Companion's WebSocket port |
 | `wss://companion.example.org/satellite` | A TLS reverse proxy in front of port 16623 |
 
+You can also paste the address of Companion's web page or leave out the port. The board then tries the forms above in turn, keeps the first that answers, and says which one it found.
+
 A `wss://` address needs a certificate from a public CA. For any other certificate, paste its SHA-256 as the pin. With an internal CA that renews often, pin the CA.
 
 ```bash

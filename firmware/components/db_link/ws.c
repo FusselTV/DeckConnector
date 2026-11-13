@@ -213,6 +213,7 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
     if (err) {
         ESP_LOGW(TAG, "TLS with %s failed: -0x%04x%s", host, (unsigned)-err,
                  err == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ? ", certificate not trusted" : "");
+        ws->fail = err == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ? "certificate not trusted" : "TLS failed";
         tls_free(t);
         return -ECONNREFUSED;
     }
@@ -350,6 +351,7 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
     }
     resp[got] = '\0';
     if (strncmp(resp, "HTTP/1.1 101", 12) != 0 || !accept_matches(key, resp)) {
+        ws->fail = "not a WebSocket";
         return -ECONNREFUSED;
     }
     return 0;
@@ -362,6 +364,7 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     unsigned port;
     const char *path;
     bool tls;
+    ws->fail = NULL;
     int err = parse_url(url, host, sizeof(host), &port, &path, &tls);
     if (err) {
         return err;
