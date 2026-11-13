@@ -119,11 +119,43 @@ void restart_soon(void)
     db_ota_restart(1000);
 }
 
+/* The setup AP's own address, where its phones land: their captive portal checks and any name typed by hand
+ * (the captive DNS points every name here), so the sign-in sheet and the browser show the same page. */
+static esp_err_t to_portal(httpd_req_t *req)
+{
+    db_net_status_t n;
+    db_net_status(&n);
+    char loc[40];
+    snprintf(loc, sizeof(loc), "http://%s/", n.ap_ip);
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", loc);
+    return httpd_resp_send(req, NULL, 0);
+}
+
+static bool on_ap_by_name(httpd_req_t *req)
+{
+    if (!auth_via_ap(req)) {
+        return false;
+    }
+    db_net_status_t n;
+    db_net_status(&n);
+    char host[64] = "";
+    httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host));
+    char *port = strchr(host, ':');
+    if (port) {
+        *port = '\0';
+    }
+    return strcmp(host, n.ap_ip) != 0;
+}
+
 /* The page itself is public; it shows the login form until /api/status answers. It comes from the `www`
  * partition when one is there, else from the firmware; its ETag is that copy's hash, so a browser that has it
  * gets 304. */
 static esp_err_t page(httpd_req_t *req)
 {
+    if (on_ap_by_name(req)) {
+        return to_portal(req);
+    }
     char query[48];
     char token[20];
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
@@ -389,22 +421,18 @@ static void announce_api(void)
 #endif
 
 /* Phones probe some URL when they join a WLAN; sending them to the page opens it by itself. */
+/* On the setup AP, an unknown path is a phone's captive portal check (/generate_204, /hotspot-detect.html,
+ * ...). */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
 {
-    db_net_status_t n;
-    db_net_status(&n);
     if (strncmp(req->uri, "/api/", 5) == 0) {
         return send_error(req, "404 Not Found", "no such endpoint");
     }
-    if (!n.ap_active) {
-        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
-        return ESP_FAIL;
+    if (auth_via_ap(req)) {
+        return to_portal(req);
     }
-    char loc[40];
-    snprintf(loc, sizeof(loc), "http://%s/", n.ap_ip);
-    httpd_resp_set_status(req, "302 Found");
-    httpd_resp_set_hdr(req, "Location", loc);
-    return httpd_resp_send(req, NULL, 0);
+    httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
+    return ESP_FAIL;
 }
 
 /* The OPTIONS route matches every API path, so the server says 405 also for a path that does not exist. */

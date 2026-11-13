@@ -183,3 +183,53 @@ test('with four servers stored, the wizard refuses a fifth instead of replacing 
   await sim('PUT', '/api/setup', { step: 0 })
   await sim('PUT', '/api/config', { setup_done: true })
 })
+
+test('on the setup Wi-Fi the wizard only joins the Wi-Fi, then shows where to go on', async ({
+  page,
+  errors: _errors,
+}) => {
+  const puts: unknown[] = []
+  await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() !== 'GET') puts.push(r.request().postDataJSON())
+    await r.fallback()
+  })
+  // The simulator is not on its setup Wi-Fi here, and its join never finishes: both are answered here.
+  let joined = false
+  await page.route('**/api/wifi/join', (r) => ((joined = true), r.fulfill({ json: { ok: true } })))
+  await page.route('**/api/status', async (r) => {
+    const res = await r.fetch()
+    const j = (await res.json()) as { via_ap?: boolean; network?: Record<string, object> }
+    j.via_ap = true
+    j.network = { ...j.network, ap: { ...j.network?.ap, on: true } }
+    if (joined) j.network.wlan = { ...j.network.wlan, join: 'ok', ip: '192.168.1.50', ssid: 'Gast' }
+    await r.fulfill({ response: res, json: j })
+  })
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    const server = ws.connectToServer()
+    server.onMessage((m) => {
+      const j = JSON.parse(String(m)) as { t?: string; via_ap?: boolean; network?: Record<string, object> }
+      if (j.t === 'state') {
+        j.via_ap = true
+        j.network = { ...j.network, ap: { ...j.network?.ap, on: true } }
+        if (joined) j.network.wlan = { ...j.network.wlan, join: 'ok', ip: '192.168.1.50', ssid: 'Gast' }
+      }
+      ws.send(JSON.stringify(j))
+    })
+  })
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await sim('PUT', '/api/config', { setup_done: false })
+  await page.goto('/')
+  await login(page)
+  await expect(page.locator('#wz-step')).toHaveText('How does the connector get online?')
+  await expect(page.locator('#w-back')).toHaveCount(0)
+  await page.getByRole('button', { name: /Gast/ }).first().click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.locator('#wz-step')).toHaveText('Done')
+  await expect(page.locator('a[href="http://192.168.1.50"]')).toBeVisible()
+  expect(puts).toEqual([])
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  await page.close()
+  await sim('PUT', '/api/setup', { step: 0 })
+  await sim('PUT', '/api/config', { setup_done: true })
+})

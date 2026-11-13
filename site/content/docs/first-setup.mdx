@@ -17,9 +17,11 @@ You can run it again later under **Firmware › Backup**.
 
 ## Over the setup Wi-Fi
 
-Before setup is done and without a network, the board opens its own Wi-Fi one minute after the start. You can also start it in the deck menu under **Setup-WLAN** (setup Wi-Fi).
+Before setup is done, a board with no cable and no Wi-Fi from the flasher opens its own Wi-Fi right after the start. With a cable or a Wi-Fi that does not work, it waits one minute. You can also start it in the deck menu under **Setup-WLAN** (setup Wi-Fi).
 
-The deck shows the network name, its password, a QR code to join, the address and the web password. When the board joins your own Wi-Fi, the setup Wi-Fi closes and the deck shows the new address.
+Scan the QR code on the deck with the phone camera. The phone joins and opens the page by itself. If you closed it, open any `http://` address, or the one on the deck.
+
+The page only asks for your Wi-Fi. Once the board is in, the setup Wi-Fi closes after 20 seconds, the phone goes back to your Wi-Fi, and you finish setup at the new address.
 
 <Callout type="warn">
 The board has 2.4 GHz Wi-Fi only.

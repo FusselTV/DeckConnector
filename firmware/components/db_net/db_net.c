@@ -392,7 +392,11 @@ static void dns_task(void *arg)
         int n = recvfrom(sock, pkt, sizeof(pkt) - 16, 0, (struct sockaddr *)&from, &from_len);
         db_net_status_t st;
         db_net_status(&st);
-        if (n < 12 || !st.ap_active) {
+        struct in_addr ip;
+        inet_aton(st.ap_ip, &ip);
+        uint32_t mask = htonl(0xffffff00);
+        /* only phones on the setup AP: a LAN host asking us must not get a wrong answer */
+        if (n < 12 || !st.ap_active || (from.sin_addr.s_addr & mask) != (ip.s_addr & mask)) {
             continue;
         }
         /* Keep only header and question: an EDNS record after the question would hide our answer. */
@@ -406,11 +410,9 @@ static void dns_task(void *arg)
         }
         n = q;
         memset(pkt + 8, 0, 4); /* no authority or additional records */
-        struct in_addr ip;
-        inet_aton(st.ap_ip, &ip);
-        pkt[2] = 0x81; /* response, recursion desired */
-        pkt[3] = 0x80; /* recursion available, no error */
-        pkt[7] = 1;    /* one answer */
+        pkt[2] = 0x81;         /* response, recursion desired */
+        pkt[3] = 0x80;         /* recursion available, no error */
+        pkt[7] = 1;            /* one answer */
         const uint8_t answer[] = {0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4};
         memcpy(pkt + n, answer, sizeof(answer));
         memcpy(pkt + n + sizeof(answer), &ip.s_addr, 4);
@@ -632,6 +634,14 @@ esp_err_t db_net_ap_start(void)
     }
     if (!s.ap) {
         s.ap = esp_netif_create_default_wifi_ap();
+        /* RFC 8910: phones that read DHCP option 114 open the sign-in sheet without probing first */
+        static char portal[32];
+        esp_netif_ip_info_t ip;
+        esp_netif_get_ip_info(s.ap, &ip);
+        snprintf(portal, sizeof(portal), "http://" IPSTR "/", IP2STR(&ip.ip));
+        esp_netif_dhcps_stop(s.ap);
+        esp_netif_dhcps_option(s.ap, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, portal, strlen(portal));
+        esp_netif_dhcps_start(s.ap);
     }
     xSemaphoreTake(s.lock, portMAX_DELAY);
     strlcpy(s.st.ap_ssid, db_config()->name, sizeof(s.st.ap_ssid));
@@ -754,6 +764,11 @@ static void join_task(void *arg)
     }
     if (saved) {
         set_join("ok", "");
+        if (s.st.ap_active) { /* the page shows the new address first, then the phone goes back to its own
+                                 WLAN */
+            vTaskDelay(pdMS_TO_TICKS(20000));
+            db_net_ap_stop();
+        }
     } else {
         int r = s.join_reason;
         set_join("failed", up                             ? "not saved"
@@ -762,6 +777,10 @@ static void join_task(void *arg)
                            : r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
                                    r == WIFI_REASON_HANDSHAKE_TIMEOUT || r == WIFI_REASON_MIC_FAILURE
                                ? "wrong password"
+                           : r == WIFI_REASON_BEACON_TIMEOUT || r == WIFI_REASON_ASSOC_FAIL ||
+                                   r == WIFI_REASON_CONNECTION_FAIL
+                               ? "weak signal"
+                           : r ? "no connection"
                                : "no address");
         ESP_LOGW(TAG, "WLAN %s failed (reason %d), back to %s", j->ssid, r,
                  c->wifi_ssid[0] ? c->wifi_ssid : "none");

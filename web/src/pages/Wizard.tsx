@@ -7,7 +7,6 @@ import {
   Circle,
   CircleCheck,
   Code,
-  Info,
   Languages,
   LayoutGrid,
   Link2,
@@ -52,17 +51,17 @@ import {
   wsUrlError,
 } from '../lib/validate'
 import { chordSentence } from './DeckTab'
-import { EMPTY, joinWifi, NetBlock } from './Network'
+import { EMPTY, joinText, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
 
 const STEPS = ['lang', 'pw', 'net', 'src', 'done'] as const
-type Step = (typeof STEPS)[number] | 'find' | 'moving'
-const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', find: 'net', src: 'net', done: 'src' }
+type Step = (typeof STEPS)[number] | 'moving'
+const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', src: 'net', done: 'src' }
 
 // The device keeps the step (see FROM_NUM), so a refresh or a second browser resumes. `moving` is stored as the
 // source step, so the page opened from the new QR code goes on there.
 const FROM_NUM: Step[] = ['lang', 'lang', 'pw', 'pw', 'net', 'src', 'done']
-const num = (s: Step) => (s === 'find' ? 4 : s === 'moving' ? 5 : FROM_NUM.lastIndexOf(s))
+const num = (s: Step) => (s === 'moving' ? 5 : FROM_NUM.lastIndexOf(s))
 const viaAp = () => getState().status.via_ap ?? !!getState().status.network?.ap?.on
 // Name and password live only in this page until the network step saves them. A reload asks for the password
 // again; another browser or a reopened captive portal starts at the name, so setup never ends with values the
@@ -71,11 +70,11 @@ const PW_PENDING = 'dc.wizpw'
 const NAME_PENDING = 'dc.wizname'
 const SEEN = 'dc.wizseen'
 const resumed = (): Step => {
+  // The setup Wi-Fi is only for joining the user's Wi-Fi; the rest happens on that network.
+  if (viaAp()) return 'net'
   const s = FROM_NUM[getState().status.setup?.step ?? 0] ?? 'lang'
-  // Back on the setup Wi-Fi after the move: joining the network failed, so the network step again.
-  if ((s === 'src' || s === 'moving') && viaAp()) return 'net'
-  if ((s === 'pw' || s === 'net' || s === 'find') && !ss.get<boolean>(SEEN, false)) return 'lang'
-  return (s === 'net' || s === 'find') && ss.get<boolean>(PW_PENDING, false) ? 'pw' : s
+  if ((s === 'pw' || s === 'net') && !ss.get<boolean>(SEEN, false)) return 'lang'
+  return s === 'net' && ss.get<boolean>(PW_PENDING, false) ? 'pw' : s
 }
 
 function useStep() {
@@ -134,7 +133,7 @@ export function Wizard() {
   const name = d.name ?? cfg?.name ?? ''
   const lan = d.lan ?? cfg?.lan ?? EMPTY
   const wlan = d.wlan ?? cfg?.wlan ?? EMPTY
-  const useWlan = d.useWlan ?? (!!cfg?.wifi_ssid || !cable)
+  const useWlan = onAp || (d.useWlan ?? (!!cfg?.wifi_ssid || !cable))
   const wifi = d.wifi ?? { ssid: cfg?.wifi_ssid ?? '', pass: '', bssid: cfg?.wifi_bssid ?? '' }
   const setName = (name: string) => (ss.set(NAME_PENDING, name), setD((o) => ({ ...o, name })))
   const setLan = (lan: IpConf) => setD((o) => ({ ...o, lan }))
@@ -188,7 +187,7 @@ export function Wizard() {
     setWErr(null)
     const r = await joinWifi(wifi).catch(() => 'failed')
     setTest(r === null ? 'ok' : 'bad')
-    if (r !== null) setWErr(r === 'lost' ? t('wifi.lost') : t('wiz.test_bad'))
+    if (r !== null) setWErr(joinText(t, r))
     return r === null
   }
   const nextLang = () => {
@@ -206,7 +205,8 @@ export function Wizard() {
       }
       if (useWlan && test !== 'ok' && !(await runTest())) return
     }
-    if (onAp) setStep('find')
+    if (onAp)
+      setStep('moving') // the join saved the Wi-Fi, and the device closes the setup Wi-Fi itself
     else if (restarts) await saveNet()
     else setStep('src')
   }
@@ -228,7 +228,7 @@ export function Wizard() {
     ss.set(PW_PENDING, undefined)
     ss.set(NAME_PENDING, undefined)
     if (pw) loginReasonAtom.set('pw')
-    setStep(onAp ? 'moving' : 'src')
+    setStep('src')
   }
   const compConnect = async (target: string, p: string) => {
     const e = companionError(target) ?? (target.startsWith('wss://') ? pinError(p) : null)
@@ -278,7 +278,7 @@ export function Wizard() {
   }
 
   const satErr = mErr && mErr.to === addr.trim() ? mErr.m : null
-  const idx = STEPS.indexOf(step === 'find' || step === 'moving' ? 'net' : step)
+  const idx = STEPS.indexOf(step === 'moving' ? 'net' : step)
   const deckSays: TKey = rerun
     ? 'wiz.d_live'
     : step === 'lang'
@@ -290,13 +290,14 @@ export function Wizard() {
           : st.pairing?.request
             ? 'wiz.d_pair'
             : 'wiz.d_step'
-  const backBtn = BACK[step] ? (
-    <Btn id="w-back" kind="ghost" icon={ChevronLeft} onClick={() => setStep(BACK[step] as Step, true)}>
-      {t('c.back')}
-    </Btn>
-  ) : (
-    <span />
-  )
+  const backBtn =
+    BACK[step] && !onAp ? (
+      <Btn id="w-back" kind="ghost" icon={ChevronLeft} onClick={() => setStep(BACK[step] as Step, true)}>
+        {t('c.back')}
+      </Btn>
+    ) : (
+      <span />
+    )
   const next = (label: string, run: () => void, id?: string, disabled?: boolean) => (
     <button type="button" id={id} className="btn pri" onClick={run} disabled={disabled}>
       {label}
@@ -309,12 +310,16 @@ export function Wizard() {
         {title}
       </h2>
       {body}
-      <p className="deckline">
-        <LayoutGrid size={15} className="ic" aria-hidden />
-        <span>
-          <b>{t(decks.length > 1 ? 'wiz.on_deck1' : 'wiz.on_deck')}</b> {t(deckSays, { n: idx + 1, all: STEPS.length })}
-        </span>
-      </p>
+      {/* on the setup Wi-Fi the deck shows its own page, not a setup step */}
+      {!(onAp && step === 'net') && (
+        <p className="deckline">
+          <LayoutGrid size={15} className="ic" aria-hidden />
+          <span>
+            <b>{t(decks.length > 1 ? 'wiz.on_deck1' : 'wiz.on_deck')}</b>{' '}
+            {t(deckSays, { n: idx + 1, all: STEPS.length })}
+          </span>
+        </p>
+      )}
       {foot && <div className="row wizfoot">{foot}</div>}
     </>
   )
@@ -406,11 +411,13 @@ export function Wizard() {
           />
         ) : (
           <>
-            <div className={cable ? 'okline' : 'warnline'}>
-              {cable ? <Check size={16} aria-hidden /> : <TriangleAlert size={16} aria-hidden />}
-              {cable ? t('wiz.lan_ok') : t('wiz.lan_none')}
-            </div>
-            {cable && (
+            {!onAp && (
+              <div className={cable ? 'okline' : 'warnline'}>
+                {cable ? <Check size={16} aria-hidden /> : <TriangleAlert size={16} aria-hidden />}
+                {cable ? t('wiz.lan_ok') : t('wiz.lan_none')}
+              </div>
+            )}
+            {cable && !onAp && (
               <Switch
                 id="w-usewlan"
                 on={useWlan}
@@ -436,20 +443,22 @@ export function Wizard() {
                 )}
               </>
             )}
-            <Row id="w-expert" group="wiz" icon={NetIcon} title={t('wiz.expert')}>
-              {cable && (
-                <>
-                  <div className="lbl">{t('net.lan')}</div>
-                  <NetBlock id="wlan0" v={lan} set={setLan} err={ipErrors(lan)} cur={st.network?.lan?.ip} />
-                </>
-              )}
-              {useWlan && (
-                <>
-                  <div className="lbl">{t('net.wlan')}</div>
-                  <NetBlock id="wlan1" v={wlan} set={setWlan} err={ipErrors(wlan)} cur={st.network?.wlan?.ip} />
-                </>
-              )}
-            </Row>
+            {!onAp && (
+              <Row id="w-expert" group="wiz" icon={NetIcon} title={t('wiz.expert')}>
+                {cable && (
+                  <>
+                    <div className="lbl">{t('net.lan')}</div>
+                    <NetBlock id="wlan0" v={lan} set={setLan} err={ipErrors(lan)} cur={st.network?.lan?.ip} />
+                  </>
+                )}
+                {useWlan && (
+                  <>
+                    <div className="lbl">{t('net.wlan')}</div>
+                    <NetBlock id="wlan1" v={wlan} set={setWlan} err={ipErrors(wlan)} cur={st.network?.wlan?.ip} />
+                  </>
+                )}
+              </Row>
+            )}
           </>
         )}
         {!onAp && restarts && <p className="small muted">{t('wiz.restart_h')}</p>}
@@ -482,39 +491,22 @@ export function Wizard() {
         </button>
       </>,
     )
-  else if (step === 'find')
-    body = pane(
-      t('wiz.find_q'),
-      <>
-        <p className="muted">{t('wiz.find_h')}</p>
-        {where.map((u) => (
-          <CopyField key={u} value={u} link />
-        ))}
-        <p className="small muted">{t('net.find_first')}</p>
-      </>,
-      <>
-        {backBtn}
-        <Btn kind="pri" icon={Power} disabled={!cfg} onClick={() => void saveNet()}>
-          {t('wiz.find_go')}
-        </Btn>
-      </>,
-    )
   else if (step === 'moving')
     body = pane(
       t('wiz.moving'),
       <>
+        <p className="okline" role="status">
+          <Check size={16} aria-hidden />
+          {t('wiz.test_ok', { ssid: wifi.ssid, ip: st.network?.wlan?.ip ?? '' })}
+        </p>
         <ol className="steps-ol big">
           <li>{t('wiz.mv_1')}</li>
           <li>{t('wiz.mv_2')}</li>
         </ol>
-        <p className="muted">{t('wiz.mv_fallback')}</p>
         {(reach ?? where).map((u) => (
           <CopyField key={u} value={u} link />
         ))}
-        <p className="warnline">
-          <Info size={16} aria-hidden />
-          {t('wiz.mv_fail')}
-        </p>
+        <p className="small muted">{t('net.find_first')}</p>
       </>,
       null,
     )
@@ -811,29 +803,31 @@ export function Wizard() {
               </button>
             )}
           </div>
-          {onAp && idx <= 2 && step !== 'moving' && (
+          {onAp && (
             <div className="small muted row nowrap">
               <Wifi size={15} className="ic" aria-hidden />
               <span>{t('wiz.ap')}</span>
             </div>
           )}
-          <div>
-            <ol className="stepper" aria-hidden style={{ gridTemplateColumns: `repeat(${STEPS.length},1fr)` }}>
-              {STEPS.map((k, i) => (
-                <li key={k} className={i <= idx ? 'on' : ''} />
-              ))}
-            </ol>
-            <p className="small steptxt" aria-live="polite">
-              {t('wiz.step', { n: idx + 1, all: STEPS.length, name: t(`wiz.s_${STEPS[idx] ?? 'lang'}`) })}
-            </p>
-          </div>
+          {!onAp && (
+            <div>
+              <ol className="stepper" aria-hidden style={{ gridTemplateColumns: `repeat(${STEPS.length},1fr)` }}>
+                {STEPS.map((k, i) => (
+                  <li key={k} className={i <= idx ? 'on' : ''} />
+                ))}
+              </ol>
+              <p className="small steptxt" aria-live="polite">
+                {t('wiz.step', { n: idx + 1, all: STEPS.length, name: t(`wiz.s_${STEPS[idx] ?? 'lang'}`) })}
+              </p>
+            </div>
+          )}
           {cfgErr !== null && (
             <p className="warnline" role="alert">
               {t('is.cfg')} {errText(cfgErr, t)}
             </p>
           )}
           {body}
-          {idx >= 1 && !['moving', 'src', 'done'].includes(step) && (
+          {idx >= 1 && !onAp && !['moving', 'src', 'done'].includes(step) && (
             <button type="button" className="linkbtn" onClick={() => void (rerun ? finish() : skip())}>
               {t(rerun ? 'wiz.rerun_cancel' : 'wiz.skip')}
             </button>
