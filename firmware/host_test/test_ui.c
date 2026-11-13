@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -180,10 +181,26 @@ static void print_cut(const char *text, int room)
 static bool english;     /* the page under test is meant to be in English */
 static int german_pages; /* English pages with an umlaut or ß left in a text */
 
+/* An umlaut or ß, or one of the deck's common German words as a whole word. */
 static bool german(const char *t)
 {
-    return strstr(t, "ä") || strstr(t, "ö") || strstr(t, "ü") || strstr(t, "ß") || strstr(t, "Ä") ||
-           strstr(t, "Ö") || strstr(t, "Ü");
+    static const char *const words[] = {"und",       "nicht",       "Menü",    "starten", "getrennt",
+                                        "Neustart",  "drehen",      "tippen",  "wartet",  "Helligkeit",
+                                        "Passwort",  "schließen",   "Adresse", "Zurück",  "Fertig",
+                                        "verbunden", "Werkszustand"};
+    if (strstr(t, "ä") || strstr(t, "ö") || strstr(t, "ü") || strstr(t, "ß") || strstr(t, "Ä") ||
+        strstr(t, "Ö") || strstr(t, "Ü")) {
+        return true;
+    }
+    for (size_t i = 0; i < sizeof(words) / sizeof(words[0]); i++) {
+        size_t n = strlen(words[i]);
+        for (const char *at = strstr(t, words[i]); at; at = strstr(at + 1, words[i])) {
+            if ((at == t || !isalpha((unsigned char)at[-1])) && !isalpha((unsigned char)at[n])) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 static void check_page(const db_device_info_t *dev, const ui_screen_t *sc, const char *name)
@@ -450,10 +467,11 @@ static void test_menu_language_waiting_home_and_light(void)
     TEST_ASSERT_EQUAL_INT(5, ui_light(false, 5)); /* home: the brightness as set */
     TEST_ASSERT_EQUAL_INT(20, ui_light(true, 0)); /* the menu: at least 20 % */
     TEST_ASSERT_EQUAL_INT(60, ui_light(true, 60));
-    TEST_ASSERT_EQUAL_INT(10,
-                          ui_after_menu(20, 10)); /* a host at 10 % that never sends its own gets 10 back */
-    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(60, 60)); /* the menu did not change it */
-    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(20, -1)); /* nobody had set one */
+    TEST_ASSERT_EQUAL_INT(10, ui_after_menu(20, 10, false, 80)); /* raised for the menu only: 10 back */
+    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(60, 60, false, 80)); /* the menu did not change it */
+    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(20, -1, false, 80)); /* nobody had set one */
+    TEST_ASSERT_EQUAL_INT(5, ui_after_menu(20, 10, true, 5));    /* turned to 5 in the menu: 5 stays */
+    TEST_ASSERT_EQUAL_INT(-1, ui_after_menu(40, 10, true, 40));  /* turned to 40: the deck has it already */
     ui_menu_open_main(&m, md.now_us);
     press(&m, &md, &l, 0, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_LANG, act.what);

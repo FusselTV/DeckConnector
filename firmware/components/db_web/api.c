@@ -1199,14 +1199,31 @@ size_t api_screen_json(char *buf, size_t cap)
     return screen_json_with(buf, cap, shots, &info);
 }
 
+/* The menu and the setup pages draw the web password: their picture is for the password, not an API key. The
+ * other deck routes only check web_deck_refused, so a key can still close the menu and press keys. */
+static bool screen_hidden(httpd_req_t *req)
+{
+    if (!auth_by_token(req) || !db_ui_password_shown()) {
+        return false;
+    }
+    send_error(req, "403 Forbidden", "the deck shows the web password: for the password only");
+    return true;
+}
+
 esp_err_t get_screen(httpd_req_t *req)
 {
+    if (screen_hidden(req)) {
+        return ESP_OK;
+    }
     return send_built(req, SCREEN_JSON_MAX, screen_json);
 }
 
 /* An image never changes under its id, so browsers may keep it. It comes upright, as a JPEG. */
 esp_err_t get_screen_image(httpd_req_t *req)
 {
+    if (screen_hidden(req)) {
+        return ESP_OK;
+    }
     unsigned long id = strtoul(req->uri + strlen("/api/screen/"), NULL, 10);
     uint8_t *data = NULL;
     size_t len = 0;
@@ -1230,6 +1247,9 @@ esp_err_t get_screen_image(httpd_req_t *req)
 /* The picture on the deck as one JPEG, for a camera in Home Assistant. */
 esp_err_t get_screen_jpg(httpd_req_t *req)
 {
+    if (screen_hidden(req)) {
+        return ESP_OK;
+    }
     uint8_t *jpeg = NULL;
     size_t len = 0;
     esp_err_t err = db_ui_snapshot(&jpeg, &len);

@@ -192,9 +192,9 @@ ui_layout_t ui_layout_of(const db_device_info_t *info);
 
 /* The brightness the device UI puts on the deck: never below 20 % while the menu shows. */
 int ui_light(bool menu, int brightness);
-/* What the deck gets back when a host draws again after the menu: the brightness from before, when the menu
- * changed it; -1: nothing to do. */
-int ui_after_menu(int lit, int before);
+/* What the deck gets when a host draws again after the menu: the dial's value when it turned in the menu,
+ * else the brightness from before; -1 when the deck has that already or nothing is known. */
+int ui_after_menu(int lit, int before, bool turned, int saved);
 /* The menu is open (anything but the home screen and the welcome pages). */
 bool ui_menu_open(const ui_menu_t *m);
 void ui_menu_open_main(ui_menu_t *m, int64_t now);

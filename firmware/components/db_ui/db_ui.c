@@ -304,8 +304,13 @@ bool db_ui_login_shown(void)
     portENTER_CRITICAL(&login_mux);
     bool shown = (wanted && login_token[0] != '\0') || now < pass_until || n.ap_active;
     portEXIT_CRITICAL(&login_mux);
-    /* the menu and the setup pages show the password too (POST /api/menu takes a control token) */
-    return shown || !db_config()->setup_done || db_ui_menu_open();
+    return shown;
+}
+
+bool db_ui_password_shown(void)
+{
+    /* the menu and the setup pages show it too, and a control token may open the menu */
+    return db_ui_login_shown() || !db_config()->setup_done || db_ui_menu_open();
 }
 
 void db_ui_setup_step(int step)
@@ -478,25 +483,33 @@ static void pick_writer(void)
     if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
         s.full = true;
     }
-    if (wanted != DB_SOURCE_UI && db_deck_writer() == DB_SOURCE_UI && s.menu_lit) {
-        int back = ui_after_menu(s.lit, s.before);
+    db_source_t was = db_deck_writer();
+    if (wanted != DB_SOURCE_UI && was == DB_SOURCE_UI && s.menu_lit) {
+        int saved = s.brightness >= 0 ? s.brightness : db_config()->brightness;
+        int back = ui_after_menu(s.lit, s.before, s.turned, saved);
         if (back >= 0) {
             db_deck_set_brightness((uint8_t)back); /* a host that sends its own sets it again after this */
         }
         s.menu_lit = false;
     }
     db_deck_set_writer(wanted, esp_timer_get_time() < s.handover_until);
+    if (wanted != was && wanted >= DB_SOURCE_LINK0 && wanted < DB_SOURCE_DOCK0) {
+        db_link_brightness_again(); /* a server chosen while another drew: its own brightness, not the last */
+    }
     if (s.covered && !covering && s.active_link >= 0) {
         db_link_resend_role();
     }
     s.covered = covering;
 }
 
+/* The UI task picks the writer: then the brightness it sets for the menu and the one it gives back after it
+ * never cross. */
 static void changed(void)
 {
-    pick_writer();
-    if (s.task) { /* NULL when db_ui_start failed: the bridge runs on without the deck screens */
+    if (s.task) {
         xTaskNotifyGive(s.task);
+    } else { /* db_ui_start failed: the bridge runs on without the deck screens */
+        pick_writer();
     }
 }
 

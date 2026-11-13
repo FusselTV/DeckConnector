@@ -36,6 +36,8 @@ bool db_ui_login_take(const char *token);
 /* The deck shows a one-time login code, the password or the setup WLAN's password: pictures of the deck are
  * then for a password session only. */
 bool db_ui_login_shown(void);
+/* The deck's picture may show the web password: for the screen routes, which an API key may not read then. */
+bool db_ui_password_shown(void);
 /* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
 void db_ui_setup_step(int step);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */

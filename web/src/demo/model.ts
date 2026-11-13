@@ -740,9 +740,11 @@ const VIA = { server: 0, satellite: 1, dock: 2 } as const
 function uiModel(s: Demo, now: number): UiModel {
   // model_sources' order: Satellite, dock hosts, servers.
   const rank = { satellite: 0, dock: 1, server: 2 } as const
-  const list = sources(s, now)
+  const all = sources(s, now)
+  const list = all
     .filter((x) => x.connected && x.kind !== 'unknown')
     .sort((a, b) => rank[a.via ?? 'server'] - rank[b.via ?? 'server'])
+  const sat = all.find((x) => x.via === 'satellite')
   const ip = lanIp(s)
   const wlan = s.cfg.wifi_ssid ? (s.cfg.wlan.dhcp || !s.cfg.wlan.ip ? WLAN_IP : s.cfg.wlan.ip) : ''
   const login = s.loginReq?.state === 'pending'
@@ -763,8 +765,10 @@ function uiModel(s: Demo, now: number): UiModel {
       menu_chord: s.cfg.menu_chord,
       menu_hold_ms: s.cfg.menu_hold_ms,
       server_url: s.cfg.servers.find(Boolean) ?? '',
-      satellite: s.cfg.satellite,
+      // as db_ui.c: the address only while Companion comes over Satellite, "not reachable" once an attempt failed
+      satellite: !s.cfg.host || s.cfg.host === 'satellite' ? s.cfg.satellite : '',
       english: s.cfg.lang === 'en',
+      sat_failed: !!sat?.error,
       web_pass: s.pass,
       fw: s.firmware,
       wlan_fw: '3.0.10',

@@ -30,7 +30,7 @@ Jede Route hat eine Stufe, in der letzten Spalte der Tabellen unten.
 
 Kein API-Schlüssel ändert `admin_pass`, `setup_done` oder `qr_login`. Das gibt 403.
 
-Solange das Deck das Passwort, sein Menü oder eine Seite der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken.
+Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken. Das Deck-Bild (`/api/screen`, seine Bilder, `/api/screen.jpg`) antwortet außerdem mit 403, solange das Menü oder eine Seite der Einrichtung offen ist, denn sie zeigen das Passwort.
 
 ## Fehler
 

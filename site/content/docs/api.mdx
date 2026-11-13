@@ -30,7 +30,7 @@ Each route has one level, in the last column of the tables below.
 
 No API key changes `admin_pass`, `setup_done` or `qr_login`. Those answer 403.
 
-While the deck shows the password, its menu or a setup page, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck.
+While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck. The deck picture (`/api/screen`, its images, `/api/screen.jpg`) also answers 403 while the menu or a setup page is open, because they show the password.
 
 ## Errors
 

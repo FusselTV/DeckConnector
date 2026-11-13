@@ -63,7 +63,7 @@ static const struct {
     F(wlan_fw, T_STR),     F(brightness, T_INT), F(update_pct, T_INT), F(update_wlan, T_BOOL),
     F(setup_done, T_BOOL), F(setup_step, T_INT), F(picked, T_BOOL),    F(show_pass, T_BOOL),
     F(reset_ask, T_BOOL),  F(login_ip, T_STR),   F(login_who, T_STR),  F(login_mac, T_STR),
-    F(login_name, T_STR),  F(satellite, T_STR),  F(english, T_BOOL),
+    F(login_name, T_STR),  F(satellite, T_STR),  F(english, T_BOOL), F(sat_failed, T_BOOL),
 };
 
 EXPORT(deck_init) int deck_init(void)

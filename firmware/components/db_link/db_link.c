@@ -640,13 +640,18 @@ void db_link_set_enabled(bool enabled)
     recompute_active();
 }
 
+void db_link_brightness_again(void)
+{
+    if (s.active >= 0 && s.pct >= 0) {
+        db_deck_set_brightness((uint8_t)s.pct);
+    }
+}
+
 void db_link_resend_role(void)
 {
     if (s.active >= 0) {
         send_role(s.active);
-        if (s.pct >= 0) {
-            db_deck_set_brightness((uint8_t)s.pct); /* the menu may have set its own */
-        }
+        db_link_brightness_again(); /* the menu may have set its own */
     }
 }
 

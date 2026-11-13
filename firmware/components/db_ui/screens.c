@@ -876,9 +876,10 @@ int ui_light(bool menu, int brightness)
     return menu && brightness < 20 ? 20 : brightness;
 }
 
-int ui_after_menu(int lit, int before)
+int ui_after_menu(int lit, int before, bool turned, int saved)
 {
-    return before >= 0 && lit >= 0 && lit != before ? before : -1;
+    int want = turned ? saved : before;
+    return want >= 0 && lit >= 0 && want != lit ? want : -1;
 }
 
 bool ui_menu_open(const ui_menu_t *m)
