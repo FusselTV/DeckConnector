@@ -411,6 +411,28 @@ test('a login the browser does not keep goes back to the login page and says why
   await expect(page.getByText('No deck attached')).toHaveCount(0)
 })
 
+test('a stored Wi-Fi can be forgotten after a confirm', async ({ app: page }) => {
+  let sent: unknown = null
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() === 'PUT') {
+      sent = r.request().postDataJSON() as unknown
+      return r.fulfill({ json: { ok: true, restart: true, reach: ['http://127.0.0.1'] } })
+    }
+    const res = await r.fetch()
+    await r.fulfill({ response: res, json: { ...((await res.json()) as object), wifi_ssid: 'Nachbar' } })
+  })
+  await page.reload()
+  await expect(page.locator('.side:visible, .tabbar:visible').first()).toBeVisible()
+  await openTab(page, 'Network')
+  await page.locator('#row-wlan').click()
+  await page.getByRole('button', { name: 'Forget Wi-Fi' }).click()
+  await expect(page.getByText('Forget Nachbar?')).toBeVisible()
+  await expect(page.getByText('It then has no network.')).toBeVisible() // the simulator has no cable
+  await page.getByRole('button', { name: 'Forget', exact: true }).click()
+  await expect.poll(() => sent).toEqual({ wifi_ssid: '', wifi_pass: '', wifi_bssid: '' })
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('a login that fails for another reason than the password says why', async ({ page, errors }) => {
   await sim('PUT', '/api/setup', { step: 0 })
   await sim('PUT', '/api/config', { setup_done: true })
