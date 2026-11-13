@@ -110,6 +110,14 @@ static void clear_display(void)
  * one until its first image, so it shows no black frame. Runs in the writer task, so images that arrive
  * meanwhile are drawn after it. Each image is copied out: the kept picture must not stay locked for USB
  * transfers, a fresh deck can take half a second per report. */
+/* A host's brightness report for gen 2 (03 08 pct) or gen 1 decks (05 55 aa d1 01 pct). */
+static bool is_brightness(const uint8_t *buf, size_t len)
+{
+    static const uint8_t gen2[] = {0x03, 0x08}, gen1[] = {0x05, 0x55, 0xaa, 0xd1, 0x01};
+    return (len > sizeof(gen2) && memcmp(buf, gen2, sizeof(gen2)) == 0) ||
+           (len > sizeof(gen1) && memcmp(buf, gen1, sizeof(gen1)) == 0);
+}
+
 static void replay(void)
 {
     static db_shot_t shots[DB_SCREEN_MAX];
@@ -123,7 +131,9 @@ static void replay(void)
     uint8_t feature[sizeof(s.feature[0].buf)];
     size_t feature_len = s.feature[w].len;
     memcpy(feature, s.feature[w].buf, feature_len);
-    s.feature[w].len = 0;
+    if (!is_brightness(feature, feature_len)) {
+        s.feature[w].len = 0; /* a brightness stays: the host gets it back after every menu */
+    }
     int n = w == DB_SOURCE_UI ? 0 : s.screens[w].count;
     memcpy(shots, s.screens[w].shots, (size_t)n * sizeof(shots[0]));
     xSemaphoreGive(s.shot_lock);
@@ -754,6 +764,12 @@ esp_err_t db_deck_raw_set_feature(db_source_t source, const uint8_t *buf, size_t
         xSemaphoreGive(s.shot_lock);
         err = usb_port_io()->set_feature(buf, len);
         xSemaphoreGive(s.io_lock);
+        xSemaphoreTake(s.shot_lock, portMAX_DELAY);
+        if (is_brightness(buf, len) && len <= sizeof(s.feature[source].buf)) {
+            memcpy(s.feature[source].buf, buf, len); /* replayed when it draws again after the menu */
+            s.feature[source].len = len;
+        }
+        xSemaphoreGive(s.shot_lock);
         return to_esp(err);
     }
     if (len <= sizeof(s.feature[source].buf)) {

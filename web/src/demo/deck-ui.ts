@@ -50,6 +50,8 @@ export const DO = [
   'hide_password',
   'cancel_reset',
   'login',
+  'lang',
+  'show_password',
 ] as const
 
 let x: Exports

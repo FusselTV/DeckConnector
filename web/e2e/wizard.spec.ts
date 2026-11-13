@@ -49,6 +49,7 @@ test('the setup wizard goes forward and back and keeps what was entered', async 
   await page.getByRole('radio', { name: 'English' }).click()
   await page.getByRole('button', { name: 'Next' }).click()
   await expect(page.locator('#wz-step')).toHaveText('Set your own password')
+  await expect.poll(async () => ((await sim('GET', '/api/config')) as { lang: string }).lang).toBe('en') // the deck too
   await page.locator('#wpw').fill('abc')
   await page.getByRole('button', { name: 'Next' }).click()
   await expect(page.getByText('At least 6 characters.')).toBeVisible()
@@ -63,7 +64,7 @@ test('the setup wizard goes forward and back and keeps what was entered', async 
   await page.waitForLoadState('networkidle')
   await page.close()
   await sim('PUT', '/api/setup', { step: 0 })
-  await sim('PUT', '/api/config', { setup_done: true })
+  await sim('PUT', '/api/config', { setup_done: true, lang: 'de' })
 })
 
 test('the wizard offers the stored name and asks for a new password again after a reload', async ({
@@ -76,7 +77,9 @@ test('the wizard offers the stored name and asks for a new password again after 
   // The settings answer late, as on a busy device; the save itself is answered here so the simulator keeps running.
   await page.route('**/api/config', async (r) => {
     if (r.request().method() === 'PUT') {
-      puts.push(r.request().postDataJSON() as Record<string, unknown>)
+      const body = r.request().postDataJSON() as Record<string, unknown>
+      if (Object.keys(body).join() === 'lang') return r.fallback() // the deck's language, sent on its own
+      puts.push(body)
       return r.fulfill({ json: { ok: true, restart: false } })
     }
     await new Promise((f) => setTimeout(f, 1500))
@@ -132,7 +135,7 @@ test('a re-run over the network keeps it and still saves a new name and password
       return r.fulfill({ response: res, json: { ...((await res.json()) as object), wifi_ssid: 'Zuhause' } })
     }
     const body = r.request().postDataJSON() as Record<string, unknown>
-    if ('setup_done' in body) return r.fallback()
+    if ('setup_done' in body || Object.keys(body).join() === 'lang') return r.fallback()
     puts.push(body)
     await r.fulfill({ json: { ok: true, restart: false } })
   })

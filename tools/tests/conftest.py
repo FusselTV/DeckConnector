@@ -171,6 +171,7 @@ KEPT = (
     "brightness",
     "menu_chord",
     "menu_hold_ms",
+    "lang",
     "qr_login",
     "dock_paired_only",
     "https_only",

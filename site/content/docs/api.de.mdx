@@ -171,7 +171,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
  "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
- "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "usb_speed": "auto",
+ "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
  "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
 ```
 
@@ -191,6 +191,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `https_only` | Plain HTTP abschalten |
 | `cors_origins` | Origins mit Komma getrennt, die die API mit einem Schlüssel aufrufen dürfen |
 | `menu_chord` | `auto`, `keys`, `encoders` oder `off` |
+| `lang` | Die Sprache der eigenen Deck-Seiten: `de` oder `en` |
 | `menu_hold_ms` | 500 bis 10000 |
 | `usb_speed` | `auto` oder `full` |
 | `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
@@ -199,7 +200,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}

@@ -60,11 +60,17 @@ static struct {
     ui_screen_t shown; /* what is on the deck, to send only what changed */
     ui_menu_t menu;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
+    int lit; /* what the device UI last set on the deck; -1: someone else may have changed it */
     esp_timer_handle_t save_timer;
     bool save_due;
     int64_t
         handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
-} s = {.active_link = -1, .update_pct = -1, .full = true, .menu = {.confirm_key = -1}, .brightness = -1};
+} s = {.active_link = -1,
+       .update_pct = -1,
+       .full = true,
+       .menu = {.confirm_key = -1},
+       .brightness = -1,
+       .lit = -1};
 
 static void octets_of(const char *ip, uint8_t out[4])
 {
@@ -368,6 +374,7 @@ static void model(ui_model_t *md)
         .setup_step = setup_step,
         .picked = c->host[0] || c->controller != DB_CTRL_COMPANION,
         .menu_hold_ms = c->menu_hold_ms,
+        .english = strcmp(c->lang, "en") == 0,
     };
     md->show_pass = md->now_us < until(&pass_until);
     md->reset_ask = md->now_us < until(&reset_until);
@@ -410,6 +417,9 @@ static void model(ui_model_t *md)
         db_dock_name(ipaddr_addr(md->request), md->request_name);
     }
     snprintf(md->server_url, sizeof(md->server_url), "%s", db_config_server_of(c, 0));
+    if (!c->host[0] || strcmp(c->host, "satellite") == 0) { /* else Companion is a dock host */
+        snprintf(md->satellite, sizeof(md->satellite), "%s", c->satellite);
+    }
     model_sources(md);
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);
     snprintf(md->fw, sizeof(md->fw), "%s", esp_app_get_description()->version);
@@ -491,8 +501,9 @@ static esp_err_t edit_end(const db_config_t *c, const char *what)
     return err;
 }
 
-static void note(const char *text, bool to_main)
+static void note(const char *de, const char *en, bool to_main)
 {
+    const char *text = strcmp(db_config()->lang, "en") == 0 ? en : de;
     xSemaphoreTake(s.lock, portMAX_DELAY);
     if (to_main) {
         ui_menu_open_main(&s.menu, esp_timer_get_time());
@@ -529,7 +540,7 @@ static void save_lan(const ui_action_t *act)
     if (edit_end(&c, "LAN") == ESP_OK) {
         db_ota_restart(800);
     } else {
-        note("Nicht gespeichert", false);
+        note("Nicht gespeichert", "Not saved", false);
     }
 }
 
@@ -564,8 +575,7 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_BRIGHTNESS: {
         int b = md->brightness + act->value;
-        s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b);
-        db_deck_set_brightness((uint8_t)s.brightness);
+        s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b); /* the UI task puts it on the deck */
         esp_timer_stop(s.save_timer);
         esp_timer_start_once(s.save_timer, SAVE_AFTER_US);
         break;
@@ -586,7 +596,7 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         portENTER_CRITICAL(&login_mux);
         reset_until = 0;
         portEXIT_CRITICAL(&login_mux);
-        note("Löschen fehlgeschlagen", true);
+        note("Löschen fehlgeschlagen", "Reset failed", true);
         break;
     case UI_DO_RESTART:
         db_ota_restart(800);
@@ -621,6 +631,14 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         edit_begin(&c);
         c.setup_done = true;
         edit_end(&c, "setup done");
+        break;
+    case UI_DO_LANG:
+        edit_begin(&c);
+        snprintf(c.lang, sizeof(c.lang), "%s", md->english ? "de" : "en");
+        edit_end(&c, "language");
+        break;
+    case UI_DO_SHOW_PASSWORD:
+        db_ui_show_password();
         break;
     default:
         break;
@@ -724,9 +742,17 @@ static void ui_task(void *arg)
         }
         pick_writer();
         if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
+            s.lit = -1; /* a host sets its own; when the UI draws again it sets its own once more */
             continue;
         }
         model(&md);
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        int light = ui_light(&s.menu, md.brightness);
+        xSemaphoreGive(s.lock);
+        if (light != s.lit) {
+            s.lit = light;
+            db_deck_set_brightness((uint8_t)light);
+        }
         ui_action_t first;
         if (ui_first_source(&md, &first)) {
             ESP_LOGI(TAG, "first host draws: %s", md.sources[0].id);
@@ -860,6 +886,7 @@ static void on_device(const db_device_info_t *info)
     if (info) {
         s.dev = *info;
         s.full = true;
+        s.lit = -1;
         db_deck_set_brightness(db_config()->brightness);
     }
     changed();
@@ -1169,6 +1196,7 @@ void db_ui_refresh(void)
         auto_off = c->satellite_auto_off;
         satellite_changes++;
     }
+    s.lit = -1; /* PUT /api/config may have set the brightness on the deck */
     changed();
 }
 

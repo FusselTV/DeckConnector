@@ -65,6 +65,7 @@ static void defaults(db_config_t *c)
                        .brightness = 80,
                        .menu_chord = "auto",
                        .menu_hold_ms = 2000,
+                       .lang = "de",
                        .usb_speed = "auto",
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
@@ -123,6 +124,9 @@ esp_err_t db_config_load(void)
             }
             if (strcmp(current.usb_speed, "full") != 0) {
                 strcpy(current.usb_speed, fresh.usb_speed);
+            }
+            if (memcmp(current.lang, "en", sizeof(current.lang)) != 0) { /* padding of an older blob */
+                strcpy(current.lang, fresh.lang);
             }
             uint8_t mac[6];
             if (!db_config_bssid(current.wifi_bssid, mac)) {
@@ -284,6 +288,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "satellite_pin", cfg->satellite_pin);
     db_json_str(&j, "cors_origins", cfg->cors_origins);
     db_json_str(&j, "menu_chord", cfg->menu_chord);
+    db_json_str(&j, "lang", cfg->lang);
     db_json_str(&j, "usb_speed", cfg->usb_speed);
     db_json_str(&j, "wifi_bssid", cfg->wifi_bssid);
     db_json_str(&j, "ntp_server", cfg->ntp_server);
@@ -580,6 +585,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
               take_str(root, "cors_origins", cfg->cors_origins, sizeof(cfg->cors_origins), err, err_cap) &&
               take_str(root, "menu_chord", cfg->menu_chord, sizeof(cfg->menu_chord), err, err_cap) &&
+              take_str(root, "lang", cfg->lang, sizeof(cfg->lang), err, err_cap) &&
               take_str(root, "usb_speed", cfg->usb_speed, sizeof(cfg->usb_speed), err, err_cap) &&
               take_str(root, "wifi_bssid", cfg->wifi_bssid, sizeof(cfg->wifi_bssid), err, err_cap) &&
               take_str(root, "ntp_server", cfg->ntp_server, sizeof(cfg->ntp_server), err, err_cap) &&
@@ -616,6 +622,10 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     }
     if (ok && strcmp(cfg->usb_speed, "auto") != 0 && strcmp(cfg->usb_speed, "full") != 0) {
         snprintf(err, err_cap, "usb_speed: auto or full expected");
+        ok = false;
+    }
+    if (ok && strcmp(cfg->lang, "de") != 0 && strcmp(cfg->lang, "en") != 0) {
+        snprintf(err, err_cap, "lang: de or en expected");
         ok = false;
     }
     if (ok && !known_chord(cfg->menu_chord)) {

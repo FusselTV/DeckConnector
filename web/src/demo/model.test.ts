@@ -129,16 +129,18 @@ describe('demo bridge', () => {
     expect(b.request?.name).toBe('edit-pc') // and asks again
   })
 
-  it("shows the firmware's menu over the host and picks a host from it", () => {
+  it("shows the firmware's menu over the host and switches the deck's language from it", () => {
     const s = demo()
+    const before = writer(s, T0)
     call(s, 'POST', '/api/menu')
     expect(writer(s, T0)).toBe('ui')
     expect(status(s, T0).menu_open).toBe(true)
     expect(face(s, T0)).toHaveProperty('ui')
-    input(s, T0, { key: 1 }) // the chosen host first, then the Elgato App on edit-pc
-    expect(s.cfg).toMatchObject({ controller: 'app', host: '192.168.1.31' })
+    input(s, T0, { key: 0 }) // top left: the other language; the hosts stay on the home screen
+    expect(s.cfg.lang).toBe('en')
+    input(s, T0, { key: 3 })
     expect(status(s, T0).menu_open).toBe(false)
-    expect(writer(s, T0)).toBe('dock1')
+    expect(writer(s, T0)).toBe(before)
   })
 
   it('acts on menu input as the firmware does from the web UI', () => {

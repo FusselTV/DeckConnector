@@ -131,6 +131,13 @@ static ui_model_t variant(int v)
         md.hosts[1] = md.hosts[2] = 0;
         md.source_count = 0;
         break;
+    case 4: /* Companion over Satellite chosen and away, WLAN lost: what the owner saw */
+        md.sources[0].chosen = false;
+        md.hosts[1] = 0;
+        md.source_count = 0;
+        md.wlan_up = false;
+        strcpy(md.satellite, "wss://companion.int.example.com/satellite");
+        break;
     case 3: /* server chosen and away, nothing configured, no WLAN chip */
         md.controller = 0;
         md.sources[0].chosen = false;
@@ -193,8 +200,10 @@ static void test_no_page_cuts_a_text(void)
     for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
         db_device_info_t dev = open_deck(decks[d].pid);
         ui_layout_t l = ui_layout_of(&dev);
-        for (int v = 0; v < 4; v++) {
-            ui_model_t md = variant(v);
+        for (int v = 0; v < 10; v++) { /* 0 to 4 in German, 5 to 9 the same in English */
+            int k = v % 5;
+            ui_model_t md = variant(k);
+            md.english = v >= 5;
             for (size_t p = 0; p < sizeof(pages) / sizeof(pages[0]); p++) {
                 for (int fixed = 0; fixed < (pages[p] == PAGE_LAN ? 2 : 1); fixed++) {
                     ui_menu_t m = {.page = pages[p], .confirm_key = -1, .lan_dhcp = !fixed};
@@ -221,13 +230,13 @@ static void test_no_page_cuts_a_text(void)
             snprintf(name, sizeof(name), "%s_welcome_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             strcpy(md.request, "192.168.1.255");
-            strcpy(md.request_name, v == 1 ? "studio-pc-regie-links-2" : "DESKTOP-EXAMPLE");
+            strcpy(md.request_name, k == 1 ? "studio-pc-regie-links-2" : "DESKTOP-EXAMPLE");
             ui_menu_screen(&m, &md, &l, &sc);
             snprintf(name, sizeof(name), "%s_request_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             md.request[0] = '\0';
-            strcpy(md.offer_name, v == 1 ? "studio-pc-regie-links-2" : "studio");
-            strcpy(md.offer_addr, v == 1 ? "255.255.255.255:65535" : "192.168.1.15:16622");
+            strcpy(md.offer_name, k == 1 ? "studio-pc-regie-links-2" : "studio");
+            strcpy(md.offer_addr, k == 1 ? "255.255.255.255:65535" : "192.168.1.15:16622");
             ui_menu_screen(&m, &md, &l, &sc);
             snprintf(name, sizeof(name), "%s_offer_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
@@ -247,17 +256,17 @@ static void test_no_page_cuts_a_text(void)
             m.confirm_key = -1;
             md.reset_ask = false;
             strcpy(md.login_ip,
-                   v == 1 ? "255.255.255.255" : "192.168.1.42"); /* db_ui cuts the label to 20 characters */
-            strcpy(md.login_who, v == 1 ? "Android · Samsung In" : "iPhone · Safari");
-            strcpy(md.login_mac, v == 2 ? "" : "aa:bb:cc:dd:ee:ff");
-            strcpy(md.login_name, v == 1 ? "studio-pc-regie-links-2" : (v == 3 ? "" : "iPhone-von-Anna"));
+                   k == 1 ? "255.255.255.255" : "192.168.1.42"); /* db_ui cuts the label to 20 characters */
+            strcpy(md.login_who, k == 1 ? "Android · Samsung In" : "iPhone · Safari");
+            strcpy(md.login_mac, k == 2 ? "" : "aa:bb:cc:dd:ee:ff");
+            strcpy(md.login_name, k == 1 ? "studio-pc-regie-links-2" : (k == 3 ? "" : "iPhone-von-Anna"));
             ui_menu_screen(&m, &md, &l, &sc);
             snprintf(name, sizeof(name), "%s_login_request_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             md.login_ip[0] = '\0';
             md.source_count = 0; /* a new deck: nobody connected yet */
-            md.menu_hold_ms = v == 1 ? 2500 : 2000;
-            strcpy(md.menu_chord, v == 2 ? "keys" : (v == 3 ? "off" : "auto"));
+            md.menu_hold_ms = k == 1 ? 2500 : 2000;
+            strcpy(md.menu_chord, k == 2 ? "keys" : (k == 3 ? "off" : "auto"));
             ui_menu_screen(&m, &md, &l, &sc);
             snprintf(name, sizeof(name), "%s_new_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
@@ -349,8 +358,13 @@ static void test_flows_on_the_plus(void)
     ui_menu_input(&m, &md, &l, &turn, &act);
     TEST_ASSERT_EQUAL_INT(UI_DO_BRIGHTNESS, act.what);
     TEST_ASSERT_EQUAL_INT(-10, act.value);
-    press(&m, &md, &l, 1, &act); /* in the menu one tap picks and closes */
-    TEST_ASSERT_EQUAL_INT(UI_DO_SOURCE, act.what);
+    ui_menu_screen(&m, &md, &l, &sc); /* no hosts in the menu: they are on the home screen */
+    for (int k = 1; k < 3; k++) {
+        TEST_ASSERT_EQUAL_INT(TILE_NONE, sc.tiles[k].kind);
+    }
+    press(&m, &md, &l, 1, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+    press(&m, &md, &l, 3, &act); /* the menu key closes it */
     TEST_ASSERT_FALSE(ui_menu_open(&m));
 
     ui_menu_open_main(&m, md.now_us); /* the chord's release must not close it again */
@@ -373,6 +387,43 @@ static void test_flows_on_the_plus(void)
     TEST_ASSERT_EQUAL_INT(UI_DO_SAVE_LAN, act.what);
     TEST_ASSERT_FALSE(act.dhcp);
     TEST_ASSERT_EQUAL_UINT8(215, act.octets[0][3]);
+}
+
+/* The language key, the keys of the waiting home screen, and the light in the menu. */
+static void test_menu_language_waiting_home_and_light(void)
+{
+    db_device_info_t dev = open_deck(0x0084);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = variant(4);
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    ui_action_t act;
+    ui_screen_t sc;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("Companion nicht erreichbar", sc.seg[1].value);
+    TEST_ASSERT_NOT_NULL(strstr(sc.seg[1].sub, md.satellite));
+    press(&m, &md, &l, 5, &act); /* WLAN lost: its key starts the setup WLAN */
+    TEST_ASSERT_EQUAL_INT(UI_DO_AP_START, act.what);
+    TEST_ASSERT_EQUAL_INT(PAGE_SETUP_AP, m.page);
+    m.page = PAGE_HOME;
+    press(&m, &md, &l, 6, &act); /* Web: address and password */
+    TEST_ASSERT_EQUAL_INT(UI_DO_SHOW_PASSWORD, act.what);
+    press(&m, &md, &l, 4, &act); /* LAN from home goes back home */
+    TEST_ASSERT_EQUAL_INT(PAGE_LAN, m.page);
+    press(&m, &md, &l, 4, &act);
+    TEST_ASSERT_EQUAL_INT(PAGE_HOME, m.page);
+
+    TEST_ASSERT_EQUAL_INT(5, ui_light(&m, 5)); /* home: the brightness as set */
+    ui_menu_open_main(&m, md.now_us);
+    TEST_ASSERT_EQUAL_INT(20, ui_light(&m, 0)); /* the menu: at least 20 % */
+    TEST_ASSERT_EQUAL_INT(60, ui_light(&m, 60));
+    press(&m, &md, &l, 0, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_LANG, act.what);
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("English", sc.tiles[0].label); /* names the language it switches to */
+    md.english = true;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING("Deutsch", sc.tiles[0].label);
+    TEST_ASSERT_EQUAL_STRING("Menu", sc.tiles[3].label);
 }
 
 static void test_flows_without_encoders(void)
@@ -673,6 +724,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_no_page_cuts_a_text);
     RUN_TEST(test_flows_on_the_plus);
+    RUN_TEST(test_menu_language_waiting_home_and_light);
     RUN_TEST(test_neo_keeps_brightness_and_password);
     RUN_TEST(test_flows_without_encoders);
     RUN_TEST(test_welcome);

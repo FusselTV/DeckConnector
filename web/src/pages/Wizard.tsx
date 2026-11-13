@@ -194,6 +194,8 @@ export function Wizard() {
     return r === null
   }
   const nextLang = () => {
+    // the deck's screens follow at once; no refresh, whose status would still name the language step
+    if (cfg && cfg.lang !== lang) void api.putConfig({ lang }).catch(() => undefined)
     if (!nameE) return (ss.set(SEEN, true), setStep('pw'))
     setNameTried(true)
     document.getElementById('wname')?.focus()

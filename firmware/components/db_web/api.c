@@ -99,6 +99,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.https_only = old.https_only;
     memcpy(live.cors_origins, old.cors_origins, sizeof(old.cors_origins));
     memcpy(live.menu_chord, old.menu_chord, sizeof(old.menu_chord));
+    memcpy(live.lang, old.lang, sizeof(old.lang));
     live.menu_hold_ms = old.menu_hold_ms;
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.brightness != old.brightness) {

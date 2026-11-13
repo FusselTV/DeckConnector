@@ -24,3 +24,4 @@
 #define ICON_PASSWORD   "\xee\x80\x94"
 #define ICON_DHCP       "\xee\x80\x95"
 #define ICON_FIXED      "\xee\x80\x96"
+#define ICON_LANG       "\xee\x80\x97"
