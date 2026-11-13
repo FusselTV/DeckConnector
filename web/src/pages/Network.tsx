@@ -1,14 +1,15 @@
-import { CircleAlert, EthernetPort, Network as NetIcon, Tag as TagIcon, Unplug, Wifi } from 'lucide-react'
+import { CircleAlert, EthernetPort, Network as NetIcon, Tag as TagIcon, Unplug, Wifi, WifiOff } from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api/client'
 import type { IpConf } from '../api/types'
+import { putConfig } from '../app/actions'
 import { refreshConfig, refreshStatus } from '../app/connection'
 import { reachList, sigWord } from '../app/derive'
 import { wifiScanAtom } from '../app/state'
 import { getState, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { describedBy, Field, Seg, SIcon, Switch } from '../components/controls'
+import { Btn, describedBy, Field, Seg, SIcon, Switch } from '../components/controls'
 import { CopyField } from '../components/InputAction'
 import { Row } from '../components/Row'
 import { useDraft } from '../components/SaveBar'
@@ -104,7 +105,7 @@ export async function joinWifi(w: WifiChoice): Promise<string | null> {
 }
 
 export function Network() {
-  const { t, go } = useUi()
+  const { t, go, act, ask } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const n = st.network
@@ -257,6 +258,25 @@ export function Network() {
               }}
             />
             <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
+            {cfg?.wifi_ssid && (
+              <Btn
+                id="wifi-forget"
+                kind="ghost"
+                icon={WifiOff}
+                onClick={() =>
+                  void ask({
+                    title: t('wifi.forget_t', { s: cfg.wifi_ssid }),
+                    body: t(n?.lan?.cable ? 'wifi.forget_b' : 'wifi.forget_b_ap'),
+                    ok: t('wifi.forget'),
+                    danger: true,
+                  }).then((ok) =>
+                    ok ? act(() => putConfig({ wifi_ssid: '', wifi_pass: '', wifi_bssid: '' })) : undefined,
+                  )
+                }
+              >
+                {t('wifi.forget')}
+              </Btn>
+            )}
           </Row>
         </>
       </Card>
