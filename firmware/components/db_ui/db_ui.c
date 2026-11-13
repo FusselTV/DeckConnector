@@ -42,6 +42,7 @@ static const char *TAG = "ui";
 
 static struct {
     TaskHandle_t task;
+    TaskHandle_t timer_task;   /* esp_timer's, which must not wait on the light lock */
     SemaphoreHandle_t lock;    /* menu, between the deck's event task and the UI task */
     SemaphoreHandle_t qr_lock; /* the QR buffers, which model() fills on both tasks */
     SemaphoreHandle_t light;   /* recursive: the writer choice, and the brightness of the menu and after it */
@@ -516,8 +517,10 @@ static void pick_writer(void)
 
 static void changed(void)
 {
-    pick_writer(); /* at once: the status, the acks and the next image read the writer right after */
-    if (s.task) {  /* NULL when db_ui_start failed: the bridge runs on without the deck screens */
+    if (xTaskGetCurrentTaskHandle() != s.timer_task) {
+        pick_writer(); /* at once: the status, the acks and the next image read the writer right after */
+    }
+    if (s.task) { /* NULL when db_ui_start failed; else it picks the writer as it wakes */
         xTaskNotifyGive(s.task);
     }
 }
@@ -955,6 +958,7 @@ static void on_device(const db_device_info_t *info)
 /* The chord must also fire while the encoders are held still, and the menu has its timers. */
 static void tick(void *arg)
 {
+    s.timer_task = xTaskGetCurrentTaskHandle();
     static bool asking; /* a request runs out after a minute: the deck goes back to who draws */
     char ip[16];
     if (db_dock_request(ip) != asking) {
