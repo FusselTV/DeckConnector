@@ -133,6 +133,7 @@ async def test_a_simulated_press_reaches_no_integration(token):
 
 # Written out, not read from GET /api: a route moved down a level by mistake must fail here.
 FULL = [
+    ("DELETE", "/api/ap"),
     ("DELETE", "/api/coredump"),
     ("DELETE", "/api/frontend"),
     ("GET", "/api/boot"),

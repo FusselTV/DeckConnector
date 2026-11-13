@@ -421,8 +421,6 @@ static void announce_api(void)
 #endif
 
 /* Phones probe some URL when they join a WLAN; sending them to the page opens it by itself. */
-/* On the setup AP, an unknown path is a phone's captive portal check (/generate_204, /hotspot-detect.html,
- * ...). */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
 {
     if (strncmp(req->uri, "/api/", 5) == 0) {
@@ -438,6 +436,9 @@ static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
 /* The OPTIONS route matches every API path, so the server says 405 also for a path that does not exist. */
 static esp_err_t wrong_method(httpd_req_t *req, httpd_err_code_t code)
 {
+    if (req->method == HTTP_HEAD && auth_via_ap(req)) {
+        return to_portal(req);
+    }
     size_t len = strcspn(req->uri, "?");
     for (size_t i = 0; i < web_route_count; i++) {
         if (web_uris[i].method != HTTP_OPTIONS && httpd_uri_match_wildcard(web_uris[i].uri, req->uri, len)) {
@@ -562,6 +563,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/config", .method = HTTP_PUT, .handler = put_config}, WEB_FULL},
         {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
+        {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
         {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_FULL},
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},

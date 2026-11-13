@@ -44,6 +44,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['PUT', '/api/config', 'full'],
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
+  ['DELETE', '/api/ap', 'full'],
   ['POST', '/api/reset', 'admin'],
   ['GET', '/api/log', 'full'],
   ['GET', '/api/screen', 'control'],
@@ -263,6 +264,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       event(s, now, 'deck', 'deck reconnected on request, USB recovery')
       return ok()
     case 'POST /api/deck/stall':
+      return ok()
+    case 'DELETE /api/ap':
       return ok()
     case 'POST /api/reboot':
     case 'POST /api/reset':

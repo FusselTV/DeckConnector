@@ -46,6 +46,7 @@ esp_err_t delete_coredump(httpd_req_t *req);
 esp_err_t post_debug_crash(httpd_req_t *req);
 esp_err_t post_slot_boot(httpd_req_t *req);
 esp_err_t post_reboot(httpd_req_t *req);
+esp_err_t delete_ap(httpd_req_t *req);
 esp_err_t post_reset(httpd_req_t *req);
 esp_err_t get_log(httpd_req_t *req);
 size_t api_screen_json(char *buf, size_t cap);

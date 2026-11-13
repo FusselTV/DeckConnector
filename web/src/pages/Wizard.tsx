@@ -58,14 +58,14 @@ const STEPS = ['lang', 'pw', 'net', 'src', 'done'] as const
 type Step = (typeof STEPS)[number] | 'moving'
 const BACK: Partial<Record<Step, Step>> = { pw: 'lang', net: 'pw', src: 'net', done: 'src' }
 
-// The device keeps the step (see FROM_NUM), so a refresh or a second browser resumes. `moving` is stored as the
-// source step, so the page opened from the new QR code goes on there.
+// The device keeps the step (see FROM_NUM), so a refresh or a second browser resumes. A page on the setup Wi-Fi
+// stores none: the browser on the user's network then starts at the beginning, with name and password.
 const FROM_NUM: Step[] = ['lang', 'lang', 'pw', 'pw', 'net', 'src', 'done']
-const num = (s: Step) => (s === 'moving' ? 5 : FROM_NUM.lastIndexOf(s))
+const num = (s: Step) => FROM_NUM.lastIndexOf(s)
 const viaAp = () => getState().status.via_ap ?? !!getState().status.network?.ap?.on
 // Name and password live only in this page until the network step saves them. A reload asks for the password
-// again; another browser or a reopened captive portal starts at the name, so setup never ends with values the
-// person typed and then lost without seeing it.
+// again; another browser starts at the name, so setup never ends with values the person typed and then lost
+// without seeing it.
 const PW_PENDING = 'dc.wizpw'
 const NAME_PENDING = 'dc.wizname'
 const SEEN = 'dc.wizseen'
@@ -81,11 +81,12 @@ function useStep() {
   const [step, setStep] = useState<Step>(resumed)
   const wentBack = useRef(false)
   useEffect(() => {
+    document.getElementById('wz-step')?.focus()
+    if (viaAp()) return
     // Next never moves the device's step back, so a second, older tab cannot undo the first one.
     if (wentBack.current || num(step) >= (getState().status.setup?.step ?? 0))
       void api.setup(num(step)).catch(() => undefined)
     wentBack.current = false
-    document.getElementById('wz-step')?.focus()
   }, [step])
   const set = useCallback((s: Step, back = false) => {
     wentBack.current = back
@@ -500,7 +501,14 @@ export function Wizard() {
           {t('wiz.test_ok', { ssid: wifi.ssid, ip: st.network?.wlan?.ip ?? '' })}
         </p>
         <ol className="steps-ol big">
-          <li>{t('wiz.mv_1')}</li>
+          <li>
+            {t('wiz.mv_1')}
+            <div className="row" style={{ marginTop: 8 }}>
+              <Btn id="w-apclose" kind="pri" icon={Wifi} onClick={() => void api.closeAp().catch(() => undefined)}>
+                {t('wiz.ap_close')}
+              </Btn>
+            </div>
+          </li>
           <li>{t('wiz.mv_2')}</li>
         </ol>
         {(reach ?? where).map((u) => (
@@ -803,7 +811,7 @@ export function Wizard() {
               </button>
             )}
           </div>
-          {onAp && (
+          {onAp && step !== 'moving' && (
             <div className="small muted row nowrap">
               <Wifi size={15} className="ic" aria-hidden />
               <span>{t('wiz.ap')}</span>

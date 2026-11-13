@@ -1062,6 +1062,16 @@ esp_err_t post_slot_boot(httpd_req_t *req)
     return send_json(req, "{\"ok\":true,\"restart\":true}");
 }
 
+/* The page on the setup AP closes it once the bridge is in the user's WLAN: the phone goes back there. The
+ * answer goes out first, over the AP. */
+esp_err_t delete_ap(httpd_req_t *req)
+{
+    send_json(req, "{\"ok\":true}");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    db_net_ap_stop();
+    return ESP_OK;
+}
+
 esp_err_t post_reboot(httpd_req_t *req)
 {
     send_json(req, "{\"ok\":true}");

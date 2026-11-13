@@ -424,8 +424,8 @@ static void on_satellite(void)
 }
 
 /* A new bridge without any network opens the setup WLAN by itself: at once when it has neither a cable link
- * nor a WLAN to join, else after SETUP_AP_AFTER_S if neither worked. It closes again once the network is
- * there and no phone is on it: the wizard joins the WLAN over it and still has to save. */
+ * nor a WLAN to join, else after SETUP_AP_AFTER_S if neither worked. It closes once the network is there and
+ * no phone is on it, or when the page on it closes it after the join. */
 static void setup_ap_task(void *arg)
 {
     vTaskDelay(pdMS_TO_TICKS(SETUP_LINK_S * 1000)); /* time for a cable to show its link */

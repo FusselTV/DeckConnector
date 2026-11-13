@@ -61,6 +61,7 @@ static struct {
     esp_timer_handle_t rejoin;
     uint32_t rejoin_ms; /* doubles per failed try: an AP that is gone must not flood the log */
     bool join_got_ip;   /* WLAN got an address after the join cleared it: not the old link's state */
+    bool join_assoc;    /* associated with the access point since the join cleared it */
 } s;
 
 /* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
@@ -264,6 +265,8 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         strcpy(s.st.wlan_bssid, bssid);
         s.st.wlan_channel = c->channel;
         s.rejoin_ms = 0;
+        s.join_reason = 0;
+        s.join_assoc = true;
         apply_static(s.wlan, &db_config()->wlan);
         break;
     }
@@ -272,7 +275,10 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (s.st.wlan_up || d->reason != s.join_reason) {
             ESP_LOGW(TAG, "WLAN lost, reason %d", d->reason);
         }
-        s.join_reason = d->reason;
+        if (d->reason != WIFI_REASON_ASSOC_LEAVE) { /* our own disconnect before a join is not its cause */
+            s.join_reason = d->reason;
+        }
+        s.join_assoc = false;
         s.join_got_ip = false;
         s.st.wlan_up = false;
         set_ip(s.st.wlan_ip, NULL);
@@ -373,11 +379,13 @@ static void start_mdns(void)
     }
 }
 
-/* Answer every A query with the address of the setup AP while it is on. */
+/* Answer every A query with the address of the setup AP while it is on. Bound to that address: the LAN never
+ * reaches it. */
 static void dns_task(void *arg)
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(53)};
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET, .sin_port = htons(53), .sin_addr.s_addr = (uint32_t)arg};
     if (sock < 0 || bind(sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         ESP_LOGE(TAG, "captive DNS not available");
         if (sock >= 0) {
@@ -392,11 +400,7 @@ static void dns_task(void *arg)
         int n = recvfrom(sock, pkt, sizeof(pkt) - 16, 0, (struct sockaddr *)&from, &from_len);
         db_net_status_t st;
         db_net_status(&st);
-        struct in_addr ip;
-        inet_aton(st.ap_ip, &ip);
-        uint32_t mask = htonl(0xffffff00);
-        /* only phones on the setup AP: a LAN host asking us must not get a wrong answer */
-        if (n < 12 || !st.ap_active || (from.sin_addr.s_addr & mask) != (ip.s_addr & mask)) {
+        if (n < 12 || !st.ap_active) {
             continue;
         }
         /* Keep only header and question: an EDNS record after the question would hide our answer. */
@@ -410,12 +414,13 @@ static void dns_task(void *arg)
         }
         n = q;
         memset(pkt + 8, 0, 4); /* no authority or additional records */
-        pkt[2] = 0x81;         /* response, recursion desired */
-        pkt[3] = 0x80;         /* recursion available, no error */
-        pkt[7] = 1;            /* one answer */
+        uint32_t ip = (uint32_t)arg;
+        pkt[2] = 0x81; /* response, recursion desired */
+        pkt[3] = 0x80; /* recursion available, no error */
+        pkt[7] = 1;    /* one answer */
         const uint8_t answer[] = {0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4};
         memcpy(pkt + n, answer, sizeof(answer));
-        memcpy(pkt + n + sizeof(answer), &ip.s_addr, 4);
+        memcpy(pkt + n + sizeof(answer), &ip, 4);
         sendto(sock, pkt, (size_t)n + sizeof(answer) + 4, 0, (struct sockaddr *)&from, from_len);
     }
 }
@@ -458,7 +463,6 @@ esp_err_t db_net_start(void)
     }
     start_mdns();
     start_sntp();
-    xTaskCreate(dns_task, "dns", 3072, NULL, 3, NULL);
     return ESP_OK;
 }
 
@@ -634,14 +638,9 @@ esp_err_t db_net_ap_start(void)
     }
     if (!s.ap) {
         s.ap = esp_netif_create_default_wifi_ap();
-        /* RFC 8910: phones that read DHCP option 114 open the sign-in sheet without probing first */
-        static char portal[32];
         esp_netif_ip_info_t ip;
         esp_netif_get_ip_info(s.ap, &ip);
-        snprintf(portal, sizeof(portal), "http://" IPSTR "/", IP2STR(&ip.ip));
-        esp_netif_dhcps_stop(s.ap);
-        esp_netif_dhcps_option(s.ap, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI, portal, strlen(portal));
-        esp_netif_dhcps_start(s.ap);
+        xTaskCreate(dns_task, "dns", 3072, (void *)(uintptr_t)ip.ip.addr, 3, NULL);
     }
     xSemaphoreTake(s.lock, portMAX_DELAY);
     strlcpy(s.st.ap_ssid, db_config()->name, sizeof(s.st.ap_ssid));
@@ -735,6 +734,7 @@ static void join_task(void *arg)
     s.join_reason = 0;
     s.rejoin_ms = 0;
     s.join_got_ip = false;
+    s.join_assoc = false;
     esp_wifi_disconnect();
     esp_err_t set = esp_wifi_set_config(WIFI_IF_STA, &cfg);
     if (set == ESP_OK) {
@@ -764,15 +764,11 @@ static void join_task(void *arg)
     }
     if (saved) {
         set_join("ok", "");
-        if (s.st.ap_active) { /* the page shows the new address first, then the phone goes back to its own
-                                 WLAN */
-            vTaskDelay(pdMS_TO_TICKS(20000));
-            db_net_ap_stop();
-        }
     } else {
         int r = s.join_reason;
         set_join("failed", up                             ? "not saved"
                            : set != ESP_OK                ? "not set"
+                           : s.join_assoc                 ? "no address"
                            : r == WIFI_REASON_NO_AP_FOUND ? "network not found"
                            : r == WIFI_REASON_AUTH_FAIL || r == WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT ||
                                    r == WIFI_REASON_HANDSHAKE_TIMEOUT || r == WIFI_REASON_MIC_FAILURE
@@ -780,8 +776,7 @@ static void join_task(void *arg)
                            : r == WIFI_REASON_BEACON_TIMEOUT || r == WIFI_REASON_ASSOC_FAIL ||
                                    r == WIFI_REASON_CONNECTION_FAIL
                                ? "weak signal"
-                           : r ? "no connection"
-                               : "no address");
+                               : "no connection");
         ESP_LOGW(TAG, "WLAN %s failed (reason %d), back to %s", j->ssid, r,
                  c->wifi_ssid[0] ? c->wifi_ssid : "none");
         wifi_config_t old = sta_config(c->wifi_ssid, c->wifi_pass, c->wifi_bssid);
