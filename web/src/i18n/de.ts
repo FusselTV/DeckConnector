@@ -420,7 +420,7 @@ export const de: Dict = {
   'kb.strip': 'Pfeile: Feld wählen · Enter: tippen · Umschalt+Enter: halten · Umschalt+Pfeil: wischen',
   'kb.knob': 'Pfeile oder Ziehen: drehen · Enter: drücken · Mausrad nur bei fokussiertem Drehregler',
   'src.pin_help':
-    'Nimm den Pin der CA, wenn der Server-Zertifikate oft erneuert (Caddy mit interner CA alle 12 h). Den Pin des Server-Zertifikats nur, wenn es lange gilt.',
+    'Pinne das Zertifikat des Servers selbst, nicht die CA. Wird das Zertifikat erneuert, trägst du den neuen Pin ein.',
   'src.pin_bad': '64 Hex-Zeichen (SHA-256), Doppelpunkte erlaubt.',
   'src.t5': 'Companion in Docker: Port freigeben. Die Suche findet ihn nicht, also Adresse von Hand eintragen.',
   'src.connect_to': 'Verbinden mit {name}',
@@ -735,13 +735,14 @@ export const de: Dict = {
   'err.no_releases': 'Noch keine Versionen veröffentlicht.',
   'err.probe_no_name': 'Diesen Namen kennt das Netz nicht. Prüfe ihn oder nimm die IP-Adresse.',
   'err.probe_refused': 'Auf diesem Port hört nichts. Starte Companion und schalte dort Satellite ein.',
-  'err.probe_timeout': 'Keine Antwort in 3 s. Ist es im selben Netz, und lässt eine Firewall den Port durch?',
-  'err.probe_cert': 'Dem Zertifikat wird nicht vertraut. Trag seinen SHA-256-Fingerabdruck als Pin ein.',
+  'err.probe_timeout': 'Keine Antwort in 3 s. Ist der Rechner im selben Netz, und lässt eine Firewall den Port durch?',
+  'err.probe_cert': 'Die Platine vertraut dem Zertifikat nicht. Trag seinen SHA-256-Fingerabdruck als Pin ein.',
   'err.probe_tls': 'Die sichere Verbindung klappt nicht. Nimm den Port des Proxys, der https anbietet.',
   'err.probe_not_ws':
     'Ein Webserver antwortet, aber nicht Satellite. Hinter einem Proxy hängst du seinen Pfad an, zum Beispiel /satellite.',
   'src.trying': 'Probiere {a}…',
-  'src.tried': 'Probiert: {a}.',
+  'src.tried': 'Ich habe {a} probiert.',
+  'src.pin_wrong': 'Der Pin passt nicht zum Zertifikat des Servers.',
   'src.found_at': 'Companion {v} gefunden unter {a}.',
   'err.probe_no_connection': 'Unter dieser Adresse antwortet nichts.',
   'err.probe_no_answer':

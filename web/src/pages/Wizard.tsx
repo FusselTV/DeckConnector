@@ -50,7 +50,7 @@ import {
   wifiError,
   wsUrlError,
 } from '../lib/validate'
-import { companionError, findCompanion } from '../lib/companion'
+import { companionError, findCompanion, worst } from '../lib/companion'
 import { chordSentence } from './DeckTab'
 import { EMPTY, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
@@ -155,6 +155,7 @@ export function Wizard() {
   const [mErr, setMErr] = useState<{ to: string; m: string } | null>(null)
   const [linked, setLinked] = useState<string | null>(null)
   const [trying, setTrying] = useState<string | null>(null)
+  const [cert, setCert] = useState(false)
   const [url, setUrl] = useState('')
   const [uPin, setUPin] = useState('')
   const [uErr, setUErr] = useState<string | null>(null)
@@ -232,7 +233,7 @@ export function Wizard() {
     setStep(onAp ? 'moving' : 'src')
   }
   const compConnect = async (target: string, p: string) => {
-    const e = companionError(target) ?? (target.startsWith('wss://') ? pinError(p) : null)
+    const e = companionError(target) ?? (/^(wss|https):\/\//i.test(target) ? pinError(p) : null)
     if (e || !target) return setMErr({ to: target, m: t(e ?? 'wiz.addr_bad') })
     setMErr(null)
     setLinked(null)
@@ -242,7 +243,10 @@ export function Wizard() {
         setMErr({ to: target, m: errText(x, t) }),
       )
       if (!r) return
-      if ('tried' in r) return setMErr({ to: target, m: notFound(t, r.tried) })
+      if ('tried' in r) {
+        setCert(worst(r.tried, target)?.code === 'probe_cert')
+        return setMErr({ to: target, m: notFound(t, r.tried, target, p) })
+      }
       const ok = await act(() =>
         putConfig({
           satellite: r.addr,
@@ -678,7 +682,7 @@ export function Wizard() {
                 </Btn>
               </div>
             </Field>
-            {/^(wss|https):\/\//.test(addr) && (
+            {(/^(wss|https):\/\//i.test(addr) || cert) && (
               <Field id="w-satpin" label={t('src.pin')} hint={t('src.pin_hint')}>
                 <input
                   {...describedBy('w-satpin', null, true)}

@@ -31,7 +31,7 @@ import { Modal } from '../components/Dialog'
 import { CopyField } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { mmss } from '../lib/format'
-import { candidates, companionError, findCompanion } from '../lib/companion'
+import { companionError, fallback, findCompanion, worst } from '../lib/companion'
 import { normPin, pinError, wsUrlError } from '../lib/validate'
 
 type SrcType = 'comp' | 'app' | 'srv'
@@ -127,12 +127,13 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
   }, [])
   const [busy, setBusy] = useState(false)
   const [trying, setTrying] = useState<string | null>(null)
+  const [cert, setCert] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
   const save = async (input: string, p: string) => {
     let addr = input
     let found = ''
     const e1 = companionError(addr)
-    const e2 = /^(wss|https):\/\//.test(addr) ? pinError(p) : null
+    const e2 = /^(wss|https):\/\//i.test(addr) ? pinError(p) : null
     if (e1 || e2 || !addr) {
       setErr({ sat: e1 ? t(e1) : !addr ? t('src.addr_hint') : undefined, pin: e2 ? t(e2) : undefined })
       document.getElementById(e2 && !e1 ? 'm-satpin' : 'm-sat')?.focus()
@@ -148,13 +149,14 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
       if (typeof r === 'string') return setErr({ sat: r })
       if ('tried' in r) {
         setFailed(addr)
-        setErr({ sat: notFound(t, r.tried) })
+        setCert(worst(r.tried, addr)?.code === 'probe_cert')
+        setErr({ sat: notFound(t, r.tried, addr, p) })
         return
       }
       addr = r.addr
       found = t('src.found_at', { v: r.version, a: r.addr })
     } else {
-      addr = candidates(addr)[0] ?? addr // saved anyway: Companion may start later
+      addr = fallback(addr) // saved anyway: Companion may start later
     }
     const prev = { satellite: cfg.satellite, satellite_pin: cfg.satellite_pin }
     const ok = await act(async () => {
@@ -222,7 +224,7 @@ function CompanionForm({ cfg, close }: { cfg: Config; close: () => void }) {
           spellCheck={false}
         />
       </Field>
-      {/^(wss|https):\/\//.test(sat) &&
+      {(/^(wss|https):\/\//i.test(sat) || cert) &&
         (showPin || err.pin ? (
           <PinField id="m-satpin" value={pin} set={(v) => (setPin(v), setErr({}))} err={err.pin} />
         ) : (

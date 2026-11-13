@@ -35,7 +35,7 @@ Unter **Surfaces** erscheint das Deck als `streamdeck:<seriennummer>`, mit derse
 
 Du kannst auch die Adresse der Companion-Webseite einfügen oder den Port weglassen. Dann probiert die Platine die Formen oben der Reihe nach, behält die erste, die antwortet, und sagt, welche sie gefunden hat.
 
-Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA. Für jedes andere Zertifikat fügst du seinen SHA-256 als Pin ein. Erneuert eine interne CA ihre Zertifikate oft, pinnst du die CA selbst.
+Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA. Für jedes andere Zertifikat fügst du den SHA-256 des Server-Zertifikats selbst als Pin ein. Wird dieses Zertifikat erneuert, trägst du den neuen Pin ein.
 
 ```bash
 openssl x509 -noout -fingerprint -sha256 -in cert.pem

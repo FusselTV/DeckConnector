@@ -109,7 +109,7 @@ int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout
     struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
     struct addrinfo *res = NULL;
     if (getaddrinfo(host, port_s, &hints, &res) != 0 || !res) {
-        return -EHOSTUNREACH;
+        return -ENXIO; /* the name: not the network, which says EHOSTUNREACH */
     }
     int s = socket(AF_INET, SOCK_STREAM, 0);
     struct timeval tv = {.tv_sec = timeout_ms / 1000, .tv_usec = (timeout_ms % 1000) * 1000};
@@ -335,6 +335,7 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
                      "Sec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n%s%s\r\n",
                      path, host, port, key, proto, extra ? extra : "");
     if (n >= (int)sizeof(req) || io_send(ws, s, req, (size_t)n) != n) {
+        ws->fail = "no answer within 3 s";
         return -EIO;
     }
     char resp[RESPONSE_MAX];
@@ -342,6 +343,8 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
     /* Read byte by byte up to the blank line, so no frame bytes are swallowed. */
     while (got + 1 < sizeof(resp)) {
         if (io_recv(ws, s, resp + got, 1) != 1) {
+            ws->fail =
+                "no answer within 3 s"; /* also Companion's TCP port: it sends BEGIN, never a blank line */
             return -EIO;
         }
         got++;

@@ -122,9 +122,9 @@ export function codeText(t: T, code: string | undefined, english: string) {
 }
 
 /** One line for a search that found nothing: what went wrong where it says the most, and every address tried. */
-export const notFound = (t: T, tried: Tried[]) => {
-  const w = worst(tried)
-  const why = w ? codeText(t, w.code, w.error) : ''
+export const notFound = (t: T, tried: Tried[], input: string, pin: string) => {
+  const w = worst(tried, input)
+  const why = w?.code === 'probe_cert' && pin ? t('src.pin_wrong') : w ? codeText(t, w.code, w.error) : ''
   return `${why} ${t('src.tried', { a: tried.map((x) => x.addr).join(', ') })}`.trim()
 }
 

@@ -35,7 +35,7 @@ The deck shows up under **Surfaces** as `streamdeck:<serial>`, the same id as ov
 
 You can also paste the address of Companion's web page or leave out the port. The board then tries the forms above in turn, keeps the first that answers, and says which one it found.
 
-A `wss://` address needs a certificate from a public CA. For any other certificate, paste its SHA-256 as the pin. With an internal CA that renews often, pin the CA.
+A `wss://` address needs a certificate from a public CA. For any other certificate, paste the SHA-256 of the server's own certificate as the pin. When that certificate is renewed, enter the new pin.
 
 ```bash
 openssl x509 -noout -fingerprint -sha256 -in cert.pem

@@ -43,6 +43,18 @@
 #define CACHE_BUDGET (4 * 1024 * 1024)
 #define PNG_PREFIX   "data:image/png;base64,"
 
+/* "host" or "host:port" from the satellite setting: the host into `host`, and the port. */
+static unsigned tcp_host(const char *addr, char *host, size_t cap)
+{
+    snprintf(host, cap, "%s", addr);
+    char *colon = strchr(host, ':');
+    if (!colon) {
+        return DB_SAT_PORT;
+    }
+    *colon = '\0';
+    return (unsigned)atoi(colon + 1);
+}
+
 static const char *TAG = "satellite";
 
 typedef struct {
@@ -616,12 +628,7 @@ static void client_task(void *arg)
         if (s.ws_mode) {
             ws_url_host(s.addr, s.host, sizeof(s.host), &s.port);
         } else {
-            snprintf(s.host, sizeof(s.host), "%s", s.addr);
-            char *colon = strchr(s.host, ':');
-            s.port = colon ? (unsigned)atoi(colon + 1) : DB_SAT_PORT;
-            if (colon) {
-                *colon = '\0';
-            }
+            s.port = tcp_host(s.addr, s.host, sizeof(s.host));
         }
         resolve();
         char ifname[6];
@@ -833,6 +840,9 @@ uint32_t db_satellite_resolved(void)
 static const char *connect_error(int err)
 {
     static char why[64]; /* web handlers run one at a time */
+    if (err == -ENXIO) {
+        return "name not found";
+    }
     if (err == -ETIMEDOUT) {
         return "no connection within 3 s";
     }
@@ -845,28 +855,9 @@ static const char *connect_error(int err)
 
 const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap)
 {
-    char line[160], host[64];
-    unsigned port = DB_SAT_PORT;
+    char line[160];
     size_t n = 0;
-    bool ws_mode = strncmp(addr, "ws://", 5) == 0 || strncmp(addr, "wss://", 6) == 0;
-    if (ws_mode) {
-        ws_url_host(addr, host, sizeof(host), &port);
-    } else {
-        snprintf(host, sizeof(host), "%s", addr);
-        char *colon = strchr(host, ':');
-        if (colon) {
-            port = (unsigned)atoi(colon + 1);
-            *colon = '\0';
-        }
-    }
-    /* first on its own: the connect below says "unreachable" for a name nobody knows too */
-    struct addrinfo hints = {.ai_family = AF_INET, .ai_socktype = SOCK_STREAM};
-    struct addrinfo *res = NULL;
-    if (getaddrinfo(host, NULL, &hints, &res) != 0 || !res) {
-        return "name not found";
-    }
-    freeaddrinfo(res);
-    if (ws_mode) {
+    if (strncmp(addr, "ws://", 5) == 0 || strncmp(addr, "wss://", 6) == 0) {
         ws_t *w = calloc(1, sizeof(*w));
         if (!w || ws_init(w)) {
             free(w);
@@ -891,6 +882,8 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
             return why;
         }
     } else {
+        char host[64];
+        unsigned port = tcp_host(addr, host, sizeof(host));
         int sock = ws_tcp_open(host, port, NULL, CONNECT_MS);
         if (sock < 0) {
             return connect_error(sock);

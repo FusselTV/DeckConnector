@@ -114,7 +114,7 @@ test('a sloppy Companion address finds Companion on its port, and a miss says wh
   await page.locator('#m-sat').fill('nobody.invalid')
   await page.getByRole('dialog').getByRole('button', { name: /^Save/ }).click()
   await expect(page.getByText('This name is not known in the network.')).toBeVisible()
-  await expect(page.getByText('Tried: nobody.invalid.')).toBeVisible()
+  await expect(page.getByText('Tried nobody.invalid.')).toBeVisible()
   expect(tried).toEqual(['nobody.invalid'])
 })
 
