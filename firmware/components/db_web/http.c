@@ -68,7 +68,13 @@ const char *db_web_error_code(const char *msg)
         {"ota_too_old", "below the security level"},
         {"url_http_only", "url: http://"},
         {"no_releases", "no releases yet"},
+        {"probe_no_name", "name not found"},
+        {"probe_refused", "connection refused"},
+        {"probe_timeout", "no connection within"}, /* before the shorter "no connection" */
         {"probe_no_connection", "no connection"},
+        {"probe_cert", "certificate not trusted"},
+        {"probe_tls", "TLS failed"},
+        {"probe_not_ws", "not a WebSocket"},
         {"probe_no_answer", "no answer within"},
         {"probe_not_companion", "it answers, but it is not Companion"},
         {"strip_outside", "x and y (and x2, y2 for a swipe) must lie on the touch strip"},

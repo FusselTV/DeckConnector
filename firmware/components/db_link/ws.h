@@ -27,6 +27,7 @@ typedef struct {
     SemaphoreHandle_t tx; /* sending, and with TLS also reading: one TLS session is not safe from two tasks */
     uint8_t *frame;       /* send buffer, guarded by `tx` */
     void *tls;            /* NULL for ws:// */
+    const char *fail; /* after a failed ws_connect that got past TCP: TLS, the certificate or the upgrade */
 } ws_t;
 
 /* 0 or -ENOMEM. */

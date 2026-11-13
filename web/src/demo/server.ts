@@ -420,7 +420,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'POST /api/sources/probe': {
       const a = str('addr')
       if (!companionAt(a))
-        return res('probe', { ok: false, error: 'no connection', code: 'probe_no_connection', version: '' })
+        return res('probe', { ok: false, error: 'connection refused', code: 'probe_refused', version: '' })
       return res('probe', { ok: true, error: '', version: companion.version })
     }
     case 'PUT /api/setup':
