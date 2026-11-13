@@ -44,6 +44,7 @@ static struct {
     TaskHandle_t task;
     SemaphoreHandle_t lock;    /* menu, between the deck's event task and the UI task */
     SemaphoreHandle_t qr_lock; /* the QR buffers, which model() fills on both tasks */
+    SemaphoreHandle_t light;   /* recursive: the writer choice, and the brightness of the menu and after it */
     int active_link;
     int update_pct;
     bool update_wlan;
@@ -475,6 +476,13 @@ static db_source_t wanted_writer(void)
     return chosen == DB_SOURCE_UI && esp_timer_get_time() < s.handover_until ? DB_SOURCE_SAT : chosen;
 }
 
+static void light_lock(bool take)
+{
+    if (s.light) { /* NULL before db_ui_start: nothing else runs yet */
+        take ? xSemaphoreTakeRecursive(s.light, portMAX_DELAY) : xSemaphoreGiveRecursive(s.light);
+    }
+}
+
 static void pick_writer(void)
 {
     /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
@@ -483,6 +491,9 @@ static void pick_writer(void)
     if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
         s.full = true;
     }
+    /* the brightness given back and the new writer as one step, so the UI task cannot light the menu between;
+     * db_deck_set_writer calls nothing that takes this lock */
+    light_lock(true);
     db_source_t was = db_deck_writer();
     if (wanted != DB_SOURCE_UI && was == DB_SOURCE_UI && s.menu_lit) {
         int saved = s.brightness >= 0 ? s.brightness : db_config()->brightness;
@@ -493,6 +504,7 @@ static void pick_writer(void)
         s.menu_lit = false;
     }
     db_deck_set_writer(wanted, esp_timer_get_time() < s.handover_until);
+    light_lock(false);
     if (wanted != was && wanted >= DB_SOURCE_LINK0 && wanted < DB_SOURCE_DOCK0) {
         db_link_brightness_again(); /* a server chosen while another drew: its own brightness, not the last */
     }
@@ -502,14 +514,11 @@ static void pick_writer(void)
     s.covered = covering;
 }
 
-/* The UI task picks the writer: then the brightness it sets for the menu and the one it gives back after it
- * never cross. */
 static void changed(void)
 {
-    if (s.task) {
+    pick_writer(); /* at once: the status, the acks and the next image read the writer right after */
+    if (s.task) {  /* NULL when db_ui_start failed: the bridge runs on without the deck screens */
         xTaskNotifyGive(s.task);
-    } else { /* db_ui_start failed: the bridge runs on without the deck screens */
-        pick_writer();
     }
 }
 
@@ -771,25 +780,39 @@ static void ui_task(void *arg)
             save_brightness();
         }
         pick_writer();
-        if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
+        /* the light lock keeps a writer change on another task from crossing the menu's brightness; never
+         * held across model(), which takes other components' locks */
+        light_lock(true);
+        bool ours = s.present && db_deck_writer() == DB_SOURCE_UI;
+        bool menu = false;
+        if (!ours) {
             s.lit = -1; /* a host sets its own; when the UI draws again it sets its own once more */
             s.menu_lit = false;
+        } else {
+            xSemaphoreTake(s.lock, portMAX_DELAY);
+            menu = ui_menu_open(&s.menu);
+            xSemaphoreGive(s.lock);
+            if (menu && !s.menu_lit) { /* just opened: what the deck has now, before the floor */
+                s.before = db_deck_brightness();
+                s.turned = false;
+            }
+        }
+        light_lock(false);
+        if (!ours) {
             continue;
         }
-        xSemaphoreTake(s.lock, portMAX_DELAY);
-        bool menu = ui_menu_open(&s.menu);
-        xSemaphoreGive(s.lock);
-        if (menu && !s.menu_lit) { /* just opened: what the deck has now, before the floor */
-            s.before = db_deck_brightness();
-            s.turned = false;
-        }
         model(&md);
-        int light = ui_light(menu, md.brightness);
-        if (light != s.lit) {
-            s.lit = light;
-            db_deck_set_brightness((uint8_t)light);
+        light_lock(true);
+        if (db_deck_writer() ==
+            DB_SOURCE_UI) { /* still: else pick_writer gave the deck to a host meanwhile */
+            int light = ui_light(menu, md.brightness);
+            if (light != s.lit) {
+                s.lit = light;
+                db_deck_set_brightness((uint8_t)light);
+            }
+            s.menu_lit = menu;
         }
-        s.menu_lit = menu;
+        light_lock(false);
         ui_action_t first;
         if (ui_first_source(&md, &first)) {
             ESP_LOGI(TAG, "first host draws: %s", md.sources[0].id);
@@ -1081,8 +1104,9 @@ esp_err_t db_ui_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
     s.qr_lock = xSemaphoreCreateMutex();
+    s.light = xSemaphoreCreateRecursiveMutex();
     jpeg_port_init();
-    if (!s.lock || !s.qr_lock ||
+    if (!s.lock || !s.qr_lock || !s.light ||
         xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS ||
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
