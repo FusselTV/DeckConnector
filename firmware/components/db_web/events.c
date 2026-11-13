@@ -21,7 +21,7 @@
 #include "freertos/task.h"
 
 #define CLIENTS    8
-#define STATE_MAX  4096 /* as big as /api/status: a bigger state would stop going out */
+#define STATE_MAX  STATUS_JSON_MAX /* a bigger state would stop going out */
 #define POLL_MS    200
 #define SCREEN_MS  50 /* how soon a changed deck picture reaches the page */
 #define SCREEN_MAX 8192

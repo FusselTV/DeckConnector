@@ -279,7 +279,7 @@ int api_input(const char *body, char *reply, size_t cap)
 
 esp_err_t get_status(httpd_req_t *req)
 {
-    char *buf = malloc(STATUS_JSON_MAX);
+    char *buf = heap_caps_malloc(STATUS_JSON_MAX, MALLOC_CAP_SPIRAM);
     if (!buf) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
@@ -291,7 +291,7 @@ esp_err_t get_status(httpd_req_t *req)
     } else {
         err = send_error(req, "500 Internal Server Error", "too large");
     }
-    free(buf);
+    heap_caps_free(buf);
     return err;
 }
 
