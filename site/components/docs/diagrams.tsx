@@ -269,23 +269,23 @@ export function HostSwitch({ lang }: { lang?: Lang }) {
 export function DeckMenu({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
     title: 'The deck menu on a Stream Deck +',
-    alt: 'The deck menu in the web UI\'s live deck view. Top row: Companion studio Satellite in green, Elgato App STUDIO-PC Dock, Server regie, Menü schließen. Second row: LAN 192.168.1.50 automatisch, Setup-WLAN starten, an empty key, Neustart 5 s: Werkszustand. Touch strip: Helligkeit 80 %, Web-Zugang http://192.168.1.50 with user admin and the password, Schließen.',
+    alt: 'The deck menu in the web UI\'s live deck view. Top row: English Sprache, two empty keys, Menü schließen. Second row: LAN 192.168.1.214 automatisch, Setup-WLAN starten, Firmware with its version, Neustart 5 s: Werkszustand. Touch strip: Helligkeit 80 %, Web-Zugang http://192.168.1.214 with user admin and the password, Schließen.',
     rows: [
-      ['Top row', 'Connected hosts, tap one to switch. Menü schließen (close menu)'],
+      ['English', 'Switches the deck to English. In English it says Deutsch'],
       ['LAN', 'Fixed or automatic address'],
       ['Setup-WLAN', 'Starts the setup Wi-Fi'],
       ['Neustart', 'Tap twice: restart. Hold 5 s: factory reset'],
-      ['Strip', 'Brightness, turn dial 1. Web address, user admin, password. Schließen (close)'],
+      ['Strip', 'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, user admin, password. Schließen (close)'],
     ],
   }, {
     title: 'Das Deck-Menü auf einem Stream Deck +',
-    alt: 'Das Deck-Menü in der Live-Ansicht der Weboberfläche. Obere Reihe: Companion studio Satellite in Grün, Elgato App STUDIO-PC Dock, Server regie, Menü schließen. Zweite Reihe: LAN 192.168.1.50 automatisch, Setup-WLAN starten, eine leere Taste, Neustart 5 s: Werkszustand. Touchleiste: Helligkeit 80 %, Web-Zugang http://192.168.1.50 mit Benutzer admin und Passwort, Schließen.',
+    alt: 'Das Deck-Menü in der Live-Ansicht der Weboberfläche. Obere Reihe: English Sprache, zwei leere Tasten, Menü schließen. Zweite Reihe: LAN 192.168.1.214 automatisch, Setup-WLAN starten, Firmware mit ihrer Version, Neustart 5 s: Werkszustand. Touchleiste: Helligkeit 80 %, Web-Zugang http://192.168.1.214 mit Benutzer admin und Passwort, Schließen.',
     rows: [
-      ['Obere Reihe', 'Verbundene Programme, antippen zum Wechseln. Menü schließen'],
+      ['English', 'Stellt das Deck auf Englisch. Auf Englisch steht dort Deutsch'],
       ['LAN', 'Feste oder automatische Adresse'],
       ['Setup-WLAN', 'Startet das Setup-WLAN'],
       ['Neustart', 'Zweimal tippen: Neustart. 5 s halten: Werkszustand'],
-      ['Leiste', 'Helligkeit, Drehregler 1 drehen. Web-Adresse, Benutzer admin, Passwort. Schließen'],
+      ['Leiste', 'Helligkeit, Drehregler 1 drehen, im Menü mindestens 20 %. Web-Adresse, Benutzer admin, Passwort. Schließen'],
     ],
   })
   return (

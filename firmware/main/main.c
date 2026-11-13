@@ -372,7 +372,7 @@ static void on_ota_progress(const char *target, const char *state, int pct, cons
         db_web_broadcast(buf);
     }
     bool running = strcmp(state, "error") != 0;
-    db_ui_set_update(running ? pct : -1, target[0] == 'c' ? "WLAN-Chip" : "Firmware");
+    db_ui_set_update(running ? pct : -1, target[0] == 'c');
 }
 
 static void on_ota_requested(const char *target, const char *url)

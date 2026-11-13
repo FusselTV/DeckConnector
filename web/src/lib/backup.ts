@@ -33,6 +33,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'cors_origins',
   'menu_chord',
   'menu_hold_ms',
+  'lang',
   'usb_speed',
   'dock_paired_only',
   'qr_login',

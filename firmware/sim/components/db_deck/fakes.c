@@ -480,6 +480,11 @@ bool db_ui_login_shown(void)
            getenv("DB_SIM_VIA_AP");
 }
 
+bool db_ui_password_shown(void)
+{
+    return db_ui_login_shown() || !db_config()->setup_done || menu_open;
+}
+
 void db_ui_setup_step(int step)
 {
 }

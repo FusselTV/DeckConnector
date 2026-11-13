@@ -44,10 +44,13 @@ typedef enum {
     K_DENY,
     K_RESET,
     K_KEEP,
+    K_LANG,
+    K_WEB,
     K_SRC0, /* K_SRC0 + index in ui_model_t.sources; keep it last */
 } key_act_t;
 
-static const char *const field_names[] = {"IP", "Maske", "Gateway", "DNS"};
+static const char *const field_names[2][4] = {{"IP", "Maske", "Gateway", "DNS"},
+                                              {"IP", "Mask", "Gateway", "DNS"}};
 
 typedef struct {
     const ui_menu_t *m;
@@ -56,6 +59,9 @@ typedef struct {
     ui_screen_t *sc;
     uint8_t *acts;
 } page_t;
+
+/* The German or the English text, as the deck's language is set. */
+#define L(de, en) (p->md->english ? (en) : (de))
 
 /* The long text on big keys, the short one on 72 and 96 px keys. */
 static const char *fit(const page_t *p, const char *wide, const char *narrow)
@@ -133,8 +139,9 @@ static void source_key(page_t *p, int key, int i, bool ask)
     bool asking = ask && !src->chosen && confirming(p->m, key, p->md->now_us);
     ui_tile_t *t = put(p, key, (key_act_t)(K_SRC0 + i));
     /* a card, so a name breaks into lines instead of being cut; on small keys the icon names the program */
-    card(t, controller_icon(src->kind), asking ? "Wechseln?" : fit(p, controller_label(src->kind), ""),
-         src->label, asking ? fit(p, "nochmal tippen", "nochmal") : via_label[src->via]);
+    card(t, controller_icon(src->kind),
+         asking ? L("Wechseln?", "Switch?") : fit(p, controller_label(src->kind), ""), src->label,
+         asking ? fit(p, L("nochmal tippen", "tap again"), L("nochmal", "again")) : via_label[src->via]);
     t->active = src->chosen || asking;
     t->color = asking ? C_EDIT : C_ACTIVE;
 }
@@ -160,11 +167,13 @@ static void host_row(page_t *p, bool ask, bool welcome)
     int slot = 0;
     if (!welcome && (n == 0 || !md->sources[order[0]].chosen)) {
         ui_tile_t *t = put(p, at(p, 0, slot++), K_NONE);
-        card(t, controller_icon(md->controller), controller_label(md->controller), "getrennt", "wartet");
+        card(t, controller_icon(md->controller), fit(p, controller_label(md->controller), ""),
+             L("getrennt", "offline"), L("wartet", "waiting"));
         t->active = true;
         t->color = C_WARN;
     } else if (n == 0) {
-        card(put(p, at(p, 0, slot++), K_NONE), ICON_ALERT, fit(p, "Noch niemand", "Niemand"), "verbunden",
+        card(put(p, at(p, 0, slot++), K_NONE), ICON_ALERT,
+             fit(p, L("Noch niemand", "Nobody yet"), L("Niemand", "Nobody")), L("verbunden", "connected"),
              "");
     }
     bool more = slot + n > room;
@@ -174,9 +183,9 @@ static void host_row(page_t *p, bool ask, bool welcome)
     }
     if (more) {
         char count[24];
-        snprintf(count, sizeof(count), "%d Rechner", n);
+        snprintf(count, sizeof(count), fit(p, L("%d Rechner", "%d computers"), L("%d Rechner", "%d")), n);
         ui_tile_t *t = put(p, at(p, 0, room - 1), K_ALL);
-        button(t, ICON_OPEN, "Alle", count);
+        button(t, ICON_OPEN, L("Alle", "All"), count);
         t->badge = BADGE_OPEN;
     }
 }
@@ -184,8 +193,11 @@ static void host_row(page_t *p, bool ask, bool welcome)
 static void lan_card(const page_t *p, ui_tile_t *t)
 {
     const ui_model_t *md = p->md;
-    card(t, ICON_LAN, "LAN", md->lan_up ? md->lan_ip : (md->lan_link ? "keine Adresse" : "kein Kabel"),
-         md->lan_dhcp ? fit(p, "automatisch", "auto") : fit(p, "feste Adresse", "fest"));
+    card(t, ICON_LAN, "LAN",
+         md->lan_up ? md->lan_ip
+                    : (md->lan_link ? L("keine Adresse", "no address") : L("kein Kabel", "no cable")),
+         md->lan_dhcp ? fit(p, L("automatisch", "automatic"), "auto")
+                      : fit(p, L("feste Adresse", "fixed address"), L("fest", "fixed")));
 }
 
 /* The SSID can be 32 characters; it is in the web UI, the key shows the signal. */
@@ -194,8 +206,9 @@ static void wlan_card(const page_t *p, ui_tile_t *t)
     const ui_model_t *md = p->md;
     char rssi[16];
     snprintf(rssi, sizeof(rssi), "%d dBm", md->wlan_rssi);
-    card(t, md->wlan_up ? ICON_WLAN : ICON_WLAN_OFF, "WLAN",
-         md->wlan_up ? md->wlan_ip : (md->wifi_ssid[0] ? "getrennt" : "aus"), md->wlan_up ? rssi : "");
+    card(t, md->wlan_up ? ICON_WLAN : ICON_WLAN_OFF, L("WLAN", "Wi-Fi"),
+         md->wlan_up ? md->wlan_ip : (md->wifi_ssid[0] ? L("getrennt", "offline") : L("aus", "off")),
+         md->wlan_up ? rssi : "");
 }
 
 /* Encoder 1 and the strip above it on decks that have them, two keys on the others. */
@@ -204,12 +217,13 @@ static void brightness(page_t *p, int row)
     char v[16];
     snprintf(v, sizeof(v), "%d %%", p->md->brightness);
     if (p->l->strip && p->l->encoders) {
-        segment(&p->sc->seg[0], 1, ICON_BRIGHTNESS, C_WARN, "Helligkeit · drehen", v, "");
+        segment(&p->sc->seg[0], 1, ICON_BRIGHTNESS, C_WARN, L("Helligkeit · drehen", "Brightness · turn"), v,
+                "");
         p->sc->seg[0].bar = p->md->brightness;
         return;
     }
-    button(put(p, at(p, row, 0), K_DIMMER), ICON_BRIGHTNESS, "Dunkler", v);
-    button(put(p, at(p, row, 1), K_BRIGHTER), ICON_BRIGHTNESS, "Heller", v);
+    button(put(p, at(p, row, 0), K_DIMMER), ICON_BRIGHTNESS, L("Dunkler", "Darker"), v);
+    button(put(p, at(p, row, 1), K_BRIGHTER), ICON_BRIGHTNESS, L("Heller", "Brighter"), v);
 }
 
 /* Two rows, no strip and no encoders (Stream Deck Neo): no room for a row of brightness keys. */
@@ -223,7 +237,7 @@ static void brightness_step(page_t *p, int key)
 {
     char v[16];
     snprintf(v, sizeof(v), "%d %%", p->md->brightness);
-    card(put(p, key, K_BRIGHT_STEP), ICON_BRIGHTNESS, "Licht", v, "tippen");
+    card(put(p, key, K_BRIGHT_STEP), ICON_BRIGHTNESS, L("Licht", "Light"), v, L("tippen", "tap"));
 }
 
 /* What is missing: a wide strip part, or one card on decks without a strip. */
@@ -234,35 +248,62 @@ static void status_message(page_t *p, const char *icon, uint32_t color, const ch
         segment(&p->sc->seg[1], 3, icon, color, label, title, sub);
         return;
     }
-    card(put(p, at(p, 1, -1), K_NONE), icon, "Status", short_title, short_sub);
+    /* a 3 column deck has no Web key: its status key is it */
+    bool web = p->l->cols < 4;
+    ui_tile_t *t = put(p, at(p, 1, -1), web ? K_WEB : K_NONE);
+    card(t, icon, "Status", short_title, short_sub);
+    t->badge = web ? BADGE_OPEN : BADGE_NONE;
     (void)label;
 }
 
 static void home_status(page_t *p)
 {
     const ui_model_t *md = p->md;
+    const char *program = controller_label(md->controller);
+    char title[48];
     char sub[112];
     if (!md->lan_up && !md->wlan_up) {
         /* the setup WLAN starts by itself only at boot */
-        status_message(p, ICON_NO_NETWORK, C_DANGER, "Netzwerk", "Kein Netz",
-                       md->wlan_chip ? "LAN-Kabel stecken oder im Menü das Setup-WLAN starten"
-                                     : "LAN-Kabel stecken",
-                       "Kein Netz", "LAN-Kabel");
+        status_message(p, ICON_NO_NETWORK, C_DANGER, L("Netzwerk", "Network"), L("Kein Netz", "No network"),
+                       md->wlan_chip
+                           ? L("LAN-Kabel stecken oder WLAN antippen", "Plug in a LAN cable or tap Wi-Fi")
+                           : L("LAN-Kabel stecken", "Plug in a LAN cable"),
+                       L("Kein Netz", "No network"), L("LAN-Kabel", "LAN cable"));
     } else if (md->hosts[md->controller] && md->source_count) { /* connected, but has not drawn yet */
-        snprintf(sub, sizeof(sub), "%s verbunden", controller_label(md->controller));
-        status_message(p, controller_icon(md->controller), C_ACTIVE, controller_label(md->controller), sub,
-                       "Zeichnet gleich", controller_label(md->controller), "verbunden");
+        snprintf(title, sizeof(title), L("%s verbunden", "%s connected"), program);
+        status_message(p, controller_icon(md->controller), C_ACTIVE, program, title,
+                       L("Zeichnet gleich", "Draws in a moment"), program, L("verbunden", "connected"));
+    } else if (md->controller == UI_CTRL_COMPANION && md->satellite[0]) {
+        /* not reachable only once an attempt failed: right after the start it is still trying */
+        bool failed = md->sat_failed;
+        snprintf(sub, sizeof(sub),
+                 failed ? L("%s · im Web ändern", "%s · change it on the web page") : "Satellite %s",
+                 md->satellite);
+        status_message(p, ICON_ALERT, C_WARN, program,
+                       failed ? L("Companion nicht erreichbar", "Companion not reachable")
+                              : L("Warte auf Companion", "Waiting for Companion"),
+                       sub, program, failed ? L("nicht da", "away") : L("wartet", "waiting"));
     } else if (md->controller == UI_CTRL_COMPANION) {
-        snprintf(sub, sizeof(sub), "In Companion unter Surfaces als Remote Surface eintragen: %s", ip_of(md));
-        status_message(p, ICON_ALERT, C_WARN, "Companion", "Warte auf Companion", sub, "Companion", "wartet");
+        snprintf(sub, sizeof(sub),
+                 L("In Companion unter Surfaces als Remote Surface eintragen: %s",
+                   "In Companion, add %s under Surfaces as a remote surface"),
+                 ip_of(md));
+        status_message(p, ICON_ALERT, C_WARN, program, L("Warte auf Companion", "Waiting for Companion"), sub,
+                       program, L("wartet", "waiting"));
     } else if (md->controller == UI_CTRL_APP) {
-        status_message(p, ICON_ALERT, C_WARN, "Elgato App", "Warte auf die Elgato App",
-                       "Die Elgato App findet den DeckConnector im Netz selbst", "Elgato App", "wartet");
+        status_message(p, ICON_ALERT, C_WARN, program,
+                       L("Warte auf die Elgato App", "Waiting for the Elgato App"),
+                       L("Die Elgato App findet den DeckConnector im Netz selbst",
+                         "The Elgato App finds the DeckConnector on the network by itself"),
+                       program, L("wartet", "waiting"));
     } else {
-        snprintf(sub, sizeof(sub), "%s", md->server_url[0] ? md->server_url : "Sucht einen Server im Netz");
-        status_message(p, ICON_ALERT, C_WARN, "Server",
-                       md->server_url[0] ? "Server getrennt" : "Suche Server", sub, "Server",
-                       md->server_url[0] ? "getrennt" : "sucht");
+        snprintf(sub, sizeof(sub), "%s",
+                 md->server_url[0] ? md->server_url
+                                   : L("Sucht einen Server im Netz", "Looks for a server on the network"));
+        status_message(p, ICON_ALERT, C_WARN, program,
+                       md->server_url[0] ? L("Server getrennt", "Server offline")
+                                         : L("Suche Server", "Looking for a server"),
+                       sub, program, md->server_url[0] ? L("getrennt", "offline") : L("sucht", "looking"));
     }
 }
 
@@ -276,22 +317,38 @@ static void firmware_card(const page_t *p, ui_tile_t *t)
     if (hash) {
         *hash = '\0';
     }
-    snprintf(chip, sizeof(chip), p->l->key_px < 110 ? "%s" : "WLAN %s", md->wlan_fw[0] ? md->wlan_fw : "-");
+    snprintf(chip, sizeof(chip), p->l->key_px < 110 ? "%s" : L("WLAN %s", "Wi-Fi %s"),
+             md->wlan_fw[0] ? md->wlan_fw : "-");
     card(t, ICON_FIRMWARE, "Firmware", ver, chip);
 }
 
+/* Nobody draws. Every key does something: LAN opens its page, Wi-Fi without a network starts the setup Wi-Fi,
+ * Web shows the address and password; the strip says what is missing. */
 static void home(page_t *p)
 {
+    const ui_model_t *md = p->md;
     host_row(p, true, false);
     ui_tile_t *menu = put(p, at(p, 0, -1), K_MENU);
-    button(menu, ICON_SETTINGS, "Menü", fit(p, "Einstellungen", ""));
+    button(menu, ICON_SETTINGS, L("Menü", "Menu"), fit(p, L("Einstellungen", "settings"), ""));
     menu->badge = BADGE_OPEN;
-    lan_card(p, put(p, at(p, 1, 0), K_NONE));
-    wlan_card(p, put(p, at(p, 1, 1), K_NONE));
+    ui_tile_t *lan = put(p, at(p, 1, 0), K_LAN);
+    lan_card(p, lan);
+    lan->badge = BADGE_OPEN;
+    bool join = md->wlan_chip && !md->wlan_up;
+    ui_tile_t *wlan = put(p, at(p, 1, 1), join ? K_AP : K_NONE);
+    wlan_card(p, wlan);
+    if (join) {
+        snprintf(wlan->sub, sizeof(wlan->sub), "%s", fit(p, L("einrichten", "set up"), L("Setup", "setup")));
+        wlan->badge = BADGE_OPEN;
+    }
     if (cramped(p)) {
-        brightness_step(p, at(p, 1, 2)); /* the firmware version is in the web UI */
+        /* 3 x 2: the middle key, the setup WLAN is in the menu; the address and password are on Status */
+        brightness_step(p, at(p, 1, p->l->cols < 4 ? 1 : 2));
     } else {
-        firmware_card(p, put(p, at(p, 1, 2), K_NONE));
+        ui_tile_t *web = put(p, at(p, 1, 2), K_WEB);
+        button(web, ICON_WEB, "Web",
+               fit(p, L("Adresse, Passwort", "address, password"), L("Login", "login")));
+        web->badge = BADGE_OPEN;
     }
     brightness(p, 2);
     home_status(p);
@@ -304,14 +361,17 @@ static void restart_key(page_t *p, int key)
     ui_tile_t *t = put(p, key, K_RESTART);
     char sub[24];
     if (held >= RESET_HOLD_US) {
-        button(t, ICON_RESET, fit(p, "Werkszustand", "Löschen"), "loslassen");
+        button(t, ICON_RESET, fit(p, L("Werkszustand", "Factory reset"), L("Löschen", "Reset")),
+               L("loslassen", "let go"));
     } else if (held >= HOLD_SHOWN_US) {
         snprintf(sub, sizeof(sub), "in %d s", (int)((RESET_HOLD_US - held) / 1000000) + 1);
-        button(t, ICON_RESET, fit(p, "Werkszustand", "Löschen"), sub);
+        button(t, ICON_RESET, fit(p, L("Werkszustand", "Factory reset"), L("Löschen", "Reset")), sub);
     } else if (confirming(m, key, p->md->now_us)) {
-        button(t, ICON_RESTART, "Wirklich?", fit(p, "nochmal tippen", "nochmal"));
+        button(t, ICON_RESTART, L("Wirklich?", "Sure?"),
+               fit(p, L("nochmal tippen", "tap again"), L("nochmal", "again")));
     } else {
-        button(t, ICON_RESTART, "Neustart", fit(p, "5 s: Werkszustand", "5s: löschen"));
+        button(t, ICON_RESTART, L("Neustart", "Restart"),
+               fit(p, L("5 s: Werkszustand", "5 s: factory reset"), L("5s: löschen", "5s: reset")));
     }
     t->active = held >= HOLD_SHOWN_US || confirming(m, key, p->md->now_us);
     t->color = C_DANGER;
@@ -324,39 +384,52 @@ static void close_key(ui_tile_t *t, const char *icon, const char *label, const c
     t->color = C_EDIT;
 }
 
+/* The settings. The hosts stay on the home screen: here they would only be in the way. */
 static void main_menu(page_t *p)
 {
     const ui_model_t *md = p->md;
-    host_row(p, false, false);
-    close_key(put(p, at(p, 0, -1), K_CLOSE), ICON_SETTINGS, "Menü", "schließen");
+    close_key(put(p, at(p, 0, -1), K_CLOSE), ICON_SETTINGS, L("Menü", "Menu"), L("schließen", "close"));
+    /* the language it switches to, named in that language, so someone who reads only that one finds it */
+    button(put(p, at(p, 0, 0), K_LANG), ICON_LANG, L("English", "Deutsch"),
+           fit(p, L("Sprache", "Language"), ""));
+    if (cramped(p)) {
+        brightness_step(p, at(p, 0, 1)); /* no row for brightness keys */
+    }
     ui_tile_t *lan = put(p, at(p, 1, 0), K_LAN);
     lan_card(p, lan);
     lan->badge = BADGE_OPEN;
     ui_tile_t *ap = put(p, at(p, 1, 1), md->wlan_chip ? K_AP : K_NONE);
-    button(ap, ICON_SETUP_AP, fit(p, "Setup-WLAN", "Setup"),
-           md->wlan_chip ? fit(p, "starten", "WLAN") : fit(p, "nicht verfügbar", "fehlt"));
+    button(ap, ICON_SETUP_AP, fit(p, L("Setup-WLAN", "Setup Wi-Fi"), "Setup"),
+           md->wlan_chip ? fit(p, L("starten", "start"), L("WLAN", "Wi-Fi"))
+                         : fit(p, L("nicht verfügbar", "not available"), L("fehlt", "none")));
     ap->badge = md->wlan_chip ? BADGE_OPEN : BADGE_NONE;
     ap->dim = !md->wlan_chip;
     restart_key(p, at(p, 1, -1));
     char web[48];
     char login[72];
-    snprintf(web, sizeof(web), "%s%s", ip_of(md) ? "http://" : "Kein Netz", ip_of(md) ? ip_of(md) : "");
-    snprintf(login, sizeof(login), "Benutzer admin · Passwort %s", md->web_pass);
+    snprintf(web, sizeof(web), "%s%s", ip_of(md) ? "http://" : L("Kein Netz", "No network"),
+             ip_of(md) ? ip_of(md) : "");
+    snprintf(login, sizeof(login), L("Benutzer admin · Passwort %s", "User admin · password %s"),
+             md->web_pass);
     brightness(p, 2);
     if (p->l->strip) {
-        segment(&p->sc->seg[1], 2, ICON_WEB, C_DIM, "Web-Zugang", web,
+        firmware_card(p, put(p, at(p, 1, 2), K_NONE));
+        segment(&p->sc->seg[1], 2, ICON_WEB, C_DIM, L("Web-Zugang", "Web access"), web,
                 p->m->note[0] ? p->m->note : (md->web_pass[0] ? login : ""));
-        segment(&p->sc->seg[3], 1, ICON_CLOSE, C_DIM, "", "Schließen", "tippen oder drehen");
+        segment(&p->sc->seg[3], 1, ICON_CLOSE, C_DIM, "", L("Schließen", "Close"),
+                L("tippen oder drehen", "tap or turn"));
     } else {
         /* no third row when cramped: the address is on the LAN key beside it, so the password goes here */
         if (cramped(p)) {
-            if (md->web_pass[0]) {
-                card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "admin");
+            if (md->web_pass[0] && p->l->cols >= 4) { /* 3 x 2: Status on the home screen shows it */
+                card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass,
+                     "admin");
             }
         } else {
-            card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz", "admin");
+            card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Web",
+                 ip_of(md) ? ip_of(md) : L("kein Netz", "no network"), "admin");
             if (md->web_pass[0]) {
-                card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+                card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass, "");
             }
         }
     }
@@ -378,48 +451,58 @@ static void lan_page(page_t *p)
         octets_str(m->octets[f], v, sizeof(v));
         if (turn) {
             ui_tile_t *t = put(p, at(p, 0, f), (key_act_t)(K_FIELD0 + f));
-            button(t, ICON_IP, field_names[f], m->lan_dhcp ? "automatisch" : v);
+            button(t, ICON_IP, field_names[p->md->english][f],
+                   m->lan_dhcp ? L("automatisch", "automatic") : v);
             t->active = !m->lan_dhcp && f == m->field;
             t->color = C_EDIT;
             t->dim = m->lan_dhcp;
         } else {
-            card(put(p, at(p, 0, f), K_NONE), ICON_IP, field_names[f], m->lan_dhcp ? "auto" : v, "");
+            card(put(p, at(p, 0, f), K_NONE), ICON_IP, field_names[p->md->english][f],
+                 m->lan_dhcp ? "auto" : v, "");
         }
     }
-    close_key(put(p, at(p, 1, 0), K_LAN_CLOSE), ICON_CLOSE, "Zurück", fit(p, "ohne Speichern", ""));
+    close_key(put(p, at(p, 1, 0), K_LAN_CLOSE), ICON_CLOSE, L("Zurück", "Back"),
+              fit(p, L("ohne Speichern", "without saving"), ""));
     button(put(p, at(p, 1, 1), K_DHCP), m->lan_dhcp ? ICON_DHCP : ICON_FIXED,
-           m->lan_dhcp ? fit(p, "Automatisch", "Auto") : "Fest", fit(p, "tippen: wechseln", "wechseln"));
+           m->lan_dhcp ? fit(p, L("Automatisch", "Automatic"), "Auto") : L("Fest", "Fixed"),
+           fit(p, L("tippen: wechseln", "tap to switch"), L("wechseln", "switch")));
     ui_tile_t *save = put(p, at(p, 1, -1), K_SAVE_LAN);
-    button(save, ICON_SAVE, "Speichern", fit(p, "startet neu", "Neustart"));
+    button(save, ICON_SAVE, L("Speichern", "Save"),
+           fit(p, L("startet neu", "restarts"), L("Neustart", "restart")));
     save->active = true;
     save->color = C_ACTIVE;
     if (!p->l->strip) {
-        card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Ändern", "im Web", "");
+        card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, L("Ändern", "Change"), L("im Web", "on the web"), "");
         return;
     }
     if (m->lan_dhcp) {
-        segment(&p->sc->seg[0], 4, ICON_LAN, C_DIM, "LAN", "Adresse automatisch",
-                m->note[0] ? m->note : "Die Adresse kommt vom Router");
+        segment(&p->sc->seg[0], 4, ICON_LAN, C_DIM, "LAN", L("Adresse automatisch", "Automatic address"),
+                m->note[0] ? m->note : L("Die Adresse kommt vom Router", "The router gives the address"));
         return;
     }
     for (int o = 0; o < 4; o++) {
         char label[32];
         char v[12];
-        snprintf(label, sizeof(label), "%s · %d. Stelle", field_names[m->field], o + 1);
+        snprintf(label, sizeof(label), L("%s · %d. Stelle", "%s · part %d"),
+                 field_names[p->md->english][m->field], o + 1);
         snprintf(v, sizeof(v), "%u", m->octets[m->field][o]);
         segment(&p->sc->seg[o], 1, NULL, 0, label, v,
-                o == 0 ? "drehen" : (o == 3 ? "drücken: nächstes Feld" : ""));
+                o == 0 ? L("drehen", "turn")
+                       : (o == 3 ? L("drücken: nächstes Feld", "press: next field") : ""));
     }
 }
 
 static void ap_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_SETUP_AP, fit(p, "WLAN-Name", "WLAN"), md->ap_ssid, "");
-    card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, fit(p, "WLAN-Passwort", "Kennwort"), md->ap_pass, "");
-    card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, fit(p, "Dann öffnen", "Öffnen"), md->ap_ip,
-         fit(p, "im Browser", ""));
-    close_key(put(p, at(p, 1, 1), K_AP_CLOSE), ICON_SETUP_AP, "Beenden", fit(p, "Setup-WLAN aus", ""));
+    card(put(p, at(p, 0, 0), K_NONE), ICON_SETUP_AP, fit(p, L("WLAN-Name", "Wi-Fi name"), L("WLAN", "Wi-Fi")),
+         md->ap_ssid, "");
+    card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD,
+         fit(p, L("WLAN-Passwort", "Wi-Fi password"), L("Kennwort", "Password")), md->ap_pass, "");
+    card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, fit(p, L("Dann öffnen", "Then open"), L("Öffnen", "Open")),
+         md->ap_ip, fit(p, L("im Browser", "in a browser"), ""));
+    close_key(put(p, at(p, 1, 1), K_AP_CLOSE), ICON_SETUP_AP, L("Beenden", "Stop"),
+              fit(p, L("Setup-WLAN aus", "setup Wi-Fi off"), ""));
     if (md->ap_qr.size) {
         ui_tile_t *qr = put(p, at(p, 1, 0), K_NONE);
         *qr = (ui_tile_t){.kind = TILE_QR};
@@ -427,8 +510,10 @@ static void ap_page(page_t *p)
         p->sc->qr = md->ap_qr;
     }
     if (p->l->strip) {
-        segment(&p->sc->seg[0], 4, ICON_SETUP_AP, C_ACTIVE, "Setup-WLAN", "Setup-WLAN ist an",
-                "Code mit der Handykamera scannen, die Seite öffnet sich dann von selbst");
+        segment(&p->sc->seg[0], 4, ICON_SETUP_AP, C_ACTIVE, L("Setup-WLAN", "Setup Wi-Fi"),
+                L("Setup-WLAN ist an", "Setup Wi-Fi is on"),
+                L("Code mit der Handykamera scannen, die Seite öffnet sich dann von selbst",
+                  "Scan the code with a phone camera, and the page opens by itself"));
     }
 }
 
@@ -438,18 +523,20 @@ static void chord_words(const page_t *p, char *which, size_t cap, char *hold, si
     bool enc;
     int last;
     if (!ui_menu_chord(p->md->menu_chord, p->l->encoders, p->l->cols * p->l->rows, &enc, &last)) {
-        snprintf(which, cap, "aus");
-        snprintf(hold, hold_cap, "%s", fit(p, "nur im Web", ""));
+        snprintf(which, cap, "%s", L("aus", "off"));
+        snprintf(hold, hold_cap, "%s", fit(p, L("nur im Web", "web only"), ""));
         return;
     }
     if (enc) {
-        snprintf(which, cap, "%s 1 + %d", fit(p, "Drehregler", "Regler"), last + 1);
+        snprintf(which, cap, "%s 1 + %d", L(fit(p, "Drehregler", "Regler"), "Dials"), last + 1);
     } else { /* the first and the last key: holding all four corners works too */
-        snprintf(which, cap, "%s", fit(p, "Tasten in den Ecken", "Ecken"));
+        snprintf(which, cap, "%s", fit(p, L("Tasten in den Ecken", "Corner keys"), L("Ecken", "Corners")));
     }
     int ms = p->md->menu_hold_ms;
-    snprintf(hold, hold_cap, ms % 1000 ? fit(p, "%d,%d s halten", "%d,%d s") : "%d s halten", ms / 1000,
-             ms % 1000 / 100);
+    snprintf(hold, hold_cap,
+             ms % 1000 ? fit(p, L("%d,%d s halten", "hold %d.%d s"), L("%d,%d s", "%d.%d s"))
+                       : L("%d s halten", "hold %d s"),
+             ms / 1000, ms % 1000 / 100);
 }
 
 /* A one-time web login for the phone that scans it, and the web wizard's step while it runs. */
@@ -467,7 +554,8 @@ static void setup_keys(page_t *p)
         static const uint8_t page_step[] = {1, 1, 2, 2, 3, 4, 5};
         char step[8];
         snprintf(step, sizeof(step), "%u/5", page_step[md->setup_step < 7 ? md->setup_step : 6]);
-        card(put(p, at(p, 1, -1), K_NONE), ICON_WEB, "Setup", step, fit(p, "im Browser", ""));
+        card(put(p, at(p, 1, -1), K_NONE), ICON_WEB, "Setup", step,
+             fit(p, L("im Browser", "in a browser"), ""));
     }
 }
 
@@ -480,7 +568,8 @@ static void welcome(page_t *p)
     for (int i = 0; i < p->l->cols - 1; i++) {
         p->sc->tiles[at(p, 0, i)].active = false; /* nothing is chosen yet */
     }
-    button(put(p, at(p, 0, -1), K_SKIP), ICON_CLOSE, "Später", fit(p, "überspringen", ""));
+    button(put(p, at(p, 0, -1), K_SKIP), ICON_CLOSE, L("Später", "Later"),
+           fit(p, L("überspringen", "skip"), ""));
     char which[32];
     char hold[24];
     chord_words(p, which, sizeof(which), hold, sizeof(hold));
@@ -488,18 +577,21 @@ static void welcome(page_t *p)
     setup_keys(p);
     if (p->l->strip) {
         if (ip) {
-            segment(&p->sc->seg[0], 2, ICON_WEB, C_EDIT, "Diese Adresse eintragen", ip,
-                    "in Companion oder der Elgato App");
+            segment(&p->sc->seg[0], 2, ICON_WEB, C_EDIT, L("Diese Adresse eintragen", "Enter this address"),
+                    ip, L("in Companion oder der Elgato App", "in Companion or the Elgato App"));
         } else {
-            segment(&p->sc->seg[0], 2, ICON_NO_NETWORK, C_DANGER, "Kein Netz", "LAN-Kabel stecken",
-                    "nach 1 min startet das Setup-WLAN");
+            segment(&p->sc->seg[0], 2, ICON_NO_NETWORK, C_DANGER, L("Kein Netz", "No network"),
+                    L("LAN-Kabel stecken", "Plug in a LAN cable"),
+                    L("nach 1 min startet das Setup-WLAN", "the setup Wi-Fi starts after 1 min"));
         }
-        segment(&p->sc->seg[2], 2, ICON_SETTINGS, C_DIM, "Menü öffnen", which, hold);
+        segment(&p->sc->seg[2], 2, ICON_SETTINGS, C_DIM, L("Menü öffnen", "Open the menu"), which, hold);
         return;
     }
-    card(put(p, at(p, 1, 0), K_NONE), ip ? ICON_WEB : ICON_NO_NETWORK, fit(p, "Adresse", "IP"),
-         ip ? ip : "kein Netz", ip ? fit(p, "in Companion/App", "eintragen") : fit(p, "LAN-Kabel", "Kabel"));
-    card(put(p, at(p, 1, 1), K_NONE), ICON_SETTINGS, "Menü", which, hold);
+    card(put(p, at(p, 1, 0), K_NONE), ip ? ICON_WEB : ICON_NO_NETWORK, fit(p, L("Adresse", "Address"), "IP"),
+         ip ? ip : L("kein Netz", "no network"),
+         ip ? fit(p, "in Companion/App", L("eintragen", "enter it"))
+            : fit(p, L("LAN-Kabel", "LAN cable"), L("Kabel", "cable")));
+    card(put(p, at(p, 1, 1), K_NONE), ICON_SETTINGS, L("Menü", "Menu"), which, hold);
 }
 
 static void welcome_net(page_t *p)
@@ -508,29 +600,37 @@ static void welcome_net(page_t *p)
     lan_card(p, put(p, at(p, 0, 0), K_NONE));
     wlan_card(p, put(p, at(p, 0, 1), K_NONE));
     ui_tile_t *ap = put(p, at(p, 0, 2), md->wlan_chip ? K_AP : K_NONE);
-    button(ap, ICON_SETUP_AP, fit(p, "Setup-WLAN", "Setup"),
-           fit(p, md->lan_up || md->wlan_up ? "WLAN einrichten" : "ohne Kabel", "WLAN"));
+    button(ap, ICON_SETUP_AP, fit(p, L("Setup-WLAN", "Setup Wi-Fi"), "Setup"),
+           fit(p,
+               md->lan_up || md->wlan_up ? L("WLAN einrichten", "set up Wi-Fi")
+                                         : L("ohne Kabel", "without cable"),
+               L("WLAN", "Wi-Fi")));
     ap->badge = md->wlan_chip ? BADGE_OPEN : BADGE_NONE;
     ap->dim = !md->wlan_chip;
     ui_tile_t *done = put(p, at(p, 0, -1), K_DONE);
-    button(done, ICON_SAVE, "Fertig", fit(p, "Setup beenden", ""));
+    button(done, ICON_SAVE, L("Fertig", "Done"), fit(p, L("Setup beenden", "finish setup"), ""));
     done->active = true;
     done->color = C_ACTIVE;
-    card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : "kein Netz",
-         fit(p, "Benutzer admin", "admin"));
-    card(put(p, at(p, 1, 1), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, fit(p, "fürs Web", ""));
+    card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : L("kein Netz", "no network"),
+         fit(p, L("Benutzer admin", "user admin"), "admin"));
+    card(put(p, at(p, 1, 1), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass,
+         fit(p, L("fürs Web", "for the web"), ""));
     setup_keys(p);
     if (p->l->strip) {
         char sub[112];
         if (ip_of(md)) {
             snprintf(sub, sizeof(sub),
-                     "Im Browser http://%s öffnen. Mit „Fertig“ übernimmt der Rechner das Deck.", ip_of(md));
+                     L("Im Browser http://%s öffnen. Mit „Fertig“ übernimmt der Rechner das Deck.",
+                       "Open http://%s in a browser. Tap Done, and the computer takes the deck."),
+                     ip_of(md));
         } else {
-            snprintf(sub, sizeof(sub), "LAN-Kabel stecken oder Setup-WLAN starten. Dann „Fertig“ tippen.");
+            snprintf(sub, sizeof(sub), "%s",
+                     L("LAN-Kabel stecken oder Setup-WLAN starten. Dann „Fertig“ tippen.",
+                       "Plug in a LAN cable or start the setup Wi-Fi. Then tap Done."));
         }
         segment(&p->sc->seg[0], 4, md->lan_up || md->wlan_up ? ICON_LAN : ICON_NO_NETWORK,
-                md->lan_up || md->wlan_up ? C_ACTIVE : C_DANGER, "Netzwerk",
-                md->lan_up || md->wlan_up ? "Verbunden" : "Kein Netz", sub);
+                md->lan_up || md->wlan_up ? C_ACTIVE : C_DANGER, L("Netzwerk", "Network"),
+                md->lan_up || md->wlan_up ? L("Verbunden", "Connected") : L("Kein Netz", "No network"), sub);
     }
 }
 
@@ -539,20 +639,23 @@ static void request_page(page_t *p)
 {
     const ui_model_t *md = p->md;
     bool named = md->request_name[0];
-    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, fit(p, "Verbindung", "Anfrage"),
-         named ? md->request_name : md->request, named ? md->request : fit(p, "neues Programm", "neu"));
+    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT,
+         fit(p, L("Verbindung", "Connection"), L("Anfrage", "Request")),
+         named ? md->request_name : md->request,
+         named ? md->request : fit(p, L("neues Programm", "new program"), L("neu", "new")));
     ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
-    button(yes, ICON_SAVE, "Annehmen", fit(p, "darf verbinden", ""));
+    button(yes, ICON_SAVE, L("Annehmen", "Accept"), fit(p, L("darf verbinden", "may connect"), ""));
     yes->active = true;
     yes->color = C_ACTIVE;
     ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
-    button(no, ICON_CLOSE, "Ablehnen", fit(p, "bleibt draußen", ""));
+    button(no, ICON_CLOSE, L("Ablehnen", "Deny"), fit(p, L("bleibt draußen", "stays out"), ""));
     no->color = C_DANGER;
     if (p->l->strip) {
         char who[48];
         snprintf(who, sizeof(who), "%.24s (%s)", md->request_name, md->request);
-        segment(&p->sc->seg[0], 4, ICON_ALERT, C_WARN, "Verbindungsanfrage", named ? who : md->request,
-                "Ein neues Programm will das Deck steuern");
+        segment(&p->sc->seg[0], 4, ICON_ALERT, C_WARN, L("Verbindungsanfrage", "Connection request"),
+                named ? who : md->request,
+                L("Ein neues Programm will das Deck steuern", "A new program wants to control the deck"));
     }
 }
 
@@ -560,19 +663,20 @@ static void request_page(page_t *p)
 static void offer_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_COMPANION, fit(p, "Companion", "Gefunden"), md->offer_name,
-         fit(p, "gefunden", ""));
+    card(put(p, at(p, 0, 0), K_NONE), ICON_COMPANION, fit(p, "Companion", L("Gefunden", "Found")),
+         md->offer_name, fit(p, L("gefunden", "found"), ""));
     ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
-    button(yes, ICON_SAVE, "Verbinden", fit(p, "über Satellite", ""));
+    button(yes, ICON_SAVE, L("Verbinden", "Connect"), fit(p, L("über Satellite", "over Satellite"), ""));
     yes->active = true;
     yes->color = C_ACTIVE;
     ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
-    button(no, ICON_CLOSE, "Nein", fit(p, "nicht fragen", ""));
+    button(no, ICON_CLOSE, L("Nein", "No"), fit(p, L("nicht fragen", "do not ask"), ""));
     no->color = C_DANGER;
     if (p->l->strip) {
         char v[48];
-        snprintf(v, sizeof(v), "%.24s verbinden?", md->offer_name);
-        segment(&p->sc->seg[0], 4, ICON_COMPANION, C_EDIT, "Companion gefunden", v, md->offer_addr);
+        snprintf(v, sizeof(v), L("%.24s verbinden?", "Connect %.24s?"), md->offer_name);
+        segment(&p->sc->seg[0], 4, ICON_COMPANION, C_EDIT, L("Companion gefunden", "Companion found"), v,
+                md->offer_addr);
     }
 }
 
@@ -580,15 +684,16 @@ static void offer_page(page_t *p)
 static void password_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, "Benutzer", "admin", "");
-    card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, "Passwort", md->web_pass, "");
+    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, L("Benutzer", "User"), "admin", "");
+    card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass, "");
     if (ip_of(md)) {
-        card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, "Adresse", ip_of(md), fit(p, "im Browser", ""));
+        card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, L("Adresse", "Address"), ip_of(md),
+             fit(p, L("im Browser", "in a browser"), ""));
     }
-    close_key(put(p, at(p, 0, -1), K_NONE), ICON_CLOSE, "Schließen", ""); /* any key closes the page */
+    close_key(put(p, at(p, 0, -1), K_NONE), ICON_CLOSE, L("Schließen", "Close"), ""); /* any key closes it */
     if (p->l->strip) {
-        segment(&p->sc->seg[0], 4, ICON_PASSWORD, C_WARN, "Web-Passwort", md->web_pass,
-                "Wird nach 30 s ausgeblendet");
+        segment(&p->sc->seg[0], 4, ICON_PASSWORD, C_WARN, L("Web-Passwort", "Web password"), md->web_pass,
+                L("Wird nach 30 s ausgeblendet", "Hides after 30 s"));
     }
 }
 
@@ -597,18 +702,22 @@ static void reset_page(page_t *p)
 {
     int key = at(p, 0, 1);
     bool asking = confirming(p->m, key, p->md->now_us);
-    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, "Passwort", fit(p, "vergessen?", "vergessen"),
-         fit(p, "alles zurücksetzen", ""));
+    card(put(p, at(p, 0, 0), K_NONE), ICON_ALERT, L("Passwort", "Password"),
+         fit(p, L("vergessen?", "forgotten?"), L("vergessen", "forgotten")),
+         fit(p, L("alles zurücksetzen", "reset everything"), ""));
     ui_tile_t *reset = put(p, key, K_RESET);
-    button(reset, ICON_RESET, asking ? fit(p, "Nochmal tippen", "Nochmal") : fit(p, "Zurücksetzen", "Reset"),
-           fit(p, "Werkszustand", ""));
+    button(reset, ICON_RESET,
+           asking ? fit(p, L("Nochmal tippen", "Tap again"), L("Nochmal", "Again"))
+                  : fit(p, L("Zurücksetzen", "Reset"), "Reset"),
+           fit(p, L("Werkszustand", "factory reset"), ""));
     reset->active = true;
     reset->color = C_DANGER;
-    close_key(put(p, at(p, 0, -1), K_KEEP), ICON_CLOSE, "Abbrechen", "");
+    close_key(put(p, at(p, 0, -1), K_KEEP), ICON_CLOSE, L("Abbrechen", "Cancel"), "");
     if (p->l->strip) {
-        segment(&p->sc->seg[0], 4, ICON_RESET, C_DANGER, "Passwort vergessen?",
-                "Setzt alle Einstellungen zurück",
-                "Zweimal „Zurücksetzen“ tippen. Danach startet das Setup.");
+        segment(&p->sc->seg[0], 4, ICON_RESET, C_DANGER, L("Passwort vergessen?", "Forgot the password?"),
+                L("Setzt alle Einstellungen zurück", "Resets every setting"),
+                L("Zweimal „Zurücksetzen“ tippen. Danach startet das Setup.",
+                  "Tap Reset twice. Setup starts after that."));
     }
 }
 
@@ -616,17 +725,18 @@ static void reset_page(page_t *p)
 static void login_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, fit(p, "Login-Anfrage", "Login"), md->login_ip, "");
+    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, fit(p, L("Login-Anfrage", "Login request"), "Login"),
+         md->login_ip, "");
     ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
-    button(yes, ICON_SAVE, "Annehmen", fit(p, "darf rein", ""));
+    button(yes, ICON_SAVE, L("Annehmen", "Accept"), fit(p, L("darf rein", "may log in"), ""));
     yes->active = true;
     yes->color = C_ACTIVE;
     ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
-    button(no, ICON_CLOSE, "Ablehnen", fit(p, "bleibt draußen", ""));
+    button(no, ICON_CLOSE, L("Ablehnen", "Deny"), fit(p, L("bleibt draußen", "stays out"), ""));
     no->color = C_DANGER;
     int col = 0;
     if (md->login_who[0]) {
-        card(put(p, at(p, 1, col++), K_NONE), ICON_WEB, "Gerät", md->login_who, "");
+        card(put(p, at(p, 1, col++), K_NONE), ICON_WEB, L("Gerät", "Device"), md->login_who, "");
     }
     if (md->login_mac[0]) {
         card(put(p, at(p, 1, col++), K_NONE), ICON_LAN, "MAC", md->login_mac, "");
@@ -638,10 +748,11 @@ static void login_page(page_t *p)
         char v[48];
         char sub[112];
         snprintf(v, sizeof(v), "%.15s · %.28s", md->login_ip, md->login_who);
-        snprintf(sub, sizeof(sub), "%s%s%snur annehmen, wenn du das bist", md->login_mac[0] ? "MAC " : "",
-                 md->login_mac, md->login_mac[0] ? " · " : "");
-        segment(&p->sc->seg[0], 4, ICON_WEB, C_WARN, "Login-Anfrage", md->login_who[0] ? v : md->login_ip,
-                sub);
+        snprintf(sub, sizeof(sub), "%s%s%s%s", md->login_mac[0] ? "MAC " : "", md->login_mac,
+                 md->login_mac[0] ? " · " : "",
+                 L("nur annehmen, wenn du das bist", "accept only if this is you"));
+        segment(&p->sc->seg[0], 4, ICON_WEB, C_WARN, L("Login-Anfrage", "Login request"),
+                md->login_who[0] ? v : md->login_ip, sub);
     }
 }
 
@@ -650,15 +761,17 @@ static void sources_page(page_t *p)
 {
     const ui_model_t *md = p->md;
     int back = at(p, 0, -1);
-    close_key(put(p, back, K_BACK), ICON_CLOSE, "Zurück", fit(p, "ohne Wechsel", ""));
+    close_key(put(p, back, K_BACK), ICON_CLOSE, L("Zurück", "Back"),
+              fit(p, L("ohne Wechsel", "no change"), ""));
     int key = 0;
     for (int i = 0; i < md->source_count && key < p->l->cols * p->l->rows; i++) {
         key += key == back;
         source_key(p, key++, i, false);
     }
     if (p->l->strip) {
-        segment(&p->sc->seg[0], 4, ICON_OPEN, C_EDIT, "Wer zeichnet?", "Welcher Rechner?",
-                "Antippen, dann zeichnet dieser Rechner.");
+        segment(&p->sc->seg[0], 4, ICON_OPEN, C_EDIT, L("Wer zeichnet?", "Who draws?"),
+                L("Welcher Rechner?", "Which computer?"),
+                L("Antippen, dann zeichnet dieser Rechner.", "Tap one, and that computer draws."));
     }
 }
 
@@ -741,18 +854,32 @@ void ui_menu_screen(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t 
 void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc)
 {
     memset(sc, 0, sizeof(*sc));
+    bool en = md->english;
+    const char *what = md->update_wlan ? (en ? "Wi-Fi chip" : "WLAN-Chip") : "Firmware";
     char v[48];
-    snprintf(v, sizeof(v), "Update %s: %d %%", md->update_what, md->update_pct);
+    snprintf(v, sizeof(v), "Update %s: %d %%", what, md->update_pct);
     if (l->strip) {
         segment(&sc->seg[0], 4, ICON_UPDATE, C_EDIT, "Update", v,
-                "Nicht vom Strom trennen, der DeckConnector startet danach neu");
+                en ? "Keep the power on. The DeckConnector restarts afterwards."
+                   : "Nicht vom Strom trennen, der DeckConnector startet danach neu");
     }
     char pct[12];
     snprintf(pct, sizeof(pct), "%d %%", md->update_pct);
-    card(&sc->tiles[0], ICON_UPDATE, "Update", pct, l->key_px >= 110 ? md->update_what : "");
+    card(&sc->tiles[0], ICON_UPDATE, "Update", pct, l->key_px >= 110 ? what : "");
     if (!l->strip) {
-        card(&sc->tiles[1], ICON_ALERT, "Strom", "nicht trennen", "");
+        card(&sc->tiles[1], ICON_ALERT, en ? "Power" : "Strom", en ? "keep on" : "nicht trennen", "");
     }
+}
+
+int ui_light(bool menu, int brightness)
+{
+    return menu && brightness < 20 ? 20 : brightness;
+}
+
+int ui_after_menu(int lit, int before, bool turned, int saved)
+{
+    int want = turned ? saved : before;
+    return want >= 0 && lit >= 0 && want != lit ? want : -1;
 }
 
 bool ui_menu_open(const ui_menu_t *m)
@@ -869,10 +996,11 @@ static bool restart_input(ui_menu_t *m, const ui_model_t *md, const db_input_t *
     m->restart_down = 0;
     if (held >= RESET_HOLD_US) {
         act->what = UI_DO_RESET;
-        snprintf(m->note, sizeof(m->note), "Werkszustand, starte neu");
+        snprintf(m->note, sizeof(m->note), "%s",
+                 md->english ? "Factory reset, restarting" : "Werkszustand, starte neu");
     } else if (held < HOLD_SHOWN_US && confirmed(m, ev->index, md->now_us)) {
         act->what = UI_DO_RESTART;
-        snprintf(m->note, sizeof(m->note), "Starte neu");
+        snprintf(m->note, sizeof(m->note), "%s", md->english ? "Restarting" : "Starte neu");
     }
     return true;
 }
@@ -910,7 +1038,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     build(&shown, md, l, sc, acts);
     key_act_t what = ev->index < UI_MAX_KEYS ? (key_act_t)acts[ev->index] : K_NONE;
     if (!md->from_deck && (what == K_RESTART || what == K_SAVE_LAN || what == K_AP || what == K_AP_CLOSE ||
-                           what == K_ACCEPT || what == K_DENY)) {
+                           what == K_ACCEPT || what == K_DENY || what == K_WEB)) {
         return false;
     }
     if (what == K_RESTART) {
@@ -949,15 +1077,23 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     case K_LAN:
         lan_load(m, md);
+        m->pick_back = shown.page == PAGE_HOME ? PAGE_HOME : PAGE_MAIN;
         go(m, PAGE_LAN, md->now_us);
         return true;
+    case K_LANG:
+        act->what = UI_DO_LANG;
+        return true;
+    case K_WEB:
+        act->what = UI_DO_SHOW_PASSWORD;
+        return true;
     case K_AP:
+        m->pick_back = shown.page == PAGE_HOME ? PAGE_HOME : PAGE_MAIN;
         act->what = UI_DO_AP_START;
         go(m, PAGE_SETUP_AP, md->now_us);
         return true;
     case K_AP_CLOSE:
         act->what = UI_DO_AP_STOP;
-        go(m, m->page != PAGE_SETUP_AP ? m->page : (md->setup_done ? PAGE_MAIN : PAGE_WELCOME_NET),
+        go(m, m->page != PAGE_SETUP_AP ? m->page : (md->setup_done ? m->pick_back : PAGE_WELCOME_NET),
            md->now_us);
         return true;
     case K_DIMMER:
@@ -979,18 +1115,19 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         m->lan_dhcp = !m->lan_dhcp;
         return true;
     case K_LAN_CLOSE:
-        go(m, PAGE_MAIN, md->now_us);
+        go(m, m->pick_back, md->now_us);
         return true;
     case K_SAVE_LAN:
         if (m->lan_dhcp == md->lan_dhcp &&
             (m->lan_dhcp || memcmp(m->octets, md->lan_cfg, sizeof(m->octets)) == 0)) {
-            go(m, PAGE_MAIN, md->now_us);
-            snprintf(m->note, sizeof(m->note), "LAN unverändert");
+            go(m, m->pick_back, md->now_us);
+            snprintf(m->note, sizeof(m->note), "%s", md->english ? "LAN unchanged" : "LAN unverändert");
             return true;
         }
         *act = (ui_action_t){.what = UI_DO_SAVE_LAN, .dhcp = m->lan_dhcp};
         memcpy(act->octets, m->octets, sizeof(act->octets));
-        snprintf(m->note, sizeof(m->note), "Gespeichert, starte neu");
+        snprintf(m->note, sizeof(m->note), "%s",
+                 md->english ? "Saved, restarting" : "Gespeichert, starte neu");
         return true;
     case K_SKIP:
     case K_DONE:

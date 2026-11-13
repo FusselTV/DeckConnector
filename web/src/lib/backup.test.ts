@@ -21,6 +21,7 @@ const cfg: Config = {
   cors_origins: '',
   menu_chord: 'auto',
   menu_hold_ms: 2000,
+  lang: 'de',
   usb_speed: 'auto',
   wifi_bssid: '',
   qr_login: true,

@@ -310,6 +310,37 @@ def test_a_backup_that_must_escape_much_stays_whole():
     assert code == 200 and json.loads(body)["admin_pass"] == PASSWORD, body[-80:]
 
 
+def test_deck_pictures_are_for_the_password_while_the_menu_shows(token):
+    """The menu draws the web password, and a control token may open it: then it may not read the pictures."""
+    assert call("POST", "/api/menu", token, headers={"X-DeckConnector": "1"}, body=b"")[0] == 200
+    try:
+        for path in ("/api/screen", "/api/screen.jpg"):
+            assert call("GET", path, token)[0] == 403, path
+            assert api("GET", path)[0] == 200, path
+    finally:
+        api("DELETE", "/api/menu")
+    assert call("GET", "/api/screen.jpg", token)[0] != 403
+
+
+@pytest.mark.skipif(TARGET == "sim", reason="the simulator draws no deck pictures")
+def test_the_menus_pictures_answer_no_token_after_it_closed(token):
+    """The menu's tiles (the web password) stay in memory after it closes; their ids must not answer a token."""
+    assert api("POST", "/api/menu", b"")[0] == 200
+    try:
+        urls = []
+        for _ in range(20):  # the menu draws with its next picture
+            urls = [i["url"] for i in json.loads(api("GET", "/api/screen")[1])["images"]]
+            if urls:
+                break
+            time.sleep(0.25)
+        assert urls, "the menu drew nothing"
+    finally:
+        api("DELETE", "/api/menu")
+    time.sleep(1)
+    for url in urls:
+        assert call("GET", url, token)[0] != 200, url
+
+
 async def test_deck_pictures_are_for_the_password_while_the_password_shows(token):
     """The password page draws the password on the deck: a token reading the pictures would read it."""
     login = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}

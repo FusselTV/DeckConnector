@@ -177,6 +177,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       cors_origins: '',
       menu_chord: 'auto',
       menu_hold_ms: 2000,
+      lang: 'de',
       usb_speed: 'auto',
       dock_paired_only: !setup,
       setup_done: !setup,
@@ -520,6 +521,7 @@ const LIVE: (keyof ConfigPatch)[] = [
   'cors_origins',
   'menu_chord',
   'menu_hold_ms',
+  'lang',
 ]
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
@@ -738,9 +740,11 @@ const VIA = { server: 0, satellite: 1, dock: 2 } as const
 function uiModel(s: Demo, now: number): UiModel {
   // model_sources' order: Satellite, dock hosts, servers.
   const rank = { satellite: 0, dock: 1, server: 2 } as const
-  const list = sources(s, now)
+  const all = sources(s, now)
+  const list = all
     .filter((x) => x.connected && x.kind !== 'unknown')
     .sort((a, b) => rank[a.via ?? 'server'] - rank[b.via ?? 'server'])
+  const sat = all.find((x) => x.via === 'satellite')
   const ip = lanIp(s)
   const wlan = s.cfg.wifi_ssid ? (s.cfg.wlan.dhcp || !s.cfg.wlan.ip ? WLAN_IP : s.cfg.wlan.ip) : ''
   const login = s.loginReq?.state === 'pending'
@@ -761,12 +765,16 @@ function uiModel(s: Demo, now: number): UiModel {
       menu_chord: s.cfg.menu_chord,
       menu_hold_ms: s.cfg.menu_hold_ms,
       server_url: s.cfg.servers.find(Boolean) ?? '',
+      // as db_ui.c: the address only while Companion comes over Satellite, "not reachable" once an attempt failed
+      satellite: !s.cfg.host || s.cfg.host === 'satellite' ? s.cfg.satellite : '',
+      english: s.cfg.lang === 'en',
+      sat_failed: !!sat?.error,
       web_pass: s.pass,
       fw: s.firmware,
       wlan_fw: '3.0.10',
       brightness: s.cfg.brightness,
       update_pct: s.ota ? otaPct(s, now) : -1,
-      update_what: s.ota?.version ?? '',
+      update_wlan: false,
       setup_done: s.cfg.setup_done,
       setup_step: s.setupStep,
       picked: !!s.cfg.host || s.cfg.controller !== 'companion',
@@ -815,6 +823,8 @@ function uiInput(s: Demo, now: number, kind: number, index: number, value = 0, x
   if (what === 'cancel_reset') s.resetUntil = 0
   if (what === 'login' && s.loginReq) s.loginReq.state = v ? 'accepted' : 'denied'
   if (what === 'setup_done') s.cfg = { ...s.cfg, setup_done: true }
+  if (what === 'lang') s.cfg = { ...s.cfg, lang: s.cfg.lang === 'en' ? 'de' : 'en' }
+  if (what === 'show_password') s.pwUntil = now + 30_000
 }
 
 export const openMenu = (s: Demo, now: number) => ui(s, now, (u) => u.deck_open())

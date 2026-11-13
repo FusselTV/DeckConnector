@@ -76,7 +76,8 @@ static struct {
     uint32_t inputs_dropped;
     SemaphoreHandle_t role_lock;
     char headers[96];
-} s = {.active = -1};
+    int pct; /* the active server's last brightness, -1: none yet */
+} s = {.active = -1, .pct = -1};
 
 static int64_t now_ms(void)
 {
@@ -213,6 +214,7 @@ static bool recompute_active(void)
     }
     ESP_LOGI(TAG, "active server %d -> %d", s.active, next);
     s.active = next;
+    s.pct = -1; /* the new one sends its own */
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         if (s.links[i].connected) {
             send_role(i);
@@ -233,7 +235,10 @@ static void handle_command(link_t *l, const char *text)
         const cJSON *pct = cJSON_GetObjectItemCaseSensitive(root, "pct");
         if (cJSON_IsNumber(pct) && l->index == s.active) {
             int v = pct->valueint;
-            db_deck_set_brightness((uint8_t)(v < 0 ? 0 : (v > 100 ? 100 : v)));
+            s.pct = v < 0 ? 0 : (v > 100 ? 100 : v);
+            if (db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + l->index)) { /* else after the menu */
+                db_deck_set_brightness((uint8_t)s.pct);
+            }
         }
     } else if (strcmp(t->valuestring, "ota") == 0) {
         const cJSON *target = cJSON_GetObjectItemCaseSensitive(root, "target");
@@ -635,10 +640,18 @@ void db_link_set_enabled(bool enabled)
     recompute_active();
 }
 
+void db_link_brightness_again(void)
+{
+    if (s.active >= 0 && s.pct >= 0) {
+        db_deck_set_brightness((uint8_t)s.pct);
+    }
+}
+
 void db_link_resend_role(void)
 {
     if (s.active >= 0) {
         send_role(s.active);
+        db_link_brightness_again(); /* the menu may have set its own */
     }
 }
 

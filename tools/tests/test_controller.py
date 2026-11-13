@@ -84,11 +84,14 @@ async def test_menu_opens_from_the_web_and_names_its_chord(bridges):
     count = sc["encoders"] if chord["on"] == "encoders" else len(sc["keys"])
     assert chord["first"] == 0 and chord["last"] == count - 1
     assert (await http("POST", "/api/menu"))[0] == 200
-    await wait_writer("ui")
-    top = min(r["y"] for r in sc["keys"])
-    close = max((r["x"], i) for i, r in enumerate(sc["keys"]) if r["y"] == top)[1]  # top right closes the menu
-    assert (await http("POST", "/api/input", json.dumps({"key": close}).encode()))[0] == 200
-    await wait_writer("server")
+    try:
+        await wait_writer("ui")
+        top = min(r["y"] for r in sc["keys"])
+        close = max((r["x"], i) for i, r in enumerate(sc["keys"]) if r["y"] == top)[1]  # top right closes the menu
+        assert (await http("POST", "/api/input", json.dumps({"key": close}).encode()))[0] == 200
+        await wait_writer("server")
+    finally:
+        await http("DELETE", "/api/menu")
 
 
 async def put_config(body: dict) -> None:
@@ -105,24 +108,11 @@ async def test_picking_one_of_two_servers(servers, bridges):
         chosen = [x for x in (await asyncio.to_thread(status))["sources"] if x["chosen"]]
         assert [x["host"] for x in chosen] == [servers[1].url]
 
-        # the same on the deck: the menu's top row lists the hosts, the chosen one first, "Alle" when they
-        # do not fit; the deck lists Satellite, then dock hosts, then servers
-        st = await asyncio.to_thread(status)
-        up = [x for x in st["sources"] if x["connected"]]
-        listed = [x["host"] for x in up if x.get("via") == "satellite"]
-        listed += [x["host"] for x in up if x["kind"] in ("companion", "app") and x.get("via") != "satellite"]
-        listed += [x["host"] for x in up if x["kind"] == "server"]
-        room = len({k["x"] for k in (await screen())["keys"]}) - 1  # the top row left of the menu key
-        order = [servers[1].url] + [h for h in listed if h != servers[1].url]
-        keys = [room - 1, listed.index(servers[0].url)] if len(listed) > room else [order.index(servers[0].url)]
-        if len(keys) == 2 and keys[1] >= room:  # the list page has "Zurück" top right
-            keys[1] += 1
-        assert (await http("POST", "/api/menu"))[0] == 200
-        await wait_writer("ui")
-        for key in keys:
-            assert (await http("POST", "/api/input", json.dumps({"key": key}).encode()))[0] == 200
-            await asyncio.sleep(0.3)
+        # while a host draws, the deck has no host keys (the home screen has them when nobody draws)
+        await put_config({"host": servers[0].url})
         await wait_role(first, True)
+        await wait_role(second, False)
+        await wait_writer("server1")
         assert json.loads((await http("GET", "/api/config"))[1])["host"] == servers[0].url
     finally:
         await put_config({"controller": "server", "host": ""})
@@ -158,4 +148,5 @@ async def test_the_menu_chord_and_hold_time_are_settings(bridges):
         for r in hold("up"):
             await r
     finally:
+        await http("DELETE", "/api/menu")
         await put_config({"menu_chord": "auto", "menu_hold_ms": 2000})

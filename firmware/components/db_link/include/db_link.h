@@ -55,6 +55,8 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks);
 
 /* Tell the active server it may draw again, e.g. after the menu closed. It redraws everything on `role`. */
 void db_link_resend_role(void);
+/* The active server's last brightness on the deck again, when it starts to draw. */
+void db_link_brightness_again(void);
 /* Disabled, the bridge stays connected but every server is on standby. */
 void db_link_set_enabled(bool enabled);
 /* Take server URLs the config changed: those links connect again to the new address. */

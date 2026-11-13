@@ -601,6 +601,16 @@ static void resolve(void)
 }
 
 /* LAN first, WLAN after a failed try, and back to LAN as soon as it reaches Companion. */
+/* The deck says "not reachable" from the first failure on: it hears of the change. */
+static void failed(const char *why)
+{
+    bool was = s.health.error[0] != '\0';
+    db_health_fail(&s.health, why);
+    if (!was) {
+        s.changed();
+    }
+}
+
 static void client_task(void *arg)
 {
     bool via_wlan = false;
@@ -609,6 +619,14 @@ static void client_task(void *arg)
     int refused = 0;
     for (;;) {
         snprintf(s.addr, sizeof(s.addr), "%s", db_config()->satellite);
+        static char tried[sizeof(s.addr)];
+        if (strcmp(tried, s.addr) != 0) { /* a new address has not failed yet */
+            strcpy(tried, s.addr);
+            if (s.health.error[0]) {
+                s.health.error[0] = '\0';
+                s.changed();
+            }
+        }
         if (!s.addr[0]) {
             ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(RETRY_MS));
             continue;
@@ -646,7 +664,7 @@ static void client_task(void *arg)
             sock = ws_tcp_open(s.host, s.port, bound ? ifname : NULL, CONNECT_MS);
         }
         if (sock < 0) {
-            db_health_fail(&s.health, strerror(-sock));
+            failed(strerror(-sock));
             if (sock != last_err) {
                 ESP_LOGW(TAG, "%s: no connection (%s)", s.addr, strerror(-sock));
                 last_err = sock;
@@ -691,7 +709,7 @@ static void client_task(void *arg)
             s.added = false;
             s.changed();
         }
-        db_health_fail(&s.health, "connection lost");
+        failed("connection lost");
         db_deck_forget(DB_SOURCE_SAT);
         cache_clear();
         heap_caps_free(s.rgb);

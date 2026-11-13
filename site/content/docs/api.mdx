@@ -30,7 +30,7 @@ Each route has one level, in the last column of the tables below.
 
 No API key changes `admin_pass`, `setup_done` or `qr_login`. Those answer 403.
 
-While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck.
+While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck. The deck picture (`/api/screen`, its images, `/api/screen.jpg`) also answers 403 while the menu or a setup page is open, because they show the password.
 
 ## Errors
 
@@ -171,7 +171,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
  "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
- "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "usb_speed": "auto",
+ "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
  "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
 ```
 
@@ -191,6 +191,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `https_only` | Turn plain HTTP off |
 | `cors_origins` | Comma separated origins that may call the API with a key |
 | `menu_chord` | `auto`, `keys`, `encoders` or `off` |
+| `lang` | What the deck's own screens speak: `de` or `en` |
 | `menu_hold_ms` | 500 to 10000 |
 | `usb_speed` | `auto` or `full` |
 | `dock_paired_only` | Only paired dock hosts get in |
@@ -199,7 +200,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}

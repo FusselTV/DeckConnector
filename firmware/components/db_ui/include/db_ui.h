@@ -20,7 +20,7 @@ void db_ui_set_active_link(int index);
 /* A Network Dock host came, left or told what it is. */
 void db_ui_hosts_changed(void);
 /* pct < 0 ends the update screen. */
-void db_ui_set_update(int pct, const char *what);
+void db_ui_set_update(int pct, bool wlan_chip);
 void db_ui_set_c6_version(const char *version);
 /* The source that draws once no menu or update covers it: the configured host, else the first of its kind. */
 db_source_t db_ui_chosen_source(void);
@@ -36,6 +36,8 @@ bool db_ui_login_take(const char *token);
 /* The deck shows a one-time login code, the password or the setup WLAN's password: pictures of the deck are
  * then for a password session only. */
 bool db_ui_login_shown(void);
+/* The deck's picture may show the web password: for the screen routes, which an API key may not read then. */
+bool db_ui_password_shown(void);
 /* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
 void db_ui_setup_step(int step);
 /* ESP_ERR_INVALID_STATE when no deck is connected. */

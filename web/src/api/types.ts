@@ -140,6 +140,8 @@ export interface Config {
   cors_origins: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
+  /** What the deck's own screens speak. */
+  lang: 'de' | 'en'
   usb_speed: 'auto' | 'full'
   dock_paired_only: boolean
   setup_done: boolean

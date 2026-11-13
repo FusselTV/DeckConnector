@@ -53,6 +53,7 @@ const LABEL: Record<string, TKey> = {
   cors_origins: 'access.cors',
   menu_chord: 'deck.chord',
   menu_hold_ms: 'deck.hold',
+  lang: 'acct.lang',
   qr_login: 'access.qr',
   usb_speed: 'deck.speed',
   dock_paired_only: 'src.only',

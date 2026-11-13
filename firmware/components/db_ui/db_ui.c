@@ -42,11 +42,13 @@ static const char *TAG = "ui";
 
 static struct {
     TaskHandle_t task;
+    TaskHandle_t timer_task;   /* esp_timer's, which must not wait on the light lock */
     SemaphoreHandle_t lock;    /* menu, between the deck's event task and the UI task */
     SemaphoreHandle_t qr_lock; /* the QR buffers, which model() fills on both tasks */
+    SemaphoreHandle_t light;   /* recursive: the writer choice, and the brightness of the menu and after it */
     int active_link;
     int update_pct;
-    char update_what[24];
+    bool update_wlan;
     char c6[16];
     db_device_info_t dev;
     bool present;
@@ -60,11 +62,21 @@ static struct {
     ui_screen_t shown; /* what is on the deck, to send only what changed */
     ui_menu_t menu;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
+    int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
+    int before;    /* the deck's brightness when the menu opened; -1: none */
+    bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
+    bool menu_lit; /* the UI lit the deck for the menu */
     esp_timer_handle_t save_timer;
     bool save_due;
     int64_t
         handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
-} s = {.active_link = -1, .update_pct = -1, .full = true, .menu = {.confirm_key = -1}, .brightness = -1};
+} s = {.active_link = -1,
+       .update_pct = -1,
+       .full = true,
+       .menu = {.confirm_key = -1},
+       .brightness = -1,
+       .lit = -1,
+       .before = -1};
 
 static void octets_of(const char *ip, uint8_t out[4])
 {
@@ -297,6 +309,12 @@ bool db_ui_login_shown(void)
     return shown;
 }
 
+bool db_ui_password_shown(void)
+{
+    /* the menu and the setup pages show it too, and a control token may open the menu */
+    return db_ui_login_shown() || !db_config()->setup_done || db_ui_menu_open();
+}
+
 void db_ui_setup_step(int step)
 {
     setup_step = (uint8_t)step;
@@ -368,7 +386,12 @@ static void model(ui_model_t *md)
         .setup_step = setup_step,
         .picked = c->host[0] || c->controller != DB_CTRL_COMPANION,
         .menu_hold_ms = c->menu_hold_ms,
+        .english = strcmp(c->lang, "en") == 0,
+        .sat_failed = db_satellite_health().error[0] != '\0',
     };
+    if (ui_menu_open(&s.menu) && !s.turned && s.before >= 0) {
+        md->brightness = s.before; /* the deck shows at least 20 %, the number stays what it had */
+    }
     md->show_pass = md->now_us < until(&pass_until);
     md->reset_ask = md->now_us < until(&reset_until);
     uint32_t ask_ip = 0;
@@ -410,11 +433,14 @@ static void model(ui_model_t *md)
         db_dock_name(ipaddr_addr(md->request), md->request_name);
     }
     snprintf(md->server_url, sizeof(md->server_url), "%s", db_config_server_of(c, 0));
+    if (!c->host[0] || strcmp(c->host, "satellite") == 0) { /* else Companion is a dock host */
+        snprintf(md->satellite, sizeof(md->satellite), "%s", c->satellite);
+    }
     model_sources(md);
     snprintf(md->web_pass, sizeof(md->web_pass), "%s", c->admin_pass);
     snprintf(md->fw, sizeof(md->fw), "%s", esp_app_get_description()->version);
     snprintf(md->wlan_fw, sizeof(md->wlan_fw), "%s", s.c6);
-    snprintf(md->update_what, sizeof(md->update_what), "%s", s.update_what);
+    md->update_wlan = s.update_wlan;
     db_ip_config_t lan = c->lan;
     if (lan.ip[0] == '\0') {
         snprintf(lan.ip, sizeof(lan.ip), "%s", n.lan_ip); /* start from the address DHCP gave */
@@ -451,6 +477,13 @@ static db_source_t wanted_writer(void)
     return chosen == DB_SOURCE_UI && esp_timer_get_time() < s.handover_until ? DB_SOURCE_SAT : chosen;
 }
 
+static void light_lock(bool take)
+{
+    if (s.light) { /* NULL before db_ui_start: nothing else runs yet */
+        take ? xSemaphoreTakeRecursive(s.light, portMAX_DELAY) : xSemaphoreGiveRecursive(s.light);
+    }
+}
+
 static void pick_writer(void)
 {
     /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
@@ -459,7 +492,23 @@ static void pick_writer(void)
     if (wanted == DB_SOURCE_UI && db_deck_writer() != DB_SOURCE_UI) {
         s.full = true;
     }
+    /* the brightness given back and the new writer as one step, so the UI task cannot light the menu between;
+     * db_deck_set_writer calls nothing that takes this lock */
+    light_lock(true);
+    db_source_t was = db_deck_writer();
+    if (wanted != DB_SOURCE_UI && was == DB_SOURCE_UI && s.menu_lit) {
+        int saved = s.brightness >= 0 ? s.brightness : db_config()->brightness;
+        int back = ui_after_menu(s.lit, s.before, s.turned, saved);
+        if (back >= 0) {
+            db_deck_set_brightness((uint8_t)back); /* a host that sends its own sets it again after this */
+        }
+        s.menu_lit = false;
+    }
     db_deck_set_writer(wanted, esp_timer_get_time() < s.handover_until);
+    light_lock(false);
+    if (wanted != was && wanted >= DB_SOURCE_LINK0 && wanted < DB_SOURCE_DOCK0) {
+        db_link_brightness_again(); /* a server chosen while another drew: its own brightness, not the last */
+    }
     if (s.covered && !covering && s.active_link >= 0) {
         db_link_resend_role();
     }
@@ -468,8 +517,10 @@ static void pick_writer(void)
 
 static void changed(void)
 {
-    pick_writer();
-    if (s.task) { /* NULL when db_ui_start failed: the bridge runs on without the deck screens */
+    if (xTaskGetCurrentTaskHandle() != s.timer_task) {
+        pick_writer(); /* at once: the status, the acks and the next image read the writer right after */
+    }
+    if (s.task) { /* NULL when db_ui_start failed; else it picks the writer as it wakes */
         xTaskNotifyGive(s.task);
     }
 }
@@ -491,8 +542,9 @@ static esp_err_t edit_end(const db_config_t *c, const char *what)
     return err;
 }
 
-static void note(const char *text, bool to_main)
+static void note(const char *de, const char *en, bool to_main)
 {
+    const char *text = strcmp(db_config()->lang, "en") == 0 ? en : de;
     xSemaphoreTake(s.lock, portMAX_DELAY);
     if (to_main) {
         ui_menu_open_main(&s.menu, esp_timer_get_time());
@@ -529,7 +581,7 @@ static void save_lan(const ui_action_t *act)
     if (edit_end(&c, "LAN") == ESP_OK) {
         db_ota_restart(800);
     } else {
-        note("Nicht gespeichert", false);
+        note("Nicht gespeichert", "Not saved", false);
     }
 }
 
@@ -564,8 +616,8 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_BRIGHTNESS: {
         int b = md->brightness + act->value;
-        s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b);
-        db_deck_set_brightness((uint8_t)s.brightness);
+        s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b); /* the UI task puts it on the deck */
+        s.turned = true;
         esp_timer_stop(s.save_timer);
         esp_timer_start_once(s.save_timer, SAVE_AFTER_US);
         break;
@@ -586,7 +638,7 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         portENTER_CRITICAL(&login_mux);
         reset_until = 0;
         portEXIT_CRITICAL(&login_mux);
-        note("Löschen fehlgeschlagen", true);
+        note("Löschen fehlgeschlagen", "Reset failed", true);
         break;
     case UI_DO_RESTART:
         db_ota_restart(800);
@@ -621,6 +673,14 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         edit_begin(&c);
         c.setup_done = true;
         edit_end(&c, "setup done");
+        break;
+    case UI_DO_LANG:
+        edit_begin(&c);
+        snprintf(c.lang, sizeof(c.lang), "%s", md->english ? "de" : "en");
+        edit_end(&c, "language");
+        break;
+    case UI_DO_SHOW_PASSWORD:
+        db_ui_show_password();
         break;
     default:
         break;
@@ -723,10 +783,39 @@ static void ui_task(void *arg)
             save_brightness();
         }
         pick_writer();
-        if (!s.present || db_deck_writer() != DB_SOURCE_UI) {
+        /* the light lock keeps a writer change on another task from crossing the menu's brightness; never
+         * held across model(), which takes other components' locks */
+        light_lock(true);
+        bool ours = s.present && db_deck_writer() == DB_SOURCE_UI;
+        bool menu = false;
+        if (!ours) {
+            s.lit = -1; /* a host sets its own; when the UI draws again it sets its own once more */
+            s.menu_lit = false;
+        } else {
+            xSemaphoreTake(s.lock, portMAX_DELAY);
+            menu = ui_menu_open(&s.menu);
+            xSemaphoreGive(s.lock);
+            if (menu && !s.menu_lit) { /* just opened: what the deck has now, before the floor */
+                s.before = db_deck_brightness();
+                s.turned = false;
+            }
+        }
+        light_lock(false);
+        if (!ours) {
             continue;
         }
         model(&md);
+        light_lock(true);
+        if (db_deck_writer() ==
+            DB_SOURCE_UI) { /* still: else pick_writer gave the deck to a host meanwhile */
+            int light = ui_light(menu, md.brightness);
+            if (light != s.lit) {
+                s.lit = light;
+                db_deck_set_brightness((uint8_t)light);
+            }
+            s.menu_lit = menu;
+        }
+        light_lock(false);
         ui_action_t first;
         if (ui_first_source(&md, &first)) {
             ESP_LOGI(TAG, "first host draws: %s", md.sources[0].id);
@@ -860,6 +949,7 @@ static void on_device(const db_device_info_t *info)
     if (info) {
         s.dev = *info;
         s.full = true;
+        s.lit = -1;
         db_deck_set_brightness(db_config()->brightness);
     }
     changed();
@@ -868,6 +958,7 @@ static void on_device(const db_device_info_t *info)
 /* The chord must also fire while the encoders are held still, and the menu has its timers. */
 static void tick(void *arg)
 {
+    s.timer_task = xTaskGetCurrentTaskHandle();
     static bool asking; /* a request runs out after a minute: the deck goes back to who draws */
     char ip[16];
     if (db_dock_request(ip) != asking) {
@@ -1017,8 +1108,9 @@ esp_err_t db_ui_start(void)
 {
     s.lock = xSemaphoreCreateMutex();
     s.qr_lock = xSemaphoreCreateMutex();
+    s.light = xSemaphoreCreateRecursiveMutex();
     jpeg_port_init();
-    if (!s.lock || !s.qr_lock ||
+    if (!s.lock || !s.qr_lock || !s.light ||
         xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS ||
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
@@ -1152,10 +1244,10 @@ void db_ui_hosts_changed(void)
     changed();
 }
 
-void db_ui_set_update(int pct, const char *what)
+void db_ui_set_update(int pct, bool wlan_chip)
 {
     s.update_pct = pct;
-    snprintf(s.update_what, sizeof(s.update_what), "%s", what ? what : "");
+    s.update_wlan = wlan_chip;
     changed();
 }
 
@@ -1169,6 +1261,7 @@ void db_ui_refresh(void)
         auto_off = c->satellite_auto_off;
         satellite_changes++;
     }
+    s.lit = -1; /* PUT /api/config may have set the brightness on the deck */
     changed();
 }
 
