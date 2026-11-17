@@ -102,8 +102,9 @@ export function Privacy({ lang }: { lang: Lang }) {
         berechtigtes Interesse ist, deine Anfrage zu beantworten.
       </p>
       <p>
-        Das Formular schickt deine Angaben an Cloudflare Workers. Cloudflare Email Routing leitet sie als E-Mail an mein Postfach weiter, genauso wie E-Mails an die Adresse oben. Dabei verarbeitet
-        Cloudflare auch die Verbindungsdaten aus dem Abschnitt „Hosting bei Cloudflare“. Cloudflare handelt in meinem Auftrag, auf Grundlage desselben Data Processing Addendum.
+        Das Formular schickt deine Angaben an Cloudflare Workers. Von dort gehen sie als E-Mail an mein Postfach. Dabei verarbeitet Cloudflare auch die Verbindungsdaten aus dem Abschnitt
+        „Hosting bei Cloudflare“. Cloudflare handelt in meinem Auftrag, auf Grundlage desselben Data Processing Addendum. Mein Postfach liegt bei iCloud Mail von Apple (Apple Distribution
+        International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Dort landen auch E-Mails an die Adresse oben.
       </p>
       <p>Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger aufzubewahren.</p>
 
@@ -165,8 +166,9 @@ export function Privacy({ lang }: { lang: Lang }) {
         answer you. The legal basis is Art. 6(1)(b) GDPR when it is about a contract or the steps before one, else Art. 6(1)(f) GDPR. My legitimate interest is to answer your question.
       </p>
       <p>
-        The form sends your details to Cloudflare Workers. Cloudflare Email Routing forwards them as an email to my mailbox, the same as emails to the address above. Cloudflare also processes the
-        connection data from the section on hosting. Cloudflare acts on my behalf under the same Data Processing Addendum.
+        The form sends your details to Cloudflare Workers. From there they go as an email to my mailbox. Cloudflare also processes the connection data from the section on hosting. Cloudflare acts
+        on my behalf under the same Data Processing Addendum. My mailbox is at iCloud Mail by Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Ireland).
+        Emails to the address above end up there too.
       </p>
       <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
 

@@ -1,14 +1,16 @@
-import { EmailMessage } from 'cloudflare:email'
 import { check, mime, type Form } from './mail'
+import { send } from './smtp'
 
 type Env = {
-  EMAIL: { send(m: EmailMessage): Promise<unknown> }
   LIMIT: { limit(o: { key: string }): Promise<{ success: boolean }> }
   CONTACT_TO: string
+  SMTP_USER: string
+  SMTP_PASS: string
   ORIGIN: string
 }
 
-const FROM = 'kontakt@deckconnector.com'
+// iCloud+ custom domain: SMTP_USER is the account's @icloud.com address, FROM one of its domain addresses.
+const FROM = 'info@deckconnector.com'
 const json = (body: object, status = 200) => Response.json(body, { status })
 
 export default {
@@ -43,7 +45,7 @@ export default {
       date: new Date(),
     })
     try {
-      await env.EMAIL.send(new EmailMessage(FROM, env.CONTACT_TO, mail))
+      await send({ host: 'smtp.mail.me.com', user: env.SMTP_USER, pass: env.SMTP_PASS, from: FROM, to: env.CONTACT_TO, mail })
     } catch (e) {
       console.error('send failed', e)
       return json({ error: 'send' }, 502)
