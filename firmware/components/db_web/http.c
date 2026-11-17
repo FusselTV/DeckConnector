@@ -26,6 +26,7 @@
 #if !CONFIG_IDF_TARGET_LINUX /* the simulator has no TLS, no mDNS and no app image */
 #include "esp_app_desc.h"
 #include "esp_https_server.h"
+#include "esp_mac.h"
 #include "mdns.h"
 #endif
 
@@ -417,7 +418,11 @@ static esp_err_t no_delay(httpd_handle_t hd, int fd)
 static void announce_api(void)
 {
     const char *fw = esp_app_get_description()->version;
-    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
+    uint8_t mac[6];
+    char id[13];
+    esp_read_mac(mac, ESP_MAC_BASE);
+    snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}, {"id", id}};
     esp_err_t err =
         mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
