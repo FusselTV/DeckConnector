@@ -19,6 +19,7 @@
 #define HID_GET_REPORT     0x01
 #define HID_SET_REPORT     0x09
 #define HID_REPORT_FEATURE 3
+#define KEPT_REPORTS       4
 /* a fresh deck can take 0.5 s per report; this long with nothing but failed output is a hung deck */
 #define STUCK_MS 3000
 
@@ -44,6 +45,11 @@ typedef struct {
     char path[16];  /* hub ports from the root, "1.3"; "" on the root port */
     esp_timer_handle_t in_retry;
     uint32_t in_backoff_ms;
+    bool wrote; /* an output report went out since the open */
+    struct {
+        uint8_t buf[32];
+        size_t len;
+    } kept[KEPT_REPORTS]; /* feature reports the deck answered before its first output report */
 } dev_t;
 
 static struct {
@@ -176,6 +182,7 @@ static db_err_t io_write(const db_hid_io_t *io, const uint8_t *report, size_t le
     }
     usb_transfer_t *t = d->out[d->next_out];
     d->next_out = (d->next_out + 1) % OUT_SLOTS;
+    d->wrote = true;
     memcpy(t->data_buffer, report, len);
     t->num_bytes = len;
     if (usb_host_transfer_submit(t) != ESP_OK) {
@@ -243,9 +250,34 @@ static db_err_t control(dev_t *d, uint8_t type, uint8_t request, uint8_t report_
     return res;
 }
 
+/* Hosts ask again for what the driver read at the open (serial, firmware, layout), also between image
+ * reports, where a feature GET risks a control endpoint that hangs until the deck enumerates again. */
 static db_err_t io_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
-    return control((dev_t *)io, 0xa1, HID_GET_REPORT, buf[0], buf, len, out_len);
+    dev_t *d = (dev_t *)io;
+    for (int i = 0; i < KEPT_REPORTS; i++) {
+        if (d->kept[i].len && d->kept[i].buf[0] == buf[0]) {
+            size_t n = d->kept[i].len < len ? d->kept[i].len : len;
+            memcpy(buf, d->kept[i].buf, n);
+            if (out_len) {
+                *out_len = n;
+            }
+            return DB_OK;
+        }
+    }
+    size_t got = 0;
+    db_err_t err = control(d, 0xa1, HID_GET_REPORT, buf[0], buf, len, &got);
+    for (int i = 0; err == DB_OK && !d->wrote && got <= sizeof(d->kept[0].buf) && i < KEPT_REPORTS; i++) {
+        if (!d->kept[i].len) {
+            memcpy(d->kept[i].buf, buf, got);
+            d->kept[i].len = got;
+            break;
+        }
+    }
+    if (out_len) {
+        *out_len = got;
+    }
+    return err;
 }
 
 static db_err_t io_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
@@ -642,6 +674,8 @@ esp_err_t usb_port_open(uint8_t address, int *index, uint16_t *vid, uint16_t *pi
     d->fail_since = 0;
     d->open = true;
     d->in_backoff_ms = 0;
+    d->wrote = false;
+    memset(d->kept, 0, sizeof(d->kept));
     *index = (int)(d - s.devs);
     in_resubmit(d);
     return ESP_OK;
