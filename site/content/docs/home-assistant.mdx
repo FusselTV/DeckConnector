@@ -1,76 +1,59 @@
 ---
 title: Home Assistant
-description: Read the board's status and control it from Home Assistant over the API.
+description: The DeckConnector integration for Home Assistant. Presses as events, brightness, screen, host and updates.
 ---
 
-There is no [Home Assistant](https://www.home-assistant.io/) integration yet. Its [RESTful](https://www.home-assistant.io/integrations/rest/) and [RESTful Command](https://www.home-assistant.io/integrations/rest_command/) integrations read the status and send commands over the [API](/docs/api).
+The DeckConnector integration brings the board and every deck on it into [Home Assistant](https://www.home-assistant.io/). Each press, release and dial turn arrives at once as an event. You set the brightness, turn the screens off, pick the host and install updates from Home Assistant.
 
-## API key
+<table>
+  <tr>
+    <td><img src="/docs/ha-board.webp" alt="The board in Home Assistant" width="320" /></td>
+    <td><img src="/docs/ha-deck.webp" alt="A deck in Home Assistant" width="320" /></td>
+  </tr>
+</table>
 
-Make an [API key](/docs/security#api-keys) under **Access › API keys**. **Control** is enough to read. Brightness, the host choice and restarts need **Full access**.
+## Install
 
-```yaml title="secrets.yaml"
-deckconnector_auth: "Bearer YOUR_KEY"
+In HACS, open **Custom repositories**, add this repository as an **Integration**, then download **DeckConnector** and restart Home Assistant.
+
+```text
+https://github.com/FusselTV/DeckConnector
 ```
 
-## Status and controls
+## Set up
 
-```yaml title="configuration.yaml"
-rest:
-  - resource: http://192.168.1.50/api/status
-    headers:
-      Authorization: !secret deckconnector_auth
-    scan_interval: 30
-    sensor:
-      - name: DeckConnector writer
-        value_template: "{{ value_json.writer }}"
-      - name: DeckConnector uptime
-        value_template: "{{ value_json.uptime_s }}"
-        unit_of_measurement: s
-      - name: DeckConnector Wi-Fi signal
-        value_template: "{{ value_json.network.wlan.rssi }}"
-        unit_of_measurement: dBm
-    binary_sensor:
-      - name: DeckConnector deck
-        value_template: "{{ value_json.device is not none }}"
+Home Assistant finds the board by itself and offers it under **Settings › Devices & services**. Otherwise add **DeckConnector** there and enter its address.
 
-rest_command:
-  deckconnector_brightness:
-    url: http://192.168.1.50/api/config
-    method: put
-    headers:
-      Authorization: !secret deckconnector_auth
-    content_type: application/json
-    payload: '{"brightness": {{ pct }}}'
-  deckconnector_use_companion:
-    url: http://192.168.1.50/api/config
-    method: put
-    headers:
-      Authorization: !secret deckconnector_auth
-    content_type: application/json
-    payload: '{"controller": "companion", "host": "satellite"}'
-  deckconnector_reboot:
-    url: http://192.168.1.50/api/reboot
-    method: post
-    headers:
-      Authorization: !secret deckconnector_auth
+Then pick a way in. **Confirm on the deck** asks on the deck, and you tap to accept. **Enter the web password** works without a deck. Home Assistant then makes its own [API key](/docs/security#api-keys) on the board.
+
+<img src="/docs/ha-flow-menu.webp" alt="Pick a way in" width="480" />
+
+## Automations
+
+Every deck has one **Controls** event. Trigger on it, then check the event type in a condition, for example **Key 3 pressed** or **Dial 1 turned right**. A dial turn also carries `ticks`, a touch carries `x` and `y`.
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.stream_deck_controls
+    not_to: [unavailable, unknown]
+conditions:
+  - condition: state
+    entity_id: event.stream_deck_controls
+    attribute: event_type
+    state: key_3_press
 ```
 
-`GET /api/screen.jpg` is the deck picture as one JPEG, for a camera. While the deck shows its menu, a setup page or the web password, it answers 403 to an API key.
+Presses from the web page or a script never reach Home Assistant. Home Assistant never presses anything on the deck.
 
-## More from the API
+The host draws the keys. A key that Companion or the Elgato app also uses runs both actions.
 
-| Need | Source |
-|---|---|
-| Find the board | mDNS service `_deckconnector-api._tcp`. `id` in the status is its MAC address and stays when the name changes |
-| Live changes | The WebSocket `/api/ws`. `state` on every change, `screen` when the picture changes, `input` for every press and turn, `ping` every 5 s |
-| Press a key | `POST /api/input` with `{"key": 3}`. Without `"real"`, it reaches only the board's own screens and your own servers |
-| Hosts | `sources` in the status, with `connected` and `drawing` for each |
-| Load | `GET /api/metrics`, CPU and RAM |
-| Update | `firmware` in the status, `POST /api/ota/url` to install |
+## Limits
 
-An API key never gets simulated presses over the WebSocket, so automations on `input` see only real presses.
+- The board must answer plain HTTP. With **HTTPS only** on, the integration cannot connect.
 
-With **HTTPS only** on, use `https://` and trust the board's [certificate](/docs/security#https).
+## Remove
+
+Delete the integration in Home Assistant. Then remove its key `home-assistant-xxxx` under **Access › API keys** on the board.
 
 <Next links={[['API', '/docs/api/'], ['Access and security', '/docs/security/']]} />

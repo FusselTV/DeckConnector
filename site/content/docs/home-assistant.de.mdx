@@ -1,76 +1,59 @@
 ---
 title: Home Assistant
-description: Status der Platine lesen und sie aus Home Assistant über die API steuern.
+description: Die DeckConnector-Integration für Home Assistant. Tastendrücke als Ereignisse, Helligkeit, Bildschirm, Host und Updates.
 ---
 
-Eine Integration für [Home Assistant](https://www.home-assistant.io/) gibt es noch nicht. Die Home-Assistant-Integrationen [RESTful](https://www.home-assistant.io/integrations/rest/) und [RESTful Command](https://www.home-assistant.io/integrations/rest_command/) lesen den Status und schicken Befehle über die [API](/de/docs/api).
+Die DeckConnector-Integration holt die Platine und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen und jede Drehung kommt sofort als Ereignis an. Helligkeit, Bildschirm aus, Wahl des Hosts und Updates steuerst du aus Home Assistant.
 
-## API-Schlüssel
+<table>
+  <tr>
+    <td><img src="/docs/ha-board.webp" alt="Die Platine in Home Assistant" width="320" /></td>
+    <td><img src="/docs/ha-deck.webp" alt="Ein Deck in Home Assistant" width="320" /></td>
+  </tr>
+</table>
 
-Leg unter **Zugang › API-Schlüssel** einen [Schlüssel](/de/docs/security#api-schlüssel) an. Zum Lesen reicht **Steuern**. Helligkeit, die Wahl des Programms und Neustarts brauchen **Vollzugriff**.
+## Installieren
 
-```yaml title="secrets.yaml"
-deckconnector_auth: "Bearer DEIN_SCHLUESSEL"
+Öffne in HACS **Benutzerdefinierte Repositories**, füge dieses Repository als **Integration** hinzu, lade **DeckConnector** herunter und starte Home Assistant neu.
+
+```text
+https://github.com/FusselTV/DeckConnector
 ```
 
-## Status und Steuerung
+## Einrichten
 
-```yaml title="configuration.yaml"
-rest:
-  - resource: http://192.168.1.50/api/status
-    headers:
-      Authorization: !secret deckconnector_auth
-    scan_interval: 30
-    sensor:
-      - name: DeckConnector writer
-        value_template: "{{ value_json.writer }}"
-      - name: DeckConnector uptime
-        value_template: "{{ value_json.uptime_s }}"
-        unit_of_measurement: s
-      - name: DeckConnector Wi-Fi signal
-        value_template: "{{ value_json.network.wlan.rssi }}"
-        unit_of_measurement: dBm
-    binary_sensor:
-      - name: DeckConnector deck
-        value_template: "{{ value_json.device is not none }}"
+Home Assistant findet die Platine von selbst und bietet sie unter **Einstellungen › Geräte & Dienste** an. Sonst fügst du dort **DeckConnector** hinzu und gibst die Adresse ein.
 
-rest_command:
-  deckconnector_brightness:
-    url: http://192.168.1.50/api/config
-    method: put
-    headers:
-      Authorization: !secret deckconnector_auth
-    content_type: application/json
-    payload: '{"brightness": {{ pct }}}'
-  deckconnector_use_companion:
-    url: http://192.168.1.50/api/config
-    method: put
-    headers:
-      Authorization: !secret deckconnector_auth
-    content_type: application/json
-    payload: '{"controller": "companion", "host": "satellite"}'
-  deckconnector_reboot:
-    url: http://192.168.1.50/api/reboot
-    method: post
-    headers:
-      Authorization: !secret deckconnector_auth
+Dann wählst du den Weg hinein. **Am Deck bestätigen** fragt am Deck, du tippst zum Annehmen. **Web-Passwort eingeben** geht auch ohne Deck. Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf der Platine an.
+
+<img src="/docs/ha-flow-menu.webp" alt="Weg hinein wählen" width="480" />
+
+## Automationen
+
+Jedes Deck hat ein Ereignis **Bedienung**. Löse darauf aus und prüfe den Ereignistyp in einer Bedingung, zum Beispiel **Taste 3 gedrückt** oder **Drehregler 1 nach rechts gedreht**. Eine Drehung bringt auch `ticks` mit, eine Berührung `x` und `y`.
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: event.stream_deck_bedienung
+    not_to: [unavailable, unknown]
+conditions:
+  - condition: state
+    entity_id: event.stream_deck_bedienung
+    attribute: event_type
+    state: key_3_press
 ```
 
-`GET /api/screen.jpg` liefert das Deck-Bild als ein JPEG, etwa für eine Kamera. Solange das Deck sein Menü, eine Seite der Einrichtung oder das Web-Passwort zeigt, antwortet es einem API-Schlüssel mit 403.
+Drücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
 
-## Was die API sonst bietet
+Der Host zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
 
-| Bedarf | Quelle |
-|---|---|
-| Platine finden | mDNS-Dienst `_deckconnector-api._tcp`. `id` im Status ist ihre MAC-Adresse und bleibt, wenn sich der Name ändert |
-| Live-Änderungen | Der WebSocket `/api/ws`. `state` bei jeder Änderung, `screen` bei neuem Bild, `input` bei jedem Druck und jeder Drehung, `ping` alle 5 s |
-| Taste drücken | `POST /api/input` mit `{"key": 3}`. Ohne `"real"` erreicht es nur die eigenen Bildschirme der Platine und deine eigenen Server |
-| Programme | `sources` im Status, je mit `connected` und `drawing` |
-| Last | `GET /api/metrics`, CPU und RAM |
-| Update | `firmware` im Status, `POST /api/ota/url` zum Installieren |
+## Grenzen
 
-Ein API-Schlüssel bekommt über den WebSocket nie simulierte Eingaben, Automationen auf `input` sehen also nur echte Drücke.
+- Die Platine muss einfaches HTTP beantworten. Mit **Nur HTTPS** verbindet sich die Integration nicht.
 
-Mit **Nur HTTPS** nimmst du `https://` und vertraust dem [Zertifikat](/de/docs/security#https) der Platine.
+## Entfernen
+
+Lösche die Integration in Home Assistant. Entferne danach ihren Schlüssel `home-assistant-xxxx` unter **Zugang › API-Schlüssel** auf der Platine.
 
 <Next lang="de" links={[['API', '/de/docs/api/'], ['Zugang und Sicherheit', '/de/docs/security/']]} />

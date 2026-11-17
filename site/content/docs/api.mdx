@@ -218,7 +218,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 {"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
- "menu_open": false, "screen_off": false,
+ "menu_open": false, "screen_off": false, "brightness": 80,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
@@ -242,6 +242,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `setup` | `step` of the web wizard, `active` until setup is done |
 | `menu_open` | The menu, the password, the reset question or a login request covers the deck |
 | `screen_off` | Every deck is dark after `screen_off_s` without input. The first input wakes them and reaches no host. `decks[].brightness` is 0 then |
+| `brightness` | The brightness setting. `decks[].brightness` is what each deck shows |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
