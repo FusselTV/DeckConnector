@@ -103,6 +103,8 @@ export interface Status {
   counters?: Counters
   boot_ms?: Record<string, number>
   memory?: Record<string, number>
+  /** The chip's temperature in °C, missing until the first sample. */
+  temp_c?: number
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
@@ -264,6 +266,8 @@ export interface Metrics {
   cpu: number[]
   heap: number[]
   psram: number[]
+  /** The chip's temperature in °C; 0 where the sensor gave nothing. */
+  temp?: number[]
   flash?: Record<string, { used: number; size: number }>
 }
 

@@ -257,6 +257,7 @@ function Health() {
         <Spark label="CPU" data={m?.cpu ?? []} fmt={fmt.pct} />
         <Spark label="RAM" data={m?.heap ?? []} fmt={fmt.pct} />
         <Spark label="PSRAM" data={m?.psram ?? []} fmt={fmt.pct} />
+        {!!m?.temp?.some(Boolean) && <Spark label="Chip" data={m.temp} fmt={(v) => `${fmt.num(v)} °C`} />}
       </div>
       {m?.flash &&
         Object.entries(m.flash).map(([k, v]) => (

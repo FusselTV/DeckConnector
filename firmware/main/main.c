@@ -341,6 +341,9 @@ static size_t web_status(char *buf, size_t cap)
     db_json_int(&j, "sockets", open_sockets());
     db_json_int(&j, "sockets_max", CONFIG_LWIP_MAX_SOCKETS);
     db_json_obj_close(&j);
+    if (db_web_temp_c()) {
+        db_json_int(&j, "temp_c", db_web_temp_c());
+    }
     db_json_obj_close(&j);
     return db_json_end(&j);
 }

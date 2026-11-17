@@ -493,6 +493,7 @@ export function status(s: Demo, now: number): Status {
       sockets: 9,
       sockets_max: 32,
     },
+    temp_c: 47,
   }
 }
 
