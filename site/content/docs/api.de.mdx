@@ -132,7 +132,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
 | `POST /api/ota/url` | `{"url": "http://..."}`, die Platine lädt die Datei selbst. Der Fortschritt kommt über den WebSocket | full |
 | `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
-| `GET /api/update/check` | `{"current": "v0.2.0", "latest": null, ...}` | full |
+| `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}` | full |
 | `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |
 | `POST /api/slots/<n>/boot` | Neustart in Platz N. 409, wenn er nicht starten kann | full |
 | `GET /api/frontend` | Die aktive Weboberfläche: `source` (`partition` oder `builtin`), `api` und bei einer hochgeladenen `version` | control |
@@ -211,7 +211,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 ## Status
 
 ```json
-{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.2.0",
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
  "menu_open": false,

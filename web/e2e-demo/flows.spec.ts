@@ -14,10 +14,10 @@ const file = (name: string, data: string | Buffer) => ({
   mimeType: 'application/octet-stream',
   buffer: Buffer.from(data),
 })
-/** A firmware file for the main chip, v0.3.0, with a header the bridge accepts and an empty body. */
+/** A firmware file for the main chip, v1.0.1, with a header the bridge accepts and an empty body. */
 const FW = Buffer.concat([
   Buffer.from([...Buffer.from('DBFW'), 1, 1, 0, 0, 0, 1, 0, 0]),
-  Buffer.from('v0.3.0'.padEnd(132, '\0')),
+  Buffer.from('v1.0.1'.padEnd(132, '\0')),
   Buffer.alloc(256),
 ])
 const failed = async (page: Page) => (await calls(page)).filter((c) => c.status >= 400 && c.url !== '/api/coredump')
@@ -35,7 +35,7 @@ test('Wi-Fi: scan, a wrong password fails, the right one joins, a hidden network
   await page.getByRole('button', { name: /Office/ }).click()
   await page.locator('#wifi-pass').fill('wrongpass')
   await saveBar(page).click()
-  await expect(page.getByText('wrong password').first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(en['wiz.test_bad']).first()).toBeVisible({ timeout: 15_000 })
   await page.locator('#wifi-pass').fill('office-pass-1')
   await saveBar(page).click()
   await expect(page.locator('summary').filter({ hasText: 'Office' })).toBeVisible({ timeout: 15_000 })
@@ -95,7 +95,7 @@ test('sources: add Companion, a server, open pairing for the app, edit and remov
   await dialog(page).getByRole('radio', { name: en['prog.app'] }).click()
   await dialog(page).locator('#pair-open').click()
   await expect(dialog(page).getByText(/Pairing open/)).toBeVisible()
-  await dialog(page).getByRole('button', { name: en['src.close'] }).click()
+  await dialog(page).getByText(en['src.close'], { exact: true }).click()
   await expect(dialog(page).locator('#pair-open')).toBeVisible()
   await dialog(page).locator('#only').click()
   await dialog(page).getByRole('button', { name: en['wiz.s_done'] }).click()
@@ -199,7 +199,7 @@ test('firmware: install from a file, from a URL, write a slot, boot a slot', asy
   await page.locator('#upd-file').setInputFiles(file('x.dbfw', 'short'))
   await expect(dialog(page).locator('.ferr, [id$=-err]').first()).toBeVisible()
   await page.locator('#upd-file').setInputFiles(file('deckconnector.dbfw', FW))
-  await expect(dialog(page).getByText(t('fw.file_v', { v: 'v0.3.0' }), { exact: false })).toBeVisible()
+  await expect(dialog(page).getByText(t('fw.file_v', { v: 'v1.0.1' }), { exact: false })).toBeVisible()
   // The demo's own sample files take the same path.
   await dialog(page).getByRole('button', { name: 'deckconnector-web.dbfw' }).click()
   await expect(dialog(page).getByText(t('fw.file_v', { v: 'web demo 3f9a1c' }), { exact: false })).toBeVisible()
@@ -207,18 +207,18 @@ test('firmware: install from a file, from a URL, write a slot, boot a slot', asy
   // URL.
   await page.locator('#fw-file').click()
   await dialog(page).locator('#upd-mode').getByRole('radio', { name: en['upd.url'] }).click()
-  await dialog(page).locator('#upd-url').fill('http://192.168.1.10/deckconnector-v0.3.0.dbfw')
+  await dialog(page).locator('#upd-url').fill('http://192.168.1.10/deckconnector-v1.0.1.dbfw')
   await dialog(page).getByRole('button', { name: en['upd.go_restart'] }).click()
   await confirm(page, en['btn.install'])
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v0.3.0"')), {
+    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')), {
       timeout: 40_000,
     })
     .toBe(true)
   await page.waitForLoadState()
   await openTab(page, en, 'firmware')
-  // Slots: write v0.3.0 into slot 4 without a restart, then boot the old one.
+  // Slots: write v1.0.1 into slot 4 without a restart, then boot the old one.
   await page.locator('summary').filter({ hasText: en['fw.slots'] }).click()
   const chooser = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: en['fw.write'] }).nth(2).click()
@@ -261,7 +261,7 @@ test('backup: save both kinds, restore changes the name, a broken file is refuse
 test('diagnostics: log, events, inputs, profile, metrics all show data', async ({ demo: page }) => {
   await page.goto('?lang=en')
   await openTab(page, en, 'diagnose')
-  await expect(page.getByText('DeckConnector v0.2.0').first()).toBeVisible()
+  await expect(page.getByText('DeckConnector v1.0.0').first()).toBeVisible()
   for (const part of ['Firmware', 'Settings'])
     await expect(page.locator('#card-health').getByText(part, { exact: true })).toBeVisible()
   // The folds are exclusive: opening one closes the others.
@@ -315,12 +315,7 @@ test('setup wizard runs every step', async ({ demo: page }) => {
   await page.getByRole('radio', { name: new RegExp(en['wiz.p_comp']) }).click()
   await page.locator('#w-sat').fill('192.168.1.99')
   await page.getByRole('button', { name: en['src.connect'], exact: true }).click()
-  await expect(
-    page
-      .getByRole('alert')
-      .filter({ hasText: /connection|answer/i })
-      .first(),
-  ).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: en['err.probe_refused'] }).first()).toBeVisible()
   await page.getByRole('button', { name: t('wiz.use', { name: 'Studio Companion' }) }).click()
   await expect(page.getByText(t('wiz.connected', { host: '' }).slice(1, 12)).first()).toBeVisible({ timeout: 10_000 })
   await next.click()
