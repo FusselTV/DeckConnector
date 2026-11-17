@@ -48,10 +48,8 @@ static ver_t parse(const char *s)
     }
     if (*s == '-' && isdigit((unsigned char)s[1])) {
         s++;
-        const char *at = s;
         long after = number(&s);
         v.after = strncmp(s, "-g", 2) == 0 ? after : 0;
-        s = v.after ? s : at;
     }
     return v;
 }

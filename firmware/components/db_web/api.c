@@ -976,11 +976,12 @@ esp_err_t put_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-#define RELEASES     "https://api.github.com/repos/FusselTV/DeckConnector/releases?per_page=8"
-#define RELEASES_MAX (256 * 1024)
+#define RELEASES "https://github.com/FusselTV/DeckConnector/releases.atom"
+#define FEED_MAX (128 * 1024)
+#define TAG_PATH "/releases/tag/"
 
-/* The JSON of a release list, NULL with *why and *code set on failure; the caller frees it with
- * heap_caps_free. */
+/* The release feed as text, NULL with *why and *code set on failure; the caller frees it with heap_caps_free.
+ */
 static char *fetch(const char *url, const char **why, const char **code)
 {
     *code = "unreachable";
@@ -992,29 +993,26 @@ static char *fetch(const char *url, const char **why, const char **code)
         .url = url,
         .timeout_ms = 8000,
         .crt_bundle_attach = esp_crt_bundle_attach,
-        .user_agent = "DeckConnector", /* GitHub refuses API calls without one */
+        .user_agent = "DeckConnector",
     };
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
-    char *body = heap_caps_malloc(RELEASES_MAX, MALLOC_CAP_SPIRAM);
-    int got = 0, n;
+    char *body = heap_caps_malloc(FEED_MAX, MALLOC_CAP_SPIRAM);
+    int got = 0, n = 0, status = 0;
     *why = !c || !body ? "out of memory" : NULL;
-    if (!*why) {
-        esp_http_client_set_header(c, "Accept", "application/vnd.github+json");
-        if (esp_http_client_open(c, 0) != ESP_OK || esp_http_client_fetch_headers(c) < 0) {
-            *why = "GitHub not reachable";
-        } else if (esp_http_client_get_status_code(c) != 200) {
-            bool limited =
-                esp_http_client_get_status_code(c) == 403 || esp_http_client_get_status_code(c) == 429;
-            *why = limited ? "GitHub limits checks, try again later" : "no releases yet";
-            *code = limited ? "rate_limited" : "no_releases";
-        }
+    if (!*why && (esp_http_client_open(c, 0) != ESP_OK || esp_http_client_fetch_headers(c) < 0)) {
+        *why = "GitHub not reachable";
+    } else if (!*why && (status = esp_http_client_get_status_code(c)) != 200) {
+        /* 404: a repository without releases, or a private one */
+        *why = status == 404   ? "no releases yet"
+               : status == 429 ? "GitHub limits checks, try again later"
+                               : "GitHub not reachable";
+        *code = status == 404 ? "no_releases" : status == 429 ? "rate_limited" : "unreachable";
     }
-    while (!*why && got < RELEASES_MAX - 1 &&
-           (n = esp_http_client_read(c, body + got, RELEASES_MAX - 1 - got)) > 0) {
+    while (!*why && got < FEED_MAX - 1 && (n = esp_http_client_read(c, body + got, FEED_MAX - 1 - got)) > 0) {
         got += n;
     }
-    if (!*why && got >= RELEASES_MAX - 1) {
-        *why = "releases list too long";
+    if (!*why && (n < 0 || !esp_http_client_is_complete_data_received(c))) {
+        *why = "GitHub not reachable"; /* cut off: what came is no list */
     }
     if (c) {
         esp_http_client_cleanup(c);
@@ -1034,8 +1032,8 @@ static void url_decode(char *s)
     char *o = s;
     for (; *s; s++) {
         unsigned v;
-        if (*s == '%' && sscanf(s + 1, "%2x", &v) == 1 && isxdigit((unsigned char)s[1]) &&
-            isxdigit((unsigned char)s[2])) {
+        if (*s == '%' && isxdigit((unsigned char)s[1]) && isxdigit((unsigned char)s[2]) &&
+            sscanf(s + 1, "%2x", &v) == 1) {
             *o++ = (char)v;
             s += 2;
         } else {
@@ -1045,80 +1043,96 @@ static void url_decode(char *s)
     *o = '\0';
 }
 
-/* GET /api/update/check: the newest release on GitHub, a prerelease only while one runs. `url` (the release's
- * .dbfw, for POST /api/ota/url) only when it is newer than the running firmware. `?feed=` takes another list
- * in the same format, for tests. Answers come from a cache for a minute: GitHub allows 60 calls per hour. */
+static portMUX_TYPE check_mux = portMUX_INITIALIZER_UNLOCKED;
+static struct { /* the last good answer, under check_mux */
+    int64_t at;
+    char feed[160];
+    char reply[512];
+} cache;
+
+/* GET /api/update/check: the newest release in the repository's release feed, a prerelease only while one
+ * runs. `url` (the release's .dbfw by the name the release workflow gives it, for POST /api/ota/url) only
+ * when it is newer than the running firmware. `?feed=` takes another feed of the same format, for tests. Not
+ * under the web lock: GitHub can take seconds. Good answers are kept for a minute. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
-    static char reply[512];
-    static int64_t at;
-    static char feed_at[160];
     char q[192] = "", feed[160] = RELEASES;
     if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
-        if (httpd_query_key_value(q, "feed", feed, sizeof(feed)) == ESP_OK) {
-            url_decode(feed);
+        esp_err_t got = httpd_query_key_value(q, "feed", feed, sizeof(feed));
+        if (got != ESP_OK && got != ESP_ERR_NOT_FOUND) {
+            return send_error(req, "400 Bad Request", "feed: a URL of up to 159 characters");
         }
+        url_decode(feed);
     }
+    char reply[sizeof(cache.reply)];
     int64_t now = esp_timer_get_time();
-    if (at && now - at < 60 * 1000000LL && strcmp(feed, feed_at) == 0) {
+    portENTER_CRITICAL(&check_mux);
+    bool hit = cache.at && now - cache.at < 60 * 1000000LL && strcmp(feed, cache.feed) == 0;
+    if (hit) {
+        strcpy(reply, cache.reply);
+    }
+    portEXIT_CRITICAL(&check_mux);
+    if (hit) {
         return send_json(req, reply);
     }
     const char *current = esp_app_get_description()->version;
     const char *why = NULL, *code = NULL;
-    char *list = fetch(feed, &why, &code);
-    cJSON *root = list ? cJSON_Parse(list) : NULL;
-    heap_caps_free(list);
-    const cJSON *best = NULL, *r;
+    char *text = fetch(feed, &why, &code);
+    /* every release links its page: "https://github.com/owner/repo/releases/tag/v1.2.3" */
+    char best[40] = "", base[96] = "";
     bool pre_ok = db_version_pre(current);
-    const cJSON *releases = cJSON_IsArray(root) ? root : NULL;
-    cJSON_ArrayForEach(r, releases)
-    {
-        const cJSON *tag = cJSON_GetObjectItemCaseSensitive(r, "tag_name");
-        if (!cJSON_IsString(tag) || cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(r, "draft")) ||
-            (!pre_ok && (db_version_pre(tag->valuestring) ||
-                         cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(r, "prerelease"))))) {
+    for (const char *p = text; p && (p = strstr(p, TAG_PATH)); p += strlen(TAG_PATH)) {
+        const char *tag = p + strlen(TAG_PATH);
+        size_t len = strcspn(tag, "\"<& ");
+        char t[sizeof(best)];
+        if (len == 0 || len >= sizeof(t)) {
             continue;
         }
-        if (!best || db_version_cmp(tag->valuestring,
-                                    cJSON_GetObjectItemCaseSensitive(best, "tag_name")->valuestring) > 0) {
-            best = r;
+        memcpy(t, tag, len);
+        t[len] = '\0';
+        if (db_version_cmp(t, "v0.0.0") < 0 || (!pre_ok && db_version_pre(t)) ||
+            (best[0] && db_version_cmp(t, best) <= 0)) {
+            continue;
+        }
+        const char *from = p;
+        while (from > text && from[-1] != '"') {
+            from--;
+        }
+        if ((size_t)(p - from) < sizeof(base)) {
+            strcpy(best, t);
+            snprintf(base, sizeof(base), "%.*s", (int)(p - from), from);
         }
     }
+    heap_caps_free(text);
     db_json_t j;
     db_json_begin(&j, reply, sizeof(reply));
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "current", current);
-    if (!best) {
+    if (!best[0]) {
         db_json_null(&j, "latest");
         db_json_str(&j, "error", why ? why : "no releases yet");
         db_json_str(&j, "code", why ? code : "no_releases");
     } else {
-        const char *tag = cJSON_GetObjectItemCaseSensitive(best, "tag_name")->valuestring;
-        db_json_str(&j, "latest", tag);
-        const cJSON *notes = cJSON_GetObjectItemCaseSensitive(best, "html_url");
-        if (cJSON_IsString(notes)) {
-            db_json_str(&j, "notes", notes->valuestring);
-        }
-        char want[64];
-        snprintf(want, sizeof(want), "deckconnector-%s.dbfw", tag);
-        const cJSON *a;
-        cJSON_ArrayForEach(a, cJSON_GetObjectItemCaseSensitive(best, "assets"))
-        {
-            const cJSON *name = cJSON_GetObjectItemCaseSensitive(a, "name");
-            const cJSON *url = cJSON_GetObjectItemCaseSensitive(a, "browser_download_url");
-            if (db_version_cmp(tag, current) > 0 && cJSON_IsString(name) &&
-                strcmp(name->valuestring, want) == 0 && cJSON_IsString(url)) {
-                db_json_str(&j, "url", url->valuestring);
-            }
+        char link[sizeof(base) + 2 * sizeof(best) + 48];
+        db_json_str(&j, "latest", best);
+        snprintf(link, sizeof(link), "%s" TAG_PATH "%s", base, best);
+        db_json_str(&j, "notes", link);
+        if (db_version_cmp(best, current) > 0) {
+            snprintf(link, sizeof(link), "%s/releases/download/%s/deckconnector-%s.dbfw", base, best, best);
+            db_json_str(&j, "url", link);
         }
     }
-    cJSON_Delete(root);
     db_json_obj_close(&j);
     if (!db_json_end(&j)) {
         return send_error(req, "500 Internal Server Error", "reply too long");
     }
-    at = why ? 0 : now; /* a failure is asked again at once */
-    strlcpy(feed_at, feed, sizeof(feed_at));
+    if (!why) { /* a failure is asked again at once */
+        portENTER_CRITICAL(&check_mux);
+        cache.at = now;
+        strcpy(cache.feed, feed);
+        strcpy(cache.reply, reply);
+        portEXIT_CRITICAL(&check_mux);
+    }
     return send_json(req, reply);
 }
 

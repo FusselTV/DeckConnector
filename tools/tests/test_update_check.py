@@ -1,6 +1,6 @@
-"""The update check asks GitHub for releases and offers only a newer one; OTA by URL follows redirects and speaks
-HTTPS, as a GitHub release file needs. A release list and files served from this machine stand in for GitHub, so
-nothing is installed: the files are no .dbfw."""
+"""The update check reads the repository's release feed and offers only a newer release; OTA by URL follows
+redirects and speaks HTTPS, as a GitHub release file needs. A feed and files served from this machine stand in for
+GitHub, so nothing is installed: the files are no .dbfw."""
 
 import http.server
 import json
@@ -16,29 +16,30 @@ from dbtools.server import local_ip
 PORT = 8771
 
 
-def release(tag: str, pre: bool = False, draft: bool = False) -> dict:
-    return {
-        "tag_name": tag,
-        "prerelease": pre,
-        "draft": draft,
-        "html_url": f"https://example.org/releases/tag/{tag}",
-        "assets": [
-            {"name": f"deckconnector-{tag}.dbfw", "browser_download_url": f"http://{local_ip()}:{PORT}/get/{tag}"},
-            {"name": "deckconnector.elf", "browser_download_url": "http://example.org/elf"},
-        ],
-    }
+def repo() -> str:
+    return f"http://{local_ip()}:{PORT}/owner/repo"
 
 
-LISTS: dict[str, list] = {}
+def atom(*tags: str) -> str:
+    """GitHub's release feed: newest first, each entry links its release page."""
+    entries = "".join(
+        f"<entry><id>tag:github.com,2008:Repository/1/{t}</id>"
+        f'<link rel="alternate" type="text/html" href="{repo()}/releases/tag/{t}"/><title>{t}</title></entry>'
+        for t in tags
+    )
+    return f'<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">{entries}</feed>'
+
+
+FEEDS: dict[str, str] = {}
 
 
 class Feed(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
-        if path.startswith("/list/"):
-            body = json.dumps(LISTS[path[6:]]).encode()
+        if path.startswith("/feed/") and path[6:] in FEEDS:
+            body = FEEDS[path[6:]].encode()
             self.send_response(200)
-        elif path.startswith("/get/"):  # what GitHub does: a redirect to its storage
+        elif path.startswith("/owner/repo/releases/download/"):  # what GitHub does: a redirect to its storage
             self.send_response(302)
             self.send_header("Location", f"http://{local_ip()}:{PORT}/file")
             body = b""
@@ -60,7 +61,7 @@ class Feed(http.server.BaseHTTPRequestHandler):
 def feed():
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Feed)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield lambda name: f"http://{local_ip()}:{PORT}/list/{name}"
+    yield lambda name: f"http://{local_ip()}:{PORT}/feed/{name}"
     srv.shutdown()
     srv.server_close()
 
@@ -85,19 +86,25 @@ def test_github_is_asked_over_https():
 
 
 def test_a_newer_release_is_offered_and_a_prerelease_only_to_a_prerelease(feed):
-    LISTS["new"] = [release("v99.0.0-rc1", pre=True), release("v98.0.0"), release("v100.0.0", draft=True)]
+    FEEDS["new"] = atom("v99.0.0-rc1", "v98.0.0", "v1.0.0", "junk-tag")
     current = check()["current"]
     u = check(feed("new"))
-    pre = "-rc" in current
-    assert u["latest"] == ("v99.0.0-rc1" if pre else "v98.0.0"), u
-    assert u["url"].endswith("/get/" + u["latest"])
-    assert u["notes"].endswith("/tag/" + u["latest"])
+    latest = "v99.0.0-rc1" if "-rc" in current else "v98.0.0"
+    assert u["latest"] == latest, u
+    assert u["url"] == f"{repo()}/releases/download/{latest}/deckconnector-{latest}.dbfw"
+    assert u["notes"] == f"{repo()}/releases/tag/{latest}"
 
 
 def test_an_older_release_is_named_but_not_offered(feed):
-    LISTS["old"] = [release("v0.0.1")]
+    FEEDS["old"] = atom("v0.0.1")
     u = check(feed("old"))
     assert u["latest"] == "v0.0.1" and "url" not in u
+
+
+def test_a_feed_without_releases_and_a_missing_feed(feed):
+    FEEDS["empty"] = atom()
+    assert check(feed("empty"))["code"] == "no_releases"
+    assert check(feed("nothing-here"))["code"] == "no_releases"  # the feed of a repository without releases: 404
 
 
 def wait_for_log(text: str, since: int, secs: float = 30) -> str | None:
@@ -114,7 +121,7 @@ def wait_for_log(text: str, since: int, secs: float = 30) -> str | None:
 @pytest.mark.parametrize(
     "url, outcome",
     [
-        (f"http://{local_ip()}:{PORT}/get/v99.0.0", "not a .dbfw file"),  # 302 to this machine
+        (f"http://{local_ip()}:{PORT}/owner/repo/releases/download/v99.0.0/x.dbfw", "not a .dbfw file"),  # 302 here
         # a public GitHub release file, by HTTPS and a redirect to its storage; far too big for a slot
         (
             "https://github.com/espressif/esptool/releases/download/v5.6.0/esptool-v5.6.0-linux-amd64.tar.gz",
