@@ -39,7 +39,7 @@ pytestmark = [pytest.mark.sim, pytest.mark.skipif(TARGET != "sim", reason="the b
 
 def test_status_lists_the_decks_by_slot_and_the_one_over_the_limit(host):
     st = call(host, "GET", "/api/status")[1]
-    assert [(d["slot"], d["serial"]) for d in st["decks"]] == [(0, "SIM0001"), (1, "SIM0002")]
+    assert [(d["slot"], d["number"], d["serial"]) for d in st["decks"]] == [(0, 1, "SIM0001"), (1, 2, "SIM0002")]
     assert st["decks_over_limit"] == 1
     assert call(host, "GET", "/api/config")[1]["max_decks"] == 2
 

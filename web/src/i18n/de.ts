@@ -517,7 +517,8 @@ export const de: Dict = {
   'is.over_other': 'Noch {n} Decks bleiben dunkel',
   'is.over_h': 'Die Bridge steuert {max} Decks gleichzeitig. Unter Deck lässt sich das Limit erhöhen.',
   'deck.max': 'Decks gleichzeitig',
-  'deck.max_h': 'Alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports.',
+  'deck.max_h':
+    'Alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports. Ein kleineres Limit gilt für Decks, die danach eingesteckt werden.',
   'is.decks_n': '{n} Decks',
   'is.compdock': 'Companion „{name}“ nutzt den Dock-Weg',
   'is.compdock_h': 'Satellite ist stabiler und hat alle Tasten und Drehregler.',

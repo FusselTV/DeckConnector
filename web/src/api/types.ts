@@ -16,6 +16,8 @@ export interface DeckInfo {
   surface?: number
   /** In `decks`: 0 to 3, kept per deck over replugs. It fixes the deck's Network Dock port and Satellite order. */
   slot?: number
+  /** In `decks`: slot + 1. */
+  number?: number
 }
 
 export interface Source {

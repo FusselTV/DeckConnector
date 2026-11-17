@@ -58,6 +58,7 @@ static void write_device(db_json_t *j)
         if (db_deck_info(d, dev)) {
             db_json_obj_open(j, NULL);
             db_json_int(j, "slot", d);
+            db_json_int(j, "number", d + 1); /* as before slots: read by scripts */
             write_device_fields(j, dev);
             db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
             db_json_bool(j, "hub", db_deck_behind_hub(d));

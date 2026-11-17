@@ -43,6 +43,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     for (int d = 0; db_deck_info(d, &dev); d++) {
         db_json_obj_open(&j, NULL);
         db_json_int(&j, "slot", d);
+        db_json_int(&j, "number", d + 1);
         db_json_str(&j, "model", dev.model);
         db_json_str(&j, "serial", dev.serial);
         db_json_obj_close(&j);

@@ -508,7 +508,8 @@ export const en = {
   'is.over_other': '{n} more decks stay dark',
   'is.over_h': 'The bridge drives {max} decks at once. You can raise the limit under Deck.',
   'deck.max': 'Decks at once',
-  'deck.max_h': 'All decks on a hub without its own power supply share the 2 A of the USB port.',
+  'deck.max_h':
+    'All decks on a hub without its own power supply share the 2 A of the USB port. A lower limit applies to decks plugged in later.',
   'is.decks_n': '{n} decks',
   'is.compdock': 'Companion "{name}" uses the Dock path',
   'is.compdock_h': 'Satellite is more stable and has all keys and dials.',
