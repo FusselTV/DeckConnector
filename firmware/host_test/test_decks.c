@@ -562,6 +562,59 @@ static unsigned run_pid(void)
     return fails;
 }
 
+/* A + and a Mini at once, as behind a hub: each driver call reaches its own deck, and neither sees the
+ * other's reports or key states. */
+static unsigned run_two(void)
+{
+    static const uint16_t pids[2] = {0x84, 0x63};
+    static db_dev_t two[2];
+    fails = 0;
+    for (int d = 0; d < 2; d++) {
+        deck_emu_select(d);
+        M = deck_model(pids[d]);
+        deck_emu_start(M->pid);
+        two[d] = (db_dev_t){.io = deck_emu_io(), .driver = db_driver_find(VID, M->pid)};
+        CHECK(two[d].driver && two[d].driver->open(&two[d], VID, M->pid) == DB_OK, "deck %d: open", d);
+        CHECK(!strcmp(two[d].info.serial, deck_emu_serial()), "deck %d: serial %s, deck says %s", d,
+              two[d].info.serial, deck_emu_serial());
+        deck_emu_clear();
+    }
+    CHECK(strcmp(two[0].info.serial, two[1].info.serial) != 0, "both decks report serial %s",
+          two[0].info.serial);
+    for (int d = 1; d >= 0; d--) { /* deck 1 first: the current deck must not decide where reports go */
+        const db_display_t *dp = &two[d].info.displays[0];
+        const db_target_t *t = NULL;
+        for (uint8_t i = 0; i < dp->target_count && !t; i++) {
+            t = dp->targets[i].kind == DB_TARGET_KEY ? &dp->targets[i] : NULL;
+        }
+        static uint8_t img[64 * 1024];
+        size_t n = dp->format == DB_FORMAT_BMP ? make_bmp(t->rect.w, t->rect.h, img)
+                                               : make_jpeg(t->rect.w, t->rect.h, 4000, img);
+        CHECK(two[d].driver->write_image(&two[d], t, t->rect, img, n) == DB_OK, "deck %d: write_image", d);
+    }
+    uint8_t rep[512];
+    deck_emu_select(1);
+    M = deck_model(pids[1]);
+    size_t len = deck_emu_key(2, true, rep, sizeof(rep));
+    db_input_t out[8];
+    CHECK(two[1].driver->parse_input(&two[1], rep, len, 0, out, 8) == 1 && out[0].index == 2,
+          "deck 1: key 2 down not parsed");
+    deck_emu_select(0);
+    M = deck_model(pids[0]);
+    len = deck_emu_key(3, true, rep, sizeof(rep));
+    CHECK(two[0].driver->parse_input(&two[0], rep, len, 0, out, 8) == 1 && out[0].index == 3,
+          "deck 0: key 3 down not parsed alone, deck 1's held key leaked in");
+    for (int d = 0; d < 2; d++) {
+        deck_emu_select(d);
+        M = deck_model(pids[d]);
+        deck_emu_check_idle();
+        CHECK(deck_emu_image_count() == 1, "deck %d got %zu images, expected its own 1", d,
+              deck_emu_image_count());
+        expect_clean("two decks");
+    }
+    return fails;
+}
+
 int main(void)
 {
     const deck_model_t *list[64];
@@ -584,15 +637,16 @@ int main(void)
         }
     }
 
-    char result[64][32];
+    char result[65][32];
     int failed = 0;
-    for (size_t i = 0; i < count; i++) {
-        M = list[i];
-        printf("0x%02x %s\n", M->pid, M->name);
+    bool both = !(env && *env); /* the two-deck run after all PIDs */
+    for (size_t i = 0; i < count + both; i++) {
+        M = i < count ? list[i] : deck_model(0x84);
+        printf(i < count ? "0x%02x %s\n" : "two decks\n", M->pid, M->name);
         fflush(stdout);
         pid_t child = fork();
         if (child == 0) {
-            unsigned f = run_pid();
+            unsigned f = i < count ? run_pid() : run_two();
             fflush(stdout);
             _exit(f > 250 ? 250 : (int)f);
         }
@@ -617,6 +671,9 @@ int main(void)
     for (size_t i = 0; i < count; i++) {
         printf("0x%02x   %-20s %s\n", list[i]->pid, list[i]->name, result[i]);
     }
-    printf("%zu of %zu PIDs pass\n", count - (size_t)failed, count);
+    if (both) {
+        printf("%-27s %s\n", "two decks", result[count]);
+    }
+    printf("%zu of %zu runs pass\n", count + both - (size_t)failed, count + both);
     return failed ? 1 : 0;
 }

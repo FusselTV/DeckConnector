@@ -158,7 +158,7 @@ static db_err_t write_failed(db_err_t err)
     return err;
 }
 
-static db_err_t io_write(const uint8_t *report, size_t len)
+static db_err_t io_write(const db_hid_io_t *io, const uint8_t *report, size_t len)
 {
     if (!s.open || len > REPORT_LEN) {
         return DB_ERR_STATE;
@@ -178,7 +178,7 @@ static db_err_t io_write(const uint8_t *report, size_t len)
     return DB_OK;
 }
 
-static db_err_t io_flush(void)
+static db_err_t io_flush(const db_hid_io_t *io)
 {
     for (int i = 0; i < OUT_SLOTS; i++) {
         if (xSemaphoreTake(s.out_free, pdMS_TO_TICKS(500)) != pdTRUE) {
@@ -235,12 +235,12 @@ static db_err_t control(uint8_t type, uint8_t request, uint8_t report_id, uint8_
     return res;
 }
 
-static db_err_t io_get_feature(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t io_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
     return control(0xa1, HID_GET_REPORT, buf[0], buf, len, out_len);
 }
 
-static db_err_t io_set_feature(const uint8_t *buf, size_t len)
+static db_err_t io_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
     return control(0x21, HID_SET_REPORT, buf[0], (uint8_t *)buf, len, NULL);
 }
@@ -588,7 +588,7 @@ void usb_port_close(void)
         return;
     }
     /* Let every transfer come back before the endpoints go away. */
-    io_flush();
+    io_flush(&s.io);
     usb_host_endpoint_halt(s.dev, s.ep_in);
     usb_host_endpoint_flush(s.dev, s.ep_in);
     vTaskDelay(pdMS_TO_TICKS(20));

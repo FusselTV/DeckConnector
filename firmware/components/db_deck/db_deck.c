@@ -158,7 +158,7 @@ static void replay(void)
     }
     if (feature_len) {
         xSemaphoreTake(s.io_lock, portMAX_DELAY);
-        usb_port_io()->set_feature(feature, feature_len);
+        usb_port_io()->set_feature(usb_port_io(), feature, feature_len);
         xSemaphoreGive(s.io_lock);
     }
     for (int i = 0; i < n; i++) {
@@ -752,7 +752,7 @@ esp_err_t db_deck_raw_write(db_source_t source, const uint8_t *report, size_t le
     if (s.writer == source) {
         xSemaphoreTake(s.io_lock, portMAX_DELAY); /* as in db_deck_raw_set_feature */
         xSemaphoreGive(s.shot_lock);
-        err = io->write(padded, io->out_report_size);
+        err = io->write(io, padded, io->out_report_size);
         xSemaphoreGive(s.io_lock);
         return to_esp(err);
     }
@@ -766,7 +766,7 @@ esp_err_t db_deck_raw_get_feature(uint8_t *buf, size_t len, size_t *out_len)
         return ESP_ERR_INVALID_STATE;
     }
     xSemaphoreTake(s.io_lock, portMAX_DELAY);
-    db_err_t err = usb_port_io()->get_feature(buf, len, out_len);
+    db_err_t err = usb_port_io()->get_feature(usb_port_io(), buf, len, out_len);
     xSemaphoreGive(s.io_lock);
     return to_esp(err);
 }
@@ -787,7 +787,7 @@ esp_err_t db_deck_raw_set_feature(db_source_t source, const uint8_t *buf, size_t
          * the picture waits for the USB transfer */
         xSemaphoreTake(s.io_lock, portMAX_DELAY);
         xSemaphoreGive(s.shot_lock);
-        err = usb_port_io()->set_feature(buf, len);
+        err = usb_port_io()->set_feature(usb_port_io(), buf, len);
         xSemaphoreGive(s.io_lock);
         if (pct >= 0) {
             __atomic_store_n(&lit, pct, __ATOMIC_RELAXED);
