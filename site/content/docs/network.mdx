@@ -16,7 +16,7 @@ The board announces itself over mDNS on one network at a time. That is the LAN, 
 - 2.4 GHz only. A hidden network is not in the list, but you can type its name.
 - The board tests a new network first and keeps it only when it gets an address there. Otherwise the old one comes back.
 - **Access points (BSSID)** locks the board to one access point. By default it takes the strongest and roams.
-- **Backup Wi-Fi** is a second network. The board joins it when the first one gives no link for 10 s. There it looks for the first one every 2 minutes and goes back once it is in reach. A fixed Wi-Fi address applies to both.
+- **Backup Wi-Fi** is a second network. The board joins it when the first one gives no link for 10 s. There it looks for the first one every 2 minutes and goes back once its signal is good. On the backup the board always takes its address over DHCP.
 
 ## Fixed address
 
