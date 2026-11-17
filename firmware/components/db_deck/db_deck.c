@@ -21,8 +21,8 @@
 #include "usb_port.h"
 
 #define MAX_LISTENERS  6
-#define PENDING_BUDGET (4 * 1024 * 1024)
-#define INPUT_REPORT   65 /* the six-key report */
+#define PENDING_BUDGET (4 * 1024 * 1024) /* shared by max_decks */
+#define INPUT_REPORT   65                /* the six-key report */
 #define EVENTS_PER_RPT 8
 #define CYCLE_FLOOR_US 10000000LL /* between two root port cycles of the recovery: they take every deck */
 
@@ -92,6 +92,7 @@ static struct {
     int max_decks;
     int8_t port_deck[USB_PORT_DEVS];      /* the slot of each usb_port device, -1: none; event task only */
     uint8_t waiting[USB_PORT_DEVS];       /* decks over the limit, by USB address; event task only */
+    int over;                             /* of them still plugged in, counted by the event task */
     db_slot_owner_t owners[DB_MAX_DECKS]; /* whose slot is whose, kept in NVS */
 } s;
 
@@ -330,10 +331,22 @@ static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not ove
  * an hour passed without a hang. A deck that keeps hanging is replugged less and less often, up to every 5
  * min, and the bridge stays up. Each deck counts for itself, but a cycle takes every deck: two in a row wait
  * CYCLE_FLOOR_US. */
+/* Every root port cycle takes all decks: two of them are CYCLE_FLOOR_US apart, whatever asked for them.
+ * Writer tasks, the USB client task and the event task ask. */
+static portMUX_TYPE cycle_mux = portMUX_INITIALIZER_UNLOCKED;
+static int64_t cycled;
+
+static bool take_cycle(int64_t now)
+{
+    taskENTER_CRITICAL(&cycle_mux);
+    bool due = !cycled || now - cycled >= CYCLE_FLOOR_US;
+    cycled = due ? now : cycled;
+    taskEXIT_CRITICAL(&cycle_mux);
+    return due;
+}
+
 static void on_stuck(int port)
 {
-    static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED; /* writer tasks and the USB client task call it */
-    static int64_t cycled;
     int deck = s.port_deck[port];
     if (deck < 0) {
         return;
@@ -342,7 +355,7 @@ static void on_stuck(int port)
     int64_t now = esp_timer_get_time();
     bool restart = false;
     bool cycle = false;
-    taskENTER_CRITICAL(&mux);
+    taskENTER_CRITICAL(&cycle_mux);
     if (now - k->stuck_last > 3600000000LL) { /* an hour without a hang arms the restart again */
         stuck_restarted = 0;
     }
@@ -358,7 +371,7 @@ static void on_stuck(int port)
         cycled = now;
         cycle = true;
     }
-    taskEXIT_CRITICAL(&mux);
+    taskEXIT_CRITICAL(&cycle_mux);
     if (restart) {
         ESP_LOGE(TAG, "deck %d hung again after its reconnect: restarting", deck + 1);
         db_ota_restart(0);
@@ -384,6 +397,21 @@ static void park(uint8_t address)
             return;
         }
     }
+}
+
+/* A parked deck that was unplugged no longer counts. */
+static void count_parked(void)
+{
+    int n = 0;
+    uint16_t vid;
+    uint16_t pid;
+    for (int i = 0; i < USB_PORT_DEVS; i++) {
+        if (s.waiting[i] && usb_port_ids(s.waiting[i], &vid, &pid) != ESP_OK) {
+            s.waiting[i] = 0;
+        }
+        n += s.waiting[i] != 0;
+    }
+    __atomic_store_n(&s.over, n, __ATOMIC_RELAXED);
 }
 
 static void on_attached(uint8_t address);
@@ -440,14 +468,17 @@ static void handle_attach(uint8_t address)
 {
     /* The Stream Deck + stops answering about 1 s after it gets a USB address that is a multiple of 16 (seen
      * at 16, 32 and 48, never in between). Plugged in again it gets the next one. A hub or another device
-     * there is left alone, and so is the port while another deck works on it. */
+     * there is left alone. Only the root port can be cycled (a hub port tripped an assert in esp-usb), so the
+     * other decks go too; left alone the deck would hang and on_stuck would cycle it later anyway. */
     uint16_t vid;
     uint16_t pid;
-    if ((address & 0x0f) == 0 && !present_count() && usb_port_ids(address, &vid, &pid) == ESP_OK &&
-        db_driver_find(vid, pid)) {
-        ESP_LOGW(TAG, "USB address %u, plugging the deck in again", address);
-        start_replug(address, 500);
-        return;
+    if ((address & 0x0f) == 0 && usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
+        if (take_cycle(esp_timer_get_time())) {
+            ESP_LOGW(TAG, "USB address %u, plugging the decks in again", address);
+            start_replug(address, 500);
+            return;
+        }
+        ESP_LOGW(TAG, "USB address %u, but the port was cycled less than 10 s ago", address);
     }
     int port;
     esp_err_t opened = usb_port_open(address, &port, &vid, &pid);
@@ -458,14 +489,8 @@ static void handle_attach(uint8_t address)
         return;
     }
     const db_driver_t *driver = db_driver_find(vid, pid);
-    if (!driver || present_count() >= s.max_decks) {
-        if (driver) {
-            db_log_event(TAG, "deck", "deck at USB address %u left dark: max_decks is %d", address,
-                         s.max_decks);
-            park(address);
-        } else {
-            ESP_LOGW(TAG, "no driver for %04x:%04x", vid, pid);
-        }
+    if (!driver) {
+        ESP_LOGW(TAG, "no driver for %04x:%04x", vid, pid);
         usb_port_close(port);
         return;
     }
@@ -475,6 +500,14 @@ static void handle_attach(uint8_t address)
     if (err != DB_OK) {
         ESP_LOGW(TAG, "driver %s failed to open the device: %d", driver->name, err);
         usb_port_close(port);
+        return;
+    }
+    if (present_count() >= s.max_decks) {
+        driver->set_brightness(&dev, 0); /* lit, it would show its logo and draw current */
+        db_log_event(TAG, "deck", "deck at USB address %u left dark: max_decks is %d", address, s.max_decks);
+        usb_port_close(port);
+        park(address);
+        count_parked();
         return;
     }
     int deck = take_slot(port, dev.info.serial);
@@ -510,6 +543,7 @@ static void handle_attach(uint8_t address)
     }
     xSemaphoreGive(k->shot_lock);
     xSemaphoreTake(k->lock, portMAX_DELAY);
+    db_regions_init(&k->pending, PENDING_BUDGET / s.max_decks); /* empty while the deck was gone */
     k->present = true;
     k->host_wrote = false;
     k->replay = same;
@@ -587,8 +621,16 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
 static void event_task(void *arg)
 {
     ev_t ev;
+    int64_t counted = 0;
     for (;;) {
-        xQueueReceive(s.events, &ev, portMAX_DELAY);
+        bool got = xQueueReceive(s.events, &ev, pdMS_TO_TICKS(5000)) == pdTRUE;
+        if (esp_timer_get_time() - counted >= 5000000) {
+            counted = esp_timer_get_time();
+            count_parked();
+        }
+        if (!got) {
+            continue;
+        }
         switch (ev.kind) {
         case EV_ATTACHED:
             handle_attach(ev.address);
@@ -717,12 +759,11 @@ esp_err_t db_deck_start(bool full_speed, int max_decks)
         for (int i = 0; i < DB_SOURCE_COUNT; i++) {
             db_screen_init(&k->screens[i], psram_realloc, heap_caps_free);
         }
-        db_regions_init(&k->pending, PENDING_BUDGET);
         if (!k->lock || !k->io_lock || !k->shot_lock) {
             return ESP_ERR_NO_MEM;
         }
     }
-    if (xTaskCreatePinnedToCore(event_task, "deck_events", 4096, NULL, 7, NULL, 1) != pdPASS) {
+    if (xTaskCreatePinnedToCore(event_task, "deck_events", 6144, NULL, 7, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     usb_port_cb_t cb = {
@@ -874,13 +915,7 @@ void db_deck_set_max(int max_decks)
 
 int db_deck_over_limit(void)
 {
-    int n = 0;
-    uint16_t vid, pid;
-    for (int i = 0; i < USB_PORT_DEVS; i++) {
-        uint8_t a = __atomic_load_n(&s.waiting[i], __ATOMIC_RELAXED);
-        n += a && usb_port_ids(a, &vid, &pid) == ESP_OK; /* one unplugged meanwhile is not there */
-    }
-    return n;
+    return __atomic_load_n(&s.over, __ATOMIC_RELAXED);
 }
 
 static esp_err_t to_esp(db_err_t err)
