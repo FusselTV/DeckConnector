@@ -128,7 +128,7 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
                                                                 live state every second */
         db_json_str(j, "iface", connected ? (health->over_wlan ? "wlan" : "lan") : "");
     }
-    db_json_int(j, "deck", deck); /* the slot whose writer it is; servers draw on slot 0 only */
+    db_json_int(j, "deck", deck); /* the slot whose writer it is */
     db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source(deck));
     db_json_bool(j, "drawing", connected && source >= 0 && (db_source_t)source == db_deck_writer(deck));
     db_json_obj_close(j);

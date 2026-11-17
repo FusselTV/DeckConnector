@@ -910,6 +910,9 @@ void db_dock_drop_satellite_host(void)
 {
     for (int i = 0; i < CONNS; i++) {
         conn_t *c = &conns[i];
+        if (!c->tx) {
+            return; /* before db_dock_start */
+        }
         xSemaphoreTake(c->tx, portMAX_DELAY);
         if (c->sock >= 0 && c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
             shutdown(c->sock, SHUT_RDWR);

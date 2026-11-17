@@ -327,10 +327,6 @@ static bool start_replug(uint8_t address, uint32_t off_ms);
 #define STUCK_RESTARTED 0x57a11ed0
 static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not over a power cut */
 
-/* A replug that did not help within a minute leaves one restart, not before 10 min uptime and not again until
- * an hour passed without a hang. A deck that keeps hanging is replugged less and less often, up to every 5
- * min, and the bridge stays up. Each deck counts for itself, but a cycle takes every deck: two in a row wait
- * CYCLE_FLOOR_US. */
 /* Every root port cycle takes all decks: two of them are CYCLE_FLOOR_US apart, whatever asked for them.
  * Writer tasks, the USB client task and the event task ask. */
 static portMUX_TYPE cycle_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -345,6 +341,9 @@ static bool take_cycle(int64_t now)
     return due;
 }
 
+/* A replug that did not help within a minute leaves one restart, not before 10 min uptime and not again until
+ * an hour passed without a hang. A deck that keeps hanging is replugged less and less often, up to every 5
+ * min, and the bridge stays up. Each deck counts for itself. */
 static void on_stuck(int port)
 {
     int deck = s.port_deck[port];
@@ -752,11 +751,6 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
 esp_err_t db_deck_start(bool full_speed, int max_decks)
 {
     s.max_decks = max_decks;
-    for (int d = 0; d < DB_MAX_DECKS; d++) {
-        xSemaphoreTake(decks[d].lock, portMAX_DELAY);
-        decks[d].pending.max_bytes = PENDING_BUDGET / max_decks; /* queued images over it stay until drawn */
-        xSemaphoreGive(decks[d].lock);
-    }
     memset(s.port_deck, -1, sizeof(s.port_deck));
     nvs_handle_t h;
     if (nvs_open("decks", NVS_READONLY, &h) == ESP_OK) {
@@ -934,6 +928,11 @@ void db_deck_set_max(int max_decks)
 {
     ev_t ev = {.kind = EV_UNPARK};
     s.max_decks = max_decks;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        xSemaphoreTake(decks[d].lock, portMAX_DELAY);
+        decks[d].pending.max_bytes = PENDING_BUDGET / max_decks; /* queued images over it stay until drawn */
+        xSemaphoreGive(decks[d].lock);
+    }
     xQueueSend(s.events, &ev, pdMS_TO_TICKS(100));
 }
 
