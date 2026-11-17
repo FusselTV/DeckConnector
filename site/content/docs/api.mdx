@@ -195,13 +195,14 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `lang` | What the deck's own screens speak: `de` or `en` |
 | `menu_hold_ms` | 500 to 10000 |
 | `usb_speed` | `auto` or `full` |
+| `max_decks` | 1 to 4 decks at once, 2 by default |
 | `dock_paired_only` | Only paired dock hosts get in |
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -232,7 +233,8 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 |---|---|
 | `id` | The MAC address. Stays when the name changes |
 | `writer` | Who draws now: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. `ui` while the menu is open, an update runs, or the chosen host is not connected |
-| `device` | The first deck, `null` without one. `decks` lists every deck |
+| `device` | The first deck, `null` without one. `decks` lists every deck with its `slot`, 0 for deck 1 |
+| `decks_over_limit` | Decks plugged in but dark because of `max_decks` |
 | `sources` | Every host. `chosen` marks the one that draws when no menu covers it. Servers and Satellite also have `error`, `since_s` and `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` or `other` |
 | `setup` | `step` of the web wizard, `active` until setup is done |
@@ -297,13 +299,13 @@ Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host i
 | `t` | When |
 |---|---|
 | `state` | At once, then on every change. The status without uptime, signal and counters |
-| `screen` | The picture changed |
-| `input` | Someone used the deck. `simulated` is true for an API press without `"real"`. An API key never gets simulated presses |
+| `screen` | The picture of the deck in `deck` (its serial) changed |
+| `input` | Someone used the deck in `deck`. `simulated` is true for an API press without `"real"`. An API key never gets simulated presses |
 | `ota` | Update progress: `target`, `state`, `pct`, and `error` |
 | `ping` | Every 5 s. Without any message for 12 s, connect again |
 | `log` | New log text, only after `{"t": "log"}`. Needs the password or a `full` key |
 
-To change something, send the keys of `PUT /api/config` or `POST /api/input` with an `id`.
+To change something, send the keys of `PUT /api/config` or `POST /api/input` with an `id`. An input goes to the first deck, or to the one whose serial is in `deck`. `GET /api/input/log` names the deck the same way.
 
 ```json
 {"t": "set", "id": 1, "brightness": 40}
