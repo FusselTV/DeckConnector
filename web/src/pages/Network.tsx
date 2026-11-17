@@ -333,7 +333,6 @@ export function Network() {
                     noBand
                     value={v.wifi2}
                     current={w?.backup ? w.ssid : undefined}
-                    saved={v.wifi2.ssid === base.wifi2.ssid ? base.wifi2.ssid : undefined}
                     err={err2}
                     onChange={(wifi2) => {
                       setErr2(null)
@@ -346,13 +345,22 @@ export function Network() {
                     id="wifi2-remove"
                     kind="ghost"
                     icon={WifiOff}
-                    onClick={() =>
-                      act(async () => {
+                    onClick={async () => {
+                      const ok =
+                        !w?.backup ||
+                        (await ask({
+                          title: t('wifi2.remove_t'),
+                          body: t('wifi2.remove_b', { s: cfg.wifi_ssid }),
+                          ok: t('wifi2.remove'),
+                          danger: true,
+                        }))
+                      if (!ok) return
+                      await act(async () => {
                         await putConfig({ wifi2_ssid: '', wifi2_pass: '' })
                         setD(({ wifi2: _gone, ...rest }) => rest)
                         setErr2(null)
                       })
-                    }
+                    }}
                   >
                     {t('wifi2.remove')}
                   </Btn>
