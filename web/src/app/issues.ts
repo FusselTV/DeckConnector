@@ -42,6 +42,7 @@ function useIssueList(): Issues {
   const st = useStore((s) => s.status)
   const bootAt = useStore((s) => s.bootAt)
   const satellite = useStore((s) => s.config?.satellite)
+  const maxDecks = useStore((s) => s.config?.max_decks)
   const cfgErr = configErrAtom.use()
   const stErr = statusErrAtom.use()
   const crash = crashAtom.use()
@@ -81,6 +82,15 @@ function useIssueList(): Issues {
         title: t('is.nodeck'),
         text: t('is.nodeck_h'),
         acts: [{ label: t('act.reconnect'), icon: Usb, run: () => void a.reconnect(0) }],
+      })
+    if (st.decks_over_limit)
+      list.push({
+        id: 'overlimit',
+        icon: LayoutGrid,
+        lvl: 'warn',
+        title: t('is.over', { n: st.decks_over_limit }),
+        text: t('is.over_h', { max: maxDecks ?? 2 }),
+        acts: [{ label: t('act.deck'), icon: LayoutGrid, run: () => jump('deck', 'max-decks') }],
       })
     if (chosen && !chosen.connected && !chosen.connecting)
       list.push({
@@ -209,5 +219,5 @@ function useIssueList(): Issues {
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
     return { list, notes }
-  }, [st, bootAt, satellite, cfgErr, stErr, crash, crashed, bootAck, t, fmt, go, jump, a])
+  }, [st, bootAt, satellite, maxDecks, cfgErr, stErr, crash, crashed, bootAck, t, fmt, go, jump, a])
 }

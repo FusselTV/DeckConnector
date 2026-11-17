@@ -31,7 +31,7 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, coredumpRawUrl } from '../api/client'
 import type { DeviceEvent, InputEvent, Metrics, Profile, Route } from '../api/types'
 import { followLog } from '../app/connection'
-import { decksOf } from '../app/derive'
+import { deckName, decksOf } from '../app/derive'
 import { crashAtom, tabAtom, toast } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
@@ -297,7 +297,8 @@ const IN_ICON = { deck: Hand, web: MousePointer2, api: Key }
 function InputLog() {
   const { t, fmt } = useUi()
   const inputs = useStore((s) => s.inputs)
-  const nDecks = useStore((s) => decksOf(s.status).length)
+  const decks = decksOf(useStore((s) => s.status))
+  const nDecks = decks.length
   const [who, setWho] = useState<'all' | 'deck' | 'web'>('all')
   const [dk, setDk] = useState('all')
   const [snap, setSnap] = useState<InputEvent[] | null>(null)
@@ -305,7 +306,7 @@ function InputLog() {
   const rows = useMemo(
     () =>
       src.filter(
-        (x) => (who === 'all' || (who === 'deck') === (x.origin === 'deck')) && (dk === 'all' || String(x.deck) === dk),
+        (x) => (who === 'all' || (who === 'deck') === (x.origin === 'deck')) && (dk === 'all' || x.deck === dk),
       ),
     [src, who, dk],
   )
@@ -339,7 +340,7 @@ function InputLog() {
             onChange={setDk}
             options={[
               ['all', t('in.all_decks')],
-              ...Array.from({ length: nDecks }, (_, i) => [String(i + 1), t('deck.n', { n: i + 1 })] as const),
+              ...decks.map((d, i) => [d.serial, deckName(d, i, nDecks, t)] as const),
             ]}
           />
         )}
