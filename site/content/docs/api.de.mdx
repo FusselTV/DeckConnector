@@ -47,7 +47,7 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 | `ota_not_signed` | Nicht mit dem Schlüssel dieser Platine signiert |
 | `ota_wrong_target` | Für ein anderes Gerät oder einen anderen Teil |
 | `ota_too_old` | Unter der Sicherheitsstufe |
-| `url_http_only` | Die URL muss mit `http://` beginnen |
+| `url_http_only` | Die URL muss mit `http://` oder `https://` beginnen |
 | `no_releases` | Noch keine Releases zum Prüfen |
 | `probe_no_connection` | Unter dieser Adresse antwortet nichts |
 | `probe_no_answer` | Die Adresse nimmt die Verbindung an, schickt aber 3 s lang nichts |
@@ -131,7 +131,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
-| `POST /api/ota/url` | `{"url": "http://..."}`, die Platine lädt die Datei selbst. Der Fortschritt kommt über den WebSocket | full |
+| `POST /api/ota/url` | `{"url": "https://..."}`, die Platine lädt die Datei selbst, auch über eine Weiterleitung. Der Fortschritt kommt über den WebSocket | full |
 | `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
 | `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}` | full |
 | `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |

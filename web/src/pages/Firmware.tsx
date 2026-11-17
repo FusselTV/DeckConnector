@@ -197,7 +197,7 @@ function UpdateModal({ close, target }: { close: () => void; target: Slot | unde
             {...describedBy('upd-url', err, true)}
             className="in mono"
             type="url"
-            placeholder="http://…/deckconnector.dbfw"
+            placeholder="https://…/deckconnector.dbfw"
             value={url}
             onChange={(e) => (setUrl(e.target.value), setErr(null))}
           />

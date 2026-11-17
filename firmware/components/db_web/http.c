@@ -66,7 +66,7 @@ const char *db_web_error_code(const char *msg)
         {"ota_wrong_target", "unknown target"},
         {"ota_wrong_target", "not a bootloader for this chip"},
         {"ota_too_old", "below the security level"},
-        {"url_http_only", "url: http://"},
+        {"url_http_only", "url: http(s)://"},
         {"no_releases", "no releases yet"},
         {"probe_no_name", "name not found"},
         {"probe_refused", "connection refused"},
@@ -383,7 +383,8 @@ static esp_err_t timed(httpd_req_t *req)
         return refuse_plain(req);
     }
     route_t *r = req->user_ctx;
-    bool lock = r->handler != post_ota; /* an upload takes seconds and shares nothing */
+    /* an upload takes seconds and shares nothing; the update check waits on GitHub and keeps its own cache */
+    bool lock = r->handler != post_ota && r->handler != get_update_check;
     /* a handler that hangs must not take every other request on both ports with it */
     if (lock && !web_lock_for(10000)) {
         return send_error(req, "503 Service Unavailable", "busy");

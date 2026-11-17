@@ -429,7 +429,7 @@ export const en = {
   'net.bad_name': 'Use letters, digits and hyphens only, up to 31. No space, and no hyphen at the start or end.',
   'access.pw_long': 'Too long. Use at most 23 characters.',
   'access.cors_bad': 'Enter addresses like http://host:port, separated by commas. Up to 127 characters.',
-  'fw.bad_url': 'Enter an address that starts with http://.',
+  'fw.bad_url': 'Enter an address that starts with http:// or https://.',
   'wifi.e_found': 'The connector cannot see this network. Move it closer to the router and try again.',
   'wifi.e_weak':
     'The connector could not connect. The signal may be too weak, or the router refused it. Move it closer to the router and try again.',
@@ -725,8 +725,10 @@ export const en = {
   'err.ota_not_signed': 'The file is not signed for this DeckConnector.',
   'err.ota_wrong_target': 'The file is for another device or part.',
   'err.ota_too_old': 'This firmware is older than the security level allows.',
-  'err.url_http_only': 'The address must start with http://.',
+  'err.url_http_only': 'The address must start with http:// or https://.',
   'err.no_releases': 'No releases yet.',
+  'err.unreachable': 'GitHub is not reachable. Check the gateway and DNS of the board.',
+  'err.rate_limited': 'GitHub allows only a few checks per hour. Try again later.',
   'err.probe_no_name': 'This name is not known in the network. Check it, or use the IP address.',
   'err.probe_refused': 'Nothing listens on this port. Start Companion and turn Satellite on in its settings.',
   'err.probe_timeout':

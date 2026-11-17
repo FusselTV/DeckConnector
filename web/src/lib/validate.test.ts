@@ -129,6 +129,7 @@ describe('values the firmware refuses or that lock the device out', () => {
 
   it('firmware URL: http only, spaces around it ignored', () => {
     expect(httpUrlError(' http://h/x.dbfw ')).toBeNull()
-    expect(httpUrlError('https://h/x.dbfw')).toBe('fw.bad_url')
+    expect(httpUrlError('https://h/x.dbfw')).toBeNull()
+    expect(httpUrlError('ftp://h/x.dbfw')).toBe('fw.bad_url')
   })
 })

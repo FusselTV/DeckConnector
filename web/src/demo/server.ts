@@ -333,7 +333,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     }
     case 'POST /api/ota/url': {
       const url = str('url')
-      if (!url.startsWith('http://')) return fail(400, 'url: http://… to a signed .dbfw file expected', 'url_http_only')
+      if (!/^https?:\/\//.test(url))
+        return fail(400, 'url: http(s)://… to a signed .dbfw file expected', 'url_http_only')
       // The download runs on the bridge; an address that does not answer fails there, a moment later.
       if (url !== UPDATE_URL && !reachable(url.replace(/^http:\/\//, ''))) {
         s.otaFail = { at: now + 2500, why: 'ESP_ERR_HTTP_CONNECT' }
