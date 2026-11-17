@@ -72,6 +72,8 @@ def test_power_cut_to_the_hosts_picture(run):
     # a host counts when it was there before the cut: it must come back
     there = {x.get("via") or x["kind"] for x in status["sources"] if x["connected"]}
     wanted = {k: v for k, v in BUDGET_MS.items() if k not in ("companion", "satellite", "app") or k in there}
+    if not json.loads(api("GET", "/api/config")[1]).get("wifi_ssid"):
+        del wanted["wlan_ip"]  # a cable-only bridge never gets one
     power_cut()
     time.sleep(3)
     marks = boot_marks(set(wanted))
