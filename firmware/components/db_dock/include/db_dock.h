@@ -10,26 +10,29 @@
  * Network Dock emulation. Bitfocus Companion and the Elgato App find the bridge over mDNS
  * (_elg._tcp) and drive the attached deck as if it hung on an Elgato Network Dock. The protocol
  * ("Cora") is the one of @elgato-stream-deck/tcp: a 16 byte header (43 93 8a 41, flags, HID op, message id,
- * length) and a HID report, built in db_core/db_cora.c. Port 5343 is the dock, 5344 the device, whose reports
- * pass through. Only announced while a deck is plugged in: the Elgato App turns away a dock without a deck
- * and does not look again until it restarts. Companion asks the dock with GET_REPORT, the Elgato App with a
- * plain write padded to 1024 bytes, and only the Elgato App wants an ack (flag 0x4000) for every write.
+ * length) and a HID report, built in db_core/db_cora.c. Each deck is a dock of its own: deck k (its slot) has
+ * the dock on port 5343 + 2k and the device on 5344 + 2k, whose reports pass through. Only announced while a
+ * deck is plugged in: the Elgato App turns away a dock without a deck and does not look again until it
+ * restarts. Companion asks the dock with GET_REPORT, the Elgato App with a plain write padded to 1024 bytes,
+ * and only the Elgato App wants an ack (flag 0x4000) for every write.
  *
  * Several hosts may stay connected at once, each with its own deck source. Only the writer draws on the deck
  * and gets its input; the others draw into their kept picture, which shows as soon as they are picked.
  */
 
-#define DB_DOCK_HOSTS 4
+#define DB_DOCK_HOSTS 4 /* per deck */
 
 typedef struct {
     db_controller_t kind; /* DB_CTRL_SERVER while still unknown */
     char ip[16];
+    int deck;
     int source; /* the deck source of its device port, -1 while it has none */
 } db_dock_host_t;
 
 /* `hosts_changed` runs after a host took or left a device port, or told what it is. */
 esp_err_t db_dock_start(void (*hosts_changed)(void));
-size_t db_dock_hosts(db_dock_host_t *out, size_t max);
+/* The dock hosts of `deck`, or of every deck for -1. */
+size_t db_dock_hosts(int deck, db_dock_host_t *out, size_t max);
 
 /* A host that is not paired asked to connect in the last minute: its address. */
 bool db_dock_request(char ip[16]);

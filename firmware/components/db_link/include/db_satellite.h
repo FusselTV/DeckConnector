@@ -7,13 +7,14 @@
 
 /*
  * Bitfocus Companion over its Satellite API (TCP 16622, https://deckconnector.com/docs/companion): the bridge
- * connects to the address in the config `satellite` and offers the attached deck. Companion then draws on it
- * like on a deck over USB, with the same rows and columns, so its pages show unchanged.
+ * connects to the address in the config `satellite` and offers every attached deck, in slot order. Companion
+ * then draws on it like on a deck over USB, with the same rows and columns, so its pages show unchanged.
  */
 
-/* `changed` runs when a session began and when Companion took the deck or let it go. */
+/* `changed` runs when a session began and when Companion took a deck or let it go. */
 esp_err_t db_satellite_start(void (*changed)(void));
-bool db_satellite_connected(void);
+/* Companion has `deck`, or any deck for -1. */
+bool db_satellite_connected(int deck);
 db_health_t db_satellite_health(void);
 void db_satellite_retry(void);
 /* The address or pin was saved: the session ends, also when two saves in a row bring back the same text. */

@@ -43,6 +43,8 @@ extern size_t web_route_count;
 /* `?deck=<serial>` names no attached deck, or a token asks while the deck shows a login: the reply is sent.
  */
 bool web_deck_refused(httpd_req_t *req);
+/* The deck a deck route acts on, set by web_deck_refused(). */
+extern int web_deck;
 
 /* Replies and request bodies, shared by the handlers in this component. */
 esp_err_t send_json(httpd_req_t *req, const char *json);

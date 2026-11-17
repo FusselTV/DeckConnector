@@ -1,6 +1,7 @@
-/* Stand-ins for everything the API layer calls on the chip: one Stream Deck + that is always attached, no
- * dock hosts, no updates. Simulated input goes to the listeners, so the web socket reports it like on the
- * device. */
+/* Stand-ins for everything the API layer calls on the chip: Stream Deck + decks that are always attached
+ * (DB_SIM_DECKS of them, 1 by default, serials SIM0001 and up; the ones over max_decks stay dark), no dock
+ * hosts, no updates. Simulated input goes
+ * to the listeners, so the web socket reports it like on the device. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,8 +35,61 @@ void db_deck_add_listener(const db_deck_listener_t *l)
     }
 }
 
-bool db_deck_info(db_device_info_t *out)
+static int plugged(void)
 {
+    int want = getenv("DB_SIM_DECKS") ? atoi(getenv("DB_SIM_DECKS")) : 1;
+    return want < 0 ? 0 : want > DB_MAX_DECKS ? DB_MAX_DECKS : want;
+}
+
+static int decks(void)
+{
+    static int n = -1;
+    if (n < 0) {
+        int max = db_config()->max_decks;
+        n = plugged() < max ? plugged() : max; /* before db_deck_info asks for it */
+        for (int d = 0; d < n; d++) { /* as the deck task tells them on the device */
+            db_device_info_t info;
+            db_deck_info(d, &info);
+            for (int i = 0; i < listener_count; i++) {
+                if (listeners[i].device_changed) {
+                    listeners[i].device_changed(d, &info);
+                }
+            }
+        }
+    }
+    return n;
+}
+
+int db_deck_over_limit(void)
+{
+    return plugged() - decks();
+}
+
+void db_deck_set_max(int max_decks)
+{
+}
+
+int db_deck_first(void)
+{
+    return decks() ? 0 : -1;
+}
+
+int db_deck_find(const char *serial)
+{
+    for (int d = 0; d < decks(); d++) {
+        db_device_info_t info;
+        if (db_deck_info(d, &info) && strcmp(info.serial, serial) == 0) {
+            return d;
+        }
+    }
+    return -1;
+}
+
+bool db_deck_info(int deck, db_device_info_t *out)
+{
+    if (deck >= decks()) {
+        return false;
+    }
     *out = (db_device_info_t){.vendor = "Elgato",
                               .model = "Stream Deck +",
                               .vid = 0x0fd9,
@@ -43,7 +97,7 @@ bool db_deck_info(db_device_info_t *out)
                               .key_count = 8,
                               .encoder_count = 4,
                               .display_count = 1};
-    strcpy(out->serial, "SIM0001");
+    snprintf(out->serial, sizeof(out->serial), "SIM%04d", deck + 1);
     strcpy(out->firmware, "sim");
     out->displays[0].width = 800;
     out->displays[0].height = 480;
@@ -73,13 +127,16 @@ size_t db_deck_input_space(void)
     return 64;
 }
 
-esp_err_t db_deck_simulate(const db_input_t *in, bool real, uint32_t only_ip)
+esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t only_ip)
 {
+    if (deck >= decks()) {
+        return ESP_ERR_INVALID_STATE;
+    }
     input_real = real;
     input_only_ip = only_ip;
     for (int i = 0; i < listener_count; i++) {
         if (listeners[i].input && (real || !listeners[i].external)) {
-            listeners[i].input(in);
+            listeners[i].input(deck, in);
         }
     }
     return ESP_OK;
@@ -90,11 +147,11 @@ bool db_deck_reconnect(uint32_t off_ms)
     return true;
 }
 
-esp_err_t db_deck_stall(void)
+esp_err_t db_deck_stall(int deck)
 {
     return ESP_ERR_INVALID_STATE;
 }
-db_source_t db_deck_writer(void)
+db_source_t db_deck_writer(int deck)
 {
     return DB_SOURCE_UI;
 }
@@ -102,23 +159,23 @@ const char *db_deck_source_name(db_source_t source)
 {
     return source == DB_SOURCE_UI ? "ui" : "other";
 }
-esp_err_t db_deck_set_brightness(uint8_t pct)
+esp_err_t db_deck_set_brightness(int deck, uint8_t pct)
 {
     return ESP_OK;
 }
 
-size_t db_deck_shots(db_source_t *writer, db_shot_t *out, size_t max)
+size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
 {
     *writer = DB_SOURCE_UI;
     return 0;
 }
 
-esp_err_t db_deck_shot_copy(uint32_t id, uint8_t **data, size_t *len)
+esp_err_t db_deck_shot_copy(int deck, uint32_t id, uint8_t **data, size_t *len)
 {
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t db_deck_shot_upright(uint32_t id, uint8_t **jpeg, size_t *len)
+esp_err_t db_deck_shot_upright(int deck, uint32_t id, uint8_t **jpeg, size_t *len)
 {
     return ESP_ERR_NOT_FOUND;
 }
@@ -139,7 +196,7 @@ esp_err_t db_dock_forget(const char *ip)
     return ESP_OK;
 }
 
-esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len)
+esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len)
 {
     static const uint8_t tiny[] = {0xff, 0xd8, 0xff, 0xd9}; /* SOI, EOI: enough for a JPEG reply */
     *jpeg = malloc(sizeof(tiny));
@@ -165,8 +222,11 @@ static bool covered(void)
     return now < pass_until || now < reset_until || now < ask_until;
 }
 
-esp_err_t db_ui_open_menu(void)
+esp_err_t db_ui_open_menu(int deck)
 {
+    if (deck >= decks()) {
+        return ESP_ERR_INVALID_STATE;
+    }
     menu_open = true;
     return ESP_OK;
 }
@@ -189,7 +249,7 @@ bool db_ui_menu_open(void)
 int db_ui_show_password(void)
 {
     pass_until = esp_timer_get_time() + 30000000;
-    return 1;
+    return decks();
 }
 
 esp_err_t db_ui_factory_reset(void)

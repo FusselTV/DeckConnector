@@ -36,6 +36,7 @@
 #define DISCOVER_EVERY   5000
 #define RETRY_MS         2000
 #define RETRY_MAX_MS     30000
+#define LINK_DECK        0 /* the servers' protocol knows one deck: the one in the first slot */
 #define CONNECT_TIMEOUT  3000
 #define PING_AFTER_MS    2000
 #define SILENT_LIMIT_MS  6000
@@ -134,7 +135,7 @@ static void send_device(int link)
     db_device_info_t *info = malloc(sizeof(*info));
     char *buf = malloc(4096);
     if (info && buf) {
-        bool present = db_deck_info(info);
+        bool present = db_deck_info(LINK_DECK, info);
         send_text(link, buf, db_proto_device_json(present ? info : NULL, buf, 4096));
     }
     free(buf);
@@ -236,8 +237,9 @@ static void handle_command(link_t *l, const char *text)
         if (cJSON_IsNumber(pct) && l->index == s.active) {
             int v = pct->valueint;
             s.pct = v < 0 ? 0 : (v > 100 ? 100 : v);
-            if (db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + l->index)) { /* else after the menu */
-                db_deck_set_brightness((uint8_t)s.pct);
+            if (db_deck_writer(LINK_DECK) ==
+                (db_source_t)(DB_SOURCE_LINK0 + l->index)) { /* else after the menu */
+                db_deck_set_brightness(LINK_DECK, (uint8_t)s.pct);
             }
         }
     } else if (strcmp(t->valuestring, "ota") == 0) {
@@ -293,7 +295,7 @@ static int read_image(link_t *l, uint64_t len)
         heap_caps_free(img);
         return err;
     }
-    db_deck_submit((db_source_t)(DB_SOURCE_LINK0 + l->index), h.display, h.rect, h.seq, img, n,
+    db_deck_submit(LINK_DECK, (db_source_t)(DB_SOURCE_LINK0 + l->index), h.display, h.rect, h.seq, img, n,
                    (uint64_t)esp_timer_get_time());
     return 0;
 }
@@ -493,10 +495,10 @@ static void on_ack(db_ack_result_t result, uint8_t display, uint32_t seq, uint64
     send_inline((int)(intptr_t)arg, WS_OP_BINARY, out, sizeof(out), 0);
 }
 
-static void on_input(const db_input_t *ev)
+static void on_input(int deck, const db_input_t *ev)
 {
     int a = s.active;
-    if (a >= 0 && db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + a)) {
+    if (deck == LINK_DECK && a >= 0 && db_deck_writer(LINK_DECK) == (db_source_t)(DB_SOURCE_LINK0 + a)) {
         uint8_t out[DB_INPUT_LEN];
         db_proto_write_input(out, ev);
         if (!send_inline(a, WS_OP_BINARY, out, sizeof(out), pdMS_TO_TICKS(20))) {
@@ -505,9 +507,11 @@ static void on_input(const db_input_t *ev)
     }
 }
 
-static void on_device(const db_device_info_t *info)
+static void on_device(int deck, const db_device_info_t *info)
 {
-    send_device(ALL_LINKS);
+    if (deck == LINK_DECK) {
+        send_device(ALL_LINKS);
+    }
 }
 
 static bool any_configured(void)
@@ -643,7 +647,7 @@ void db_link_set_enabled(bool enabled)
 void db_link_brightness_again(void)
 {
     if (s.active >= 0 && s.pct >= 0) {
-        db_deck_set_brightness((uint8_t)s.pct);
+        db_deck_set_brightness(LINK_DECK, (uint8_t)s.pct);
     }
 }
 
