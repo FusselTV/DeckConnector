@@ -109,7 +109,13 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.menu_hold_ms = old.menu_hold_ms;
     live.max_decks = old.max_decks;
     live.screen_off_s = old.screen_off_s;
+    memcpy(live.wifi2_ssid, old.wifi2_ssid, sizeof(old.wifi2_ssid));
+    memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
+    if (!restart &&
+        (strcmp(cfg.wifi2_ssid, old.wifi2_ssid) != 0 || strcmp(cfg.wifi2_pass, old.wifi2_pass) != 0)) {
+        db_net_wifi_backup_changed();
+    }
     if (cfg.screen_off_s != old.screen_off_s) {
         db_deck_screen_off(false);
     }
