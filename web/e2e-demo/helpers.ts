@@ -18,7 +18,9 @@ export interface Call {
   url: string
   status: number
 }
-export const calls = (page: Page) => page.evaluate(() => (window as unknown as { __demoCalls: Call[] }).__demoCalls)
+// waits for the hook: a restart into other firmware reloads the page
+export const calls = async (page: Page): Promise<Call[]> =>
+  (await page.waitForFunction(() => (window as unknown as { __demoCalls: Call[] }).__demoCalls)).jsonValue()
 
 // Every console error fails the test, and no request may leave the page: the demo answers everything itself.
 export const test = base.extend<{ demo: Page }>({
