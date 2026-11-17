@@ -7,6 +7,7 @@
 #include "db_driver.h"
 #include "db_regions.h"
 #include "db_screen.h"
+#include "db_wake.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -97,6 +98,14 @@ static struct {
     db_slot_owner_t owners[DB_MAX_DECKS]; /* whose slot is whose, kept in NVS */
 } s;
 
+static portMUX_TYPE wake_mux = portMUX_INITIALIZER_UNLOCKED;
+static db_wake_t wake;
+
+static bool dark(void)
+{
+    return __atomic_load_n(&wake.dark, __ATOMIC_RELAXED);
+}
+
 static void *psram_realloc(void *ptr, size_t size)
 {
     return heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM);
@@ -173,10 +182,10 @@ static void replay(int deck)
         clear_display(k);
     }
     if (bright >= 0) {
+        __atomic_store_n(&k->lit, bright, __ATOMIC_RELAXED); /* before dark(): a wake after it lights this */
         xSemaphoreTake(k->io_lock, portMAX_DELAY);
-        k->dev.driver->set_brightness(&k->dev, (uint8_t)bright);
+        k->dev.driver->set_brightness(&k->dev, dark() ? 0 : (uint8_t)bright);
         xSemaphoreGive(k->io_lock);
-        __atomic_store_n(&k->lit, bright, __ATOMIC_RELAXED);
     }
     if (feature_len) {
         xSemaphoreTake(k->io_lock, portMAX_DELAY);
@@ -275,9 +284,8 @@ static void writer_task(void *arg)
                                           __ATOMIC_RELAXED); /* between images, also in a stream */
             if (pct && k->present) {
                 xSemaphoreTake(k->io_lock, portMAX_DELAY);
-                k->dev.driver->set_brightness(&k->dev, (uint8_t)(pct - 1));
+                k->dev.driver->set_brightness(&k->dev, dark() ? 0 : (uint8_t)(pct - 1));
                 xSemaphoreGive(k->io_lock);
-                __atomic_store_n(&k->lit, pct - 1, __ATOMIC_RELAXED);
             }
             if (k->replay) {
                 replay(deck);
@@ -591,6 +599,55 @@ static void handle_detach(int port)
     unpark();
 }
 
+/* Brightness 0 on every deck, or what its host set last, also while dark. */
+static void light_all(bool off)
+{
+    db_log_event(TAG, "deck", off ? "screen off" : "screen on");
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        deck_t *k = &decks[d];
+        int lit = __atomic_load_n(&k->lit, __ATOMIC_RELAXED);
+        if (k->present && (off || lit >= 0)) {
+            __atomic_store_n(&k->brightness, (off ? 0 : lit) + 1, __ATOMIC_RELAXED);
+            xTaskNotifyGive(k->writer_task);
+        }
+    }
+}
+
+void db_deck_screen_off(bool off)
+{
+    taskENTER_CRITICAL(&wake_mux);
+    bool changed = db_wake_set(&wake, off, esp_timer_get_time());
+    taskEXIT_CRITICAL(&wake_mux);
+    if (changed) {
+        light_all(off);
+    }
+}
+
+void db_deck_screen_tick(int off_s, bool covered)
+{
+    int64_t now = esp_timer_get_time();
+    bool off;
+    taskENTER_CRITICAL(&wake_mux);
+    bool changed = db_wake_due(&wake, off_s, covered, now, &off) && db_wake_set(&wake, off, now);
+    taskEXIT_CRITICAL(&wake_mux);
+    if (changed) {
+        light_all(off);
+    }
+}
+
+bool db_deck_screen_is_off(void)
+{
+    return dark();
+}
+
+int64_t db_deck_idle_us(void)
+{
+    taskENTER_CRITICAL(&wake_mux);
+    int64_t idle = db_wake_idle_us(&wake, esp_timer_get_time());
+    taskEXIT_CRITICAL(&wake_mux);
+    return idle;
+}
+
 static bool input_real;
 static bool input_from_deck;
 static uint32_t input_only_ip;
@@ -619,15 +676,30 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     input_real = ev->real;
     input_from_deck = ev->kind == EV_INPUT;
     input_only_ip = ev->only_ip;
-    for (int i = 0; i < s.listener_count; i++) {
+    db_input_t out[EVENTS_PER_RPT];
+    size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
+    bool swallowed[EVENTS_PER_RPT];
+    bool any = false;
+    bool woke = false;
+    int64_t now = esp_timer_get_time();
+    taskENTER_CRITICAL(&wake_mux);
+    for (size_t e = 0; e < n; e++) {
+        bool w;
+        swallowed[e] = db_wake_input(&wake, deck, &out[e], now, &w);
+        any |= swallowed[e];
+        woke |= w;
+    }
+    taskEXIT_CRITICAL(&wake_mux);
+    if (woke) {
+        light_all(false);
+    }
+    for (int i = 0; i < s.listener_count && !any; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
             s.listeners[i].raw_input(deck, raw, ev->len);
         }
     }
-    db_input_t out[EVENTS_PER_RPT];
-    size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
     for (size_t e = 0; e < n; e++) {
-        for (int i = 0; i < s.listener_count; i++) {
+        for (int i = 0; i < s.listener_count && !swallowed[e]; i++) {
             if (s.listeners[i].input && (ev->real || !s.listeners[i].external)) {
                 s.listeners[i].input(deck, &out[e]);
             }
@@ -757,6 +829,7 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
 esp_err_t db_deck_start(bool full_speed, int max_decks)
 {
     s.max_decks = max_decks;
+    db_wake_init(&wake, esp_timer_get_time());
     memset(s.port_deck, -1, sizeof(s.port_deck));
     nvs_handle_t h;
     if (nvs_open("decks", NVS_READONLY, &h) == ESP_OK) {
@@ -1057,15 +1130,15 @@ esp_err_t db_deck_raw_set_feature(int deck, db_source_t source, const uint8_t *b
         k->bright[source] = (uint8_t)(pct > 100 ? 101 : pct + 1);
     }
     if (k->writer == source) {
+        if (pct >= 0) {
+            __atomic_store_n(&k->lit, pct, __ATOMIC_RELAXED); /* before dark(): a wake after it lights this */
+        }
         /* the io lock before the shot lock goes: a writer change cannot slip in, and nobody who only reads
          * the picture waits for the USB transfer */
         xSemaphoreTake(k->io_lock, portMAX_DELAY);
         xSemaphoreGive(k->shot_lock);
-        err = k->dev.io->set_feature(k->dev.io, buf, len);
+        err = pct >= 0 && dark() ? DB_OK : k->dev.io->set_feature(k->dev.io, buf, len);
         xSemaphoreGive(k->io_lock);
-        if (pct >= 0) {
-            __atomic_store_n(&k->lit, pct, __ATOMIC_RELAXED);
-        }
         return to_esp(err);
     }
     if (pct < 0 && len <= sizeof(k->feature[source].buf)) {

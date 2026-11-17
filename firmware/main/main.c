@@ -63,6 +63,7 @@ static void write_device(db_json_t *j)
             db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
             db_json_bool(j, "hub", db_deck_behind_hub(d));
             db_json_str(j, "writer", db_deck_source_name(db_deck_writer(d)));
+            db_json_int(j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
             db_json_obj_close(j);
         }
     }
@@ -277,6 +278,7 @@ static void write_status(db_json_t *j, bool live)
     int first = db_deck_first();
     db_json_str(j, "writer", db_deck_source_name(first >= 0 ? db_deck_writer(first) : DB_SOURCE_UI));
     db_json_bool(j, "menu_open", db_ui_menu_open());
+    db_json_bool(j, "screen_off", db_deck_screen_is_off());
     write_device(j);
     write_network(j, live);
     write_sources(j, live);

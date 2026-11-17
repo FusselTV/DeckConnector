@@ -179,6 +179,7 @@ KEPT = (
     "usb_speed",
     "setup_done",
     "ntp_server",
+    "screen_off_s",
 )
 
 

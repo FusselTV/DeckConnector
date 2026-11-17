@@ -1074,6 +1074,7 @@ static void tick(void *arg)
         asking = !asking;
         changed();
     }
+    db_deck_screen_tick((int)db_config()->screen_off_s, asking || db_ui_menu_open());
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         if (decks[d].chord_since) {
             check_menu_chord(d);

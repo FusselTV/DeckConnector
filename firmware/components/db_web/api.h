@@ -22,6 +22,7 @@ esp_err_t post_companion_setup(httpd_req_t *req);
 esp_err_t post_input(httpd_req_t *req);
 esp_err_t post_menu(httpd_req_t *req);
 esp_err_t delete_menu(httpd_req_t *req);
+esp_err_t post_screen(httpd_req_t *req);
 esp_err_t post_dock(httpd_req_t *req);
 esp_err_t get_backup(httpd_req_t *req);
 esp_err_t get_events(httpd_req_t *req);

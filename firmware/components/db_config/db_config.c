@@ -57,6 +57,11 @@ static bool known_chord(const char *chord)
     return false;
 }
 
+bool db_config_screen_off_ok(long s)
+{
+    return s == 0 || (s >= 10 && s <= 86400);
+}
+
 static void defaults(db_config_t *c)
 {
     uint8_t mac[6];
@@ -132,6 +137,9 @@ esp_err_t db_config_load(void)
             }
             if (current.max_decks < 1 || current.max_decks > DB_MAX_DECKS) {
                 current.max_decks = fresh.max_decks;
+            }
+            if (!db_config_screen_off_ok(current.screen_off_s)) {
+                current.screen_off_s = fresh.screen_off_s;
             }
             uint8_t mac[6];
             if (!db_config_bssid(current.wifi_bssid, mac)) {
@@ -301,6 +309,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "satellite_auto", !cfg->satellite_auto_off);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_int(&j, "max_decks", cfg->max_decks);
+    db_json_int(&j, "screen_off_s", (int)cfg->screen_off_s);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -577,6 +586,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->max_decks = (uint8_t)max->valueint;
+    }
+    const cJSON *off = cJSON_GetObjectItemCaseSensitive(root, "screen_off_s");
+    if (off) {
+        if (!cJSON_IsNumber(off) || !db_config_screen_off_ok(off->valueint)) {
+            snprintf(err, err_cap, "screen_off_s: 0 or 10 to 86400 expected");
+            return false;
+        }
+        cfg->screen_off_s = (uint32_t)off->valueint;
     }
     return true;
 }
