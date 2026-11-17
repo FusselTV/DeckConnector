@@ -1,0 +1,21 @@
+{
+  "entity": {
+    "camera": { "screen": { "default": "mdi:view-grid" } },
+    "event": { "controls": { "default": "mdi:gesture-tap-button" } },
+    "number": { "brightness": { "default": "mdi:brightness-6" } },
+    "select": { "controller": { "default": "mdi:swap-horizontal" } },
+    "sensor": {
+      "host": {
+        "default": "mdi:monitor-share",
+        "state": { "board": "mdi:home-outline" }
+      }
+    },
+    "update": { "firmware": { "default": "mdi:chip" } },
+    "switch": {
+      "screen": {
+        "default": "mdi:monitor",
+        "state": { "off": "mdi:monitor-off" }
+      }
+    }
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Gib die Adresse des Boards ein.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname, zum Beispiel 192.168.1.50 oder deckconnector-a1b2c3.local"
+        }
+      },
+      "auth": {
+        "description": "Home Assistant braucht Zugriff auf {name}.",
+        "menu_options": {
+          "pair": "Am Deck bestätigen",
+          "password": "Web-Passwort eingeben"
+        }
+      },
+      "password": {
+        "description": "Das Passwort der Weboberfläche von {name}.",
+        "data": {
+          "password": "Passwort"
+        }
+      }
+    },
+    "progress": {
+      "pair": "Bestätige die Anfrage am Deck von {name}."
+    },
+    "error": {
+      "cannot_connect": "Das Board ist nicht erreichbar.",
+      "invalid_auth": "Falsches Passwort.",
+      "no_deck": "Kein Deck angeschlossen. Gib stattdessen das Web-Passwort ein.",
+      "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein."
+    },
+    "abort": {
+      "already_configured": "Dieses Board ist schon eingerichtet.",
+      "cannot_connect": "Das Board ist nicht erreichbar.",
+      "reauth_successful": "Zugriff erneuert.",
+      "unique_id_mismatch": "Das ist ein anderes Board."
+    }
+  },
+  "entity": {
+    "button": {
+      "restart": {
+        "name": "Neustart"
+      }
+    },
+    "camera": {
+      "screen": {
+        "name": "Bild"
+      }
+    },
+    "event": {
+      "controls": {
+        "name": "Bedienung",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "key_1_press": "Taste 1 gedrückt",
+              "key_1_release": "Taste 1 losgelassen",
+              "key_2_press": "Taste 2 gedrückt",
+              "key_2_release": "Taste 2 losgelassen",
+              "key_3_press": "Taste 3 gedrückt",
+              "key_3_release": "Taste 3 losgelassen",
+              "key_4_press": "Taste 4 gedrückt",
+              "key_4_release": "Taste 4 losgelassen",
+              "key_5_press": "Taste 5 gedrückt",
+              "key_5_release": "Taste 5 losgelassen",
+              "key_6_press": "Taste 6 gedrückt",
+              "key_6_release": "Taste 6 losgelassen",
+              "key_7_press": "Taste 7 gedrückt",
+              "key_7_release": "Taste 7 losgelassen",
+              "key_8_press": "Taste 8 gedrückt",
+              "key_8_release": "Taste 8 losgelassen",
+              "key_9_press": "Taste 9 gedrückt",
+              "key_9_release": "Taste 9 losgelassen",
+              "key_10_press": "Taste 10 gedrückt",
+              "key_10_release": "Taste 10 losgelassen",
+              "key_11_press": "Taste 11 gedrückt",
+              "key_11_release": "Taste 11 losgelassen",
+              "key_12_press": "Taste 12 gedrückt",
+              "key_12_release": "Taste 12 losgelassen",
+              "key_13_press": "Taste 13 gedrückt",
+              "key_13_release": "Taste 13 losgelassen",
+              "key_14_press": "Taste 14 gedrückt",
+              "key_14_release": "Taste 14 losgelassen",
+              "key_15_press": "Taste 15 gedrückt",
+              "key_15_release": "Taste 15 losgelassen",
+              "key_16_press": "Taste 16 gedrückt",
+              "key_16_release": "Taste 16 losgelassen",
+              "key_17_press": "Taste 17 gedrückt",
+              "key_17_release": "Taste 17 losgelassen",
+              "key_18_press": "Taste 18 gedrückt",
+              "key_18_release": "Taste 18 losgelassen",
+              "key_19_press": "Taste 19 gedrückt",
+              "key_19_release": "Taste 19 losgelassen",
+              "key_20_press": "Taste 20 gedrückt",
+              "key_20_release": "Taste 20 losgelassen",
+              "key_21_press": "Taste 21 gedrückt",
+              "key_21_release": "Taste 21 losgelassen",
+              "key_22_press": "Taste 22 gedrückt",
+              "key_22_release": "Taste 22 losgelassen",
+              "key_23_press": "Taste 23 gedrückt",
+              "key_23_release": "Taste 23 losgelassen",
+              "key_24_press": "Taste 24 gedrückt",
+              "key_24_release": "Taste 24 losgelassen",
+              "key_25_press": "Taste 25 gedrückt",
+              "key_25_release": "Taste 25 losgelassen",
+              "key_26_press": "Taste 26 gedrückt",
+              "key_26_release": "Taste 26 losgelassen",
+              "key_27_press": "Taste 27 gedrückt",
+              "key_27_release": "Taste 27 losgelassen",
+              "key_28_press": "Taste 28 gedrückt",
+              "key_28_release": "Taste 28 losgelassen",
+              "key_29_press": "Taste 29 gedrückt",
+              "key_29_release": "Taste 29 losgelassen",
+              "key_30_press": "Taste 30 gedrückt",
+              "key_30_release": "Taste 30 losgelassen",
+              "key_31_press": "Taste 31 gedrückt",
+              "key_31_release": "Taste 31 losgelassen",
+              "key_32_press": "Taste 32 gedrückt",
+              "key_32_release": "Taste 32 losgelassen",
+              "dial_1_press": "Drehregler 1 gedrückt",
+              "dial_1_release": "Drehregler 1 losgelassen",
+              "dial_1_left": "Drehregler 1 nach links gedreht",
+              "dial_1_right": "Drehregler 1 nach rechts gedreht",
+              "dial_2_press": "Drehregler 2 gedrückt",
+              "dial_2_release": "Drehregler 2 losgelassen",
+              "dial_2_left": "Drehregler 2 nach links gedreht",
+              "dial_2_right": "Drehregler 2 nach rechts gedreht",
+              "dial_3_press": "Drehregler 3 gedrückt",
+              "dial_3_release": "Drehregler 3 losgelassen",
+              "dial_3_left": "Drehregler 3 nach links gedreht",
+              "dial_3_right": "Drehregler 3 nach rechts gedreht",
+              "dial_4_press": "Drehregler 4 gedrückt",
+              "dial_4_release": "Drehregler 4 losgelassen",
+              "dial_4_left": "Drehregler 4 nach links gedreht",
+              "dial_4_right": "Drehregler 4 nach rechts gedreht",
+              "touch_tap": "Touchleiste angetippt",
+              "touch_long_press": "Touchleiste gehalten",
+              "touch_swipe_left": "Touchleiste nach links gewischt",
+              "touch_swipe_right": "Touchleiste nach rechts gewischt"
+            }
+          }
+        }
+      }
+    },
+    "number": {
+      "brightness": {
+        "name": "Helligkeit"
+      }
+    },
+    "select": {
+      "controller": {
+        "name": "Steuerung",
+        "state": {
+          "companion": "Companion",
+          "app": "Elgato-App",
+          "server": "Eigener Server"
+        }
+      }
+    },
+    "sensor": {
+      "host": {
+        "name": "Host",
+        "state": {
+          "companion": "Companion",
+          "app": "Elgato-App",
+          "server": "Eigener Server",
+          "board": "Board"
+        }
+      },
+      "temperature": {
+        "name": "Temperatur"
+      },
+      "wifi_signal": {
+        "name": "WLAN-Signal"
+      },
+      "last_restart": {
+        "name": "Letzter Neustart"
+      }
+    },
+    "switch": {
+      "screen": {
+        "name": "Bildschirm"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    }
+  }
+}
