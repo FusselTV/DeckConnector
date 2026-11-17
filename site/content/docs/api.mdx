@@ -88,7 +88,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/status` | State of the board, see [Status](#status) | control |
 | `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set` and `token_set` | full |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config` | full |
-| `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. With no Satellite address set and nothing drawing the board takes it, else the deck asks for 60 s | open |
+| `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. During setup the board takes it, later the deck asks for 60 s | open |
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
