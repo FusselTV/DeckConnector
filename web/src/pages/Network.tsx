@@ -1,4 +1,13 @@
-import { CircleAlert, EthernetPort, Network as NetIcon, Tag as TagIcon, Unplug, Wifi, WifiOff } from 'lucide-react'
+import {
+  CircleAlert,
+  EthernetPort,
+  Network as NetIcon,
+  Tag as TagIcon,
+  Unplug,
+  Wifi,
+  WifiOff,
+  WifiSync,
+} from 'lucide-react'
 import { useState } from 'react'
 import { api } from '../api/client'
 import type { IpConf } from '../api/types'
@@ -114,23 +123,27 @@ export function Network() {
     lan: cfg?.lan ?? EMPTY,
     wlan: cfg?.wlan ?? EMPTY,
     wifi: { ssid: cfg?.wifi_ssid ?? '', pass: '', bssid: cfg?.wifi_bssid ?? '' },
+    wifi2: { ssid: cfg?.wifi2_ssid ?? '', pass: '', bssid: '' },
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
   const [expert, setExpert] = useState(() => ls.get('dc.bssid', false))
   const [joinErr, setJoinErr] = useState<string | null>(null)
+  const [err2, setErr2] = useState<string | null>(null)
+  const [open2, setOpen2] = useState(false)
   const v = { ...base, ...d }
   const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   const err = { lan: ipErrors(v.lan), wlan: ipErrors(v.wlan), name: cfg ? nameError(v.name) : null }
   const wifiChanged = v.wifi.ssid !== base.wifi.ssid || v.wifi.bssid !== base.wifi.bssid || !!v.wifi.pass
+  const wifi2Changed = v.wifi2.ssid !== base.wifi2.ssid || !!v.wifi2.pass
   const patch = {
     ...(d.name !== undefined && v.name !== base.name ? { name: v.name } : {}),
     ...(d.lan && !same(v.lan, base.lan) ? { lan: v.lan } : {}),
     ...(d.wlan && !same(v.wlan, base.wlan) ? { wlan: v.wlan } : {}),
   }
-  const changed = Object.keys(patch).length > 0
-  const restart = changed
+  const restart = Object.keys(patch).length > 0
+  const changed = restart || wifi2Changed
   const where = reachList(st, !!cfg?.https_only, v.name, patch)
   useDraft('network', {
     dirty: changed || wifiChanged,
@@ -138,17 +151,29 @@ export function Network() {
     reset: () => {
       setD({})
       setJoinErr(null)
+      setErr2(null)
     },
     saved: () => setD({}),
     check: () => {
       const bad = (['lan', 'wlan'] as const).find((k) => Object.keys(err[k]).length)
       const wifiBad = wifiChanged && wifiError(v.wifi.ssid, v.wifi.pass, securedWifi(wifiScanAtom.get(), v.wifi.ssid))
-      if (!bad && !err.name && !wifiBad) return true
+      const wifi2Bad =
+        wifi2Changed &&
+        !!v.wifi2.ssid &&
+        wifiError(v.wifi2.ssid, v.wifi2.pass, securedWifi(wifiScanAtom.get(), v.wifi2.ssid))
+      if (!bad && !err.name && !wifiBad && !wifi2Bad) return true
       go('network')
       if (wifiBad) setJoinErr(t(wifiBad))
+      if (wifi2Bad) setErr2(t(wifi2Bad))
       setTimeout(() => {
-        const r = bad ? document.getElementById(`row-${bad}`) : wifiBad ? document.getElementById('row-wlan') : null
+        const r = bad
+          ? document.getElementById(`row-${bad}`)
+          : wifiBad || wifi2Bad
+            ? document.getElementById('row-wlan')
+            : null
         if (r instanceof HTMLDetailsElement) r.open = true
+        const r2 = wifi2Bad ? document.getElementById('row-wifi2') : null
+        if (r2 instanceof HTMLDetailsElement) r2.open = true
         document.querySelector<HTMLElement>('#card-conn [aria-invalid="true"], #name[aria-invalid="true"]')?.focus()
       }, 80)
       return false
@@ -164,7 +189,7 @@ export function Network() {
         </>
       ),
     },
-    patch,
+    patch: { ...patch, ...(wifi2Changed ? { wifi2_ssid: v.wifi2.ssid, wifi2_pass: v.wifi2.pass } : {}) },
     // POST /api/wifi/join tests a new Wi-Fi and saves it only when it works, so a typo keeps the old network.
     prepare: async () => {
       if (!wifiChanged || !v.wifi.ssid) return true
@@ -198,6 +223,7 @@ export function Network() {
   const wlanSt = w?.ip ? (
     <>
       <span className="mono">{w.ssid}</span>
+      {w.backup && <span className="tag warn">{t('wifi2.in_use')}</span>}
       {w.rssi ? (
         <>
           {` · ${t(sigWord(w.rssi))}`}
@@ -227,7 +253,7 @@ export function Network() {
             id="row-wlan"
             group="net"
             icon={Wifi}
-            tone={w?.ip ? ((w.rssi ?? 0) < -72 ? 'warn' : 'ok') : ''}
+            tone={w?.ip ? (w.backup || (w.rssi ?? 0) < -72 ? 'warn' : 'ok') : ''}
             title={t('net.wlan')}
             status={wlanSt}
             open={!base.wlan.dhcp}
@@ -249,7 +275,8 @@ export function Network() {
               id="wifi"
               expert={expert}
               value={v.wifi}
-              current={w?.ssid}
+              current={w?.backup ? undefined : w?.ssid}
+              saved={cfg?.wifi_ssid}
               curBssid={w?.bssid}
               err={joinErr}
               onChange={(wifi) => {
@@ -280,6 +307,57 @@ export function Network() {
               >
                 {t('wifi.forget_btn')}
               </Btn>
+            )}
+            {cfg?.wifi_ssid && (
+              <Row
+                id="row-wifi2"
+                icon={WifiSync}
+                tone={w?.backup ? 'warn' : undefined}
+                title={t('wifi2.title')}
+                status={
+                  cfg.wifi2_ssid ? (
+                    <>
+                      <span className="mono">{cfg.wifi2_ssid}</span>
+                      {w?.backup && <span className="tag warn">{t('st.connected')}</span>}
+                    </>
+                  ) : (
+                    t('arm.off')
+                  )
+                }
+                onToggle={setOpen2}
+              >
+                <p className="small muted">{t('wifi2.help')}</p>
+                {open2 && (
+                  <WifiPicker
+                    id="wifi2"
+                    noBand
+                    value={v.wifi2}
+                    current={w?.backup ? w.ssid : undefined}
+                    saved={v.wifi2.ssid === base.wifi2.ssid ? base.wifi2.ssid : undefined}
+                    err={err2}
+                    onChange={(wifi2) => {
+                      setErr2(null)
+                      set({ wifi2: { ...wifi2, bssid: '' } })
+                    }}
+                  />
+                )}
+                {cfg.wifi2_ssid && (
+                  <Btn
+                    id="wifi2-remove"
+                    kind="ghost"
+                    icon={WifiOff}
+                    onClick={() =>
+                      act(async () => {
+                        await putConfig({ wifi2_ssid: '', wifi2_pass: '' })
+                        setD(({ wifi2: _gone, ...rest }) => rest)
+                        setErr2(null)
+                      })
+                    }
+                  >
+                    {t('wifi2.remove')}
+                  </Btn>
+                )}
+              </Row>
             )}
             <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
           </Row>
