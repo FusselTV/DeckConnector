@@ -47,7 +47,7 @@ static void key_of(uint32_t i, char *key)
     snprintf(key, 8, "e%u", (unsigned)(i % DB_EVENTS_KEPT));
 }
 
-/* The older boots' events, oldest first, before this boot's first. */
+/* The older boots' events, oldest first, before the ones this boot logged until now. */
 static void load_kept(void)
 {
     nvs_handle_t h;
@@ -59,6 +59,18 @@ static void load_kept(void)
     nvs_set_u32(h, "boot", ++boot_no);
     nvs_get_u32(h, "n", &n);
     nvs_commit(h);
+    portENTER_CRITICAL(&mux);
+    uint32_t now_n = n_events < DB_EVENTS - DB_EVENTS_KEPT ? n_events : DB_EVENTS - DB_EVENTS_KEPT;
+    portEXIT_CRITICAL(&mux);
+    db_event_t *mine = heap_caps_malloc(now_n * sizeof(*mine) + 1, MALLOC_CAP_SPIRAM);
+    if (!mine) {
+        nvs_close(h);
+        return;
+    }
+    portENTER_CRITICAL(&mux);
+    memcpy(mine, events, now_n * sizeof(*mine));
+    n_events = 0;
+    portEXIT_CRITICAL(&mux);
     for (uint32_t i = n > DB_EVENTS_KEPT ? n - DB_EVENTS_KEPT : 0; i < n; i++) {
         kept_t k;
         size_t len = sizeof(k);
@@ -73,8 +85,14 @@ static void load_kept(void)
         memcpy(e->text, k.text, sizeof(e->text));
         e->kind[sizeof(e->kind) - 1] = e->text[sizeof(e->text) - 1] = '\0';
     }
-    n_older = n_events;
     nvs_close(h);
+    portENTER_CRITICAL(&mux);
+    n_older = n_events;
+    for (uint32_t i = 0; i < now_n; i++) {
+        events[n_events++ % DB_EVENTS] = mine[i];
+    }
+    portEXIT_CRITICAL(&mux);
+    heap_caps_free(mine);
 }
 
 /* Writes this boot's new events to flash, at most every 2 s: a flash write stalls both CPUs for a moment, and
@@ -148,9 +166,14 @@ void db_log_start(void)
     magic = MAGIC;
     serial = esp_log_set_vprintf(capture);
     events = heap_caps_calloc(DB_EVENTS, sizeof(*events), MALLOC_CAP_SPIRAM);
+}
+
+void db_log_keep_start(void)
+{
     if (events) {
         load_kept();
         xTaskCreatePinnedToCore(keep_task, "evlog", 3072, NULL, 1, &keeper, 1);
+        xTaskNotifyGive(keeper); /* this boot's first events, logged before flash was ready */
     }
 }
 

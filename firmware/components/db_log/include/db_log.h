@@ -28,6 +28,8 @@ void db_log_event(const char *tag, const char *kind, const char *fmt, ...)
     __attribute__((format(printf, 3, 4)));
 /* Oldest first. */
 size_t db_log_events(db_event_t *out, size_t max);
+/* Once the settings storage is up: the earlier boots' events come back, and new ones go to flash. */
+void db_log_keep_start(void);
 
 /* The milestones of this boot: the first time each one happened, in ms since boot. For boot time tests. */
 typedef enum {

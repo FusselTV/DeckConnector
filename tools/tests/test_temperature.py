@@ -7,7 +7,7 @@ from conftest import api
 
 
 def test_the_chip_temperature_is_in_status_and_metrics():
-    time.sleep(6)  # one 5 s sample at least
+    time.sleep(11)  # the history starts with the second 5 s sample
     temp = json.loads(api("GET", "/api/status")[1]).get("temp_c")
     assert temp is not None and 20 <= temp <= 90, f"temp_c {temp}"
     series = json.loads(api("GET", "/api/metrics")[1])["temp"]

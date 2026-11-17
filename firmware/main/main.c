@@ -502,6 +502,7 @@ void app_main(void)
     db_log_start();
     db_log_event(TAG, "boot", "started (%s)", boot_reason());
     init_nvs();
+    db_log_keep_start();
     started("settings", db_config_load());
     ESP_LOGI(TAG, "DeckConnector %s, controller %s", esp_app_get_description()->version,
              db_controller_name(db_config()->controller));
