@@ -342,8 +342,8 @@ static void add_device(void)
     xSemaphoreGive(s.lock);
     if (len && b64 && line &&
         mbedtls_base64_encode((unsigned char *)b64, 2800, &n, (unsigned char *)json, len) == 0) {
-        /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock. Without
-         * CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
+        /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock.
+         * Without CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
         int k = snprintf(line, 3200,
                          "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
                          "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s%s\n",
