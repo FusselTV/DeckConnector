@@ -752,6 +752,11 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
 esp_err_t db_deck_start(bool full_speed, int max_decks)
 {
     s.max_decks = max_decks;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        xSemaphoreTake(decks[d].lock, portMAX_DELAY);
+        decks[d].pending.max_bytes = PENDING_BUDGET / max_decks; /* queued images over it stay until drawn */
+        xSemaphoreGive(decks[d].lock);
+    }
     memset(s.port_deck, -1, sizeof(s.port_deck));
     nvs_handle_t h;
     if (nvs_open("decks", NVS_READONLY, &h) == ESP_OK) {
