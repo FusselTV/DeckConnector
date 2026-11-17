@@ -328,11 +328,7 @@ static size_t events_json(char *buf, size_t cap)
     db_json_arr_open(&j, NULL);
     for (size_t i = 0; i < n; i++) {
         db_json_obj_open(&j, NULL);
-        if (ev[i].boot) { /* an earlier boot: its time since start means nothing now */
-            db_json_null(&j, "since_s");
-        } else {
-            db_json_int(&j, "since_s", ev[i].at_us / 1000000);
-        }
+        db_json_int(&j, "since_s", ev[i].at_us / 1000000); /* after the start of its boot */
         db_json_int(&j, "boot", ev[i].boot);
         if (ev[i].unix_s) {
             db_json_int(&j, "at", ev[i].unix_s);

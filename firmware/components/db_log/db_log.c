@@ -10,7 +10,9 @@
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "nvs.h"
 
@@ -28,111 +30,141 @@ static vprintf_like_t serial;
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 static db_event_t *events; /* PSRAM ring, made in db_log_start() */
 static uint32_t n_events;
-static uint32_t n_kept;  /* events of this boot already in flash */
+static uint32_t n_kept;  /* events of this boot already in flash or skipped */
 static uint32_t n_older; /* events loaded from earlier boots, at the ring's start */
 static TaskHandle_t keeper;
+static SemaphoreHandle_t keep_lock; /* the task and the shutdown handler both write */
 
-/* In flash: "n" counts every event ever kept, event i sits in key "e<i % DB_EVENTS_KEPT>" as a kept_t, "boot"
- * counts the boots. */
+/* In flash: event number `seq` sits in key "e<seq % DB_EVENTS_KEPT>"; "boot" counts the boots. */
 typedef struct {
     int64_t unix_s;
+    uint32_t since_s; /* after its boot's start: the time of the rows before the clock was set */
+    uint32_t seq;
     uint32_t boot;
     char kind[12];
     char text[84];
 } kept_t;
 static uint32_t boot_no;
+static uint32_t next_seq;
 
-static void key_of(uint32_t i, char *key)
+#define KEEP_EVERY_MS 30000 /* a flapping host must not wear out the flash that also holds the settings */
+#define KEEP_PER_HOUR 120
+
+static void key_of(uint32_t seq, char *key)
 {
-    snprintf(key, 8, "e%u", (unsigned)(i % DB_EVENTS_KEPT));
+    snprintf(key, 8, "e%u", (unsigned)(seq % DB_EVENTS_KEPT));
 }
 
-/* The older boots' events, oldest first, before the ones this boot logged until now. */
+/* The earlier boots' events, by their number, in front of the ones this boot logged before flash was up. */
 static void load_kept(void)
 {
     nvs_handle_t h;
-    if (nvs_open("evlog", NVS_READWRITE, &h) != ESP_OK) {
+    kept_t *k = heap_caps_malloc(DB_EVENTS_KEPT * sizeof(*k), MALLOC_CAP_SPIRAM);
+    if (!k || nvs_open("evlog", NVS_READWRITE, &h) != ESP_OK) {
+        heap_caps_free(k);
         return;
     }
-    uint32_t n = 0;
     nvs_get_u32(h, "boot", &boot_no);
     nvs_set_u32(h, "boot", ++boot_no);
-    nvs_get_u32(h, "n", &n);
     nvs_commit(h);
-    portENTER_CRITICAL(&mux);
-    uint32_t now_n = n_events < DB_EVENTS - DB_EVENTS_KEPT ? n_events : DB_EVENTS - DB_EVENTS_KEPT;
-    portEXIT_CRITICAL(&mux);
-    db_event_t *mine = heap_caps_malloc(now_n * sizeof(*mine) + 1, MALLOC_CAP_SPIRAM);
-    if (!mine) {
-        nvs_close(h);
-        return;
-    }
-    portENTER_CRITICAL(&mux);
-    memcpy(mine, events, now_n * sizeof(*mine));
-    n_events = 0;
-    portEXIT_CRITICAL(&mux);
-    for (uint32_t i = n > DB_EVENTS_KEPT ? n - DB_EVENTS_KEPT : 0; i < n; i++) {
-        kept_t k;
-        size_t len = sizeof(k);
+    size_t n = 0;
+    for (uint32_t i = 0; i < DB_EVENTS_KEPT; i++) {
+        size_t len = sizeof(*k);
         char key[8];
         key_of(i, key);
-        if (nvs_get_blob(h, key, &k, &len) != ESP_OK || len != sizeof(k) || boot_no - k.boot > 255) {
-            continue;
+        if (nvs_get_blob(h, key, &k[n], &len) == ESP_OK && len == sizeof(*k) && boot_no - k[n].boot <= 255) {
+            next_seq = k[n].seq + 1 > next_seq ? k[n].seq + 1 : next_seq;
+            n++;
         }
-        db_event_t *e = &events[n_events++ % DB_EVENTS];
-        *e = (db_event_t){.unix_s = k.unix_s, .boot = (uint8_t)(boot_no - k.boot)};
-        memcpy(e->kind, k.kind, sizeof(e->kind));
-        memcpy(e->text, k.text, sizeof(e->text));
-        e->kind[sizeof(e->kind) - 1] = e->text[sizeof(e->text) - 1] = '\0';
     }
     nvs_close(h);
-    portENTER_CRITICAL(&mux);
-    n_older = n_events;
-    for (uint32_t i = 0; i < now_n; i++) {
-        events[n_events++ % DB_EVENTS] = mine[i];
+    for (size_t i = 1; i < n; i++) { /* oldest first; a crash between writes leaves them out of key order */
+        for (size_t m = i; m > 0 && k[m - 1].seq > k[m].seq; m--) {
+            kept_t x = k[m];
+            k[m] = k[m - 1];
+            k[m - 1] = x;
+        }
     }
+    portENTER_CRITICAL(&mux);
+    /* this boot's first events (fewer than DB_EVENTS - DB_EVENTS_KEPT) move behind the loaded ones */
+    uint32_t mine = n_events < DB_EVENTS - n ? n_events : (uint32_t)(DB_EVENTS - n);
+    for (uint32_t i = mine; i-- > 0;) {
+        events[(i + n) % DB_EVENTS] = events[i % DB_EVENTS];
+    }
+    for (size_t i = 0; i < n; i++) {
+        db_event_t *e = &events[i];
+        *e = (db_event_t){.unix_s = k[i].unix_s,
+                          .at_us = (int64_t)k[i].since_s * 1000000,
+                          .boot = (uint8_t)(boot_no - k[i].boot)};
+        memcpy(e->kind, k[i].kind, sizeof(e->kind));
+        memcpy(e->text, k[i].text, sizeof(e->text));
+        e->kind[sizeof(e->kind) - 1] = e->text[sizeof(e->text) - 1] = '\0';
+    }
+    n_older = n;
+    n_events = n + mine;
     portEXIT_CRITICAL(&mux);
-    heap_caps_free(mine);
+    heap_caps_free(k);
 }
 
-/* Writes this boot's new events to flash, at most every 2 s: a flash write stalls both CPUs for a moment, and
- * must not do so inside db_log_event(), which USB and network tasks call. */
+/* This boot's events not yet in flash, the last DB_EVENTS_KEPT at most: the others would be overwritten. */
+static void keep_now(void)
+{
+    static int64_t hour_at;
+    static int this_hour;
+    xSemaphoreTake(keep_lock, portMAX_DELAY);
+    int64_t now = esp_timer_get_time();
+    if (now - hour_at > 3600LL * 1000000) {
+        hour_at = now;
+        this_hour = 0;
+    }
+    nvs_handle_t h;
+    bool open = nvs_open("evlog", NVS_READWRITE, &h) == ESP_OK;
+    static bool warned;
+    while (open && this_hour < KEEP_PER_HOUR) {
+        portENTER_CRITICAL(&mux);
+        uint32_t newest_kept = n_events > DB_EVENTS_KEPT ? n_events - DB_EVENTS_KEPT : 0;
+        if (n_older + n_kept < newest_kept) {
+            n_kept = newest_kept - n_older;
+        }
+        bool more = n_older + n_kept < n_events;
+        db_event_t e = more ? events[(n_older + n_kept) % DB_EVENTS] : (db_event_t){0};
+        portEXIT_CRITICAL(&mux);
+        if (!more) {
+            break;
+        }
+        kept_t k = {
+            .unix_s = e.unix_s, .since_s = (uint32_t)(e.at_us / 1000000), .seq = next_seq, .boot = boot_no};
+        memcpy(k.kind, e.kind, sizeof(k.kind));
+        memcpy(k.text, e.text, sizeof(k.text));
+        char key[8];
+        key_of(next_seq, key);
+        if (nvs_set_blob(h, key, &k, sizeof(k)) != ESP_OK) {
+            if (!warned) { /* not db_log_event: it would wake this task again */
+                ESP_LOGW("evlog", "settings storage full, events stay in RAM");
+            }
+            warned = true;
+            break;
+        }
+        warned = false;
+        next_seq++;
+        n_kept++;
+        this_hour++;
+    }
+    if (open) {
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    xSemaphoreGive(keep_lock);
+}
+
+/* A flash write stalls both CPUs for a moment: never inside db_log_event(), which USB and network tasks call.
+ */
 static void keep_task(void *arg)
 {
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        vTaskDelay(pdMS_TO_TICKS(2000));
-        nvs_handle_t h;
-        if (nvs_open("evlog", NVS_READWRITE, &h) != ESP_OK) {
-            continue;
-        }
-        uint32_t n = 0;
-        nvs_get_u32(h, "n", &n);
-        for (;;) {
-            portENTER_CRITICAL(&mux);
-            if (n_events - (n_older + n_kept) > DB_EVENTS) { /* the ring moved on: skip what it overwrote */
-                n_kept = n_events - n_older - DB_EVENTS;
-            }
-            bool more = n_older + n_kept < n_events;
-            db_event_t e = more ? events[(n_older + n_kept) % DB_EVENTS] : (db_event_t){0};
-            portEXIT_CRITICAL(&mux);
-            if (!more) {
-                break;
-            }
-            kept_t k = {.unix_s = e.unix_s, .boot = boot_no};
-            memcpy(k.kind, e.kind, sizeof(k.kind));
-            memcpy(k.text, e.text, sizeof(k.text));
-            char key[8];
-            key_of(n, key);
-            if (nvs_set_blob(h, key, &k, sizeof(k)) != ESP_OK) {
-                break;
-            }
-            n++;
-            n_kept++;
-        }
-        nvs_set_u32(h, "n", n);
-        nvs_commit(h);
-        nvs_close(h);
+        keep_now();
+        vTaskDelay(pdMS_TO_TICKS(KEEP_EVERY_MS));
     }
 }
 
@@ -170,10 +202,11 @@ void db_log_start(void)
 
 void db_log_keep_start(void)
 {
-    if (events) {
+    if (events && (keep_lock = xSemaphoreCreateMutex())) {
         load_kept();
         xTaskCreatePinnedToCore(keep_task, "evlog", 3072, NULL, 1, &keeper, 1);
-        xTaskNotifyGive(keeper); /* this boot's first events, logged before flash was ready */
+        xTaskNotifyGive(keeper);                 /* this boot's first events, logged before flash was ready */
+        esp_register_shutdown_handler(keep_now); /* a restart's last words, "update installed" and the like */
     }
 }
 

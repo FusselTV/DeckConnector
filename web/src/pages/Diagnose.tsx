@@ -441,7 +441,12 @@ function Events() {
             {rows.length ? (
               rows.map((e, i) => {
                 const I = EV_ICON[e.kind] ?? Activity
-                const at = e.at ? e.at * 1000 : e.since_s !== null ? bootAt + e.since_s * 1000 : null
+                // before the clock was set: after its boot's start, which for an earlier boot is all there is
+                const when = e.at
+                  ? fmt.stamp(e.at * 1000)
+                  : e.boot
+                    ? `+${e.since_s} s`
+                    : fmt.stamp(bootAt + e.since_s * 1000)
                 return (
                   <Fragment key={`${e.boot ?? 0}-${i}`}>
                     {!!e.boot && rows[i - 1]?.boot !== e.boot && (
@@ -452,7 +457,7 @@ function Events() {
                       </tr>
                     )}
                     <tr>
-                      <td className="mono">{at === null ? '–' : fmt.stamp(at)}</td>
+                      <td className="mono">{when}</td>
                       <td>
                         <span className="ino ev">
                           <I size={14} aria-hidden />

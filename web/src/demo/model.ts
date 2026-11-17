@@ -301,7 +301,7 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   s.join = null
   s.joinState = ''
   // like the firmware: the last 40 events stay in flash and come back as an earlier boot's
-  s.events = s.events.slice(-40).map((e) => ({ ...e, boot: (e.boot ?? 0) + 1, since_s: null }))
+  s.events = s.events.slice(-40).map((e) => ({ ...e, boot: (e.boot ?? 0) + 1 }))
   if (s.log.length) s.prev = s.log
   s.log = []
   s.since = {}

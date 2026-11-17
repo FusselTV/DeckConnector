@@ -129,8 +129,9 @@ static void sample_metrics(void *arg)
         used_pct(MALLOC_CAP_INTERNAL); /* outside the critical section: the heap takes its own lock */
     uint8_t psram = used_pct(MALLOC_CAP_SPIRAM);
     float c = 0;
-    uint8_t temp =
-        tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)(c + 0.5f) : 0;
+    /* a failed read keeps the last value: a 0 would draw a drop to 0 °C */
+    uint8_t temp = tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)(c + 0.5f)
+                                                                                         : temp_now;
     taskENTER_CRITICAL(&metrics.mux);
     temp_now = temp;
     if (metrics.at) {
@@ -215,7 +216,8 @@ esp_err_t get_profile(httpd_req_t *req)
 void metrics_start(void)
 {
     temperature_sensor_config_t range = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
-    if (temperature_sensor_install(&range, &tsens) != ESP_OK || temperature_sensor_enable(tsens) != ESP_OK) {
+    if (temperature_sensor_install(&range, &tsens) == ESP_OK && temperature_sensor_enable(tsens) != ESP_OK) {
+        temperature_sensor_uninstall(tsens);
         tsens = NULL; /* the page shows no temperature */
     }
     esp_timer_handle_t timer;
