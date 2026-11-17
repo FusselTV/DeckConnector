@@ -67,7 +67,7 @@ const FIRMWARE_KEYS = new Set(
 )
 // Where the demo shows more than the simulator can, on purpose.
 const DEMO_ONLY: Record<string, string> = {
-  '/api/update/check': 'the firmware has no release feed yet; the demo offers v0.3.0 so the update flow can be tried',
+  '/api/update/check': 'the firmware has no release feed yet; the demo offers v1.0.1 so the update flow can be tried',
 }
 
 type Shape = string | { [k: string]: Shape }

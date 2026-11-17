@@ -190,7 +190,7 @@ describe('demo bridge', () => {
         4240,
       ),
     ).toMatchObject({ ok: false, code: 'ota_not_dbfw' })
-    expect(inspect(head(1, 'v0.3.0'), 4240)).toMatchObject({ ok: true, target: 'p4', version: 'v0.3.0' })
+    expect(inspect(head(1, 'v1.0.1'), 4240)).toMatchObject({ ok: true, target: 'p4', version: 'v1.0.1' })
     expect(inspect(head(6, 'v0.5.0'), 4240)).toMatchObject({ ok: false, code: 'ota_wrong_target' })
     expect(call(s, 'PUT', '/api/frontend', { blob: 4240, head: head(3, 'web demo') }).status).toBe(200)
     expect(call(s, 'GET', '/api/frontend').body).toMatchObject({ source: 'partition', version: 'web demo' })
@@ -242,18 +242,18 @@ describe('demo bridge', () => {
 
   it('installs an update with progress and starts the new version from the next slot', () => {
     const s = demo()
-    expect((call(s, 'GET', '/api/update/check').body as { latest: string }).latest).toBe('v0.3.0')
+    expect((call(s, 'GET', '/api/update/check').body as { latest: string }).latest).toBe('v1.0.1')
     const { url } = call(s, 'GET', '/api/update/check').body as { url: string }
     call(s, 'POST', '/api/ota/url', { url })
     expect(tick(s, T0 + OTA_MS / 2).ota).toMatchObject({ state: 'download', pct: 50 })
     expect(writer(s, T0 + OTA_MS / 2)).toBe('ui')
     expect(tick(s, T0 + OTA_MS).ota).toMatchObject({ state: 'done', pct: 100 })
     tick(s, T0 + OTA_MS + 1000 + RESTART_MS)
-    expect(s.firmware).toBe('v0.3.0')
+    expect(s.firmware).toBe('v1.0.1')
     expect(s.slots.find((x) => x.running)?.slot).toBe(3)
     expect(call(s, 'GET', '/api/update/check', undefined, T0 + OTA_MS + 1000 + RESTART_MS).body).toEqual({
-      current: 'v0.3.0',
-      latest: 'v0.3.0',
+      current: 'v1.0.1',
+      latest: 'v1.0.1',
     })
   })
 

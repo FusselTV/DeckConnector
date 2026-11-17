@@ -301,7 +301,7 @@ function helpers() {
     p.id = 'demo-files'
     p.className = 'demo-hint'
     const files = [
-      sample(1, 'v0.3.0', 'deckconnector-v0.3.0.dbfw'),
+      sample(1, 'v1.0.1', 'deckconnector-v1.0.1.dbfw'),
       sample(3, 'web demo 3f9a1c', 'deckconnector-web.dbfw'),
     ]
     p.append(de ? 'Demo, Beispieldatei: ' : 'Demo, sample file: ')

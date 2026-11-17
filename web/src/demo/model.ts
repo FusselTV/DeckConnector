@@ -113,7 +113,7 @@ export const STRIP: Rect = { x: 0, y: 380, w: 800, h: 100 }
 
 export const LAN_IP = '192.168.1.214'
 const WLAN_IP = '192.168.1.215'
-const LATEST = 'v0.3.0'
+const LATEST = 'v1.0.1'
 const COMPANION = { name: 'Studio Companion', version: '5.2.0' }
 
 export const DECK: DeckInfo = {
@@ -183,7 +183,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       setup_done: !setup,
       token_set: false,
     },
-    firmware: 'v0.2.0',
+    firmware: 'v1.0.0',
     slots: [
       {
         slot: 1,
@@ -200,7 +200,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
         slot: 2,
         label: 'ota_1',
         state: 'valid',
-        version: 'v0.2.0',
+        version: 'v1.0.0',
         built: '2026-10-21',
         running: true,
         next: true,

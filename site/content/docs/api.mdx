@@ -132,7 +132,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `POST /api/ota` | A signed `.dbfw` file as the body. Goes into the next slot and restarts. `?slot=N` writes into slot N, `?boot=0` keeps the running firmware | full |
 | `POST /api/ota/url` | `{"url": "http://..."}`, the board loads the file itself. Progress comes over the WebSocket | full |
 | `POST /api/ota/inspect` | The first 144 bytes of a file. Answers `target`, `version`, `length`, `sha256`, and `ok` with `error` | full |
-| `GET /api/update/check` | `{"current": "v0.2.0", "latest": null, ...}` | full |
+| `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}` | full |
 | `GET /api/slots` | The four slots with `state`, `version`, `running`, `next`, `bootable` and `why_not` | full |
 | `POST /api/slots/<n>/boot` | Restart into slot N. 409 when it cannot start | full |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api`, and `version` for an uploaded one | control |
@@ -211,7 +211,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 ## Status
 
 ```json
-{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v0.2.0",
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
  "menu_open": false,

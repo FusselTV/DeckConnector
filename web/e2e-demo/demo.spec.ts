@@ -99,9 +99,9 @@ test('an update installs with progress and restarts into the new version', async
   await page.locator('#ntc-upd-new').getByRole('button', { name: en['btn.install'] }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: en['btn.install'] }).click()
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
-  await expect(page.getByText('v0.3.0').first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText('v1.0.1').first()).toBeVisible({ timeout: 30_000 })
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v0.3.0"')), {
+    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')), {
       timeout: 30_000,
     })
     .toBe(true)
