@@ -1243,6 +1243,7 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
         /* the first deck's dock keeps the bridge's MAC and serial; the others get local ones of their own, or
          * the Elgato App would take them for one dock */
         db_cora_dock_t *info = &s.info[d];
+        info->device_port = port_of(d, true);
         esp_read_mac(info->mac, ESP_MAC_BASE);
         if (d) {
             info->mac[0] |= 0x02;

@@ -41,6 +41,7 @@ typedef struct {
     char serial[16]; /* of the dock itself */
     uint8_t mac[6];
     const db_device_info_t *device; /* NULL: nothing attached */
+    uint16_t device_port;           /* hosts open the device there */
 } db_cora_dock_t;
 
 /*
