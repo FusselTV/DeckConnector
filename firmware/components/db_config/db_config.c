@@ -142,6 +142,9 @@ esp_err_t db_config_load(void)
             current.qr_login_off = lock == 1;
             memcpy(&lock, &current.satellite_auto_off, 1);
             current.satellite_auto_off = lock == 1;
+            if (current.volume_set != 1 || current.volume > 100) {
+                current.volume = 0;
+            }
         }
         free(blob);
     }
@@ -271,6 +274,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "https_only", cfg->https_only);
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
+    db_json_int(&j, "volume", cfg->volume);
     ip_to_json(&j, "lan", &cfg->lan);
     ip_to_json(&j, "wlan", &cfg->wlan);
     db_json_str(&j, "wifi_ssid", cfg->wifi_ssid);
@@ -555,6 +559,15 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->brightness = (uint8_t)b->valueint;
+    }
+    const cJSON *vol = cJSON_GetObjectItemCaseSensitive(root, "volume");
+    if (vol) {
+        if (!cJSON_IsNumber(vol) || vol->valueint < 0 || vol->valueint > 100) {
+            snprintf(err, err_cap, "volume: 0 to 100 expected");
+            return false;
+        }
+        cfg->volume = (uint8_t)vol->valueint;
+        cfg->volume_set = 1;
     }
     const cJSON *hold = cJSON_GetObjectItemCaseSensitive(root, "menu_hold_ms");
     if (hold) {

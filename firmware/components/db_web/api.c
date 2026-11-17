@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include "cJSON.h"
+#include "db_audio.h"
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_dock.h"
@@ -1297,6 +1298,36 @@ esp_err_t delete_ap(httpd_req_t *req)
     vTaskDelay(pdMS_TO_TICKS(500));
     db_net_ap_stop();
     return ESP_OK;
+}
+
+/* POST /api/sound {"sound": "find", "volume": 60}: plays it now. Without volume the setting's, at least 60
+ * for find: who looks for the board wants to hear it. */
+esp_err_t post_sound(httpd_req_t *req)
+{
+    char body[96];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *s = cJSON_GetObjectItemCaseSensitive(root, "sound");
+    const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, "volume");
+    int sound = -1;
+    for (int i = 0; i < DB_SOUND_COUNT && cJSON_IsString(s); i++) {
+        sound = strcmp(s->valuestring, db_sound_name((db_sound_t)i)) == 0 ? i : sound;
+    }
+    int volume = cJSON_IsNumber(v) ? v->valueint : db_config()->volume;
+    bool ok = sound >= 0 && volume >= 0 && volume <= 100 && (!v || cJSON_IsNumber(v));
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request",
+                          "sound: ready, connected, lost, problem or find; volume: 0 to 100");
+    }
+    if (sound == DB_SOUND_FIND && !v && volume < 60) {
+        volume = 60;
+    }
+    esp_err_t err = db_audio_play_at((db_sound_t)sound, volume);
+    if (err == ESP_ERR_NOT_SUPPORTED) {
+        return send_error(req, "409 Conflict", "this board has no speaker");
+    }
+    return err == ESP_OK ? send_json(req, "{\"ok\":true}")
+                         : send_error(req, "503 Service Unavailable", "busy");
 }
 
 esp_err_t post_reboot(httpd_req_t *req)

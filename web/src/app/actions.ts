@@ -65,6 +65,8 @@ export function useActions() {
     return {
       pick,
       brightness: (n: number) => act(() => putConfig({ brightness: n })),
+      volume: (n: number) => act(() => putConfig({ volume: n })),
+      find: () => act(() => api.sound('find')),
       menu: (serial?: string) =>
         act(async () => {
           if (getState().status.menu_open) {

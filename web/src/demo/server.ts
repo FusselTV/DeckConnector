@@ -45,6 +45,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/config', 'open'],
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
+  ['POST', '/api/sound', 'control'],
   ['DELETE', '/api/ap', 'full'],
   ['POST', '/api/reset', 'admin'],
   ['GET', '/api/log', 'full'],
@@ -269,6 +270,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'POST /api/deck/stall':
       return ok()
     case 'DELETE /api/ap':
+      return ok()
+    case 'POST /api/sound': // the demo has no speaker to play it on
       return ok()
     case 'POST /api/reboot':
     case 'POST /api/reset':

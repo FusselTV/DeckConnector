@@ -3,6 +3,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "db_audio.h"
+#include "db_board.h"
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_dock.h"
@@ -270,6 +272,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_str(j, "controller", db_controller_name(db_config()->controller));
     db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
     db_json_bool(j, "menu_open", db_ui_menu_open());
+    db_json_bool(j, "speaker", db_board()->speaker.present);
     write_device(j);
     write_network(j, live);
     write_sources(j, live);
@@ -390,6 +393,15 @@ static char applied_sat[sizeof(db_config()->satellite) + sizeof(db_config()->sat
 static void satellite_now(char *out)
 {
     snprintf(out, sizeof(applied_sat), "%s %s", db_config()->satellite, db_config()->satellite_pin);
+}
+
+/* Once per start, when a host first draws: the board is ready. */
+static void ready_chime(void *arg)
+{
+    if (db_log_mark_ms(DB_MARK_HOST_DRAWS)) {
+        db_audio_play(DB_SOUND_READY);
+        esp_timer_stop(*(esp_timer_handle_t *)arg);
+    }
 }
 
 static void apply_controller(void)
@@ -526,6 +538,12 @@ void app_main(void)
     db_config_on_save(apply_controller);
     started("web", db_web_start(web_status, web_state));
     started("Improv", db_serial_start());
+    started("speaker", db_audio_start());
+    static esp_timer_handle_t chime;
+    esp_timer_create_args_t every = {.callback = ready_chime, .arg = &chime, .name = "chime"};
+    if (esp_timer_create(&every, &chime) == ESP_OK) {
+        esp_timer_start_periodic(chime, 1000000);
+    }
     db_ota_confirm_when(healthy);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);
 }

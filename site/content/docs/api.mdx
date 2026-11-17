@@ -92,6 +92,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost`, `problem` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 on a board without a speaker | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 
@@ -181,6 +182,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `name` | 1 to 31 letters, digits and dashes, no dash at the start or end. Also the host name |
 | `controller`, `host` | The host that draws, see [Multiple hosts](/docs/hosts#over-the-api) |
 | `brightness` | 0 to 100 |
+| `volume` | The speaker, 0 (off, the default) to 100 |
 | `lan`, `wlan` | `dhcp`, or `ip` and `mask` with an optional `gateway` and `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` has 8 to 63 characters, 64 hex digits, or is empty for an open network |
 | `wifi_bssid` | Lock to one access point, empty for any |

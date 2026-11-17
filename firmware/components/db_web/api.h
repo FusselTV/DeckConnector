@@ -17,6 +17,7 @@ extern size_t (*api_status_json)(char *buf, size_t cap);
 esp_err_t get_status(httpd_req_t *req);
 esp_err_t get_config(httpd_req_t *req);
 esp_err_t put_config(httpd_req_t *req);
+esp_err_t post_sound(httpd_req_t *req);
 esp_err_t post_companion_setup(httpd_req_t *req);
 esp_err_t post_input(httpd_req_t *req);
 esp_err_t post_menu(httpd_req_t *req);

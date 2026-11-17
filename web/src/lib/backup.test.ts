@@ -8,6 +8,7 @@ const cfg: Config = {
   controller: 'companion',
   host: '',
   brightness: 80,
+  volume: 0,
   lan: ip,
   wlan: ip,
   wifi_ssid: '',

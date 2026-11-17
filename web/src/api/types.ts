@@ -93,6 +93,8 @@ export interface Status {
   writer?: string
   /** The deck menu covers the deck. */
   menu_open?: boolean
+  /** The board has a speaker. */
+  speaker?: boolean
   /** This page reached the device over its setup Wi-Fi, which needs no password. */
   via_ap?: boolean
   device?: DeckInfo | null
@@ -124,6 +126,8 @@ export interface Config {
   controller: string
   host: string
   brightness: number
+  /** The speaker, 0 (off) to 100. */
+  volume: number
   lan: IpConf
   wlan: IpConf
   wifi_ssid: string

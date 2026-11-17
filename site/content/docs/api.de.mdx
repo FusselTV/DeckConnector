@@ -92,6 +92,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost`, `problem` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409 auf einer Platine ohne Lautsprecher | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
@@ -181,6 +182,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `name` | 1 bis 31 Buchstaben, Ziffern und Bindestriche, kein Bindestrich am Anfang oder Ende. Auch der Hostname |
 | `controller`, `host` | Das Programm, das zeichnet, siehe [Mehrere Programme](/de/docs/hosts#über-die-api) |
 | `brightness` | 0 bis 100 |
+| `volume` | Der Lautsprecher, 0 (aus, ab Werk) bis 100 |
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
 | `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
