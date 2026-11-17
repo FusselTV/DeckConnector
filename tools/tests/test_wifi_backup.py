@@ -126,6 +126,14 @@ def test_the_backup_takes_over_and_hands_back():
         assert wait(lambda: reachable_over_wlan(on_backup["ip"]), 20), "reachable over the backup WLAN"
         assert wait(lambda: any("trying the backup" in e for e in wlan_events(since)), 5), wlan_events(since)
 
+        assert api("PUT", "/api/config", json.dumps({"wifi2_ssid": "", "wifi2_pass": ""}).encode())[0] == 200
+        assert wait(lambda: wlan_state()["ssid"] != BACKUP or not wlan_state()["ip"], 15), "a removed backup is left"
+        assert api("PUT", "/api/config", json.dumps({"wifi2_ssid": BACKUP, "wifi2_pass": password}).encode())[0] == 200
+        t_readd = time.monotonic()
+        assert wait(lambda: (s := wlan_state())["ip"] and s.get("backup") and s, 60), "on the backup again"
+        t_backup = time.monotonic()
+        print(f"backup removed and set again while on it: on {BACKUP} again {t_backup - t_readd:.1f} s later")
+
         unifi("PUT", f"rest/wlanconf/{own['_id']}", {"enabled": True})
         t1 = time.monotonic()
         back = wait(
@@ -147,7 +155,7 @@ def test_the_backup_takes_over_and_hands_back():
         evs = wlan_events(since)
         print("\n".join(evs))
         assert changes == 0, "no flapping after the move back"
-        assert sum("trying the backup" in e for e in evs) == 1 and sum("is back" in e for e in evs) == 1, evs
+        assert sum("trying the backup" in e for e in evs) == 2 and sum("is back" in e for e in evs) == 1, evs
     finally:
         try:
             unifi("PUT", f"rest/wlanconf/{own['_id']}", {"enabled": True})
