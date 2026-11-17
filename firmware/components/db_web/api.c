@@ -446,8 +446,8 @@ esp_err_t put_config(httpd_req_t *req)
 }
 
 /* Companion's Discover, "Setup" on a found Satellite: an unauthenticated POST of {"host", "port"}, as the
- * official Satellite takes it. A bridge still in setup takes it at once; a set-up one asks on the deck, so nobody
- * on the network takes it over without a tap there. */
+ * official Satellite takes it. A bridge still in setup takes it at once; a set-up one asks on the deck, so
+ * nobody on the network takes it over without a tap there. */
 esp_err_t post_companion_setup(httpd_req_t *req)
 {
     static int64_t last_us;
@@ -472,8 +472,8 @@ esp_err_t post_companion_setup(httpd_req_t *req)
     char addr[sizeof(db_config()->satellite)] = "";
     char h_copy[48] = "";
     int port = cJSON_IsNumber(p) ? p->valueint : 0;
-    if (cJSON_IsString(h) && h->valuestring[0] && strlen(h->valuestring) < 48 && db_config_ntp_ok(h->valuestring) &&
-        !strchr(h->valuestring, ':') && port > 0 && port < 65536) {
+    if (cJSON_IsString(h) && h->valuestring[0] && strlen(h->valuestring) < 48 &&
+        db_config_ntp_ok(h->valuestring) && !strchr(h->valuestring, ':') && port > 0 && port < 65536) {
         snprintf(addr, sizeof(addr), "%s:%d", h->valuestring, port);
         strcpy(h_copy, h->valuestring);
     }

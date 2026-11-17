@@ -626,7 +626,8 @@ static void client_task(void *arg)
     int last_err = 0;
     int refused = 0;
     for (;;) {
-        uint32_t moved_at = moves; /* before the address is read: a save in between ends the session at once */
+        uint32_t moved_at =
+            moves; /* before the address is read: a save in between ends the session at once */
         snprintf(s.addr, sizeof(s.addr), "%s", db_config()->satellite);
         static char tried[sizeof(s.addr)];
         if (strcmp(tried, s.addr) != 0) { /* a new address has not failed yet */

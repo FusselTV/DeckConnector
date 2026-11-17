@@ -261,7 +261,8 @@ static struct { /* the login request on the deck, under login_mux */
 static struct { /* a Companion's Discover asking for the deck, under login_mux */
     int64_t until;
     char addr[sizeof(((db_config_t *)0)->satellite)];
-    int64_t denied_until; /* a "No" or no answer holds off that host, so it cannot cover the deck again and again */
+    int64_t denied_until; /* a "No" or no answer holds off that host, so it cannot cover the deck again and
+                             again */
     char denied[sizeof(((db_config_t *)0)->satellite)]; /* the host, without the port */
 } adopt;
 
@@ -367,8 +368,8 @@ static void offer_name(ui_model_t *md, const char *name)
              wrapped ? name + 11 : name);
 }
 
-/* A Companion that asked for the deck (its Discover), else one that announces its Satellite API while no address
- * is set and nobody said no. */
+/* A Companion that asked for the deck (its Discover), else one that announces its Satellite API while no
+ * address is set and nobody said no. */
 static void model_offer(ui_model_t *md, const db_config_t *c)
 {
     portENTER_CRITICAL(&login_mux);

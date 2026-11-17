@@ -671,13 +671,15 @@ static void offer_page(page_t *p)
     yes->active = true;
     yes->color = C_ACTIVE;
     ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
-    button(no, ICON_CLOSE, L("Nein", "No"), md->offer_asked ? "" : fit(p, L("nicht fragen", "do not ask"), ""));
+    button(no, ICON_CLOSE, L("Nein", "No"),
+           md->offer_asked ? "" : fit(p, L("nicht fragen", "do not ask"), ""));
     no->color = C_DANGER;
     if (p->l->strip) {
         char v[48];
         snprintf(v, sizeof(v), L("%.24s verbinden?", "Connect %.24s?"), md->offer_name);
         segment(&p->sc->seg[0], 4, ICON_COMPANION, C_EDIT,
-                md->offer_asked ? L("Companion fragt", "Companion asks") : L("Companion gefunden", "Companion found"),
+                md->offer_asked ? L("Companion fragt", "Companion asks")
+                                : L("Companion gefunden", "Companion found"),
                 v, md->offer_addr);
     }
 }

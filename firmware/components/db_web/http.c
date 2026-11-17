@@ -422,8 +422,8 @@ static void announce_api(void)
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
     }
-    /* Companion lists the bridge under Surfaces > Discover and sets it up with POST /api/config. Before 5.2 it
-     * browses the longer type, which RFC 6763 does not allow but every mDNS stack passes */
+    /* Companion lists the bridge under Surfaces > Discover and sets it up with POST /api/config. Before 5.2
+     * it browses the longer type, which RFC 6763 does not allow but every mDNS stack passes */
     mdns_txt_item_t sat[] = {{"restEnabled", "true"}};
     for (int i = 0; i < 2; i++) {
         err = mdns_service_add(NULL, i ? "_companion-satellite" : "_comp-sat-app", "_tcp", 80, sat, 1);
