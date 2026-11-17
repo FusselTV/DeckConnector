@@ -76,6 +76,7 @@ const char *db_deck_source_name(db_source_t source);
 
 /* Copy of the deck's description. Returns false when nothing is plugged in there. */
 bool db_deck_info(int deck, db_device_info_t *out);
+bool db_deck_present(int deck);
 /* The attached deck with this serial, else -1. */
 int db_deck_find(const char *serial);
 /* The attached deck with the lowest slot, else -1. */

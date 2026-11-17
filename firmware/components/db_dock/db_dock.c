@@ -969,7 +969,8 @@ static void listen_task(void *arg)
         FD_ZERO(&ready);
         int top = -1;
         for (int i = 0; i < DB_MAX_DECKS * 2; i++) {
-            if (i / 2 >= db_config()->max_decks) { /* a socket each, of 40 in all */
+            /* a socket each, of 40 in all; a deck over a lowered limit keeps its ports until it goes */
+            if (i / 2 >= db_config()->max_decks && !db_deck_present(i / 2)) {
                 if (ls[i] >= 0) {
                     close(ls[i]);
                     ls[i] = -1;

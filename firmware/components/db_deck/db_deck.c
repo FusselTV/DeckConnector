@@ -880,6 +880,11 @@ bool db_deck_info(int deck, db_device_info_t *out)
     return present;
 }
 
+bool db_deck_present(int deck)
+{
+    return decks[deck].present;
+}
+
 int db_deck_find(const char *serial)
 {
     for (int d = 0; d < DB_MAX_DECKS; d++) {
