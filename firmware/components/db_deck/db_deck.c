@@ -78,7 +78,7 @@ typedef struct {
     int64_t stuck_backoff;
 } deck_t;
 
-static deck_t *decks; /* DB_MAX_DECKS, in PSRAM */
+static deck_t decks[DB_MAX_DECKS] EXT_RAM_BSS_ATTR; /* zero until db_deck_start */
 
 static struct {
     QueueHandle_t events;
@@ -703,9 +703,8 @@ esp_err_t db_deck_start(bool full_speed, int max_decks)
         nvs_get_blob(h, "slots", s.owners, &len);
         nvs_close(h);
     }
-    decks = heap_caps_calloc(DB_MAX_DECKS, sizeof(*decks), MALLOC_CAP_SPIRAM);
     s.events = xQueueCreate(64, sizeof(ev_t));
-    if (!decks || !s.events) {
+    if (!s.events) {
         return ESP_ERR_NO_MEM;
     }
     db_screen_seed_ids(esp_random());

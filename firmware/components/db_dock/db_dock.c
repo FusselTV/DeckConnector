@@ -13,6 +13,7 @@
 #include "db_quirks.h"
 #include "db_sat.h"
 #include "db_satellite.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -56,15 +57,18 @@ typedef struct {
 
 static struct {
     void (*hosts_changed)(void);
-    conn_t *conns; /* by deck, then dock and device port, then host; in PSRAM */
     db_cora_dock_t info[DB_MAX_DECKS];
-    db_device_info_t *attached; /* DB_MAX_DECKS, in PSRAM */
     SemaphoreHandle_t info_lock;
 } s;
 
+/* By deck, then dock and device port, then host. Zero until db_dock_start: the deck's UI asks for hosts
+ * before then. */
+static conn_t conns[CONNS] EXT_RAM_BSS_ATTR;
+static db_device_info_t attached[DB_MAX_DECKS] EXT_RAM_BSS_ATTR;
+
 static conn_t *conn(int deck, bool device_port, int host)
 {
-    return &s.conns[(deck * 2 + device_port) * DB_DOCK_HOSTS + host];
+    return &conns[(deck * 2 + device_port) * DB_DOCK_HOSTS + host];
 }
 
 static uint16_t port_of(int deck, bool device_port)
@@ -344,7 +348,7 @@ static void keep_peers(void)
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     memset(now, 0, sizeof(now));
     for (int i = 0; i < CONNS; i++) {
-        const conn_t *c = &s.conns[i];
+        const conn_t *c = &conns[i];
         if (c->sock >= 0 && c->kind != DB_CTRL_SERVER) {
             now[i] = (peer_t){c->ip, c->local_ip, c->peer_port, port_of(c->deck, c->device_port)};
         }
@@ -849,7 +853,7 @@ size_t db_dock_known(db_dock_peer_t *out, size_t max)
 bool db_dock_peer_connected(const db_dock_peer_t *p)
 {
     for (int i = 0; i < CONNS; i++) {
-        const conn_t *c = &s.conns[i];
+        const conn_t *c = &conns[i];
         if (c->sock >= 0 && c->ip == p->ip) {
             return true;
         }
@@ -906,7 +910,7 @@ static bool refuse(conn_t *c, db_controller_t kind)
 void db_dock_drop_satellite_host(void)
 {
     for (int i = 0; i < CONNS; i++) {
-        conn_t *c = &s.conns[i];
+        conn_t *c = &conns[i];
         xSemaphoreTake(c->tx, portMAX_DELAY);
         if (c->sock >= 0 && c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
             shutdown(c->sock, SHUT_RDWR);
@@ -1027,7 +1031,7 @@ static void keepalive_task(void *arg)
         db_net_status(&n);
         uint32_t wlan = n.wlan_up && n.lan_up && !n.lan_dead ? inet_addr(n.wlan_ip) : 0;
         for (int i = 0; i < CONNS; i++) {
-            conn_t *c = &s.conns[i];
+            conn_t *c = &conns[i];
             if (c->sock >= 0 && wlan && c->local_ip == wlan) {
                 shutdown(c->sock,
                          SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
@@ -1125,9 +1129,9 @@ static void on_device(int deck, const db_device_info_t *info)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     if (info) {
-        s.attached[deck] = *info;
+        attached[deck] = *info;
     }
-    s.info[deck].device = info ? &s.attached[deck] : NULL;
+    s.info[deck].device = info ? &attached[deck] : NULL;
     services_due |= 1u << deck;
     xSemaphoreGive(s.info_lock);
     tell_hosts(deck);
@@ -1141,7 +1145,7 @@ size_t db_dock_hosts(int deck, db_dock_host_t *out, size_t max)
     for (int d = deck < 0 ? 0 : deck; d < (deck < 0 ? DB_MAX_DECKS : deck + 1); d++) {
         for (int i = 0; i < DB_DOCK_HOSTS && n < max; i++) {
             const conn_t *c = conn(d, false, i);
-            if (c->sock < 0) {
+            if (!c->tx || c->sock < 0) { /* no tx: before db_dock_start, when sock is a zero, not a socket */
                 continue;
             }
             int source = -1;
@@ -1212,7 +1216,7 @@ static void close_hosts(void)
 {
     mdns_service_remove_all();
     for (int i = 0; i < CONNS; i++) {
-        int sock = s.conns[i].sock;
+        int sock = conns[i].sock;
         if (sock >= 0) {
             struct linger now = {.l_onoff = 1, .l_linger = 0};
             setsockopt(sock, SOL_SOCKET, SO_LINGER, &now, sizeof(now));
@@ -1232,9 +1236,7 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
     }
     esp_register_shutdown_handler(close_hosts);
     s.info_lock = xSemaphoreCreateMutex();
-    s.conns = heap_caps_calloc(CONNS, sizeof(conn_t), MALLOC_CAP_SPIRAM);
-    s.attached = heap_caps_calloc(DB_MAX_DECKS, sizeof(db_device_info_t), MALLOC_CAP_SPIRAM);
-    if (!s.info_lock || !s.conns || !s.attached) {
+    if (!s.info_lock) {
         return ESP_ERR_NO_MEM;
     }
     for (int d = 0; d < DB_MAX_DECKS; d++) {
@@ -1262,9 +1264,9 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
     esp_timer_create_args_t timer = {.callback = sync_services, .name = "dock_mdns"};
     esp_timer_create(&timer, &services_timer);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        if (db_deck_info(d, &s.attached[d])) {
-            s.info[d].device = &s.attached[d];
-            device_service(d, &s.attached[d]);
+        if (db_deck_info(d, &attached[d])) {
+            s.info[d].device = &attached[d];
+            device_service(d, &attached[d]);
         }
     }
     db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input, .external = true};

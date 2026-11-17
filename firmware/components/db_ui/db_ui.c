@@ -16,6 +16,7 @@
 #include "db_sat.h"
 #include "db_satellite.h"
 #include "esp_app_desc.h"
+#include "esp_attr.h"
 #include "esp_core_dump.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -68,7 +69,6 @@ static struct {
     int update_pct;
     bool update_wlan;
     char c6[16];
-    ui_deck_t *decks; /* DB_MAX_DECKS, in PSRAM */
     uint32_t seq;
     bool covered;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
@@ -78,15 +78,8 @@ static struct {
         handover_until; /* Companion moves to a new Satellite address: the deck keeps its picture till then */
 } s = {.active_link = -1, .update_pct = -1, .brightness = -1};
 
-static bool any_present(void)
-{
-    for (int d = 0; s.decks && d < DB_MAX_DECKS; d++) {
-        if (s.decks[d].present) {
-            return true;
-        }
-    }
-    return false;
-}
+/* Zero until db_ui_start and in PSRAM: a deck may attach and call in before then. */
+static ui_deck_t decks[DB_MAX_DECKS] EXT_RAM_BSS_ATTR;
 
 static void octets_of(const char *ip, uint8_t out[4])
 {
@@ -416,7 +409,7 @@ static void model_offer(ui_model_t *md, const db_config_t *c)
 
 static void model(int deck, ui_model_t *md)
 {
-    const ui_deck_t *u = &s.decks[deck];
+    const ui_deck_t *u = &decks[deck];
     const db_config_t *c = db_config();
     db_net_status_t n;
     db_net_status(&n);
@@ -507,7 +500,7 @@ static void model(int deck, ui_model_t *md)
 static db_source_t wanted_writer(int deck)
 {
     char request[16];
-    const ui_deck_t *u = &s.decks[deck];
+    const ui_deck_t *u = &decks[deck];
     if (ui_menu_open(&u->menu) || s.update_pct >= 0 || !db_config()->setup_done || db_dock_request(request) ||
         u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time())) {
         return DB_SOURCE_UI;
@@ -524,7 +517,7 @@ static void watch_handover(void)
     static char satellite[sizeof(c->satellite)];
     bool drawn = false;
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        drawn |= s.decks[d].present && db_deck_writer(d) != DB_SOURCE_UI;
+        drawn |= decks[d].present && db_deck_writer(d) != DB_SOURCE_UI;
     }
     if (strcmp(satellite, c->satellite) != 0) {
         snprintf(satellite, sizeof(satellite), "%s", c->satellite);
@@ -546,7 +539,7 @@ static void light_lock(bool take)
 
 static void pick_writer(int deck)
 {
-    ui_deck_t *u = &s.decks[deck];
+    ui_deck_t *u = &decks[deck];
     db_source_t wanted = wanted_writer(deck);
     if (wanted == DB_SOURCE_UI && db_deck_writer(deck) != DB_SOURCE_UI) {
         u->full = true;
@@ -573,15 +566,12 @@ static void pick_writer(int deck)
 
 static void pick_writers(void)
 {
-    if (!s.decks) {
-        return; /* before db_ui_start */
-    }
     watch_handover();
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         pick_writer(d);
     }
     /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
-    bool covering = (ui_menu_open(&s.decks[0].menu) || s.update_pct >= 0) && s.active_link >= 0;
+    bool covering = (ui_menu_open(&decks[0].menu) || s.update_pct >= 0) && s.active_link >= 0;
     if (s.covered && !covering && s.active_link >= 0) {
         db_link_resend_role();
     }
@@ -618,7 +608,7 @@ static esp_err_t edit_end(const db_config_t *c, const char *what)
 static void note(int deck, const char *de, const char *en, bool to_main)
 {
     const char *text = strcmp(db_config()->lang, "en") == 0 ? en : de;
-    ui_menu_t *m = &s.decks[deck].menu;
+    ui_menu_t *m = &decks[deck].menu;
     xSemaphoreTake(s.lock, portMAX_DELAY);
     if (to_main) {
         ui_menu_open_main(m, esp_timer_get_time());
@@ -705,7 +695,7 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
     case UI_DO_BRIGHTNESS: {
         int b = md->brightness + act->value;
         s.brightness = b < 0 ? 0 : (b > 100 ? 100 : b); /* the UI task puts it on the decks */
-        s.decks[deck].turned = true;
+        decks[deck].turned = true;
         esp_timer_stop(s.save_timer);
         esp_timer_start_once(s.save_timer, SAVE_AFTER_US);
         break;
@@ -795,7 +785,7 @@ static bool submit_rect(int deck, db_rect_t r)
 {
     static uint8_t *area; /* reused: one key or a strip part at a time */
     static size_t area_px;
-    const ui_deck_t *u = &s.decks[deck];
+    const ui_deck_t *u = &decks[deck];
     const uint8_t *src = u->canvas.px;
     if (r.w != u->canvas.w || r.h != u->canvas.h) {
         if ((size_t)r.w * r.h > area_px) {
@@ -825,7 +815,7 @@ static bool submit_rect(int deck, db_rect_t r)
 
 static void render(int deck, const ui_screen_t *sc)
 {
-    ui_deck_t *u = &s.decks[deck];
+    ui_deck_t *u = &decks[deck];
     const db_display_t *d = &u->dev.displays[0];
     if (!ensure_canvas(u, d)) {
         return;
@@ -864,7 +854,7 @@ static void brightness_due(void *arg)
 /* False when an action was carried out: its save brings the next round. */
 static bool draw_deck(int deck, ui_screen_t *sc, ui_model_t *md)
 {
-    ui_deck_t *u = &s.decks[deck];
+    ui_deck_t *u = &decks[deck];
     /* the light lock keeps a writer change on another task from crossing the menu's brightness; never
      * held across model(), which takes other components' locks */
     light_lock(true);
@@ -942,14 +932,14 @@ bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
 static void open_menu(int deck, int64_t now)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    bool opened = !ui_menu_open(&s.decks[deck].menu);
+    bool opened = !ui_menu_open(&decks[deck].menu);
     for (int d = 0; opened && d < DB_MAX_DECKS; d++) {
-        if (d != deck && ui_menu_open(&s.decks[d].menu)) {
-            ui_menu_close(&s.decks[d].menu, now);
+        if (d != deck && ui_menu_open(&decks[d].menu)) {
+            ui_menu_close(&decks[d].menu, now);
         }
     }
     if (opened) {
-        ui_menu_open_main(&s.decks[deck].menu, now);
+        ui_menu_open_main(&decks[deck].menu, now);
     }
     xSemaphoreGive(s.lock);
     if (opened) {
@@ -960,7 +950,7 @@ static void open_menu(int deck, int64_t now)
 
 esp_err_t db_ui_open_menu(int deck)
 {
-    if (!s.decks[deck].present) {
+    if (!decks[deck].present) {
         return ESP_ERR_INVALID_STATE;
     }
     open_menu(deck, esp_timer_get_time());
@@ -983,8 +973,8 @@ void db_ui_close_menu(void)
     bool open = false;
     xSemaphoreTake(s.lock, portMAX_DELAY);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        if (ui_menu_open(&s.decks[d].menu)) {
-            ui_menu_close(&s.decks[d].menu, now);
+        if (ui_menu_open(&decks[d].menu)) {
+            ui_menu_close(&decks[d].menu, now);
             open = true;
         }
     }
@@ -999,8 +989,8 @@ bool db_ui_menu_open(void)
 {
     bool open = false;
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    for (int d = 0; s.decks && d < DB_MAX_DECKS; d++) {
-        open |= ui_menu_open(&s.decks[d].menu);
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        open |= ui_menu_open(&decks[d].menu);
     }
     xSemaphoreGive(s.lock);
     return open || overlay(esp_timer_get_time());
@@ -1008,7 +998,7 @@ bool db_ui_menu_open(void)
 
 static void check_menu_chord(int deck)
 {
-    ui_deck_t *u = &s.decks[deck];
+    ui_deck_t *u = &decks[deck];
     int last;
     bool on_encoders;
     bool any = db_ui_menu_chord(u->dev.encoder_count, db_device_image_keys(&u->dev), &on_encoders, &last);
@@ -1028,7 +1018,7 @@ static void check_menu_chord(int deck)
 
 static void on_input(int deck, const db_input_t *ev)
 {
-    ui_deck_t *u = &s.decks[deck];
+    ui_deck_t *u = &decks[deck];
     if (ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP) {
         u->enc_down[ev->index & 7] = ev->kind == DB_INPUT_ENCODER_DOWN;
     } else if ((ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP) && ev->index < UI_MAX_KEYS) {
@@ -1059,9 +1049,9 @@ static void on_input(int deck, const db_input_t *ev)
 
 static void on_device(int deck, const db_device_info_t *info)
 {
-    ui_deck_t *u = &s.decks[deck];
+    ui_deck_t *u = &decks[deck];
     u->present = info != NULL;
-    if (!any_present()) { /* the question went with the last deck */
+    if (db_deck_first() < 0) { /* the question went with the last deck */
         portENTER_CRITICAL(&login_mux);
         adopt.until = 0;
         portEXIT_CRITICAL(&login_mux);
@@ -1086,7 +1076,7 @@ static void tick(void *arg)
         changed();
     }
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        if (s.decks[d].chord_since) {
+        if (decks[d].chord_since) {
             check_menu_chord(d);
         }
     }
@@ -1107,7 +1097,7 @@ static void tick(void *arg)
     const db_config_t *c = db_config();
     bool ui_draws = false;
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        ui_draws |= s.decks[d].present && db_deck_writer(d) == DB_SOURCE_UI;
+        ui_draws |= decks[d].present && db_deck_writer(d) == DB_SOURCE_UI;
     }
     if (now >= next_look && ui_draws && !c->satellite[0] && !c->satellite_auto_off) {
         next_look = now + 5000000;
@@ -1127,7 +1117,7 @@ static void tick(void *arg)
         bool redraw = false;
         xSemaphoreTake(s.lock, portMAX_DELAY);
         for (int d = 0; d < DB_MAX_DECKS; d++) {
-            redraw |= ui_menu_tick(&s.decks[d].menu, &md);
+            redraw |= ui_menu_tick(&decks[d].menu, &md);
         }
         xSemaphoreGive(s.lock);
         portENTER_CRITICAL(&login_mux);
@@ -1238,15 +1228,14 @@ esp_err_t db_ui_start(void)
     s.lock = xSemaphoreCreateMutex();
     s.qr_lock = xSemaphoreCreateMutex();
     s.light = xSemaphoreCreateRecursiveMutex();
-    s.decks = heap_caps_calloc(DB_MAX_DECKS, sizeof(*s.decks), MALLOC_CAP_SPIRAM);
-    for (int d = 0; s.decks && d < DB_MAX_DECKS; d++) {
-        s.decks[d].full = true;
-        s.decks[d].menu.confirm_key = -1;
-        s.decks[d].lit = -1;
-        s.decks[d].before = -1;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        decks[d].full = true;
+        decks[d].menu.confirm_key = -1;
+        decks[d].lit = -1;
+        decks[d].before = -1;
     }
     jpeg_port_init();
-    if (!s.lock || !s.qr_lock || !s.light || !s.decks ||
+    if (!s.lock || !s.qr_lock || !s.light ||
         xTaskCreatePinnedToCore(ui_task, "ui", 6144, NULL, 4, &s.task, 0) != pdPASS ||
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
@@ -1280,7 +1269,7 @@ int db_ui_show_password(void)
 {
     int n = 0;
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        n += s.decks[d].present;
+        n += decks[d].present;
     }
     if (n && start_page(&pass_asked, &pass_until, PASSWORD_US)) {
         ESP_LOGI(TAG, "web password shown on the decks");
@@ -1304,10 +1293,10 @@ static void forget_presses(bool armed_tap)
     xSemaphoreTake(s.lock, portMAX_DELAY);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         if (armed_tap) {
-            s.decks[d].menu.confirm_key = -1;
+            decks[d].menu.confirm_key = -1;
         } else {
-            s.decks[d].menu.keys_down = 0;
-            s.decks[d].menu.encoders_down = 0;
+            decks[d].menu.keys_down = 0;
+            decks[d].menu.encoders_down = 0;
         }
     }
     xSemaphoreGive(s.lock);
@@ -1315,7 +1304,7 @@ static void forget_presses(bool armed_tap)
 
 int db_ui_ask_reset(void)
 {
-    if (!any_present()) {
+    if (db_deck_first() < 0) {
         return -1;
     }
     if (start_page(&reset_asked, &reset_until, RESET_ASK_US)) {
@@ -1337,7 +1326,7 @@ void db_ui_cancel_reset(void)
 
 const char *db_ui_ask_companion(const char *addr, int seconds)
 {
-    if (!any_present()) {
+    if (db_deck_first() < 0) {
         return "no deck attached to confirm on";
     }
     int64_t now = esp_timer_get_time();
@@ -1369,7 +1358,7 @@ const char *db_ui_ask_companion(const char *addr, int seconds)
 
 bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
 {
-    if (!any_present()) {
+    if (db_deck_first() < 0) {
         return false;
     }
     uint8_t mac[6];
@@ -1440,8 +1429,8 @@ void db_ui_refresh(void)
         auto_off = c->satellite_auto_off;
         satellite_changes++;
     }
-    for (int d = 0; s.decks && d < DB_MAX_DECKS; d++) {
-        s.decks[d].lit = -1; /* PUT /api/config may have set the brightness on the decks */
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        decks[d].lit = -1; /* PUT /api/config may have set the brightness on the decks */
     }
     changed();
 }
