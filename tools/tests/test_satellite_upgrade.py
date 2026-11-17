@@ -110,6 +110,7 @@ def test_companion_on_the_dock_path_moves_to_satellite(me, fake):
         assert not dock_hosts(me)
         add = next(x for x in fake.lines if x.startswith("ADD-DEVICE"))
         assert f'SERIAL="streamdeck:{serial}"' in add, f"dock serial {serial}, Satellite says {add[:120]}"
+        assert 'CAN_CHANGE_PAGE="' in add, "without it Companion drops every swipe page change"
     finally:
         host.kill()
 
