@@ -29,6 +29,20 @@ uint8_t db_device_image_keys(const db_device_info_t *info)
     return n;
 }
 
+bool db_slot_others(const db_slot_owner_t *owners, const bool *taken, int limit, const char *id)
+{
+    bool others = false;
+    for (int i = 0; i < limit; i++) {
+        if (!taken[i]) {
+            if (!owners[i][0] || strcmp(owners[i], id) == 0) {
+                return false;
+            }
+            others = true;
+        }
+    }
+    return others;
+}
+
 int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, const char *id)
 {
     int own = -1;

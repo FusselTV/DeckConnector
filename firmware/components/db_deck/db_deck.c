@@ -331,6 +331,7 @@ static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not ove
  * Writer tasks, the USB client task and the event task ask. */
 static portMUX_TYPE cycle_mux = portMUX_INITIALIZER_UNLOCKED;
 static int64_t cycled;
+static int64_t settled; /* until then the decks come back from a root port cycle */
 
 static bool take_cycle(int64_t now)
 {
@@ -398,9 +399,10 @@ static bool park(uint8_t address)
         }
         empty = s.waiting[i] ? empty : i;
     }
-    if (empty >= 0) {
-        s.waiting[empty] = address;
+    if (empty < 0) {
+        return false;
     }
+    s.waiting[empty] = address;
     return true;
 }
 
@@ -468,6 +470,13 @@ static int take_slot(int port, const char *serial)
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         taken[d] = decks[d].present;
     }
+    taskENTER_CRITICAL(&cycle_mux);
+    bool settling = esp_timer_get_time() < settled;
+    taskEXIT_CRITICAL(&cycle_mux);
+    /* after a cycle the deck that enumerates first would take the slot of one that is still on its way */
+    if (settling && db_slot_others(s.owners, taken, s.max_decks, id)) {
+        return -1;
+    }
     int slot = db_slot_take(s.owners, taken, DB_MAX_DECKS, s.max_decks, id);
     save_owners(); /* NVS writes nothing when the blob is the same */
     return slot;
@@ -512,10 +521,12 @@ static void handle_attach(uint8_t address)
         usb_port_close(port);
         return;
     }
-    if (present_count() >= s.max_decks) {
+    bool full = present_count() >= s.max_decks;
+    int deck = full ? -1 : take_slot(port, dev.info.serial);
+    if (deck < 0) {
         driver->set_brightness(&dev, 0); /* lit, it would show its logo and draw current */
         usb_port_close(port);
-        if (park(address)) {
+        if (park(address) && full) {
             db_log_event(TAG, "deck", "deck at USB address %u left dark: max_decks is %d", address,
                          s.max_decks);
         }
@@ -523,7 +534,6 @@ static void handle_attach(uint8_t address)
         return;
     }
     unpark_one(address);
-    int deck = take_slot(port, dev.info.serial);
     deck_t *k = &decks[deck];
     usb_port_product(port, dev.info.product, sizeof(dev.info.product));
     if (!k->writer_task && xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, (void *)(intptr_t)deck,
@@ -640,6 +650,7 @@ static void event_task(void *arg)
         if (esp_timer_get_time() - counted >= 5000000) {
             counted = esp_timer_get_time();
             count_parked();
+            unpark(); /* also after a cycle settled, or an open that failed */
         }
         if (!got) {
             continue;
@@ -830,6 +841,9 @@ static void replug_task(void *arg)
 {
     uintptr_t a = (uintptr_t)arg;
     esp_err_t err = usb_port_replug(a & 0xff, a >> 8);
+    taskENTER_CRITICAL(&cycle_mux);
+    settled = esp_timer_get_time() + 5000000;
+    taskEXIT_CRITICAL(&cycle_mux);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "reconnecting the deck failed: %s", esp_err_to_name(err));
     }

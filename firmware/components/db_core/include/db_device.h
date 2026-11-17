@@ -95,3 +95,5 @@ typedef char db_slot_owner_t[32];
  * replaced single deck keeps the dock port; with others there, the lowest free one no other deck owns, else
  * the lowest free one. -1 when none is free. The slot belongs to `id` in `owners` (all `n`) from then on. */
 int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, const char *id);
+/* True when every free slot below `limit` belongs to another deck than `id`, and one is free. */
+bool db_slot_others(const db_slot_owner_t *owners, const bool *taken, int limit, const char *id);

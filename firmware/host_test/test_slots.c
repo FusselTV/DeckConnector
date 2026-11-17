@@ -116,6 +116,22 @@ static void test_full(void)
     TEST_ASSERT_EQUAL_INT(-1, take("A"));
 }
 
+static void test_after_a_cycle_a_newcomer_waits_for_the_owners(void)
+{
+    limit = 2;
+    take("A");
+    take("B");
+    memset(taken, 0, sizeof(taken)); /* all gone in a root port cycle, the parked D enumerates first */
+    TEST_ASSERT_TRUE(db_slot_others(owners, taken, limit, "D"));
+    TEST_ASSERT_FALSE(db_slot_others(owners, taken, limit, "B"));
+    taken[0] = true;
+    taken[1] = true;
+    /* none free: the limit parks it, not this */
+    TEST_ASSERT_FALSE(db_slot_others(owners, taken, limit, "D"));
+    limit = 3;
+    TEST_ASSERT_FALSE(db_slot_others(owners, taken, limit, "D")); /* slot 2 belongs to nobody */
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -125,6 +141,7 @@ int main(void)
     RUN_TEST(test_a_deck_alone_takes_the_first_slot);
     RUN_TEST(test_a_replacement_stays_below_the_limit);
     RUN_TEST(test_an_owned_slot_over_the_limit_is_not_given);
+    RUN_TEST(test_after_a_cycle_a_newcomer_waits_for_the_owners);
     RUN_TEST(test_all_owned_takes_the_lowest_free);
     RUN_TEST(test_own_slot_taken_moves_and_drops_the_old_one);
     RUN_TEST(test_full);

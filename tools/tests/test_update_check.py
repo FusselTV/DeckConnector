@@ -112,7 +112,7 @@ def wait_for_log(text: str, since: str, secs: float = 30) -> str | None:
     end = time.time() + secs
     while time.time() < end:
         log = api("GET", "/api/log")[1].decode()
-        lines = log[log.rfind(since) + len(since) :].splitlines() if since in log else log.splitlines()
+        lines = log[log.rfind(since) + len(since) :].splitlines() if since in log else []
         hit = next((line for line in lines if text in line), None)
         if hit:
             return hit
