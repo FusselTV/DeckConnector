@@ -25,6 +25,8 @@
 #define INPUT_REPORT   65                /* the six-key report */
 #define EVENTS_PER_RPT 8
 #define CYCLE_FLOOR_US 10000000LL /* between two root port cycles of the recovery: they take every deck */
+/* kept for plugs: a cycle takes every deck, then they and the hub come again */
+#define PLUG_ROOM (2 * USB_PORT_DEVS + 1)
 
 static const char *TAG = "deck";
 
@@ -716,7 +718,8 @@ static void on_input(int port, const uint8_t *report, size_t len, uint64_t t_us)
                .t_us = t_us,
                .len = (uint8_t)(len < INPUT_REPORT ? len : INPUT_REPORT)};
     memcpy(ev.report, report, ev.len);
-    if (xQueueSend(s.events, &ev, 0) != pdTRUE) {
+    /* a lost unplug keeps the device open in usb_port for good */
+    if (uxQueueSpacesAvailable(s.events) <= PLUG_ROOM || xQueueSend(s.events, &ev, 0) != pdTRUE) {
         s.stats.inputs_dropped++;
     }
 }
