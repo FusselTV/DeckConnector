@@ -89,7 +89,7 @@ static size_t profile_json(char *buf, size_t cap)
 static struct {
     portMUX_TYPE mux;
     uint8_t cpu[METRIC_SAMPLES], heap[METRIC_SAMPLES], psram[METRIC_SAMPLES]; /* percent used */
-    uint8_t temp[METRIC_SAMPLES];                                              /* the chip's, in °C */
+    uint8_t temp[METRIC_SAMPLES];                                             /* the chip's, in °C */
     uint16_t next, count;
     uint64_t idle, at;
 } metrics = {.mux = portMUX_INITIALIZER_UNLOCKED};
@@ -129,7 +129,8 @@ static void sample_metrics(void *arg)
         used_pct(MALLOC_CAP_INTERNAL); /* outside the critical section: the heap takes its own lock */
     uint8_t psram = used_pct(MALLOC_CAP_SPIRAM);
     float c = 0;
-    uint8_t temp = tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)(c + 0.5f) : 0;
+    uint8_t temp =
+        tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)(c + 0.5f) : 0;
     taskENTER_CRITICAL(&metrics.mux);
     temp_now = temp;
     if (metrics.at) {
