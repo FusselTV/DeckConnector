@@ -67,7 +67,7 @@ export function DeckTab() {
     chord: cfg?.menu_chord ?? 'auto',
     hold: (cfg?.menu_hold_ms ?? 2000) / 1000,
     usb: cfg?.usb_speed ?? 'auto',
-    max: String(cfg?.max_decks ?? 2) as '1' | '2' | '3' | '4',
+    max: String(cfg?.max_decks) as '1' | '2' | '3' | '4',
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})

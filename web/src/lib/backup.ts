@@ -35,6 +35,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'menu_hold_ms',
   'lang',
   'usb_speed',
+  'max_decks',
   'dock_paired_only',
   'qr_login',
   'ntp_server',

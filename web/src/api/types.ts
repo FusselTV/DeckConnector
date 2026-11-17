@@ -149,8 +149,7 @@ export interface Config {
   /** What the deck's own screens speak. */
   lang: 'de' | 'en'
   usb_speed: 'auto' | 'full'
-  /** Decks driven at once, 1 to 4: they share the 2 A of the USB port. */
-  max_decks?: number
+  max_decks: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean

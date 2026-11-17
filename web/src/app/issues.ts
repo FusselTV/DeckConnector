@@ -83,13 +83,13 @@ function useIssueList(): Issues {
         text: t('is.nodeck_h'),
         acts: [{ label: t('act.reconnect'), icon: Usb, run: () => void a.reconnect(0) }],
       })
-    if (st.decks_over_limit)
+    if (st.decks_over_limit && maxDecks)
       list.push({
         id: 'overlimit',
         icon: LayoutGrid,
         lvl: 'warn',
         title: t('is.over', { n: st.decks_over_limit }),
-        text: t('is.over_h', { max: maxDecks ?? 2 }),
+        text: t('is.over_h', { max: maxDecks }),
         acts: [{ label: t('act.deck'), icon: LayoutGrid, run: () => jump('deck', 'max-decks') }],
       })
     if (chosen && !chosen.connected && !chosen.connecting)

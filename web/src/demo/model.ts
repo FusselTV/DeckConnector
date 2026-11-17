@@ -179,6 +179,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       menu_hold_ms: 2000,
       lang: 'de',
       usb_speed: 'auto',
+      max_decks: 2,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,
@@ -524,6 +525,7 @@ const LIVE: (keyof ConfigPatch)[] = [
   'menu_chord',
   'menu_hold_ms',
   'lang',
+  'max_decks',
 ]
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/

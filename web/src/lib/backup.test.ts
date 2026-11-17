@@ -23,6 +23,7 @@ const cfg: Config = {
   menu_hold_ms: 2000,
   lang: 'de',
   usb_speed: 'auto',
+  max_decks: 2,
   wifi_bssid: '',
   qr_login: true,
   ntp_server: 'pool.ntp.org',
