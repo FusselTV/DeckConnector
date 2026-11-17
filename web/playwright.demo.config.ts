@@ -28,11 +28,16 @@ export default defineConfig({
       url: `http://127.0.0.1:${PORT}/demo/app/`,
       reuseExistingServer: false,
     },
-    {
-      command: 'node scripts/sim.mjs',
-      env: { DC_SIM_PORT: String(SIM) },
-      url: `http://127.0.0.1:${SIM}/`,
-      reuseExistingServer: false,
-    },
+    // CI has no simulator build and runs only desktop and phone
+    ...(process.env.DC_NO_SIM
+      ? []
+      : [
+          {
+            command: 'node scripts/sim.mjs',
+            env: { DC_SIM_PORT: String(SIM) },
+            url: `http://127.0.0.1:${SIM}/`,
+            reuseExistingServer: false,
+          },
+        ]),
   ],
 })
