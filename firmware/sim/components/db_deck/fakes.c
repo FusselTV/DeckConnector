@@ -194,8 +194,11 @@ void db_deck_screen_tick(int off_s, bool covered)
 {
     bool off;
     int64_t now = esp_timer_get_time();
+    decks(); /* the wake state starts there */
     pthread_mutex_lock(&wake_lock);
-    if (db_wake_due(&wake, off_s, covered, now, &off)) {
+    if (covered) {
+        db_wake_set(&wake, false, now);
+    } else if (db_wake_due(&wake, off_s, false, now, &off)) {
         db_wake_set(&wake, off, now);
     }
     pthread_mutex_unlock(&wake_lock);
@@ -204,14 +207,6 @@ void db_deck_screen_tick(int off_s, bool covered)
 bool db_deck_screen_is_off(void)
 {
     return wake.dark;
-}
-
-int64_t db_deck_idle_us(void)
-{
-    pthread_mutex_lock(&wake_lock);
-    int64_t idle = db_wake_idle_us(&wake, esp_timer_get_time());
-    pthread_mutex_unlock(&wake_lock);
-    return idle;
 }
 
 size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)

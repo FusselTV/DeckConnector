@@ -133,6 +133,19 @@ static void test_waking_starts_the_idle_time_again(void)
     TEST_ASSERT_FALSE(db_wake_due(&w, 10, false, now + 1000000, &dark));
 }
 
+static void test_an_unplugged_deck_leaves_nothing_held(void)
+{
+    bool dark;
+    go_dark();
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 3)); /* the wake press, unplugged before its release */
+    db_wake_forget(&w, 0);
+    TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_DOWN, 5));
+    TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_UP, 5));
+    TEST_ASSERT_TRUE(in(1, DB_INPUT_KEY_DOWN, 0)); /* held on another deck when it went */
+    db_wake_forget(&w, 1);
+    TEST_ASSERT_TRUE(db_wake_due(&w, 10, false, now + 10000000, &dark));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -147,5 +160,6 @@ int main(void)
     RUN_TEST(test_a_held_control_keeps_it_lit);
     RUN_TEST(test_a_question_on_the_deck_wakes_it);
     RUN_TEST(test_waking_starts_the_idle_time_again);
+    RUN_TEST(test_an_unplugged_deck_leaves_nothing_held);
     return UNITY_END();
 }

@@ -56,6 +56,11 @@ bool db_wake_input(db_wake_t *w, int deck, const db_input_t *ev, int64_t now, bo
     return swallow;
 }
 
+void db_wake_forget(db_wake_t *w, int deck)
+{
+    w->deck[deck] = (db_wake_deck_t){.turning = -1};
+}
+
 bool db_wake_set(db_wake_t *w, bool dark, int64_t now)
 {
     bool changed = w->dark != dark;

@@ -101,8 +101,6 @@ void db_deck_screen_off(bool off);
 bool db_deck_screen_is_off(void);
 /* A few times a second: dark after `off_s` seconds without input (0: never); lit while `covered`. */
 void db_deck_screen_tick(int off_s, bool covered);
-/* Since the last input on any deck, 0 while a control is held. */
-int64_t db_deck_idle_us(void);
 
 size_t db_deck_input_space(void);
 /* Handle `in` as if the device had sent it. External listeners get it only when `real`; with `only_ip` set,

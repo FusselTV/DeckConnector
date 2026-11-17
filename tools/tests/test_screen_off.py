@@ -72,7 +72,9 @@ def test_an_open_menu_keeps_the_decks_lit(off_after_10s):
         assert not status()["screen_off"]
     finally:
         api("DELETE", "/api/menu")
-    wait_dark(2)
+    time.sleep(2)
+    assert not status()["screen_off"], "dark as soon as the menu closed: the idle time did not start again"
+    wait_dark(10)
     assert api("POST", "/api/menu")[0] == 200  # a question or the menu wakes them
     try:
         time.sleep(0.5)

@@ -71,7 +71,7 @@ typedef struct {
     bool replay;
     bool keep_picture; /* of the old writer, until the new one draws: under lock */
     bool clear_first;  /* the display goes black before the writer's first image */
-    int brightness;    /* pct + 1 for the writer task to set, 0: nothing */
+    int brightness;    /* nonzero: the writer task sets `lit`, 0 while dark */
     int lit;           /* the brightness the deck has, -1: not known; atomic */
     char last_serial[sizeof(((db_device_info_t *)0)->serial)];
     db_shot_t replay_shots[DB_SCREEN_MAX];
@@ -280,11 +280,12 @@ static void writer_task(void *arg)
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         for (;;) {
-            int pct = __atomic_exchange_n(&k->brightness, 0,
-                                          __ATOMIC_RELAXED); /* between images, also in a stream */
-            if (pct && k->present) {
+            /* between images, also in a stream; read now, so a wake or a dark that raced it still wins */
+            int lit = __atomic_load_n(&k->lit, __ATOMIC_RELAXED);
+            if (__atomic_exchange_n(&k->brightness, 0, __ATOMIC_RELAXED) && k->present &&
+                (lit >= 0 || dark())) {
                 xSemaphoreTake(k->io_lock, portMAX_DELAY);
-                k->dev.driver->set_brightness(&k->dev, dark() ? 0 : (uint8_t)(pct - 1));
+                k->dev.driver->set_brightness(&k->dev, dark() ? 0 : (uint8_t)lit);
                 xSemaphoreGive(k->io_lock);
             }
             if (k->replay) {
@@ -590,6 +591,9 @@ static void handle_detach(int port)
     xSemaphoreTake(k->lock, portMAX_DELAY);
     k->present = false;
     db_regions_clear(&k->pending, free_region, (void *)&no_device);
+    taskENTER_CRITICAL(&wake_mux);
+    db_wake_forget(&wake, deck); /* its releases never come */
+    taskEXIT_CRITICAL(&wake_mux);
     xSemaphoreGive(k->lock);
     xSemaphoreTake(k->io_lock, portMAX_DELAY);
     usb_port_close(port);
@@ -599,16 +603,14 @@ static void handle_detach(int port)
     unpark();
 }
 
-/* Brightness 0 on every deck, or what its host set last, also while dark. */
+/* Each writer sets 0 or what its host set last, as dark() is when it gets there. */
 static void light_all(bool off)
 {
     db_log_event(TAG, "deck", off ? "screen off" : "screen on");
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        deck_t *k = &decks[d];
-        int lit = __atomic_load_n(&k->lit, __ATOMIC_RELAXED);
-        if (k->present && (off || lit >= 0)) {
-            __atomic_store_n(&k->brightness, (off ? 0 : lit) + 1, __ATOMIC_RELAXED);
-            xTaskNotifyGive(k->writer_task);
+        if (decks[d].present) {
+            __atomic_store_n(&decks[d].brightness, 1, __ATOMIC_RELAXED);
+            xTaskNotifyGive(decks[d].writer_task);
         }
     }
 }
@@ -626,9 +628,11 @@ void db_deck_screen_off(bool off)
 void db_deck_screen_tick(int off_s, bool covered)
 {
     int64_t now = esp_timer_get_time();
-    bool off;
+    bool off = false;
     taskENTER_CRITICAL(&wake_mux);
-    bool changed = db_wake_due(&wake, off_s, covered, now, &off) && db_wake_set(&wake, off, now);
+    /* a question or the menu restarts the idle time: they must not go dark the moment it closes */
+    bool changed = covered ? db_wake_set(&wake, false, now)
+                           : db_wake_due(&wake, off_s, false, now, &off) && db_wake_set(&wake, off, now);
     taskEXIT_CRITICAL(&wake_mux);
     if (changed) {
         light_all(off);
@@ -638,14 +642,6 @@ void db_deck_screen_tick(int off_s, bool covered)
 bool db_deck_screen_is_off(void)
 {
     return dark();
-}
-
-int64_t db_deck_idle_us(void)
-{
-    taskENTER_CRITICAL(&wake_mux);
-    int64_t idle = db_wake_idle_us(&wake, esp_timer_get_time());
-    taskEXIT_CRITICAL(&wake_mux);
-    return idle;
 }
 
 static bool input_real;
@@ -1035,9 +1031,9 @@ esp_err_t db_deck_set_brightness(int deck, uint8_t pct)
     if (!k->present) {
         return ESP_ERR_INVALID_STATE;
     }
-    __atomic_store_n(&k->brightness, pct + 1, __ATOMIC_RELAXED);
     __atomic_store_n(&k->lit, pct,
                      __ATOMIC_RELAXED); /* as the deck will have it: a menu opening now reads it */
+    __atomic_store_n(&k->brightness, 1, __ATOMIC_RELAXED);
     xTaskNotifyGive(k->writer_task);
     return ESP_OK;
 }

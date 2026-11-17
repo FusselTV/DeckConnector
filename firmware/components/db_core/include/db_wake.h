@@ -29,6 +29,7 @@ typedef struct {
 void db_wake_init(db_wake_t *w, int64_t now);
 /* True: no listener may get `ev`. *woke: it ended the dark. */
 bool db_wake_input(db_wake_t *w, int deck, const db_input_t *ev, int64_t now, bool *woke);
+void db_wake_forget(db_wake_t *w, int deck);
 /* Starts the idle time again. False when the dark did not change. */
 bool db_wake_set(db_wake_t *w, bool dark, int64_t now);
 /* Since the last input; 0 while a control is held. */
