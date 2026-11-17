@@ -700,7 +700,7 @@ export const de: Dict = {
   'meter.slow_n': 'Deck {n} langsam',
   'login.cookie':
     'Der Browser hat die Anmeldung nicht behalten. Erlaube Cookies für diese Adresse und melde dich noch einmal an.',
-  'login.reset': 'Der DeckConnector wurde zurückgesetzt. Das neue Passwort steht auf dem Deck.',
+  'login.reset': 'Der DeckConnector wurde zurückgesetzt. Melde dich mit dem Passwort vom Deck an.',
   'login.claimed':
     'Dieser Connector wurde schon in einem anderen Browser geöffnet. Melde dich mit dem Passwort vom Deck an.',
   'login.expired': 'Sitzung abgelaufen. Deine Eingaben bleiben erhalten.',

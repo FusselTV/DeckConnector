@@ -1,5 +1,6 @@
 import { api, ApiError, onAuthLost, READONLY } from '../api/client'
 import type { Status, WsMsg } from '../api/types'
+import { ss } from '../lib/util'
 import { configErrAtom, crashAtom, loginReasonAtom, statusErrAtom } from './state'
 import { dispatch, fromLog, getState } from './store'
 
@@ -236,7 +237,10 @@ async function firstStatus() {
       () => null,
       (x: unknown) => x,
     )
+    const reset = ss.get<boolean>('dc.reset', false)
+    ss.set('dc.reset', undefined)
     if (refused instanceof ApiError && refused.message === 'claimed') loginReasonAtom.set('claimed')
+    else if (refused && reset) loginReasonAtom.set('reset')
     if (refused) throw e
     return api.status()
   }
@@ -249,8 +253,13 @@ export async function boot() {
       stopSession()
       // A restart ends every session: back to the login page, which says why. Otherwise keep the page.
       if (getState().restarting) {
+        // After a factory reset the first browser gets the wizard without a password: be that browser.
+        if (loginReasonAtom.get() === 'reset') {
+          ss.set('dc.reset', true)
+          return location.reload()
+        }
         dispatch({ type: 'restart', on: false, now: Date.now() })
-        if (loginReasonAtom.get() !== 'pw' && loginReasonAtom.get() !== 'reset') loginReasonAtom.set('expired')
+        if (loginReasonAtom.get() !== 'pw') loginReasonAtom.set('expired')
         dispatch({ type: 'auth', auth: 'login' })
       } else if (getState().asOf === null) {
         // Never a status: the login answered but the browser did not keep its cookie. No stale page to show.

@@ -686,7 +686,7 @@ export const en = {
   'in.hint': 'The last 200 inputs. A restart clears them.',
   'meter.slow_n': 'Deck {n} slow',
   'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
-  'login.reset': 'DeckConnector was reset. The new password shows on the deck.',
+  'login.reset': 'DeckConnector was reset. Log in with the password from the deck.',
   'login.claimed': 'This connector was already opened in another browser. Log in with the password from the deck.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
