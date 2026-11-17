@@ -100,8 +100,8 @@ bool db_slot_others(const db_slot_owner_t *owners, const bool *taken, int limit,
 
 /* What to do about a deck whose output hangs. A root port cycle takes every deck: with `others` plugged in, a
  * deck that hangs again right after one waits 10 min for the next, doubling up to an hour; alone 10 s up to 5
- * min. A hang again within a minute leaves one restart after 10 min uptime, armed again by an hour without a
- * hang. Times in us. */
+ * min, also after a longer wait with others. A hang again within a minute leaves one restart after 10 min
+ * uptime, armed again by an hour without a hang. Times in us. */
 typedef enum { DB_STUCK_WAIT, DB_STUCK_CYCLE, DB_STUCK_RESTART } db_stuck_t;
 typedef struct {
     int64_t last; /* the deck's last cycle, 0: none */

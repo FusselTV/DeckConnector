@@ -47,6 +47,7 @@ typedef struct {
     uint32_t in_backoff_ms;
     bool wrote; /* an output report went out since the open */
     struct {
+        uint8_t id;
         uint8_t buf[32];
         size_t len;
     } kept[KEPT_REPORTS]; /* feature reports the deck answered before its first output report */
@@ -255,8 +256,12 @@ static db_err_t control(dev_t *d, uint8_t type, uint8_t request, uint8_t report_
 static db_err_t io_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
     dev_t *d = (dev_t *)io;
+    uint8_t id = buf[0];
+    if (!d->open) {
+        return DB_ERR_STATE;
+    }
     for (int i = 0; i < KEPT_REPORTS; i++) {
-        if (d->kept[i].len && d->kept[i].buf[0] == buf[0]) {
+        if (d->kept[i].len && d->kept[i].id == id) {
             size_t n = d->kept[i].len < len ? d->kept[i].len : len;
             memcpy(buf, d->kept[i].buf, n);
             if (out_len) {
@@ -266,9 +271,10 @@ static db_err_t io_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, 
         }
     }
     size_t got = 0;
-    db_err_t err = control(d, 0xa1, HID_GET_REPORT, buf[0], buf, len, &got);
+    db_err_t err = control(d, 0xa1, HID_GET_REPORT, id, buf, len, &got);
     for (int i = 0; err == DB_OK && !d->wrote && got <= sizeof(d->kept[0].buf) && i < KEPT_REPORTS; i++) {
         if (!d->kept[i].len) {
+            d->kept[i].id = id; /* the request's: the answer may start with another byte */
             memcpy(d->kept[i].buf, buf, got);
             d->kept[i].len = got;
             break;
@@ -282,7 +288,11 @@ static db_err_t io_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, 
 
 static db_err_t io_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
-    return control((dev_t *)io, 0x21, HID_SET_REPORT, buf[0], (uint8_t *)buf, len, NULL);
+    dev_t *d = (dev_t *)io;
+    for (int i = 0; i < KEPT_REPORTS; i++) {
+        d->kept[i].len = d->kept[i].id == buf[0] ? 0 : d->kept[i].len; /* a set makes a kept answer stale */
+    }
+    return control(d, 0x21, HID_SET_REPORT, buf[0], (uint8_t *)buf, len, NULL);
 }
 
 static bool any_open(void)

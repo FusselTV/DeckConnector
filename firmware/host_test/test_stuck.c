@@ -83,6 +83,24 @@ static void test_an_hour_without_a_hang_arms_the_restart_again(void)
     TEST_ASSERT_FALSE(restarted);
 }
 
+static void test_a_deck_hung_at_the_longest_wait_is_cycled_not_restarted(void)
+{
+    restarted = false;
+    hang_on(20 * MIN, 1, true);
+    restarted = true; /* the one restart went */
+    hang_on(st.last, 8, true);
+    TEST_ASSERT_EQUAL_INT64(60 * MIN, st.backoff);
+    TEST_ASSERT_EQUAL(DB_STUCK_CYCLE, db_stuck_next(&st, st.last + 60 * MIN + S, true, true, &restarted));
+    TEST_ASSERT_TRUE(restarted);
+}
+
+static void test_a_deck_left_alone_waits_5_min_at_most(void)
+{
+    hang_on(20 * MIN, 8, true);
+    TEST_ASSERT_EQUAL_INT64(60 * MIN, st.backoff);
+    TEST_ASSERT_EQUAL(DB_STUCK_CYCLE, db_stuck_next(&st, st.last + 5 * MIN + S, true, false, &restarted));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -93,5 +111,7 @@ int main(void)
     RUN_TEST(test_a_deck_that_stays_well_starts_over);
     RUN_TEST(test_one_restart_after_10_min_uptime);
     RUN_TEST(test_an_hour_without_a_hang_arms_the_restart_again);
+    RUN_TEST(test_a_deck_hung_at_the_longest_wait_is_cycled_not_restarted);
+    RUN_TEST(test_a_deck_left_alone_waits_5_min_at_most);
     return UNITY_END();
 }
