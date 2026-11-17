@@ -50,22 +50,27 @@ def fake():
         srv.server_close()
 
 
+def ours(zc: Zeroconf, kind: str):
+    """The board's announcement of `kind`, None after 10 s."""
+    found = []
+
+    class Seen:
+        def add_service(self, z, t, name):
+            found.append(z.get_service_info(t, name, 3000))
+
+        update_service = remove_service = lambda *a: None
+
+    ServiceBrowser(zc, kind, Seen())
+    return wait(lambda: next((i for i in found if i and HOST in i.parsed_addresses()), None), 10)
+
+
 def test_companion_discover_lists_the_board_under_both_service_types():
     zc = Zeroconf()
     try:
         for kind in ("_comp-sat-app._tcp.local.", "_companion-satellite._tcp.local."):
-            found = []
-
-            class Seen:
-                def add_service(self, z, t, name):
-                    found.append(z.get_service_info(t, name, 3000))
-
-                update_service = remove_service = lambda *a: None
-
-            ServiceBrowser(zc, kind, Seen())
-            ours = wait(lambda: next((i for i in found if i and HOST in i.parsed_addresses()), None), 10)
-            assert ours, f"no {kind} from {HOST}"
-            assert ours.port == 80 and ours.properties.get(b"restEnabled") == b"true"
+            info = ours(zc, kind)
+            assert info, f"no {kind} from {HOST}"
+            assert info.port == 80 and info.properties.get(b"restEnabled") == b"true"
     finally:
         zc.close()
 
