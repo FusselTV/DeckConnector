@@ -60,6 +60,9 @@ void db_ui_cancel_reset(void);
 /* The deck asks for `seconds` whether the browser at `ip` (network order) may log in; a newer call replaces
  * the question. False when no deck is connected. Only taps on the deck itself answer. */
 bool db_ui_ask_login(uint32_t ip, const char *who, int seconds);
+/* The deck asks for `seconds` whether to take Companion at `addr` ("host:port") over Satellite, over whoever
+ * draws; a newer call replaces the question. False when no deck is connected. */
+bool db_ui_ask_companion(const char *addr, int seconds);
 /* 1 accepted, 0 denied, -1 not answered (yet) for the last question. */
 int db_ui_login_answer(void);
 void db_ui_end_login(void);

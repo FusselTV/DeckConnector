@@ -663,20 +663,22 @@ static void request_page(page_t *p)
 static void offer_page(page_t *p)
 {
     const ui_model_t *md = p->md;
+    const char *says = md->offer_asked ? L("möchte das Deck", "wants the deck") : L("gefunden", "found");
     card(put(p, at(p, 0, 0), K_NONE), ICON_COMPANION, fit(p, "Companion", L("Gefunden", "Found")),
-         md->offer_name, fit(p, L("gefunden", "found"), ""));
+         md->offer_name, fit(p, says, ""));
     ui_tile_t *yes = put(p, at(p, 0, 1), K_ACCEPT);
     button(yes, ICON_SAVE, L("Verbinden", "Connect"), fit(p, L("über Satellite", "over Satellite"), ""));
     yes->active = true;
     yes->color = C_ACTIVE;
     ui_tile_t *no = put(p, at(p, 0, 2), K_DENY);
-    button(no, ICON_CLOSE, L("Nein", "No"), fit(p, L("nicht fragen", "do not ask"), ""));
+    button(no, ICON_CLOSE, L("Nein", "No"), md->offer_asked ? "" : fit(p, L("nicht fragen", "do not ask"), ""));
     no->color = C_DANGER;
     if (p->l->strip) {
         char v[48];
         snprintf(v, sizeof(v), L("%.24s verbinden?", "Connect %.24s?"), md->offer_name);
-        segment(&p->sc->seg[0], 4, ICON_COMPANION, C_EDIT, L("Companion gefunden", "Companion found"), v,
-                md->offer_addr);
+        segment(&p->sc->seg[0], 4, ICON_COMPANION, C_EDIT,
+                md->offer_asked ? L("Companion fragt", "Companion asks") : L("Companion gefunden", "Companion found"),
+                v, md->offer_addr);
     }
 }
 
@@ -821,8 +823,9 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     }
 }
 
-/* The page that shows: a connection request comes first, then a reset question, a login request, the
- * password, the running setup WLAN, a found Companion, then the welcome steps until setup is done. */
+/* The page that shows: a connection request comes first, then a reset question, a login request, a Companion
+ * asking for the deck, the password, the running setup WLAN, a found Companion, then the welcome steps until
+ * setup is done. */
 static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
 {
     ui_menu_t shown = *m;
@@ -832,6 +835,8 @@ static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
         shown.page = PAGE_RESET;
     } else if (md->login_ip[0]) {
         shown.page = PAGE_LOGIN_REQ;
+    } else if (md->offer_asked) {
+        shown.page = PAGE_OFFER;
     } else if (md->show_pass) {
         shown.page = PAGE_PASSWORD;
     } else if (m->page == PAGE_HOME && md->ap_on) { /* also when it started by itself: its password is here */

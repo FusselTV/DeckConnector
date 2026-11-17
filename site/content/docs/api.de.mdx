@@ -88,6 +88,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/status` | Zustand der Platine, siehe [Status](#status) | control |
 | `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set` und `token_set` | full |
 | `PUT /api/config` | Einstellungen ändern. Schick nur die Schlüssel, die sich ändern. Die Antwort hat `restart` und `config` | full |
+| `POST /api/config` | **Setup** aus Companions Surfaces › Discover: `{"host": "...", "port": 16622}` als `application/json`. Ohne Satellite-Adresse und solange nichts zeichnet, übernimmt die Platine es, sonst fragt das Deck 60 s lang | open |
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include <arpa/inet.h>
 
@@ -17,6 +18,7 @@
 #include "db_log.h"
 #include "db_net.h"
 #include "db_ota.h"
+#include "db_sat.h"
 #include "db_satellite.h"
 #include "db_screen.h"
 #include "db_ui.h"
@@ -441,6 +443,66 @@ esp_err_t put_config(httpd_req_t *req)
         snprintf(reply + n, REPLY_MAX - n, "}");
     }
     return reply_with(req, code, reply);
+}
+
+/* Companion's Discover, "Setup" on a found Satellite: an unauthenticated POST of {"host", "port"}, as the
+ * official Satellite takes it. A bridge with no Satellite address and nobody drawing takes it at once; else the
+ * deck asks, so nobody on the network takes a deck in use without a tap on it. */
+esp_err_t post_companion_setup(httpd_req_t *req)
+{
+    static int64_t last_us;
+    int64_t now = esp_timer_get_time();
+    if (last_us && now - last_us < 2000000) {
+        return send_error(req, "429 Too Many Requests", "one Companion setup per 2 s");
+    }
+    last_us = now;
+    /* a web page can POST only text/plain and form types without a CORS preflight, which we refuse */
+    char type[40] = "";
+    httpd_req_get_hdr_value_str(req, "Content-Type", type, sizeof(type));
+    if (strncasecmp(type, "application/json", 16) != 0) {
+        return send_error(req, "415 Unsupported Media Type", "application/json expected");
+    }
+    char body[192];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *h = cJSON_GetObjectItemCaseSensitive(root, "host");
+    const cJSON *p = cJSON_GetObjectItemCaseSensitive(root, "port");
+    char addr[sizeof(db_config()->satellite)] = "";
+    if (cJSON_IsString(h) && h->valuestring[0] && strlen(h->valuestring) < 48 && db_config_ntp_ok(h->valuestring) &&
+        cJSON_IsNumber(p) && p->valueint > 0 && p->valueint < 65536) {
+        snprintf(addr, sizeof(addr), "%s:%d", h->valuestring, p->valueint);
+    }
+    cJSON_Delete(root);
+    if (!addr[0]) {
+        return send_error(req, "400 Bad Request", "host and port expected");
+    }
+    const db_config_t *c = db_config();
+    char host[64], now_host[64];
+    db_sat_addr_host(addr, host, sizeof(host));
+    db_sat_addr_host(c->satellite, now_host, sizeof(now_host));
+    if (c->controller == DB_CTRL_COMPANION && strcmp(c->host, "satellite") == 0 && strcmp(host, now_host) == 0) {
+        return send_json(req, "{\"ok\":true}");
+    }
+    if (c->satellite[0] || db_deck_writer() != DB_SOURCE_UI) {
+        if (!db_ui_ask_companion(addr, 60)) {
+            return send_error(req, "409 Conflict", "no deck attached to confirm on");
+        }
+        db_log_event(TAG, "companion", "Companion %s asks for the deck", addr);
+        return send_json(req, "{\"ok\":true,\"confirm\":\"deck\"}");
+    }
+    db_config_t n;
+    db_config_edit_begin();
+    db_config_copy(&n);
+    snprintf(n.satellite, sizeof(n.satellite), "%s", addr);
+    n.satellite_auto_off = false;
+    n.controller = DB_CTRL_COMPANION;
+    snprintf(n.host, sizeof(n.host), "satellite");
+    esp_err_t err = db_config_save(&n);
+    db_config_edit_end();
+    if (err != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
+    }
+    db_log_event(TAG, "companion", "Companion %s set up over Satellite by its Discover", addr);
+    return send_json(req, "{\"ok\":true}");
 }
 
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck
