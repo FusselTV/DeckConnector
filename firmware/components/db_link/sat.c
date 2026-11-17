@@ -84,6 +84,7 @@ static struct {
     db_display_t display; /* format and orientation the deck takes */
     bool png;
     bool rotary_amount;
+    bool swipe;
     bool caching;
     int brightness;
     bool was_writer;
@@ -338,10 +339,6 @@ static void add_device(void)
     bool sent = false;
     xSemaphoreTake(s.lock, portMAX_DELAY);
     size_t len = json ? db_sat_manifest(s.ctl, s.nctl, json, 2048) : 0;
-    bool strip = false;
-    for (size_t i = 0; i < s.nctl; i++) {
-        strip |= s.ctl[i].kind == DB_SAT_LCD;
-    }
     xSemaphoreGive(s.lock);
     if (len && b64 && line &&
         mbedtls_base64_encode((unsigned char *)b64, 2800, &n, (unsigned char *)json, len) == 0) {
@@ -351,7 +348,7 @@ static void add_device(void)
                          "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
                          "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s%s\n",
                          s.serial, s.serial, s.model, b64, s.png ? "png" : "rgb",
-                         strip ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
+                         s.swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
         xSemaphoreTake(s.tx, portMAX_DELAY);
         if (k > 0 && k < 3200) {
             raw_send(line, (size_t)k);
@@ -392,6 +389,7 @@ static void apply_device(void)
         snprintf(s.model, sizeof(s.model), "%s", dev->model);
         s.display = dev->displays[0];
     }
+    s.swipe = present && dev->touch_count > 0;
     free(dev);
     size_t px = 0;
     for (size_t i = 0; i < s.nctl; i++) {
