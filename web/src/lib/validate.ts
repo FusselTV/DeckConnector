@@ -79,7 +79,7 @@ export const nameError = (v: string): Key | null => (NAME_RE.test(v) ? null : 'n
 /** Companion address: IP, host, host:port, or a ws(s):// URL. */
 export const httpUrlError = (v: string): Key | null => {
   try {
-    return new URL(v.trim()).protocol === 'http:' ? null : 'fw.bad_url'
+    return ['http:', 'https:'].includes(new URL(v.trim()).protocol) ? null : 'fw.bad_url'
   } catch {
     return 'fw.bad_url'
   }

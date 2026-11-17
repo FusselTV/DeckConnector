@@ -13,6 +13,7 @@
 #include "esp_heap_caps.h"
 #include "esp_hosted.h"
 #include "esp_hosted_ota.h"
+#include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_image_format.h"
 #include "esp_log.h"
@@ -109,9 +110,10 @@ esp_err_t db_ota_begin(size_t total, int slot, bool boot)
         return ESP_ERR_INVALID_STATE;
     }
     s.refusal = NULL;
-    if (total <= HEADER_LEN) {
+    const esp_partition_t *app = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
+    if (total <= HEADER_LEN || (app && total > HEADER_LEN + app->size)) { /* no target is larger than a slot */
         xSemaphoreGive(s.lock);
-        return ESP_ERR_INVALID_SIZE;
+        return total <= HEADER_LEN ? ESP_ERR_INVALID_SIZE : ESP_ERR_INVALID_ARG;
     }
     s.busy = true;
     s.slot = slot;
@@ -513,14 +515,36 @@ esp_err_t db_ota_end(void)
     return ESP_OK;
 }
 
+static esp_http_client_handle_t db_ota_http(const char *url)
+{
+    esp_http_client_config_t cfg = {
+        .url = url,
+        .timeout_ms = 10000,
+        .buffer_size = 4096,
+        .buffer_size_tx = 2048, /* the storage URL a GitHub download redirects to is long */
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .user_agent = "DeckConnector",
+    };
+    return esp_http_client_init(&cfg);
+}
+
 static void url_task(void *arg)
 {
     char *url = arg;
-    esp_http_client_config_t cfg = {.url = url, .timeout_ms = 10000, .buffer_size = 4096};
-    esp_http_client_handle_t c = esp_http_client_init(&cfg);
-    esp_err_t err = c ? esp_http_client_open(c, 0) : ESP_ERR_NO_MEM;
-    int64_t len = err == ESP_OK ? esp_http_client_fetch_headers(c) : -1;
-    int status = err == ESP_OK ? esp_http_client_get_status_code(c) : 0;
+    esp_http_client_handle_t c = db_ota_http(url);
+    esp_err_t err = c ? ESP_OK : ESP_ERR_NO_MEM;
+    int64_t len = -1;
+    int status = 0;
+    /* a GitHub release file answers with a redirect to its storage */
+    for (int hop = 0; err == ESP_OK && hop < 5; hop++) {
+        err = esp_http_client_open(c, 0);
+        len = err == ESP_OK ? esp_http_client_fetch_headers(c) : -1;
+        status = err == ESP_OK ? esp_http_client_get_status_code(c) : 0;
+        if (status < 301 || status > 308 || status == 304 || esp_http_client_set_redirection(c) != ESP_OK) {
+            break;
+        }
+        esp_http_client_close(c);
+    }
     char why[32] = "no Content-Length";
     if (err != ESP_OK) {
         snprintf(why, sizeof(why), "%s", esp_err_to_name(err));
@@ -529,6 +553,9 @@ static void url_task(void *arg)
     }
     esp_err_t begun =
         err == ESP_OK && status == 200 && len > 0 ? db_ota_begin((size_t)len, -1, true) : ESP_FAIL;
+    if (begun == ESP_ERR_INVALID_ARG || begun == ESP_ERR_INVALID_SIZE) {
+        snprintf(why, sizeof(why), "%s", begun == ESP_ERR_INVALID_ARG ? "larger than a firmware slot" : "too short");
+    }
     if (begun == ESP_ERR_INVALID_STATE) {
         ESP_LOGW(TAG, "download of %s skipped: an update is already running",
                  url); /* its state stays as it is */

@@ -47,7 +47,7 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 | `ota_not_signed` | Not signed with this board's key |
 | `ota_wrong_target` | For another device or part |
 | `ota_too_old` | Below the security level |
-| `url_http_only` | The URL must start with `http://` |
+| `url_http_only` | The URL must start with `http://` or `https://` |
 | `no_releases` | No releases to check yet |
 | `probe_no_connection` | Nothing answers at this address |
 | `probe_no_answer` | The address takes the connection but sends nothing within 3 s |
@@ -131,7 +131,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | Route | What it does | Level |
 |---|---|---|
 | `POST /api/ota` | A signed `.dbfw` file as the body. Goes into the next slot and restarts. `?slot=N` writes into slot N, `?boot=0` keeps the running firmware | full |
-| `POST /api/ota/url` | `{"url": "http://..."}`, the board loads the file itself. Progress comes over the WebSocket | full |
+| `POST /api/ota/url` | `{"url": "https://..."}`, the board loads the file itself, also behind a redirect. Progress comes over the WebSocket | full |
 | `POST /api/ota/inspect` | The first 144 bytes of a file. Answers `target`, `version`, `length`, `sha256`, and `ok` with `error` | full |
 | `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}` | full |
 | `GET /api/slots` | The four slots with `state`, `version`, `running`, `next`, `bootable` and `why_not` | full |

@@ -2,6 +2,7 @@
 #include "auth.h"
 #include "events.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,7 @@
 #include "db_ota.h"
 #include "db_sat.h"
 #include "db_satellite.h"
+#include "db_version.h"
 #include "db_screen.h"
 #include "db_ui.h"
 #include "db_web.h"
@@ -37,6 +39,8 @@
 #include "web.h"
 #if !CONFIG_IDF_TARGET_LINUX
 #include "esp_core_dump.h"
+#include "esp_crt_bundle.h"
+#include "esp_http_client.h"
 #include "esp_partition.h"
 #endif
 
@@ -694,6 +698,9 @@ esp_err_t post_ota(httpd_req_t *req)
     if (begun == ESP_ERR_INVALID_SIZE) {
         return send_error(req, "400 Bad Request", "file too short for a .dbfw file");
     }
+    if (begun == ESP_ERR_INVALID_ARG) {
+        return send_error(req, "413 Payload Too Large", "file larger than a firmware slot");
+    }
     if (begun != ESP_OK) {
         return send_error(req, "409 Conflict", "an update is already running");
     }
@@ -969,15 +976,147 @@ esp_err_t put_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-/* TODO: ask the GitHub releases of FusselTV/DeckConnector once there are any, and install the release's
- * .dbfw with POST /api/ota/url. */
+#define RELEASES "https://api.github.com/repos/FusselTV/DeckConnector/releases?per_page=8"
+#define RELEASES_MAX (256 * 1024)
+
+/* The JSON of a release list, NULL with *why and *code set on failure; the caller frees it with heap_caps_free. */
+static char *fetch(const char *url, const char **why, const char **code)
+{
+    *code = "unreachable";
+#if CONFIG_IDF_TARGET_LINUX
+    *why = "the simulator has no network";
+    return NULL;
+#else
+    esp_http_client_config_t cfg = {
+        .url = url,
+        .timeout_ms = 8000,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .user_agent = "DeckConnector", /* GitHub refuses API calls without one */
+    };
+    esp_http_client_handle_t c = esp_http_client_init(&cfg);
+    char *body = heap_caps_malloc(RELEASES_MAX, MALLOC_CAP_SPIRAM);
+    int got = 0, n;
+    *why = !c || !body ? "out of memory" : NULL;
+    if (!*why) {
+        esp_http_client_set_header(c, "Accept", "application/vnd.github+json");
+        if (esp_http_client_open(c, 0) != ESP_OK || esp_http_client_fetch_headers(c) < 0) {
+            *why = "GitHub not reachable";
+        } else if (esp_http_client_get_status_code(c) != 200) {
+            bool limited = esp_http_client_get_status_code(c) == 403 || esp_http_client_get_status_code(c) == 429;
+            *why = limited ? "GitHub limits checks, try again later" : "no releases yet";
+            *code = limited ? "rate_limited" : "no_releases";
+        }
+    }
+    while (!*why && got < RELEASES_MAX - 1 && (n = esp_http_client_read(c, body + got, RELEASES_MAX - 1 - got)) > 0) {
+        got += n;
+    }
+    if (!*why && got >= RELEASES_MAX - 1) {
+        *why = "releases list too long";
+    }
+    if (c) {
+        esp_http_client_cleanup(c);
+    }
+    if (*why) {
+        heap_caps_free(body);
+        return NULL;
+    }
+    body[got] = '\0';
+    return body;
+#endif
+}
+
+/* %XX in a query value, in place: esp_http_server leaves it encoded */
+static void url_decode(char *s)
+{
+    char *o = s;
+    for (; *s; s++) {
+        unsigned v;
+        if (*s == '%' && sscanf(s + 1, "%2x", &v) == 1 && isxdigit((unsigned char)s[1]) &&
+            isxdigit((unsigned char)s[2])) {
+            *o++ = (char)v;
+            s += 2;
+        } else {
+            *o++ = *s == '+' ? ' ' : *s;
+        }
+    }
+    *o = '\0';
+}
+
+/* GET /api/update/check: the newest release on GitHub, a prerelease only while one runs. `url` (the release's
+ * .dbfw, for POST /api/ota/url) only when it is newer than the running firmware. `?feed=` takes another list
+ * in the same format, for tests. Answers come from a cache for a minute: GitHub allows 60 calls per hour. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
-    char body[160];
-    snprintf(body, sizeof(body),
-             "{\"current\":\"%s\",\"latest\":null,\"error\":\"no releases yet\",\"code\":\"no_releases\"}",
-             esp_app_get_description()->version);
-    return send_json(req, body);
+    static char reply[512];
+    static int64_t at;
+    static char feed_at[160];
+    char q[192] = "", feed[160] = RELEASES;
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+        if (httpd_query_key_value(q, "feed", feed, sizeof(feed)) == ESP_OK) {
+            url_decode(feed);
+        }
+    }
+    int64_t now = esp_timer_get_time();
+    if (at && now - at < 60 * 1000000LL && strcmp(feed, feed_at) == 0) {
+        return send_json(req, reply);
+    }
+    const char *current = esp_app_get_description()->version;
+    const char *why = NULL, *code = NULL;
+    char *list = fetch(feed, &why, &code);
+    cJSON *root = list ? cJSON_Parse(list) : NULL;
+    heap_caps_free(list);
+    const cJSON *best = NULL, *r;
+    bool pre_ok = db_version_pre(current);
+    const cJSON *releases = cJSON_IsArray(root) ? root : NULL;
+    cJSON_ArrayForEach(r, releases)
+    {
+        const cJSON *tag = cJSON_GetObjectItemCaseSensitive(r, "tag_name");
+        if (!cJSON_IsString(tag) || cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(r, "draft")) ||
+            (!pre_ok && (db_version_pre(tag->valuestring) ||
+                         cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(r, "prerelease"))))) {
+            continue;
+        }
+        if (!best || db_version_cmp(tag->valuestring,
+                                    cJSON_GetObjectItemCaseSensitive(best, "tag_name")->valuestring) > 0) {
+            best = r;
+        }
+    }
+    db_json_t j;
+    db_json_begin(&j, reply, sizeof(reply));
+    db_json_obj_open(&j, NULL);
+    db_json_str(&j, "current", current);
+    if (!best) {
+        db_json_null(&j, "latest");
+        db_json_str(&j, "error", why ? why : "no releases yet");
+        db_json_str(&j, "code", why ? code : "no_releases");
+    } else {
+        const char *tag = cJSON_GetObjectItemCaseSensitive(best, "tag_name")->valuestring;
+        db_json_str(&j, "latest", tag);
+        const cJSON *notes = cJSON_GetObjectItemCaseSensitive(best, "html_url");
+        if (cJSON_IsString(notes)) {
+            db_json_str(&j, "notes", notes->valuestring);
+        }
+        char want[64];
+        snprintf(want, sizeof(want), "deckconnector-%s.dbfw", tag);
+        const cJSON *a;
+        cJSON_ArrayForEach(a, cJSON_GetObjectItemCaseSensitive(best, "assets"))
+        {
+            const cJSON *name = cJSON_GetObjectItemCaseSensitive(a, "name");
+            const cJSON *url = cJSON_GetObjectItemCaseSensitive(a, "browser_download_url");
+            if (db_version_cmp(tag, current) > 0 && cJSON_IsString(name) && strcmp(name->valuestring, want) == 0 &&
+                cJSON_IsString(url)) {
+                db_json_str(&j, "url", url->valuestring);
+            }
+        }
+    }
+    cJSON_Delete(root);
+    db_json_obj_close(&j);
+    if (!db_json_end(&j)) {
+        return send_error(req, "500 Internal Server Error", "reply too long");
+    }
+    at = why ? 0 : now; /* a failure is asked again at once */
+    strlcpy(feed_at, feed, sizeof(feed_at));
+    return send_json(req, reply);
 }
 
 /* POST /api/sources/probe {"addr", "pin"}: is Companion's Satellite API there? Blocks for up to 6 s. */
@@ -1343,11 +1482,12 @@ esp_err_t post_ota_url(httpd_req_t *req)
     }
     cJSON *root = cJSON_Parse(body);
     const cJSON *url = cJSON_GetObjectItemCaseSensitive(root, "url");
-    bool ok = cJSON_IsString(url) && strncmp(url->valuestring, "http://", 7) == 0;
+    bool ok = cJSON_IsString(url) &&
+              (strncmp(url->valuestring, "http://", 7) == 0 || strncmp(url->valuestring, "https://", 8) == 0);
     esp_err_t err = ok ? db_ota_start_url(url->valuestring) : ESP_ERR_INVALID_ARG;
     cJSON_Delete(root);
     if (!ok) {
-        return send_error(req, "400 Bad Request", "url: http://… to a signed .dbfw file expected");
+        return send_error(req, "400 Bad Request", "url: http(s)://… to a signed .dbfw file expected");
     }
     if (err == ESP_ERR_INVALID_STATE) {
         return send_error(req, "409 Conflict", "an update is already running");

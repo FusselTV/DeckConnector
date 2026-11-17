@@ -66,7 +66,7 @@ const char *db_web_error_code(const char *msg)
         {"ota_wrong_target", "unknown target"},
         {"ota_wrong_target", "not a bootloader for this chip"},
         {"ota_too_old", "below the security level"},
-        {"url_http_only", "url: http://"},
+        {"url_http_only", "url: http(s)://"},
         {"no_releases", "no releases yet"},
         {"probe_no_name", "name not found"},
         {"probe_refused", "connection refused"},
