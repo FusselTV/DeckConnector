@@ -8,26 +8,26 @@ typedef struct {
 } note_t;
 
 /* Short and in a high register: a small speaker plays it clearly, and it is over before anyone looks up. */
-static const note_t READY[] = {{1047, 90}, {0, 30}, {1568, 140}};
-static const note_t CONNECTED[] = {{1319, 80}};
-static const note_t LOST[] = {{1568, 90}, {0, 30}, {1047, 140}};
-static const note_t FIND[] = {{2093, 120}, {0, 80}, {2093, 120}, {0, 80}, {2093, 120}, {0, 600},
+static const note_t ready[] = {{1047, 90}, {0, 30}, {1568, 140}};
+static const note_t connected[] = {{1319, 80}};
+static const note_t lost[] = {{1568, 90}, {0, 30}, {1047, 140}};
+static const note_t find[] = {{2093, 120}, {0, 80}, {2093, 120}, {0, 80}, {2093, 120}, {0, 600},
                               {2093, 120}, {0, 80}, {2093, 120}, {0, 80}, {2093, 120}};
 
 static const struct {
     const char *name;
     const note_t *notes;
     size_t n;
-} SOUNDS[DB_SOUND_COUNT] = {
-    [DB_SOUND_READY] = {"ready", READY, sizeof(READY) / sizeof(READY[0])},
-    [DB_SOUND_CONNECTED] = {"connected", CONNECTED, sizeof(CONNECTED) / sizeof(CONNECTED[0])},
-    [DB_SOUND_LOST] = {"lost", LOST, sizeof(LOST) / sizeof(LOST[0])},
-    [DB_SOUND_FIND] = {"find", FIND, sizeof(FIND) / sizeof(FIND[0])},
+} sounds[DB_SOUND_COUNT] = {
+    [DB_SOUND_READY] = {"ready", ready, sizeof(ready) / sizeof(ready[0])},
+    [DB_SOUND_CONNECTED] = {"connected", connected, sizeof(connected) / sizeof(connected[0])},
+    [DB_SOUND_LOST] = {"lost", lost, sizeof(lost) / sizeof(lost[0])},
+    [DB_SOUND_FIND] = {"find", find, sizeof(find) / sizeof(find[0])},
 };
 
 const char *db_sound_name(db_sound_t sound)
 {
-    return sound < DB_SOUND_COUNT ? SOUNDS[sound].name : NULL;
+    return sound < DB_SOUND_COUNT ? sounds[sound].name : NULL;
 }
 
 size_t db_tones_render(db_sound_t sound, int volume, int rate, int16_t *out, size_t max)
@@ -38,17 +38,17 @@ size_t db_tones_render(db_sound_t sound, int volume, int rate, int16_t *out, siz
     volume = volume > 100 ? 100 : volume;
     /* loudness follows the square: 50 sounds about half as loud as 100; half scale leaves the codec headroom
      */
-    float amp = 16000.0f * (float)(volume * volume) / 10000.0f;
+    float amp = 16000.0F * (float)(volume * volume) / 10000.0F;
     int ramp = rate / 200; /* 5 ms in and out: no click */
     size_t at = 0;
-    for (size_t i = 0; i < SOUNDS[sound].n; i++) {
-        const note_t *n = &SOUNDS[sound].notes[i];
+    for (size_t i = 0; i < sounds[sound].n; i++) {
+        const note_t *n = &sounds[sound].notes[i];
         int len = rate * n->ms / 1000;
         for (int k = 0; k < len && at < max; k++, at++) {
             float env = k < ramp         ? (float)k / (float)ramp
                         : len - k < ramp ? (float)(len - k) / (float)ramp
-                                         : 1.0f;
-            float phase = 2.0f * (float)M_PI * (float)n->hz * (float)k / (float)rate;
+                                         : 1.0F;
+            float phase = 2.0F * (float)M_PI * (float)n->hz * (float)k / (float)rate;
             out[at] = n->hz ? (int16_t)(amp * env * sinf(phase)) : 0;
         }
     }
