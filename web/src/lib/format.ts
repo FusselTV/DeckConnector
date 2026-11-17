@@ -19,6 +19,11 @@ export function makeFmt(lang: Lang) {
     time: (d: number | Date) => new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }),
     clock: (d: number | Date) =>
       new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    /** The clock today, else with the date. */
+    stamp: (d: number | Date) =>
+      new Date(d).toDateString() === new Date().toDateString()
+        ? new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : new Date(d).toLocaleString(lang, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
     up: (s: number) => {
       const d = Math.floor(s / 86400)
       const h = Math.floor((s % 86400) / 3600)

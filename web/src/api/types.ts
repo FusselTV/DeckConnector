@@ -161,7 +161,10 @@ export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
   }
 
 export interface DeviceEvent {
-  since_s: number
+  /** Seconds after its boot's start; null for an earlier boot. */
+  since_s: number | null
+  /** 0 this boot, 1 the one before, ... */
+  boot?: number
   /** Unix time, null before the clock is set. */
   at: number | null
   kind: string

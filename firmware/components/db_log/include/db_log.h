@@ -13,11 +13,14 @@ size_t db_log_since(uint64_t *pos, char *buf, size_t cap);
 size_t db_log_prev(char *buf, size_t cap);
 
 /* Things worth a timeline (a source came or went, a roam, pairing, an update): logged like ESP_LOGI under
- * `tag` and kept in a ring of the last DB_EVENTS. `kind` is a short word such as "source" or "wlan". */
-#define DB_EVENTS 32
+ * `tag` and kept in a ring of the last DB_EVENTS. `kind` is a short word such as "source" or "wlan". The last
+ * DB_EVENTS_KEPT also go to flash, so the next boots show them too. */
+#define DB_EVENTS      64
+#define DB_EVENTS_KEPT 40
 typedef struct {
-    int64_t at_us;  /* esp_timer time */
+    int64_t at_us;  /* esp_timer time of its boot */
     int64_t unix_s; /* 0 before the clock was set */
+    uint8_t boot;   /* 0 this boot, 1 the one before, ... */
     char kind[12];
     char text[84];
 } db_event_t;

@@ -678,6 +678,7 @@ export const de: Dict = {
   'ev.title': 'Ereignisse',
   'ev.what': 'Was geschah',
   'ev.none': 'Noch nichts.',
+  'ev.earlier': 'Vor einem Neustart',
   'in.title': 'Eingaben',
   'in.open': 'Alle Eingaben',
   'in.o_web': 'Browser',

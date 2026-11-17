@@ -27,7 +27,7 @@ import {
   TriangleAlert,
   Wifi,
 } from 'lucide-react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, coredumpRawUrl } from '../api/client'
 import type { DeviceEvent, InputEvent, Metrics, Profile, Route } from '../api/types'
 import { followLog } from '../app/connection'
@@ -438,18 +438,28 @@ function Events() {
           </thead>
           <tbody>
             {rows.length ? (
-              rows.map((e) => {
+              rows.map((e, i) => {
                 const I = EV_ICON[e.kind] ?? Activity
+                const at = e.at ? e.at * 1000 : e.since_s !== null ? bootAt + e.since_s * 1000 : null
                 return (
-                  <tr key={`${e.since_s}-${e.kind}-${e.text}`}>
-                    <td className="mono">{fmt.clock(e.at ? e.at * 1000 : bootAt + e.since_s * 1000)}</td>
-                    <td>
-                      <span className="ino ev">
-                        <I size={14} aria-hidden />
-                        <span>{e.text}</span>
-                      </span>
-                    </td>
-                  </tr>
+                  <Fragment key={`${e.boot ?? 0}-${i}`}>
+                    {!!e.boot && rows[i - 1]?.boot !== e.boot && (
+                      <tr>
+                        <td colSpan={2} className="muted small">
+                          {t('ev.earlier')}
+                        </td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="mono">{at === null ? '–' : fmt.stamp(at)}</td>
+                      <td>
+                        <span className="ino ev">
+                          <I size={14} aria-hidden />
+                          <span>{e.text}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  </Fragment>
                 )
               })
             ) : (

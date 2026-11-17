@@ -11,6 +11,8 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "nvs.h"
 
 #define RING_SIZE (16 * 1024)
 #define MAGIC     0x64626c67
@@ -23,9 +25,98 @@ static RTC_NOINIT_ATTR uint32_t magic;
 static char *prev;
 static size_t prev_len;
 static vprintf_like_t serial;
+static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 static db_event_t *events; /* PSRAM ring, made in db_log_start() */
 static uint32_t n_events;
-static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t n_kept;  /* events of this boot already in flash */
+static uint32_t n_older; /* events loaded from earlier boots, at the ring's start */
+static TaskHandle_t keeper;
+
+/* In flash: "n" counts every event ever kept, event i sits in key "e<i % DB_EVENTS_KEPT>" as a kept_t, "boot"
+ * counts the boots. */
+typedef struct {
+    int64_t unix_s;
+    uint32_t boot;
+    char kind[12];
+    char text[84];
+} kept_t;
+static uint32_t boot_no;
+
+static void key_of(uint32_t i, char *key)
+{
+    snprintf(key, 8, "e%u", (unsigned)(i % DB_EVENTS_KEPT));
+}
+
+/* The older boots' events, oldest first, before this boot's first. */
+static void load_kept(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("evlog", NVS_READWRITE, &h) != ESP_OK) {
+        return;
+    }
+    uint32_t n = 0;
+    nvs_get_u32(h, "boot", &boot_no);
+    nvs_set_u32(h, "boot", ++boot_no);
+    nvs_get_u32(h, "n", &n);
+    nvs_commit(h);
+    for (uint32_t i = n > DB_EVENTS_KEPT ? n - DB_EVENTS_KEPT : 0; i < n; i++) {
+        kept_t k;
+        size_t len = sizeof(k);
+        char key[8];
+        key_of(i, key);
+        if (nvs_get_blob(h, key, &k, &len) != ESP_OK || len != sizeof(k) || boot_no - k.boot > 255) {
+            continue;
+        }
+        db_event_t *e = &events[n_events++ % DB_EVENTS];
+        *e = (db_event_t){.unix_s = k.unix_s, .boot = (uint8_t)(boot_no - k.boot)};
+        memcpy(e->kind, k.kind, sizeof(e->kind));
+        memcpy(e->text, k.text, sizeof(e->text));
+        e->kind[sizeof(e->kind) - 1] = e->text[sizeof(e->text) - 1] = '\0';
+    }
+    n_older = n_events;
+    nvs_close(h);
+}
+
+/* Writes this boot's new events to flash, at most every 2 s: a flash write stalls both CPUs for a moment, and
+ * must not do so inside db_log_event(), which USB and network tasks call. */
+static void keep_task(void *arg)
+{
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        nvs_handle_t h;
+        if (nvs_open("evlog", NVS_READWRITE, &h) != ESP_OK) {
+            continue;
+        }
+        uint32_t n = 0;
+        nvs_get_u32(h, "n", &n);
+        for (;;) {
+            portENTER_CRITICAL(&mux);
+            if (n_events - (n_older + n_kept) > DB_EVENTS) { /* the ring moved on: skip what it overwrote */
+                n_kept = n_events - n_older - DB_EVENTS;
+            }
+            bool more = n_older + n_kept < n_events;
+            db_event_t e = more ? events[(n_older + n_kept) % DB_EVENTS] : (db_event_t){0};
+            portEXIT_CRITICAL(&mux);
+            if (!more) {
+                break;
+            }
+            kept_t k = {.unix_s = e.unix_s, .boot = boot_no};
+            memcpy(k.kind, e.kind, sizeof(k.kind));
+            memcpy(k.text, e.text, sizeof(k.text));
+            char key[8];
+            key_of(n, key);
+            if (nvs_set_blob(h, key, &k, sizeof(k)) != ESP_OK) {
+                break;
+            }
+            n++;
+            n_kept++;
+        }
+        nvs_set_u32(h, "n", n);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+}
 
 static int capture(const char *fmt, va_list args)
 {
@@ -57,6 +148,10 @@ void db_log_start(void)
     magic = MAGIC;
     serial = esp_log_set_vprintf(capture);
     events = heap_caps_calloc(DB_EVENTS, sizeof(*events), MALLOC_CAP_SPIRAM);
+    if (events) {
+        load_kept();
+        xTaskCreatePinnedToCore(keep_task, "evlog", 3072, NULL, 1, &keeper, 1);
+    }
 }
 
 size_t db_log_prev(char *buf, size_t cap)
@@ -133,6 +228,9 @@ void db_log_event(const char *tag, const char *kind, const char *fmt, ...)
     portENTER_CRITICAL(&mux);
     events[n_events++ % DB_EVENTS] = e;
     portEXIT_CRITICAL(&mux);
+    if (keeper) {
+        xTaskNotifyGive(keeper);
+    }
 }
 
 size_t db_log_events(db_event_t *out, size_t max)
