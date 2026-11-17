@@ -389,13 +389,26 @@ static int present_count(void)
     return n;
 }
 
-static void park(uint8_t address)
+/* False when it waits already. */
+static bool park(uint8_t address)
+{
+    int empty = -1;
+    for (int i = USB_PORT_DEVS - 1; i >= 0; i--) {
+        if (s.waiting[i] == address) {
+            return false;
+        }
+        empty = s.waiting[i] ? empty : i;
+    }
+    if (empty >= 0) {
+        s.waiting[empty] = address;
+    }
+    return true;
+}
+
+static void unpark_one(uint8_t address)
 {
     for (int i = 0; i < USB_PORT_DEVS; i++) {
-        if (!s.waiting[i] || s.waiting[i] == address) {
-            s.waiting[i] = address;
-            return;
-        }
+        s.waiting[i] = s.waiting[i] == address ? 0 : s.waiting[i];
     }
 }
 
@@ -416,13 +429,16 @@ static void count_parked(void)
 
 static void on_attached(uint8_t address);
 
-/* The waiting decks come again, for a free place or a raised limit; one that went meanwhile is not found. */
+/* The waiting decks come again when there is room: a free place or a raised limit. One that went meanwhile is
+ * not found. Each that gets in leaves the list, the others stay on it. */
 static void unpark(void)
 {
+    if (present_count() >= s.max_decks) {
+        return; /* a config save or the detach of a deck that is not counted: nothing changed for them */
+    }
     for (int i = 0; i < USB_PORT_DEVS; i++) {
         if (s.waiting[i]) {
             on_attached(s.waiting[i]);
-            s.waiting[i] = 0;
         }
     }
 }
@@ -466,7 +482,8 @@ static void handle_attach(uint8_t address)
      * other decks go too; left alone the deck would hang and on_stuck would cycle it later anyway. */
     uint16_t vid;
     uint16_t pid;
-    if ((address & 0x0f) == 0 && usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
+    if ((address & 0x0f) == 0 && present_count() < s.max_decks &&
+        usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
         if (take_cycle(esp_timer_get_time())) {
             ESP_LOGW(TAG, "USB address %u, plugging the decks in again", address);
             start_replug(address, 500);
@@ -498,12 +515,15 @@ static void handle_attach(uint8_t address)
     }
     if (present_count() >= s.max_decks) {
         driver->set_brightness(&dev, 0); /* lit, it would show its logo and draw current */
-        db_log_event(TAG, "deck", "deck at USB address %u left dark: max_decks is %d", address, s.max_decks);
         usb_port_close(port);
-        park(address);
+        if (park(address)) {
+            db_log_event(TAG, "deck", "deck at USB address %u left dark: max_decks is %d", address,
+                         s.max_decks);
+        }
         count_parked();
         return;
     }
+    unpark_one(address);
     int deck = take_slot(port, dev.info.serial);
     deck_t *k = &decks[deck];
     usb_port_product(port, dev.info.product, sizeof(dev.info.product));
