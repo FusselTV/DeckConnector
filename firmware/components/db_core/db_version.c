@@ -30,9 +30,14 @@ static ver_t parse(const char *s)
     }
     s++;
     for (int i = 0; i < 3; i++) {
-        if (!isdigit((unsigned char)*s) || (v.num[i] = number(&s)) < 0 || (i < 2 && *s++ != '.')) {
+        if (!isdigit((unsigned char)*s)) {
             return v;
         }
+        v.num[i] = number(&s);
+        if (i < 2 && *s != '.') {
+            return v;
+        }
+        s += i < 2;
     }
     v.ok = true;
     /* "-rc4", then "-7-gabc1234", then "-dirty" */
@@ -56,7 +61,8 @@ static ver_t parse(const char *s)
 
 int db_version_cmp(const char *a, const char *b)
 {
-    ver_t x = parse(a), y = parse(b);
+    ver_t x = parse(a);
+    ver_t y = parse(b);
     if (x.ok != y.ok) {
         return x.ok ? 1 : -1;
     }
