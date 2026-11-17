@@ -257,11 +257,12 @@ static struct { /* the login request on the deck, under login_mux */
     char mac[18];
     int answer; /* -1 while none */
 } ask = {.answer = -1};
+#define DENIED_US (5 * 60 * 1000000LL)
 static struct { /* a Companion's Discover asking for the deck, under login_mux */
     int64_t until;
     char addr[sizeof(((db_config_t *)0)->satellite)];
-    int64_t denied_until; /* a "No" holds off that address, so it cannot ask again and again */
-    char denied[sizeof(((db_config_t *)0)->satellite)];
+    int64_t denied_until; /* a "No" or no answer holds off that host, so it cannot cover the deck again and again */
+    char denied[sizeof(((db_config_t *)0)->satellite)]; /* the host, without the port */
 } adopt;
 
 static int64_t until(const int64_t *t)
@@ -636,8 +637,8 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
         portENTER_CRITICAL(&login_mux);
         adopt.until = 0;
         if (md->offer_asked && !act->value) {
-            adopt.denied_until = md->now_us + 5 * 60 * 1000000LL;
-            strcpy(adopt.denied, md->offer_addr);
+            adopt.denied_until = md->now_us + DENIED_US;
+            db_sat_addr_host(md->offer_addr, adopt.denied, sizeof(adopt.denied));
         }
         portEXIT_CRITICAL(&login_mux);
         if (md->offer_asked && !act->value) {
@@ -1245,9 +1246,16 @@ const char *db_ui_ask_companion(const char *addr, int seconds)
     }
     int64_t now = esp_timer_get_time();
     const char *why = NULL;
+    char host[sizeof(adopt.denied)];
+    db_sat_addr_host(addr, host, sizeof(host));
     portENTER_CRITICAL(&login_mux);
-    if (now < adopt.denied_until && strcmp(adopt.denied, addr) == 0) {
-        why = "turned down on the deck, ask again in 5 min";
+    if (adopt.until && now >= adopt.until) { /* the last question ran out unanswered */
+        db_sat_addr_host(adopt.addr, adopt.denied, sizeof(adopt.denied));
+        adopt.denied_until = adopt.until + DENIED_US;
+        adopt.until = 0;
+    }
+    if (now < adopt.denied_until && strcmp(adopt.denied, host) == 0) {
+        why = "not answered or turned down on the deck, ask again in 5 min";
     } else if (now < adopt.until && strcmp(adopt.addr, addr) != 0) {
         why = "the deck asks about another Companion"; /* else the tap could answer an address nobody saw */
     } else if (now >= adopt.until) {

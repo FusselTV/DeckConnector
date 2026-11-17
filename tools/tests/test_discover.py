@@ -3,6 +3,7 @@ POST /api/config) points it at Companion: at once during setup, else after a tap
 server on this machine stands in for Companion, so the bridge is never pointed at a real one. Nothing is pressed."""
 
 import json
+import random
 import threading
 import time
 import urllib.error
@@ -87,16 +88,19 @@ def test_setup_during_setup_points_the_bridge_at_companion():
 
 def test_setup_asks_on_the_deck_once_set_up(fake):
     assert get_config()["setup_done"]
+    ip = f"192.0.2.{random.randint(10, 250)}"  # a refused address stays held off for 5 min
     put_config({"satellite": f"{local_ip()}:{PORT}", "controller": "companion", "host": "satellite"})
     assert wait(lambda: fake.device and drawing(), 20)
     start = time.time()
-    assert setup_request({"host": "192.0.2.1", "port": 16622}) == (200, {"ok": True, "confirm": "deck"})
+    assert setup_request({"host": ip, "port": 16622}) == (200, {"ok": True, "confirm": "deck"})
     assert wait(lambda: status()["writer"] == "ui", 5), "the question did not cover the deck"
     assert setup_request({"host": "192.0.2.2", "port": 16622})[0] == 409, "a second Companion replaced the question"
     assert get_config()["satellite"] == f"{local_ip()}:{PORT}", "taken without a tap on the deck"
-    assert any("192.0.2.1:16622 asks for the deck" in e["text"] for e in json.loads(api("GET", "/api/events")[1]))
+    assert any(f"{ip}:16622 asks for the deck" in e["text"] for e in json.loads(api("GET", "/api/events")[1]))
     assert wait(lambda: drawing(), 75), "the deck stayed covered after the question ran out"
     print(f"\ncovered for {time.time() - start - 4.2:.0f} s")
+    code = setup_request({"host": ip, "port": 16623})[0]
+    assert code == 409, "an unanswered Companion could cover the deck again at once, on another port too"
 
 
 @pytest.mark.sim
