@@ -61,6 +61,8 @@ CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64=y
 
 # db_net decides when WLAN answers mDNS
 CONFIG_MDNS_PREDEF_NETIF_STA=n
+# the API, two Satellite names, and per deck its dock and its device: 11 with four decks
+CONFIG_MDNS_MAX_SERVICES=12
 
 # /api/ws
 CONFIG_HTTPD_WS_SUPPORT=y
