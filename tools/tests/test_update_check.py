@@ -107,10 +107,12 @@ def test_a_feed_without_releases_and_a_missing_feed(feed):
     assert check(feed("nothing-here"))["code"] == "no_releases"  # the feed of a repository without releases: 404
 
 
-def wait_for_log(text: str, since: int, secs: float = 30) -> str | None:
+def wait_for_log(text: str, since: str, secs: float = 30) -> str | None:
+    """`text` in a line after `since`; the log is a ring, so a line count would stop moving once it is full."""
     end = time.time() + secs
     while time.time() < end:
-        lines = api("GET", "/api/log")[1].decode().splitlines()[since:]
+        log = api("GET", "/api/log")[1].decode()
+        lines = log[log.rfind(since) + len(since) :].splitlines() if since in log else log.splitlines()
         hit = next((line for line in lines if text in line), None)
         if hit:
             return hit
@@ -130,7 +132,7 @@ def wait_for_log(text: str, since: int, secs: float = 30) -> str | None:
     ],
 )
 def test_ota_by_url_follows_redirects_over_https(feed, url, outcome):
-    since = len(api("GET", "/api/log")[1].decode().splitlines())
+    since = api("GET", "/api/log")[1].decode().splitlines()[-1]
     code, reply = api("POST", "/api/ota/url", json.dumps({"url": url}).encode())
     assert code == 200, reply
     line = wait_for_log(outcome, since)

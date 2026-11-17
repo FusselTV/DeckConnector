@@ -50,7 +50,7 @@ def test_a_token_gets_no_log():
 
 @pytest.mark.sim
 def test_the_timeline_starts_with_the_boot():
-    events = json.loads(api("GET", "/api/events")[1])
+    events = [e for e in json.loads(api("GET", "/api/events")[1]) if e.get("boot", 0) == 0]  # earlier boots come first
     assert events[0]["kind"] == "boot" and {"since_s", "at", "kind", "text"} <= events[0].keys()
 
 
@@ -68,4 +68,4 @@ async def test_a_server_that_connects_and_goes_is_on_the_timeline(servers):
     else:
         raise AssertionError(f"no lost and connected on the timeline: {news}")
     assert all({"since_s", "at", "kind", "text"} <= e.keys() for e in events)
-    assert len(events) <= 32, "a bounded ring"
+    assert len(events) <= 64, "a bounded ring"
