@@ -158,7 +158,6 @@ static ui_source_t *add_source(int deck, ui_model_t *md, uint8_t kind, uint8_t v
     return src;
 }
 
-/* The hosts that can draw on `deck`. */
 static void model_sources(int deck, ui_model_t *md)
 {
     if (db_satellite_connected(deck)) {
@@ -1288,16 +1287,13 @@ esp_err_t db_ui_factory_reset(void)
 }
 
 /* A key held or a tap armed before a question came must not answer it. */
-static void forget_presses(bool armed_tap)
+static void forget_presses(void)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        if (armed_tap) {
-            decks[d].menu.confirm_key = -1;
-        } else {
-            decks[d].menu.keys_down = 0;
-            decks[d].menu.encoders_down = 0;
-        }
+        decks[d].menu.confirm_key = -1;
+        decks[d].menu.keys_down = 0;
+        decks[d].menu.encoders_down = 0;
     }
     xSemaphoreGive(s.lock);
 }
@@ -1309,7 +1305,7 @@ int db_ui_ask_reset(void)
     }
     if (start_page(&reset_asked, &reset_until, RESET_ASK_US)) {
         ESP_LOGI(TAG, "the decks ask for a reset");
-        forget_presses(true);
+        forget_presses();
         changed();
     }
     int64_t left = until(&reset_until) - esp_timer_get_time();
@@ -1351,7 +1347,7 @@ const char *db_ui_ask_companion(const char *addr, int seconds)
     if (why) {
         return why;
     }
-    forget_presses(false);
+    forget_presses();
     changed();
     return NULL;
 }
@@ -1370,7 +1366,7 @@ bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
     }
     char ip_s[16];
     ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));
-    forget_presses(false);
+    forget_presses();
     portENTER_CRITICAL(&login_mux);
     ask.until = esp_timer_get_time() + (int64_t)seconds * 1000000;
     ask.seq++;

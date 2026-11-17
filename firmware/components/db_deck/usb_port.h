@@ -23,7 +23,7 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only);
 bool usb_port_full_speed(void);
 bool usb_port_behind_hub(int dev);
 /* Hub ports from the root port down ("1.3"), "" on the root port. */
-void usb_port_path(int dev, char *out, size_t cap);
+const char *usb_port_path(int dev);
 
 /* Open and claim the device announced by `attached`; *index is its number from now on. ESP_ERR_NO_MEM when
  * USB_PORT_DEVS are open. Call from a task other than the USB client task. */

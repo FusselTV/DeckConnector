@@ -381,8 +381,9 @@ static void sixkey_output(const uint8_t *r)
     feed(0x01, (uint8_t)(k - 1), (db_rect_t){0}, chunk, done != 0, r + 16, OUT_LEN - 16);
 }
 
-static db_err_t emu_write_on(const uint8_t *report, size_t len)
+static db_err_t emu_write(const db_hid_io_t *io, const uint8_t *report, size_t len)
 {
+    emu = (emu_t *)io; /* a driver talks to the deck its io belongs to */
     if (!emu->m) {
         return DB_ERR_IO;
     }
@@ -408,8 +409,9 @@ static db_err_t emu_write_on(const uint8_t *report, size_t len)
     return DB_OK;
 }
 
-static db_err_t emu_flush_on(void)
+static db_err_t emu_flush(const db_hid_io_t *io)
 {
+    emu = (emu_t *)io;
     return DB_OK;
 }
 
@@ -465,8 +467,9 @@ static bool sixkey_get(uint8_t *a)
     }
 }
 
-static db_err_t emu_get_feature_on(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t emu_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
+    emu = (emu_t *)io;
     if (!emu->m || len == 0) {
         violation("GET_FEATURE with an empty buffer");
         return DB_ERR_IO;
@@ -542,8 +545,9 @@ static int sixkey_set(const uint8_t *b)
     return -1;
 }
 
-static db_err_t emu_set_feature_on(const uint8_t *buf, size_t len)
+static db_err_t emu_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
+    emu = (emu_t *)io;
     if (!emu->m || len < 2) {
         violation("SET_FEATURE of %zu bytes", len);
         return DB_ERR_IO;
@@ -567,35 +571,11 @@ static db_err_t emu_set_feature_on(const uint8_t *buf, size_t len)
     return DB_OK;
 }
 
-/* A driver may talk to another deck than the current one: its io names the deck. */
-#define ON_DECK(io, call)                                                                                    \
-    do {                                                                                                     \
-        emu_t *was = emu;                                                                                    \
-        emu = (emu_t *)(io);                                                                                 \
-        db_err_t err = (call);                                                                               \
-        emu = was;                                                                                           \
-        return err;                                                                                          \
-    } while (0)
-
-static db_err_t emu_write(const db_hid_io_t *io, const uint8_t *report, size_t len)
-{
-    ON_DECK(io, emu_write_on(report, len));
-}
-
-static db_err_t emu_flush(const db_hid_io_t *io)
-{
-    ON_DECK(io, emu_flush_on());
-}
-
-static db_err_t emu_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
-{
-    ON_DECK(io, emu_get_feature_on(buf, len, out_len));
-}
-
-static db_err_t emu_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
-{
-    ON_DECK(io, emu_set_feature_on(buf, len));
-}
+static const db_hid_io_t io = {.write = emu_write,
+                               .flush = emu_flush,
+                               .get_feature = emu_get_feature,
+                               .set_feature = emu_set_feature,
+                               .out_report_size = OUT_LEN};
 
 void deck_emu_clear(void)
 {
@@ -622,11 +602,7 @@ bool deck_emu_start(uint16_t pid)
     memset(emu->keys, 0, sizeof(emu->keys));
     memset(emu->enc_down, 0, sizeof(emu->enc_down));
     emu->m = deck_model(pid);
-    emu->io = (db_hid_io_t){.write = emu_write,
-                            .flush = emu_flush,
-                            .get_feature = emu_get_feature,
-                            .set_feature = emu_set_feature,
-                            .out_report_size = OUT_LEN};
+    emu->io = io;
     if (!emu->m) {
         return false;
     }

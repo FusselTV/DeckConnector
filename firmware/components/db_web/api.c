@@ -256,10 +256,8 @@ int api_input(int deck, const char *body, char *reply, size_t cap)
             return fail(reply, cap, 404, "no such deck");
         }
     }
-    if (deck < 0 && (deck = db_deck_first()) < 0) {
-        deck = 0;
-    }
-    if (!db_deck_info(deck, &dev)) {
+    deck = deck < 0 ? db_deck_first() : deck;
+    if (deck < 0 || !db_deck_info(deck, &dev)) {
         cJSON_Delete(root);
         return fail(reply, cap, 409, "no deck attached");
     }

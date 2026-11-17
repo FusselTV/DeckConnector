@@ -564,14 +564,20 @@ static unsigned run_pid(void)
 
 /* A + and a Mini at once, as behind a hub: each driver call reaches its own deck, and neither sees the
  * other's reports or key states. */
+static const uint16_t two_pids[2] = {0x84, 0x63};
+
+static void pick(int d)
+{
+    deck_emu_select(d);
+    M = deck_model(two_pids[d]);
+}
+
 static unsigned run_two(void)
 {
-    static const uint16_t pids[2] = {0x84, 0x63};
     static db_dev_t two[2];
     fails = 0;
     for (int d = 0; d < 2; d++) {
-        deck_emu_select(d);
-        M = deck_model(pids[d]);
+        pick(d);
         deck_emu_start(M->pid);
         two[d] = (db_dev_t){.io = deck_emu_io(), .driver = db_driver_find(VID, M->pid)};
         CHECK(two[d].driver && two[d].driver->open(&two[d], VID, M->pid) == DB_OK, "deck %d: open", d);
@@ -593,20 +599,17 @@ static unsigned run_two(void)
         CHECK(two[d].driver->write_image(&two[d], t, t->rect, img, n) == DB_OK, "deck %d: write_image", d);
     }
     uint8_t rep[512];
-    deck_emu_select(1);
-    M = deck_model(pids[1]);
+    pick(1);
     size_t len = deck_emu_key(2, true, rep, sizeof(rep));
     db_input_t out[8];
     CHECK(two[1].driver->parse_input(&two[1], rep, len, 0, out, 8) == 1 && out[0].index == 2,
           "deck 1: key 2 down not parsed");
-    deck_emu_select(0);
-    M = deck_model(pids[0]);
+    pick(0);
     len = deck_emu_key(3, true, rep, sizeof(rep));
     CHECK(two[0].driver->parse_input(&two[0], rep, len, 0, out, 8) == 1 && out[0].index == 3,
           "deck 0: key 3 down not parsed alone, deck 1's held key leaked in");
     for (int d = 0; d < 2; d++) {
-        deck_emu_select(d);
-        M = deck_model(pids[d]);
+        pick(d);
         deck_emu_check_idle();
         CHECK(deck_emu_image_count() == 1, "deck %d got %zu images, expected its own 1", d,
               deck_emu_image_count());

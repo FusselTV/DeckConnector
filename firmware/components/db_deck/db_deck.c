@@ -447,20 +447,14 @@ static int take_slot(int port, const char *serial)
     if (serial[0]) {
         snprintf(id, sizeof(id), "%s", serial);
     } else {
-        char path[16];
-        usb_port_path(port, path, sizeof(path));
-        snprintf(id, sizeof(id), "port %s", path);
+        snprintf(id, sizeof(id), "port %s", usb_port_path(port));
     }
     bool taken[DB_MAX_DECKS];
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         taken[d] = decks[d].present;
     }
-    db_slot_owner_t before[DB_MAX_DECKS];
-    memcpy(before, s.owners, sizeof(before));
     int slot = db_slot_take(s.owners, taken, DB_MAX_DECKS, id);
-    if (memcmp(before, s.owners, sizeof(before)) != 0) {
-        save_owners();
-    }
+    save_owners(); /* NVS writes nothing when the blob is the same */
     return slot;
 }
 

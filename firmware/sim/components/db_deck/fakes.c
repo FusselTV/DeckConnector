@@ -1,7 +1,6 @@
 /* Stand-ins for everything the API layer calls on the chip: Stream Deck + decks that are always attached
  * (DB_SIM_DECKS of them, 1 by default, serials SIM0001 and up; the ones over max_decks stay dark), no dock
- * hosts, no updates. Simulated input goes
- * to the listeners, so the web socket reports it like on the device. */
+ * hosts, no updates. Simulated input goes to the listeners, so the web socket reports it like on the device. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

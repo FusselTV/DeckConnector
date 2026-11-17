@@ -26,7 +26,6 @@ static const char *TAG = "usb";
 
 typedef struct {
     db_hid_io_t io; /* first: the io callbacks find their device by it */
-    int index;
     usb_device_handle_t dev;
     uint8_t intf;
     uint8_t ep_in;
@@ -40,10 +39,9 @@ typedef struct {
     SemaphoreHandle_t ctrl_done;
     SemaphoreHandle_t ctrl_lock;
     uint32_t
-        fail_since;  /* ms of the first failed output since the last one that went through, 0: none. 32 bits:
-                      * written by the USB client task and read by writers, a 64-bit value could tear */
-    bool behind_hub; /* it hangs on a hub, not on the root port */
-    char path[16];   /* hub ports from the root, "1.3"; "" on the root port */
+        fail_since; /* ms of the first failed output since the last one that went through, 0: none. 32 bits:
+                     * written by the USB client task and read by writers, a 64-bit value could tear */
+    char path[16];  /* hub ports from the root, "1.3"; "" on the root port */
     esp_timer_handle_t in_retry;
     uint32_t in_backoff_ms;
 } dev_t;
@@ -85,7 +83,7 @@ static void in_done(usb_transfer_t *t)
 {
     dev_t *d = t->context;
     if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
-        s.cb.input(d->index, t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
+        s.cb.input((int)(d - s.devs), t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
     }
     count_error(t->status);
     /* CANCELED while open (a flush) is queued again below */
@@ -96,7 +94,7 @@ static void in_done(usb_transfer_t *t)
         /* an error that repeats would otherwise spin the client task: wait longer each time, up to 1 s */
         if (d->in_backoff_ms == 1000) {
             ESP_LOGE(TAG, "input keeps failing (status %d): reconnecting the deck", t->status);
-            s.cb.stuck(d->index);
+            s.cb.stuck((int)(d - s.devs));
         }
         d->in_backoff_ms =
             d->in_backoff_ms ? (d->in_backoff_ms * 2 > 1000 ? 1000 : d->in_backoff_ms * 2) : 100;
@@ -118,7 +116,7 @@ static void in_resubmit(dev_t *d)
         (usb_host_endpoint_clear(d->dev, d->ep_in) != ESP_OK || usb_host_transfer_submit(d->in) != ESP_OK)) {
         s.errors++;
         ESP_LOGE(TAG, "input transfer could not be queued: reconnecting the deck");
-        s.cb.stuck(d->index);
+        s.cb.stuck((int)(d - s.devs));
         esp_timer_start_once(d->in_retry, 1000000); /* stuck() may hold back a replug for a while */
     }
 }
@@ -159,9 +157,9 @@ static db_err_t write_failed(dev_t *d, db_err_t err)
         }
         uint8_t probe[32] = {0x05};
         bool answers = control(d, 0xa1, HID_GET_REPORT, probe[0], probe, sizeof(probe), NULL) == DB_OK;
-        ESP_LOGE(TAG, "deck %d took no output for %d s, its control endpoint %s: reconnecting it", d->index,
-                 STUCK_MS / 1000, answers ? "still answers" : "is silent too");
-        s.cb.stuck(d->index);
+        ESP_LOGE(TAG, "deck %d took no output for %d s, its control endpoint %s: reconnecting it",
+                 (int)(d - s.devs), STUCK_MS / 1000, answers ? "still answers" : "is silent too");
+        s.cb.stuck((int)(d - s.devs));
     }
     return err;
 }
@@ -422,12 +420,12 @@ bool usb_port_full_speed(void)
 
 bool usb_port_behind_hub(int dev)
 {
-    return s.devs[dev].dev && s.devs[dev].behind_hub;
+    return s.devs[dev].dev && s.devs[dev].path[0];
 }
 
-void usb_port_path(int dev, char *out, size_t cap)
+const char *usb_port_path(int dev)
 {
-    snprintf(out, cap, "%s", s.devs[dev].path);
+    return s.devs[dev].path;
 }
 
 esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
@@ -439,7 +437,6 @@ esp_err_t usb_port_start(const usb_port_cb_t *cb, bool full_only)
     ESP_RETURN_ON_ERROR(esp_timer_create(&ta, &s.check), TAG, "timer");
     for (int i = 0; i < USB_PORT_DEVS; i++) {
         dev_t *d = &s.devs[i];
-        d->index = i;
         esp_timer_create_args_t ra = {.callback = in_retry, .arg = d, .name = "usb_in_retry"};
         ESP_RETURN_ON_ERROR(esp_timer_create(&ra, &d->in_retry), TAG, "timer");
         d->out_free = xSemaphoreCreateCounting(OUT_SLOTS, OUT_SLOTS);
@@ -603,7 +600,6 @@ esp_err_t usb_port_open(uint8_t address, int *index, uint16_t *vid, uint16_t *pi
     usb_host_get_device_descriptor(d->dev, &dd);
     usb_host_get_active_config_descriptor(d->dev, &cd);
     usb_host_device_info(d->dev, &info);
-    d->behind_hub = info.parent.dev_hdl != NULL;
     hub_path(d->dev, d->path, sizeof(d->path));
     *vid = dd->idVendor;
     *pid = dd->idProduct;
@@ -646,7 +642,7 @@ esp_err_t usb_port_open(uint8_t address, int *index, uint16_t *vid, uint16_t *pi
     d->fail_since = 0;
     d->open = true;
     d->in_backoff_ms = 0;
-    *index = d->index;
+    *index = (int)(d - s.devs);
     in_resubmit(d);
     return ESP_OK;
 }

@@ -52,7 +52,6 @@ typedef struct {
     uint8_t out[DB_CORA_HDR_LEN + DB_CORA_REPORT_LEN]; /* under tx */
 } conn_t;
 
-/* Deck k is a dock of its own on ports 5343 + 2k and 5344 + 2k. */
 #define CONNS (DB_MAX_DECKS * 2 * DB_DOCK_HOSTS)
 
 static struct {
@@ -961,7 +960,6 @@ static void accept_host(int ls, int deck, bool device_port)
     }
 }
 
-/* The dock and device ports of every deck up to max_decks, in one task. */
 static void listen_task(void *arg)
 {
     int ls[DB_MAX_DECKS * 2];
