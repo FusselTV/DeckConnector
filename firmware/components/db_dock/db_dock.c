@@ -961,7 +961,7 @@ static void accept_host(int ls, int deck, bool device_port)
     }
 }
 
-/* Every deck's dock and device port in one task. */
+/* The dock and device ports of every deck up to max_decks, in one task. */
 static void listen_task(void *arg)
 {
     int ls[DB_MAX_DECKS * 2];
@@ -971,6 +971,13 @@ static void listen_task(void *arg)
         FD_ZERO(&ready);
         int top = -1;
         for (int i = 0; i < DB_MAX_DECKS * 2; i++) {
+            if (i / 2 >= db_config()->max_decks) { /* a socket each, of 40 in all */
+                if (ls[i] >= 0) {
+                    close(ls[i]);
+                    ls[i] = -1;
+                }
+                continue;
+            }
             if (ls[i] < 0) {
                 ls[i] = listen_on(port_of(i / 2, i % 2), DB_DOCK_HOSTS);
             }
