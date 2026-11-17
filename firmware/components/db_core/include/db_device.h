@@ -2,6 +2,7 @@
 
 #include "db_types.h"
 
+#define DB_MAX_DECKS    4 /* behind one hub */
 #define DB_MAX_DISPLAYS 2
 #define DB_MAX_TARGETS  40
 #define DB_MAX_TOUCH    2
@@ -86,3 +87,10 @@ typedef struct {
 const db_target_t *db_device_find_target(const db_device_info_t *info, uint8_t display, db_rect_t rect);
 /* Keys with a picture, numbered first. The rest of key_count (Neo sensors, Pedal) only give input. */
 uint8_t db_device_image_keys(const db_device_info_t *info);
+
+/* A deck's name in the slot list: its serial, or "port <hub ports>" for one without. */
+typedef char db_slot_owner_t[32];
+
+/* The slot for deck `id`: its own one when free, else the lowest free one no other deck owns, else the lowest
+ * free one; -1 when all `n` are taken. The slot belongs to `id` in `owners` from then on. */
+int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, const char *id);

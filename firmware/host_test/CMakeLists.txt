@@ -14,7 +14,7 @@ FetchContent_MakeAvailable(unity)
 add_subdirectory(../components/db_core db_core)
 
 enable_testing()
-foreach(t test_regions test_proto test_elgato test_image test_cora test_screen test_dns test_ptable test_improv test_version)
+foreach(t test_regions test_proto test_elgato test_image test_cora test_screen test_dns test_ptable test_improv test_version test_slots)
     add_executable(${t} ${t}.c)
     target_link_libraries(${t} db_core unity)
     add_test(NAME ${t} COMMAND ${t})
