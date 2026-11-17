@@ -515,7 +515,7 @@ export const de: Dict = {
   'is.full_n': '{deck} läuft langsam',
   'is.over_one': 'Noch 1 Deck bleibt dunkel',
   'is.over_other': 'Noch {n} Decks bleiben dunkel',
-  'is.over_h': 'Die Bridge steuert {max} Decks gleichzeitig. Unter Deck lässt sich das Limit erhöhen.',
+  'is.over_h': 'Die Platine steuert {max} Decks gleichzeitig. Unter Deck lässt sich das Limit erhöhen.',
   'deck.max': 'Decks gleichzeitig',
   'deck.max_h':
     'Alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports. Ein kleineres Limit gilt für Decks, die danach eingesteckt werden.',

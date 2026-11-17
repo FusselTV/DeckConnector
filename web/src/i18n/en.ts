@@ -506,7 +506,7 @@ export const en = {
   'is.full_n': '{deck} runs slowly',
   'is.over_one': '1 more deck stays dark',
   'is.over_other': '{n} more decks stay dark',
-  'is.over_h': 'The bridge drives {max} decks at once. You can raise the limit under Deck.',
+  'is.over_h': 'The board drives {max} decks at once. You can raise the limit under Deck.',
   'deck.max': 'Decks at once',
   'deck.max_h':
     'All decks on a hub without its own power supply share the 2 A of the USB port. A lower limit applies to decks plugged in later.',
