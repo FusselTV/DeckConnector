@@ -97,3 +97,14 @@ typedef char db_slot_owner_t[32];
 int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, const char *id);
 /* True when every free slot below `limit` belongs to another deck than `id`, and one is free. */
 bool db_slot_others(const db_slot_owner_t *owners, const bool *taken, int limit, const char *id);
+
+/* What to do about a deck whose output hangs. A root port cycle takes every deck: with `others` plugged in, a
+ * deck that hangs again right after one waits 10 min for the next, doubling up to an hour; alone 10 s up to 5
+ * min. A hang again within a minute leaves one restart after 10 min uptime, armed again by an hour without a
+ * hang. Times in us. */
+typedef enum { DB_STUCK_WAIT, DB_STUCK_CYCLE, DB_STUCK_RESTART } db_stuck_t;
+typedef struct {
+    int64_t last; /* the deck's last cycle, 0: none */
+    int64_t backoff;
+} db_stuck_state_t;
+db_stuck_t db_stuck_next(db_stuck_state_t *st, int64_t now, bool may_cycle, bool others, bool *restarted);

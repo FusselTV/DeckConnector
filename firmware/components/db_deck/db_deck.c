@@ -74,8 +74,7 @@ typedef struct {
     db_shot_t replay_shots[DB_SCREEN_MAX];
     uint8_t *black; /* a black full display, made once */
     size_t black_len;
-    int64_t stuck_last; /* on_stuck: kept over the replug, which is what it is for */
-    int64_t stuck_backoff;
+    db_stuck_state_t stuck; /* kept over the replug, which is what it is for */
 } deck_t;
 
 static deck_t decks[DB_MAX_DECKS] EXT_RAM_BSS_ATTR; /* zero until db_deck_start */
@@ -342,9 +341,8 @@ static bool take_cycle(int64_t now)
     return due;
 }
 
-/* A replug that did not help within a minute leaves one restart, not before 10 min uptime and not again until
- * an hour passed without a hang. A deck that keeps hanging is replugged less and less often, up to every 5
- * min, and the bridge stays up. Each deck counts for itself. */
+static int present_count(void);
+
 static void on_stuck(int port)
 {
     int deck = s.port_deck[port];
@@ -352,30 +350,24 @@ static void on_stuck(int port)
         return;
     }
     deck_t *k = &decks[deck];
+    bool others = present_count() > 1;
     int64_t now = esp_timer_get_time();
-    bool restart = false;
-    bool cycle = false;
     taskENTER_CRITICAL(&cycle_mux);
-    if (now - k->stuck_last > 3600000000LL) { /* an hour without a hang arms the restart again */
-        stuck_restarted = 0;
-    }
-    bool again = k->stuck_last && now - k->stuck_last < 60000000LL + k->stuck_backoff;
-    if (again && now > 600000000LL && stuck_restarted != STUCK_RESTARTED) {
-        stuck_restarted = STUCK_RESTARTED;
-        restart = true;
-    } else if ((!k->stuck_last || now - k->stuck_last >= k->stuck_backoff) &&
-               (!cycled || now - cycled >= CYCLE_FLOOR_US)) {
-        int64_t b = k->stuck_backoff;
-        k->stuck_backoff = again ? (b ? (b * 2 > 300000000LL ? 300000000LL : b * 2) : 10000000LL) : 0;
-        k->stuck_last = now;
-        cycled = now;
-        cycle = true;
-    }
+    bool restarted = stuck_restarted == STUCK_RESTARTED;
+    db_stuck_t next =
+        db_stuck_next(&k->stuck, now, !cycled || now - cycled >= CYCLE_FLOOR_US, others, &restarted);
+    stuck_restarted = restarted ? STUCK_RESTARTED : 0;
+    cycled = next == DB_STUCK_CYCLE ? now : cycled;
+    int64_t backoff = k->stuck.backoff;
     taskEXIT_CRITICAL(&cycle_mux);
-    if (restart) {
+    if (next == DB_STUCK_RESTART) {
         ESP_LOGE(TAG, "deck %d hung again after its reconnect: restarting", deck + 1);
         db_ota_restart(0);
-    } else if (cycle) {
+    } else if (next == DB_STUCK_CYCLE) {
+        if (backoff) {
+            ESP_LOGW(TAG, "deck %d hung again: the next reconnect for it in %lld s at the earliest", deck + 1,
+                     backoff / 1000000);
+        }
         start_replug(0, 500);
     }
 }

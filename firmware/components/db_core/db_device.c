@@ -70,3 +70,24 @@ int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, c
     snprintf(owners[slot], sizeof(owners[slot]), "%s", id);
     return slot;
 }
+
+db_stuck_t db_stuck_next(db_stuck_state_t *st, int64_t now, bool may_cycle, bool others, bool *restarted)
+{
+    if (now - st->last > 3600000000LL) {
+        *restarted = false;
+    }
+    bool again = st->last && now - st->last < 60000000LL + st->backoff;
+    if (again && now > 600000000LL && !*restarted) {
+        *restarted = true;
+        return DB_STUCK_RESTART;
+    }
+    if ((st->last && now - st->last < st->backoff) || !may_cycle) {
+        return DB_STUCK_WAIT;
+    }
+    int64_t lo = others ? 600000000LL : 10000000LL;
+    int64_t hi = others ? 3600000000LL : 300000000LL;
+    int64_t b = st->backoff * 2 < lo ? lo : st->backoff * 2;
+    st->backoff = again ? (b > hi ? hi : b) : 0;
+    st->last = now;
+    return DB_STUCK_CYCLE;
+}
