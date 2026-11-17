@@ -59,3 +59,5 @@ bool auth_session_alive(const char *token);
  * takes the request back. */
 esp_err_t auth_login_request(httpd_req_t *req);
 esp_err_t auth_login_request_id(httpd_req_t *req);
+/* The Host header names an address or a .local name: not another site's page through DNS rebinding. */
+bool auth_host_is_local(httpd_req_t *req);

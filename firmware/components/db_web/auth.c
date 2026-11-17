@@ -641,7 +641,7 @@ esp_err_t auth_claim_close(void)
 }
 
 /* DNS rebinding: another site's page could reach us under its own name, so only an address or name.local */
-static bool host_is_local(httpd_req_t *req)
+bool auth_host_is_local(httpd_req_t *req)
 {
     char host[72];
     if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
@@ -667,7 +667,7 @@ static bool host_is_local(httpd_req_t *req)
 esp_err_t auth_setup_claim(httpd_req_t *req)
 {
     static bool busy;
-    if (!auth_marked(req) || !host_is_local(req)) {
+    if (!auth_marked(req) || !auth_host_is_local(req)) {
         return send_error(req, "403 Forbidden", "X-DeckConnector header or local address missing");
     }
     if (db_config()->setup_done) {

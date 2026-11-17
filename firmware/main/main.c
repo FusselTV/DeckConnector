@@ -382,9 +382,22 @@ static void on_ota_requested(const char *target, const char *url)
     }
 }
 
+static char applied_sat[sizeof(db_config()->satellite) + sizeof(db_config()->satellite_pin)];
+
+static void satellite_now(char *out)
+{
+    snprintf(out, sizeof(applied_sat), "%s %s", db_config()->satellite, db_config()->satellite_pin);
+}
+
 static void apply_controller(void)
 {
     db_link_reload();
+    char sat_now[sizeof(applied_sat)];
+    satellite_now(sat_now);
+    if (strcmp(applied_sat, sat_now) != 0) {
+        strcpy(applied_sat, sat_now);
+        db_satellite_moved();
+    }
     db_satellite_retry(); /* a new address is tried at once */
     db_dock_drop_satellite_host();
     /* also when only the host changed: another server or dock host of the same kind draws now */
@@ -505,6 +518,7 @@ void app_main(void)
     started("dock", db_dock_start(db_ui_hosts_changed));
     started("Satellite", db_satellite_start(on_satellite));
     db_link_set_enabled(db_config()->controller == DB_CTRL_SERVER);
+    satellite_now(applied_sat); /* what the Satellite session reads at its start */
     db_config_on_save(apply_controller);
     started("web", db_web_start(web_status, web_state));
     started("Improv", db_serial_start());

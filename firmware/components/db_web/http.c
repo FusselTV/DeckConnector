@@ -422,6 +422,15 @@ static void announce_api(void)
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS API announcement failed: %s", esp_err_to_name(err));
     }
+    /* Companion lists the bridge under Surfaces > Discover and sets it up with POST /api/config. Before 5.2
+     * it browses the longer type, which RFC 6763 does not allow but every mDNS stack passes */
+    mdns_txt_item_t sat[] = {{"restEnabled", "true"}};
+    for (int i = 0; i < 2; i++) {
+        err = mdns_service_add(NULL, i ? "_companion-satellite" : "_comp-sat-app", "_tcp", 80, sat, 1);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "mDNS Companion announcement failed: %s", esp_err_to_name(err));
+        }
+    }
 }
 
 #endif
@@ -567,6 +576,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/status", .method = HTTP_GET, .handler = get_status}, WEB_CONTROL},
         {{.uri = "/api/config", .method = HTTP_GET, .handler = get_config}, WEB_FULL},
         {{.uri = "/api/config", .method = HTTP_PUT, .handler = put_config}, WEB_FULL},
+        /* Companion's Discover, which sends no login: the handler lets the deck confirm */
+        {{.uri = "/api/config", .method = HTTP_POST, .handler = post_companion_setup}, WEB_OPEN},
         {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},

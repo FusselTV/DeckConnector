@@ -16,6 +16,8 @@ esp_err_t db_satellite_start(void (*changed)(void));
 bool db_satellite_connected(void);
 db_health_t db_satellite_health(void);
 void db_satellite_retry(void);
+/* The address or pin was saved: the session ends, also when two saves in a row bring back the same text. */
+void db_satellite_moved(void);
 /* Connect to `addr` (as in the satellite setting) once and read Companion's greeting, within about 3 s each.
  * NULL and the version when it is Companion, else why not. */
 const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap);

@@ -633,6 +633,17 @@ static void test_without_the_web_ui(void)
         strcpy(md.offer_addr, "192.168.1.15:16622");
         press(&m, &md, &l, 1, &act);
         TEST_ASSERT_EQUAL_INT(UI_DO_ANSWER, act.what);
+        md.request[0] = '\0';
+        md.offer_asked = true; /* Companion's Discover asked: it covers any page, a host's picture too */
+        m.page = PAGE_MAIN;
+        ui_menu_screen(&m, &md, &l, &sc);
+        TEST_ASSERT_EQUAL_STRING("studio", sc.tiles[0].value);
+        press(&m, &md, &l, 1, &act);
+        TEST_ASSERT_EQUAL_INT(UI_DO_OFFER, act.what);
+        TEST_ASSERT_EQUAL_INT(1, act.value);
+        md.offer_asked = false;
+        md.offer_addr[0] = '\0';
+        m.page = PAGE_HOME;
     }
 }
 

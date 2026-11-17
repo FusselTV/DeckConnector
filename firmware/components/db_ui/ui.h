@@ -103,7 +103,8 @@ typedef struct {
     char request[16]; /* a host that is not paired asks to connect */
     char request_name[40];
     char offer_name[32]; /* a Companion found by mDNS while no Satellite address is set */
-    char offer_addr[24]; /* its "host:port" */
+    char offer_addr[64]; /* its "host:port" */
+    bool offer_asked;    /* the Companion asked itself (its Discover), so the page covers whoever draws */
     char menu_chord[12];
     int menu_hold_ms;
     char server_url[96];
@@ -143,7 +144,7 @@ typedef enum {
     UI_DO_SAVE_LAN, /* dhcp, octets */
     UI_DO_SETUP_DONE,
     UI_DO_OFFER, /* value: 1 connects to the offered Companion over Satellite, 0 asks no more until a restart
-                  */
+                  * (a Companion that asked itself is only turned down) */
     UI_DO_HIDE_PASSWORD,
     UI_DO_CANCEL_RESET,
     UI_DO_LOGIN,         /* value: 1 lets the asking browser in */

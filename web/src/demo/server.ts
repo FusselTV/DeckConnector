@@ -42,6 +42,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['GET', '/api/status', 'control'],
   ['GET', '/api/config', 'full'],
   ['PUT', '/api/config', 'full'],
+  ['POST', '/api/config', 'open'],
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
   ['DELETE', '/api/ap', 'full'],
@@ -97,7 +98,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['DELETE', '/api/coredump', 'full'],
 ]
 
-const OPEN = new Set(ROUTES.filter((r) => r[2] === 'open').map((r) => r[1]))
+const OPEN = new Set(ROUTES.filter((r) => r[2] === 'open').map((r) => `${r[0]} ${r[1]}`))
 
 export const CERT = `-----BEGIN CERTIFICATE-----
 MIIBszCCAVmgAwIBAgIUDemoDemoDemoDemoDemoDemoDemo0wCgYIKoZIzj0EAwIw
@@ -208,7 +209,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     return res('loginState', { state, s: left })
   }
   if (route === 'GET /api/cert') return { status: 200, body: CERT }
-  if (!OPEN.has(path) && !s.authed) return fail(401, 'login required')
+  if (!OPEN.has(route) && !s.authed) return fail(401, 'login required')
 
   switch (route) {
     case 'GET /api':
@@ -234,6 +235,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       }
     case 'PUT /api/config':
       return putConfig(s, now, b)
+    case 'POST /api/config': // Companion's Discover: a set-up deck asks first
+      return ok({ confirm: 'deck' })
     case 'GET /api/screen': {
       return res('screen', {
         writer: status(s, now).writer,
