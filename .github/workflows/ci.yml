@@ -129,6 +129,12 @@ jobs:
           enable-cache: ${{ github.ref_type != 'tag' }} # zig for the demo's deck screens
       - run: cd web && npm ci && npx playwright install --with-deps chromium && npm run build:demo
       - run: cd web && DC_NO_SIM=1 npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: demo-traces-${{ matrix.project }}
+          path: web/test-results
+          retention-days: 7
 
   # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
   # comes down in the background while the page builds. The build needs the room of the runner's Android, .NET and GHC.

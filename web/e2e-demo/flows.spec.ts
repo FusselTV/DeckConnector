@@ -325,9 +325,9 @@ test('setup wizard runs every step', async ({ demo: page }) => {
   expect(await failed(page)).toEqual([])
 })
 
-for (const [pick, fill] of [
-  [en['prog.app'], null],
-  [en['wiz.p_other'], 'ws://192.168.1.40:8765/deckconnector'],
+for (const [pick, fill, who] of [
+  [en['prog.app'], null, 'Elgato app'],
+  [en['wiz.p_other'], 'ws://192.168.1.40:8765/deckconnector', 'Custom server'],
 ] as const)
   test(`setup wizard: ${pick} connects and draws`, async ({ demo: page }) => {
     test.setTimeout(60_000)
@@ -343,7 +343,8 @@ for (const [pick, fill] of [
       await page.locator('#w-srv').fill(fill)
       await page.getByRole('button', { name: en['src.connect'], exact: true }).click()
     }
-    await expect(page.getByText(/is connected and drawing/).first()).toBeVisible({ timeout: 15_000 })
+    // the demo's Elgato app pairs and draws by itself after 5 s, so wait for the program picked
+    await expect(page.getByText(`${who} is connected and drawing`).first()).toBeVisible({ timeout: 15_000 })
     await next.click()
     await expect(page.getByText(en['wiz.done_q']).first()).toBeVisible({ timeout: 20_000 })
     expect(await failed(page)).toEqual([])
