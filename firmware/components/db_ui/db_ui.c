@@ -260,6 +260,8 @@ static struct { /* the login request on the deck, under login_mux */
 static struct { /* a Companion's Discover asking for the deck, under login_mux */
     int64_t until;
     char addr[sizeof(((db_config_t *)0)->satellite)];
+    int64_t denied_until; /* a "No" holds off that address, so it cannot ask again and again */
+    char denied[sizeof(((db_config_t *)0)->satellite)];
 } adopt;
 
 static int64_t until(const int64_t *t)
@@ -633,6 +635,10 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
     case UI_DO_OFFER:
         portENTER_CRITICAL(&login_mux);
         adopt.until = 0;
+        if (md->offer_asked && !act->value) {
+            adopt.denied_until = md->now_us + 5 * 60 * 1000000LL;
+            strcpy(adopt.denied, md->offer_addr);
+        }
         portEXIT_CRITICAL(&login_mux);
         if (md->offer_asked && !act->value) {
             ESP_LOGI(TAG, "Companion %s turned down on the deck", md->offer_addr);
@@ -645,6 +651,9 @@ static void carry_out(const ui_action_t *act, const ui_model_t *md)
             break;
         }
         c.satellite_auto_off = false;
+        if (strcmp(c.satellite, md->offer_addr) != 0) {
+            c.satellite_pin[0] = '\0'; /* a pin of an old wss:// address would be applied to the next one */
+        }
         snprintf(c.satellite, sizeof(c.satellite), "%s", md->offer_addr);
         c.controller = DB_CTRL_COMPANION;
         snprintf(c.host, sizeof(c.host), "satellite");
@@ -907,6 +916,7 @@ void db_ui_close_menu(void)
     portENTER_CRITICAL(&login_mux);
     pass_until = 0;
     reset_until = 0;
+    adopt.until = 0;
     if (now < ask.until) {
         ask.answer = 0;
         ask.until = 0;
@@ -984,6 +994,11 @@ static void on_input(const db_input_t *ev)
 static void on_device(const db_device_info_t *info)
 {
     s.present = info != NULL;
+    if (!info) { /* the question went with the deck */
+        portENTER_CRITICAL(&login_mux);
+        adopt.until = 0;
+        portEXIT_CRITICAL(&login_mux);
+    }
     if (info) {
         s.dev = *info;
         s.full = true;
@@ -1223,21 +1238,32 @@ void db_ui_cancel_reset(void)
     changed();
 }
 
-bool db_ui_ask_companion(const char *addr, int seconds)
+const char *db_ui_ask_companion(const char *addr, int seconds)
 {
     if (!s.present) {
-        return false;
+        return "no deck attached to confirm on";
+    }
+    int64_t now = esp_timer_get_time();
+    const char *why = NULL;
+    portENTER_CRITICAL(&login_mux);
+    if (now < adopt.denied_until && strcmp(adopt.denied, addr) == 0) {
+        why = "turned down on the deck, ask again in 5 min";
+    } else if (now < adopt.until && strcmp(adopt.addr, addr) != 0) {
+        why = "the deck asks about another Companion"; /* else the tap could answer an address nobody saw */
+    } else if (now >= adopt.until) {
+        adopt.until = now + (int64_t)seconds * 1000000;
+        strlcpy(adopt.addr, addr, sizeof(adopt.addr));
+    }
+    portEXIT_CRITICAL(&login_mux);
+    if (why) {
+        return why;
     }
     xSemaphoreTake(s.lock, portMAX_DELAY);
     s.menu.keys_down = 0; /* a key held before the page came must not answer it on release */
     s.menu.encoders_down = 0;
     xSemaphoreGive(s.lock);
-    portENTER_CRITICAL(&login_mux);
-    adopt.until = esp_timer_get_time() + (int64_t)seconds * 1000000;
-    strlcpy(adopt.addr, addr, sizeof(adopt.addr));
-    portEXIT_CRITICAL(&login_mux);
     changed();
-    return true;
+    return NULL;
 }
 
 bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)

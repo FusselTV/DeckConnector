@@ -459,7 +459,9 @@ static bool handle(char *line)
     return true;
 }
 
-static void session(void)
+static volatile uint32_t moves; /* saves of the address or pin, see db_satellite_moved */
+
+static void session(uint32_t moved_at)
 {
     s.fill = 0;
     s.added = s.caching = s.png = s.rotary_amount = false;
@@ -469,7 +471,8 @@ static void session(void)
     int64_t last_ping = last_rx;
     int64_t last_probe = last_rx;
     for (;;) {
-        if (strcmp(s.addr, db_config()->satellite) != 0 || strcmp(s.pin, db_config()->satellite_pin) != 0) {
+        if (moves != moved_at || strcmp(s.addr, db_config()->satellite) != 0 ||
+            strcmp(s.pin, db_config()->satellite_pin) != 0) {
             ESP_LOGI(TAG, "address changed");
             return;
         }
@@ -623,6 +626,7 @@ static void client_task(void *arg)
     int last_err = 0;
     int refused = 0;
     for (;;) {
+        uint32_t moved_at = moves; /* before the address is read: a save in between ends the session at once */
         snprintf(s.addr, sizeof(s.addr), "%s", db_config()->satellite);
         static char tried[sizeof(s.addr)];
         if (strcmp(tried, s.addr) != 0) { /* a new address has not failed yet */
@@ -707,7 +711,7 @@ static void client_task(void *arg)
         s.sock = sock;
         s.changed(); /* Companion's dock connection from this peer ends, or it refuses the deck as taken */
         int64_t began = now_ms();
-        session();
+        session(moved_at);
         s.peer = 0;
         xSemaphoreTake(s.tx, portMAX_DELAY);
         s.sock = -1;
@@ -845,6 +849,12 @@ bool db_satellite_connected(void)
 db_health_t db_satellite_health(void)
 {
     return s.health;
+}
+
+void db_satellite_moved(void)
+{
+    moves++;
+    db_satellite_retry();
 }
 
 void db_satellite_retry(void)

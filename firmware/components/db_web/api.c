@@ -446,8 +446,8 @@ esp_err_t put_config(httpd_req_t *req)
 }
 
 /* Companion's Discover, "Setup" on a found Satellite: an unauthenticated POST of {"host", "port"}, as the
- * official Satellite takes it. A bridge with no Satellite address and nobody drawing takes it at once; else the
- * deck asks, so nobody on the network takes a deck in use without a tap on it. */
+ * official Satellite takes it. A bridge still in setup takes it at once; a set-up one asks on the deck, so nobody
+ * on the network takes it over without a tap there. */
 esp_err_t post_companion_setup(httpd_req_t *req)
 {
     static int64_t last_us;
@@ -456,6 +456,9 @@ esp_err_t post_companion_setup(httpd_req_t *req)
         return send_error(req, "429 Too Many Requests", "one Companion setup per 2 s");
     }
     last_us = now;
+    if (!auth_host_is_local(req)) {
+        return send_error(req, "403 Forbidden", "address the bridge by its IP or .local name");
+    }
     /* a web page can POST only text/plain and form types without a CORS preflight, which we refuse */
     char type[40] = "";
     httpd_req_get_hdr_value_str(req, "Content-Type", type, sizeof(type));
@@ -467,24 +470,27 @@ esp_err_t post_companion_setup(httpd_req_t *req)
     const cJSON *h = cJSON_GetObjectItemCaseSensitive(root, "host");
     const cJSON *p = cJSON_GetObjectItemCaseSensitive(root, "port");
     char addr[sizeof(db_config()->satellite)] = "";
+    char h_copy[48] = "";
+    int port = cJSON_IsNumber(p) ? p->valueint : 0;
     if (cJSON_IsString(h) && h->valuestring[0] && strlen(h->valuestring) < 48 && db_config_ntp_ok(h->valuestring) &&
-        cJSON_IsNumber(p) && p->valueint > 0 && p->valueint < 65536) {
-        snprintf(addr, sizeof(addr), "%s:%d", h->valuestring, p->valueint);
+        !strchr(h->valuestring, ':') && port > 0 && port < 65536) {
+        snprintf(addr, sizeof(addr), "%s:%d", h->valuestring, port);
+        strcpy(h_copy, h->valuestring);
     }
     cJSON_Delete(root);
     if (!addr[0]) {
         return send_error(req, "400 Bad Request", "host and port expected");
     }
     const db_config_t *c = db_config();
-    char host[64], now_host[64];
-    db_sat_addr_host(addr, host, sizeof(host));
-    db_sat_addr_host(c->satellite, now_host, sizeof(now_host));
-    if (c->controller == DB_CTRL_COMPANION && strcmp(c->host, "satellite") == 0 && strcmp(host, now_host) == 0) {
+    bool same = strcmp(c->satellite, addr) == 0 || (port == 16622 && strcmp(c->satellite, h_copy) == 0);
+    if (c->controller == DB_CTRL_COMPANION && strcmp(c->host, "satellite") == 0 && same) {
         return send_json(req, "{\"ok\":true}");
     }
-    if (c->satellite[0] || db_deck_writer() != DB_SOURCE_UI) {
-        if (!db_ui_ask_companion(addr, 60)) {
-            return send_error(req, "409 Conflict", "no deck attached to confirm on");
+    /* during setup it is the source the web wizard would pick; later only a tap on the deck hands it over */
+    if (c->setup_done) {
+        const char *why = db_ui_ask_companion(addr, 60);
+        if (why) {
+            return send_error(req, "409 Conflict", why);
         }
         db_log_event(TAG, "companion", "Companion %s asks for the deck", addr);
         return send_json(req, "{\"ok\":true,\"confirm\":\"deck\"}");
@@ -493,6 +499,7 @@ esp_err_t post_companion_setup(httpd_req_t *req)
     db_config_edit_begin();
     db_config_copy(&n);
     snprintf(n.satellite, sizeof(n.satellite), "%s", addr);
+    n.satellite_pin[0] = '\0'; /* a pin of an old wss:// address would be applied to the next one */
     n.satellite_auto_off = false;
     n.controller = DB_CTRL_COMPANION;
     snprintf(n.host, sizeof(n.host), "satellite");

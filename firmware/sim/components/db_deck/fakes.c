@@ -216,9 +216,9 @@ bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
     return true;
 }
 
-bool db_ui_ask_companion(const char *addr, int seconds)
+const char *db_ui_ask_companion(const char *addr, int seconds)
 {
-    return true;
+    return NULL;
 }
 
 /* DB_SIM_LOGIN_ACCEPT=1: someone at the deck accepts every request after 1 s. */
@@ -443,6 +443,10 @@ const char *db_satellite_address(void)
 }
 
 void db_satellite_retry(void)
+{
+}
+
+void db_satellite_moved(void)
 {
 }
 

@@ -61,8 +61,9 @@ void db_ui_cancel_reset(void);
  * the question. False when no deck is connected. Only taps on the deck itself answer. */
 bool db_ui_ask_login(uint32_t ip, const char *who, int seconds);
 /* The deck asks for `seconds` whether to take Companion at `addr` ("host:port") over Satellite, over whoever
- * draws; a newer call replaces the question. False when no deck is connected. */
-bool db_ui_ask_companion(const char *addr, int seconds);
+ * draws. NULL when it asks, else why not: no deck, another Companion's question is open, or this one was turned
+ * down in the last 5 min. Only taps on the deck itself answer. */
+const char *db_ui_ask_companion(const char *addr, int seconds);
 /* 1 accepted, 0 denied, -1 not answered (yet) for the last question. */
 int db_ui_login_answer(void);
 void db_ui_end_login(void);
