@@ -510,6 +510,10 @@ export const en = {
   'deck.max': 'Decks at once',
   'deck.max_h':
     'All decks on a hub without its own power supply share the 2 A of the USB port. A lower limit applies to decks plugged in later.',
+  'deck.off': 'Screen off after',
+  'deck.off_h': 'With no input, all decks go dark. The first press, turn or touch wakes them and does nothing else.',
+  'deck.never': 'Never',
+  'deck.dark': 'Screen off. The first input wakes the decks.',
   'is.decks_n': '{n} decks',
   'is.compdock': 'Companion "{name}" uses the Dock path',
   'is.compdock_h': 'Satellite is more stable and has all keys and dials.',
