@@ -12,8 +12,9 @@ void tearDown(void)
 static void test_order(void)
 {
     const char *up[] = {
-        "not a version", "v0.9.9", "v1.0.0-rc2", "v1.0.0-rc3", "v1.0.0-rc3-1-g9925b3f-dirty", "v1.0.0-rc10",
-        "v1.0.0",        "v1.0.0-4-gabcdef0", "v1.0.1", "v1.1.0", "v2.0.0",
+        "not a version", "v0.9.9", "v1.0.0-rc2",        "v1.0.0-rc3", "v1.0.0-rc3-1-g9925b3f-dirty",
+        "v1.0.0-rc10",   "v1.0.0", "v1.0.0-4-gabcdef0", "v1.0.1",     "v1.1.0",
+        "v2.0.0",
     };
     for (size_t i = 0; i < sizeof(up) / sizeof(up[0]); i++) {
         for (size_t j = 0; j < sizeof(up) / sizeof(up[0]); j++) {

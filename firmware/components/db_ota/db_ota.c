@@ -8,12 +8,12 @@
 #include "db_json.h"
 #include "db_ptable.h"
 #include "esp_app_desc.h"
+#include "esp_crt_bundle.h"
 #include "esp_flash.h"
 #include "esp_flash_partitions.h"
 #include "esp_heap_caps.h"
 #include "esp_hosted.h"
 #include "esp_hosted_ota.h"
-#include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_image_format.h"
 #include "esp_log.h"
@@ -110,8 +110,10 @@ esp_err_t db_ota_begin(size_t total, int slot, bool boot)
         return ESP_ERR_INVALID_STATE;
     }
     s.refusal = NULL;
-    const esp_partition_t *app = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    if (total <= HEADER_LEN || (app && total > HEADER_LEN + app->size)) { /* no target is larger than a slot */
+    const esp_partition_t *app =
+        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
+    if (total <= HEADER_LEN ||
+        (app && total > HEADER_LEN + app->size)) { /* no target is larger than a slot */
         xSemaphoreGive(s.lock);
         return total <= HEADER_LEN ? ESP_ERR_INVALID_SIZE : ESP_ERR_INVALID_ARG;
     }
@@ -554,7 +556,8 @@ static void url_task(void *arg)
     esp_err_t begun =
         err == ESP_OK && status == 200 && len > 0 ? db_ota_begin((size_t)len, -1, true) : ESP_FAIL;
     if (begun == ESP_ERR_INVALID_ARG || begun == ESP_ERR_INVALID_SIZE) {
-        snprintf(why, sizeof(why), "%s", begun == ESP_ERR_INVALID_ARG ? "larger than a firmware slot" : "too short");
+        snprintf(why, sizeof(why), "%s",
+                 begun == ESP_ERR_INVALID_ARG ? "larger than a firmware slot" : "too short");
     }
     if (begun == ESP_ERR_INVALID_STATE) {
         ESP_LOGW(TAG, "download of %s skipped: an update is already running",

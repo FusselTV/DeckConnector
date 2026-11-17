@@ -21,9 +21,9 @@
 #include "db_ota.h"
 #include "db_sat.h"
 #include "db_satellite.h"
-#include "db_version.h"
 #include "db_screen.h"
 #include "db_ui.h"
+#include "db_version.h"
 #include "db_web.h"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
@@ -976,10 +976,11 @@ esp_err_t put_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-#define RELEASES "https://api.github.com/repos/FusselTV/DeckConnector/releases?per_page=8"
+#define RELEASES     "https://api.github.com/repos/FusselTV/DeckConnector/releases?per_page=8"
 #define RELEASES_MAX (256 * 1024)
 
-/* The JSON of a release list, NULL with *why and *code set on failure; the caller frees it with heap_caps_free. */
+/* The JSON of a release list, NULL with *why and *code set on failure; the caller frees it with
+ * heap_caps_free. */
 static char *fetch(const char *url, const char **why, const char **code)
 {
     *code = "unreachable";
@@ -1002,12 +1003,14 @@ static char *fetch(const char *url, const char **why, const char **code)
         if (esp_http_client_open(c, 0) != ESP_OK || esp_http_client_fetch_headers(c) < 0) {
             *why = "GitHub not reachable";
         } else if (esp_http_client_get_status_code(c) != 200) {
-            bool limited = esp_http_client_get_status_code(c) == 403 || esp_http_client_get_status_code(c) == 429;
+            bool limited =
+                esp_http_client_get_status_code(c) == 403 || esp_http_client_get_status_code(c) == 429;
             *why = limited ? "GitHub limits checks, try again later" : "no releases yet";
             *code = limited ? "rate_limited" : "no_releases";
         }
     }
-    while (!*why && got < RELEASES_MAX - 1 && (n = esp_http_client_read(c, body + got, RELEASES_MAX - 1 - got)) > 0) {
+    while (!*why && got < RELEASES_MAX - 1 &&
+           (n = esp_http_client_read(c, body + got, RELEASES_MAX - 1 - got)) > 0) {
         got += n;
     }
     if (!*why && got >= RELEASES_MAX - 1) {
@@ -1103,8 +1106,8 @@ esp_err_t get_update_check(httpd_req_t *req)
         {
             const cJSON *name = cJSON_GetObjectItemCaseSensitive(a, "name");
             const cJSON *url = cJSON_GetObjectItemCaseSensitive(a, "browser_download_url");
-            if (db_version_cmp(tag, current) > 0 && cJSON_IsString(name) && strcmp(name->valuestring, want) == 0 &&
-                cJSON_IsString(url)) {
+            if (db_version_cmp(tag, current) > 0 && cJSON_IsString(name) &&
+                strcmp(name->valuestring, want) == 0 && cJSON_IsString(url)) {
                 db_json_str(&j, "url", url->valuestring);
             }
         }
