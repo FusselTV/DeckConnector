@@ -35,8 +35,8 @@
 #define LAN_ROUTE_PRIO  200 /* above the WLAN station (100): LAN wins when both are up */
 #define FOUND_MAX       4
 #define BROWSE_EVERY_US 5000000
-#define LAN_DEAD_AFTER  3 /* gateway pings in a row without an answer */
-#define BACK_MIN_RSSI   -80
+#define LAN_DEAD_AFTER  3        /* gateway pings in a row without an answer */
+#define NO_ADDRESS_US   15000000 /* as long as a join from the page waits: DHCP has sent 4 or 5 requests */
 
 static const char *TAG = "net";
 
@@ -69,7 +69,10 @@ static struct {
     bool checking; /* our scan for the primary runs */
     bool leaving;  /* our own disconnect to move back to the primary */
     esp_timer_handle_t check;
+    esp_timer_handle_t no_address;
 } s;
+
+ESP_EVENT_DEFINE_BASE(DB_NET_EVENT);
 
 /* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
 static bool lan_usable(void)
@@ -206,6 +209,7 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     } else {
         s.st.wlan_up = true;
         s.join_got_ip = true;
+        esp_timer_stop(s.no_address);
         db_wlan_up(&s.w, esp_timer_get_time() / 1000);
         s.st.wlan_backup = s.w.backup;
         s.hunting = false;
@@ -278,7 +282,6 @@ static void switch_network(void)
 {
     wifi_config_t cfg = sta_target();
     esp_wifi_set_config(WIFI_IF_STA, &cfg);
-    s.rejoin_ms = 0;
 }
 
 static void leave_backup(void)
@@ -307,7 +310,7 @@ static void primary_scanned(void)
         }
     }
     free(rec);
-    if (s.w.backup && db_wlan_scanned(&s.w, esp_timer_get_time() / 1000, rssi >= BACK_MIN_RSSI)) {
+    if (s.w.backup && db_wlan_scanned(&s.w, esp_timer_get_time() / 1000, rssi)) {
         db_log_event(TAG, "wlan", "WLAN %s is back (%d dBm), leaving the backup %s", c->wifi_ssid, rssi,
                      c->wifi2_ssid);
         leave_backup();
@@ -325,6 +328,23 @@ static void check_primary(void *arg)
     wifi_scan_config_t scan = {.ssid = (uint8_t *)c->wifi_ssid,
                                .bssid = db_config_bssid(c->wifi_bssid, bssid) ? bssid : NULL};
     s.checking = esp_wifi_scan_start(&scan, false) == ESP_OK; /* busy with a scan from the page: next time */
+}
+
+/* Joined without an address: the disconnect runs the failover as a lost link would. */
+static void no_address(void *arg)
+{
+    if (!joining()) { /* a join from the page judges its own address */
+        ESP_LOGW(TAG, "WLAN joined but no address");
+        esp_wifi_disconnect();
+    }
+}
+
+static void on_backup_changed(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    if (s.w.backup) {
+        db_wlan_start(&s.w, esp_timer_get_time() / 1000);
+        leave_backup();
+    }
 }
 
 static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -354,7 +374,16 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         s.rejoin_ms = 0;
         s.join_reason = 0;
         s.join_assoc = true;
-        apply_static(s.wlan, &db_config()->wlan);
+        const db_ip_config_t *ip = &db_config()->wlan;
+        if (!s.w.backup) {
+            apply_static(s.wlan, ip);
+        } else if (!ip->dhcp) { /* the fixed address belongs to the primary's network */
+            esp_netif_ip_info_t none = {0};
+            esp_netif_set_ip_info(s.wlan, &none);
+            esp_netif_dhcpc_start(s.wlan);
+        }
+        esp_timer_stop(s.no_address);
+        esp_timer_start_once(s.no_address, NO_ADDRESS_US);
         break;
     }
     case WIFI_EVENT_STA_DISCONNECTED: {
@@ -365,6 +394,7 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         if (d->reason != WIFI_REASON_ASSOC_LEAVE) { /* our own disconnect before a join is not its cause */
             s.join_reason = d->reason;
         }
+        esp_timer_stop(s.no_address);
         s.join_assoc = false;
         s.join_got_ip = false;
         s.checking = false; /* a scan cut short by the loss may never report */
@@ -372,11 +402,14 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         set_ip(s.st.wlan_ip, NULL);
         changed();
         const db_config_t *c = db_config();
+        bool switched = false;
+        bool after_link = !s.hunting;
         if (s.leaving) {
             s.leaving = false;
         } else if (!joining() && c->wifi_ssid[0] &&
                    db_wlan_lost(&s.w, esp_timer_get_time() / 1000, c->wifi2_ssid[0] != '\0')) {
-            if (!s.hunting) {
+            switched = true;
+            if (after_link) {
                 db_log_event(TAG, "wlan", "WLAN %s gives no link, trying %s%s",
                              s.w.backup ? c->wifi_ssid : c->wifi2_ssid, s.w.backup ? "the backup " : "",
                              s.w.backup ? c->wifi2_ssid : c->wifi_ssid);
@@ -385,7 +418,7 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
             switch_network();
         }
         if (c->wifi_ssid[0]) {
-            s.rejoin_ms = s.rejoin_ms ? (s.rejoin_ms * 2 > 8000 ? 8000 : s.rejoin_ms * 2) : 250;
+            s.rejoin_ms = db_wlan_retry_ms(s.rejoin_ms, switched, after_link);
             esp_timer_stop(s.rejoin);
             esp_timer_start_once(s.rejoin, s.rejoin_ms * 1000ULL);
         }
@@ -450,6 +483,11 @@ static esp_err_t start_wifi(void)
     esp_timer_create_args_t check = {.callback = check_primary, .name = "wlan_check"};
     ESP_RETURN_ON_ERROR(esp_timer_create(&check, &s.check), TAG, "check timer");
     ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s.check, 10000000), TAG, "check timer");
+    esp_timer_create_args_t none = {.callback = no_address, .name = "wlan_no_ip"};
+    ESP_RETURN_ON_ERROR(esp_timer_create(&none, &s.no_address), TAG, "address timer");
+    ESP_RETURN_ON_ERROR(esp_event_handler_register(DB_NET_EVENT, ESP_EVENT_ANY_ID, on_backup_changed, NULL),
+                        TAG, "net ev");
+    db_wlan_start(&s.w, esp_timer_get_time() / 1000);
     ESP_RETURN_ON_ERROR(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi, NULL), TAG,
                         "wifi ev");
     ESP_RETURN_ON_ERROR(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip, NULL), TAG, "ip ev");
@@ -834,7 +872,7 @@ static void join_task(void *arg)
     s.rejoin_ms = 0;
     s.join_got_ip = false;
     s.join_assoc = false;
-    s.w = (db_wlan_t){0};
+    db_wlan_start(&s.w, esp_timer_get_time() / 1000);
     esp_wifi_disconnect();
     esp_err_t set = esp_wifi_set_config(WIFI_IF_STA, &cfg);
     if (set == ESP_OK) {
@@ -918,8 +956,7 @@ esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid
 
 void db_net_wifi_backup_changed(void)
 {
-    if (s.wifi_started && s.w.backup) {
-        s.w = (db_wlan_t){0};
-        leave_backup();
+    if (s.wifi_started) {
+        esp_event_post(DB_NET_EVENT, 0, NULL, 0, pdMS_TO_TICKS(100));
     }
 }
