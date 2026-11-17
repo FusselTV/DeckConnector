@@ -27,7 +27,7 @@ import {
   TriangleAlert,
   Wifi,
 } from 'lucide-react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { api, coredumpRawUrl } from '../api/client'
 import type { DeviceEvent, InputEvent, Metrics, Profile, Route } from '../api/types'
 import { followLog } from '../app/connection'
@@ -257,6 +257,7 @@ function Health() {
         <Spark label="CPU" data={m?.cpu ?? []} fmt={fmt.pct} />
         <Spark label="RAM" data={m?.heap ?? []} fmt={fmt.pct} />
         <Spark label="PSRAM" data={m?.psram ?? []} fmt={fmt.pct} />
+        {!!m?.temp?.some(Boolean) && <Spark label="Chip" data={m.temp} fmt={(v) => `${fmt.num(v)}\u00a0°C`} />}
       </div>
       {m?.flash &&
         Object.entries(m.flash).map(([k, v]) => (
@@ -438,18 +439,33 @@ function Events() {
           </thead>
           <tbody>
             {rows.length ? (
-              rows.map((e) => {
+              rows.map((e, i) => {
                 const I = EV_ICON[e.kind] ?? Activity
+                // before the clock was set: after its boot's start, which for an earlier boot is all there is
+                const when = e.at
+                  ? fmt.stamp(e.at * 1000)
+                  : e.boot
+                    ? `+${e.since_s} s`
+                    : fmt.stamp(bootAt + e.since_s * 1000)
                 return (
-                  <tr key={`${e.since_s}-${e.kind}-${e.text}`}>
-                    <td className="mono">{fmt.clock(e.at ? e.at * 1000 : bootAt + e.since_s * 1000)}</td>
-                    <td>
-                      <span className="ino ev">
-                        <I size={14} aria-hidden />
-                        <span>{e.text}</span>
-                      </span>
-                    </td>
-                  </tr>
+                  <Fragment key={`${e.boot ?? 0}-${i}`}>
+                    {!!e.boot && rows[i - 1]?.boot !== e.boot && (
+                      <tr>
+                        <td colSpan={2} className="muted small">
+                          {t('ev.earlier')}
+                        </td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="mono">{when}</td>
+                      <td>
+                        <span className="ino ev">
+                          <I size={14} aria-hidden />
+                          <span>{e.text}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  </Fragment>
                 )
               })
             ) : (

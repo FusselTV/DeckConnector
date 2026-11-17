@@ -387,6 +387,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
           heap: series(now, 63, 2, 2),
           cpu: series(now, 14, 6, 1),
           psram: series(now, 8, 0.6, 3),
+          temp: series(now, 47, 1.5, 4).map(Math.round),
           flash: {
             firmware: { used: 1_835_008, size: 4_194_304 },
             settings: { used: 6_784, size: 24_192 },

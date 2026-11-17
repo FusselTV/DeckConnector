@@ -278,7 +278,7 @@ export function history(s: Demo, now: number) {
 const up = (s: Demo, now: number) => Math.max(0, Math.floor((now - s.bootAt) / 1000))
 
 export function event(s: Demo, now: number, kind: string, text: string) {
-  s.events = [...s.events, { since_s: up(s, now), at: Math.floor(now / 1000), kind, text }].slice(-32)
+  s.events = [...s.events, { since_s: up(s, now), at: Math.floor(now / 1000), kind, text }].slice(-64)
 }
 
 export function logLine(s: Demo, now: number, text: string) {
@@ -300,7 +300,8 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   s.ota = null
   s.join = null
   s.joinState = ''
-  s.events = []
+  // like the firmware: the last 40 events stay in flash and come back as an earlier boot's
+  s.events = s.events.slice(-40).map((e) => ({ ...e, boot: (e.boot ?? 0) + 1 }))
   if (s.log.length) s.prev = s.log
   s.log = []
   s.since = {}
@@ -492,6 +493,7 @@ export function status(s: Demo, now: number): Status {
       sockets: 9,
       sockets_max: 32,
     },
+    temp_c: 47,
   }
 }
 

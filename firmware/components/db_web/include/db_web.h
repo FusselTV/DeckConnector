@@ -21,6 +21,8 @@ esp_err_t db_web_start(size_t (*status_json)(char *buf, size_t cap),
 
 /* SHA-256 of the HTTPS certificate, "AB:CD:…"; empty without HTTPS. */
 const char *db_web_fingerprint(void);
+/* The chip's temperature in °C from the last 5 s sample, 0 before the first. */
+int db_web_temp_c(void);
 /* HTTPS serves an uploaded certificate, not its own. */
 bool db_web_cert_custom(void);
 /* An uploaded certificate is kept but could not be read at this start (memory, flash): the own one serves. */

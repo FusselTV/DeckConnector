@@ -318,7 +318,7 @@ esp_err_t get_config(httpd_req_t *req)
     return send_built(req, JSON_MAX * 2, config_json);
 }
 
-/* GET /api/events: the timeline of the last DB_EVENTS events, oldest first */
+/* GET /api/events: the timeline of the last DB_EVENTS events, oldest first, earlier boots included */
 static size_t events_json(char *buf, size_t cap)
 {
     db_event_t *ev = heap_caps_malloc(DB_EVENTS * sizeof(*ev), MALLOC_CAP_SPIRAM);
@@ -328,7 +328,8 @@ static size_t events_json(char *buf, size_t cap)
     db_json_arr_open(&j, NULL);
     for (size_t i = 0; i < n; i++) {
         db_json_obj_open(&j, NULL);
-        db_json_int(&j, "since_s", ev[i].at_us / 1000000);
+        db_json_int(&j, "since_s", ev[i].at_us / 1000000); /* after the start of its boot */
+        db_json_int(&j, "boot", ev[i].boot);
         if (ev[i].unix_s) {
             db_json_int(&j, "at", ev[i].unix_s);
         } else {

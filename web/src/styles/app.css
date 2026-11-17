@@ -1174,6 +1174,9 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
+  .sparks:has(> :nth-child(4)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .spark {
     background: var(--well);
     border: 1px solid var(--line);

@@ -665,6 +665,7 @@ export const en = {
   'ev.title': 'Events',
   'ev.what': 'What happened',
   'ev.none': 'Nothing yet.',
+  'ev.earlier': 'Before a restart',
   'in.title': 'Inputs',
   'in.open': 'All inputs',
   'in.o_web': 'Browser',

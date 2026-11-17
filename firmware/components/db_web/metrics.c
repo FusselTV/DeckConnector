@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "db_json.h"
+#include "driver/temperature_sensor.h"
 #include "esp_heap_caps.h"
 #include "esp_image_format.h"
 #include "esp_ota_ops.h"
@@ -88,9 +89,18 @@ static size_t profile_json(char *buf, size_t cap)
 static struct {
     portMUX_TYPE mux;
     uint8_t cpu[METRIC_SAMPLES], heap[METRIC_SAMPLES], psram[METRIC_SAMPLES]; /* percent used */
+    uint8_t temp[METRIC_SAMPLES];                                             /* the chip's, in °C */
     uint16_t next, count;
     uint64_t idle, at;
 } metrics = {.mux = portMUX_INITIALIZER_UNLOCKED};
+
+static temperature_sensor_handle_t tsens;
+static uint8_t temp_now; /* 0 until the first sample */
+
+int db_web_temp_c(void)
+{
+    return temp_now;
+}
 
 static uint64_t idle_time(void)
 {
@@ -118,8 +128,14 @@ static void sample_metrics(void *arg)
     uint8_t heap =
         used_pct(MALLOC_CAP_INTERNAL); /* outside the critical section: the heap takes its own lock */
     uint8_t psram = used_pct(MALLOC_CAP_SPIRAM);
+    float c = 0;
+    /* a failed read keeps the last value: a 0 would draw a drop to 0 °C */
+    uint8_t temp = tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)(c + 0.5f)
+                                                                                         : temp_now;
     taskENTER_CRITICAL(&metrics.mux);
+    temp_now = temp;
     if (metrics.at) {
+        metrics.temp[metrics.next] = temp;
         metrics.cpu[metrics.next] = cpu;
         metrics.heap[metrics.next] = heap;
         metrics.psram[metrics.next] = psram;
@@ -167,11 +183,12 @@ static void write_flash(db_json_t *j)
 
 static size_t metrics_json(char *buf, size_t cap)
 {
-    static uint8_t cpu[METRIC_SAMPLES], heap[METRIC_SAMPLES], psram[METRIC_SAMPLES];
+    static uint8_t cpu[METRIC_SAMPLES], heap[METRIC_SAMPLES], psram[METRIC_SAMPLES], temp[METRIC_SAMPLES];
     taskENTER_CRITICAL(&metrics.mux); /* a copy, so the JSON is built outside the critical section */
     memcpy(cpu, metrics.cpu, sizeof(cpu));
     memcpy(heap, metrics.heap, sizeof(heap));
     memcpy(psram, metrics.psram, sizeof(psram));
+    memcpy(temp, metrics.temp, sizeof(temp));
     taskEXIT_CRITICAL(&metrics.mux);
     db_json_t j;
     db_json_begin(&j, buf, cap);
@@ -180,6 +197,7 @@ static size_t metrics_json(char *buf, size_t cap)
     write_series(&j, "cpu", cpu);
     write_series(&j, "heap", heap);
     write_series(&j, "psram", psram);
+    write_series(&j, "temp", temp);
     write_flash(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);
@@ -197,6 +215,11 @@ esp_err_t get_profile(httpd_req_t *req)
 
 void metrics_start(void)
 {
+    temperature_sensor_config_t range = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+    if (temperature_sensor_install(&range, &tsens) == ESP_OK && temperature_sensor_enable(tsens) != ESP_OK) {
+        temperature_sensor_uninstall(tsens);
+        tsens = NULL; /* the page shows no temperature */
+    }
     esp_timer_handle_t timer;
     esp_timer_create_args_t every = {.callback = sample_metrics, .name = "metrics"};
     if (esp_timer_create(&every, &timer) == ESP_OK) {
