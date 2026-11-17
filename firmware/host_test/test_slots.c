@@ -37,18 +37,27 @@ static void test_a_deck_gets_its_slot_back(void)
 {
     take("A");
     take("B");
-    memset(taken, 0, sizeof(taken)); /* both unplugged, B comes back first */
+    taken[1] = false; /* B unplugged and back */
     TEST_ASSERT_EQUAL_INT(1, take("B"));
-    TEST_ASSERT_EQUAL_INT(0, take("A"));
 }
 
 static void test_a_new_deck_leaves_owned_slots_alone(void)
 {
     take("A");
     take("B");
-    memset(taken, 0, sizeof(taken));
+    taken[1] = false;
     TEST_ASSERT_EQUAL_INT(2, take("C"));
-    TEST_ASSERT_EQUAL_INT(0, take("A"));
+}
+
+static void test_a_deck_alone_takes_the_first_slot(void)
+{
+    take("A");
+    take("B");
+    memset(taken, 0, sizeof(taken)); /* A replaced by a new deck, B gone too */
+    TEST_ASSERT_EQUAL_INT(0, take("C"));
+    TEST_ASSERT_EQUAL_INT(1, take("B"));
+    memset(taken, 0, sizeof(taken));
+    TEST_ASSERT_EQUAL_INT(0, take("B")); /* B alone, though it owns slot 1 */
 }
 
 static void test_all_owned_takes_the_lowest_free(void)
@@ -87,6 +96,7 @@ int main(void)
     RUN_TEST(test_new_decks_fill_from_the_first);
     RUN_TEST(test_a_deck_gets_its_slot_back);
     RUN_TEST(test_a_new_deck_leaves_owned_slots_alone);
+    RUN_TEST(test_a_deck_alone_takes_the_first_slot);
     RUN_TEST(test_all_owned_takes_the_lowest_free);
     RUN_TEST(test_own_slot_taken_moves_and_drops_the_old_one);
     RUN_TEST(test_full);

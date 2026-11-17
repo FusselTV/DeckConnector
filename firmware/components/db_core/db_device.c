@@ -34,7 +34,9 @@ int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, const char *
     int own = -1;
     int unowned = -1;
     int any = -1;
+    bool alone = true;
     for (int i = n - 1; i >= 0; i--) {
+        alone &= !taken[i];
         if (taken[i]) {
             continue;
         }
@@ -42,7 +44,7 @@ int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, const char *
         unowned = owners[i][0] ? unowned : i;
         any = i;
     }
-    int slot = own >= 0 ? own : unowned >= 0 ? unowned : any;
+    int slot = alone ? any : own >= 0 ? own : unowned >= 0 ? unowned : any;
     if (slot < 0) {
         return -1;
     }

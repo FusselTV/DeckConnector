@@ -140,14 +140,14 @@ static void write_sources(db_json_t *j, bool live)
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         if (db_link_url(i)[0]) {
             db_health_t h = db_link_health(i);
-            write_source(j, "server", db_link_url(i), 0, db_link_connected(i), 0,
+            write_source(j, "server", db_link_url(i), 0, db_link_connected(i), db_link_deck(),
                          db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1, &h);
         }
     }
     if (db_satellite_address()[0]) {
         db_health_t h = db_satellite_health();
         write_source(j, "companion", db_satellite_address(), db_satellite_peer(), db_satellite_connected(-1),
-                     db_deck_first() > 0 ? db_deck_first() : 0, DB_SOURCE_SAT, &h);
+                     db_link_deck(), DB_SOURCE_SAT, &h);
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS * DB_MAX_DECKS];
     size_t n = db_dock_hosts(-1, hosts, DB_DOCK_HOSTS * DB_MAX_DECKS);

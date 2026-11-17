@@ -112,8 +112,8 @@ static int dock_choice(db_controller_t kind, const db_dock_host_t *hosts, size_t
 static db_source_t choice(int deck, db_controller_t kind)
 {
     if (kind == DB_CTRL_SERVER) {
-        return s.active_link >= 0 && deck == 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link)
-                                               : DB_SOURCE_UI;
+        return s.active_link >= 0 && deck == db_link_deck() ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link)
+                                                            : DB_SOURCE_UI;
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(deck, hosts, DB_DOCK_HOSTS);
@@ -177,7 +177,7 @@ static void model_sources(int deck, ui_model_t *md)
         snprintf(src->id, sizeof(src->id), "%s", hosts[i].ip);
         host_label(ipaddr_addr(hosts[i].ip), hosts[i].ip, src->label, sizeof(src->label));
     }
-    for (int i = 0; deck == 0 && i < DB_MAX_SERVERS && md->source_count < UI_SOURCES; i++) {
+    for (int i = 0; deck == db_link_deck() && i < DB_MAX_SERVERS && md->source_count < UI_SOURCES; i++) {
         if (db_link_connected(i)) {
             ui_source_t *src =
                 add_source(deck, md, UI_CTRL_SERVER, UI_VIA_SERVER, (db_source_t)(DB_SOURCE_LINK0 + i));
@@ -571,7 +571,7 @@ static void pick_writers(void)
         pick_writer(d);
     }
     /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
-    bool covering = (ui_menu_open(&decks[0].menu) || s.update_pct >= 0) && s.active_link >= 0;
+    bool covering = (ui_menu_open(&decks[db_link_deck()].menu) || s.update_pct >= 0) && s.active_link >= 0;
     if (s.covered && !covering && s.active_link >= 0) {
         db_link_resend_role();
     }
