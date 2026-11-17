@@ -109,9 +109,12 @@ jobs:
       github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      matrix:
+        project: [desktop, phone] # one runner each: the runner gets one Playwright worker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -125,7 +128,7 @@ jobs:
         with:
           enable-cache: ${{ github.ref_type != 'tag' }} # zig for the demo's deck screens
       - run: cd web && npm ci && npx playwright install --with-deps chromium && npm run build:demo
-      - run: cd web && DC_NO_SIM=1 npx playwright test -c playwright.demo.config.ts --project desktop --project phone
+      - run: cd web && DC_NO_SIM=1 npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
 
   # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
   # comes down in the background while the page builds. The build needs the room of the runner's Android, .NET and GHC.
