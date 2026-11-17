@@ -25,24 +25,25 @@
 #include "nvs.h"
 #include "ws.h"
 
-#define LINE_CAP     (256 * 1024) /* an rgb strip part is 80 KB of base64; Companion's own limit is 2 MB */
-#define RX_CHUNK     8192
-#define RX_WAIT_MS   200
-#define SEND_WAIT_MS 500
-#define CONNECT_MS   3000
-#define RETRY_MS     2000
-#define REFUSED_MS   500 /* refused or reset: Companion is starting, its port opens soon */
-#define REFUSED_MAX  40  /* then RETRY_MS */
-#define FAIL_GAP_MS  250
-#define PING_MS      2000
-#define SILENT_MS    6000 /* Companion answers every PING */
-#define ADD_AGAIN_MS 3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
-#define LAN_PROBE_MS 5000
-#define BOOT_LAN_US  (30LL * 1000000)
-#define QUALITY      90
-#define CACHE_SLOTS  2048
-#define CACHE_BUDGET (4 * 1024 * 1024)
-#define PNG_PREFIX   "data:image/png;base64,"
+#define LINE_CAP       (256 * 1024) /* an rgb strip part is 80 KB of base64; Companion's own limit is 2 MB */
+#define RX_CHUNK       8192
+#define RX_WAIT_MS     200
+#define SEND_WAIT_MS   500
+#define CONNECT_MS     3000
+#define RETRY_MS       2000
+#define REFUSED_MS     500 /* refused or reset: Companion is starting, its port opens soon */
+#define REFUSED_MAX    40  /* then RETRY_MS */
+#define FAIL_GAP_MS    250
+#define PING_MS        2000
+#define SILENT_MS      6000 /* Companion answers every PING */
+#define ADD_AGAIN_MS   3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
+#define REFUSED_MAX_MS 60000
+#define LAN_PROBE_MS   5000
+#define BOOT_LAN_US    (30LL * 1000000)
+#define QUALITY        90
+#define CACHE_SLOTS    2048
+#define CACHE_BUDGET   (4 * 1024 * 1024)
+#define PNG_PREFIX     "data:image/png;base64,"
 
 /* "host" or "host:port" from the satellite setting: the host into `host`, and the port. */
 static unsigned tcp_host(const char *addr, char *host, size_t cap)
@@ -73,6 +74,7 @@ typedef struct {
     int brightness;
     bool was_writer;
     int64_t add_sent_ms;
+    uint32_t refused_ms; /* the wait before it is offered again after a refusal, 0: none */
     char serial[32];
     char model[32];
     db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
@@ -295,10 +297,9 @@ static void draw(int deck, const db_sat_control_t *c, uint8_t *jpeg, size_t len)
 }
 
 /* false: the picture cannot be drawn as Companion thinks, and only a new session puts that right. */
-static bool key_state(const db_sat_msg_t *m)
+static bool key_state(int deck, const db_sat_msg_t *m)
 {
     db_sat_control_t c;
-    int deck = deck_of(m);
     if (deck < 0 || !s.rgb || !s.work || !find_control(deck, db_sat_get(m, "CONTROLID"), &c) || !c.rect.w) {
         return true;
     }
@@ -386,7 +387,6 @@ static void add_device(int deck)
     free(line);
 }
 
-/* The buffers fit the largest control of every deck. */
 static bool size_buffers(void)
 {
     size_t px = 0;
@@ -414,6 +414,7 @@ static void apply_device(int deck)
     }
     v->dirty = false;
     v->add_sent_ms = 0;
+    v->refused_ms = 0;
     if (v->added) {
         send_line("REMOVE-DEVICE DEVICEID=\"%s\"\n", v->serial);
         v->added = false;
@@ -451,8 +452,10 @@ static bool handle(char *line)
     db_sat_msg_t m;
     db_sat_parse(line, &m);
     const char *v;
+    int deck = deck_of(&m);
+    sat_dev_t *d = deck >= 0 ? &s.devs[deck] : NULL;
     if (strcmp(m.cmd, "KEY-STATE") == 0) {
-        return key_state(&m);
+        return key_state(deck, &m);
     } else if (strcmp(m.cmd, "BEGIN") == 0) {
         const char *api = db_sat_get(&m, "ApiVersion");
         v = db_sat_get(&m, "CompanionVersion");
@@ -473,24 +476,34 @@ static bool handle(char *line)
         } else if (ids) {
             cache_evict(ids);
         }
-    } else if (strcmp(m.cmd, "ADD-DEVICE") == 0 && deck_of(&m) >= 0) {
-        sat_dev_t *d = &s.devs[deck_of(&m)];
-        d->added = db_sat_get(&m, "OK") != NULL;
-        d->add_sent_ms = 0;
-        if (d->added) {
+    } else if (strcmp(m.cmd, "ADD-DEVICE") == 0 && d) {
+        v = db_sat_get(&m, "MESSAGE");
+        /* "already added": our resend crossed a slow OK */
+        bool added = db_sat_get(&m, "OK") != NULL || (v && strstr(v, "already"));
+        if (added && !d->added) {
             ESP_LOGI(TAG, "Companion took the %s %s", d->model, d->serial);
             db_log_mark(DB_MARK_SATELLITE);
+            d->added = true;
             s.changed();
-        } else {
-            ESP_LOGW(TAG, "Companion refused the deck: %s", (v = db_sat_get(&m, "MESSAGE")) ? v : "?");
-            return false; /* e.g. "Device exists elsewhere" while it has not noticed the last session ended */
         }
-    } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE")) && deck_of(&m) >= 0) {
-        sat_dev_t *d = &s.devs[deck_of(&m)];
+        if (added) {
+            d->add_sent_ms = 0;
+            d->refused_ms = 0;
+        } else {
+            /* e.g. "Device exists elsewhere" while it has not noticed the last session ended: this deck
+             * waits longer each time, the others stay */
+            d->refused_ms = d->refused_ms
+                                ? (d->refused_ms * 2 > REFUSED_MAX_MS ? REFUSED_MAX_MS : d->refused_ms * 2)
+                                : ADD_AGAIN_MS;
+            d->add_sent_ms = now_ms();
+            ESP_LOGW(TAG, "Companion refused the %s: %s, again in %lu s", d->serial, v ? v : "?",
+                     (unsigned long)(d->refused_ms / 1000));
+        }
+    } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE")) && d) {
         d->brightness = atoi(v);
         d->was_writer = false; /* applied below, now or once the deck is ours */
-    } else if (strcmp(m.cmd, "KEYS-CLEAR") == 0 && deck_of(&m) >= 0) {
-        clear_keys(deck_of(&m));
+    } else if (strcmp(m.cmd, "KEYS-CLEAR") == 0 && d) {
+        clear_keys(deck);
     } else if (strcmp(m.cmd, "ERROR") == 0) {
         ESP_LOGW(TAG, "Companion: %s", (v = db_sat_get(&m, "MESSAGE")) ? v : line);
     }
@@ -506,6 +519,7 @@ static void session(uint32_t moved_at)
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         s.devs[d].added = s.devs[d].was_writer = s.devs[d].dirty = false;
         s.devs[d].add_sent_ms = 0;
+        s.devs[d].refused_ms = 0;
         s.devs[d].brightness = -1;
     }
     int64_t last_rx = now_ms();
@@ -562,7 +576,9 @@ static void session(uint32_t moved_at)
             send_line("PING\n");
         }
         for (int d = 0; d < DB_MAX_DECKS; d++) {
-            if (!s.devs[d].added && s.devs[d].add_sent_ms && now - s.devs[d].add_sent_ms > ADD_AGAIN_MS) {
+            const sat_dev_t *v = &s.devs[d];
+            if (!v->added && v->add_sent_ms &&
+                now - v->add_sent_ms > (v->refused_ms ? v->refused_ms : ADD_AGAIN_MS)) {
                 add_device(d);
             }
         }
