@@ -92,7 +92,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
-| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost`, `problem` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409 auf einer Platine ohne Lautsprecher | control |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind, und auf einer Platine ohne Lautsprecher | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 

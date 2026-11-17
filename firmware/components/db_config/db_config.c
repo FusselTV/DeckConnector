@@ -15,7 +15,7 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 3 /* 2: setup_done, 3: four servers and host */
+#define CONFIG_VERSION 4 /* 2: setup_done, 3: four servers and host, 4: volume */
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -108,6 +108,9 @@ esp_err_t db_config_load(void)
             if (current.version < 2) {
                 current.setup_done = true; /* saved before the welcome steps existed: already set up */
             }
+            if (current.version < 4 || current.volume > 100) {
+                current.volume = 0; /* older blobs end in padding where volume now sits */
+            }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
                 current.controller = DB_CTRL_SERVER;
@@ -142,9 +145,6 @@ esp_err_t db_config_load(void)
             current.qr_login_off = lock == 1;
             memcpy(&lock, &current.satellite_auto_off, 1);
             current.satellite_auto_off = lock == 1;
-            if (current.volume_set != 1 || current.volume > 100) {
-                current.volume = 0;
-            }
         }
         free(blob);
     }
@@ -567,7 +567,6 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->volume = (uint8_t)vol->valueint;
-        cfg->volume_set = 1;
     }
     const cJSON *hold = cJSON_GetObjectItemCaseSensitive(root, "menu_hold_ms");
     if (hold) {

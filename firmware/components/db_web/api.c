@@ -1316,8 +1316,10 @@ esp_err_t post_sound(httpd_req_t *req)
     bool ok = sound >= 0 && volume >= 0 && volume <= 100 && (!v || cJSON_IsNumber(v));
     cJSON_Delete(root);
     if (!ok) {
-        return send_error(req, "400 Bad Request",
-                          "sound: ready, connected, lost, problem or find; volume: 0 to 100");
+        return send_error(req, "400 Bad Request", "sound: ready, connected, lost or find; volume: 0 to 100");
+    }
+    if (!volume && sound != DB_SOUND_FIND) {
+        return send_error(req, "409 Conflict", "sounds are off: set volume");
     }
     if (sound == DB_SOUND_FIND && !v && volume < 60) {
         volume = 60;

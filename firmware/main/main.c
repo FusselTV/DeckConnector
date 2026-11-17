@@ -395,12 +395,26 @@ static void satellite_now(char *out)
     snprintf(out, sizeof(applied_sat), "%s %s", db_config()->satellite, db_config()->satellite_pin);
 }
 
-/* Once per start, when a host first draws: the board is ready. */
-static void ready_chime(void *arg)
+/* Ready once per start, when a host first draws; then lost when no host is there for 3 s (a menu or an update
+ * over the picture does not count) and connected when one is back. */
+static void sound_watch(void *arg)
 {
-    if (db_log_mark_ms(DB_MARK_HOST_DRAWS)) {
-        db_audio_play(DB_SOUND_READY);
-        esp_timer_stop(*(esp_timer_handle_t *)arg);
+    static bool ready, lost;
+    static int gone_s;
+    if (!ready) {
+        if ((ready = db_log_mark_ms(DB_MARK_HOST_DRAWS) != 0)) {
+            db_audio_play(DB_SOUND_READY);
+        }
+        return;
+    }
+    bool host = db_ui_chosen_source() != DB_SOURCE_UI;
+    gone_s = host ? 0 : gone_s + 1;
+    if (host && lost) {
+        lost = false;
+        db_audio_play(DB_SOUND_CONNECTED);
+    } else if (gone_s == 3) {
+        lost = true;
+        db_audio_play(DB_SOUND_LOST);
     }
 }
 
@@ -539,10 +553,10 @@ void app_main(void)
     started("web", db_web_start(web_status, web_state));
     started("Improv", db_serial_start());
     started("speaker", db_audio_start());
-    static esp_timer_handle_t chime;
-    esp_timer_create_args_t every = {.callback = ready_chime, .arg = &chime, .name = "chime"};
-    if (esp_timer_create(&every, &chime) == ESP_OK) {
-        esp_timer_start_periodic(chime, 1000000);
+    esp_timer_handle_t sounds;
+    esp_timer_create_args_t every = {.callback = sound_watch, .name = "sounds"};
+    if (db_board()->speaker.present && esp_timer_create(&every, &sounds) == ESP_OK) {
+        esp_timer_start_periodic(sounds, 1000000);
     }
     db_ota_confirm_when(healthy);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);

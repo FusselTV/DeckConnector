@@ -92,7 +92,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
-| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost`, `problem` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 on a board without a speaker | control |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or on a board without a speaker | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 

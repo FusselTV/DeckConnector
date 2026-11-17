@@ -8,7 +8,6 @@ typedef enum {
     DB_SOUND_READY,     /* started and a host draws */
     DB_SOUND_CONNECTED, /* a host came back */
     DB_SOUND_LOST,      /* the host that drew is gone */
-    DB_SOUND_PROBLEM,   /* something needs a look, e.g. an update failed */
     DB_SOUND_FIND,      /* Find: which board is this */
     DB_SOUND_COUNT,
 } db_sound_t;

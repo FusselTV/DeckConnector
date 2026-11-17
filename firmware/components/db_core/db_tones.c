@@ -11,7 +11,6 @@ typedef struct {
 static const note_t READY[] = {{1047, 90}, {0, 30}, {1568, 140}};
 static const note_t CONNECTED[] = {{1319, 80}};
 static const note_t LOST[] = {{1568, 90}, {0, 30}, {1047, 140}};
-static const note_t PROBLEM[] = {{440, 150}, {0, 80}, {440, 150}};
 static const note_t FIND[] = {{2093, 120}, {0, 80}, {2093, 120}, {0, 80}, {2093, 120}, {0, 600},
                               {2093, 120}, {0, 80}, {2093, 120}, {0, 80}, {2093, 120}};
 
@@ -23,7 +22,6 @@ static const struct {
     [DB_SOUND_READY] = {"ready", READY, sizeof(READY) / sizeof(READY[0])},
     [DB_SOUND_CONNECTED] = {"connected", CONNECTED, sizeof(CONNECTED) / sizeof(CONNECTED[0])},
     [DB_SOUND_LOST] = {"lost", LOST, sizeof(LOST) / sizeof(LOST[0])},
-    [DB_SOUND_PROBLEM] = {"problem", PROBLEM, sizeof(PROBLEM) / sizeof(PROBLEM[0])},
     [DB_SOUND_FIND] = {"find", FIND, sizeof(FIND) / sizeof(FIND[0])},
 };
 

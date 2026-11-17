@@ -1,5 +1,7 @@
 #include "db_audio.h"
 
+#include <string.h>
+
 #include "db_board.h"
 #include "db_config.h"
 #include "driver/i2c_master.h"
@@ -14,7 +16,8 @@
 #include "freertos/task.h"
 
 #define RATE    16000
-#define LONGEST (RATE * 3) /* samples; Find is the longest sound */
+#define LONGEST (RATE * 3)  /* samples; Find is the longest sound */
+#define TAIL    (RATE / 10) /* silence after each sound: close cuts what the I2S DMA still holds, 90 ms */
 
 static const char *TAG = "audio";
 
@@ -73,13 +76,19 @@ static esp_err_t codec_new(void)
 
 static void audio_task(void *arg)
 {
-    int16_t *pcm = heap_caps_malloc(LONGEST * sizeof(int16_t), MALLOC_CAP_SPIRAM);
+    int16_t *pcm = heap_caps_calloc(LONGEST + TAIL, sizeof(int16_t), MALLOC_CAP_SPIRAM);
+    if (!pcm) {
+        ESP_LOGW(TAG, "no memory for sounds");
+    }
+    esp_log_level_set("ES8311", ESP_LOG_WARN); /* else a line per sound in the log */
     play_t p;
     while (xQueueReceive(queue, &p, portMAX_DELAY) == pdTRUE) {
         size_t n = pcm ? db_tones_render(p.sound, p.volume, RATE, pcm, LONGEST) : 0;
         if (!n) {
             continue;
         }
+        memset(pcm + n, 0, TAIL * sizeof(int16_t));
+        n += TAIL;
         if (!dev && (broken || codec_new() != ESP_OK)) {
             if (!broken) {
                 ESP_LOGW(TAG, "no speaker: the codec does not answer");

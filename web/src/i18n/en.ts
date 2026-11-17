@@ -80,7 +80,7 @@ export const en = {
   'ov.controls': 'Controls',
   'ov.bright': 'Brightness',
   'ov.volume': 'Sounds',
-  'ov.find': 'Find',
+  'ov.find': 'Find board',
   'ov.find_h': 'The board beeps, even with the sounds off',
   'ov.menu': 'Deck menu',
   'ov.menu_close': 'Close menu',

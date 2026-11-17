@@ -35,7 +35,7 @@ static int first_hz(const int16_t *s, size_t n)
 static void test_each_sound_has_its_pitch_and_length(void)
 {
     static int16_t buf[RATE * 4];
-    const int first[] = {1047, 1319, 1568, 440, 2093};
+    const int first[] = {1047, 1319, 1568, 2093};
     for (int s = 0; s < DB_SOUND_COUNT; s++) {
         size_t n = db_tones_render((db_sound_t)s, 100, RATE, buf, sizeof(buf) / sizeof(buf[0]));
         TEST_ASSERT_TRUE_MESSAGE(n > RATE / 20 && n < RATE * 3, db_sound_name((db_sound_t)s));

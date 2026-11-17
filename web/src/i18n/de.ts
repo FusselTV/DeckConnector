@@ -82,7 +82,7 @@ export const de: Dict = {
   'ov.controls': 'Steuerung',
   'ov.bright': 'Helligkeit',
   'ov.volume': 'Töne',
-  'ov.find': 'Finden',
+  'ov.find': 'Platine finden',
   'ov.find_h': 'Die Platine piept, auch wenn die Töne aus sind',
   'ov.menu': 'Deck-Menü',
   'ov.menu_close': 'Menü schließen',

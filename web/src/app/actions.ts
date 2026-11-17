@@ -65,7 +65,8 @@ export function useActions() {
     return {
       pick,
       brightness: (n: number) => act(() => putConfig({ brightness: n })),
-      volume: (n: number) => act(() => putConfig({ volume: n })),
+      // a short sound at the new level, so the slider can be judged by ear
+      volume: (n: number) => act(async () => (await putConfig({ volume: n }), n ? await api.sound('connected') : null)),
       find: () => act(() => api.sound('find')),
       menu: (serial?: string) =>
         act(async () => {
