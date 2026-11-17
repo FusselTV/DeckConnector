@@ -29,7 +29,7 @@ uint8_t db_device_image_keys(const db_device_info_t *info)
     return n;
 }
 
-int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, const char *id)
+int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, const char *id)
 {
     int own = -1;
     int unowned = -1;
@@ -37,14 +37,14 @@ int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, const char *
     bool alone = true;
     for (int i = n - 1; i >= 0; i--) {
         alone &= !taken[i];
-        if (taken[i]) {
+        if (taken[i] || i >= limit) {
             continue;
         }
         own = strcmp(owners[i], id) == 0 ? i : own;
         unowned = owners[i][0] ? unowned : i;
         any = i;
     }
-    int slot = alone ? any : own >= 0 ? own : unowned >= 0 ? unowned : any;
+    int slot = own >= 0 ? own : alone || unowned < 0 ? any : unowned;
     if (slot < 0) {
         return -1;
     }

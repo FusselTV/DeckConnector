@@ -91,7 +91,7 @@ uint8_t db_device_image_keys(const db_device_info_t *info);
 /* A deck's name in the slot list: its serial, or "port <hub ports>" for one without. */
 typedef char db_slot_owner_t[32];
 
-/* The slot for deck `id`. Alone it gets the first: a replaced single deck keeps the dock port and the
- * servers. With others there, its own one when free, else the lowest free one no other deck owns, else the
- * lowest free one; -1 when all `n` are taken. The slot belongs to `id` in `owners` from then on. */
-int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, const char *id);
+/* The slot below `limit` for deck `id`: its own one when free. Else, alone, the lowest free one, so a
+ * replaced single deck keeps the dock port; with others there, the lowest free one no other deck owns, else
+ * the lowest free one. -1 when none is free. The slot belongs to `id` in `owners` (all `n`) from then on. */
+int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, const char *id);

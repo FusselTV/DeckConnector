@@ -453,7 +453,7 @@ static int take_slot(int port, const char *serial)
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         taken[d] = decks[d].present;
     }
-    int slot = db_slot_take(s.owners, taken, DB_MAX_DECKS, id);
+    int slot = db_slot_take(s.owners, taken, DB_MAX_DECKS, s.max_decks, id);
     save_owners(); /* NVS writes nothing when the blob is the same */
     return slot;
 }
