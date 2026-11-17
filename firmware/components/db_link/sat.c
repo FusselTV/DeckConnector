@@ -33,6 +33,7 @@
 #define RETRY_MS     2000
 #define REFUSED_MS   500 /* refused or reset: Companion is starting, its port opens soon */
 #define REFUSED_MAX  40  /* then RETRY_MS */
+#define FAIL_GAP_MS  250
 #define PING_MS      2000
 #define SILENT_MS    6000 /* Companion answers every PING */
 #define ADD_AGAIN_MS 3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
@@ -673,7 +674,14 @@ static void client_task(void *arg)
             bool early = !wlan && n.lan_link && esp_timer_get_time() < BOOT_LAN_US;
             bool soon = (sock == -ECONNREFUSED || sock == -ECONNRESET) && refused++ < REFUSED_MAX;
             via_wlan = early || soon ? false : !wlan;
-            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(early ? 250 : soon ? REFUSED_MS : RETRY_MS)); /* or now */
+            int64_t failed_at = now_ms();
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(early ? 250 : soon ? REFUSED_MS : RETRY_MS));
+            /* also when woken: a failed wss try can be 0.7 s of certificate check, back to back they starve
+             * IDLE0 into the task watchdog */
+            int64_t left = FAIL_GAP_MS - (now_ms() - failed_at);
+            if (left > 0) {
+                vTaskDelay(pdMS_TO_TICKS(left));
+            }
             continue;
         }
         last_err = 0;
