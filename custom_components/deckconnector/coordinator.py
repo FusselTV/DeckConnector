@@ -25,6 +25,13 @@ BACKOFF_MAX_S = 30
 type DeckConnectorConfigEntry = ConfigEntry[DeckCoordinator]
 
 
+def merge(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
+    out = dict(old)
+    for key, value in new.items():
+        out[key] = merge(old[key], value) if isinstance(value, dict) and isinstance(old.get(key), dict) else value
+    return out
+
+
 class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     config_entry: DeckConnectorConfigEntry
 
@@ -52,8 +59,11 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except AuthError as err:
             raise ConfigEntryAuthFailed from err
         except DeckConnectorError as err:
+            if self.connected and self.data:
+                _LOGGER.debug("poll of %s failed, the websocket is up: %s", self.api.host, err)
+                return self.data
             raise UpdateFailed(str(err)) from err
-        return {**(self.data or {}), **status}
+        return merge(self.data or {}, status)
 
     def start(self) -> None:
         entry = self.config_entry
@@ -99,8 +109,11 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _handle(self, msg: dict[str, Any]) -> None:
         kind = msg.get("t")
         if kind == "state":
+            if not self.connected:
+                for deck in msg.get("decks") or []:
+                    async_dispatcher_send(self.hass, SIGNAL_SCREEN.format(deck["serial"]))
             self.connected = True
-            self.async_set_updated_data({**self.data, **msg})
+            self.async_set_updated_data(merge(self.data, msg))
         elif kind == "input" and not msg.get("simulated"):
             async_dispatcher_send(self.hass, SIGNAL_INPUT.format(msg.get("deck")), msg)
         elif kind == "screen":

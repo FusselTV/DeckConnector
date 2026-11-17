@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 from typing import Any
 
 import aiohttp
@@ -17,7 +18,19 @@ class AuthError(DeckConnectorError):
     pass
 
 
+class ConflictError(DeckConnectorError):
+    pass
+
+
 class NoDeckError(DeckConnectorError):
+    pass
+
+
+class TokenLimitError(DeckConnectorError):
+    pass
+
+
+class HttpsOnlyError(DeckConnectorError):
     pass
 
 
@@ -26,15 +39,22 @@ async def _call(
 ) -> tuple[Any, aiohttp.ClientResponse]:
     try:
         async with session.request(method, url, timeout=TIMEOUT, **kwargs) as resp:
-            body = await resp.json(content_type=None)
-    except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            text = await resp.text()
+    except (aiohttp.ClientError, TimeoutError) as err:
         raise DeckConnectorError(str(err) or type(err).__name__) from err
+    try:
+        body = json.loads(text) if text else None
+    except ValueError as err:
+        if resp.status == 403 and "HTTPS only" in text:
+            raise HttpsOnlyError(text) from err
+        raise DeckConnectorError(f"HTTP {resp.status}: not JSON") from err
+    error = body.get("error", f"HTTP {resp.status}") if isinstance(body, dict) else f"HTTP {resp.status}"
     if resp.status == 401:
-        raise AuthError((body or {}).get("error", f"HTTP {resp.status}"))
+        raise AuthError(error)
     if resp.status == 409:
-        raise NoDeckError((body or {}).get("error", f"HTTP {resp.status}"))
+        raise ConflictError(error)
     if resp.status >= 400:
-        raise DeckConnectorError((body or {}).get("error", f"HTTP {resp.status}"))
+        raise DeckConnectorError(error)
     return body, resp
 
 
@@ -69,10 +89,18 @@ class Api:
 
 
 async def login_request(session: aiohttp.ClientSession, host: str) -> str:
-    body, _ = await _call(
-        session, "POST", f"http://{host}/api/login/request", json={"who": "Home Assistant"}, headers=MARK
-    )
+    try:
+        body, _ = await _call(
+            session, "POST", f"http://{host}/api/login/request", json={"who": "Home Assistant"}, headers=MARK
+        )
+    except ConflictError as err:
+        raise NoDeckError(str(err)) from err
     return body["id"]
+
+
+async def login_cancel(session: aiohttp.ClientSession, host: str, request: str) -> None:
+    with contextlib.suppress(DeckConnectorError):
+        await _call(session, "DELETE", f"http://{host}/api/login/request/{request}", headers=MARK)
 
 
 async def login_state(session: aiohttp.ClientSession, host: str, request: str) -> tuple[str, str | None]:
@@ -92,13 +120,16 @@ async def create_token(
     headers = {**MARK, "Cookie": f"dc_session={cookie}"} if cookie else MARK
     if password is not None:
         headers = {**MARK, "Authorization": aiohttp.encode_basic_auth("admin", password)}
-    body, _ = await _call(
-        session,
-        "POST",
-        f"http://{host}/api/tokens",
-        json={"name": name, "right": "full"},
-        headers=headers,
-    )
+    try:
+        body, _ = await _call(
+            session,
+            "POST",
+            f"http://{host}/api/tokens",
+            json={"name": name, "right": "full"},
+            headers=headers,
+        )
+    except ConflictError as err:
+        raise TokenLimitError(str(err)) from err
     if cookie:
         with contextlib.suppress(DeckConnectorError):
             await _call(session, "POST", f"http://{host}/api/logout", headers=headers)

@@ -15,8 +15,11 @@ from .api import (
     Api,
     AuthError,
     DeckConnectorError,
+    HttpsOnlyError,
     NoDeckError,
+    TokenLimitError,
     create_token,
+    login_cancel,
     login_request,
     login_state,
 )
@@ -42,14 +45,17 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            self.host = user_input[CONF_HOST].strip().removeprefix("http://").rstrip("/")
+            self.host = host_of(user_input[CONF_HOST])
             try:
                 await Api(async_get_clientsession(self.hass), self.host, "").status()
             except AuthError:
                 return await self.async_step_auth()
+            except HttpsOnlyError:
+                errors["base"] = "https_only"
             except DeckConnectorError:
-                pass
-            errors["base"] = "cannot_connect"
+                errors["base"] = "cannot_connect"
+            else:
+                errors["base"] = "cannot_connect"
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(vol.Schema({vol.Required(CONF_HOST): str}), user_input),
@@ -93,6 +99,8 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
             self.token = task.result()
         except NoDeckError:
             self._error = "no_deck"
+        except TokenLimitError:
+            self._error = "too_many_keys"
         except NotAccepted:
             self._error = "not_accepted"
         except DeckConnectorError:
@@ -104,14 +112,20 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _pair(self) -> str:
         session = async_get_clientsession(self.hass)
         request = await login_request(session, self.host)
-        for _ in range(ASK_S):
-            await asyncio.sleep(POLL_S)
-            state, cookie = await login_state(session, self.host, request)
-            if state == "accepted" and cookie:
-                return await create_token(session, self.host, await self._token_name(), cookie=cookie)
-            if state != "pending":
-                break
-        raise NotAccepted
+        try:
+            for _ in range(ASK_S):
+                await asyncio.sleep(POLL_S)
+                state, cookie = await login_state(session, self.host, request)
+                if state == "accepted" and cookie:
+                    break
+                if state != "pending":
+                    raise NotAccepted
+            else:
+                raise NotAccepted
+        except BaseException:
+            await login_cancel(session, self.host, request)
+            raise
+        return await create_token(session, self.host, await self._token_name(), cookie=cookie)
 
     async def async_step_password(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors = {"base": self._error} if self._error else {}
@@ -126,6 +140,8 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
             except AuthError:
                 errors["base"] = "invalid_auth"
+            except TokenLimitError:
+                errors["base"] = "too_many_keys"
             except DeckConnectorError:
                 errors["base"] = "cannot_connect"
             else:
@@ -142,7 +158,7 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
             status = await Api(async_get_clientsession(self.hass), self.host, self.token).status()
         except DeckConnectorError:
             return self.async_abort(reason="cannot_connect")
-        await self.async_set_unique_id(status["id"])
+        await self.async_set_unique_id(status["id"], raise_on_progress=False)
         data = {CONF_HOST: self.host, CONF_TOKEN: self.token}
         if self.source == SOURCE_REAUTH:
             self._abort_if_unique_id_mismatch()
@@ -155,4 +171,8 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
             self._pairing.cancel()
 
     async def _token_name(self) -> str:
-        return f"home-assistant-{(await instance_id.async_get(self.hass))[:4]}"
+        return f"home-assistant-{(await instance_id.async_get(self.hass))[:8]}"
+
+
+def host_of(text: str) -> str:
+    return text.strip().removeprefix("http://").removeprefix("https://").split("/")[0]

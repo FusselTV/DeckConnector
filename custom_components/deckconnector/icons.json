@@ -10,7 +10,6 @@
         "state": { "board": "mdi:home-outline" }
       }
     },
-    "update": { "firmware": { "default": "mdi:chip" } },
     "switch": {
       "screen": {
         "default": "mdi:monitor",

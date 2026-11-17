@@ -1,14 +1,22 @@
+import asyncio
+from datetime import timedelta
+
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.util import dt as dt_util
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
-from conftest import HOST, PLUS, XL, status
+from conftest import HOST, PLUS, STATUS, TOKEN, XL, status
+
+CHECK = f"http://{HOST}/api/update/check"
 
 
 async def setup(hass, entry, aioclient_mock, socket, *decks):
     aioclient_mock.get(f"http://{HOST}/api/status", json=status(*decks))
-    aioclient_mock.get(f"http://{HOST}/api/update/check", json={"current": "v1.0.0", "latest": None})
+    aioclient_mock.get(CHECK, json={"current": "v1.0.0", "latest": None})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -104,4 +112,80 @@ async def test_update_shows_the_progress_from_the_socket(hass, entry, aioclient_
     await hass.async_block_till_done()
     state = hass.states.get(entity)
     assert state.attributes["in_progress"] is True and state.attributes["update_percentage"] == 42
-    assert "entity_picture" not in state.attributes
+
+
+async def spin(hass):
+    for _ in range(5):
+        await hass.async_block_till_done()
+        await asyncio.sleep(0)
+
+
+def calls(aioclient_mock, url):
+    return sum(1 for c in aioclient_mock.mock_calls if str(c[1]) == url)
+
+
+async def test_update_check_runs_after_setup_and_every_6_hours(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    await spin(hass)
+    assert calls(aioclient_mock, CHECK) == 1
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(hours=6, seconds=1))
+    await spin(hass)
+    assert calls(aioclient_mock, CHECK) == 2
+
+
+async def test_polled_values_survive_a_state_push(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    coordinator = entry.runtime_data
+    assert coordinator.data["network"]["wlan"]["rssi"] == -48
+    pushed = status(PLUS)
+    pushed["network"] = {"wlan": {"ssid": "studio"}}
+    del pushed["temp_c"]
+    await socket.queue.put({"t": "state", **pushed})
+    await hass.async_block_till_done()
+    assert coordinator.data["network"]["wlan"] == {"rssi": -48, "ssid": "studio"}
+    assert hass.states.get("sensor.deckconnector_a1b2c3_temperature").state == "41"
+
+
+async def test_a_failed_poll_keeps_entities_while_the_socket_is_up(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"http://{HOST}/api/status", exc=TimeoutError)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=61))
+    await hass.async_block_till_done()
+    assert calls(aioclient_mock, f"http://{HOST}/api/status") == 1
+    assert hass.states.get("number.deckconnector_a1b2c3_brightness").state == "80"
+
+
+async def test_the_same_deck_on_two_boards_gets_entities_on_both(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    other = MockConfigEntry(
+        domain="deckconnector", unique_id="0011223344ff", title="other", data={"host": "192.0.2.20", "token": TOKEN}
+    )
+    aioclient_mock.get("http://192.0.2.20/api/status", json={**status(PLUS), "id": "0011223344ff", "name": "other"})
+    aioclient_mock.get("http://192.0.2.20/api/update/check", json={"current": "v1.0.0", "latest": None})
+    other.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(other.entry_id)
+    await hass.async_block_till_done()
+    assert len(entities(hass, entry)) == 11
+    assert len(entities(hass, other)) == 11
+
+
+async def test_a_deck_in_another_slot_keeps_its_entities(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    before = {e.entity_id for e in entities(hass, entry)}
+    await socket.queue.put({"t": "state", **status(XL, PLUS)})
+    await hass.async_block_till_done()
+    assert before <= {e.entity_id for e in entities(hass, entry)}
+    assert hass.states.get("event.stream_deck_controls").state == STATE_UNKNOWN
+    assert len(entities(hass, entry)) == 14
+
+
+async def test_a_refused_command_is_a_translated_error(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.post(f"http://{HOST}/api/screen", status=503, json={"ok": False, "error": "busy"})
+    with pytest.raises(HomeAssistantError) as err:
+        await hass.services.async_call(
+            "switch", "turn_off", {"entity_id": "switch.deckconnector_a1b2c3_screen"}, blocking=True
+        )
+    assert err.value.translation_key == "command_failed"
+    assert err.value.translation_placeholders == {"name": STATUS["name"], "error": "busy"}

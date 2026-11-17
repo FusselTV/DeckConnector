@@ -23,7 +23,10 @@ DISCOVERY = ZeroconfServiceInfo(
 
 @pytest.fixture(autouse=True)
 def no_wait():
-    with patch("custom_components.deckconnector.config_flow.POLL_S", 0):
+    with (
+        patch("custom_components.deckconnector.config_flow.POLL_S", 0),
+        patch("custom_components.deckconnector.async_setup_entry", return_value=True),
+    ):
         yield
 
 
@@ -124,7 +127,58 @@ async def test_reauth(hass, entry, aioclient_mock):
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "password"})
     aioclient_mock.post(f"{BASE}/api/tokens", json={"name": "x", "right": "full", "token": "n" * 64})
     aioclient_mock.get(f"{BASE}/api/status", json=STATUS)
-    with patch("custom_components.deckconnector.async_setup_entry", return_value=True):
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
     assert result["type"] is FlowResultType.ABORT and result["reason"] == "reauth_successful"
     assert entry.data["token"] == "n" * 64
+
+
+async def test_https_in_the_host_is_dropped(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE}/api/status", status=401, json={"ok": False})
+    result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": f"https://{HOST}/"})
+    assert result["type"] is FlowResultType.MENU
+
+
+async def test_https_only_board(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE}/api/status", status=403, text="HTTPS only")
+    result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": HOST})
+    assert result["errors"] == {"base": "https_only"}
+
+
+async def test_eight_keys_already(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE}/api/status", status=401, json={"ok": False})
+    result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": HOST})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "password"})
+    aioclient_mock.post(f"{BASE}/api/tokens", status=409, json={"ok": False, "error": "8 tokens already"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
+    assert result["errors"] == {"base": "too_many_keys"}
+
+
+async def test_manual_add_while_the_zeroconf_flow_waits(hass, aioclient_mock):
+    waiting = await hass.config_entries.flow.async_init(
+        "deckconnector", context={"source": SOURCE_ZEROCONF}, data=DISCOVERY
+    )
+    assert waiting["type"] is FlowResultType.MENU
+    aioclient_mock.get(f"{BASE}/api/status", status=401, json={"ok": False})
+    result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": HOST})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "password"})
+    aioclient_mock.clear_requests()
+    board(aioclient_mock)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_a_denied_request_is_taken_back(hass, aioclient_mock):
+    result = await hass.config_entries.flow.async_init(
+        "deckconnector", context={"source": SOURCE_ZEROCONF}, data=DISCOVERY
+    )
+    request = f"{BASE}/api/login/request/{'f' * 32}"
+    aioclient_mock.post(f"{BASE}/api/login/request", json={"id": "f" * 32, "s": 60})
+    aioclient_mock.get(request, json={"state": "denied", "s": 0})
+    aioclient_mock.delete(request, json={"ok": True})
+    result = await pair(hass, result["flow_id"])
+    assert result["errors"] == {"base": "not_accepted"}
+    assert any(c[0] == "DELETE" and str(c[1]) == request for c in aioclient_mock.mock_calls)

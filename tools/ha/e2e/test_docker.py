@@ -131,7 +131,7 @@ async def test_pair_and_press(press_file, ha):
             await ws.send_json({"id": 1, "type": "config/entity_registry/list"})
             entries = [e for e in (await ws.receive_json())["result"] if e["platform"] == "deckconnector"]
             assert len(entries) == 8 + 2 * 3, sorted(e["entity_id"] for e in entries)
-            controls = next(e["entity_id"] for e in entries if e["unique_id"] == "SIM0001_controls")
+            controls = next(e["entity_id"] for e in entries if e["unique_id"] == "02005e000001_SIM0001_controls")
 
             await ws.send_json({"id": 2, "type": "subscribe_entities", "entity_ids": [controls]})
             await ws.receive_json()

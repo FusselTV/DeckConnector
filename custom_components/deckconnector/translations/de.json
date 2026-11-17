@@ -3,7 +3,7 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "description": "Gib die Adresse des Boards ein.",
+        "description": "Gib die Adresse der Platine ein.",
         "data": {
           "host": "Host"
         },
@@ -29,16 +29,18 @@
       "pair": "Bestätige die Anfrage am Deck von {name}."
     },
     "error": {
-      "cannot_connect": "Das Board ist nicht erreichbar.",
+      "cannot_connect": "Die Platine ist nicht erreichbar.",
       "invalid_auth": "Falsches Passwort.",
       "no_deck": "Kein Deck angeschlossen. Gib stattdessen das Web-Passwort ein.",
-      "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein."
+      "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein.",
+      "https_only": "Die Platine erlaubt nur HTTPS. Schalte „Nur HTTPS“ auf ihrer Weboberfläche aus und versuche es noch einmal.",
+      "too_many_keys": "Die Platine hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Schlüssel auf ihrer Weboberfläche und versuche es noch einmal."
     },
     "abort": {
-      "already_configured": "Dieses Board ist schon eingerichtet.",
-      "cannot_connect": "Das Board ist nicht erreichbar.",
+      "already_configured": "Diese Platine ist schon eingerichtet.",
+      "cannot_connect": "Die Platine ist nicht erreichbar.",
       "reauth_successful": "Zugriff erneuert.",
-      "unique_id_mismatch": "Das ist ein anderes Board."
+      "unique_id_mismatch": "Das ist eine andere Platine."
     }
   },
   "entity": {
@@ -122,6 +124,14 @@
               "key_31_release": "Taste 31 losgelassen",
               "key_32_press": "Taste 32 gedrückt",
               "key_32_release": "Taste 32 losgelassen",
+              "key_33_press": "Taste 33 gedrückt",
+              "key_33_release": "Taste 33 losgelassen",
+              "key_34_press": "Taste 34 gedrückt",
+              "key_34_release": "Taste 34 losgelassen",
+              "key_35_press": "Taste 35 gedrückt",
+              "key_35_release": "Taste 35 losgelassen",
+              "key_36_press": "Taste 36 gedrückt",
+              "key_36_release": "Taste 36 losgelassen",
               "dial_1_press": "Drehregler 1 gedrückt",
               "dial_1_release": "Drehregler 1 losgelassen",
               "dial_1_left": "Drehregler 1 nach links gedreht",
@@ -138,6 +148,14 @@
               "dial_4_release": "Drehregler 4 losgelassen",
               "dial_4_left": "Drehregler 4 nach links gedreht",
               "dial_4_right": "Drehregler 4 nach rechts gedreht",
+              "dial_5_press": "Drehregler 5 gedrückt",
+              "dial_5_release": "Drehregler 5 losgelassen",
+              "dial_5_left": "Drehregler 5 nach links gedreht",
+              "dial_5_right": "Drehregler 5 nach rechts gedreht",
+              "dial_6_press": "Drehregler 6 gedrückt",
+              "dial_6_release": "Drehregler 6 losgelassen",
+              "dial_6_left": "Drehregler 6 nach links gedreht",
+              "dial_6_right": "Drehregler 6 nach rechts gedreht",
               "touch_tap": "Touchleiste angetippt",
               "touch_long_press": "Touchleiste gehalten",
               "touch_swipe_left": "Touchleiste nach links gewischt",
@@ -169,7 +187,7 @@
           "companion": "Companion",
           "app": "Elgato-App",
           "server": "Eigener Server",
-          "board": "Board"
+          "board": "Platine"
         }
       },
       "temperature": {
@@ -191,6 +209,14 @@
       "firmware": {
         "name": "Firmware"
       }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "{name} hat den Befehl nicht angenommen: {error}"
+    },
+    "no_update": {
+      "message": "Es gibt keine neuere Firmware."
     }
   }
 }

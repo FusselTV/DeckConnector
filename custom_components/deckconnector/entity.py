@@ -32,7 +32,11 @@ class BoardEntity(CoordinatorEntity[DeckCoordinator]):
         try:
             return await self.coordinator.api.request(method, path, body)
         except DeckConnectorError as err:
-            raise HomeAssistantError(f"{self.coordinator.data['name']}: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"name": self.coordinator.data["name"], "error": str(err)},
+            ) from err
 
 
 class DeckEntity(CoordinatorEntity[DeckCoordinator]):
@@ -42,7 +46,7 @@ class DeckEntity(CoordinatorEntity[DeckCoordinator]):
         super().__init__(coordinator)
         self.serial: str = deck["serial"]
         self._attr_translation_key = key
-        self._attr_unique_id = f"{self.serial}_{key}"
+        self._attr_unique_id = f"{coordinator.board_id}_{self.serial}_{key}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self.serial)},
             via_device_id=coordinator.board_device_id,

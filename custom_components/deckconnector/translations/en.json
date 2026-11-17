@@ -32,7 +32,9 @@
       "cannot_connect": "Cannot reach the board.",
       "invalid_auth": "Wrong password.",
       "no_deck": "No deck is attached. Enter the web password instead.",
-      "not_accepted": "The deck did not accept the request. Enter the web password instead."
+      "not_accepted": "The deck did not accept the request. Enter the web password instead.",
+      "https_only": "The board allows HTTPS only. Turn HTTPS only off in its web page, then try again.",
+      "too_many_keys": "The board has 8 API keys already. Delete one under Access › API keys in its web page, then try again."
     },
     "abort": {
       "already_configured": "This board is already set up.",
@@ -122,6 +124,14 @@
               "key_31_release": "Key 31 released",
               "key_32_press": "Key 32 pressed",
               "key_32_release": "Key 32 released",
+              "key_33_press": "Key 33 pressed",
+              "key_33_release": "Key 33 released",
+              "key_34_press": "Key 34 pressed",
+              "key_34_release": "Key 34 released",
+              "key_35_press": "Key 35 pressed",
+              "key_35_release": "Key 35 released",
+              "key_36_press": "Key 36 pressed",
+              "key_36_release": "Key 36 released",
               "dial_1_press": "Dial 1 pressed",
               "dial_1_release": "Dial 1 released",
               "dial_1_left": "Dial 1 turned left",
@@ -138,6 +148,14 @@
               "dial_4_release": "Dial 4 released",
               "dial_4_left": "Dial 4 turned left",
               "dial_4_right": "Dial 4 turned right",
+              "dial_5_press": "Dial 5 pressed",
+              "dial_5_release": "Dial 5 released",
+              "dial_5_left": "Dial 5 turned left",
+              "dial_5_right": "Dial 5 turned right",
+              "dial_6_press": "Dial 6 pressed",
+              "dial_6_release": "Dial 6 released",
+              "dial_6_left": "Dial 6 turned left",
+              "dial_6_right": "Dial 6 turned right",
               "touch_tap": "Touch strip tapped",
               "touch_long_press": "Touch strip held",
               "touch_swipe_left": "Touch strip swiped left",
@@ -191,6 +209,14 @@
       "firmware": {
         "name": "Firmware"
       }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "{name} did not take the command: {error}"
+    },
+    "no_update": {
+      "message": "There is no newer firmware."
     }
   }
 }
