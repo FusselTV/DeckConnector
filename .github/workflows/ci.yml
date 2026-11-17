@@ -101,6 +101,32 @@ jobs:
             web/dist/licenses.md
           if-no-files-found: error
 
+  # The website's demo, clicked through on a desktop and a phone screen. The contract project needs the firmware
+  # simulator and stays a local run.
+  demo:
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.firmware == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: ${{ github.ref_type != 'tag' && 'npm' || '' }}
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: ${{ github.ref_type != 'tag' }} # zig for the demo's deck screens
+      - run: cd web && npm ci && npx playwright install --with-deps chromium && npm run build:demo
+      - run: cd web && DC_NO_SIM=1 npx playwright test -c playwright.demo.config.ts --project desktop --project phone
+
   # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
   # comes down in the background while the page builds. The build needs the room of the runner's Android, .NET and GHC.
   firmware:
@@ -150,6 +176,12 @@ jobs:
         with:
           name: deckconnector
           path: firmware/build/deckconnector.bin
+          if-no-files-found: error
+      # goes into the release: a coredump from the field decodes only with the ELF of the same build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: elf
+          path: firmware/build/deckconnector.elf
           if-no-files-found: error
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -205,7 +237,7 @@ jobs:
 
   # The one check branch protection needs: it fails when any job above failed or was cancelled.
   ci-ok:
-    needs: [changes, host-tests, lint, web, firmware, sizes]
+    needs: [changes, host-tests, lint, web, demo, firmware, sizes]
     if: always()
     runs-on: ubuntu-26.04
     timeout-minutes: 2
