@@ -41,10 +41,13 @@ A key has **Control** (`control`) or **Full access** (`full`). Up to 8 keys exis
 
 ## HTTPS
 
-The board serves port 80 and HTTPS on 443. Its certificate comes from its own CA, which the board makes on its first start. Download the CA under **Access › HTTPS** and trust it once on each device. Then no browser warns, also on iPhone and Mac. Until then, compare the fingerprint with the one under **Access**.
+The board serves port 80 and HTTPS on 443. Its certificate comes from its own CA, which the board makes on its first start. Download the CA under **Access › HTTPS** and trust it once on each device. Then no browser warns at `https://<name>.local`, also on iPhone and Mac. By IP address the browser still warns. There, compare the fingerprint with the one under **Access**.
 
-- The certificate names `<name>.local`, `localhost` and the private IP addresses of the board. A new name or address gets a new certificate within seconds. The CA stays, so trusted devices stay trusted. The fingerprint changes each time.
-- The CA vouches only for `.local` names, `localhost` and private IP addresses.
+- When you download the CA, the deck shows a short code for 30 seconds. **Access** shows the same code. Trust the CA only if both match.
+- The CA vouches only for `<name>.local` and `localhost`, never for another name or an IP address. Someone who takes the key out of the board can pass only for this board.
+- The certificate is renewed 30 days before it runs out. The fingerprint changes each time, the CA stays.
+- A new name gets a new CA. Trust it again on each device.
+- A factory reset deletes the CA.
 - `GET /api/ca` gives the CA, `GET /api/cert` the current certificate as PEM.
 - **HTTPS only** turns plain HTTP off. Pages redirect, API calls over HTTP get 403. While the setup Wi-Fi is open, HTTP stays on.
 - You can upload your own certificate and key as PEM. A key with a password is refused.
