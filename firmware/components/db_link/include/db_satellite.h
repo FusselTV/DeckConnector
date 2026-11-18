@@ -26,9 +26,14 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
 /* The address `satellite` names, as last resolved, in network order; 0 before that. Behind a proxy it is the
  * proxy's. */
 uint32_t db_satellite_resolved(void);
-/* Companion locked `deck` with its PIN: true, the digits typed so far, and whether the last entry was wrong
- * (for a moment). */
-bool db_satellite_locked(int deck, uint8_t *count, bool *wrong);
+typedef struct {
+    uint8_t count;    /* digits typed */
+    bool wrong;       /* the last entry was wrong, for a moment */
+    int16_t rotation; /* as Companion turns the surface: 0, 90, -90 or 180 */
+} db_satellite_pin_t;
+
+/* Companion locked `deck` with its PIN. */
+bool db_satellite_locked(int deck, db_satellite_pin_t *pin);
 /* One PIN digit for a locked `deck`, from a real press only. */
 void db_satellite_pincode(int deck, int digit);
 /* Companion's IPv4 address in network order while connected, else 0. */

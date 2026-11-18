@@ -78,6 +78,7 @@ typedef struct {
     uint32_t refused_ms; /* the wait before it is offered again after a refusal, 0: none */
     db_sat_lock_t pin;   /* under pin_mux: read on the esp_timer task */
     int64_t wrong_until_ms;
+    db_sat_held_t held; /* the deck's event task only */
     char serial[32];
     char model[32];
     db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
@@ -510,14 +511,14 @@ static bool handle(char *line)
     } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE")) && d) {
         d->brightness = atoi(v);
         d->was_writer = false; /* applied below, now or once the deck is ours */
-    } else if (strcmp(m.cmd, "LOCKED-STATE") == 0 && d) {
+    } else if ((strcmp(m.cmd, "LOCKED-STATE") == 0 || strcmp(m.cmd, "PINCODE-KEY") == 0) && d) {
         int64_t now = now_ms();
         portENTER_CRITICAL(&pin_mux);
         db_sat_lock_t was = d->pin;
-        if (db_sat_locked_state(&d->pin, &m)) {
+        if (db_sat_lock_update(&d->pin, &m)) {
             d->wrong_until_ms = now + WRONG_PIN_MS;
         }
-        bool news = was.locked != d->pin.locked || was.count != d->pin.count;
+        bool news = memcmp(&was, &d->pin, sizeof(was)) != 0;
         portEXIT_CRITICAL(&pin_mux);
         if (news) {
             s.changed();
@@ -861,8 +862,10 @@ static const db_sat_control_t *control_of(const sat_dev_t *v, db_sat_kind_t kind
  * the page, an upward or downward one turns the part. */
 static void on_input(int deck, const db_input_t *ev)
 {
-    const sat_dev_t *v = &s.devs[deck];
-    if (!v->added || db_deck_writer(deck) != DB_SOURCE_SAT || !db_deck_input_real_for(s.peer)) {
+    sat_dev_t *v = &s.devs[deck];
+    /* a press made while the deck was locked or showed the menu is not Companion's, nor is its release */
+    if (!db_sat_pass(&v->held, ev,
+                     v->added && db_deck_writer(deck) == DB_SOURCE_SAT && db_deck_input_real_for(s.peer))) {
         return;
     }
     xSemaphoreTake(s.lock, portMAX_DELAY);
@@ -958,31 +961,31 @@ void db_satellite_retry(void)
     }
 }
 
-bool db_satellite_locked(int deck, uint8_t *count, bool *wrong)
+bool db_satellite_locked(int deck, db_satellite_pin_t *out)
 {
     const sat_dev_t *v = &s.devs[deck];
     int64_t now = now_ms();
     portENTER_CRITICAL(&pin_mux);
     db_sat_lock_t pin = v->pin;
-    *wrong = now < v->wrong_until_ms;
+    out->wrong = now < v->wrong_until_ms;
     portEXIT_CRITICAL(&pin_mux);
-    *count = pin.count;
+    unsigned typed = (unsigned)pin.count + pin.pending; /* a dot at once, Companion's count follows */
+    out->count = (uint8_t)(typed > 255 ? 255 : typed);
+    out->rotation = pin.rotation;
     return pin.locked && db_satellite_connected(deck);
 }
 
 void db_satellite_pincode(int deck, int digit)
 {
     sat_dev_t *v = &s.devs[deck];
-    uint8_t count;
-    bool wrong;
-    if (!db_satellite_locked(deck, &count, &wrong) || !db_deck_input_real_for(s.peer)) {
+    db_satellite_pin_t pin;
+    if (!db_satellite_locked(deck, &pin) || !db_deck_input_real_for(s.peer)) {
         return;
     }
-    send_line("PINCODE-KEY DEVICEID=\"%s\" KEY=%d\n", v->serial, digit);
     portENTER_CRITICAL(&pin_mux);
-    v->pin.count =
-        (uint8_t)(v->pin.count < 255 ? v->pin.count + 1 : 255); /* a dot at once, Companion's count follows */
+    v->pin.pending = (uint8_t)(v->pin.pending < 255 ? v->pin.pending + 1 : 255);
     portEXIT_CRITICAL(&pin_mux);
+    send_line("PINCODE-KEY DEVICEID=\"%s\" KEY=%d\n", v->serial, digit);
 }
 
 uint32_t db_satellite_peer(void)

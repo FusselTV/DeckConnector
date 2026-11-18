@@ -189,15 +189,43 @@ size_t db_sat_add_device(char *buf, size_t cap, const char *serial, const char *
     return n > 0 && (size_t)n < cap ? (size_t)n : 0;
 }
 
-bool db_sat_locked_state(db_sat_lock_t *l, const db_sat_msg_t *m)
+bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m)
 {
+    if (strcmp(m->cmd, "PINCODE-KEY") == 0) { /* OK comes after the LOCKED-STATE that counted the digit */
+        l->pending = (uint8_t)(l->pending ? l->pending - 1 : 0);
+        return false;
+    }
     const char *locked = db_sat_get(m, "LOCKED");
     const char *count = db_sat_get(m, "CHARACTER_COUNT");
+    const char *rotation = db_sat_get(m, "ROTATION");
     bool was = l->locked && l->count > 0;
     l->locked = locked && (strcmp(locked, "1") == 0 || strcmp(locked, "true") == 0);
     unsigned long n = count && l->locked ? strtoul(count, NULL, 10) : 0;
     l->count = (uint8_t)(n > 255 ? 255 : n);
+    long r = rotation ? strtol(rotation, NULL, 10) : 0;
+    l->rotation = (int16_t)(r == 90 || r == -90 || r == 180 ? r : 0);
+    l->pending = l->locked ? l->pending : 0;
     return was && l->locked && l->count == 0;
+}
+
+bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours)
+{
+    bool key = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP;
+    bool enc = ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP;
+    if (!key && !enc) {
+        return ours;
+    }
+    uint64_t bit = key ? 1ull << (ev->index & 63) : 0;
+    uint8_t ebit = (uint8_t)(enc ? 1u << (ev->index & 7) : 0);
+    if (ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN) {
+        h->keys = ours ? h->keys | bit : h->keys & ~bit;
+        h->encoders = (uint8_t)(ours ? h->encoders | ebit : h->encoders & ~ebit);
+        return ours;
+    }
+    bool pressed = (h->keys & bit) || (h->encoders & ebit);
+    h->keys &= ~bit;
+    h->encoders &= (uint8_t)~ebit;
+    return pressed && ours;
 }
 
 void db_sat_addr_host(const char *addr, char *host, size_t cap)

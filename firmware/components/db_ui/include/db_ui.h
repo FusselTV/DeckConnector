@@ -46,6 +46,8 @@ void db_ui_setup_step(int step);
 /* On `deck`, closing it on any other. ESP_ERR_INVALID_STATE when that deck is not connected,
  * ESP_ERR_NOT_ALLOWED while Companion locked it. */
 esp_err_t db_ui_open_menu(int deck);
+/* Companion over Satellite, the chosen source of `deck`, locked it: the deck shows its PIN pad. */
+bool db_ui_locked(int deck);
 /* Back to the home page, like the menu's close key; also hides the password page, cancels the reset question
  * and denies a login request. The deck goes back to who draws. */
 void db_ui_close_menu(void);

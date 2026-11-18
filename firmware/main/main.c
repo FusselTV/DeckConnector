@@ -64,9 +64,7 @@ static void write_device(db_json_t *j)
             db_json_bool(j, "hub", db_deck_behind_hub(d));
             db_json_str(j, "writer", db_deck_source_name(db_deck_writer(d)));
             db_json_int(j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
-            uint8_t count;
-            bool wrong;
-            db_json_bool(j, "locked", db_satellite_locked(d, &count, &wrong));
+            db_json_bool(j, "locked", db_ui_locked(d));
             db_json_obj_close(j);
         }
     }

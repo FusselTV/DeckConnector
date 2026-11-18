@@ -819,19 +819,25 @@ static void digit_segment(page_t *p, int i, int digit)
 
 /* Companion's PIN, digits in phone order. Companion checks it: no delete and no enter, a wrong entry clears
  * itself once it is as long as the PIN. */
-static void lock_page(page_t *p)
+static void pad(page_t *p)
 {
     const ui_layout_t *l = p->l;
-    if (l->rows >= 3 && l->cols >= 4) {
-        int c0 = (l->cols - 2) / 2;
+    if ((l->rows >= 4 && l->cols >= 3) || (l->rows == 3 && l->cols >= 5)) {
+        int c0 = (l->cols - 3) / 2;
+        int r0 = l->rows >= 4 ? (l->rows - 4) / 2 : 0;
         for (int d = 1; d <= 9; d++) {
-            digit_key(p, at(p, (d - 1) / 3, c0 + (d - 1) % 3), d);
+            digit_key(p, at(p, r0 + (d - 1) / 3, c0 + (d - 1) % 3), d);
         }
-        digit_key(p, l->rows >= 4 ? at(p, 3, c0 + 1) : at(p, 1, c0 + 3), 0);
+        if (l->rows >= 4) { /* 0 under 8, as on a phone */
+            digit_key(p, at(p, r0 + 3, c0 + 1), 0);
+        } else {
+            digit_key(p, at(p, 1, c0 + 3), 0);
+        }
         if (l->strip) {
             pin_segment(p, &p->sc->seg[0], 4, "");
         } else {
-            pin_card(p, put(p, at(p, 1, c0 >= 2 ? c0 - 2 : c0 - 1), K_NONE), L("Gesperrt", "Locked"));
+            pin_card(p, put(p, l->rows >= 4 ? at(p, r0 + 3, c0) : at(p, 1, c0 - 1), K_NONE),
+                     L("Gesperrt", "Locked"));
         }
     } else if (l->rows == 2 && l->cols == 4) {
         for (int d = 1; d <= 8; d++) {
@@ -849,7 +855,7 @@ static void lock_page(page_t *p)
                     p->md->pin_wrong ? L("Falsch", "Wrong") : (p->md->pin_count ? "" : "PIN"), "0");
             g->dots = p->md->pin_wrong ? 0 : p->md->pin_count;
         }
-    } else if (l->rows == 2 && l->cols == 3) { /* two pages, the third key switches */
+    } else if (l->rows * l->cols == 6) { /* two pages, the last key switches */
         int first = p->m->pin_page ? 6 : 1;
         for (int i = 0; i < 5; i++) {
             digit_key(p, i, (first + i) % 10);
@@ -857,6 +863,48 @@ static void lock_page(page_t *p)
         ui_tile_t *t = put(p, 5, K_PIN_PAGE);
         pin_card(p, t, p->m->pin_page ? "1–5" : "6–0");
         t->badge = BADGE_OPEN;
+    }
+}
+
+/* Companion's PIN, digits in phone order. Companion checks it: no delete and no enter, a wrong entry clears
+ * itself once it is as long as the PIN. A deck of keys only follows Companion's rotation, as its
+ * rotateXYForPanel places the buttons; the + and the Neo stay upright, their strip has one way up. */
+static void lock_page(page_t *p)
+{
+    const ui_layout_t *l = p->l;
+    int turn = p->md->pin_rotation;
+    if (!turn || l->strip || l->bar || l->cols * l->rows > UI_MAX_KEYS) {
+        pad(p);
+        return;
+    }
+    bool side = turn == 90 || turn == -90;
+    ui_layout_t v = *l;
+    v.cols = side ? l->rows : l->cols;
+    v.rows = side ? l->cols : l->rows;
+    static ui_screen_t up; /* callers hold the UI lock */
+    uint8_t acts[UI_MAX_KEYS] = {0};
+    memset(&up, 0, sizeof(up));
+    page_t q = {p->m, p->md, &v, &up, acts};
+    pad(&q);
+    for (int i = 0; i < v.cols * v.rows; i++) {
+        int x = i % v.cols;
+        int y = i / v.cols;
+        int px = turn == 90 ? y : (turn == -90 ? v.rows - y - 1 : v.cols - x - 1);
+        int py = turn == 90 ? v.cols - x - 1 : (turn == -90 ? x : v.rows - y - 1);
+        int k = py * l->cols + px;
+        p->sc->tiles[k] = up.tiles[i];
+        p->sc->tiles[k].turn = (int16_t)(up.tiles[i].kind ? turn : 0);
+        p->acts[k] = acts[i];
+    }
+}
+
+void ui_menu_lock(ui_menu_t *m, bool locked, int64_t now)
+{
+    if (locked && ui_menu_open(m)) {
+        ui_menu_close(m, now);
+    }
+    if (!locked) {
+        m->pin_page = 0;
     }
 }
 

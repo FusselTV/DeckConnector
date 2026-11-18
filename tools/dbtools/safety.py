@@ -39,7 +39,8 @@ def real_input_target(status: dict) -> str:
     locked by Companion shows its own PIN pad, and its digits go to that Companion."""
     require_input_gate(status)
     locked = any(d.get("locked") for d in status.get("decks", []))
-    drawing = [s for s in status["sources"] if s.get("drawing") or (locked and s.get("via") == "satellite")]
+    pad = [s for s in status["sources"] if locked and s.get("via") == "satellite" and s.get("chosen")]
+    drawing = pad or [s for s in status["sources"] if s.get("drawing")]
     if len(drawing) != 1:
         raise UnsafeBridge(f"no single drawing host: {drawing}")
     host = drawing[0]["host"]

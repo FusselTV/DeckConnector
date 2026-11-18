@@ -386,6 +386,28 @@ static void draw_bar(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     }
 }
 
+/* A square key drawn upright, turned for a deck Companion rotates: 90 means the deck itself is turned
+ * clockwise, so the picture turns the other way. */
+static void turn_key(ui_canvas_t *c, db_rect_t r, int turn)
+{
+    int n = r.w;
+    uint8_t *was = malloc((size_t)n * n * 3);
+    if (!was) {
+        return;
+    }
+    for (int y = 0; y < n; y++) {
+        memcpy(was + (size_t)y * n * 3, c->px + ((size_t)(r.y + y) * c->w + r.x) * 3, (size_t)n * 3);
+    }
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            int sx = turn == 90 ? n - 1 - y : (turn == -90 ? y : n - 1 - x);
+            int sy = turn == 90 ? x : (turn == -90 ? n - 1 - x : n - 1 - y);
+            memcpy(c->px + ((size_t)(r.y + y) * c->w + r.x + x) * 3, was + ((size_t)sy * n + sx) * 3, 3);
+        }
+    }
+    free(was);
+}
+
 ui_layout_t ui_layout_of(const db_device_info_t *info)
 {
     ui_layout_t l = {.encoders = info->encoder_count, .strip = false};
@@ -396,6 +418,7 @@ ui_layout_t ui_layout_of(const db_device_info_t *info)
         const db_target_t *t = &d->targets[i];
         l.strip |=
             t->kind == DB_TARGET_STRIP && info->encoder_count; /* the Neo's info bar is no menu strip */
+        l.bar |= t->kind == DB_TARGET_STRIP && !info->encoder_count;
         if (t->kind == DB_TARGET_KEY && (!seen || t->rect.y == first_y)) {
             first_y = t->rect.y;
             l.key_px = t->rect.h;
@@ -424,6 +447,9 @@ int ui_render(ui_canvas_t *c, const db_device_info_t *dev, const ui_screen_t *sc
         if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_KEYS &&
             (!shown || memcmp(&sc->tiles[t->index], &shown->tiles[t->index], sizeof(ui_tile_t)) != 0)) {
             draw_tile(c, &sc->tiles[t->index], t->rect, &sc->qr);
+            if (sc->tiles[t->index].turn && t->rect.w == t->rect.h) {
+                turn_key(c, t->rect, sc->tiles[t->index].turn);
+            }
             dirty[n++] = t->rect;
         }
     }

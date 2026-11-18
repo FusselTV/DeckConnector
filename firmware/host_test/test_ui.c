@@ -812,7 +812,7 @@ static void test_pin_pad_on_every_deck(void)
         {0x0084, "plus", {255, 0, 1, 2, 3, 4, 5, 6, 7, 255}},
         {0x00c6, "plusxl", {31, 3, 4, 5, 12, 13, 14, 21, 22, 23}},
         {0x0080, "mk2", {9, 1, 2, 3, 6, 7, 8, 11, 12, 13}},
-        {0x008f, "xl", {28, 3, 4, 5, 11, 12, 13, 19, 20, 21}},
+        {0x008f, "xl", {27, 2, 3, 4, 10, 11, 12, 18, 19, 20}},
         {0x009a, "neo", {9, 0, 1, 2, 3, 4, 5, 6, 7, 8}},
         {0x0063, "mini", {4, 0, 1, 2, 3, 4, 0, 1, 2, 3}},
     };
@@ -881,6 +881,69 @@ static void test_pin_pad_on_every_deck(void)
     TEST_ASSERT_EQUAL_INT(0, german_pages);
 }
 
+static void test_pin_pad_turns_with_the_deck(void)
+{
+    static const struct {
+        uint16_t pid;
+        const char *name;
+    } decks[] = {{0x0080, "mk2"}, {0x008f, "xl"}, {0x0063, "mini"}, {0x0084, "plus"}, {0x009a, "neo"}};
+    static const int16_t turns[] = {90, -90, 180};
+    for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
+        db_device_info_t dev = open_deck(decks[d].pid);
+        ui_layout_t l = ui_layout_of(&dev);
+        for (size_t t = 0; t < 3; t++) {
+            ui_model_t md = base_model();
+            md.locked = true;
+            md.pin_count = 2;
+            md.pin_rotation = turns[t];
+            ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+            ui_screen_t sc;
+            ui_menu_screen(&m, &md, &l, &sc);
+            char name[64];
+            snprintf(name, sizeof(name), "%s_lock_turn%d", decks[d].name, turns[t]);
+            check_page(&dev, &sc, name);
+        }
+    }
+    /* as Companion's rotateXYForPanel: turned 90, the top left of the 3 x 5 view is the bottom left key */
+    db_device_info_t dev = open_deck(0x0080);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.locked = true;
+    md.pin_rotation = 90;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 10));
+    TEST_ASSERT_EQUAL_INT(0, pin_key(&m, &md, &l, 8));
+    md.pin_rotation = 180;
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 13));
+    dev = open_deck(0x0084); /* the + stays upright */
+    l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 0));
+    TEST_ASSERT_EQUAL_INT(0, cut_pages);
+}
+
+static void test_the_lock_closes_the_menu_and_its_end_the_mini_page(void)
+{
+    db_device_info_t dev = open_deck(0x0063);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.locked = true;
+    ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+    ui_menu_lock(&m, true, md.now_us);
+    TEST_ASSERT_FALSE(ui_menu_open(&m));
+    TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 5)); /* to 6 to 0 */
+    TEST_ASSERT_EQUAL_INT(6, pin_key(&m, &md, &l, 0));
+    ui_menu_lock(&m, true, md.now_us);
+    TEST_ASSERT_EQUAL_INT(6, pin_key(&m, &md, &l, 0));
+    ui_menu_lock(&m, false, md.now_us);
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 0));
+    /* unlocked, before Companion draws again: a press on the home page does nothing on its own */
+    md.locked = false;
+    ui_action_t act;
+    db_input_t down = {.kind = DB_INPUT_KEY_DOWN, .index = 0};
+    TEST_ASSERT_FALSE(ui_menu_input(&m, &md, &l, &down, &act));
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+}
+
 void tearDown(void)
 {
 }
@@ -903,5 +966,7 @@ int main(void)
     RUN_TEST(test_simulated_presses_cannot_act_on_the_bridge);
     RUN_TEST(test_restart_release_without_its_press);
     RUN_TEST(test_pin_pad_on_every_deck);
+    RUN_TEST(test_pin_pad_turns_with_the_deck);
+    RUN_TEST(test_the_lock_closes_the_menu_and_its_end_the_mini_page);
     return UNITY_END();
 }

@@ -36,6 +36,7 @@ typedef struct {
     bool dim; /* a button that does nothing right now */
     ui_badge_t badge;
     uint8_t dots; /* cards: this many dots instead of the value */
+    int16_t turn; /* drawn upright, then turned for a deck Companion rotates by 90, -90 or 180 degrees */
 } ui_tile_t;
 
 /* One quarter of the touch strip, over its encoder. `span` > 1 joins the next ones into one wide segment. */
@@ -72,6 +73,7 @@ typedef struct {
     uint8_t rows;
     uint8_t encoders;
     bool strip;
+    bool bar; /* an info bar without encoders (Neo) */
     uint16_t key_px;
 } ui_layout_t;
 
@@ -140,10 +142,11 @@ typedef struct {
     char login_who[40]; /* the label the browser sent, cut to 20 characters, what a key shows */
     char login_mac[18]; /* empty when it is not in the ARP table */
     char login_name[40];
-    uint32_t login_seq; /* which request the page shows, so an answer cannot reach a newer one */
-    bool locked;        /* Companion locked the deck with its PIN */
-    uint8_t pin_count;  /* digits typed */
-    bool pin_wrong;     /* the last entry was wrong, for a moment */
+    uint32_t login_seq;   /* which request the page shows, so an answer cannot reach a newer one */
+    bool locked;          /* Companion locked the deck with its PIN */
+    uint8_t pin_count;    /* digits typed */
+    bool pin_wrong;       /* the last entry was wrong, for a moment */
+    int16_t pin_rotation; /* Companion turns the deck by 90, -90 or 180 degrees */
 } ui_model_t;
 
 typedef enum {
@@ -217,6 +220,9 @@ int ui_after_menu(int lit, int before, bool turned, int saved);
 bool ui_menu_open(const ui_menu_t *m);
 void ui_menu_open_main(ui_menu_t *m, int64_t now);
 void ui_menu_close(ui_menu_t *m, int64_t now);
+/* As the deck's lock changes: a lock closes the menu, its end starts the Mini's pad on its first page again.
+ */
+void ui_menu_lock(ui_menu_t *m, bool locked, int64_t now);
 /* The menu controls for `chord` (auto, keys, encoders, off; anything else counts as auto): index 0 and *last
  * of the encoders or keys. False for off or when the deck has fewer than two. */
 bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders, int *last);

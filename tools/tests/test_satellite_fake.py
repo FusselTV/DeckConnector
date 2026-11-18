@@ -33,6 +33,8 @@ class Fake(socketserver.StreamRequestHandler):
                 self.wfile.write(f'ADD-DEVICE OK DEVICEID="{dev}"\n'.encode())
             elif cmd == "PING":
                 self.wfile.write(b"PONG\n")
+            elif cmd == "PINCODE-KEY":
+                self.wfile.write(f'PINCODE-KEY OK DEVICEID="{srv.device}"\n'.encode())
 
     def finish(self):
         self.server.conn = None
@@ -145,5 +147,11 @@ def test_a_locked_deck_takes_the_pin_on_its_own_pad(fake):
     locked(fake, 0)
     assert wait(lambda: reddish(key0_frame()), 2, 0.05), "a wrong PIN did not flash red"
     assert wait(lambda: not reddish(key0_frame()), 3), "the red stayed"
+    held = json.dumps({"key": 2, "action": "down", "real": me}).encode()
+    assert api("POST", "/api/input", held)[0] == 200  # the last digit, held while Companion unlocks
+    assert wait(lambda: pins(fake) == ["1", "2", "3"], 5), f"digits: {pins(fake)}"
     locked(fake, 0, 0)
     assert wait(lambda: drawing() and not status()["decks"][0]["locked"], 5), "Companion did not draw again"
+    assert api("POST", "/api/input", json.dumps({"key": 2, "action": "up", "real": me}).encode())[0] == 200
+    time.sleep(1)
+    assert presses(fake) == [], f"the release of a PIN digit reached Companion: {presses(fake)}"

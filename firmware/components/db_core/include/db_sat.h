@@ -55,11 +55,23 @@ size_t db_sat_add_device(char *buf, size_t cap, const char *serial, const char *
 
 typedef struct {
     bool locked;
-    uint8_t count; /* PIN digits typed so far */
+    uint8_t count;    /* PIN digits Companion counted */
+    uint8_t pending;  /* PINCODE-KEYs sent and not answered yet */
+    int16_t rotation; /* 0, 90, -90 or 180, as Companion turns the surface */
 } db_sat_lock_t;
 
-/* A LOCKED-STATE into `l`. True when it cleared typed digits while still locked: a wrong PIN. */
-bool db_sat_locked_state(db_sat_lock_t *l, const db_sat_msg_t *m);
+/* A LOCKED-STATE or the answer to a PINCODE-KEY into `l`. True when Companion cleared digits it had counted
+ * while still locked: a wrong PIN. */
+bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m);
+
+/* The keys and encoders whose press went to Companion, so a release goes only after its press. */
+typedef struct {
+    uint64_t keys;
+    uint8_t encoders;
+} db_sat_held_t;
+
+/* Whether `ev` goes to Companion. `ours`: Companion draws on the deck and the press is real. */
+bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours);
 
 /* The LAYOUT_MANIFEST JSON. Returns its length, 0 when it does not fit. */
 size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t cap);

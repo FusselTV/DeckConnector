@@ -304,7 +304,7 @@ static bool locked_state(db_sat_lock_t *l, const char *text)
     snprintf(line, sizeof(line), "%s", text);
     db_sat_msg_t m;
     db_sat_parse(line, &m);
-    return db_sat_locked_state(l, &m);
+    return db_sat_lock_update(l, &m);
 }
 
 static void test_lock_counts_digits_and_tells_a_wrong_pin(void)
@@ -329,6 +329,57 @@ static void test_lock_counts_digits_and_tells_a_wrong_pin(void)
     TEST_ASSERT_FALSE(l.locked);
     locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=999");
     TEST_ASSERT_EQUAL_UINT8(255, l.count);
+}
+
+static void test_only_answered_digits_count_for_a_wrong_pin(void)
+{
+    db_sat_lock_t l = {0};
+    locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=0 ROTATION=-90");
+    TEST_ASSERT_EQUAL_INT16(-90, l.rotation);
+    l.pending++; /* the first digit goes out */
+    /* a redraw sent before Companion read the digit: count 0 is not a wrong PIN */
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=0"));
+    TEST_ASSERT_EQUAL_UINT8(1, l.pending);
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=1"));
+    TEST_ASSERT_FALSE(locked_state(&l, "PINCODE-KEY OK DEVICEID=\"A1\""));
+    TEST_ASSERT_EQUAL_UINT8(1, l.count);
+    TEST_ASSERT_EQUAL_UINT8(0, l.pending);
+    l.pending++; /* refused: the dot goes again */
+    TEST_ASSERT_FALSE(locked_state(&l, "PINCODE-KEY ERROR DEVICEID=\"A1\" MESSAGE=\"Invalid KEY\""));
+    TEST_ASSERT_EQUAL_UINT8(0, l.pending);
+    TEST_ASSERT_FALSE(locked_state(&l, "PINCODE-KEY OK DEVICEID=\"A1\""));
+    TEST_ASSERT_EQUAL_UINT8(0, l.pending);
+    TEST_ASSERT_TRUE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=0"));
+    l.pending = 2;
+    locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=0 CHARACTER_COUNT=0 ROTATION=45");
+    TEST_ASSERT_EQUAL_UINT8(0, l.pending);
+    TEST_ASSERT_EQUAL_INT16(0, l.rotation);
+}
+
+static bool pass(db_sat_held_t *h, db_input_kind_t kind, uint8_t index, bool ours)
+{
+    db_input_t ev = {.kind = kind, .index = index};
+    return db_sat_pass(h, &ev, ours);
+}
+
+static void test_a_release_goes_only_after_its_press(void)
+{
+    db_sat_held_t h = {0};
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_KEY_DOWN, 3, false)); /* the last PIN digit */
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_KEY_UP, 3, true));    /* released once Companion draws again */
+    TEST_ASSERT_TRUE(pass(&h, DB_INPUT_KEY_DOWN, 3, true));
+    TEST_ASSERT_TRUE(pass(&h, DB_INPUT_KEY_UP, 3, true));
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_KEY_UP, 3, true));
+    TEST_ASSERT_TRUE(pass(&h, DB_INPUT_KEY_DOWN, 40, true));
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_KEY_UP, 40, false)); /* the gate closed meanwhile */
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_KEY_UP, 40, true));
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_ENCODER_DOWN, 2, false));
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_ENCODER_UP, 2, true));
+    TEST_ASSERT_TRUE(pass(&h, DB_INPUT_ENCODER_DOWN, 2, true));
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_KEY_UP, 2, true)); /* key 2 is not encoder 2 */
+    TEST_ASSERT_TRUE(pass(&h, DB_INPUT_ENCODER_UP, 2, true));
+    TEST_ASSERT_TRUE(pass(&h, DB_INPUT_ENCODER_TURN, 1, true));
+    TEST_ASSERT_FALSE(pass(&h, DB_INPUT_TOUCH_TAP, 0, false));
 }
 
 static void test_host_of_every_satellite_address_form(void)
@@ -360,5 +411,7 @@ int main(void)
     RUN_TEST(test_host_of_every_satellite_address_form);
     RUN_TEST(test_add_device_asks_to_draw_the_lock_itself);
     RUN_TEST(test_lock_counts_digits_and_tells_a_wrong_pin);
+    RUN_TEST(test_only_answered_digits_count_for_a_wrong_pin);
+    RUN_TEST(test_a_release_goes_only_after_its_press);
     return UNITY_END();
 }
