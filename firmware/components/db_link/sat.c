@@ -44,6 +44,7 @@
 #define CACHE_SLOTS    2048
 #define CACHE_BUDGET   (4 * 1024 * 1024)
 #define PNG_PREFIX     "data:image/png;base64,"
+#define WRONG_PIN_MS   600
 
 /* "host" or "host:port" from the satellite setting: the host into `host`, and the port. */
 static unsigned tcp_host(const char *addr, char *host, size_t cap)
@@ -75,6 +76,8 @@ typedef struct {
     bool was_writer;
     int64_t add_sent_ms;
     uint32_t refused_ms; /* the wait before it is offered again after a refusal, 0: none */
+    db_sat_lock_t pin;   /* under pin_mux: read on the esp_timer task */
+    int64_t wrong_until_ms;
     char serial[32];
     char model[32];
     db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
@@ -115,6 +118,16 @@ static struct {
     uint32_t seq;
     cached_t *cache;
 } s = {.sock = -1};
+
+static portMUX_TYPE pin_mux = portMUX_INITIALIZER_UNLOCKED;
+
+/* Companion sends the lock again with the next ADD-DEVICE. */
+static void unlock(sat_dev_t *v)
+{
+    portENTER_CRITICAL(&pin_mux);
+    v->pin = (db_sat_lock_t){0};
+    portEXIT_CRITICAL(&pin_mux);
+}
 
 static int64_t now_ms(void)
 {
@@ -364,16 +377,10 @@ static void add_device(int deck)
     xSemaphoreGive(s.lock);
     if (len && b64 && line &&
         mbedtls_base64_encode((unsigned char *)b64, 2800, &n, (unsigned char *)json, len) == 0) {
-        /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock.
-         * Without CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
-        int k = snprintf(line, 3200,
-                         "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
-                         "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s%s\n",
-                         v->serial, v->serial, v->model, b64, s.png ? "png" : "rgb",
-                         v->swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
+        size_t k = db_sat_add_device(line, 3200, v->serial, v->model, b64, s.png, v->swipe);
         xSemaphoreTake(s.tx, portMAX_DELAY);
-        if (k > 0 && k < 3200) {
-            raw_send(line, (size_t)k);
+        if (k) {
+            raw_send(line, k);
             sent = true;
         }
         xSemaphoreGive(s.tx);
@@ -418,6 +425,7 @@ static void apply_device(int deck)
     if (v->added) {
         send_line("REMOVE-DEVICE DEVICEID=\"%s\"\n", v->serial);
         v->added = false;
+        unlock(v);
         s.changed();
     }
     bool present = db_deck_info(deck, dev);
@@ -502,6 +510,18 @@ static bool handle(char *line)
     } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE")) && d) {
         d->brightness = atoi(v);
         d->was_writer = false; /* applied below, now or once the deck is ours */
+    } else if (strcmp(m.cmd, "LOCKED-STATE") == 0 && d) {
+        int64_t now = now_ms();
+        portENTER_CRITICAL(&pin_mux);
+        db_sat_lock_t was = d->pin;
+        if (db_sat_locked_state(&d->pin, &m)) {
+            d->wrong_until_ms = now + WRONG_PIN_MS;
+        }
+        bool news = was.locked != d->pin.locked || was.count != d->pin.count;
+        portEXIT_CRITICAL(&pin_mux);
+        if (news) {
+            s.changed();
+        }
     } else if (strcmp(m.cmd, "KEYS-CLEAR") == 0 && d) {
         clear_keys(deck);
     } else if (strcmp(m.cmd, "ERROR") == 0) {
@@ -788,6 +808,7 @@ static void client_task(void *arg)
         for (int d = 0; d < DB_MAX_DECKS; d++) {
             had |= s.devs[d].added;
             s.devs[d].added = false;
+            unlock(&s.devs[d]);
             s.devs[d].nctl = 0; /* the next session's CAPS offers them anew */
             db_deck_forget(d, DB_SOURCE_SAT);
         }
@@ -935,6 +956,33 @@ void db_satellite_retry(void)
     if (s.task) {
         xTaskNotifyGive(s.task);
     }
+}
+
+bool db_satellite_locked(int deck, uint8_t *count, bool *wrong)
+{
+    const sat_dev_t *v = &s.devs[deck];
+    int64_t now = now_ms();
+    portENTER_CRITICAL(&pin_mux);
+    db_sat_lock_t pin = v->pin;
+    *wrong = now < v->wrong_until_ms;
+    portEXIT_CRITICAL(&pin_mux);
+    *count = pin.count;
+    return pin.locked && db_satellite_connected(deck);
+}
+
+void db_satellite_pincode(int deck, int digit)
+{
+    sat_dev_t *v = &s.devs[deck];
+    uint8_t count;
+    bool wrong;
+    if (!db_satellite_locked(deck, &count, &wrong) || !db_deck_input_real_for(s.peer)) {
+        return;
+    }
+    send_line("PINCODE-KEY DEVICEID=\"%s\" KEY=%d\n", v->serial, digit);
+    portENTER_CRITICAL(&pin_mux);
+    v->pin.count =
+        (uint8_t)(v->pin.count < 255 ? v->pin.count + 1 : 255); /* a dot at once, Companion's count follows */
+    portEXIT_CRITICAL(&pin_mux);
 }
 
 uint32_t db_satellite_peer(void)

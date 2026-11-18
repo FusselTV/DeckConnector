@@ -130,6 +130,15 @@ db_source_t db_ui_chosen_source(int deck)
     return choice(deck, db_config()->controller);
 }
 
+/* Companion over Satellite draws on `deck` and locked it: the deck shows the PIN pad. */
+static bool locked(int deck, uint8_t *count, bool *wrong)
+{
+    uint8_t n;
+    bool w;
+    return db_satellite_locked(deck, count ? count : &n, wrong ? wrong : &w) &&
+           db_ui_chosen_source(deck) == DB_SOURCE_SAT;
+}
+
 /* "ws://192.168.1.5:8765/x" -> "192.168.1.5:8765" */
 static void url_label(const char *url, char *out, size_t cap)
 {
@@ -431,6 +440,7 @@ static void model(int deck, ui_model_t *md)
         .english = strcmp(c->lang, "en") == 0,
         .sat_failed = db_satellite_health().error[0] != '\0',
     };
+    md->locked = locked(deck, &md->pin_count, &md->pin_wrong);
     if (ui_menu_open(&u->menu) && !u->turned && u->before >= 0) {
         md->brightness = u->before; /* the deck shows at least 20 %, the number stays what it had */
     }
@@ -501,7 +511,7 @@ static db_source_t wanted_writer(int deck)
     char request[16];
     const ui_deck_t *u = &decks[deck];
     if (ui_menu_open(&u->menu) || s.update_pct >= 0 || !db_config()->setup_done || db_dock_request(request) ||
-        u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time())) {
+        u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time()) || locked(deck, NULL, NULL)) {
         return DB_SOURCE_UI;
     }
     db_source_t chosen = db_ui_chosen_source(deck);
@@ -759,6 +769,9 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
     case UI_DO_SHOW_PASSWORD:
         db_ui_show_password();
         break;
+    case UI_DO_PIN:
+        db_satellite_pincode(deck, act->value);
+        break;
     default:
         break;
     }
@@ -856,6 +869,13 @@ static bool draw_deck(int deck, ui_screen_t *sc, ui_model_t *md)
     ui_deck_t *u = &decks[deck];
     /* the light lock keeps a writer change on another task from crossing the menu's brightness; never
      * held across model(), which takes other components' locks */
+    if (locked(deck, NULL, NULL)) {
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        if (ui_menu_open(&u->menu)) {
+            ui_menu_close(&u->menu, esp_timer_get_time());
+        }
+        xSemaphoreGive(s.lock);
+    }
     light_lock(true);
     bool ours = u->present && db_deck_writer(deck) == DB_SOURCE_UI;
     bool menu = false;
@@ -952,6 +972,9 @@ esp_err_t db_ui_open_menu(int deck)
     if (!decks[deck].present) {
         return ESP_ERR_INVALID_STATE;
     }
+    if (locked(deck, NULL, NULL)) {
+        return ESP_ERR_NOT_ALLOWED;
+    }
     open_menu(deck, esp_timer_get_time());
     return ESP_OK;
 }
@@ -1003,7 +1026,8 @@ static void check_menu_chord(int deck)
     bool any = db_ui_menu_chord(u->dev.encoder_count, db_device_image_keys(&u->dev), &on_encoders, &last);
     const bool *down = on_encoders ? u->enc_down : u->key_down;
     int size = on_encoders ? sizeof(u->enc_down) : sizeof(u->key_down);
-    bool held = any && last < size && down[0] && down[last];
+    /* no menu on a locked deck: its source switch would be a way around the lock */
+    bool held = any && last < size && down[0] && down[last] && !locked(deck, NULL, NULL);
     int64_t now = esp_timer_get_time();
     if (!held) {
         u->chord_since = 0;
@@ -1087,6 +1111,17 @@ static void tick(void *arg)
     if (overlay(now) != overlaid) {
         overlaid = !overlaid;
         changed();
+    }
+    static uint16_t pins[DB_MAX_DECKS]; /* a wrong PIN's red ends */
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        uint8_t count = 0;
+        bool wrong = false;
+        bool on = db_satellite_locked(d, &count, &wrong);
+        uint16_t pin = (uint16_t)(on | wrong << 1 | count << 2);
+        if (pin != pins[d]) {
+            pins[d] = pin;
+            changed();
+        }
     }
     static bool handing_over;
     if ((now < s.handover_until) != handing_over) {

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unity.h>
@@ -280,6 +281,56 @@ static void test_png_refuses_a_first_chunk_bigger_than_the_picture(void)
     free(png);
 }
 
+static void test_add_device_asks_to_draw_the_lock_itself(void)
+{
+    char line[256];
+    size_t n = db_sat_add_device(line, sizeof(line), "A1", "Stream Deck +", "e30=", true, true);
+    TEST_ASSERT_EQUAL_size_t(strlen(line), n);
+    TEST_ASSERT_EQUAL_STRING(
+        "ADD-DEVICE DEVICEID=\"A1\" SERIAL=\"streamdeck:A1\" PRODUCT_NAME=\"Stream Deck +\" "
+        "LAYOUT_MANIFEST=\"e30=\" BITMAP_FORMAT=png PINCODE_LOCK=FULL "
+        "CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"\n",
+        line);
+    db_sat_msg_t m;
+    line[n - 1] = '\0';
+    db_sat_parse(line, &m);
+    TEST_ASSERT_EQUAL_STRING("FULL", db_sat_get(&m, "PINCODE_LOCK"));
+    TEST_ASSERT_EQUAL_size_t(0, db_sat_add_device(line, 40, "A1", "Stream Deck +", "e30=", true, true));
+}
+
+static bool locked_state(db_sat_lock_t *l, const char *text)
+{
+    char line[128];
+    snprintf(line, sizeof(line), "%s", text);
+    db_sat_msg_t m;
+    db_sat_parse(line, &m);
+    return db_sat_locked_state(l, &m);
+}
+
+static void test_lock_counts_digits_and_tells_a_wrong_pin(void)
+{
+    db_sat_lock_t l = {0};
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=0 ROTATION=0"));
+    TEST_ASSERT_TRUE(l.locked);
+    TEST_ASSERT_EQUAL_UINT8(0, l.count);
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=true CHARACTER_COUNT=1"));
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=3"));
+    TEST_ASSERT_EQUAL_UINT8(3, l.count);
+    TEST_ASSERT_TRUE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=0"));
+    TEST_ASSERT_TRUE(l.locked);
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=0"));
+    locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=2");
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=0 CHARACTER_COUNT=0"));
+    TEST_ASSERT_FALSE(l.locked);
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=false CHARACTER_COUNT=4"));
+    TEST_ASSERT_FALSE(l.locked);
+    TEST_ASSERT_EQUAL_UINT8(0, l.count);
+    TEST_ASSERT_FALSE(locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" CHARACTER_COUNT=4"));
+    TEST_ASSERT_FALSE(l.locked);
+    locked_state(&l, "LOCKED-STATE DEVICEID=\"A1\" LOCKED=1 CHARACTER_COUNT=999");
+    TEST_ASSERT_EQUAL_UINT8(255, l.count);
+}
+
 static void test_host_of_every_satellite_address_form(void)
 {
     const char *cases[][2] = {
@@ -307,5 +358,7 @@ int main(void)
     RUN_TEST(test_png_decodes_to_bgr);
     RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
     RUN_TEST(test_host_of_every_satellite_address_form);
+    RUN_TEST(test_add_device_asks_to_draw_the_lock_itself);
+    RUN_TEST(test_lock_counts_digits_and_tells_a_wrong_pin);
     return UNITY_END();
 }

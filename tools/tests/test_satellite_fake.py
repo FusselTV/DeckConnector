@@ -59,12 +59,12 @@ def fake():
         srv.server_close()
 
 
-def wait(cond, secs: float = 20):
+def wait(cond, secs: float = 20, step: float = 0.25):
     end = time.time() + secs
     while time.time() < end:
         if got := cond():
             return got
-        time.sleep(0.25)
+        time.sleep(step)
     return None
 
 
@@ -113,3 +113,37 @@ def test_only_presses_bound_to_this_host_reach_satellite(fake):
     assert api("POST", "/api/input", json.dumps({"key": 0, "real": me}).encode())[0] == 200
     assert wait(lambda: len(presses(fake)) == 2, 5), f"the real press did not arrive: {presses(fake)}"
     assert [p.rsplit("PRESSED=", 1)[1] for p in presses(fake)] == ["1", "0"]
+
+
+def locked(srv, count: int, on: int = 1) -> None:
+    send(srv, f'LOCKED-STATE DEVICEID="{srv.device}" LOCKED={on} CHARACTER_COUNT={count} ROTATION=0')
+
+
+def pins(srv) -> list:
+    return [x.rsplit("KEY=", 1)[1] for x in srv.lines if x.startswith("PINCODE-KEY")]
+
+
+def key0_frame():
+    img = Image.open(io.BytesIO(api("GET", "/api/screen.jpg")[1])).convert("RGB")
+    return img.getpixel((15, 72))  # inside key 0's frame on the Stream Deck +
+
+
+def test_a_locked_deck_takes_the_pin_on_its_own_pad(fake):
+    assert "PINCODE_LOCK=FULL" in next(x for x in fake.lines if x.startswith("ADD-DEVICE"))
+    me = real_input_target(status())  # while the fake still draws
+    locked(fake, 0)
+    assert wait(lambda: status()["decks"][0]["locked"] and not drawing(), 5), "the deck did not show the pad"
+    assert api("POST", "/api/menu")[0] == 409, "the menu opened on a locked deck"
+    assert api("POST", "/api/input", json.dumps({"key": 0}).encode())[0] == 200
+    time.sleep(1)
+    assert pins(fake) == [], "a simulated press reached Companion"
+    for key in (0, 1):
+        assert api("POST", "/api/input", json.dumps({"key": key, "real": me}).encode())[0] == 200
+    assert wait(lambda: pins(fake) == ["1", "2"], 5), f"digits: {pins(fake)}"
+    assert presses(fake) == [], f"a locked deck sent presses: {presses(fake)}"
+    locked(fake, 2)
+    locked(fake, 0)
+    assert wait(lambda: reddish(key0_frame()), 2, 0.05), "a wrong PIN did not flash red"
+    assert wait(lambda: not reddish(key0_frame()), 3), "the red stayed"
+    locked(fake, 0, 0)
+    assert wait(lambda: drawing() and not status()["decks"][0]["locked"], 5), "Companion did not draw again"

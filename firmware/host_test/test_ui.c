@@ -787,6 +787,100 @@ void setUp(void)
     ui_on_cut = print_cut;
 }
 
+static int pin_of(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, db_input_t ev)
+{
+    ui_action_t act;
+    ui_menu_input(m, md, l, &ev, &act);
+    return act.what == UI_DO_PIN ? act.value : -1;
+}
+
+static int pin_key(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, uint8_t key)
+{
+    int digit = pin_of(m, md, l, (db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = key});
+    TEST_ASSERT_EQUAL_INT(-1, pin_of(m, md, l, (db_input_t){.kind = DB_INPUT_KEY_UP, .index = key}));
+    return digit;
+}
+
+/* The pad in phone order on every deck with a screen, in every state, and which control types which digit. */
+static void test_pin_pad_on_every_deck(void)
+{
+    static const struct {
+        uint16_t pid;
+        const char *name;
+        uint8_t keys[10]; /* the key of each digit, 0 to 9; 255: not on a key */
+    } pads[] = {
+        {0x0084, "plus", {255, 0, 1, 2, 3, 4, 5, 6, 7, 255}},
+        {0x00c6, "plusxl", {31, 3, 4, 5, 12, 13, 14, 21, 22, 23}},
+        {0x0080, "mk2", {9, 1, 2, 3, 6, 7, 8, 11, 12, 13}},
+        {0x008f, "xl", {28, 3, 4, 5, 11, 12, 13, 19, 20, 21}},
+        {0x009a, "neo", {9, 0, 1, 2, 3, 4, 5, 6, 7, 8}},
+        {0x0063, "mini", {4, 0, 1, 2, 3, 4, 0, 1, 2, 3}},
+    };
+    for (size_t d = 0; d < sizeof(pads) / sizeof(pads[0]); d++) {
+        db_device_info_t dev = open_deck(pads[d].pid);
+        ui_layout_t l = ui_layout_of(&dev);
+        for (int v = 0; v < 8; v++) {
+            ui_model_t md = base_model();
+            md.locked = true;
+            md.english = english = v >= 4;
+            md.pin_count = (uint8_t)(v % 4 == 1 ? 3 : (v % 4 == 3 ? 12 : 0));
+            md.pin_wrong = v % 4 == 2;
+            for (uint8_t page = 0; page < (l.cols == 3 ? 2 : 1); page++) {
+                ui_menu_t m = {.page = v % 2 ? PAGE_MAIN : PAGE_HOME, .confirm_key = -1, .pin_page = page};
+                ui_screen_t sc;
+                ui_menu_screen(&m, &md, &l, &sc);
+                char name[64];
+                snprintf(name, sizeof(name), "%s_lock%s_%d", pads[d].name, page ? "_b" : "", v);
+                check_page(&dev, &sc, name);
+                TEST_ASSERT_EQUAL_INT(md.pin_wrong, sc.tiles[pads[d].keys[1]].active);
+            }
+        }
+        english = false;
+        ui_model_t md = base_model();
+        md.locked = true;
+        ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+        for (int digit = 0; digit <= 9; digit++) {
+            uint8_t key = pads[d].keys[digit];
+            if (l.cols == 3 && (digit >= 6 || digit == 0) != (m.pin_page == 1)) {
+                TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 5)); /* to the other page */
+            }
+            if (key != 255) {
+                TEST_ASSERT_EQUAL_INT_MESSAGE(digit, pin_key(&m, &md, &l, key), pads[d].name);
+            }
+        }
+        if (!l.cols || l.rows < 3) {
+            continue;
+        }
+        TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 0)); /* a key beside the pad does nothing */
+        md.locked = false;
+        TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, pads[d].keys[5]));
+    }
+    db_device_info_t dev = open_deck(0x009a);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.locked = true;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    TEST_ASSERT_EQUAL_INT(9, pin_key(&m, &md, &l, 8)); /* the left touch point */
+    dev = open_deck(0x0084);
+    l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_INT(9, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 2}));
+    TEST_ASSERT_EQUAL_INT(0, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 3}));
+    TEST_ASSERT_EQUAL_INT(-1, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 0}));
+    TEST_ASSERT_EQUAL_INT(
+        -1, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_TURN, .index = 3, .value = 1}));
+    TEST_ASSERT_EQUAL_INT(9,
+                          pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_TOUCH_TAP, .x = 450, .y = 400}));
+    TEST_ASSERT_EQUAL_INT(0,
+                          pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_TOUCH_TAP, .x = 790, .y = 400}));
+    TEST_ASSERT_EQUAL_INT(-1,
+                          pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_TOUCH_TAP, .x = 100, .y = 400}));
+    dev = open_deck(0x0086); /* the Pedal has nothing to show the pad on */
+    l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 1));
+    TEST_ASSERT_EQUAL_INT(0, cut_pages);
+    TEST_ASSERT_EQUAL_INT(0, german_pages);
+}
+
 void tearDown(void)
 {
 }
@@ -808,5 +902,6 @@ int main(void)
     RUN_TEST(test_login_request_page);
     RUN_TEST(test_simulated_presses_cannot_act_on_the_bridge);
     RUN_TEST(test_restart_release_without_its_press);
+    RUN_TEST(test_pin_pad_on_every_deck);
     return UNITY_END();
 }

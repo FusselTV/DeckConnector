@@ -43,7 +43,8 @@ bool db_ui_login_shown(void);
 bool db_ui_password_shown(void);
 /* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
 void db_ui_setup_step(int step);
-/* On `deck`, closing it on any other. ESP_ERR_INVALID_STATE when that deck is not connected. */
+/* On `deck`, closing it on any other. ESP_ERR_INVALID_STATE when that deck is not connected,
+ * ESP_ERR_NOT_ALLOWED while Companion locked it. */
 esp_err_t db_ui_open_menu(int deck);
 /* Back to the home page, like the menu's close key; also hides the password page, cancels the reset question
  * and denies a login request. The deck goes back to who draws. */

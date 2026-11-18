@@ -49,6 +49,18 @@ typedef struct {
  * same buttons show. The image keys come first, then the strip in one part per encoder, then keys without a
  * picture (on the Neo, in the strip's row around it), then the encoders. */
 size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_t max);
+/* The ADD-DEVICE line with its newline, or 0 when it does not fit in `cap`. */
+size_t db_sat_add_device(char *buf, size_t cap, const char *serial, const char *model,
+                         const char *manifest_b64, bool png, bool swipe);
+
+typedef struct {
+    bool locked;
+    uint8_t count; /* PIN digits typed so far */
+} db_sat_lock_t;
+
+/* A LOCKED-STATE into `l`. True when it cleared typed digits while still locked: a wrong PIN. */
+bool db_sat_locked_state(db_sat_lock_t *l, const db_sat_msg_t *m);
+
 /* The LAYOUT_MANIFEST JSON. Returns its length, 0 when it does not fit. */
 size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t cap);
 /* The control of a CONTROLID "row/column", or NULL. */

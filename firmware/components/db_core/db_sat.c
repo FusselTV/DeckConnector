@@ -176,6 +176,30 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     return db_json_end(&j);
 }
 
+size_t db_sat_add_device(char *buf, size_t cap, const char *serial, const char *model,
+                         const char *manifest_b64, bool png, bool swipe)
+{
+    /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock. Without
+     * CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
+    int n = snprintf(buf, cap,
+                     "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
+                     "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s PINCODE_LOCK=FULL%s\n",
+                     serial, serial, model, manifest_b64, png ? "png" : "rgb",
+                     swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
+    return n > 0 && (size_t)n < cap ? (size_t)n : 0;
+}
+
+bool db_sat_locked_state(db_sat_lock_t *l, const db_sat_msg_t *m)
+{
+    const char *locked = db_sat_get(m, "LOCKED");
+    const char *count = db_sat_get(m, "CHARACTER_COUNT");
+    bool was = l->locked && l->count > 0;
+    l->locked = locked && (strcmp(locked, "1") == 0 || strcmp(locked, "true") == 0);
+    unsigned long n = count && l->locked ? strtoul(count, NULL, 10) : 0;
+    l->count = (uint8_t)(n > 255 ? 255 : n);
+    return was && l->locked && l->count == 0;
+}
+
 void db_sat_addr_host(const char *addr, char *host, size_t cap)
 {
     const char *p = strstr(addr, "://");

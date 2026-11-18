@@ -46,6 +46,9 @@ typedef enum {
     K_KEEP,
     K_LANG,
     K_WEB,
+    K_DIGIT0, /* K_DIGIT0 + digit */
+    K_DIGIT9 = K_DIGIT0 + 9,
+    K_PIN_PAGE,
     K_SRC0, /* K_SRC0 + index in ui_model_t.sources; keep it last */
 } key_act_t;
 
@@ -779,6 +782,84 @@ static void sources_page(page_t *p)
     }
 }
 
+static void digit_key(page_t *p, int key, int digit)
+{
+    ui_tile_t *t = put(p, key, (key_act_t)(K_DIGIT0 + digit));
+    *t = (ui_tile_t){.kind = TILE_DIGIT, .active = p->md->pin_wrong, .color = C_DANGER};
+    snprintf(t->label, sizeof(t->label), "%d", digit);
+}
+
+/* The dots typed so far, "PIN" before the first, or that the last entry was wrong. */
+static void pin_card(page_t *p, ui_tile_t *t, const char *label)
+{
+    const ui_model_t *md = p->md;
+    card(t, ICON_LOCK, label, md->pin_wrong ? L("Falsch", "Wrong") : (md->pin_count ? "" : "PIN"),
+         md->pin_wrong ? L("nochmal", "again") : (md->pin_count ? "" : L("eingeben", "enter")));
+    t->dots = md->pin_wrong ? 0 : md->pin_count;
+    t->active = md->pin_wrong;
+    t->color = C_DANGER;
+}
+
+static void pin_segment(page_t *p, ui_segment_t *g, int span, const char *sub)
+{
+    const ui_model_t *md = p->md;
+    segment(g, span, ICON_LOCK, md->pin_wrong ? C_DANGER : C_DIM, L("Gesperrt", "Locked"),
+            md->pin_wrong ? L("Falsche PIN", "Wrong PIN")
+                          : (md->pin_count ? "" : L("PIN eingeben", "Enter the PIN")),
+            md->pin_wrong ? L("Nochmal von vorn", "Start again") : sub);
+    g->dots = md->pin_wrong ? 0 : md->pin_count;
+}
+
+static void digit_segment(page_t *p, int i, int digit)
+{
+    ui_segment_t *g = &p->sc->seg[i];
+    *g = (ui_segment_t){.span = 1, .bar = -1, .digit = true, .icon_color = p->md->pin_wrong ? C_DANGER : 0};
+    snprintf(g->value, sizeof(g->value), "%d", digit);
+}
+
+/* Companion's PIN, digits in phone order. Companion checks it: no delete and no enter, a wrong entry clears
+ * itself once it is as long as the PIN. */
+static void lock_page(page_t *p)
+{
+    const ui_layout_t *l = p->l;
+    if (l->rows >= 3 && l->cols >= 4) {
+        int c0 = (l->cols - 2) / 2;
+        for (int d = 1; d <= 9; d++) {
+            digit_key(p, at(p, (d - 1) / 3, c0 + (d - 1) % 3), d);
+        }
+        digit_key(p, l->rows >= 4 ? at(p, 3, c0 + 1) : at(p, 1, c0 + 3), 0);
+        if (l->strip) {
+            pin_segment(p, &p->sc->seg[0], 4, "");
+        } else {
+            pin_card(p, put(p, at(p, 1, c0 >= 2 ? c0 - 2 : c0 - 1), K_NONE), L("Gesperrt", "Locked"));
+        }
+    } else if (l->rows == 2 && l->cols == 4) {
+        for (int d = 1; d <= 8; d++) {
+            digit_key(p, d - 1, d);
+        }
+        if (l->strip) { /* the strip's right half and encoders 3 and 4 */
+            pin_segment(p, &p->sc->seg[0], 2, L("9 und 0 rechts", "9 and 0 on the right"));
+            digit_segment(p, 2, 9);
+            digit_segment(p, 3, 0);
+        } else { /* the Neo's two touch points below the keys */
+            put(p, 8, K_DIGIT9);
+            put(p, 9, K_DIGIT0);
+            ui_segment_t *g = &p->sc->bar;
+            segment(g, 1, ICON_LOCK, p->md->pin_wrong ? C_DANGER : C_DIM, "9",
+                    p->md->pin_wrong ? L("Falsch", "Wrong") : (p->md->pin_count ? "" : "PIN"), "0");
+            g->dots = p->md->pin_wrong ? 0 : p->md->pin_count;
+        }
+    } else if (l->rows == 2 && l->cols == 3) { /* two pages, the third key switches */
+        int first = p->m->pin_page ? 6 : 1;
+        for (int i = 0; i < 5; i++) {
+            digit_key(p, i, (first + i) % 10);
+        }
+        ui_tile_t *t = put(p, 5, K_PIN_PAGE);
+        pin_card(p, t, p->m->pin_page ? "1–5" : "6–0");
+        t->badge = BADGE_OPEN;
+    }
+}
+
 static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, ui_screen_t *sc,
                   uint8_t *acts)
 {
@@ -819,6 +900,9 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_LOGIN_REQ:
         login_page(&p);
         break;
+    case PAGE_LOCK:
+        lock_page(&p);
+        break;
     default:
         home(&p);
         break;
@@ -841,6 +925,8 @@ static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
         shown.page = PAGE_OFFER;
     } else if (md->show_pass) {
         shown.page = PAGE_PASSWORD;
+    } else if (md->locked) {
+        shown.page = PAGE_LOCK;
     } else if (m->page == PAGE_HOME && md->ap_on) { /* also when it started by itself: its password is here */
         shown.page = PAGE_SETUP_AP;
     } else if (m->page == PAGE_HOME && md->offer_addr[0]) {
@@ -1012,6 +1098,36 @@ static bool restart_input(ui_menu_t *m, const ui_model_t *md, const db_input_t *
     return true;
 }
 
+/* A digit on its press, so a quick typist is not held up; on the +, encoders 3 and 4 and the strip's right
+ * half are 9 and 0. */
+static bool lock_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, const db_input_t *ev,
+                       ui_action_t *act)
+{
+    int digit = -1;
+    bool plus = l->strip && l->rows == 2;
+    if (ev->kind == DB_INPUT_KEY_DOWN && ev->index < UI_MAX_KEYS) {
+        static ui_screen_t sc_buf; /* as in ui_menu_input */
+        uint8_t acts[UI_MAX_KEYS];
+        ui_menu_t shown = *m;
+        shown.page = PAGE_LOCK;
+        build(&shown, md, l, &sc_buf, acts);
+        if (acts[ev->index] == K_PIN_PAGE) {
+            m->pin_page = !m->pin_page;
+            return true;
+        }
+        digit = acts[ev->index] >= K_DIGIT0 && acts[ev->index] <= K_DIGIT9 ? acts[ev->index] - K_DIGIT0 : -1;
+    } else if (plus && ev->kind == DB_INPUT_ENCODER_DOWN && ev->index >= 2 && ev->index <= 3) {
+        digit = ev->index == 2 ? 9 : 0;
+    } else if (plus && ev->kind == DB_INPUT_TOUCH_TAP && ev->x >= 400) {
+        digit = ev->x < 600 ? 9 : 0;
+    }
+    if (digit < 0) {
+        return false;
+    }
+    *act = (ui_action_t){.what = UI_DO_PIN, .value = digit};
+    return true;
+}
+
 bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, const db_input_t *ev,
                    ui_action_t *act)
 {
@@ -1021,6 +1137,9 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return false;
     }
     ui_menu_t shown = shown_menu(m, md);
+    if (shown.page == PAGE_LOCK) {
+        return lock_input(m, md, l, ev, act);
+    }
     if (shown.page == PAGE_PASSWORD &&
         (ev->kind == DB_INPUT_KEY_UP || ev->kind == DB_INPUT_ENCODER_UP || ev->kind == DB_INPUT_TOUCH_TAP)) {
         act->what = UI_DO_HIDE_PASSWORD;
