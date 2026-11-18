@@ -77,6 +77,7 @@ typedef struct {
     uint32_t refused_ms; /* the wait before it is offered again after a refusal, 0: none */
     char serial[32];
     char model[32];
+    const char *surface;
     db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
     size_t nctl;
 } sat_dev_t;
@@ -367,9 +368,9 @@ static void add_device(int deck)
         /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock.
          * Without CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
         int k = snprintf(line, 3200,
-                         "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
+                         "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"%s:%s\" PRODUCT_NAME=\"%s\" "
                          "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s%s\n",
-                         v->serial, v->serial, v->model, b64, s.png ? "png" : "rgb",
+                         v->serial, v->surface, v->serial, v->model, b64, s.png ? "png" : "rgb",
                          v->swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
         xSemaphoreTake(s.tx, portMAX_DELAY);
         if (k > 0 && k < 3200) {
@@ -427,6 +428,7 @@ static void apply_device(int deck)
     if (present) {
         snprintf(v->serial, sizeof(v->serial), "%s", dev->serial);
         snprintf(v->model, sizeof(v->model), "%s", dev->model);
+        v->surface = dev->surface;
         v->display = dev->displays[0];
     }
     v->swipe = present && dev->touch_count > 0;

@@ -47,6 +47,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
         db_json_int(&j, "number", d + 1);
         db_json_str(&j, "model", dev.model);
         db_json_str(&j, "serial", dev.serial);
+        db_json_bool(&j, "dock", dev.dock);
         db_json_int(&j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
         db_json_obj_close(&j);
     }

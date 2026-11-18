@@ -39,7 +39,7 @@ Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganze
  "touch": [{"display": 0, "x": 0, "y": 380, "w": 800, "h": 100}]}
 ```
 
-Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele nehmen nur genau ihr Rechteck. `{"t": "device", "present": false}` heißt, das Deck wurde abgezogen.
+Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele nehmen nur genau ihr Rechteck. Ein Display mit `max_bytes` nimmt kein Bild, das größer ist. `{"t": "device", "present": false}` heißt, das Deck wurde abgezogen.
 
 ```json
 {"t": "role", "active": true}

@@ -36,6 +36,7 @@ static void write_device_fields(db_json_t *j, const db_device_info_t *dev)
     db_json_str(j, "model", dev->model);
     db_json_str(j, "serial", dev->serial);
     db_json_str(j, "firmware", dev->firmware);
+    db_json_bool(j, "dock", dev->dock);
     db_json_int(j, "keys", dev->key_count);
     db_json_int(j, "encoders", dev->encoder_count);
     db_json_int(j, "width", dev->displays[0].width);

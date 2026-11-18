@@ -277,9 +277,18 @@ static void writer_task(void *arg)
 {
     int deck = (int)(intptr_t)arg;
     deck_t *k = &decks[deck];
+    int64_t ticked = 0;
     for (;;) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        const db_driver_t *drv = k->dev.driver;
+        ulTaskNotifyTake(pdTRUE, drv && drv->tick ? pdMS_TO_TICKS(drv->tick_ms) : portMAX_DELAY);
         for (;;) {
+            xSemaphoreTake(k->io_lock, portMAX_DELAY);
+            int64_t now = esp_timer_get_time();
+            if (k->present && k->dev.driver->tick && now - ticked >= k->dev.driver->tick_ms * 1000LL) {
+                ticked = now;
+                k->dev.driver->tick(&k->dev);
+            }
+            xSemaphoreGive(k->io_lock);
             /* between images, also in a stream; read now, so a wake or a dark that raced it still wins */
             int lit = __atomic_load_n(&k->lit, __ATOMIC_RELAXED);
             if (__atomic_exchange_n(&k->brightness, 0, __ATOMIC_RELAXED) && k->present &&
@@ -523,6 +532,9 @@ static void handle_attach(uint8_t address)
         ESP_LOGW(TAG, "driver %s failed to open the device: %d", driver->name, err);
         usb_port_close(port);
         return;
+    }
+    if (!dev.info.serial[0]) {
+        usb_port_serial(port, dev.info.serial, sizeof(dev.info.serial));
     }
     bool full = present_count() >= s.max_decks;
     int deck = full ? -1 : take_slot(port, dev.info.serial);
@@ -1044,7 +1056,7 @@ esp_err_t db_deck_set_brightness(int deck, uint8_t pct)
 esp_err_t db_deck_raw_write(int deck, db_source_t source, const uint8_t *report, size_t len)
 {
     deck_t *k = &decks[deck];
-    if (!k->present) {
+    if (!k->present || !k->dev.info.dock) {
         return ESP_ERR_INVALID_STATE;
     }
     /* Wait 300 ms before the first host write after a deck is plugged in. */
@@ -1104,7 +1116,7 @@ esp_err_t db_deck_raw_write(int deck, db_source_t source, const uint8_t *report,
 esp_err_t db_deck_raw_get_feature(int deck, uint8_t *buf, size_t len, size_t *out_len)
 {
     deck_t *k = &decks[deck];
-    if (!k->present) {
+    if (!k->present || !k->dev.info.dock) {
         return ESP_ERR_INVALID_STATE;
     }
     xSemaphoreTake(k->io_lock, portMAX_DELAY);
@@ -1116,7 +1128,7 @@ esp_err_t db_deck_raw_get_feature(int deck, uint8_t *buf, size_t len, size_t *ou
 esp_err_t db_deck_raw_set_feature(int deck, db_source_t source, const uint8_t *buf, size_t len)
 {
     deck_t *k = &decks[deck];
-    if (!k->present) {
+    if (!k->present || !k->dev.info.dock) {
         return ESP_ERR_INVALID_STATE;
     }
     xSemaphoreTake(k->shot_lock, portMAX_DELAY);

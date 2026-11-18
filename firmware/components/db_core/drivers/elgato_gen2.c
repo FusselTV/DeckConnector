@@ -284,6 +284,8 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .vid = ELGATO_VID,
                                .pid = pid,
                                .tested = m->tested,
+                               .dock = true,
+                               .surface = "streamdeck",
                                .key_count = (uint8_t)(m->cols * m->rows + m->sensors),
                                .encoder_count = m->encoders};
     fill_display(m, info);

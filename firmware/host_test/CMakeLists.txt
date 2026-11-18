@@ -25,6 +25,10 @@ target_link_libraries(test_sat db_core unity z)
 add_test(NAME test_sat COMMAND test_sat)
 
 set(ui ../components/db_ui)
+add_executable(test_mirabox test_mirabox.c)
+target_link_libraries(test_mirabox db_core unity)
+add_test(NAME test_mirabox COMMAND test_mirabox)
+
 add_executable(test_ui test_ui.c ${ui}/screens.c ${ui}/render.c ${ui}/canvas.c ${ui}/font_data.c)
 target_include_directories(test_ui PRIVATE ${ui})
 target_compile_definitions(test_ui PRIVATE UI_OUT="${CMAKE_BINARY_DIR}/ui")

@@ -39,7 +39,7 @@ Each display has one pixel coordinate system, origin at the top left of the whol
  "touch": [{"display": 0, "x": 0, "y": 380, "w": 800, "h": 100}]}
 ```
 
-A `strip` target with `partial: true` takes any rectangle inside it. Other targets take only their exact rectangle. `{"t": "device", "present": false}` means the deck was unplugged.
+A `strip` target with `partial: true` takes any rectangle inside it. Other targets take only their exact rectangle. A display with `max_bytes` takes no image larger than that. `{"t": "device", "present": false}` means the deck was unplugged.
 
 ```json
 {"t": "role", "active": true}

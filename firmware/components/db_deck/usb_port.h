@@ -33,6 +33,7 @@ esp_err_t usb_port_ids(uint8_t address, uint16_t *vid, uint16_t *pid);
 void usb_port_close(int dev);
 /* The open device's USB product string as ASCII, empty without one. */
 void usb_port_product(int dev, char *out, size_t cap);
+void usb_port_serial(int dev, char *out, size_t cap);
 
 /* Valid after usb_port_open() returned ESP_OK. */
 const db_hid_io_t *usb_port_io(int dev);
