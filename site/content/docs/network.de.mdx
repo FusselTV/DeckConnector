@@ -40,6 +40,17 @@ Der mDNS-Name der Platine ist `<name>.local`, zum Beispiel `deckconnector-a1b2c3
 
 ## Uhr
 
-Die Platine stellt ihre Uhr per NTP. Sie nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. `ntp_server` in den [Einstellungen](/de/docs/api#einstellungen) legt einen eigenen fest.
+Die Platine stellt ihre Uhr per NTP. Sie nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. Einen eigenen legst du in der Weboberfläche unter **Netzwerk** fest.
+
+## Internet
+
+Die Platine spricht nur in diesen Fällen mit dem Internet. Jedes Mal sieht der Server die IP-Adresse deines Netzes.
+
+- **Uhrzeit.** `pool.ntp.org`, nur wenn dein Router keinen Zeitserver nennt und du keinen festlegst.
+- **Update-Prüfung.** GitHub, nur wenn du unter **Firmware** auf **Prüfen** klickst.
+- **Update per URL.** Die Adresse, die du angibst, bei einem Release auch GitHub.
+- **Deine Server.** Companion, Satellite und eigene Server, die du einträgst.
+
+Sie schickt keine Nutzungsdaten und keine Absturzberichte.
 
 <Next lang="de" links={[['Mehrere Programme', '/de/docs/hosts/']]} />

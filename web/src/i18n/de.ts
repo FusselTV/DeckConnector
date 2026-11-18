@@ -135,6 +135,9 @@ export const de: Dict = {
   'net.at_wlan': 'WLAN',
   'net.at_mdns': 'Name (mDNS)',
   'net.at_mdns_h': 'Bleibt gleich, wenn sich die IP ändert. Manche Handys finden ihn nicht, dann nimm die IP.',
+  'net.ntp': 'Zeitserver (NTP)',
+  'net.ntp_h':
+    'Leer lassen nimmt den Zeitserver deines Routers, sonst pool.ntp.org. Dieser öffentliche Server sieht die IP-Adresse deines Netzes.',
   'net.lan': 'LAN',
   'net.wlan': 'WLAN',
   'net.dhcp': 'Automatisch',
@@ -672,6 +675,7 @@ export const de: Dict = {
   'wifi.joined': 'Verbunden mit {b}, Kanal {c}, {r} dBm.',
   'cert.dl': 'Herunterladen',
   'upd.check': 'Prüfen',
+  'upd.check_h': 'Fragt GitHub nach dem neuesten Release. GitHub sieht dabei die IP-Adresse deines Netzes.',
   'upd.checking': 'Suche…',
   'upd.new': 'Firmware {v} ist verfügbar',
   'upd.new_h': 'Installieren lädt die signierte Datei und startet den Connector neu.',

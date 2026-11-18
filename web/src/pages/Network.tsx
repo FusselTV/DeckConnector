@@ -111,6 +111,7 @@ export function Network() {
   const n = st.network
   const base = {
     name: cfg?.name ?? '',
+    ntp: cfg?.ntp_server ?? '',
     lan: cfg?.lan ?? EMPTY,
     wlan: cfg?.wlan ?? EMPTY,
     wifi: { ssid: cfg?.wifi_ssid ?? '', pass: '', bssid: cfg?.wifi_bssid ?? '' },
@@ -126,6 +127,7 @@ export function Network() {
   const wifiChanged = v.wifi.ssid !== base.wifi.ssid || v.wifi.bssid !== base.wifi.bssid || !!v.wifi.pass
   const patch = {
     ...(d.name !== undefined && v.name !== base.name ? { name: v.name } : {}),
+    ...(d.ntp !== undefined && v.ntp !== base.ntp ? { ntp_server: v.ntp } : {}),
     ...(d.lan && !same(v.lan, base.lan) ? { lan: v.lan } : {}),
     ...(d.wlan && !same(v.wlan, base.wlan) ? { wlan: v.wlan } : {}),
   }
@@ -315,6 +317,17 @@ export function Network() {
             </div>
           ))
         })()}
+        <Field id="ntp" label={t('net.ntp')} hint={t('net.ntp_h')}>
+          <input
+            {...describedBy('ntp', null, t('net.ntp_h'))}
+            className="in mono"
+            maxLength={63}
+            pattern="[A-Za-z0-9.:\x2d]*"
+            value={v.ntp}
+            onChange={(e) => set({ ntp: e.target.value.trim() })}
+            spellCheck={false}
+          />
+        </Field>
       </Card>
     </fieldset>
   )

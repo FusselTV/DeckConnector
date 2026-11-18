@@ -294,6 +294,7 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
           {t(st.state === 'checking' ? 'upd.checking' : 'upd.check')}
         </Btn>
       </div>
+      {st.state === 'idle' && <p className="small muted">{t('upd.check_h')}</p>}
       {st.state === 'none' && (
         <p className="okline" role="status">
           <Check size={16} aria-hidden />

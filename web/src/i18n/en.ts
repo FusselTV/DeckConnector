@@ -132,6 +132,9 @@ export const en = {
   'net.at_wlan': 'Wi-Fi',
   'net.at_mdns': 'Name (mDNS)',
   'net.at_mdns_h': 'Stays the same when the IP changes. Some phones cannot find it, then use the IP.',
+  'net.ntp': 'Time server (NTP)',
+  'net.ntp_h':
+    'Leave empty to use the one your router names, else pool.ntp.org. That public server sees the IP address of your network.',
   'net.lan': 'LAN',
   'net.wlan': 'Wi-Fi',
   'net.dhcp': 'Automatic',
@@ -659,6 +662,7 @@ export const en = {
   'wifi.joined': 'Connected to {b}, channel {c}, {r} dBm.',
   'cert.dl': 'Download',
   'upd.check': 'Check',
+  'upd.check_h': 'Asks GitHub for the newest release. GitHub sees the IP address of your network.',
   'upd.checking': 'Checking…',
   'upd.new': 'Firmware {v} is available',
   'upd.new_h': 'Install downloads the signed file and restarts the connector.',
