@@ -120,6 +120,16 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `POST /api/dock` | Pairing, see [Pairing](#pairing) | full |
 | `DELETE /api/pairing/denied/<ip>` | Takes a host off the denied list | full |
 
+### Matter
+
+Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404.
+
+| Route | What it does | Level |
+|---|---|---|
+| `GET /api/matter` | `qr` (the text of the QR code), `code` (the pairing code) and `qr_bits` | full |
+| `POST /api/matter` | `{"on": true}` or `{"on": false}`. Off takes effect after a restart. `{"pair": true}` opens pairing for 15 minutes. `{"show": true}` shows the code on the decks for 60 s | full |
+| `DELETE /api/matter` | Removes every Matter app, makes a new pairing code and restarts | full |
+
 ### Network
 
 | Route | What it does | Level |
@@ -243,6 +253,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `menu_open` | The menu, the password, the reset question or a login request covers the deck |
 | `screen_off` | Every deck is dark after `screen_off_s` without input. The first input wakes them and reaches no host. `decks[].brightness` is 0 then |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
+| `matter` | Only in the Matter firmware: `on`, `running`, `controllers` (paired apps) and `pairing` (open for a new app) |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
 
