@@ -926,19 +926,6 @@
   .li.req {
     background: var(--amber-soft);
   }
-  .addr {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    background: var(--well);
-  }
-  .addr code {
-    flex: 1;
-    font-size: 14px;
-  }
   .steps-ol {
     margin: 0;
     padding-left: 20px;
@@ -1119,18 +1106,6 @@
   .deckcard .body {
     gap: 12px;
     container-type: inline-size;
-  }
-  .enc {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    min-width: 0;
-  }
-  @container (max-width:420px) {
-    .knob {
-      width: clamp(46px, 14cqi, 64px);
-    }
   }
   .nodeck {
     aspect-ratio: 800/480;
@@ -1748,9 +1723,6 @@
   .steps-ol.big > li + li {
     margin-top: 10px;
   }
-  .steps-ol .addr {
-    margin-top: 6px;
-  }
   .wizfoot {
     justify-content: space-between;
     margin-top: 4px;
@@ -1875,11 +1847,6 @@
   .field > .seg,
   .stack > .seg {
     align-self: flex-start;
-  }
-  .acct {
-    position: relative;
-    flex: 1;
-    min-width: 0;
   }
   .acctsheet {
     display: flex;
@@ -3109,25 +3076,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
-  }
-  .pl {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-  .pl small {
-    font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
-  .pex {
-    display: flex;
-    gap: 6px;
-    flex: none;
   }
   .seg .slowic {
     color: var(--warn-fg);

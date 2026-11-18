@@ -6,27 +6,31 @@
 #include "db_driver.h"
 #include "ui.h"
 
-static db_err_t no_write(const uint8_t *r, size_t len)
+static db_err_t no_write(const db_hid_io_t *io, const uint8_t *r, size_t len)
 {
+    (void)io;
     (void)r;
     (void)len;
     return DB_OK;
 }
 
-static db_err_t no_flush(void)
+static db_err_t no_flush(const db_hid_io_t *io)
 {
+    (void)io;
     return DB_OK;
 }
 
-static db_err_t feature(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
+    (void)io;
     memset(buf + 1, 0, len - 1);
     *out_len = len;
     return DB_OK;
 }
 
-static db_err_t set_feature(const uint8_t *buf, size_t len)
+static db_err_t set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
+    (void)io;
     (void)buf;
     (void)len;
     return DB_OK;
@@ -91,7 +95,7 @@ int main(int argc, char **argv)
     strcpy(md.wifi_ssid, "studio");
     strcpy(md.web_pass, "k3t9m2xq");
     strcpy(md.fw, "v1.0.0");
-    strcpy(md.wlan_fw, "2.0.4");
+    strcpy(md.wlan_fw, "3.0.10");
     ui_screen_t sc;
 
     ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};

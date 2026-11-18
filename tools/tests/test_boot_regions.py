@@ -25,10 +25,6 @@ def upload(image: bytes) -> int:
     return api("POST", "/api/ota?boot=0", image)[0]
 
 
-def upload_to(slot: int, image: bytes) -> int:
-    return api("POST", f"/api/ota?slot={slot}&boot=0", image)[0]
-
-
 def table(change) -> bytes:
     """Our partition table with one entry changed and a correct MD5, so only our own check can refuse it."""
     t = bytearray((BUILD / "partition_table/partition-table.bin").read_bytes())

@@ -152,11 +152,6 @@ bool db_deck_info(int deck, db_device_info_t *out)
 static bool input_real;
 static uint32_t input_only_ip;
 
-bool db_deck_input_real(void)
-{
-    return input_real;
-}
-
 bool db_deck_input_from_deck(void)
 {
     return false; /* the simulator has no deck: every input comes over the API */

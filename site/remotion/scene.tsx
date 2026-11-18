@@ -1,34 +1,14 @@
 import type { ReactNode } from 'react'
-import { AbsoluteFill, Easing, useCurrentFrame, useVideoConfig } from 'remotion'
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion'
 import { AMBER, Glow, GREEN, INK, RED, SANS } from './hw'
 import { ramp } from './time'
 
 /** Where the camera looks (world point x, y), how close (z), and its tilt in degrees. */
 export type Cam = { x: number; y: number; z: number; rx?: number; ry?: number }
-export type Shot = readonly [frame: number, cam: Cam]
 
 /** The page's light theme: a pale studio, the hardware stays as it is. */
 export const useLight = () => useVideoConfig().props.light === true
 
-const cine = Easing.bezier(0.6, 0, 0.2, 1)
-export function camAt(f: number, shots: readonly Shot[]): Cam {
-  const i = shots.findIndex(([a]) => a > f)
-  const last = shots[shots.length - 1]
-  const first = shots[0]
-  if (!first || !last) return { x: 0, y: 0, z: 1 }
-  if (i === -1) return last[1]
-  const prev = shots[i - 1]
-  const next = shots[i]
-  if (!prev || !next) return first[1]
-  const [a, A] = prev
-  const [b, B] = next
-  const k = cine((f - a) / (b - a))
-  const mix = (p = 0, q = 0) => p + (q - p) * k
-  // Zoom moves in log space, so a push in feels as fast at the end as at the start.
-  return { x: mix(A.x, B.x), y: mix(A.y, B.y), z: A.z * Math.pow(B.z / A.z, k), rx: mix(A.rx, B.rx), ry: mix(A.ry, B.ry) }
-}
-
-/** One slow push in and back out over the loop, with an optional side-to-side turn in degrees; the whole setup stays in frame. */
 export const breathe = (f: number, d: number, cam: Cam, k = 0.03, turn = 0): Cam => {
   const ph = (f / d) * Math.PI * 2
   return { ...cam, z: cam.z * (1 + (k * (1 - Math.cos(ph))) / 2), ry: (cam.ry ?? 0) + turn * Math.sin(ph) }
