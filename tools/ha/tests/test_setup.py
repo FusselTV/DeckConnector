@@ -24,6 +24,12 @@ async def setup(hass, entry, aioclient_mock, socket, *decks):
     await hass.async_block_till_done()
 
 
+def firmware_on(hass) -> str:
+    """The update entity starts off (it asks GitHub); a user turns it on."""
+    reg = er.async_get(hass)
+    return reg.async_get_or_create("update", "deckconnector", f"{STATUS['id']}_firmware").entity_id
+
+
 def entities(hass, entry):
     return er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
 
@@ -104,9 +110,17 @@ async def test_brightness_goes_to_the_board(hass, entry, aioclient_mock, socket)
     assert aioclient_mock.mock_calls[-1][2] == {"brightness": 40}
 
 
-async def test_update_shows_the_progress_from_the_socket(hass, entry, aioclient_mock, socket):
+async def test_the_update_entity_starts_off(hass, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
-    entity = "update.deckconnector_a1b2c3_firmware"
+    entity = er.async_get(hass).async_get("update.deckconnector_a1b2c3_firmware")
+    assert entity.disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    await spin(hass)
+    assert calls(aioclient_mock, CHECK) == 0
+
+
+async def test_update_shows_the_progress_from_the_socket(hass, entry, aioclient_mock, socket):
+    entity = firmware_on(hass)
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
     assert hass.states.get(entity).attributes["in_progress"] is False
     await socket.queue.put({"t": "ota", "target": "p4", "state": "download", "pct": 42})
     await hass.async_block_till_done()
@@ -125,6 +139,7 @@ def calls(aioclient_mock, url):
 
 
 async def test_update_check_runs_after_setup_and_every_6_hours(hass, entry, aioclient_mock, socket):
+    firmware_on(hass)
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     await spin(hass)
     assert calls(aioclient_mock, CHECK) == 1
