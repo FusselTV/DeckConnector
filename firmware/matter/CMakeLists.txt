@@ -33,5 +33,11 @@ project(deckconnector)
 
 idf_component_get_property(lib esp_matter COMPONENT_LIB)
 target_compile_options(${lib} PRIVATE -Wno-error=stringop-truncation)
+# The board resumes a controller's subscription at boot, before it can reach the controller (CASE fails), and the
+# default retry follows after 5 min: until the controller's own timeout (~1.5 min) nothing arrived, and the first
+# presses were late or lost. 5 s brings the controller back about 12 s after a restart.
+target_compile_definitions(${lib} PRIVATE CHIP_CONFIG_SUBSCRIPTION_TIMEOUT_RESUMPTION_MIN_RETRY_INTERVAL_SECS=5
+                                          CHIP_CONFIG_SUBSCRIPTION_TIMEOUT_RESUMPTION_WAIT_TIME_MULTIPLIER_SECS=5
+                                          CHIP_CONFIG_SUBSCRIPTION_TIMEOUT_RESUMPTION_MAX_RETRY_INTERVAL_SECS=300)
 target_compile_definitions(${lib} PRIVATE CHIP_DEVICE_CONFIG_DEVICE_VENDOR_NAME="DeckConnector"
                                           CHIP_DEVICE_CONFIG_DEVICE_PRODUCT_NAME="DeckConnector")
