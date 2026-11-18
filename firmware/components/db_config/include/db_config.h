@@ -99,6 +99,9 @@ const char *db_controller_name(db_controller_t c);
 /* `len - 1` characters without look-alikes (no l, 1, o, 0), NUL terminated. */
 void db_config_random_password(char *out, size_t len);
 
+/* The base MAC as 12 lowercase hex digits: stays when the name changes. */
+void db_config_board_id(char out[13]);
+
 /*
  * JSON for the web UI and servers. Secrets are left out unless `with_secrets`.
  * db_config_from_json() applies only the keys that are present.
