@@ -28,6 +28,10 @@ Mit PoE laufen Platine und Deck über ein Kabel. Stecken PoE und USB-C, läuft d
 | Mirabox Stream Dock 293V3, 293S, XL, N3, N4, N4 Pro | Sollte laufen, nicht auf Hardware getestet. Nur mit Companion und eigenen Servern |
 | Ajazz AKP153, AKP153E, AKP03E, AKP05E, Soomfon CN002, Streonor S15 | Sollte laufen, nicht auf Hardware getestet. Nur mit Companion und eigenen Servern |
 
+Manche dieser Decks haben alle dieselbe Seriennummer. Sie werden an dem USB-Port erkannt, in dem sie stecken. Steck jedes deshalb immer in denselben Port.
+
+Manche Bedienelemente melden nur das Drücken, nicht das Loslassen: die Drehregler und die Touchleiste von N4, N4 Pro und Ajazz AKP05E, die rechte Tastenspalte des 293S und alle Tasten des Ajazz AKP153 und des 293S mit der USB-ID 5548:6670. Halten geht bei ihnen nicht, ein langer Druck in Companion wirkt dort also nicht. Das Deck-Menü öffnet sich dann mit zwei anderen Tasten oder nur über die Webseite.
+
 Ein Server bekommt für ein ungetestetes Modell `"tested": false` in der `device`-Nachricht.
 
 Hinter einem USB-Hub steuert die Platine bis zu vier Decks. Standard sind zwei, denn alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports der Platine. Das Limit stellst du in der Weboberfläche unter Deck ein. Decks über dem Limit bleiben dunkel. Ein kleineres Limit gilt für Decks, die du danach einsteckst.

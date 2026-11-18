@@ -28,6 +28,10 @@ With PoE the board and the deck run from one cable. With PoE and USB-C both plug
 | Mirabox Stream Dock 293V3, 293S, XL, N3, N4, N4 Pro | Should work, not tested on hardware. Companion and own servers only |
 | Ajazz AKP153, AKP153E, AKP03E, AKP05E, Soomfon CN002, Streonor S15 | Should work, not tested on hardware. Companion and own servers only |
 
+Some of these decks all have the same serial number. They are told apart by the USB port they are plugged into, so keep each one on its port.
+
+Some controls send only the press, not the release: the dials and the touch strip of the N4, N4 Pro and Ajazz AKP05E, the right key column of the 293S, and every key of the Ajazz AKP153 and of the 293S with USB ID 5548:6670. You cannot hold them, so a long press in Companion does not work there. The deck menu then opens with two other keys, or only from the web page.
+
 A server gets `"tested": false` in the `device` message for an untested model.
 
 Behind a USB hub the board drives up to four decks. Two is the default, because all decks on a hub without its own power supply share the 2 A of the board's USB port. Set the limit in the web UI under Deck. Decks over the limit stay dark. A lower limit applies to decks you plug in after the change.
