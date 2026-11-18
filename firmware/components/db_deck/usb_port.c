@@ -593,7 +593,7 @@ esp_err_t usb_port_ids(uint8_t address, uint16_t *vid, uint16_t *pid)
     return usb_host_device_close(s.client, d);
 }
 
-static void usb_string(int dev, bool serial, char *out, size_t cap)
+void usb_port_string(int dev, bool serial, char *out, size_t cap)
 {
     usb_device_info_t info;
     const usb_str_desc_t *d = NULL;
@@ -605,16 +605,6 @@ static void usb_string(int dev, bool serial, char *out, size_t cap)
         out[n++] = d->wData[i] < 0x80 ? (char)d->wData[i] : '?';
     }
     out[n] = '\0';
-}
-
-void usb_port_product(int dev, char *out, size_t cap)
-{
-    usb_string(dev, false, out, cap);
-}
-
-void usb_port_serial(int dev, char *out, size_t cap)
-{
-    usb_string(dev, true, out, cap);
 }
 
 /* Hub ports from the root port down, "1.3": a deck without a serial number is told apart by where it hangs.

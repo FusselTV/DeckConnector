@@ -254,14 +254,11 @@ static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect,
     if (t->kind != DB_TARGET_KEY || t->index >= dev->info.key_count || len > MAX_BYTES) {
         return DB_ERR_PROTO;
     }
-    char bat[] = {'B',
-                  'A',
-                  'T',
-                  (char)(len >> 24),
-                  (char)(len >> 16),
-                  (char)(len >> 8),
-                  (char)len,
-                  (char)f->ctl[st(dev)->key[t->index]].out};
+    char bat[8] = "BAT";
+    for (int i = 0; i < 4; i++) {
+        bat[3 + i] = (char)(len >> (24 - 8 * i));
+    }
+    bat[7] = (char)f->ctl[st(dev)->key[t->index]].out;
     db_err_t err = cmd(dev, bat, sizeof(bat));
     uint8_t rep[1024];
     for (size_t off = 0; err == DB_OK && off < len; off += f->packet) {

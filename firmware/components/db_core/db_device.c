@@ -31,11 +31,7 @@ uint8_t db_device_image_keys(const db_device_info_t *info)
 
 void db_deck_identity(db_slot_owner_t serial, const char *path, const db_slot_owner_t *others, int n)
 {
-    static const char *const shared[] = {"355499441494"}; /* AKP153 and 293S clones */
-    bool own = serial[0] != '\0';
-    for (size_t i = 0; own && i < sizeof(shared) / sizeof(shared[0]); i++) {
-        own = strcmp(serial, shared[i]) != 0;
-    }
+    bool own = serial[0] != '\0' && strcmp(serial, "355499441494") != 0; /* AKP153 and 293S clones */
     for (int i = 0; own && i < n; i++) {
         own = strcmp(serial, others[i]) != 0;
     }

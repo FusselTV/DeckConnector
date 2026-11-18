@@ -534,7 +534,7 @@ static void handle_attach(uint8_t address)
         return;
     }
     if (!dev.info.serial[0]) {
-        usb_port_serial(port, dev.info.serial, sizeof(dev.info.serial));
+        usb_port_string(port, true, dev.info.serial, sizeof(dev.info.serial));
     }
     db_slot_owner_t others[DB_MAX_DECKS];
     int n = 0;
@@ -558,7 +558,7 @@ static void handle_attach(uint8_t address)
     }
     unpark_one(address);
     deck_t *k = &decks[deck];
-    usb_port_product(port, dev.info.product, sizeof(dev.info.product));
+    usb_port_string(port, false, dev.info.product, sizeof(dev.info.product));
     if (!k->writer_task && xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, (void *)(intptr_t)deck,
                                                    8, &k->writer_task, 1) != pdPASS) {
         ESP_LOGE(TAG, "no writer task for deck %d", deck + 1);
