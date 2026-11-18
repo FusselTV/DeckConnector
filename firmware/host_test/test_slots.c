@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "db_device.h"
@@ -132,6 +133,33 @@ static void test_after_a_cycle_a_newcomer_waits_for_the_owners(void)
     TEST_ASSERT_FALSE(db_slot_others(owners, taken, limit, "D")); /* slot 2 belongs to nobody */
 }
 
+/* Clones that all report one serial, two with a serial of their own that is the same, one without. */
+static void test_clones_go_by_their_port_and_get_a_slot_each(void)
+{
+    db_slot_owner_t present[DB_MAX_DECKS];
+    int n = 0;
+    const struct {
+        const char *serial;
+        const char *path;
+        const char *id;
+    } plugged[] = {{"355499441494", "1.1", "port-1.1"},
+                   {"355499441494", "1.2", "port-1.2"},
+                   {"ABC", "1.3", "ABC"},
+                   {"ABC", "1.4", "port-1.4"}};
+    for (int i = 0; i < 4; i++) {
+        snprintf(present[n], sizeof(present[n]), "%s", plugged[i].serial);
+        db_deck_identity(present[n], plugged[i].path, present, n);
+        TEST_ASSERT_EQUAL_STRING(plugged[i].id, present[n]);
+        TEST_ASSERT_EQUAL_INT(i, take(present[n++]));
+    }
+    db_slot_owner_t none = "";
+    db_deck_identity(none, "", present, n);
+    TEST_ASSERT_EQUAL_STRING("port-root", none);
+    db_slot_owner_t elgato = "A00SA0000AA0A0";
+    db_deck_identity(elgato, "1.1", present, n);
+    TEST_ASSERT_EQUAL_STRING("A00SA0000AA0A0", elgato);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -145,5 +173,6 @@ int main(void)
     RUN_TEST(test_all_owned_takes_the_lowest_free);
     RUN_TEST(test_own_slot_taken_moves_and_drops_the_old_one);
     RUN_TEST(test_full);
+    RUN_TEST(test_clones_go_by_their_port_and_get_a_slot_each);
     return UNITY_END();
 }

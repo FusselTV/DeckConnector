@@ -36,6 +36,13 @@ Apache License 2.0 (text A)
     https://github.com/Mbed-TLS/mbedtls
     Offered under Apache-2.0 OR GPL-2.0-or-later. DeckConnector uses it under
     Apache-2.0.
+  Matter image only (deckconnector-matter):
+  espressif/esp_matter 1.6.1, Copyright Espressif Systems (Shanghai) CO LTD.
+    Modified for DeckConnector (its manifest and one line).
+    https://github.com/espressif/esp-matter
+  connectedhomeip, the Matter SDK inside esp_matter 1.6.1, Copyright Project
+    CHIP Authors, with nlassert and nlio, Copyright Nest Labs, Inc.
+    https://github.com/project-chip/connectedhomeip
 
 MIT License (text B)
   FreeRTOS Kernel 10.5.1, Copyright (C) 2021 Amazon.com, Inc. or its
@@ -45,6 +52,13 @@ MIT License (text B)
     Nayuki. https://www.nayuki.io/page/qr-code-generator-library
   HTTP Parser 2.7.0, Copyright Joyent, Inc. and other Node contributors.
     Based on src/http/ngx_http_parse.c from NGINX, copyright Igor Sysoev.
+  Mirabox Stream Dock commands, USB ids, key ids and sizes in
+    firmware/components/db_core/drivers/mirabox.c, adapted from:
+    companion-surface-mirabox-stream-dock, Copyright (c) 2022 Bitfocus AS -
+      Open Source.
+      https://github.com/bitfocus/companion-surface-mirabox-stream-dock
+    StreamDock-Device-SDK, Copyright (c) 2024 MiraboxSpace.
+      https://github.com/MiraboxSpace/StreamDock-Device-SDK
 
 BSD 3-Clause License (text C)
   lwIP 2.2.0, https://savannah.nongnu.org/projects/lwip/

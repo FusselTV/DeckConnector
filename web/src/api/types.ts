@@ -7,6 +7,10 @@ export interface DeckInfo {
   model: string
   serial: string
   firmware?: string
+  /** False when the Elgato app and Companion's Elgato plugin cannot use the deck. */
+  dock?: boolean
+  /** The menu controls per menu_chord choice, for decks with controls that cannot be held. */
+  chords?: Record<'auto' | 'keys' | 'encoders', { on: 'keys' | 'encoders' | 'off'; last: number }>
   keys?: number
   encoders?: number
   width?: number
@@ -66,6 +70,8 @@ export interface Network {
     bssid?: string
     channel?: number
     lock?: string
+    /** `ssid` is the backup Wi-Fi, wifi2_ssid. */
+    backup?: boolean
     rssi?: number
     join?: '' | 'testing' | 'ok' | 'failed'
     join_error?: string
@@ -116,7 +122,18 @@ export interface Status {
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
+  /** The device CA's short fingerprint, also shown on the deck when the CA is downloaded. */
+  https_ca?: string
   boot?: { reason?: string; at?: number | null }
+  /** Only in the Matter image. */
+  matter?: { on: boolean; running: boolean; controllers: number; pairing: boolean }
+}
+
+export interface MatterCodes {
+  qr: string
+  code: string
+  /** "size:hex", the modules row by row, lowest bit first */
+  qr_bits: string
 }
 
 export interface IpConf {
@@ -137,6 +154,9 @@ export interface Config {
   wifi_ssid: string
   wifi_pass_set: boolean
   wifi_bssid: string
+  /** Joined when the first Wi-Fi gives no link; the bridge goes back to the first once it is in reach. */
+  wifi2_ssid: string
+  wifi2_pass_set: boolean
   servers: string[]
   server_pins: string[]
   satellite: string
@@ -148,6 +168,8 @@ export interface Config {
   qr_login: boolean
   ntp_server: string
   cors_origins: string
+  /** A reverse proxy's IPv4 address: behind it, its X-Forwarded-For names the client. Empty: none. */
+  trusted_proxy: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
   /** What the deck's own screens speak. */
@@ -164,6 +186,7 @@ export interface Config {
 /** Keys PUT /api/config takes besides those of Config. */
 interface ConfigSecrets {
   wifi_pass?: string
+  wifi2_pass?: string
   admin_pass?: string
   token?: string
 }
@@ -254,6 +277,13 @@ export interface Token {
   right?: Right
   created?: string
   last_used?: string
+}
+
+export interface Passkey {
+  id: number
+  name: string
+  /** The host name it was made on: it works only there. */
+  rp: string
 }
 
 export interface Found {

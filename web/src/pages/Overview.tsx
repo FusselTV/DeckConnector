@@ -37,7 +37,7 @@ import { DeckFront } from '../deck/DeckFront'
 import { MODELS } from '../deck/models'
 import type { T } from '../i18n'
 import { cx, ls, useLatest } from '../lib/util'
-import { chordSentence } from './DeckTab'
+import { chordSentence } from '../deck/chord'
 
 function Hero() {
   const { t, fmt } = useUi()
@@ -112,8 +112,10 @@ function Meter() {
       el: 'row-wlan',
       to: 'network',
       icon: Wifi,
-      tone: wlan?.ip ? ((wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
-      v: wlan?.ip ? `${wlan.ssid ?? ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}` : t('arm.off'),
+      tone: wlan?.ip ? (wlan.backup || (wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
+      v: wlan?.ip
+        ? `${wlan.ssid ?? ''}${wlan.backup ? ' · ' + t('wifi2.in_use') : ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}`
+        : t('arm.off'),
     },
     {
       k: 'tab.deck',
@@ -665,7 +667,7 @@ function Controls() {
           type="button"
           className="btn"
           disabled={!deck}
-          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000))}
+          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000), deck)}
           aria-pressed={!!st.menu_open}
           onClick={() => void a.menu(decks.length > 1 ? deck?.serial : undefined)}
         >

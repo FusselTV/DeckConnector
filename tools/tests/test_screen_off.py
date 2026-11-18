@@ -52,7 +52,7 @@ def test_dark_after_the_idle_time_and_the_wake_press_is_swallowed(off_after_10s)
     st = status()
     assert all(d["brightness"] == 0 for d in st["decks"]), st["decks"]
     put_config({"brightness": 40})  # remembered while dark
-    assert status()["decks"][0]["brightness"] == 0
+    assert status()["decks"][0]["brightness"] == 0 and status()["brightness"] == 40
     log = json.loads(api("GET", "/api/input/log")[1])
     last = log[-1]["seq"] if log else 0
     press(2, real="192.0.2.1")

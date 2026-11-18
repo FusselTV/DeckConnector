@@ -1,0 +1,279 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "description": "Enter the address of the board.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP address or host name, for example 192.168.1.50 or deckconnector-a1b2c3.local"
+        }
+      },
+      "auth": {
+        "description": "Home Assistant needs access to {name}.",
+        "menu_options": {
+          "pair": "Confirm on the deck",
+          "password": "Enter the web password"
+        }
+      },
+      "password": {
+        "description": "Web page password of {name}.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "progress": {
+      "pair": "Confirm the request on the deck of {name}."
+    },
+    "error": {
+      "cannot_connect": "Cannot reach the board.",
+      "invalid_auth": "Wrong password.",
+      "no_deck": "No deck is attached. Enter the web password instead.",
+      "not_accepted": "The deck did not accept the request. Enter the web password instead.",
+      "https_only": "The board allows HTTPS only. Turn off 'HTTPS only' on its web page, then try again.",
+      "too_many_keys": "The board has 8 API keys already. Delete one under Access › API keys on its web page, then try again.",
+      "not_deckconnector": "Something answers at this address, but it is not a DeckConnector."
+    },
+    "abort": {
+      "already_configured": "This board is already set up.",
+      "cannot_connect": "Cannot reach the board.",
+      "reauth_successful": "Access renewed.",
+      "unique_id_mismatch": "This is another board."
+    }
+  },
+  "entity": {
+    "button": {
+      "restart": {
+        "name": "Restart"
+      }
+    },
+    "camera": {
+      "screen": {
+        "name": "Screen"
+      }
+    },
+    "event": {
+      "controls": {
+        "name": "Controls",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "key_1_press": "Key 1 pressed",
+              "key_1_release": "Key 1 released",
+              "key_2_press": "Key 2 pressed",
+              "key_2_release": "Key 2 released",
+              "key_3_press": "Key 3 pressed",
+              "key_3_release": "Key 3 released",
+              "key_4_press": "Key 4 pressed",
+              "key_4_release": "Key 4 released",
+              "key_5_press": "Key 5 pressed",
+              "key_5_release": "Key 5 released",
+              "key_6_press": "Key 6 pressed",
+              "key_6_release": "Key 6 released",
+              "key_7_press": "Key 7 pressed",
+              "key_7_release": "Key 7 released",
+              "key_8_press": "Key 8 pressed",
+              "key_8_release": "Key 8 released",
+              "key_9_press": "Key 9 pressed",
+              "key_9_release": "Key 9 released",
+              "key_10_press": "Key 10 pressed",
+              "key_10_release": "Key 10 released",
+              "key_11_press": "Key 11 pressed",
+              "key_11_release": "Key 11 released",
+              "key_12_press": "Key 12 pressed",
+              "key_12_release": "Key 12 released",
+              "key_13_press": "Key 13 pressed",
+              "key_13_release": "Key 13 released",
+              "key_14_press": "Key 14 pressed",
+              "key_14_release": "Key 14 released",
+              "key_15_press": "Key 15 pressed",
+              "key_15_release": "Key 15 released",
+              "key_16_press": "Key 16 pressed",
+              "key_16_release": "Key 16 released",
+              "key_17_press": "Key 17 pressed",
+              "key_17_release": "Key 17 released",
+              "key_18_press": "Key 18 pressed",
+              "key_18_release": "Key 18 released",
+              "key_19_press": "Key 19 pressed",
+              "key_19_release": "Key 19 released",
+              "key_20_press": "Key 20 pressed",
+              "key_20_release": "Key 20 released",
+              "key_21_press": "Key 21 pressed",
+              "key_21_release": "Key 21 released",
+              "key_22_press": "Key 22 pressed",
+              "key_22_release": "Key 22 released",
+              "key_23_press": "Key 23 pressed",
+              "key_23_release": "Key 23 released",
+              "key_24_press": "Key 24 pressed",
+              "key_24_release": "Key 24 released",
+              "key_25_press": "Key 25 pressed",
+              "key_25_release": "Key 25 released",
+              "key_26_press": "Key 26 pressed",
+              "key_26_release": "Key 26 released",
+              "key_27_press": "Key 27 pressed",
+              "key_27_release": "Key 27 released",
+              "key_28_press": "Key 28 pressed",
+              "key_28_release": "Key 28 released",
+              "key_29_press": "Key 29 pressed",
+              "key_29_release": "Key 29 released",
+              "key_30_press": "Key 30 pressed",
+              "key_30_release": "Key 30 released",
+              "key_31_press": "Key 31 pressed",
+              "key_31_release": "Key 31 released",
+              "key_32_press": "Key 32 pressed",
+              "key_32_release": "Key 32 released",
+              "key_33_press": "Key 33 pressed",
+              "key_33_release": "Key 33 released",
+              "key_34_press": "Key 34 pressed",
+              "key_34_release": "Key 34 released",
+              "key_35_press": "Key 35 pressed",
+              "key_35_release": "Key 35 released",
+              "key_36_press": "Key 36 pressed",
+              "key_36_release": "Key 36 released",
+              "dial_1_press": "Dial 1 pressed",
+              "dial_1_release": "Dial 1 released",
+              "dial_1_left": "Dial 1 turned left",
+              "dial_1_right": "Dial 1 turned right",
+              "dial_2_press": "Dial 2 pressed",
+              "dial_2_release": "Dial 2 released",
+              "dial_2_left": "Dial 2 turned left",
+              "dial_2_right": "Dial 2 turned right",
+              "dial_3_press": "Dial 3 pressed",
+              "dial_3_release": "Dial 3 released",
+              "dial_3_left": "Dial 3 turned left",
+              "dial_3_right": "Dial 3 turned right",
+              "dial_4_press": "Dial 4 pressed",
+              "dial_4_release": "Dial 4 released",
+              "dial_4_left": "Dial 4 turned left",
+              "dial_4_right": "Dial 4 turned right",
+              "dial_5_press": "Dial 5 pressed",
+              "dial_5_release": "Dial 5 released",
+              "dial_5_left": "Dial 5 turned left",
+              "dial_5_right": "Dial 5 turned right",
+              "dial_6_press": "Dial 6 pressed",
+              "dial_6_release": "Dial 6 released",
+              "dial_6_left": "Dial 6 turned left",
+              "dial_6_right": "Dial 6 turned right",
+              "touch_tap": "Touch strip tapped",
+              "touch_long_press": "Touch strip held",
+              "touch_swipe_left": "Touch strip swiped left",
+              "touch_swipe_right": "Touch strip swiped right"
+            }
+          }
+        }
+      }
+    },
+    "number": {
+      "brightness": {
+        "name": "Brightness"
+      }
+    },
+    "select": {
+      "controller": {
+        "name": "Controller",
+        "state": {
+          "companion": "Companion",
+          "app": "Elgato app",
+          "server": "Own server"
+        }
+      }
+    },
+    "sensor": {
+      "host": {
+        "name": "Host",
+        "state": {
+          "companion": "Companion",
+          "app": "Elgato app",
+          "server": "Own server",
+          "board": "Board"
+        }
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "last_restart": {
+        "name": "Last restart"
+      }
+    },
+    "switch": {
+      "screen": {
+        "name": "Screen"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "exceptions": {
+    "command_failed": {
+      "message": "{name} did not take the command: {error}"
+    },
+    "no_update": {
+      "message": "There is no newer firmware."
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "press": "{subtype} pressed",
+      "turn_left": "{subtype} turned left",
+      "turn_right": "{subtype} turned right",
+      "tap": "{subtype} tapped",
+      "long_press": "{subtype} held",
+      "swipe_left": "{subtype} swiped left",
+      "swipe_right": "{subtype} swiped right"
+    },
+    "trigger_subtype": {
+      "key_1": "Key 1",
+      "key_2": "Key 2",
+      "key_3": "Key 3",
+      "key_4": "Key 4",
+      "key_5": "Key 5",
+      "key_6": "Key 6",
+      "key_7": "Key 7",
+      "key_8": "Key 8",
+      "key_9": "Key 9",
+      "key_10": "Key 10",
+      "key_11": "Key 11",
+      "key_12": "Key 12",
+      "key_13": "Key 13",
+      "key_14": "Key 14",
+      "key_15": "Key 15",
+      "key_16": "Key 16",
+      "key_17": "Key 17",
+      "key_18": "Key 18",
+      "key_19": "Key 19",
+      "key_20": "Key 20",
+      "key_21": "Key 21",
+      "key_22": "Key 22",
+      "key_23": "Key 23",
+      "key_24": "Key 24",
+      "key_25": "Key 25",
+      "key_26": "Key 26",
+      "key_27": "Key 27",
+      "key_28": "Key 28",
+      "key_29": "Key 29",
+      "key_30": "Key 30",
+      "key_31": "Key 31",
+      "key_32": "Key 32",
+      "key_33": "Key 33",
+      "key_34": "Key 34",
+      "key_35": "Key 35",
+      "key_36": "Key 36",
+      "dial_1": "Dial 1",
+      "dial_2": "Dial 2",
+      "dial_3": "Dial 3",
+      "dial_4": "Dial 4",
+      "dial_5": "Dial 5",
+      "dial_6": "Dial 6",
+      "touch_strip": "Touch strip"
+    }
+  }
+}

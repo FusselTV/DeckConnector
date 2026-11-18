@@ -1543,6 +1543,13 @@
     color: var(--amber-fg);
     margin-top: 2px;
   }
+  .choice:disabled {
+    cursor: not-allowed;
+  }
+  .choice:disabled .ic,
+  .choice:disabled b {
+    opacity: 0.45;
+  }
   .choice b {
     display: block;
     font-size: 17px;
@@ -2087,6 +2094,21 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
     gap: 16px;
     align-items: start;
+  }
+  .mtcode {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+  }
+  .mtcode .field {
+    flex: 1;
+    min-width: 200px;
+  }
+  .mtqr {
+    width: 160px;
+    height: 160px;
+    border-radius: 6px;
   }
   .codebox {
     flex: 1;

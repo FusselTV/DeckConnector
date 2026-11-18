@@ -850,6 +850,24 @@ esp_err_t db_ota_web_erase(void)
     return err;
 }
 
+bool db_ota_spare_free(void)
+{
+    bool free = true;
+    for (esp_partition_iterator_t it =
+             esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+         it; it = esp_partition_next(it)) {
+        const esp_partition_t *p = esp_partition_get(it);
+        free &= p->address >= DB_SPARE_OFFSET + DB_SPARE_SIZE || p->address + p->size <= DB_SPARE_OFFSET;
+    }
+    return free;
+}
+
+esp_err_t db_ota_spare_erase(void)
+{
+    return db_ota_spare_free() ? esp_flash_erase_region(NULL, DB_SPARE_OFFSET, DB_SPARE_SIZE)
+                               : ESP_ERR_INVALID_STATE;
+}
+
 esp_err_t db_ota_web_rejected(void)
 {
     return web_rejected;

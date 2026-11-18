@@ -11,6 +11,7 @@
 #include "db_json.h"
 #include "db_link.h"
 #include "db_log.h"
+#include "db_matter.h"
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_sat.h"
@@ -53,6 +54,7 @@ typedef struct {
     bool full;         /* the next picture goes out whole: someone else drew meanwhile */
     ui_screen_t shown; /* what is on the deck, to send only what changed */
     ui_menu_t menu;
+    db_sat_held_t pad_kept;
     int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
     int before;    /* the deck's brightness when the menu opened; -1: none */
     bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
@@ -128,6 +130,18 @@ static db_source_t choice(int deck, db_controller_t kind)
 db_source_t db_ui_chosen_source(int deck)
 {
     return choice(deck, db_config()->controller);
+}
+
+/* Companion over Satellite is the chosen source of `deck` and locked it: the deck shows the PIN pad. */
+static bool locked(int deck, db_sat_pin_t *pin)
+{
+    db_sat_pin_t spare;
+    return db_satellite_locked(deck, pin ? pin : &spare) && db_ui_chosen_source(deck) == DB_SOURCE_SAT;
+}
+
+bool db_ui_locked(int deck)
+{
+    return locked(deck, NULL);
 }
 
 /* "ws://192.168.1.5:8765/x" -> "192.168.1.5:8765" */
@@ -235,6 +249,18 @@ static bool make_qr(ui_qr_t *qr, const char *text)
     return esp_qrcode_generate(&cfg, text) == ESP_OK;
 }
 
+_Static_assert(sizeof(((ui_qr_t *)0)->bits) == DB_UI_QR_BYTES, "db_ui_qr copies the whole code");
+
+int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES])
+{
+    static ui_qr_t qr;
+    xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+    int size = make_qr(&qr, text) ? qr.size : 0;
+    memcpy(bits, qr.bits, DB_UI_QR_BYTES);
+    xSemaphoreGive(s.qr_lock);
+    return size;
+}
+
 /* Made again only when the setup WLAN's name or password changed. */
 static void model_qr(ui_model_t *md)
 {
@@ -254,6 +280,13 @@ static char login_token[17];
 static int64_t login_made;
 static uint8_t setup_step;
 static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_mux */
+static char ca_fp[20];                                           /* under login_mux */
+#if CONFIG_DB_MATTER
+#define MATTER_US 60000000
+static int64_t matter_until, matter_asked; /* under login_mux */
+static char matter_code[16];
+static ui_qr_t matter_qr; /* under qr_lock */
+#endif
 static struct { /* the login request on the deck, under login_mux */
     int64_t until;
     uint32_t seq;
@@ -282,7 +315,11 @@ static int64_t until(const int64_t *t)
 
 static bool overlay(int64_t now)
 {
-    return now < until(&pass_until) || now < until(&reset_until) || now < until(&ask.until) ||
+    bool matter = false;
+#if CONFIG_DB_MATTER
+    matter = now < until(&matter_until);
+#endif
+    return matter || now < until(&pass_until) || now < until(&reset_until) || now < until(&ask.until) ||
            now < until(&adopt.until);
 }
 
@@ -431,10 +468,23 @@ static void model(int deck, ui_model_t *md)
         .english = strcmp(c->lang, "en") == 0,
         .sat_failed = db_satellite_health().error[0] != '\0',
     };
+    md->locked = locked(deck, &md->pin);
     if (ui_menu_open(&u->menu) && !u->turned && u->before >= 0) {
         md->brightness = u->before; /* the deck shows at least 20 %, the number stays what it had */
     }
     md->show_pass = md->now_us < until(&pass_until);
+    portENTER_CRITICAL(&login_mux);
+    strcpy(md->ca_fp, ca_fp);
+    portEXIT_CRITICAL(&login_mux);
+#if CONFIG_DB_MATTER
+    md->show_matter = md->now_us < until(&matter_until);
+    if (md->show_matter) {
+        xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+        md->matter_qr = matter_qr;
+        xSemaphoreGive(s.qr_lock);
+        snprintf(md->matter_code, sizeof(md->matter_code), "%s", matter_code);
+    }
+#endif
     md->reset_ask = md->now_us < until(&reset_until);
     uint32_t ask_ip = 0;
     portENTER_CRITICAL(&login_mux);
@@ -501,7 +551,7 @@ static db_source_t wanted_writer(int deck)
     char request[16];
     const ui_deck_t *u = &decks[deck];
     if (ui_menu_open(&u->menu) || s.update_pct >= 0 || !db_config()->setup_done || db_dock_request(request) ||
-        u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time())) {
+        u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time()) || locked(deck, NULL)) {
         return DB_SOURCE_UI;
     }
     db_source_t chosen = db_ui_chosen_source(deck);
@@ -726,6 +776,9 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
     case UI_DO_HIDE_PASSWORD:
         portENTER_CRITICAL(&login_mux);
         pass_until = 0;
+#if CONFIG_DB_MATTER
+        matter_until = 0;
+#endif
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_CANCEL_RESET:
@@ -758,6 +811,9 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_SHOW_PASSWORD:
         db_ui_show_password();
+        break;
+    case UI_DO_PIN:
+        db_satellite_pincode(deck, act->value);
         break;
     default:
         break;
@@ -856,6 +912,10 @@ static bool draw_deck(int deck, ui_screen_t *sc, ui_model_t *md)
     ui_deck_t *u = &decks[deck];
     /* the light lock keeps a writer change on another task from crossing the menu's brightness; never
      * held across model(), which takes other components' locks */
+    bool is_locked = locked(deck, NULL);
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    ui_menu_lock(&u->menu, is_locked, esp_timer_get_time());
+    xSemaphoreGive(s.lock);
     light_lock(true);
     bool ours = u->present && db_deck_writer(deck) == DB_SOURCE_UI;
     bool menu = false;
@@ -922,9 +982,10 @@ static void ui_task(void *arg)
     }
 }
 
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last)
 {
-    return ui_menu_chord(db_config()->menu_chord, encoders, keys, on_encoders, last);
+    ui_layout_t l = ui_layout_of(dev);
+    return ui_menu_chord(chord ? chord : db_config()->menu_chord, &l, on_encoders, last);
 }
 
 /* On `deck` only: a menu open on another deck closes. */
@@ -951,6 +1012,9 @@ esp_err_t db_ui_open_menu(int deck)
 {
     if (!decks[deck].present) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if (locked(deck, NULL)) {
+        return ESP_ERR_NOT_ALLOWED;
     }
     open_menu(deck, esp_timer_get_time());
     return ESP_OK;
@@ -1000,10 +1064,11 @@ static void check_menu_chord(int deck)
     ui_deck_t *u = &decks[deck];
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(u->dev.encoder_count, db_device_image_keys(&u->dev), &on_encoders, &last);
+    bool any = db_ui_menu_chord(&u->dev, NULL, &on_encoders, &last);
     const bool *down = on_encoders ? u->enc_down : u->key_down;
     int size = on_encoders ? sizeof(u->enc_down) : sizeof(u->key_down);
-    bool held = any && last < size && down[0] && down[last];
+    /* no menu on a locked deck: its source switch would be a way around the lock */
+    bool held = any && last < size && down[0] && down[last] && !locked(deck, NULL);
     int64_t now = esp_timer_get_time();
     if (!held) {
         u->chord_since = 0;
@@ -1044,6 +1109,11 @@ static void on_input(int deck, const db_input_t *ev)
             xTaskNotifyGive(s.task);
         }
     }
+}
+
+static bool keeps(int deck, const db_input_t *ev)
+{
+    return db_sat_pad_keeps(&decks[deck].pad_kept, ev, locked(deck, NULL));
 }
 
 static void on_device(int deck, const db_device_info_t *info)
@@ -1087,6 +1157,16 @@ static void tick(void *arg)
     if (overlay(now) != overlaid) {
         overlaid = !overlaid;
         changed();
+    }
+    static uint16_t pins[DB_MAX_DECKS]; /* a wrong PIN's red ends */
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        db_sat_pin_t p = {0};
+        bool on = db_satellite_locked(d, &p);
+        uint16_t pin = (uint16_t)(on | p.wrong << 1 | p.count << 2);
+        if (pin != pins[d]) {
+            pins[d] = pin;
+            changed();
+        }
     }
     static bool handing_over;
     if ((now < s.handover_until) != handing_over) {
@@ -1240,7 +1320,7 @@ esp_err_t db_ui_start(void)
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
+    db_deck_listener_t l = {.input = on_input, .device_changed = on_device, .keeps = keeps};
     db_deck_add_listener(&l);
     const esp_timer_create_args_t targs = {.callback = tick, .name = "ui_tick"};
     esp_timer_handle_t timer;
@@ -1265,12 +1345,33 @@ static bool start_page(int64_t *asked, int64_t *end, int64_t us)
     return fresh;
 }
 
+#if CONFIG_DB_MATTER
+int db_ui_show_matter(const char *qr, const char *code)
+{
+    int n = 0;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        n += decks[d].present;
+    }
+    xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+    bool made = make_qr(&matter_qr, qr);
+    xSemaphoreGive(s.qr_lock);
+    snprintf(matter_code, sizeof(matter_code), "%s", code);
+    if (n && made && start_page(&matter_asked, &matter_until, MATTER_US)) {
+        changed();
+    }
+    return made ? n : 0;
+}
+#endif
+
 int db_ui_show_password(void)
 {
     int n = 0;
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         n += decks[d].present;
     }
+    portENTER_CRITICAL(&login_mux);
+    ca_fp[0] = '\0';
+    portEXIT_CRITICAL(&login_mux);
     if (n && start_page(&pass_asked, &pass_until, PASSWORD_US)) {
         ESP_LOGI(TAG, "web password shown on the decks");
         changed();
@@ -1278,11 +1379,27 @@ int db_ui_show_password(void)
     return n;
 }
 
+void db_ui_show_ca(const char *fingerprint)
+{
+    portENTER_CRITICAL(&login_mux);
+    strlcpy(ca_fp, fingerprint, sizeof(ca_fp));
+    portEXIT_CRITICAL(&login_mux);
+    if (start_page(&pass_asked, &pass_until, PASSWORD_US)) {
+        changed();
+    }
+}
+
 esp_err_t db_ui_factory_reset(void)
 {
     esp_err_t err = db_config_reset();
     esp_err_t dump = esp_core_dump_image_erase();
     esp_err_t page = db_ota_web_erase();
+#if CONFIG_DB_MATTER
+    esp_err_t spare = db_matter_erase();
+#else
+    esp_err_t spare = db_ota_spare_erase();
+#endif
+    err = err == ESP_OK && spare != ESP_ERR_INVALID_STATE ? spare : err;
     err = err == ESP_OK && dump != ESP_ERR_NOT_FOUND ? dump : err;
     return err == ESP_OK && page != ESP_ERR_NOT_FOUND ? page : err;
 }

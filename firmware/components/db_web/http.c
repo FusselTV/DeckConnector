@@ -81,6 +81,8 @@ const char *db_web_error_code(const char *msg)
         {"busy", "busy"},
         {"wrong_password", "wrong password"},
         {"needs_password", "needs the password, not a token"},
+        {"passkey_host", "passkeys need HTTPS"},
+        {"passkey_refused", "passkey not accepted"},
     };
     for (size_t i = 0; msg && i < sizeof(codes) / sizeof(codes[0]); i++) {
         if (strncmp(msg, codes[i][1], strlen(codes[i][1])) == 0) {
@@ -239,6 +241,7 @@ static void alive_job(void *arg)
  * right after it keeps the rest of the bridge running. */
 static void alive_check(void *arg)
 {
+    web_cert_tick();
     int64_t now = esp_timer_get_time();
     if (hung_restarted == HUNG_RESTARTED && now > 3600 * 1000000LL && db_web_alive()) {
         hung_restarted = 0;
@@ -422,7 +425,9 @@ static esp_err_t no_delay(httpd_handle_t hd, int fd)
 static void announce_api(void)
 {
     const char *fw = esp_app_get_description()->version;
-    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
+    char id[13];
+    db_config_board_id(id);
+    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}, {"id", id}};
     esp_err_t err =
         mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
@@ -473,7 +478,7 @@ static esp_err_t wrong_method(httpd_req_t *req, httpd_err_code_t code)
 static void start_tls(void)
 {
     char *cert, *key;
-    if (!web_cert(db_config()->name, &cert, &key, fingerprint)) {
+    if (!web_cert(&cert, &key, fingerprint)) {
         ESP_LOGE(TAG, "no certificate, no HTTPS");
         return;
     }
@@ -483,6 +488,7 @@ static void start_tls(void)
     cfg.prvtkey_pem = (const uint8_t *)key;
     cfg.prvtkey_len = strlen(key) + 1;
     cfg.session_tickets = true;
+    cfg.cert_select_cb = web_cert_select;
     cfg.httpd.max_uri_handlers = web_route_count;
     cfg.httpd.max_open_sockets = 12; /* as port 80 */
     cfg.httpd.backlog_conn = cfg.httpd.max_open_sockets;
@@ -504,6 +510,14 @@ static void start_tls(void)
     watch(tls_server);
     httpd_register_err_handler(tls_server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(tls_server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
+    ESP_LOGI(TAG, "HTTPS on port 443, %u B stack left", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+}
+
+/* Making the device CA and a certificate overflowed the 6 KB main task. */
+static void tls_task(void *arg)
+{
+    start_tls();
+    vTaskDelete(NULL);
 }
 #endif
 
@@ -512,22 +526,19 @@ const char *db_web_fingerprint(void)
     return fingerprint;
 }
 
+const char *db_web_ca_short(void)
+{
+    return web_cert_ca_short();
+}
+
 bool db_web_cert_custom(void)
 {
-#if CONFIG_IDF_TARGET_LINUX
-    return false;
-#else
     return web_cert_custom();
-#endif
 }
 
 bool db_web_cert_unread(void)
 {
-#if CONFIG_IDF_TARGET_LINUX
-    return false;
-#else
     return web_cert_custom_unread();
-#endif
 }
 
 esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(char *buf, size_t cap))
@@ -588,6 +599,12 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
+#if CONFIG_DB_MATTER
+        {{.uri = "/api/matter", .method = HTTP_GET, .handler = get_matter}, WEB_FULL},
+        {{.uri = "/api/matter", .method = HTTP_POST, .handler = post_matter}, WEB_FULL},
+        {{.uri = "/api/matter", .method = HTTP_DELETE, .handler = delete_matter}, WEB_FULL},
+        {{.uri = "/api/matter/press", .method = HTTP_POST, .handler = post_matter_press}, WEB_FULL},
+#endif
         {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_FULL},
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},
         {{.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image}, WEB_CONTROL},
@@ -607,6 +624,13 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/backup", .method = HTTP_GET, .handler = get_backup}, WEB_ADMIN},
         {{.uri = "/api/tokens", .method = HTTP_POST, .handler = auth_tokens_add}, WEB_ADMIN},
         {{.uri = "/api/tokens/*", .method = HTTP_DELETE, .handler = auth_tokens_remove}, WEB_ADMIN},
+        {{.uri = "/api/passkeys", .method = HTTP_GET, .handler = auth_passkeys_list}, WEB_ADMIN},
+        {{.uri = "/api/passkeys", .method = HTTP_POST, .handler = auth_passkey_add}, WEB_ADMIN},
+        {{.uri = "/api/passkeys/*", .method = HTTP_PUT, .handler = auth_passkey_edit}, WEB_ADMIN},
+        {{.uri = "/api/passkeys/*", .method = HTTP_DELETE, .handler = auth_passkey_edit}, WEB_ADMIN},
+        {{.uri = "/api/passkeys/challenge", .method = HTTP_POST, .handler = auth_passkey_challenge},
+         WEB_OPEN},
+        {{.uri = "/api/login/passkey", .method = HTTP_POST, .handler = auth_passkey_login}, WEB_OPEN},
         /* its handler runs once per frame and checks the login at the handshake */
         {{.uri = "/api/ws",
           .method = HTTP_GET,
@@ -628,11 +652,10 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/metrics", .method = HTTP_GET, .handler = get_metrics}, WEB_CONTROL},
         {{.uri = "/api/frontend", .method = HTTP_GET, .handler = get_frontend}, WEB_CONTROL},
         {{.uri = "/api/companion/found", .method = HTTP_GET, .handler = get_companions}, WEB_FULL},
-#if !CONFIG_IDF_TARGET_LINUX
         {{.uri = "/api/cert", .method = HTTP_GET, .handler = get_cert}, WEB_OPEN},
+        {{.uri = "/api/ca", .method = HTTP_GET, .handler = get_ca}, WEB_OPEN},
         {{.uri = "/api/tls", .method = HTTP_PUT, .handler = put_tls}, WEB_ADMIN},
         {{.uri = "/api/tls", .method = HTTP_DELETE, .handler = delete_tls}, WEB_FULL},
-#endif
         {{.uri = "/api/input/log", .method = HTTP_GET, .handler = get_input_log}, WEB_CONTROL},
         {{.uri = "/api/events", .method = HTTP_GET, .handler = get_events}, WEB_CONTROL},
         {{.uri = "/api/sources/retry", .method = HTTP_POST, .handler = post_source_retry}, WEB_CONTROL},
@@ -672,14 +695,17 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     httpd_register_err_handler(server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
     ESP_RETURN_ON_ERROR(events_start(state, api_screen_json), TAG, "web socket");
 #if CONFIG_IDF_TARGET_LINUX
-    (void)fingerprint;
+    char *cert, *key; /* no HTTPS, but the certificates for GET /api/cert and /api/ca */
+    web_cert(&cert, &key, fingerprint);
 #else
-    start_tls();
+    if (xTaskCreate(tls_task, "tls_start", 10240, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "no task for HTTPS");
+    }
 #endif
     metrics_start();
 #if !CONFIG_IDF_TARGET_LINUX
     announce_api();
 #endif
-    ESP_LOGI(TAG, "web UI on port 80%s", tls_server ? " and 443" : "");
+    ESP_LOGI(TAG, "web UI on port 80");
     return ESP_OK;
 }

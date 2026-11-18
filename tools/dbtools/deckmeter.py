@@ -41,7 +41,7 @@ from dbtools.benchlock import bench_lock
 from dbtools.load import password
 from dbtools.safety import PRODUCTION, host_addr, real_input_target, require_input_gate
 from dbtools.server import Server, local_ip
-from dbtools.site import BENCH_DIR, CAMERA, HOST, UNIFI, need
+from dbtools.site import BENCH_DIR, CAMERA, CAMERA_REGIONS, HOST, SERIAL, UNIFI, need
 
 COMPANION = "http://127.0.0.1:8000"
 CONTAINER = "companion-bench"
@@ -60,6 +60,7 @@ REGIONS = {
     },
     **{f"s{i}": (860 + 220 * i, 690) for i in range(4)},
 }
+REGIONS.update({k: tuple(v) for k, v in CAMERA_REGIONS.items()})
 STATIC = [f"k{i}" for i in range(7)]  # same on every redraw of a page; k7 shows $(custom:tick), the strip the presses
 ALL = list(REGIONS)
 SCALE = 4
@@ -287,8 +288,15 @@ class Run:
     def mode(self, mode: str):
         """Companion on this machine draws: over Satellite (bridge only) or as a Network Dock host."""
         try:
-            if mode == "satellite":
-                self.need_bridge("Satellite mode")
+            if mode == "satellite" and not self.bridge:  # other firmware: the Satellite REST API, as Discover
+                self.comp.dock("off")
+                code, body = Http(f"http://{self.a.target}").call(
+                    "POST", "/api/config", {"host": self.me, "port": 16622}
+                )
+                if code != 200:
+                    raise RuntimeError(f"{self.a.target} /api/config: {code} {body[:100]!r}")
+                time.sleep(10)
+            elif mode == "satellite":
                 self.comp.dock("off")
                 self.bridge.put({"satellite": f"{self.me}:16622", "controller": "companion", "host": "satellite"})
             elif mode == "dock":
@@ -806,7 +814,60 @@ def m_blip(r: Run) -> dict:
     return out
 
 
+def boot_result(runs: list, how: str) -> dict:
+    keys = [k for k in runs[0] if k.endswith("_ms") and k != "bridge_boot_ms"]
+    return {**{k: stats([x[k] for x in runs]) for k in keys}, "runs": runs, "how": how}
+
+
+def serial_reset() -> None:
+    """The board's EN pulled low over the RFC2217 bridge: a reset as from the button, the deck keeps its power."""
+    import serial
+
+    s = serial.serial_for_url(need(SERIAL, "serial"), 115200, timeout=0.3, do_not_open=True)
+    s.dtr = s.rts = False  # both low before open, or the board stays in reset
+    s.open()
+    s.rts = True
+    time.sleep(0.2)
+    s.rts = False
+    s.close()
+
+
+def m_boot_serial(r: Run) -> dict:
+    runs = []
+    with r.mode(r.a.mode):
+        r.learn()
+        pattern = r"Adding Satellite device" if r.a.mode == "satellite" else r.a.dock_log
+        for i in range(r.a.runs):
+            if i:
+                time.sleep(20)
+                r.learn()
+            r.show(2)
+            t0 = time.time()
+            serial_reset()
+            # the deck leaves Companion's page when the firmware opens it again, then Companion draws page 1 or 2
+            left = r.cam.first(lambda f: 7 not in (r.on_page(f)[1], r.on_page(f)[2]), t0, 30, hold=2)
+            back = r.cam.first(lambda f: 7 in (r.on_page(f)[1], r.on_page(f)[2]), left or t0, 60, hold=5)
+            conn = r.comp.log_after(t0, pattern)
+            run = {
+                "reset_to_deck_left_ms": ms(left, t0 + r.delay),
+                "reset_to_host_picture_ms": ms(back, t0 + r.delay),
+                "reset_to_companion_connected_ms": ms(conn, t0),
+            }
+            if r.bridge:
+                with contextlib.suppress(Exception):
+                    run["bridge_boot_ms"] = r.bridge.status()["boot_ms"]
+            print(run)
+            runs.append(run)
+    return boot_result(
+        runs,
+        "reset over the serial bridge (EN low 0.2 s), the deck keeps its power; left = the deck leaves "
+        "Companion's page; host picture = Companion's page on all keys again; connected = Companion log line",
+    )
+
+
 def m_boot(r: Run) -> dict:
+    if r.a.reset == "serial":
+        return m_boot_serial(r)
     from dbtools.poe import power_cut
 
     runs = []
@@ -840,14 +901,12 @@ def m_boot(r: Run) -> dict:
                     run["bridge_boot_ms"] = r.bridge.status()["boot_ms"]
             print(run)
             runs.append(run)
-    keys = [k for k in runs[0] if k.endswith("_ms") and k != "bridge_boot_ms"]
-    return {
-        **{k: stats([x[k] for x in runs]) for k in keys},
-        "runs": runs,
-        "how": f"PoE power-cycle of switch port {r.a.port}; dark = the keys lose power; light = the deck's "
+    return boot_result(
+        runs,
+        f"PoE power-cycle of switch port {r.a.port}; dark = the keys lose power; light = the deck's "
         "backlight is back (the bridge or dock opened the deck); host picture = Companion's page on all keys; "
         "connected = Companion log line. Dark to picture includes the switch's off time, the same for both devices",
-    }
+    )
 
 
 def lum(f: dict) -> float:
@@ -1019,6 +1078,7 @@ def main():
     ap.add_argument("--blips", default="3,15", help="seconds without network, comma separated")
     ap.add_argument("--port", type=int, default=UNIFI.get("port"), help="boot: switch port, default the bridge's")
     ap.add_argument("--usb-unplugged", action="store_true", help="boot on the bridge's port: its USB cable is out")
+    ap.add_argument("--reset", choices=("poe", "serial"), default="poe", help="boot: PoE power cut or serial reset")
     ap.add_argument(
         "--dock-log",
         default=r"StreamDeck connected: Stream Deck [^N]",

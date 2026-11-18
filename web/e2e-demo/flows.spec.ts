@@ -30,7 +30,10 @@ test('Wi-Fi: scan, a wrong password fails, the right one joins, a hidden network
   test.setTimeout(60_000)
   await page.goto('?lang=en')
   await openTab(page, en, 'network')
-  await page.locator('summary').filter({ hasText: en['net.wlan'] }).click()
+  await page
+    .locator('summary')
+    .filter({ hasText: new RegExp(`^${en['net.wlan']}`) })
+    .click()
   await page.getByRole('button', { name: en['wifi.rescan'] }).click()
   await page.getByRole('button', { name: /Office/ }).click()
   await page.locator('#wifi-pass').fill('wrongpass')
@@ -212,9 +215,12 @@ test('firmware: install from a file, from a URL, write a slot, boot a slot', asy
   await confirm(page, en['btn.install'])
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')), {
-      timeout: 40_000,
-    })
+    .poll(
+      () => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')).catch(() => false),
+      {
+        timeout: 40_000,
+      },
+    )
     .toBe(true)
   await page.waitForLoadState()
   await openTab(page, en, 'firmware')

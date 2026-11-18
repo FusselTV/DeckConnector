@@ -1,0 +1,47 @@
+---
+title: Matter
+description: Use the deck's keys in Apple Home, Google Home, Home Assistant and other Matter apps.
+---
+
+With the Matter firmware, every deck shows up as a device in your smart home app. Each key and each dial press is a button there. A press, a release and a long press can each start an automation. A press arrives at once. Companion or the Elgato app keeps working as before.
+
+## Install
+
+The Matter firmware is a separate file on the [releases page](https://github.com/FusselTV/DeckConnector/releases), `deckconnector-matter-vX.Y.Z.dbfw`. Install it under **Firmware › Update** like any [update](/docs/updates). Later updates stay on the Matter firmware.
+
+## Pair
+
+1. Open **Sources › Matter** in the web UI. Matter is on.
+2. If no code shows, use **Start pairing**.
+3. In your app, add a new device and scan the code. Or type the pairing code.
+4. Your app says the device is not certified. Add it anyway.
+
+**Show on the deck** puts the code on the deck. A key press hides it.
+
+While the deck shows the menu or a question from the board, its keys do not reach Matter.
+
+## What you get
+
+| Deck | Buttons |
+|---|---|
+| Stream Deck Mini | 6 |
+| Stream Deck, MK.2 | 15 |
+| Stream Deck XL | 32 |
+| Stream Deck + | 8 keys, 4 dials |
+| Stream Deck + XL | 36 keys, 6 dials |
+| Stream Deck Neo | 8 keys, 2 touch points |
+| Stream Deck Pedal | 3 |
+
+Each deck is its own device. It keeps its buttons when you plug it in again, also at another hub port. An unplugged deck shows as not responding. A different deck in its place is a new device.
+
+Dial turns and the touch strip do not reach Matter. Presses sent from the web UI or the API do not either.
+
+## Google Home
+
+Google Home pairs only test devices that are added to your project in the [Google Home Developer Console](https://console.home.google.com/). Add vendor ID `0xFFF1` and product ID `0x8000`.
+
+## Remove
+
+**Reset Matter** removes the deck from every app and makes a new pairing code. Do this before you go back to the normal firmware. Then delete the device in each app.
+
+<Next links={[['Home Assistant', '/docs/home-assistant/'], ['Updates', '/docs/updates/']]} />

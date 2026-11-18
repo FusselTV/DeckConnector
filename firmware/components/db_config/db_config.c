@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "db_client.h"
 #include "db_device.h"
 #include "db_json.h"
 #include "esp_log.h"
@@ -60,6 +61,13 @@ static bool known_chord(const char *chord)
 bool db_config_screen_off_ok(long s)
 {
     return s == 0 || (s >= 10 && s <= 86400);
+}
+
+void db_config_board_id(char out[13])
+{
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_BASE);
+    snprintf(out, 13, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
 static void defaults(db_config_t *c)
@@ -148,6 +156,12 @@ esp_err_t db_config_load(void)
             if (!memchr(current.ntp_server, 0, sizeof(current.ntp_server)) ||
                 !db_config_ntp_ok(current.ntp_server)) {
                 current.ntp_server[0] = '\0';
+            }
+            uint32_t proxy;
+            if (!memchr(current.trusted_proxy, 0, sizeof(current.trusted_proxy)) ||
+                (current.trusted_proxy[0] &&
+                 !db_ipv4(current.trusted_proxy, strlen(current.trusted_proxy), &proxy))) {
+                current.trusted_proxy[0] = '\0';
             }
             uint8_t lock;
             memcpy(&lock, &current.qr_login_off,
@@ -245,9 +259,12 @@ static esp_err_t erase(const char *ns, const char *key)
 
 esp_err_t db_config_reset(void)
 {
-    /* "ota" stays (each slot's security level), and so does the bridge's own HTTPS certificate */
-    const char *const wipe[][2] = {{"auth", NULL},   {"dock", NULL},  {"satellite", NULL},
-                                   {"web", "ccert"}, {"web", "ckey"}, {"web", "step"}};
+    /* "ota" stays (each slot's security level); the device CA goes, so a board given away cannot vouch for
+     * its old name to the devices that trusted it */
+    const char *const wipe[][2] = {{"auth", NULL},    {"dock", NULL},  {"satellite", NULL}, {"web", "ccert"},
+                                   {"web", "ckey"},   {"web", "step"}, {"web", "ca"},       {"web", "cakey"},
+                                   {"web", "caname"}, {"web", "cert"}, {"web", "key"},      {"web", "san"},
+                                   {"web", "until"}};
     esp_err_t err = ESP_OK;
     for (size_t i = 0; i < sizeof(wipe) / sizeof(wipe[0]); i++) {
         esp_err_t e = erase(wipe[i][0], wipe[i][1]);
@@ -288,6 +305,8 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     ip_to_json(&j, "wlan", &cfg->wlan);
     db_json_str(&j, "wifi_ssid", cfg->wifi_ssid);
     db_json_bool(&j, "wifi_pass_set", cfg->wifi_pass[0] != '\0');
+    db_json_str(&j, "wifi2_ssid", cfg->wifi2_ssid);
+    db_json_bool(&j, "wifi2_pass_set", cfg->wifi2_pass[0] != '\0');
     db_json_arr_open(&j, "servers");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         db_json_str(&j, NULL, db_config_server_of(cfg, i));
@@ -305,6 +324,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "usb_speed", cfg->usb_speed);
     db_json_str(&j, "wifi_bssid", cfg->wifi_bssid);
     db_json_str(&j, "ntp_server", cfg->ntp_server);
+    db_json_str(&j, "trusted_proxy", cfg->trusted_proxy);
     db_json_bool(&j, "qr_login", !cfg->qr_login_off);
     db_json_bool(&j, "satellite_auto", !cfg->satellite_auto_off);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
@@ -314,6 +334,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
         db_json_str(&j, "wifi_pass", cfg->wifi_pass);
+        db_json_str(&j, "wifi2_pass", cfg->wifi2_pass);
         db_json_str(&j, "token", cfg->token);
     }
     db_json_obj_close(&j);
@@ -611,6 +632,8 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     bool ok = take_str(root, "name", cfg->name, sizeof(cfg->name), err, err_cap) &&
               take_str(root, "wifi_ssid", cfg->wifi_ssid, sizeof(cfg->wifi_ssid), err, err_cap) &&
               take_str(root, "wifi_pass", cfg->wifi_pass, sizeof(cfg->wifi_pass), err, err_cap) &&
+              take_str(root, "wifi2_ssid", cfg->wifi2_ssid, sizeof(cfg->wifi2_ssid), err, err_cap) &&
+              take_str(root, "wifi2_pass", cfg->wifi2_pass, sizeof(cfg->wifi2_pass), err, err_cap) &&
               take_str(root, "token", cfg->token, sizeof(cfg->token), err, err_cap) &&
               take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
               take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
@@ -620,6 +643,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "usb_speed", cfg->usb_speed, sizeof(cfg->usb_speed), err, err_cap) &&
               take_str(root, "wifi_bssid", cfg->wifi_bssid, sizeof(cfg->wifi_bssid), err, err_cap) &&
               take_str(root, "ntp_server", cfg->ntp_server, sizeof(cfg->ntp_server), err, err_cap) &&
+              take_str(root, "trusted_proxy", cfg->trusted_proxy, sizeof(cfg->trusted_proxy), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&
@@ -637,6 +661,11 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
         snprintf(err, err_cap, "wifi_pass: 8 to 63 characters, 64 hex digits, or empty for an open network");
         ok = false;
     }
+    if (ok && cJSON_GetObjectItemCaseSensitive(root, "wifi2_pass") &&
+        !db_config_wifi_pass_ok(cfg->wifi2_pass)) {
+        snprintf(err, err_cap, "wifi2_pass: 8 to 63 characters, 64 hex digits, or empty for an open network");
+        ok = false;
+    }
     bool url = strncmp(cfg->satellite, "ws://", 5) == 0 || strncmp(cfg->satellite, "wss://", 6) == 0;
     if (ok && strpbrk(cfg->satellite, url ? " \"" : " \"/")) {
         snprintf(err, err_cap, "satellite: host, host:port, or a ws:// or wss:// URL expected");
@@ -645,6 +674,11 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     uint8_t mac[6];
     if (ok && cfg->wifi_bssid[0] && !db_config_bssid(cfg->wifi_bssid, mac)) {
         snprintf(err, err_cap, "wifi_bssid: aa:bb:cc:dd:ee:ff or empty");
+        ok = false;
+    }
+    uint32_t proxy;
+    if (ok && cfg->trusted_proxy[0] && !db_ipv4(cfg->trusted_proxy, strlen(cfg->trusted_proxy), &proxy)) {
+        snprintf(err, err_cap, "trusted_proxy: an IPv4 address like 192.168.1.15, or empty");
         ok = false;
     }
     if (ok && !db_config_ntp_ok(cfg->ntp_server)) {

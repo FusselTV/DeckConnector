@@ -3,7 +3,7 @@ import type { Key } from '../i18n/types'
 import { ipErrors, NAME_RE } from './validate'
 
 // GET /api/config leaves these out, so a full backup's values cannot be compared and always go back.
-const SECRETS = ['admin_pass', 'wifi_pass', 'token'] as const
+const SECRETS = ['admin_pass', 'wifi_pass', 'wifi2_pass', 'token'] as const
 const isSecret = (k: string) => (SECRETS as readonly string[]).includes(k)
 
 type Flat = Record<string, unknown>
@@ -24,6 +24,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'wlan',
   'wifi_ssid',
   'wifi_bssid',
+  'wifi2_ssid',
   'servers',
   'server_pins',
   'satellite',
@@ -31,6 +32,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'satellite_pin',
   'https_only',
   'cors_origins',
+  'trusted_proxy',
   'menu_chord',
   'menu_hold_ms',
   'lang',
@@ -75,7 +77,7 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
   if (patch.brightness !== undefined && !(patch.brightness >= 0 && patch.brightness <= 100))
     errors.push({ key: 'brightness', err: 'fw.r_bri' })
   for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push({ key: k, err: 'fw.r_text' })
-  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, token: cfg.token_set }
+  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, wifi2_pass: cfg.wifi2_pass_set, token: cfg.token_set }
   const fc = flat(cfg)
   const fo = flat(patch)
   const rows = Object.keys(fo)
@@ -86,7 +88,7 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
         : { key, now: fc[key], file: fo[key] },
     )
   // The firmware restarts when a secret differs from the stored one, which the page cannot see.
-  return { patch, rows, restart: top.some((k) => RESTARTS.has(k) || isSecret(k)), errors }
+  return { patch, rows, restart: top.some((k) => RESTARTS.has(k) || (isSecret(k) && k !== 'wifi2_pass')), errors }
 }
 
 /** GET /api/config holds no secrets, so it is the backup as it is. */

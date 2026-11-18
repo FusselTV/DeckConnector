@@ -34,6 +34,8 @@ typedef struct {
     /* A host whose presses act in the real world (Companion, the Elgato App). It gets simulated input only
      * when the request says a person sent it: a test once pressed real buttons in someone's home. */
     bool external;
+    /* True: only this listener gets `ev`, no host, web socket or input log (the PIN pad of a locked deck). */
+    bool (*keeps)(int deck, const db_input_t *ev);
 } db_deck_listener_t;
 
 typedef void (*db_deck_ack_cb_t)(db_ack_result_t result, uint8_t display, uint32_t seq, uint64_t t_recv,

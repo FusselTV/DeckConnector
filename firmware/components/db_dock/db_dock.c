@@ -78,6 +78,8 @@ static uint16_t port_of(int deck, bool device_port)
 static void note_kind(uint32_t ip, db_controller_t kind);
 static bool refuse(conn_t *c, db_controller_t kind);
 static void keep_peers(void);
+/* the keepalive task saves them: a flash write held a host's first answer 3 to 70 ms */
+static bool peers_due;
 
 /* block false: skip a host that is not reading instead of waiting up to the send timeout for it */
 static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload,
@@ -146,7 +148,7 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
         db_log_event(TAG, "source", "%s at %s connected", db_controller_name(c->kind), ip);
         note_kind(c->ip, c->kind);
-        keep_peers();
+        __atomic_store_n(&peers_due, true, __ATOMIC_RELAXED);
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
                              next event */
     }
@@ -166,7 +168,7 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         }
         ESP_LOGI(TAG, "device host is %s", db_controller_name(c->kind));
         note_kind(c->ip, c->kind);
-        keep_peers();
+        __atomic_store_n(&peers_due, true, __ATOMIC_RELAXED);
         db_log_mark(c->kind == DB_CTRL_APP ? DB_MARK_APP : DB_MARK_COMPANION);
         report_clients();
     }
@@ -1036,6 +1038,9 @@ static void keepalive_task(void *arg)
                 reannounce(d);
             }
         }
+        if (__atomic_exchange_n(&peers_due, false, __ATOMIC_RELAXED)) {
+            keep_peers();
+        }
         db_net_status_t n;
         db_net_status(&n);
         uint32_t wlan = n.wlan_up && n.lan_up && !n.lan_dead ? inet_addr(n.wlan_ip) : 0;
@@ -1136,6 +1141,7 @@ static void sync_services(void *arg)
  * deck that changed: the others' hosts must not see their dock go. */
 static void on_device(int deck, const db_device_info_t *info)
 {
+    info = info && info->dock ? info : NULL;
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     if (info) {
         attached[deck] = *info;
@@ -1274,7 +1280,7 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
     esp_timer_create_args_t timer = {.callback = sync_services, .name = "dock_mdns"};
     esp_timer_create(&timer, &services_timer);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        if (db_deck_info(d, &attached[d])) {
+        if (db_deck_info(d, &attached[d]) && attached[d].dock) {
             s.info[d].device = &attached[d];
             device_service(d, &attached[d]);
         }

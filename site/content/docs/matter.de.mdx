@@ -1,0 +1,47 @@
+---
+title: Matter
+description: Die Tasten des Decks in Apple Home, Google Home, Home Assistant und anderen Matter-Apps nutzen.
+---
+
+Mit der Matter-Firmware erscheint jedes Deck als Gerät in deiner Smart-Home-App. Jede Taste und jeder Druck auf einen Drehregler ist dort ein Taster. Ein Druck, das Loslassen und ein langer Druck können je eine Automation starten. Ein Druck kommt sofort an. Companion oder die Elgato-App arbeiten weiter wie vorher.
+
+## Installieren
+
+Die Matter-Firmware ist eine eigene Datei auf der [Release-Seite](https://github.com/FusselTV/DeckConnector/releases), `deckconnector-matter-vX.Y.Z.dbfw`. Installier sie unter **Firmware › Update** wie jedes [Update](/de/docs/updates). Spätere Updates bleiben bei der Matter-Firmware.
+
+## Koppeln
+
+1. Öffne in der Weboberfläche **Quellen › Matter**. Matter ist an.
+2. Wenn kein Code zu sehen ist, tipp auf **Koppeln starten**.
+3. Füg in deiner App ein neues Gerät hinzu und scann den Code. Oder tipp den Kopplungscode ein.
+4. Deine App meldet, dass das Gerät nicht zertifiziert ist. Füg es trotzdem hinzu.
+
+**Auf dem Deck zeigen** bringt den Code aufs Deck. Ein Tastendruck blendet ihn aus.
+
+Solange das Deck das Menü oder eine Frage der Platine zeigt, kommen seine Tasten nicht bei Matter an.
+
+## Was du bekommst
+
+| Deck | Taster |
+|---|---|
+| Stream Deck Mini | 6 |
+| Stream Deck, MK.2 | 15 |
+| Stream Deck XL | 32 |
+| Stream Deck + | 8 Tasten, 4 Drehregler |
+| Stream Deck + XL | 36 Tasten, 6 Drehregler |
+| Stream Deck Neo | 8 Tasten, 2 Touchpunkte |
+| Stream Deck Pedal | 3 |
+
+Jedes Deck ist ein eigenes Gerät. Es behält seine Taster, wenn du es wieder einsteckst, auch an einem anderen Hub-Anschluss. Ein ausgestecktes Deck zeigt die App als nicht erreichbar. Ein anderes Deck an seiner Stelle ist ein neues Gerät.
+
+Drehen an den Reglern und die Touchleiste kommen nicht bei Matter an. Tastendrücke aus der Weboberfläche oder über die API auch nicht.
+
+## Google Home
+
+Google Home koppelt nur Testgeräte, die in deinem Projekt in der [Google Home Developer Console](https://console.home.google.com/) eingetragen sind. Trag Vendor-ID `0xFFF1` und Product-ID `0x8000` ein.
+
+## Entfernen
+
+**Matter zurücksetzen** entfernt das Deck aus allen Apps und macht einen neuen Kopplungscode. Mach das, bevor du zur normalen Firmware zurückgehst. Lösch danach das Gerät in jeder App.
+
+<Next links={[['Home Assistant', '/de/docs/home-assistant/'], ['Updates', '/de/docs/updates/']]} />

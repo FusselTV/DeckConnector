@@ -8,7 +8,7 @@ import {
   RotateCcw,
   ShieldAlert,
 } from 'lucide-react'
-import { useCallback, useEffect, useState, type SyntheticEvent } from 'react'
+import { useEffect, useState, type SyntheticEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import { startSession } from '../app/connection'
 import { langAtom, loginReasonAtom } from '../app/state'
@@ -18,7 +18,14 @@ import { Btn, describedBy, Field } from '../components/controls'
 import { PwInput } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { Logo } from '../deck/DeckFront'
+import { passkeyLogin, passkeysHere } from '../lib/passkey'
 import { deviceLabel, ls } from '../lib/util'
+
+function enter() {
+  loginReasonAtom.set(null)
+  dispatch({ type: 'auth', auth: 'app' })
+  startSession()
+}
 
 function useLogin() {
   const { t } = useUi()
@@ -39,9 +46,7 @@ function useLogin() {
       await api.login(pw)
       setPw('')
       setErr(null)
-      loginReasonAtom.set(null)
-      dispatch({ type: 'auth', auth: 'app' })
-      startSession()
+      enter()
     } catch (x) {
       if (x instanceof ApiError && (x.status === 429 || x.code === 'locked' || x.message === 'locked')) {
         setLock(x.retry || 12)
@@ -122,12 +127,7 @@ function Forgot() {
   const why = (x: unknown) => {
     setErr(x instanceof ApiError && x.status === 409 ? t('login.no_deck') : t('login.offline'))
   }
-  const done = useCallback(() => {
-    loginReasonAtom.set(null)
-    dispatch({ type: 'auth', auth: 'app' })
-    startSession()
-  }, [])
-  const L = useDeckLogin(why, done)
+  const L = useDeckLogin(why, enter)
   const show = () => {
     setErr(null)
     api.showPassword().then(() => setShown(30), why)
@@ -198,6 +198,38 @@ function Forgot() {
   )
 }
 
+function PasskeyLogin() {
+  const { t } = useUi()
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  if (!passkeysHere()) return null
+  const go = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      await passkeyLogin()
+      enter()
+    } catch (x) {
+      if (x instanceof ApiError && x.status === 429) setErr(t('login.locked', { n: x.retry || 12 }))
+      else setErr(x instanceof ApiError ? errText(x, t) : t('pk.fail'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <Btn id="pk-login" icon={KeyRound} onClick={() => void go()} disabled={busy}>
+        {t('login.pk')}
+      </Btn>
+      {err && (
+        <p className="warnline" role="alert">
+          {err}
+        </p>
+      )}
+    </>
+  )
+}
+
 export function Login() {
   const { t, lang } = useUi()
   const reason = loginReasonAtom.use()
@@ -240,6 +272,7 @@ export function Login() {
             {t('login.btn')}
           </button>
         </form>
+        <PasskeyLogin />
         <Forgot />
         {plain && (
           <Notice

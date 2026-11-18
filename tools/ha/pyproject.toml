@@ -1,0 +1,24 @@
+[project]
+name = "deckconnector-ha-tests"
+version = "0"
+requires-python = ">=3.14"
+dependencies = ["pytest-homeassistant-custom-component", "PyTurboJPEG"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["../.."]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components", "conftest"]
+force-sort-within-sections = true
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/conftest.py" = ["ASYNC109"]  # mirrors aiohttp's receive(timeout)

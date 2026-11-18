@@ -46,6 +46,7 @@ const LABEL: Record<string, TKey> = {
   lan: 'net.lan',
   wlan: 'net.wlan',
   wifi_ssid: 'net.ssid',
+  wifi2_ssid: 'wifi2.title',
   satellite: 'src.addr',
   satellite_pin: 'src.pin',
   servers: 'src.srv_url',

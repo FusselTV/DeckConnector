@@ -31,9 +31,9 @@ db_source_t db_ui_chosen_source(int deck);
 void db_ui_refresh(void);
 /* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */
 esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len);
-/* The two controls that open the menu (config `menu_chord`): index 0 and *last of the encoders or the keys.
- * False when there are none. */
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last);
+/* The two controls that open the menu for `chord` (NULL: config `menu_chord`): index 0 and *last of the
+ * encoders or the keys. False when there are none. */
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last);
 /* True once for the token the welcome pages show as a QR code, while it is shown and not 10 min old. */
 bool db_ui_login_take(const char *token);
 /* The deck shows a one-time login code, the password or the setup WLAN's password: pictures of the deck are
@@ -43,20 +43,31 @@ bool db_ui_login_shown(void);
 bool db_ui_password_shown(void);
 /* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
 void db_ui_setup_step(int step);
-/* On `deck`, closing it on any other. ESP_ERR_INVALID_STATE when that deck is not connected. */
+/* On `deck`, closing it on any other. ESP_ERR_INVALID_STATE when that deck is not connected,
+ * ESP_ERR_NOT_ALLOWED while Companion locked it. */
 esp_err_t db_ui_open_menu(int deck);
+/* Companion over Satellite, the chosen source of `deck`, locked it: the deck shows its PIN pad. */
+bool db_ui_locked(int deck);
 /* Back to the home page, like the menu's close key; also hides the password page, cancels the reset question
  * and denies a login request. The deck goes back to who draws. */
 void db_ui_close_menu(void);
 /* The menu, the password page, the reset question or a login request covers the deck. */
 bool db_ui_menu_open(void);
+#define DB_UI_QR_BYTES ((41 * 41 + 7) / 8)
+/* `text` as a QR code, row by row from the top left, the lowest bit first; returns its size, 0 when it does
+ * not fit. */
+int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES]);
+/* The Matter pairing code for 60 s, in the Matter image. The number of decks it shows on. */
+int db_ui_show_matter(const char *qr, const char *code);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
+/* The same page shows the device CA's short fingerprint for 30 s instead, when someone downloads the CA. */
+void db_ui_show_ca(const char *fingerprint);
 /* The deck asks for 60 s whether to reset every setting; only taps on the deck itself answer. Seconds left,
  * -1 when no deck is connected. */
-/** Factory reset, the deck's and the web page's: settings, API keys, pairings, the crash report (its stacks
- * can hold the password) and an uploaded web page. The firmware, its slots and the bridge's own certificate
- * stay. */
+/** Factory reset, the deck's and the web page's: settings, API keys, pairings (Matter's too), the crash
+ * report (its stacks can hold the password) and an uploaded web page. The firmware, its slots and the
+ * bridge's own certificate stay. */
 esp_err_t db_ui_factory_reset(void);
 int db_ui_ask_reset(void);
 void db_ui_cancel_reset(void);

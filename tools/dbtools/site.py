@@ -1,7 +1,8 @@
 """This bench's own values, from ~/.config/deckbridge/bench.json (DECKBRIDGE_BENCH names another file).
 
-Keys: host, camera, satellite_test, production, serial, bench_dir, unifi {url, key_file, switch_id, port,
-dock_port}. Missing keys get the defaults below; a tool that needs an unset one stops with need().
+Keys: host, camera, camera_regions ({"k0": [x, y], ...} in the 1920x1080 picture), satellite_test, production,
+serial, bench_dir, unifi {url, key_file, switch_id, port, dock_port}. Missing keys get the defaults below; a tool that
+needs an unset one stops with need().
 uv run python -m dbtools.site KEY   prints one value, for shell scripts.
 """
 
@@ -20,6 +21,7 @@ PRODUCTION: dict = {"controller": "companion", "host": "satellite", "satellite":
 SERIAL: str = _conf.get("serial", "")
 BENCH_DIR = Path(_conf.get("bench_dir", Path.home() / "deckbridge-bench")).expanduser()
 UNIFI: dict = _conf.get("unifi", {})
+CAMERA_REGIONS: dict = _conf.get("camera_regions", {})
 
 
 def need(value, key: str):
