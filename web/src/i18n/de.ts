@@ -21,6 +21,7 @@ export const de: Dict = {
   'hdr.logout': 'Abmelden',
   'prog.companion': 'Companion',
   'prog.app': 'Elgato App',
+  'src.app_elgato': 'Die Elgato App kann nur Elgato-Decks nutzen.',
   'prog.server': 'Eigener Server',
   'prog.unknown': 'Unbekannt',
   'via.satellite': 'Satellite',

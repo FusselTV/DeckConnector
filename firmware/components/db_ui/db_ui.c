@@ -943,9 +943,10 @@ static void ui_task(void *arg)
     }
 }
 
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last)
 {
-    return ui_menu_chord(db_config()->menu_chord, encoders, keys, on_encoders, last);
+    ui_layout_t l = ui_layout_of(dev);
+    return ui_menu_chord(chord ? chord : db_config()->menu_chord, &l, on_encoders, last);
 }
 
 /* On `deck` only: a menu open on another deck closes. */
@@ -1024,7 +1025,7 @@ static void check_menu_chord(int deck)
     ui_deck_t *u = &decks[deck];
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(u->dev.encoder_count, db_device_image_keys(&u->dev), &on_encoders, &last);
+    bool any = db_ui_menu_chord(&u->dev, NULL, &on_encoders, &last);
     const bool *down = on_encoders ? u->enc_down : u->key_down;
     int size = on_encoders ? sizeof(u->enc_down) : sizeof(u->key_down);
     /* no menu on a locked deck: its source switch would be a way around the lock */

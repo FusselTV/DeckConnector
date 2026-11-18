@@ -37,7 +37,7 @@ import { DeckFront } from '../deck/DeckFront'
 import { MODELS } from '../deck/models'
 import type { T } from '../i18n'
 import { cx, ls, useLatest } from '../lib/util'
-import { chordSentence } from './DeckTab'
+import { chordSentence } from '../deck/chord'
 
 function Hero() {
   const { t, fmt } = useUi()
@@ -667,7 +667,7 @@ function Controls() {
           type="button"
           className="btn"
           disabled={!deck}
-          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000))}
+          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000), deck)}
           aria-pressed={!!st.menu_open}
           onClick={() => void a.menu(decks.length > 1 ? deck?.serial : undefined)}
         >

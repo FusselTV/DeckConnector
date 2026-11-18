@@ -24,6 +24,7 @@ class AckResult(IntEnum):
     REJECTED_ROLE = 3
     NO_DEVICE = 4
     BUSY = 5
+    TOO_BIG = 6
 
 
 class InputKind(IntEnum):

@@ -215,9 +215,12 @@ test('firmware: install from a file, from a URL, write a slot, boot a slot', asy
   await confirm(page, en['btn.install'])
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')), {
-      timeout: 40_000,
-    })
+    .poll(
+      () => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')).catch(() => false),
+      {
+        timeout: 40_000,
+      },
+    )
     .toBe(true)
   await page.waitForLoadState()
   await openTab(page, en, 'firmware')

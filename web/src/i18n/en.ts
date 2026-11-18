@@ -20,6 +20,7 @@ export const en = {
   'hdr.logout': 'Log out',
   'prog.companion': 'Companion',
   'prog.app': 'Elgato app',
+  'src.app_elgato': 'The Elgato app works only with Elgato decks.',
   'prog.server': 'Custom server',
   'prog.unknown': 'Unknown',
   'via.satellite': 'Satellite',

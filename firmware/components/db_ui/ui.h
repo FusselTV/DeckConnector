@@ -76,6 +76,8 @@ typedef struct {
     bool strip;
     bool bar; /* an info bar without encoders (Neo) */
     uint16_t key_px;
+    uint64_t tap_keys; /* db_device_info_t's: controls that cannot be held */
+    uint8_t tap_encoders;
 } ui_layout_t;
 
 enum { UI_CTRL_SERVER, UI_CTRL_COMPANION, UI_CTRL_APP, UI_CTRL_COUNT }; /* the values of db_controller_t */
@@ -223,8 +225,8 @@ void ui_menu_close(ui_menu_t *m, int64_t now);
  */
 void ui_menu_lock(ui_menu_t *m, bool locked, int64_t now);
 /* The menu controls for `chord` (auto, keys, encoders, off; anything else counts as auto): index 0 and *last
- * of the encoders or keys. False for off or when the deck has fewer than two. */
-bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders, int *last);
+ * of the encoders or keys, the last one that can be held. False for off or when no two can be held. */
+bool ui_menu_chord(const char *chord, const ui_layout_t *l, bool *on_encoders, int *last);
 /* True when the screen changed; `act` says what the bridge has to do. Not reentrant. */
 bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, const db_input_t *ev,
                    ui_action_t *act);

@@ -5,6 +5,7 @@
 static const db_driver_t *const db_drivers[] = {
     &db_driver_elgato_gen1,
     &db_driver_elgato_gen2,
+    &db_driver_mirabox,
     NULL,
 };
 

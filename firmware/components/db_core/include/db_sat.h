@@ -50,7 +50,7 @@ typedef struct {
  * picture (on the Neo, in the strip's row around it), then the encoders. */
 size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_t max);
 /* The ADD-DEVICE line with its newline, or 0 when it does not fit in `cap`. */
-size_t db_sat_add_device(char *buf, size_t cap, const char *serial, const char *model,
+size_t db_sat_add_device(char *buf, size_t cap, const char *surface, const char *serial, const char *model,
                          const char *manifest_b64, bool png, bool swipe);
 
 typedef struct {

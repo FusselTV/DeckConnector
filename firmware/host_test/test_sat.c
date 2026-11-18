@@ -5,7 +5,9 @@
 #include <zlib.h>
 
 #include "db_driver.h"
+#include "db_proto.h"
 #include "db_sat.h"
+#include "mirabox_ref.h"
 
 /* The ROM's miniz on the chip; zlib reads the same zlib streams. */
 size_t tinfl_decompress_mem_to_mem(void *out, size_t out_len, const void *src, size_t src_len, int flags)
@@ -52,6 +54,13 @@ static db_device_info_t open_deck(uint16_t pid)
     db_dev_t dev = {.io = &io, .driver = db_driver_find(0x0fd9, pid)};
     TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, 0x0fd9, pid));
     return dev.info;
+}
+
+static db_dev_t open_usb(uint16_t vid, uint16_t pid)
+{
+    db_dev_t dev = {.io = &io, .driver = db_driver_find(vid, pid)};
+    TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, vid, pid));
+    return dev;
 }
 
 void setUp(void)
@@ -165,6 +174,91 @@ static void test_plus_xl_fits(void)
     TEST_ASSERT_EQUAL_INT(DB_SAT_ENCODER, db_sat_find(c, n, "5/5")->kind);
     char buf[2048];
     TEST_ASSERT_GREATER_THAN(0, db_sat_manifest(c, n, buf, sizeof(buf)));
+}
+
+/* Companion gets the places of its own plugin and a preset for each key size. */
+static void test_satellite_layout_of_the_n4(void)
+{
+    db_dev_t dev = open_usb(0x6602, 0x1001);
+    db_sat_control_t c[DB_SAT_MAX_CONTROLS];
+    size_t n = db_sat_controls(&dev.info, c, DB_SAT_MAX_CONTROLS);
+    TEST_ASSERT_EQUAL_size_t(14 + 5, n);
+    const db_sat_control_t *swipe = db_sat_find(c, n, "2/4");
+    TEST_ASSERT_NOT_NULL(swipe);
+    TEST_ASSERT_EQUAL_INT(DB_SAT_ENCODER, swipe->kind);
+    TEST_ASSERT_EQUAL_UINT8(4, swipe->index);
+    TEST_ASSERT_EQUAL_UINT16(176, db_sat_find(c, n, "2/3")->rect.w);
+    TEST_ASSERT_EQUAL_INT(DB_SAT_ENCODER, db_sat_find(c, n, "3/0")->kind);
+    char buf[4096];
+    TEST_ASSERT_GREATER_THAN(0, db_sat_manifest(c, n, buf, sizeof(buf)));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"default\":{\"bitmap\":{\"w\":112,\"h\":112}}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"176x124\":{\"bitmap\":{\"w\":176,\"h\":124}}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"2/0\":{\"row\":2,\"column\":0,\"stylePreset\":\"176x124\"}"));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"2/4\":{\"row\":2,\"column\":4,\"stylePreset\":\"none\"}"));
+    const char *preset = strstr(buf, "\"176x124\":{\"bitmap\"");
+    TEST_ASSERT_NULL(strstr(preset + 1, "\"176x124\":{\"bitmap\""));
+}
+
+static void test_xl_side_buttons_have_no_picture(void)
+{
+    db_dev_t dev = open_usb(0x5548, 0x1028);
+    TEST_ASSERT_EQUAL_UINT8(38, dev.info.key_count);
+    TEST_ASSERT_EQUAL_UINT8(32, db_device_image_keys(&dev.info));
+    db_sat_control_t c[DB_SAT_MAX_CONTROLS];
+    size_t n = db_sat_controls(&dev.info, c, DB_SAT_MAX_CONTROLS);
+    TEST_ASSERT_EQUAL_UINT16(0, db_sat_find(c, n, "0/0")->rect.w);
+    TEST_ASSERT_EQUAL_UINT16(80, db_sat_find(c, n, "0/1")->rect.w);
+    TEST_ASSERT_EQUAL_UINT16(0, db_sat_find(c, n, "2/9")->rect.w);
+}
+
+/* Every Elgato layout and device description as before Companion's surface prefix moved into the driver:
+ * FNV-1a of the manifest and the device JSON. */
+static void test_elgato_decks_are_described_as_before(void)
+{
+    static const struct {
+        uint16_t pid;
+        uint32_t fnv;
+    } decks[] = {
+        {0x0063, 0x2081d3e7}, {0x0090, 0x7d78151a}, {0x00b3, 0x3f52d4e2}, {0x00b8, 0x82ae91e3},
+        {0x0084, 0xdae4efb7}, {0x00c6, 0xce4fa05b}, {0x0080, 0xc8eb4f9d}, {0x006d, 0xfb21902a},
+        {0x00a5, 0x131de650}, {0x006c, 0xe91fcb97}, {0x009a, 0x14eefb1b}, {0x008f, 0xe38a8370},
+        {0x00ba, 0x18ff6d22}, {0x00b9, 0x8dee7904}, {0x00e4, 0x88e3828c}, {0x0086, 0xd3619394},
+    };
+    for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
+        db_device_info_t dev = open_deck(decks[d].pid);
+        TEST_ASSERT_TRUE(dev.dock);
+        TEST_ASSERT_EQUAL_STRING("streamdeck", dev.surface);
+        db_sat_control_t c[DB_SAT_MAX_CONTROLS];
+        size_t n = db_sat_controls(&dev, c, DB_SAT_MAX_CONTROLS);
+        static char buf[8192];
+        size_t len = db_sat_manifest(c, n, buf, sizeof(buf));
+        db_proto_device_json(&dev, buf + len, sizeof(buf) - len);
+        uint32_t h = 2166136261u;
+        for (const char *p = buf; *p; p++) {
+            h = (h ^ (uint8_t)*p) * 16777619u;
+        }
+        TEST_ASSERT_EQUAL_HEX32(decks[d].fnv, h);
+    }
+}
+
+/* sat.c sends the manifest from 2048 bytes. */
+static void test_every_mirabox_layout_fits(void)
+{
+    for (size_t m = 0; m < sizeof(ref_models) / sizeof(ref_models[0]); m++) {
+        for (uint8_t u = 0; u < ref_models[m].id_count; u++) {
+            uint16_t vid = ref_models[m].ids[u].vid;
+            uint16_t pid = ref_models[m].ids[u].pid;
+            if (!db_driver_find(vid, pid)) {
+                continue;
+            }
+            db_dev_t dev = open_usb(vid, pid);
+            db_sat_control_t c[DB_SAT_MAX_CONTROLS];
+            size_t n = db_sat_controls(&dev.info, c, DB_SAT_MAX_CONTROLS);
+            TEST_ASSERT_EQUAL_size_t(dev.info.place_count, n);
+            char buf[2048];
+            TEST_ASSERT_GREATER_THAN_MESSAGE(0, db_sat_manifest(c, n, buf, sizeof(buf)), ref_models[m].name);
+        }
+    }
 }
 
 static void put_be32(uint8_t *p, uint32_t v)
@@ -284,7 +378,7 @@ static void test_png_refuses_a_first_chunk_bigger_than_the_picture(void)
 static void test_add_device_asks_to_draw_the_lock_itself(void)
 {
     char line[256];
-    size_t n = db_sat_add_device(line, sizeof(line), "A1", "Stream Deck +", "e30=", true, true);
+    size_t n = db_sat_add_device(line, sizeof(line), "streamdeck", "A1", "Stream Deck +", "e30=", true, true);
     TEST_ASSERT_EQUAL_size_t(strlen(line), n);
     TEST_ASSERT_EQUAL_STRING(
         "ADD-DEVICE DEVICEID=\"A1\" SERIAL=\"streamdeck:A1\" PRODUCT_NAME=\"Stream Deck +\" "
@@ -295,7 +389,8 @@ static void test_add_device_asks_to_draw_the_lock_itself(void)
     line[n - 1] = '\0';
     db_sat_parse(line, &m);
     TEST_ASSERT_EQUAL_STRING("FULL", db_sat_get(&m, "PINCODE_LOCK"));
-    TEST_ASSERT_EQUAL_size_t(0, db_sat_add_device(line, 40, "A1", "Stream Deck +", "e30=", true, true));
+    TEST_ASSERT_EQUAL_size_t(
+        0, db_sat_add_device(line, 40, "streamdeck", "A1", "Stream Deck +", "e30=", true, true));
 }
 
 static bool locked_state(db_sat_lock_t *l, const char *text)
@@ -429,6 +524,10 @@ int main(void)
     RUN_TEST(test_decks_without_a_strip_are_a_grid_of_keys);
     RUN_TEST(test_buttons_without_a_picture);
     RUN_TEST(test_plus_xl_fits);
+    RUN_TEST(test_satellite_layout_of_the_n4);
+    RUN_TEST(test_xl_side_buttons_have_no_picture);
+    RUN_TEST(test_elgato_decks_are_described_as_before);
+    RUN_TEST(test_every_mirabox_layout_fits);
     RUN_TEST(test_png_decodes_to_bgr);
     RUN_TEST(test_png_refuses_a_first_chunk_bigger_than_the_picture);
     RUN_TEST(test_host_of_every_satellite_address_form);

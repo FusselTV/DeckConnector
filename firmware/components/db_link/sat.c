@@ -81,6 +81,7 @@ typedef struct {
     db_sat_held_t held; /* the deck's event task only */
     char serial[32];
     char model[32];
+    const char *surface;
     db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
     size_t nctl;
 } sat_dev_t;
@@ -378,7 +379,7 @@ static void add_device(int deck)
     xSemaphoreGive(s.lock);
     if (len && b64 && line &&
         mbedtls_base64_encode((unsigned char *)b64, 2800, &n, (unsigned char *)json, len) == 0) {
-        size_t k = db_sat_add_device(line, 3200, v->serial, v->model, b64, s.png, v->swipe);
+        size_t k = db_sat_add_device(line, 3200, v->surface, v->serial, v->model, b64, s.png, v->swipe);
         xSemaphoreTake(s.tx, portMAX_DELAY);
         if (k) {
             raw_send(line, k);
@@ -436,6 +437,7 @@ static void apply_device(int deck)
     if (present) {
         snprintf(v->serial, sizeof(v->serial), "%s", dev->serial);
         snprintf(v->model, sizeof(v->model), "%s", dev->model);
+        v->surface = dev->surface;
         v->display = dev->displays[0];
     }
     v->swipe = present && dev->touch_count > 0;

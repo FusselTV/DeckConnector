@@ -7,6 +7,10 @@ export interface DeckInfo {
   model: string
   serial: string
   firmware?: string
+  /** False when the Elgato app and Companion's Elgato plugin cannot use the deck. */
+  dock?: boolean
+  /** The menu controls per menu_chord choice, for decks with controls that cannot be held. */
+  chords?: Record<'auto' | 'keys' | 'encoders', { on: 'keys' | 'encoders' | 'off'; last: number }>
   keys?: number
   encoders?: number
   width?: number

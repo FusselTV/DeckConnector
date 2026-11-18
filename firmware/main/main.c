@@ -35,10 +35,25 @@ static void write_device_fields(db_json_t *j, const db_device_info_t *dev)
     db_json_str(j, "model", dev->model);
     db_json_str(j, "serial", dev->serial);
     db_json_str(j, "firmware", dev->firmware);
+    db_json_bool(j, "dock", dev->dock);
     db_json_int(j, "keys", dev->key_count);
     db_json_int(j, "encoders", dev->encoder_count);
     db_json_int(j, "width", dev->displays[0].width);
     db_json_int(j, "height", dev->displays[0].height);
+    if (dev->tap_keys || dev->tap_encoders) { /* the web page's menu_chord rule knows only Elgato decks */
+        static const char *const chords[] = {"auto", "keys", "encoders"};
+        db_json_obj_open(j, "chords");
+        for (int i = 0; i < 3; i++) {
+            bool on_encoders;
+            int last;
+            bool any = db_ui_menu_chord(dev, chords[i], &on_encoders, &last);
+            db_json_obj_open(j, chords[i]);
+            db_json_str(j, "on", !any ? "off" : on_encoders ? "encoders" : "keys");
+            db_json_int(j, "last", any ? last : 0);
+            db_json_obj_close(j);
+        }
+        db_json_obj_close(j);
+    }
 }
 
 /* `decks` lists every attached deck by slot (`?deck=<serial>` picks one); `device` is the first. */

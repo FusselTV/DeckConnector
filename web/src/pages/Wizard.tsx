@@ -25,7 +25,7 @@ import { api } from '../api/client'
 import type { IpConf } from '../api/types'
 import { putConfig, useActions } from '../app/actions'
 import { refreshConfig, refreshStatus } from '../app/connection'
-import { decksOf, hostLabel, reachList } from '../app/derive'
+import { decksOf, hostLabel, noDock, reachList } from '../app/derive'
 import { configErrAtom, langAtom, loginReasonAtom, wifiScanAtom } from '../app/state'
 import { RestartOverlay } from '../app/Shell'
 import { getState, useStore } from '../app/store'
@@ -50,7 +50,7 @@ import {
   wsUrlError,
 } from '../lib/validate'
 import { companionError, findCompanion, worst } from '../lib/companion'
-import { chordSentence } from './DeckTab'
+import { chordSentence } from '../deck/chord'
 import { EMPTY, joinText, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
 
@@ -529,20 +529,23 @@ export function Wizard() {
     )
   else if (step === 'src') {
     const req = st.pairing?.request
+    const noApp = noDock(st)
     body = pane(
       t('wiz.src_q'),
       <>
         <div className="choices" role="radiogroup" aria-label={t('wiz.src_q')} onKeyDown={roam} tabIndex={-1}>
           <Choice
             on={src === 'app'}
-            first={!src}
+            first={!src && !noApp}
+            disabled={noApp}
             icon={Monitor}
             label={t('prog.app')}
-            hint={t('wiz.p_app_h')}
+            hint={t(noApp ? 'src.app_elgato' : 'wiz.p_app_h')}
             onPick={() => (setSrc('app'), setSrcErr(null))}
           />
           <Choice
             on={src === 'comp'}
+            first={!src && noApp}
             icon={Radio}
             label={t('wiz.p_comp')}
             hint={t('wiz.p_comp_h')}
@@ -788,7 +791,9 @@ export function Wizard() {
           <CopyField key={u} value={u} link />
         ))}
         {decks[0] && (
-          <p className="muted">{chordSentence(t, cfg?.menu_chord ?? 'auto', MODELS[decks[0].kind], fmt.dec(hold))}</p>
+          <p className="muted">
+            {chordSentence(t, cfg?.menu_chord ?? 'auto', MODELS[decks[0].kind], fmt.dec(hold), decks[0])}
+          </p>
         )}
         <p className="small muted">{t('wiz.https_hint')}</p>
       </>,
