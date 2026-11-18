@@ -68,6 +68,7 @@ typedef struct {
     char wifi2_pass[65];
     char trusted_proxy[16]; /* a reverse proxy's IPv4 address: its X-Forwarded-For names the client; empty:
                                none */
+    uint8_t volume;         /* the speaker, 0 (off) to 100 */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

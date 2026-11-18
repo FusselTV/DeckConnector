@@ -1,4 +1,5 @@
 import {
+  BellRing,
   Check,
   ChevronDown,
   Clock,
@@ -17,6 +18,8 @@ import {
   Turtle,
   Unplug,
   Usb,
+  Volume2,
+  VolumeX,
   Wifi,
   X,
 } from 'lucide-react'
@@ -610,32 +613,47 @@ export function Hosts({ limit }: { limit?: boolean }) {
   )
 }
 
-function BriSlider() {
-  const { t, fmt } = useUi()
-  const a = useActions()
-  const saved = useStore((s) => s.config?.brightness)
-  const hasDeck = useStore((s) => decksOf(s.status).length > 0)
+/** One saved setting on a range: each save is a config write on the device, so arrow keys save once they rest. */
+function SettingSlider({
+  id,
+  icon: I,
+  label,
+  saved,
+  fallback,
+  disabled,
+  save,
+  children,
+}: {
+  id: string
+  icon: typeof SunDim
+  label: string
+  saved: number | undefined
+  fallback: number
+  disabled: boolean
+  save: (n: number) => Promise<unknown>
+  children?: React.ReactNode
+}) {
+  const { fmt } = useUi()
   const [v, setV] = useState<number | null>(null)
-  const shown = v ?? saved ?? 80
-  // Each saved value is a config write on the device: arrow keys save once they rest.
+  const shown = v ?? saved ?? fallback
   const keyTm = useRef(0)
   const commit = () => {
     clearTimeout(keyTm.current)
-    if (v !== null) void a.brightness(v).finally(() => setV(null))
+    if (v !== null) void save(v).finally(() => setV(null))
   }
   return (
     <div className="slider">
-      <SunDim size={18} aria-hidden />
+      <I size={18} aria-hidden />
       <input
-        id="bri-ov"
+        id={id}
         type="range"
         min={0}
         max={100}
         step={5}
         value={shown}
-        aria-label={t('ov.bright')}
+        aria-label={label}
         aria-valuetext={fmt.pct(shown)}
-        disabled={!hasDeck || saved === undefined}
+        disabled={disabled || saved === undefined}
         onChange={(e) => setV(Number(e.target.value))}
         onPointerUp={commit}
         onKeyUp={() => {
@@ -644,8 +662,50 @@ function BriSlider() {
         }}
         onBlur={commit}
       />
-      <output htmlFor="bri-ov">{fmt.pct(shown)}</output>
+      <output htmlFor={id}>{fmt.pct(shown)}</output>
+      {children}
     </div>
+  )
+}
+
+function BriSlider() {
+  const { t } = useUi()
+  const a = useActions()
+  const saved = useStore((s) => s.config?.brightness)
+  const hasDeck = useStore((s) => decksOf(s.status).length > 0)
+  return (
+    <SettingSlider
+      id="bri-ov"
+      icon={SunDim}
+      label={t('ov.bright')}
+      saved={saved}
+      fallback={80}
+      disabled={!hasDeck}
+      save={a.brightness}
+    />
+  )
+}
+
+/** Off (0) by default: a beep in a studio is noise. Find plays anyway. */
+function VolSlider() {
+  const { t } = useUi()
+  const a = useActions()
+  const saved = useStore((s) => s.config?.volume)
+  return (
+    <SettingSlider
+      id="vol-ov"
+      icon={saved ? Volume2 : VolumeX}
+      label={t('ov.volume')}
+      saved={saved}
+      fallback={0}
+      disabled={false}
+      save={a.volume}
+    >
+      <button type="button" className="btn ghost sm" title={t('ov.find_h')} onClick={() => void a.find()}>
+        <BellRing size={16} aria-hidden />
+        <span>{t('ov.find')}</span>
+      </button>
+    </SettingSlider>
   )
 }
 
@@ -661,6 +721,7 @@ function Controls() {
   return (
     <Card id="card-ctl" icon={SlidersHorizontal} title={t('ov.controls')}>
       <BriSlider />
+      {st.speaker && <VolSlider />}
       {decks.length > 1 && <p className="small muted">{t('ctl.all', { deck: t('deck.n', { n: sel + 1 }) })}</p>}
       <div className="btnrow3">
         <button

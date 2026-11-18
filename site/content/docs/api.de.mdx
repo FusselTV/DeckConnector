@@ -94,6 +94,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind, und auf einer Platine ohne Lautsprecher | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
@@ -111,6 +112,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `POST /api/screen` | `{"on": false}` schaltet alle Decks sofort dunkel, `{"on": true}` wieder an. Kein Druck wird verschluckt | full |
 | `POST /api/deck/reconnect` | Schaltet den USB-Port aus und wieder an. `?off_s=N` (1 bis 600) lässt ihn N Sekunden aus | control |
 | `POST /api/deck/stall` | Stoppt die Bildausgabe wie bei einem hängenden Deck, für Tests | full |
+| `POST /api/sound/selftest` | Spielt `find` und nimmt es mit dem Mikrofon der Platine auf, für Tests. Drei Gegenproben: eine andere Tonhöhe (1500 Hz) in derselben Aufnahme, `find` mit Lautstärke 0 und `find` mit ausgeschaltetem Verstärker. `heard` ist true, wenn der Ton mehr als 10-mal stärker ist als jede davon. Optional: `volume` 1 bis 100 (60), `gain` 0 bis 42 dB (24). Dauert etwa 6 Sekunden. 503 mit dem Grund, wenn ein Durchlauf scheitert | full |
 
 ### Quellen und Kopplung
 
@@ -200,6 +202,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `name` | 1 bis 31 Buchstaben, Ziffern und Bindestriche, kein Bindestrich am Anfang oder Ende. Auch der Hostname |
 | `controller`, `host` | Das Programm, das zeichnet, siehe [Mehrere Programme](/de/docs/hosts#über-die-api) |
 | `brightness` | 0 bis 100 |
+| `volume` | Der Lautsprecher, 0 (aus, ab Werk) bis 100 |
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
 | `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
@@ -224,7 +227,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}

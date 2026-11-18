@@ -94,6 +94,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or on a board without a speaker | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 
@@ -111,6 +112,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `POST /api/screen` | `{"on": false}` turns every deck dark now, `{"on": true}` lights them again. No press is swallowed | full |
 | `POST /api/deck/reconnect` | Turn the USB port off and on. `?off_s=N` (1 to 600) keeps it off for N seconds | control |
 | `POST /api/deck/stall` | Stop the image output as a hung deck would, for tests | full |
+| `POST /api/sound/selftest` | Play `find` and record it with the board's microphone, for tests. Three controls: another pitch (1500 Hz) in the same recording, `find` at volume 0, and `find` with the amplifier off. `heard` is true when the tone is more than 10 times each of them. Optional: `volume` 1 to 100 (60), `gain` 0 to 42 dB (24). Takes about 6 seconds. 503 with the reason when a run fails | full |
 
 ### Sources and pairing
 
@@ -200,6 +202,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `name` | 1 to 31 letters, digits and dashes, no dash at the start or end. Also the host name |
 | `controller`, `host` | The host that draws, see [Multiple hosts](/docs/hosts#over-the-api) |
 | `brightness` | 0 to 100 |
+| `volume` | The speaker, 0 (off, the default) to 100 |
 | `lan`, `wlan` | `dhcp`, or `ip` and `mask` with an optional `gateway` and `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` has 8 to 63 characters, 64 hex digits, or is empty for an open network |
 | `wifi_bssid` | Lock to one access point, empty for any |
@@ -224,7 +227,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}

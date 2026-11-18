@@ -20,6 +20,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'controller',
   'host',
   'brightness',
+  'volume',
   'lan',
   'wlan',
   'wifi_ssid',
@@ -76,6 +77,8 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
   if (patch.name !== undefined && !NAME_RE.test(patch.name)) errors.push({ key: 'name', err: 'net.bad_name' })
   if (patch.brightness !== undefined && !(patch.brightness >= 0 && patch.brightness <= 100))
     errors.push({ key: 'brightness', err: 'fw.r_bri' })
+  if (patch.volume !== undefined && !(patch.volume >= 0 && patch.volume <= 100))
+    errors.push({ key: 'volume', err: 'fw.r_bri' })
   for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push({ key: k, err: 'fw.r_text' })
   const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, wifi2_pass: cfg.wifi2_pass_set, token: cfg.token_set }
   const fc = flat(cfg)

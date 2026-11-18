@@ -161,6 +161,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       controller: 'companion',
       host: setup ? '' : 'satellite',
       brightness: 80,
+      volume: 0,
       lan: ip(),
       wlan: ip(),
       wifi_ssid: setup ? '' : 'Studio',
@@ -448,6 +449,7 @@ export function status(s: Demo, now: number): Status {
     writer: w,
     menu_open: overlay(s, now),
     screen_off: false,
+    speaker: true,
     boot: { reason: s.bootReason, at: Math.floor(s.bootAt / 1000) },
     setup: { active: !c.setup_done || s.setupStep > 0, step: s.setupStep, rerun: c.setup_done && s.setupStep > 0 },
     device: deck(s),
@@ -516,6 +518,7 @@ export const config = (s: Demo): Config => ({ ...s.cfg, token_set: s.tokens.leng
 
 const LIVE: (keyof ConfigPatch)[] = [
   'brightness',
+  'volume',
   'controller',
   'setup_done',
   'servers',
@@ -556,6 +559,7 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
     return bad(400, 'admin_pass: 6 to 23 characters')
   if (p.servers && p.servers.some((u) => u && !/^wss?:\/\/\S+$/.test(u))) return bad(400, 'servers: ws:// or wss://')
   if (p.brightness !== undefined && (p.brightness < 0 || p.brightness > 100)) return bad(400, 'brightness: 0 to 100')
+  if (p.volume !== undefined && (p.volume < 0 || p.volume > 100)) return bad(400, 'volume: 0 to 100 expected')
   const old = s.cfg
   const next: Config = {
     ...old,
