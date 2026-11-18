@@ -11,6 +11,8 @@ size_t db_log_read(char *buf, size_t cap);
 size_t db_log_since(uint64_t *pos, char *buf, size_t cap);
 /* The end of the log the boot before this one left, 0 bytes after a power cut. */
 size_t db_log_prev(char *buf, size_t cap);
+/* Where log lines go in place of stdout, each in one call: stdout takes the serial port's lock per byte. */
+void db_log_set_sink(void (*sink)(const char *line, size_t len));
 
 /* Things worth a timeline (a source came or went, a roam, pairing, an update): logged like ESP_LOGI under
  * `tag` and kept in a ring of the last DB_EVENTS. `kind` is a short word such as "source" or "wlan". The last
