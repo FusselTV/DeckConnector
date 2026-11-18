@@ -46,6 +46,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
   ['POST', '/api/sound', 'control'],
+  ['POST', '/api/sound/selftest', 'full'],
   ['DELETE', '/api/ap', 'full'],
   ['POST', '/api/reset', 'admin'],
   ['GET', '/api/log', 'full'],
@@ -273,6 +274,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return ok()
     case 'POST /api/sound': // the demo has no speaker to play it on
       return ok()
+    case 'POST /api/sound/selftest':
+      return fail(409, 'this board has no speaker')
     case 'POST /api/reboot':
     case 'POST /api/reset':
       restartSoon(s, now)
