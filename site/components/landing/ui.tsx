@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import type { Lang } from '~/lib/i18n'
 import type { Rich } from './copy'
 import { out } from './links'
@@ -30,24 +29,6 @@ export function Text({ lang, r }: { lang: Lang; r: Rich }) {
         {x[1]}
       </a>
     ),
-  )
-}
-
-export function Head({ label, title, id, children }: { label: string; title: string | string[]; id?: string; children?: ReactNode }) {
-  return (
-    <div className="max-w-3xl">
-      <p className={`${mono} text-amber-fg`}>{label}</p>
-      <h2 id={id} className={`mt-4 ${h2}`}>
-        {typeof title === 'string'
-          ? title
-          : title.map((line, i) => (
-              <span key={line} className={`block ${i ? 'text-fg-3' : ''}`}>
-                {line}
-              </span>
-            ))}
-      </h2>
-      {children}
-    </div>
   )
 }
 

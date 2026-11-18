@@ -666,11 +666,6 @@ static bool input_real;
 static bool input_from_deck;
 static uint32_t input_only_ip;
 
-bool db_deck_input_real(void)
-{
-    return input_real;
-}
-
 bool db_deck_input_from_deck(void)
 {
     return input_from_deck;
