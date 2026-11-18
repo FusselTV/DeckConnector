@@ -206,6 +206,8 @@ static endpoint_t *child(uint16_t id, endpoint_t *parent)
                                        f::momentary_switch_long_press::get_id() |
                                        f::momentary_switch_multi_press::get_id();
     cfg.switch_cluster.features.momentary_switch_multi_press.multi_press_max = DB_SW_MAX;
+    /* add() leaves out the descriptor, without which a controller sees no endpoint */
+    cluster::descriptor::create(ep, &cfg.descriptor, CLUSTER_FLAG_SERVER);
     endpoint::generic_switch::add(ep, &cfg);
     endpoint::set_parent_endpoint(ep, parent);
     endpoint::enable(ep);
@@ -254,6 +256,7 @@ static void build(int slot, bool reachable)
     strlcpy(cfg.bridged_device_basic_information.unique_id, k->id.serial,
             sizeof(cfg.bridged_device_basic_information.unique_id));
     cfg.bridged_device_basic_information.reachable = reachable;
+    cluster::descriptor::create(n, &cfg.descriptor, CLUSTER_FLAG_SERVER);
     endpoint::bridged_node::add(n, &cfg);
     cluster_t *info = cluster::get(n, BridgedDeviceBasicInformation::Id);
     char label[48];
