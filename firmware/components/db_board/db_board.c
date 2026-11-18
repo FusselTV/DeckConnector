@@ -15,6 +15,7 @@ static const db_board_t board = {
                 .bclk_gpio = 12,
                 .ws_gpio = 10,
                 .dout_gpio = 9,
+                .din_gpio = 11,
                 .pa_gpio = 53},
 };
 #else

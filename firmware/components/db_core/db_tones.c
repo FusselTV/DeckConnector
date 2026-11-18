@@ -54,3 +54,22 @@ size_t db_tones_render(db_sound_t sound, int volume, int rate, int16_t *out, siz
     }
     return at;
 }
+
+float db_tones_level(const int16_t *s, size_t n, size_t stride, int hz, int rate)
+{
+    float c = 2.0F * cosf(2.0F * (float)M_PI * (float)hz / (float)rate);
+    float s1 = 0;
+    float s2 = 0;
+    size_t count = 0;
+    for (size_t i = 0; i < n; i += stride, count++) {
+        float s0 = (float)s[i] + c * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    return count ? (s1 * s1 + s2 * s2 - c * s1 * s2) / (float)count : 0;
+}
+
+bool db_tones_heard(float tone, float other, float silent, float amp_off)
+{
+    return tone > 10 * other && tone > 10 * silent && tone > 10 * amp_off;
+}

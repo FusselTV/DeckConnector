@@ -60,10 +60,35 @@ static void test_volume_scales_and_zero_is_silent(void)
     TEST_ASSERT_EQUAL_INT16(0, loud[0] / 2000); /* starts soft: no click */
 }
 
+static void test_level_finds_the_pitch_in_one_channel(void)
+{
+    static int16_t lr[RATE * 2], mono[RATE];
+    size_t n = db_tones_render(DB_SOUND_FIND, 100, RATE, mono, RATE);
+    for (size_t i = 0; i < n; i++) {
+        lr[2 * i] = mono[i];
+        lr[2 * i + 1] = (int16_t)(i % 7 * 100);
+    }
+    float tone = db_tones_level(lr, 2 * n, 2, 2093, RATE);
+    TEST_ASSERT_TRUE(tone > 1000 * db_tones_level(lr, 2 * n, 2, 1500, RATE));
+    TEST_ASSERT_TRUE(tone > 1000 * db_tones_level(lr + 1, 2 * n - 1, 2, 2093, RATE));
+    TEST_ASSERT_EQUAL_FLOAT(0, db_tones_level(lr, 0, 2, 2093, RATE));
+}
+
+static void test_heard_needs_every_control_quiet(void)
+{
+    TEST_ASSERT_TRUE(db_tones_heard(1000, 50, 50, 50));
+    TEST_ASSERT_FALSE(db_tones_heard(1000, 200, 50, 50));
+    TEST_ASSERT_FALSE(db_tones_heard(1000, 50, 200, 50));
+    TEST_ASSERT_FALSE(db_tones_heard(1000, 50, 50, 200));
+    TEST_ASSERT_FALSE(db_tones_heard(0, 0, 0, 0));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_each_sound_has_its_pitch_and_length);
     RUN_TEST(test_volume_scales_and_zero_is_silent);
+    RUN_TEST(test_level_finds_the_pitch_in_one_channel);
+    RUN_TEST(test_heard_needs_every_control_quiet);
     return UNITY_END();
 }

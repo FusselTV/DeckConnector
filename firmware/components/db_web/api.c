@@ -1332,6 +1332,38 @@ esp_err_t post_sound(httpd_req_t *req)
                          : send_error(req, "503 Service Unavailable", "busy");
 }
 
+/* POST /api/sound/selftest {"volume": 60, "gain": 24}: Find through the speaker and back in through the
+ * board's microphone, see db_audio_check. */
+esp_err_t post_sound_selftest(httpd_req_t *req)
+{
+    char body[64];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, "volume");
+    const cJSON *g = cJSON_GetObjectItemCaseSensitive(root, "gain");
+    int volume = cJSON_IsNumber(v) ? v->valueint : 60;
+    int gain = cJSON_IsNumber(g) ? g->valueint : 24;
+    cJSON_Delete(root);
+    if (volume < 1 || volume > 100 || gain < 0 || gain > 42) {
+        return send_error(req, "400 Bad Request", "volume: 1 to 100; gain: 0 to 42 dB");
+    }
+    db_audio_check_t c;
+    esp_err_t err = db_audio_check(volume, gain, &c);
+    if (err == ESP_ERR_NOT_SUPPORTED) {
+        return send_error(req, "409 Conflict", "this board has no speaker");
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "503 Service Unavailable", err == ESP_ERR_TIMEOUT ? "busy" : "no codec");
+    }
+    char out[384];
+    snprintf(out, sizeof(out),
+             "{\"heard\":%s,\"hz\":%d,\"other_hz\":%d,\"volume\":%d,\"gain\":%d,\"mic\":{\"tone\":%.0f,"
+             "\"other\":%.0f,\"silent\":%.0f,\"amp_off\":%.0f},\"dac\":{\"tone\":%.0f,\"silent\":%.0f,"
+             "\"amp_off\":%.0f}}",
+             c.heard ? "true" : "false", DB_AUDIO_CHECK_HZ, DB_AUDIO_CHECK_OTHER_HZ, volume, gain, c.mic[0],
+             c.other, c.mic[1], c.mic[2], c.dac[0], c.dac[1], c.dac[2]);
+    return send_json(req, out);
+}
+
 esp_err_t post_reboot(httpd_req_t *req)
 {
     send_json(req, "{\"ok\":true}");
