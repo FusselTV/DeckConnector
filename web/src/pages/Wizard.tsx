@@ -50,7 +50,7 @@ import {
   wsUrlError,
 } from '../lib/validate'
 import { companionError, findCompanion, worst } from '../lib/companion'
-import { chordHl, chordSentence } from '../deck/chord'
+import { chordSentence } from '../deck/chord'
 import { EMPTY, joinText, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
 
@@ -163,12 +163,11 @@ export function Wizard() {
   const pwE = passwordError(pw)
   const where = reachList(st, !!cfg?.https_only, name || (cfg?.name ?? ''))
   const hold = (cfg?.menu_hold_ms ?? 2000) / 1000
-  const d0 = decks.at(0)
-  const screen = !d0 || hasScreen(d0)
+  const d0 = decks.find(hasScreen)
+  const screen = !decks.length || !!d0
   const chord = cfg?.menu_chord ?? 'auto'
   const menuHow = d0 && screen ? chordSentence(t, chord, MODELS[d0.kind], fmt.dec(hold), d0) : ''
-  const hl = d0 && chordHl(chord, MODELS[d0.kind], d0)
-  const menuOnDeck = !!menuHow && !!hl && hl.keys.length + hl.dials.length > 0
+  const menuOnDeck = !!menuHow && menuHow !== t('chord.s_off')
 
   const found = useFound(step === 'src' && src === 'comp')
   // While the app path waits, the status shows a pairing request as soon as the app asks.

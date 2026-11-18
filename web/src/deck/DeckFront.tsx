@@ -3,7 +3,7 @@ import { Fragment, memo, useEffect, useRef, useState, type CSSProperties, type P
 import type { InputBody, InputEvent, Rect, Screen } from '../api/types'
 import { useUi } from '../app/ui'
 import { cx, useLatest } from '../lib/util'
-import { MODELS, type ModelKey } from './models'
+import { MODELS, stripKeyInput, type ModelKey } from './models'
 
 type Hit = 'web' | 'deck'
 const mm = (o: { x: number; y: number; w: number; h: number }): CSSProperties => ({
@@ -317,11 +317,10 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   const touch = p.screen?.touch[0]
   const [z0, zn] = [p.screen?.keys[nk], p.screen?.keys[nk + zones - 1]]
   const stripRect = zk && z0 && zn ? { ...z0, w: zn.x + zn.w - z0.x } : touch
-  // A strip of keys has no points to send: a zone is its key, a swipe turns the encoder after the dials.
   const zoneSend = (z: number, dir: number) => {
     if (blocked()) return
     flash(`z${z}`, 'web')
-    send(dir ? { encoder: M.dials?.n ?? 0, action: 'turn', ticks: dir } : { key: nk + z })
+    send(stripKeyInput(M, z, dir))
   }
   // Without the strip's place in the picture there is no point to send that the firmware would take.
   const stripPt = (fx: number): [number, number] =>

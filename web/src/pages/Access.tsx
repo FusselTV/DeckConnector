@@ -443,7 +443,7 @@ export function Access() {
               />
             </Field>
           </div>
-          {cfg && !(decks.length && !decks.some(hasScreen)) && (
+          {cfg && (!decks.length || decks.some(hasScreen)) && (
             <Switch
               id="qr-login"
               on={cfg.qr_login}

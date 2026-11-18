@@ -167,7 +167,8 @@ def _pin_from_the_web(sim, companion) -> None:
     assert sim.api("POST", "/api/input", {"pin": 4, "real": real})[0] == 409, "a digit went out unlocked"
     companion.send(f'LOCKED-STATE DEVICEID="{companion.devices[0]}" LOCKED=1 CHARACTER_COUNT=0 ROTATION=0')
     assert sim.wait(lambda: sim.status()["decks"][0]["locked"], 5)
-    assert sim.api("POST", "/api/input", {"pin": 4})[0] == 409
+    assert sim.api("POST", "/api/input", {"pin": 4})[0] == 400
+    assert sim.api("POST", "/api/input", {"pin": -2, "real": real})[0] == 400
     assert sim.api("POST", "/api/input", {"pin": 4, "real": "192.0.2.1"})[0] == 409
     assert sim.api("POST", "/api/input", {"pin": 10, "real": real})[0] == 400
     assert sim.api("POST", "/api/input", {"pin": 4, "real": real})[0] == 200

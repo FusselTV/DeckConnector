@@ -32,6 +32,7 @@ def test_the_deck_comes_up_and_shows_the_ui(start, model):
     assert (deck["model"], deck["keys"], deck["encoders"]) == (name, keys, encoders)
     assert deck["dock"] == model.startswith(("original", "mk2", "xl", "mini", "neo", "plus", "pedal", "module"))
     if model == "pedal":
+        assert deck["width"] == 0  # the web page hides everything the deck would show by this
         code, body = sim.api("GET", f"/api/screen.jpg?deck={deck['serial']}")
         assert code == 404, body
         return

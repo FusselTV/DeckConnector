@@ -1,3 +1,5 @@
+import type { InputBody } from '../api/types'
+
 // Fronts in real millimetres; --mm (px per mm) comes from the container width.
 // Stream Deck +: measured on a real deck and Elgato renders. + XL: SimDeck.
 // MK.2, XL, Mini, Neo, Pedal, N4: retail outer sizes, grids and native key sizes estimated.
@@ -176,6 +178,10 @@ export const MODELS: Record<ModelKey, Model> = {
     mark: { y: 5 },
   },
 }
+
+/** What a zone of a strip of keys sends: its key, or for a swipe a turn of the encoder after the dials. */
+export const stripKeyInput = (M: Model, z: number, dir: number): InputBody =>
+  dir ? { encoder: M.dials?.n ?? 0, action: 'turn', ticks: dir } : { key: M.cols * M.rows + z }
 
 export function modelOf(name = '', keys?: number): ModelKey {
   const n = name.toLowerCase()

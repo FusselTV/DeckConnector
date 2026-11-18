@@ -504,7 +504,7 @@ const LiveDeck = memo(function LiveDeck() {
   )
 })
 
-// Phone order, 0 under 8. No delete: Companion clears a wrong entry once it is as long as the PIN.
+// No delete: Companion clears a wrong entry once it is as long as the PIN.
 function PinPad({ deck, serial }: { deck: Deck; serial?: string }) {
   const { t, act } = useUi()
   return (
@@ -518,7 +518,14 @@ function PinPad({ deck, serial }: { deck: Deck; serial?: string }) {
       </p>
       <div className="pinkeys">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((n) => (
-          <button key={n} type="button" className="btn" onClick={() => void act(() => pressReal({ pin: n }, serial))}>
+          <button
+            key={n}
+            type="button"
+            className="btn"
+            onClick={() => {
+              pressChain = pressChain.then(() => act(() => pressReal({ pin: n }, serial)))
+            }}
+          >
             {n}
           </button>
         ))}

@@ -28,8 +28,7 @@ const char *db_satellite_probe(const char *addr, const char *pin_hex, char *vers
 uint32_t db_satellite_resolved(void);
 /* Companion locked `deck` with its PIN. */
 bool db_satellite_locked(int deck, db_sat_pin_t *out);
-/* One PIN digit for a locked `deck`. `real` and `only_ip` as for db_deck_simulate: without them it goes
- * nowhere. False when the digit was not sent. */
+/* One PIN digit for a locked `deck`. Needs `real`; `only_ip` 0 or Companion's address. False when refused. */
 bool db_satellite_pincode(int deck, int digit, bool real, uint32_t only_ip);
 /* Companion's IPv4 address in network order while connected, else 0. */
 uint32_t db_satellite_peer(void);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MODELS, modelOf } from './models'
+import { MODELS, modelOf, stripKeyInput } from './models'
 
 describe('modelOf', () => {
   it('maps the names the firmware reports', () => {
@@ -22,5 +22,12 @@ describe('modelOf', () => {
       expect(m.x0 + (m.cols - 1) * m.px + m.k, k).toBeLessThanOrEqual(m.W)
       expect(m.y0 + (m.rows - 1) * m.py + m.k, k).toBeLessThanOrEqual(m.H)
     }
+  })
+})
+
+describe('stripKeyInput', () => {
+  it('sends the N4 strip zones as keys 11 to 14 and a swipe as the fifth encoder, as its driver numbers them', () => {
+    expect(stripKeyInput(MODELS.n4, 2, 0)).toEqual({ key: 12 })
+    expect(stripKeyInput(MODELS.n4, 0, -1)).toEqual({ encoder: 4, action: 'turn', ticks: -1 })
   })
 })
