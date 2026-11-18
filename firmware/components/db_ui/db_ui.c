@@ -280,6 +280,7 @@ static char login_token[17];
 static int64_t login_made;
 static uint8_t setup_step;
 static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_mux */
+static char ca_fp[20];                                           /* under login_mux */
 #if CONFIG_DB_MATTER
 #define MATTER_US 60000000
 static int64_t matter_until, matter_asked; /* under login_mux */
@@ -472,6 +473,9 @@ static void model(int deck, ui_model_t *md)
         md->brightness = u->before; /* the deck shows at least 20 %, the number stays what it had */
     }
     md->show_pass = md->now_us < until(&pass_until);
+    portENTER_CRITICAL(&login_mux);
+    strcpy(md->ca_fp, ca_fp);
+    portEXIT_CRITICAL(&login_mux);
 #if CONFIG_DB_MATTER
     md->show_matter = md->now_us < until(&matter_until);
     if (md->show_matter) {
@@ -1365,11 +1369,24 @@ int db_ui_show_password(void)
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         n += decks[d].present;
     }
+    portENTER_CRITICAL(&login_mux);
+    ca_fp[0] = '\0';
+    portEXIT_CRITICAL(&login_mux);
     if (n && start_page(&pass_asked, &pass_until, PASSWORD_US)) {
         ESP_LOGI(TAG, "web password shown on the decks");
         changed();
     }
     return n;
+}
+
+void db_ui_show_ca(const char *fingerprint)
+{
+    portENTER_CRITICAL(&login_mux);
+    strlcpy(ca_fp, fingerprint, sizeof(ca_fp));
+    portEXIT_CRITICAL(&login_mux);
+    if (start_page(&pass_asked, &pass_until, PASSWORD_US)) {
+        changed();
+    }
 }
 
 esp_err_t db_ui_factory_reset(void)

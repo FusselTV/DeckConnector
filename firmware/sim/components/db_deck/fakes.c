@@ -338,6 +338,11 @@ int db_ui_show_password(void)
     return decks();
 }
 
+void db_ui_show_ca(const char *fingerprint)
+{
+    pass_until = esp_timer_get_time() + 30000000;
+}
+
 esp_err_t db_ui_factory_reset(void)
 {
     return db_config_reset();

@@ -31,6 +31,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
+    db_json_str(&j, "https_ca", db_web_ca_short());
     db_json_int(&j, "uptime_s", 0);
     db_json_obj_open(&j, "setup");
     db_json_bool(&j, "active", !db_config()->setup_done || db_web_setup_step());

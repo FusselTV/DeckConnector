@@ -25,6 +25,8 @@ const char *db_web_fingerprint(void);
 int db_web_temp_c(void);
 /* HTTPS serves an uploaded certificate, not its own. */
 bool db_web_cert_custom(void);
+/* The device CA's short fingerprint, "1A2B 3C4D 5E6F 7A8B", which the deck shows when it is downloaded. */
+const char *db_web_ca_short(void);
 /* An uploaded certificate is kept but could not be read at this start (memory, flash): the own one serves. */
 bool db_web_cert_unread(void);
 
