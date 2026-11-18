@@ -37,6 +37,7 @@ def test_a_host_at_0_with_the_setting_at_0_lights_to_50_and_saves_nothing(start,
     dismiss_prompt(sim)
     dev = satellite(sim, companion)
     sim.config(brightness=0)
+    time.sleep(0.5)  # the wake level follows the setting on the next UI tick (200 ms)
     companion.send(f'BRIGHTNESS DEVICEID="{dev}" VALUE=0')
     assert sim.wait(lambda: brightness(sim) == "0", 5), brightness(sim)
     sim.tap(0, 4)
