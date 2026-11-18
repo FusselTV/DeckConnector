@@ -5,7 +5,6 @@ import base64
 import contextlib
 import io
 import json
-import socketserver
 import threading
 import time
 
@@ -16,43 +15,15 @@ from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 from dbtools.safety import real_input_target
+from dbtools.satfake import FakeSatellite
 from dbtools.server import local_ip
 
 PORT = 16700
 
 
-class Fake(socketserver.StreamRequestHandler):
-    def handle(self):
-        srv = self.server
-        srv.conn = self.connection
-        self.wfile.write(b"BEGIN CompanionVersion=fake ApiVersion=1.16.0\nCAPS BITMAP_FORMATS=rgb ROTARY_AMOUNT=1\n")
-        for raw in self.rfile:
-            line = raw.decode().strip()
-            srv.lines.append(line)
-            cmd = line.split(" ", 1)[0]
-            if cmd == "ADD-DEVICE":
-                dev = line.split('DEVICEID="', 1)[1].split('"', 1)[0]
-                srv.device = dev
-                self.wfile.write(f'ADD-DEVICE OK DEVICEID="{dev}"\n'.encode())
-            elif cmd == "PING":
-                self.wfile.write(b"PONG\n")
-            elif cmd == "PINCODE-KEY":
-                self.wfile.write(f'PINCODE-KEY OK DEVICEID="{srv.device}"\n'.encode())
-
-    def finish(self):
-        self.server.conn = None
-
-
-class Server(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True  # read while binding: set on the instance it comes too late
-    daemon_threads = True
-
-
 @pytest.fixture
 def fake():
-    srv = Server(("0.0.0.0", PORT), Fake)
-    srv.lines, srv.device, srv.conn = [], None, None
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    srv = FakeSatellite(PORT)
     cfg = json.loads(api("GET", "/api/config")[1])
     put_config({"satellite": f"{local_ip()}:{PORT}", "controller": "companion", "host": "satellite"})
     try:
@@ -77,12 +48,8 @@ def drawing() -> bool:
     return any(x.get("via") == "satellite" and x["drawing"] for x in status()["sources"])
 
 
-def send(srv, line: str) -> None:
-    srv.conn.sendall(line.encode() + b"\n")
-
-
 def key_state(srv, rgb: bytes) -> None:
-    send(srv, f'KEY-STATE DEVICEID="{srv.device}" CONTROLID="0/0" BITMAP="{base64.b64encode(rgb).decode()}"')
+    srv.send(f'KEY-STATE DEVICEID="{srv.device}" CONTROLID="0/0" BITMAP="{base64.b64encode(rgb).decode()}"')
 
 
 def key0_color() -> tuple:
@@ -98,7 +65,7 @@ def test_pictures_draw_and_bad_ones_do_not_end_the_session(fake):
     key_state(fake, bytes([220, 20, 20]) * 120 * 120)
     assert wait(lambda: reddish(key0_color()), 5), "the red picture did not reach key 0"
     key_state(fake, b"\x01\x02\x03")  # far too short for a 120x120 key
-    send(fake, f'KEY-STATE DEVICEID="{fake.device}" CONTROLID="0/0" BITMAP="!!not base64!!"')
+    fake.send(f'KEY-STATE DEVICEID="{fake.device}" CONTROLID="0/0" BITMAP="!!not base64!!"')
     key_state(fake, bytes([20, 20, 220]) * 120 * 120)
     assert wait(lambda: key0_color()[2] > 180, 5), "a bad picture ended the session or stuck the deck"
     assert drawing()
@@ -121,7 +88,7 @@ def test_only_presses_bound_to_this_host_reach_satellite(fake):
 
 
 def locked(srv, count: int, on: int = 1) -> None:
-    send(srv, f'LOCKED-STATE DEVICEID="{srv.device}" LOCKED={on} CHARACTER_COUNT={count} ROTATION=0')
+    srv.send(f'LOCKED-STATE DEVICEID="{srv.device}" LOCKED={on} CHARACTER_COUNT={count} ROTATION=0')
 
 
 def pins(srv) -> list:

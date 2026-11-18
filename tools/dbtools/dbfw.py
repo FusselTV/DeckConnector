@@ -27,10 +27,17 @@ OTA_C = PUBKEY_C.with_name("db_ota.c")
 PAGE = OTA_C.parents[3] / "web/dist/index.html"
 
 
+def define(c_source: str, name: str) -> int:
+    m = re.search(rf"#define {name} (\d+)", c_source)
+    if not m:
+        raise ValueError(f"no #define {name}")
+    return int(m[1])
+
+
 def web_api() -> int:
     """The API version of the firmware in this tree: a page packed here needs at least that one."""
     text = (OTA_C.parents[1] / "db_web/include/db_web.h").read_text()
-    return int(re.search(r"#define DB_WEB_API (\d+)", text)[1])
+    return define(text, "DB_WEB_API")
 
 
 def web_image(key) -> bytes:
@@ -48,7 +55,7 @@ def web_image(key) -> bytes:
 
 
 def security_level() -> int:
-    return int(re.search(r"#define SECURITY_LEVEL (\d+)", OTA_C.read_text())[1])
+    return define(OTA_C.read_text(), "SECURITY_LEVEL")
 
 
 def keygen(_args) -> None:

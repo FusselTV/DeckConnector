@@ -102,30 +102,18 @@ async def main_async(a) -> None:
     auth = basic_auth()
     c = Client(a.host, auth)
 
-    def send(method: str, path: str, body: dict | None = None) -> None:
-        c.get("/api/status")
-        c.conn.request(
-            method,
-            path,
-            body=json.dumps(body) if body else None,
-            headers={"Authorization": auth, "X-DeckConnector": "1"},
-        )
-        r = c.conn.getresponse()
-        reply = r.read()
-        if r.status != 200:
-            raise RuntimeError(f"{method} {path} refused: {r.status} {reply[:200]!r}")
-
     cfg = json.loads(c.get("/api/config")[2])
     server = Server(8765, "soak", ping=False)
     samples = []
     failures: list[str] = []
     async with contextlib.AsyncExitStack() as undo:  # runs every step back, also when one of them fails
         undo.push_async_callback(server.stop)
-        undo.callback(send, "POST", "/api/dock", {"pairing": 0})
-        undo.callback(send, "PUT", "/api/config", {**settings_to_restore(cfg), "servers": cfg["servers"]})
+        restore = {**settings_to_restore(cfg), "servers": cfg["servers"]}
+        undo.callback(lambda: c.send("POST", "/api/dock", {"pairing": 0}))  # c: the client of the last round
+        undo.callback(lambda: c.send("PUT", "/api/config", restore))
         await server.start()
-        send("PUT", "/api/config", {"controller": "server", "host": server.url, "servers": [server.url]})
-        send("POST", "/api/dock", {"pairing": int(a.minutes * 60) + 60})  # its dock churn comes from a new host
+        c.send("PUT", "/api/config", {"controller": "server", "host": server.url, "servers": [server.url]})
+        c.send("POST", "/api/dock", {"pairing": int(a.minutes * 60) + 60})  # its dock churn comes from a new host
         bridge = await server.wait_bridge(60)
         start = time.time()
         n = 0
@@ -145,7 +133,7 @@ async def main_async(a) -> None:
                 print(f"round {n} failed: {type(e).__name__} at {where}", flush=True)
                 c = Client(a.host, auth)
             if n % 5 == 0:
-                await asyncio.to_thread(send, "POST", "/api/deck/reconnect")
+                await asyncio.to_thread(c.send, "POST", "/api/deck/reconnect")
                 await asyncio.sleep(3)
             m = json.loads(c.get("/api/status")[2])["memory"]
             samples.append((time.time() - start, m))

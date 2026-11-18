@@ -4,10 +4,13 @@ import asyncio
 import contextlib
 import json
 import socket
+import ssl
 import time
 
 import websockets
+from websockets.asyncio.server import Server as WsServer
 from websockets.asyncio.server import ServerConnection, serve
+from websockets.typing import Subprotocol
 from zeroconf import IPVersion
 from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
 
@@ -49,7 +52,7 @@ class Bridge:
         self._seq = (self._seq + 1) & 0xFFFFFFFF
         return self._seq
 
-    async def post_image(self, rect: tuple, jpeg: bytes, display: int = 0) -> asyncio.Future:
+    async def post_image(self, rect: tuple[int, int, int, int], jpeg: bytes, display: int = 0) -> asyncio.Future:
         """Send without waiting. The future resolves with the Ack."""
         seq = self.next_seq()
         fut = asyncio.get_running_loop().create_future()
@@ -57,13 +60,15 @@ class Bridge:
         await self.ws.send(p.image(display, *rect, seq, jpeg))
         return fut
 
-    async def send_image(self, rect, jpeg: bytes, display: int = 0, timeout: float = 5) -> p.Ack:
+    async def send_image(
+        self, rect: tuple[int, int, int, int], jpeg: bytes, display: int = 0, timeout: float = 5
+    ) -> p.Ack:
         fut = await self.post_image(rect, jpeg, display)
         return await asyncio.wait_for(fut, timeout)
 
     async def clock_offset(self, rounds: int = 20) -> int:
         """Bridge clock minus server clock in microseconds, from the round trip with the smallest delay."""
-        best = None
+        best: tuple[int, int] | None = None
         for _ in range(rounds):
             self._time = asyncio.get_running_loop().create_future()
             sent = now_us()
@@ -73,6 +78,7 @@ class Bridge:
             if best is None or back - sent < best[0]:
                 best = (back - sent, bridge - (sent + back) // 2)
             await asyncio.sleep(0.005)
+        assert best is not None
         return best[1]
 
     async def send_json(self, msg: dict) -> None:
@@ -120,10 +126,9 @@ class Bridge:
                     fut.set_exception(ConnectionError("bridge disconnected"))
 
 
-def self_signed():
+def self_signed() -> tuple[ssl.SSLContext, str]:
     """An SSL context with a new P-256 certificate, and that certificate's SHA-256 in hex."""
     import datetime
-    import ssl
     import tempfile
 
     from cryptography import x509
@@ -175,16 +180,19 @@ class Server:
         self.ping = ping
         self.bridges: dict[str, Bridge] = {}
         self.connected: asyncio.Queue[Bridge] = asyncio.Queue()
-        self._server = None
+        self._server: WsServer | None = None
         self._zc: AsyncZeroconf | None = None
-        self.ssl, self.fingerprint = self_signed() if tls else (None, "")
+        self.ssl: ssl.SSLContext | None = None
+        self.fingerprint = ""
+        if tls:
+            self.ssl, self.fingerprint = self_signed()
 
     @property
     def url(self) -> str:
         return f"{'wss' if self.ssl else 'ws'}://{local_ip()}:{self.port}/deckbridge"
 
     async def _handler(self, ws: ServerConnection) -> None:
-        if self.token and ws.request.headers.get("Authorization") != f"Bearer {self.token}":
+        if self.token and ws.request and ws.request.headers.get("Authorization") != f"Bearer {self.token}":
             await ws.close(4001, "bad token")
             return
         bridge = Bridge(ws)
@@ -209,7 +217,7 @@ class Server:
             self._handler,
             "0.0.0.0",
             self.port,
-            subprotocols=["deckconnector.v1"],
+            subprotocols=[Subprotocol("deckconnector.v1")],
             max_size=2**22,
             ping_interval=5 if self.ping else None,
             ping_timeout=15,

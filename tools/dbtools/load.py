@@ -56,24 +56,42 @@ class Client:
 
     def __init__(self, host: str, auth: str):
         self.host, self.auth = host, auth
-        self.conn = None
+        self.conn: http.client.HTTPConnection | None = None
 
     def get(self, path: str) -> tuple[int, float, bytes]:
+        return self.request("GET", path)
+
+    def request(self, method: str, path: str, body: dict | None = None) -> tuple[int, float, bytes]:
+        """Status, milliseconds and body; status 0 when the connection failed."""
+        headers = {"Authorization": self.auth}
+        if method != "GET":
+            headers["X-DeckConnector"] = "1"
+        data = json.dumps(body) if body is not None else None
         t = time.perf_counter()
-        for attempt in range(2):  # a connection the bridge closed in between gets one fresh try
+        for attempt in (1, 2):
+            reused = self.conn is not None
+            conn = self.conn = self.conn or http.client.HTTPConnection(self.host, timeout=10)
             try:
-                self.conn = self.conn or http.client.HTTPConnection(self.host, timeout=10)
-                self.conn.request("GET", path, headers={"Authorization": self.auth})
-                r = self.conn.getresponse()
-                body = r.read()
-                return r.status, (time.perf_counter() - t) * 1000, body
+                conn.request(method, path, data, headers)
+                r = conn.getresponse()
+                reply = r.read()
+                return r.status, (time.perf_counter() - t) * 1000, reply
             except (OSError, http.client.HTTPException) as e:
                 failed(type(e).__name__)
-                self.conn.close()
+                conn.close()
                 self.conn = None
-                if attempt:
+                # a keep-alive connection the bridge closed in between never delivered the request, so even a press
+                # gets one fresh try
+                stale = (http.client.RemoteDisconnected, ConnectionResetError, BrokenPipeError)
+                closed = reused and isinstance(e, stale)
+                if attempt == 2 or not (method == "GET" or closed):
                     return 0, (time.perf_counter() - t) * 1000, b""
         raise AssertionError
+
+    def send(self, method: str, path: str, body: dict | None = None) -> None:
+        status, _, reply = self.request(method, path, body)
+        if status != 200:
+            raise RuntimeError(f"{method} {path} refused: {status} {reply[:200]!r}")
 
 
 def quantiles(ms: list[float]) -> dict:
@@ -132,7 +150,7 @@ def hammer(host: str, auth: str, path: str, threads: int, secs: float) -> dict:
 
 def home_assistants(host: str, auth: str, count: int, secs: float) -> dict:
     """Each instance holds a web socket, polls the status every second and the camera every 2 seconds."""
-    stats = {"status": [], "camera": [], "errors": 0, "ws_msgs": 0, "ws_drops": 0}
+    stats: dict = {"status": [], "camera": [], "errors": 0, "ws_msgs": 0, "ws_drops": 0}
     lock = threading.Lock()
     end = time.time() + secs
 
@@ -204,22 +222,13 @@ async def drawing(host: str, auth: str, n: int) -> dict:
 
     c = Client(host, auth)
 
-    def send(method: str, path: str, body: dict) -> None:
-        if not c.conn:
-            c.get("/api/status")  # opens the keep-alive connection
-        c.conn.request(method, path, json.dumps(body), {"Authorization": auth, "X-DeckConnector": "1"})
-        r = c.conn.getresponse()
-        reply = r.read()
-        if r.status != 200:
-            raise RuntimeError(f"{path} refused: {r.status} {reply[:200]!r}")
-
     from .safety import require_input_gate, settings_to_restore
 
     require_input_gate(json.loads(c.get("/api/status")[2]))
     cfg = json.loads(c.get("/api/config")[2])
     server = await Server(8765, "load", ping=False).start()
     await asyncio.to_thread(c.get, "/api/status")
-    await asyncio.to_thread(send, "PUT", "/api/config", {"controller": "server", "host": server.url})
+    await asyncio.to_thread(c.send, "PUT", "/api/config", {"controller": "server", "host": server.url})
     try:
         bridge = await server.wait_bridge(60)
         for _ in range(100):
@@ -237,14 +246,14 @@ async def drawing(host: str, auth: str, n: int) -> dict:
         for _ in range(n):
             await asyncio.to_thread(c.get, "/api/status")  # a live connection, outside the timed part
             t = time.perf_counter()
-            await asyncio.to_thread(send, "POST", "/api/input", {"key": 3, "action": "down"})
+            await asyncio.to_thread(c.send, "POST", "/api/input", {"key": 3, "action": "down"})
             await asyncio.wait_for(bridge.inputs.get(), 5)
             press.append((time.perf_counter() - t) * 1000)
-            await asyncio.to_thread(send, "POST", "/api/input", {"key": 3, "action": "up"})
+            await asyncio.to_thread(c.send, "POST", "/api/input", {"key": 3, "action": "up"})
             await asyncio.wait_for(bridge.inputs.get(), 5)
     finally:
         await asyncio.to_thread(c.get, "/api/status")
-        await asyncio.to_thread(send, "PUT", "/api/config", settings_to_restore(cfg))
+        await asyncio.to_thread(c.send, "PUT", "/api/config", settings_to_restore(cfg))
         await server.stop()
     print(f"key image to USB done {summary(key, 0)}\ninput POST to server event {summary(press, 0)}")
     return {"key_image": quantiles(key), "input_event": quantiles(press)}
@@ -389,11 +398,11 @@ def main() -> None:
     run["size"] = firmware_size()
     run["firmware"] = s["firmware"]
     run["at"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    path = Path(a.json)
-    data = json.loads(path.read_text()) if path.exists() else {"runs": []}
+    out = Path(a.json)
+    data = json.loads(out.read_text()) if out.exists() else {"runs": []}
     data["runs"].append(run)
-    path.write_text(json.dumps(data, indent=1) + "\n")
-    print(f"\nadded run {len(data['runs'])} to {path}")
+    out.write_text(json.dumps(data, indent=1) + "\n")
+    print(f"\nadded run {len(data['runs'])} to {out}")
 
 
 if __name__ == "__main__":

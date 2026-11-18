@@ -58,7 +58,7 @@ def render(path: str, size: int, chars=None):
     font = ImageFont.truetype(path, size)
     glyphs, data = [], bytearray()
     for code, ch in chars or [(ord(c), c) for c in CHARS]:
-        left, top, right, bottom = font.getbbox(ch, anchor="ls")
+        left, top, right, bottom = map(int, font.getbbox(ch, anchor="ls"))
         w, h = max(0, right - left), max(0, bottom - top)
         img = Image.new("L", (max(w, 1), max(h, 1)), 0)
         ImageDraw.Draw(img).text((-left, -top), ch, font=font, fill=255, anchor="ls")
@@ -86,13 +86,14 @@ def main() -> None:
         '#include "font.h"',
         "",
     ]
-    jobs = [(name, path.format(condensed=condensed), size, None) for name, path, size in FONTS]
+    jobs: list[tuple[str, str, int, list | None]] = [
+        (name, path.format(condensed=condensed), size, None) for name, path, size in FONTS
+    ]
     jobs += [(n, ttf, size, icons) for n, size in ICON_FONTS]
     for name, path, size, chars in jobs:
         glyphs, data = render(path, size, chars)
         out.append(f"static const uint8_t {name}_bits[] = {{")
-        for i in range(0, len(data), 24):
-            out.append("    " + ", ".join(f"0x{b:02x}" for b in data[i : i + 24]) + ",")
+        out.extend("    " + ", ".join(f"0x{b:02x}" for b in data[i : i + 24]) + "," for i in range(0, len(data), 24))
         out.append("};")
         out.append(f"static const ui_glyph_t {name}_glyphs[] = {{")
         out += [f"    {{{c}, {w}, {h}, {x}, {y}, {a}, {o}}}," for c, w, h, x, y, a, o in glyphs]

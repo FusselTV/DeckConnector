@@ -46,5 +46,5 @@ def test_only_real_presses_reach_a_dock_host():
     finally:
         host.kill()
         put_config({"controller": cfg["controller"], "host": cfg["host"]})
-    seen = json.loads(re.search(r"^input (.*)$", out, re.M)[1])
+    seen = json.loads(re.search(r"^input (.*)$", out, re.MULTILINE)[1])
     assert seen.get("button-down") == 1, f"the dock host saw {seen}, expected only the one real press"
