@@ -465,7 +465,7 @@ export function status(s: Demo, now: number): Status {
     decks: [{ ...deck(s), slot: 0, number: 1, writer: w, brightness: c.brightness, locked: false }],
     decks_over_limit: 0,
     https_custom: s.tls,
-    https_ca: '7C2E 91A4 D06B 3F58',
+    https_ca: s.tls ? '' : '7C2E 91A4 D06B 3F58',
     network: {
       lan: { cable: true, dead: false, ip: lanIp(s) },
       wlan: {

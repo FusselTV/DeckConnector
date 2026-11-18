@@ -130,6 +130,7 @@ jobs:
       - run: cd web && npm ci && npx playwright install chromium && npm run build:demo
       - if: matrix.project == 'contract'
         run: |
+          (cd web && npx vite build) # the simulator embeds the page from web/dist
           docker pull -q "$IDF_IMAGE"
           # under the same path: the simulator opens its flash files at the path it was built in
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -w "$GITHUB_WORKSPACE" "$IDF_IMAGE" bash -c '
