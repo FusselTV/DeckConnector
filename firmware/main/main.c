@@ -432,7 +432,8 @@ static void sound_watch(void *arg)
         }
         return;
     }
-    bool host = db_ui_chosen_source() != DB_SOURCE_UI;
+    int first = db_deck_first();
+    bool host = first >= 0 && db_ui_chosen_source(first) != DB_SOURCE_UI;
     gone_s = host ? 0 : gone_s + 1;
     if (host && lost) {
         lost = false;
