@@ -18,7 +18,6 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -91,7 +90,8 @@ static void write_network(db_json_t *j, bool live)
     db_json_str(j, "ip", n.lan_up ? n.lan_ip : "");
     db_json_obj_close(j);
     db_json_obj_open(j, "wlan");
-    db_json_str(j, "ssid", db_config()->wifi_ssid);
+    db_json_str(j, "ssid", n.wlan_up ? n.wlan_ssid : db_config()->wifi_ssid);
+    db_json_bool(j, "backup", n.wlan_up && n.wlan_backup);
     db_json_str(j, "ip", n.wlan_up ? n.wlan_ip : "");
     db_json_str(j, "bssid", n.wlan_up ? n.wlan_bssid : "");
     db_json_int(j, "channel", n.wlan_up ? n.wlan_channel : 0);
@@ -249,10 +249,8 @@ static void write_status(db_json_t *j, bool live)
     db_deck_stats_t st;
     db_deck_stats(&st);
     const char *c6 = db_ota_c6_version();
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_BASE);
     char id[13];
-    snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    db_config_board_id(id);
     db_json_str(j, "id", id); /* stable, unlike the name: for Home Assistant's unique_id */
     db_json_str(j, "https_fingerprint", db_web_fingerprint());
     db_json_bool(j, "https_custom", db_web_cert_custom());
@@ -280,6 +278,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_str(j, "writer", db_deck_source_name(first >= 0 ? db_deck_writer(first) : DB_SOURCE_UI));
     db_json_bool(j, "menu_open", db_ui_menu_open());
     db_json_bool(j, "screen_off", db_deck_screen_is_off());
+    db_json_int(j, "brightness", db_config()->brightness);
     write_device(j);
     write_network(j, live);
     write_sources(j, live);

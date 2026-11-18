@@ -62,6 +62,13 @@ bool db_config_screen_off_ok(long s)
     return s == 0 || (s >= 10 && s <= 86400);
 }
 
+void db_config_board_id(char out[13])
+{
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_BASE);
+    snprintf(out, 13, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 static void defaults(db_config_t *c)
 {
     uint8_t mac[6];
@@ -288,6 +295,8 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     ip_to_json(&j, "wlan", &cfg->wlan);
     db_json_str(&j, "wifi_ssid", cfg->wifi_ssid);
     db_json_bool(&j, "wifi_pass_set", cfg->wifi_pass[0] != '\0');
+    db_json_str(&j, "wifi2_ssid", cfg->wifi2_ssid);
+    db_json_bool(&j, "wifi2_pass_set", cfg->wifi2_pass[0] != '\0');
     db_json_arr_open(&j, "servers");
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         db_json_str(&j, NULL, db_config_server_of(cfg, i));
@@ -314,6 +323,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
         db_json_str(&j, "wifi_pass", cfg->wifi_pass);
+        db_json_str(&j, "wifi2_pass", cfg->wifi2_pass);
         db_json_str(&j, "token", cfg->token);
     }
     db_json_obj_close(&j);
@@ -611,6 +621,8 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     bool ok = take_str(root, "name", cfg->name, sizeof(cfg->name), err, err_cap) &&
               take_str(root, "wifi_ssid", cfg->wifi_ssid, sizeof(cfg->wifi_ssid), err, err_cap) &&
               take_str(root, "wifi_pass", cfg->wifi_pass, sizeof(cfg->wifi_pass), err, err_cap) &&
+              take_str(root, "wifi2_ssid", cfg->wifi2_ssid, sizeof(cfg->wifi2_ssid), err, err_cap) &&
+              take_str(root, "wifi2_pass", cfg->wifi2_pass, sizeof(cfg->wifi2_pass), err, err_cap) &&
               take_str(root, "token", cfg->token, sizeof(cfg->token), err, err_cap) &&
               take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
               take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
@@ -635,6 +647,11 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
     if (ok && cJSON_GetObjectItemCaseSensitive(root, "wifi_pass") &&
         !db_config_wifi_pass_ok(cfg->wifi_pass)) {
         snprintf(err, err_cap, "wifi_pass: 8 to 63 characters, 64 hex digits, or empty for an open network");
+        ok = false;
+    }
+    if (ok && cJSON_GetObjectItemCaseSensitive(root, "wifi2_pass") &&
+        !db_config_wifi_pass_ok(cfg->wifi2_pass)) {
+        snprintf(err, err_cap, "wifi2_pass: 8 to 63 characters, 64 hex digits, or empty for an open network");
         ok = false;
     }
     bool url = strncmp(cfg->satellite, "ws://", 5) == 0 || strncmp(cfg->satellite, "wss://", 6) == 0;

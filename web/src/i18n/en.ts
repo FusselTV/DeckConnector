@@ -557,6 +557,13 @@ export const en = {
   'wifi.open': 'open',
   'wifi.none': 'No network found.',
   'wifi.hidden': 'Hidden network…',
+  'wifi2.title': 'Backup Wi-Fi',
+  'wifi2.help': 'The connector joins it when the first Wi-Fi fails, and goes back once that one is in reach again.',
+  'wifi2.remove': 'Remove backup Wi-Fi',
+  'wifi2.in_use': 'backup',
+  'wifi2.remove_t': 'Remove the backup Wi-Fi?',
+  'wifi2.remove_b':
+    'The connector is on the backup Wi-Fi now and then moves to the Wi-Fi {s}. If that is not in reach, you can only reach it over the cable.',
   'src.table': 'Configured sources',
   'src.empty': 'No source set up yet.',
   'src.add': 'Add source',

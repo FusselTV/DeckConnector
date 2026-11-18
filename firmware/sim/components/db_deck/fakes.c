@@ -491,6 +491,10 @@ esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid
     return ESP_OK;
 }
 
+void db_net_wifi_backup_changed(void)
+{
+}
+
 /* metrics.c reads task and image statistics the host does not have: same keys, no samples, no image. */
 void metrics_start(void)
 {
