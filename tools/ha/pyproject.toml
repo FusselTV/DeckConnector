@@ -1,7 +1,7 @@
 [project]
 name = "deckconnector-ha-tests"
 version = "0"
-requires-python = ">=3.14"
+requires-python = ">=3.14.2"
 dependencies = ["pytest-homeassistant-custom-component", "PyTurboJPEG", "pytest-cov", "mypy"]
 
 [tool.pytest.ini_options]
