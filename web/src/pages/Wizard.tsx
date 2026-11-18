@@ -38,7 +38,7 @@ import { WifiPicker, type WifiChoice } from '../components/WifiPicker'
 import { Logo } from '../deck/DeckFront'
 import { MODELS } from '../deck/models'
 import type { TKey } from '../i18n'
-import { roam, ss, useLatest } from '../lib/util'
+import { docsPage, roam, ss, useLatest } from '../lib/util'
 import {
   ipErrors,
   nameError,
@@ -159,7 +159,6 @@ export function Wizard() {
   const [url, setUrl] = useState('')
   const [uPin, setUPin] = useState('')
   const [uErr, setUErr] = useState<string | null>(null)
-  const [srcErr, setSrcErr] = useState<string | null>(null)
   const [waitS, setWaitS] = useState(0)
   const pwE = passwordError(pw)
   const where = reachList(st, !!cfg?.https_only, name || (cfg?.name ?? ''))
@@ -193,6 +192,14 @@ export function Wizard() {
     if (r !== null) setWErr(joinText(t, r))
     return r === null
   }
+  // Once, on the first setup: a rerun keeps what the deck was set to, and so does a later change on the deck.
+  const langSent = useRef(rerun)
+  const cfgLang = cfg?.lang
+  useEffect(() => {
+    if (!cfgLang || langSent.current) return
+    langSent.current = true
+    if (cfgLang !== lang) void api.putConfig({ lang }).then(refreshConfig, () => undefined)
+  }, [cfgLang, lang])
   const nextLang = () => {
     // the deck's screens follow at once; no refresh, whose status would still name the language step
     if (cfg?.lang !== lang) void act(() => api.putConfig({ lang }))
@@ -541,7 +548,7 @@ export function Wizard() {
             icon={Monitor}
             label={t('prog.app')}
             hint={t(noApp ? 'src.app_elgato' : 'wiz.p_app_h')}
-            onPick={() => (setSrc('app'), setSrcErr(null))}
+            onPick={() => setSrc('app')}
           />
           <Choice
             on={src === 'comp'}
@@ -549,14 +556,14 @@ export function Wizard() {
             icon={Radio}
             label={t('wiz.p_comp')}
             hint={t('wiz.p_comp_h')}
-            onPick={() => (setSrc('comp'), setSrcErr(null))}
+            onPick={() => setSrc('comp')}
           />
           <Choice
             on={src === 'srv'}
             icon={Code}
             label={t('wiz.p_other')}
             hint={t('wiz.p_other_h')}
-            onPick={() => (setSrc('srv'), setSrcErr(null))}
+            onPick={() => setSrc('srv')}
           />
         </div>
         {src === 'app' && (
@@ -741,11 +748,6 @@ export function Wizard() {
             }}
           />
         )}
-        {srcErr && (
-          <p className="err" role="alert">
-            {srcErr}
-          </p>
-        )}
       </>,
       <>
         {backBtn}
@@ -753,7 +755,7 @@ export function Wizard() {
           <Btn kind="ghost" onClick={() => setStep('done')}>
             {t('wiz.src_later')}
           </Btn>
-          {next(t('c.next'), () => (drawer || linked ? setStep('done') : setSrcErr(t('wiz.pick_first'))))}
+          {next(t('c.next'), () => setStep('done'), undefined, !(drawer || linked))}
         </div>
       </>,
     )
@@ -796,6 +798,17 @@ export function Wizard() {
           </p>
         )}
         <p className="small muted">{t('wiz.https_hint')}</p>
+        <p className="small muted">
+          {t('wiz.ha_hint')}{' '}
+          <a
+            href={docsPage(lang, 'home-assistant')}
+            target="_blank"
+            rel="noreferrer"
+            style={{ textDecoration: 'underline' }}
+          >
+            {t('wiz.ha_link')}
+          </a>
+        </p>
       </>,
       <>
         {backBtn}

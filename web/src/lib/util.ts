@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
+import type { UpdateCheck } from '../api/types'
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ')
 
@@ -104,10 +105,22 @@ export function deviceLabel(ua: string) {
 export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
 
 export const REPO = 'https://github.com/FusselTV/DeckConnector'
-export const licensePage = (lang: string) => `https://deckconnector.com/${lang === 'de' ? 'de/' : ''}docs/license/`
+export const docsPage = (lang: string, page: string) =>
+  `https://deckconnector.com/${lang === 'de' ? 'de/' : ''}docs/${page}/`
 
 /** The source of a `git describe --tags --always --dirty` version; the repo itself for local changes. */
 export function sourceUrl(version?: string) {
   if (!version || version.endsWith('-dirty')) return REPO
   return `${REPO}/tree/${version.match(/-g([0-9a-f]{7,})$/)?.[1] ?? version}`
+}
+
+/** The other firmware image (standard or Matter) of the newest release, once the running one is not older. */
+export function otherImage(u: UpdateCheck, matter: boolean) {
+  const v = u.latest
+  if (!v || !(u.url || v === u.current) || !u.notes?.includes('/releases/tag/')) return null
+  // release.yml names them deckconnector-<tag>.dbfw and deckconnector-matter-<tag>.dbfw
+  return {
+    v,
+    url: `${u.notes.replace('/releases/tag/', '/releases/download/')}/deckconnector${matter ? '' : '-matter'}-${v}.dbfw`,
+  }
 }

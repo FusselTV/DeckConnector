@@ -149,7 +149,7 @@ test('a re-run over the network keeps it and still saves a new name and password
   await page.getByRole('button', { name: 'Next' }).click()
   await expect(page.getByText('The network stays as it is')).toBeVisible()
   await page.getByRole('button', { name: 'Save and restart' }).click()
-  await expect(page.locator('#wz-step')).toHaveText('Which program controls your deck?')
+  await expect(page.locator('#wz-step')).toHaveText('Which source controls your deck?')
   expect(puts).toEqual([{ name: 'studio-deck', admin_pass: 'newpass99' }])
   await page.unrouteAll({ behavior: 'ignoreErrors' })
   await page.waitForLoadState('networkidle')
@@ -166,7 +166,11 @@ test('with four servers stored, the wizard refuses a fifth instead of replacing 
   const servers = ['ws://a:1/x', 'ws://b:1/x', 'ws://c:1/x', 'ws://d:1/x']
   await page.route('**/api/input**', (r) => r.fulfill({ json: { ok: true } }))
   await page.route('**/api/config', async (r) => {
-    if (r.request().method() !== 'GET') return (puts.push(r.request().postDataJSON()), r.fallback())
+    if (r.request().method() !== 'GET') {
+      const body = r.request().postDataJSON() as object
+      if (Object.keys(body).join() !== 'lang') puts.push(body)
+      return r.fallback()
+    }
     const res = await r.fetch()
     await r.fulfill({ response: res, json: { ...((await res.json()) as object), servers } })
   })
@@ -174,7 +178,8 @@ test('with four servers stored, the wizard refuses a fifth instead of replacing 
   await sim('PUT', '/api/config', { setup_done: false })
   await page.goto('/')
   await login(page)
-  await expect(page.locator('#wz-step')).toHaveText('Which program controls your deck?')
+  await expect(page.locator('#wz-step')).toHaveText('Which source controls your deck?')
+  await expect(page.locator('.wizfoot .btn.pri')).toBeDisabled() // no source yet: only Later goes on
   await page.getByRole('radio', { name: /Own program/ }).click()
   await page.locator('#w-srv').fill('ws://e:1/x')
   await page.getByRole('button', { name: 'Connect' }).click()
