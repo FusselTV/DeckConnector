@@ -21,6 +21,8 @@ export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
 
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
 const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
+const CF_COOKIES = 'https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/'
+const CF_ANALYTICS = 'https://developers.cloudflare.com/web-analytics/'
 
 function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
   return (
@@ -95,6 +97,43 @@ export function Privacy({ lang }: { lang: Lang }) {
         (Art. 46 Abs. 2 lit. c DSGVO). Wie lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
       </p>
 
+      <h2>Schutz vor Bots und Cookies</h2>
+      <p>
+        Cloudflare prüft mit „Bot Fight Mode“, ob eine Anfrage von einem Menschen oder einem Programm kommt. Dazu fügt Cloudflare ein kleines Skript in die Seiten ein, das von dieser Website
+        geladen wird (Pfad <code>/cdn-cgi/challenge-platform/</code>) und in deinem Browser Merkmale prüft. Verdächtigen Anfragen zeigt Cloudflare eine Prüfseite oder lehnt sie ab.
+      </p>
+      <p>Dabei setzt Cloudflare diese Cookies für deckconnector.com:</p>
+      <ul>
+        <li>
+          <code>__cf_bm</code>: Daten zur Bewertung, ob ein Bot anfragt, verschlüsselt. Läuft nach 30 Minuten ohne Aktivität ab.
+        </li>
+        <li>
+          <code>cf_clearance</code>: das Ergebnis der Prüfung, damit sie nicht bei jeder Seite neu läuft. Läuft nach 30 Minuten ab.
+        </li>
+      </ul>
+      <p>
+        Laut Cloudflare enthalten die Cookies keine Kennung, die dich über Websites oder Sitzungen hinweg verfolgt, und sind für den Schutz unbedingt nötig. Details stehen in der{' '}
+        <a href={CF_COOKIES}>Cookie-Liste von Cloudflare</a>. Andere Cookies setzt diese Website nicht. Rechtsgrundlage und Auftragsverarbeitung sind wie im Abschnitt „Hosting bei Cloudflare“.
+      </p>
+
+      <h2>Schutz von E-Mail-Adressen</h2>
+      <p>
+        Cloudflare ersetzt E-Mail-Adressen in den Seiten durch eine kodierte Form, damit Programme sie nicht einsammeln können. Das Skript <code>email-decode.min.js</code>, geladen von
+        dieser Website, macht sie in deinem Browser wieder lesbar.
+      </p>
+
+      <h2>Besucherstatistik mit Cloudflare Web Analytics</h2>
+      <p>
+        Ich zähle Seitenaufrufe mit Cloudflare Web Analytics. Dafür lädt jede Seite das Skript <code>beacon.min.js</code> von <code>static.cloudflareinsights.com</code>, einem Server von
+        Cloudflare. Es schickt Messwerte an diese Website (<code>/cdn-cgi/rum</code>). Cloudflare wertet dabei aus: die aufgerufene Seite (ohne den Teil nach „?“), die Seite, von der du kommst
+        (Referrer), dein Land, Browser, Betriebssystem und Gerätetyp, und wie schnell die Seite lädt.
+      </p>
+      <p>
+        Laut Cloudflare nutzt Web Analytics keine Cookies und keinen Speicher in deinem Browser, und Cloudflare erkennt dich nicht über deine IP-Adresse oder deinen Browser wieder. Ich sehe nur
+        zusammengefasste Zahlen, keine einzelnen Besucher. Cloudflare hält die vollständigen Messwerte 7 Tage und zeigt die Zahlen 6 Monate lang an. Mehr dazu in der{' '}
+        <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>. Cloudflare handelt auch hier in meinem Auftrag, auf Grundlage des Data Processing Addendum.
+      </p>
+
       <h2>Kontaktformular und E-Mail</h2>
       <p>
         Wenn du mir über das <a href={legalPath.contact.de}>Kontaktformular</a> oder per E-Mail schreibst, verarbeite ich deine E-Mail-Adresse, deine Nachricht und, wenn du ihn angibst, deinen
@@ -106,10 +145,12 @@ export function Privacy({ lang }: { lang: Lang }) {
         „Hosting bei Cloudflare“. Cloudflare handelt in meinem Auftrag, auf Grundlage desselben Data Processing Addendum. Mein Postfach liegt bei iCloud Mail von Apple (Apple Distribution
         International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Dort landen auch E-Mails an die Adresse oben.
       </p>
+      <p>
+        Für jede Anfrage an das Formular schreibt Cloudflare einen Eintrag in die Workers Logs: Zeitpunkt, Adresse und Methode der Anfrage, die Header mit deiner IP-Adresse, Daten von
+        Cloudflare zur Verbindung wie dein Land, und ob die Anfrage geklappt hat. Mein Code für das Formular schreibt nichts, was du eingibst, in die Logs, nur die Fehlermeldung des Mailservers,
+        wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden. Cloudflare löscht sie nach {owner.logDays} Tagen.
+      </p>
       <p>Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger aufzubewahren.</p>
-
-      <h2>Keine Cookies, kein Tracking</h2>
-      <p>Diese Website setzt keine Cookies und nutzt keine Analyse- oder Tracking-Dienste. Sie lädt nichts von fremden Servern.</p>
 
       <h2>Speicher in deinem Browser</h2>
       <p>Einige Einstellungen speichert die Website im lokalen Speicher deines Browsers (localStorage), sobald du sie änderst:</p>
@@ -160,6 +201,43 @@ export function Privacy({ lang }: { lang: Lang }) {
         policy</a> says how long it keeps the data.
       </p>
 
+      <h2>Bot protection and cookies</h2>
+      <p>
+        Cloudflare uses &quot;Bot Fight Mode&quot; to check whether a request comes from a person or a program. For this, Cloudflare adds a small script to the pages. It loads from this website
+        (path <code>/cdn-cgi/challenge-platform/</code>) and checks signals in your browser. Cloudflare shows suspicious requests a check page or refuses them.
+      </p>
+      <p>Cloudflare sets these cookies for deckconnector.com:</p>
+      <ul>
+        <li>
+          <code>__cf_bm</code> holds encrypted data for deciding whether a bot is asking. It expires after 30 minutes without activity.
+        </li>
+        <li>
+          <code>cf_clearance</code> holds the result of the check, so it does not run again on every page. It expires after 30 minutes.
+        </li>
+      </ul>
+      <p>
+        Cloudflare says these cookies hold no identifier that follows you across websites or sessions, and that they are strictly necessary for the protection. Details are in{' '}
+        <a href={CF_COOKIES}>Cloudflare&apos;s cookie list</a>. This website sets no other cookies. The legal basis and the processing on my behalf are as in the section on hosting.
+      </p>
+
+      <h2>Protection of email addresses</h2>
+      <p>
+        Cloudflare replaces email addresses in the pages with an encoded form, so programs cannot collect them. The script <code>email-decode.min.js</code>, loaded from this website, makes them
+        readable again in your browser.
+      </p>
+
+      <h2>Visitor statistics with Cloudflare Web Analytics</h2>
+      <p>
+        I count page views with Cloudflare Web Analytics. For this, every page loads the script <code>beacon.min.js</code> from <code>static.cloudflareinsights.com</code>, a Cloudflare server. It
+        sends measurements to this website (<code>/cdn-cgi/rum</code>). Cloudflare records the page you open (without the part after &quot;?&quot;), the page you came from (referrer), your
+        country, browser, operating system and device type, and how fast the page loads.
+      </p>
+      <p>
+        Cloudflare says Web Analytics uses no cookies and no storage in your browser, and does not recognise you by your IP address or browser. I only see totals, not single visitors. Cloudflare
+        keeps the full measurements for 7 days and shows the totals for 6 months. See <a href={CF_ANALYTICS}>Cloudflare&apos;s documentation</a>. Cloudflare acts on my behalf here too, under the Data
+        Processing Addendum.
+      </p>
+
       <h2>Contact form and email</h2>
       <p>
         When you write to me with the <a href={legalPath.contact.en}>contact form</a> or by email, I process your email address, your message and your name if you give it. I use them only to
@@ -170,10 +248,12 @@ export function Privacy({ lang }: { lang: Lang }) {
         on my behalf under the same Data Processing Addendum. My mailbox is at iCloud Mail by Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Ireland).
         Emails to the address above end up there too.
       </p>
+      <p>
+        For each request to the form, Cloudflare writes an entry to its Workers Logs. It holds the time, the address and method of the request, the headers with your IP address, data from
+        Cloudflare about the connection such as your country, and whether the request worked. My code behind the form writes nothing you typed into the logs, only the mail server&apos;s error
+        message when sending fails. I use the logs to find faults. Cloudflare deletes them after {owner.logDays} days.
+      </p>
       <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
-
-      <h2>No cookies, no tracking</h2>
-      <p>This website sets no cookies and uses no analytics or tracking. It loads nothing from other servers.</p>
 
       <h2>Storage in your browser</h2>
       <p>The website keeps some settings in your browser&apos;s local storage (localStorage) once you change them.</p>
