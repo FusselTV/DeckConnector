@@ -112,24 +112,36 @@ def passkeys() -> list[dict]:
     return body
 
 
+@pytest.fixture(autouse=True)
+def kept():
+    """The owner's passkeys stay: a test removes only the ones it made."""
+    before = passkeys()
+    yield before
+    for p in passkeys():
+        if p not in before:
+            call("DELETE", f"/api/passkeys/{p['id']}", admin=True)
+
+
 @pytest.fixture
 def key():
     a = Authenticator()
     code, reply = a.register()
     assert code == 200, reply
     a.slot = reply["id"]
-    yield a
-    for p in passkeys():
-        call("DELETE", f"/api/passkeys/{p['id']}", admin=True)
+    return a
+
+
+def mine(key) -> dict | None:
+    return next((p for p in passkeys() if p["id"] == key.slot), None)
 
 
 def test_a_passkey_logs_in_and_can_be_renamed_and_removed(key):
     code, body, headers = key.login()
     assert code == 200 and body == {"ok": True}
     assert "_session=" in headers["Set-Cookie"]
-    assert passkeys() == [{"id": key.slot, "name": "pytest", "rp": RP}]
+    assert mine(key) == {"id": key.slot, "name": "pytest", "rp": RP}
     assert call("PUT", f"/api/passkeys/{key.slot}", {"name": "Laptop ✓"}, admin=True)[0] == 200
-    assert passkeys()[0]["name"] == "Laptop ✓"
+    assert mine(key)["name"] == "Laptop ✓"
     assert call("PUT", f"/api/passkeys/{key.slot}", {"name": "x" * 24}, admin=True)[0] == 400
     assert call("DELETE", f"/api/passkeys/{key.slot}", admin=True)[0] == 200
     assert key.login()[0] == 403
@@ -164,7 +176,7 @@ def test_a_challenge_counts_once_and_for_its_kind(key):
     assert key.login()[0] == 200
 
 
-def test_a_registration_is_checked():
+def test_a_registration_is_checked(kept):
     a = Authenticator()
     assert a.register(publicKeyAlgorithm=-8)[0] == 400
     p384 = ec.generate_private_key(ec.SECP384R1()).public_key()
@@ -173,13 +185,13 @@ def test_a_registration_is_checked():
     assert a.register(name="")[0] == 400
     assert a.register(challenge=challenge(True))[0] == 400
     assert a.register(id=b64u(os.urandom(16)))[0] == 400
-    assert passkeys() == []
+    assert passkeys() == kept
     code, _, _ = call("POST", "/api/passkeys", {}, admin=False)
     assert code == 401
 
 
 def test_eight_passkeys_at_most(key):
-    for i in range(7):
+    for i in range(8 - len(passkeys())):
         assert Authenticator().register(name=f"k{i}")[0] == 200
     assert Authenticator().register()[0] == 409
 
