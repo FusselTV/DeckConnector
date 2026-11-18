@@ -401,14 +401,10 @@ static void task(void *arg)
     }
 }
 
-static void on_input(int deck, const db_input_t *ev)
+static void queue_input(int deck, const db_input_t *ev, db_matter_from_t from)
 {
-    /* never a press sent over the network, not even one a person sent at the web page */
-    if (!db_deck_input_from_deck()) {
-        return;
-    }
     int at = db_matter_input_ep(0, ev);
-    if (at) {
+    if (db_matter_takes(from) && at) {
         char ip[16];
         msg_t m = {.slot = (int8_t)deck,
                    .input = (int8_t)(at - 1),
@@ -416,6 +412,20 @@ static void on_input(int deck, const db_input_t *ev)
                    .covered = db_ui_menu_open() || db_dock_request(ip)};
         xQueueSend(s.q, &m, pdMS_TO_TICKS(20)); /* a lost release would leave the switch held */
     }
+}
+
+static void on_input(int deck, const db_input_t *ev)
+{
+    queue_input(deck, ev, db_deck_input_from_deck() ? DB_MATTER_FROM_DECK : DB_MATTER_FROM_API);
+}
+
+bool db_matter_debug_input(int deck, const db_input_t *ev)
+{
+    if (!s.started || deck < 0 || deck >= DB_MAX_DECKS) {
+        return false;
+    }
+    queue_input(deck, ev, DB_MATTER_FROM_DEBUG);
+    return true;
 }
 
 static void on_device(int deck, const db_device_info_t *info)

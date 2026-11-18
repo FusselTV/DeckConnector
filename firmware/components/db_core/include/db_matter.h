@@ -68,6 +68,10 @@ db_sw_event_t db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool cover
                                int64_t now);
 db_sw_event_t db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now);
 
+/* Who sent a press: the deck itself, /api/input or /api/ws (even with "real"), or POST /api/matter/press */
+typedef enum { DB_MATTER_FROM_DECK, DB_MATTER_FROM_API, DB_MATTER_FROM_DEBUG } db_matter_from_t;
+bool db_matter_takes(db_matter_from_t from);
+
 /* The glue in firmware/matter/db_matter */
 void db_matter_start(void);
 /* "matter" in the status */
@@ -80,5 +84,7 @@ void db_matter_set_on(bool on);
 int db_matter_show(void);
 /* Pairing open for 15 min, for one more controller. */
 bool db_matter_open_window(void);
+/* A press for Matter alone (POST /api/matter/press): no other listener, host, menu or input log sees it. */
+bool db_matter_debug_input(int deck, const db_input_t *ev);
 /* Every controller is gone and the pairing code new after the restart that must follow. */
 int db_matter_erase(void);

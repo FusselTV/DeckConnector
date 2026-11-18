@@ -13,6 +13,11 @@ uint16_t db_matter_node_ep(db_matter_slot_t *slot, int index, const char *serial
     return db_matter_ep(slot->gen, index);
 }
 
+bool db_matter_takes(db_matter_from_t from)
+{
+    return from != DB_MATTER_FROM_API;
+}
+
 uint16_t db_matter_ep(uint8_t gen, int slot)
 {
     return (uint16_t)(64 * (1 + gen * DB_MAX_DECKS + slot));

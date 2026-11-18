@@ -193,6 +193,13 @@ static void test_two_other_controls_together_both_count(void)
     TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, db_sw_deck_input(&deck, chord[1], true, false, no_chord, now));
 }
 
+static void test_only_the_deck_and_the_debug_route_reach_matter(void)
+{
+    TEST_ASSERT_TRUE(db_matter_takes(DB_MATTER_FROM_DECK));
+    TEST_ASSERT_TRUE(db_matter_takes(DB_MATTER_FROM_DEBUG));
+    TEST_ASSERT_FALSE(db_matter_takes(DB_MATTER_FROM_API)); /* /api/input and /api/ws, "real" or not */
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -208,5 +215,6 @@ int main(void)
     RUN_TEST(test_a_release_counts_while_covered);
     RUN_TEST(test_the_menu_chord_mutes_both_controls);
     RUN_TEST(test_two_other_controls_together_both_count);
+    RUN_TEST(test_only_the_deck_and_the_debug_route_reach_matter);
     return UNITY_END();
 }

@@ -640,6 +640,33 @@ esp_err_t post_matter(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+/* Debug: the body of POST /api/input, for Matter alone. */
+static int matter_press(const char *body, char *reply, size_t cap)
+{
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *serial = cJSON_GetObjectItemCaseSensitive(root, "deck");
+    int deck = cJSON_IsString(serial) ? db_deck_find(serial->valuestring) : db_deck_first();
+    db_input_t ev;
+    db_input_t then = {.kind = 0};
+    const char *err = deck < 0 || !db_deck_info(deck, &dev) ? "no such deck"
+                      : root                                ? read_input(root, &dev, &ev, &then)
+                                                            : "invalid JSON";
+    cJSON_Delete(root);
+    if (err) {
+        return fail(reply, cap, 400, err);
+    }
+    if (!db_matter_debug_input(deck, &ev) || (then.kind && !db_matter_debug_input(deck, &then))) {
+        return fail(reply, cap, 409, "Matter is off");
+    }
+    snprintf(reply, cap, "{\"ok\":true}");
+    return 200;
+}
+
+esp_err_t post_matter_press(httpd_req_t *req)
+{
+    return body_api(req, matter_press);
+}
+
 esp_err_t delete_matter(httpd_req_t *req)
 {
     if (db_matter_erase() != ESP_OK) {

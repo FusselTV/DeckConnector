@@ -55,6 +55,7 @@ esp_err_t post_reset(httpd_req_t *req);
 esp_err_t get_matter(httpd_req_t *req);
 esp_err_t post_matter(httpd_req_t *req);
 esp_err_t delete_matter(httpd_req_t *req);
+esp_err_t post_matter_press(httpd_req_t *req);
 #endif
 esp_err_t get_log(httpd_req_t *req);
 size_t api_screen_json(int deck, char *buf, size_t cap);
