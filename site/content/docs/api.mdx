@@ -72,6 +72,8 @@ Routes that act on a deck take `?deck=<serial>` from `decks` in the status. With
 | `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request | open |
 | `GET /api/login/request/<id>` | `state` is `pending`, `accepted`, `denied`, `expired` or `used`. With `accepted` the reply sets the session cookie once | open |
 | `DELETE /api/login/request/<id>` | Takes the request back | open |
+| `POST /api/passkeys/challenge` | `{"login": true}` for a login, `false` for a new passkey. Answers `{"challenge": "<hex>"}`. It works once, for 2 minutes, from this address. Over HTTPS by name only, else 403 | open |
+| `POST /api/login/passkey` | The reply of `navigator.credentials.get()`, with `id`, `clientDataJSON`, `authenticatorData` and `signature` in base64url. Sets the session cookie. A refused passkey counts like a wrong password | open |
 | `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck | open |
 | `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}` | open |
 | `DELETE /api/password/reset` | Ends the question | open |
@@ -149,7 +151,12 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/tokens` | The API keys, `name` and `right` | admin |
 | `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Shows the key once. `name` has 1 to 23 letters, digits, `-` or `_` | admin |
 | `DELETE /api/tokens/<name>` | Ends that key at once | admin |
+| `GET /api/passkeys` | The passkeys, with `id`, `name` and `rp`, the name each one works at | admin |
+| `POST /api/passkeys` | The reply of `navigator.credentials.create()`, with `name`, `id`, `clientDataJSON`, `authenticatorData`, `publicKey` (SPKI) and `publicKeyAlgorithm` (`-7`), binary parts in base64url. ES256 only, up to 8 | admin |
+| `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 to 23 bytes | admin |
+| `DELETE /api/passkeys/<id>` | Removes that passkey | admin |
 | `GET /api/cert` | The HTTPS certificate as PEM | open |
+| `GET /api/ca` | The board's CA as DER, to trust once | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate. With `"apply": true` it is kept and the board restarts | admin |
 | `DELETE /api/tls` | Back to the board's own certificate, with a restart | full |
 

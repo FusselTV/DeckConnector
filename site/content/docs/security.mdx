@@ -41,11 +41,21 @@ A key has **Control** (`control`) or **Full access** (`full`). Up to 8 keys exis
 
 ## HTTPS
 
-The board serves port 80 and HTTPS on 443 with its own certificate, so the browser warns once. Compare the fingerprint with the one under **Access**.
+The board serves port 80 and HTTPS on 443. Its certificate comes from its own CA, which the board makes on its first start. Download the CA under **Access › HTTPS** and trust it once on each device. Then no browser warns, also on iPhone and Mac. Until then, compare the fingerprint with the one under **Access**.
 
-- `GET /api/cert` gives the certificate as PEM, to import or to pin.
+- The certificate names `<name>.local`, `localhost` and the private IP addresses of the board. A new name or address gets a new certificate within seconds. The CA stays, so trusted devices stay trusted. The fingerprint changes each time.
+- The CA vouches only for `.local` names, `localhost` and private IP addresses.
+- `GET /api/ca` gives the CA, `GET /api/cert` the current certificate as PEM.
 - **HTTPS only** turns plain HTTP off. Pages redirect, API calls over HTTP get 403. While the setup Wi-Fi is open, HTTP stays on.
 - You can upload your own certificate and key as PEM. A key with a password is refused.
+
+## Passkeys
+
+A passkey logs you in with your fingerprint, face or device PIN. Add one under **Access › Passkeys**.
+
+- It needs HTTPS without a warning and a name, like `https://deckconnector-a1b2c3.local`. Never an IP address. Trust the CA first, or upload a certificate for your own name.
+- A passkey works only at the name it was made on. After a rename, add it again.
+- Up to 8 passkeys, ES256 only. The password keeps working. A factory reset deletes all passkeys.
 
 ## Setup Wi-Fi
 

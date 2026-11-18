@@ -72,6 +72,8 @@ Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im St
 | `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage | open |
 | `GET /api/login/request/<id>` | `state` ist `pending`, `accepted`, `denied`, `expired` oder `used`. Bei `accepted` setzt die Antwort einmal das Sitzungs-Cookie | open |
 | `DELETE /api/login/request/<id>` | Zieht die Anfrage zurück | open |
+| `POST /api/passkeys/challenge` | `{"login": true}` für eine Anmeldung, `false` für einen neuen Passkey. Antwortet `{"challenge": "<hex>"}`. Gilt einmal, 2 Minuten lang, von dieser Adresse. Nur per HTTPS unter einem Namen, sonst 403 | open |
+| `POST /api/login/passkey` | Die Antwort von `navigator.credentials.get()`, mit `id`, `clientDataJSON`, `authenticatorData` und `signature` in base64url. Setzt das Sitzungs-Cookie. Ein abgelehnter Passkey zählt wie ein falsches Passwort | open |
 | `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck | open |
 | `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}` | open |
 | `DELETE /api/password/reset` | Beendet die Frage | open |
@@ -149,7 +151,12 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/tokens` | Die API-Schlüssel, `name` und `right` | admin |
 | `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Zeigt den Schlüssel einmal. `name` hat 1 bis 23 Buchstaben, Ziffern, `-` oder `_` | admin |
 | `DELETE /api/tokens/<name>` | Beendet diesen Schlüssel sofort | admin |
+| `GET /api/passkeys` | Die Passkeys, mit `id`, `name` und `rp`, dem Namen, unter dem jeder gilt | admin |
+| `POST /api/passkeys` | Die Antwort von `navigator.credentials.create()`, mit `name`, `id`, `clientDataJSON`, `authenticatorData`, `publicKey` (SPKI) und `publicKeyAlgorithm` (`-7`), binäre Teile in base64url. Nur ES256, höchstens 8 | admin |
+| `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 bis 23 Bytes | admin |
+| `DELETE /api/passkeys/<id>` | Entfernt diesen Passkey | admin |
 | `GET /api/cert` | Das HTTPS-Zertifikat als PEM | open |
+| `GET /api/ca` | Die CA der Platine als DER, um ihr einmal zu vertrauen | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und die Platine startet neu | admin |
 | `DELETE /api/tls` | Zurück zum eigenen Zertifikat der Platine, mit Neustart | full |
 
