@@ -739,7 +739,7 @@ typedef struct {
     char name[24];
     uint32_t count;
 } passkey_t;
-static passkey_t passkeys[PASSKEYS]; /* in NVS "auth" like the tokens */
+static passkey_t passkeys[PASSKEYS]; /* NVS "auth" pk0 to pk7 like the tokens: a free slot takes no room */
 
 static struct {
     uint8_t c[32];
@@ -748,13 +748,15 @@ static struct {
     bool login;
 } challenges[CHALLENGES]; /* under mux */
 
-static esp_err_t save_passkeys(void)
+static esp_err_t save_passkey(int i)
 {
     nvs_handle_t h;
+    char key[4] = {'p', 'k', (char)('0' + i), '\0'};
     esp_err_t err = nvs_open("auth", NVS_READWRITE, &h);
     if (err == ESP_OK) {
-        err = nvs_set_blob(h, "passkeys", passkeys, sizeof(passkeys));
-        err = err == ESP_OK ? nvs_commit(h) : err;
+        err = passkeys[i].id_len ? nvs_set_blob(h, key, &passkeys[i], sizeof(passkeys[i]))
+                                 : nvs_erase_key(h, key);
+        err = err == ESP_OK || err == ESP_ERR_NVS_NOT_FOUND ? nvs_commit(h) : err;
         nvs_close(h);
     }
     if (err != ESP_OK) {
@@ -766,15 +768,19 @@ static esp_err_t save_passkeys(void)
 static void load_passkeys(void)
 {
     nvs_handle_t h;
-    size_t len = sizeof(passkeys);
-    esp_err_t err = nvs_open("auth", NVS_READONLY, &h);
-    if (err == ESP_OK) {
-        err = nvs_get_blob(h, "passkeys", passkeys, &len);
-        nvs_close(h);
+    if (nvs_open("auth", NVS_READWRITE, &h) != ESP_OK) {
+        return;
     }
-    if (err != ESP_OK) {
-        memset(passkeys, 0, sizeof(passkeys));
+    for (int i = 0; i < PASSKEYS; i++) {
+        char key[4] = {'p', 'k', (char)('0' + i), '\0'};
+        size_t len = sizeof(passkeys[i]);
+        if (nvs_get_blob(h, key, &passkeys[i], &len) != ESP_OK) {
+            memset(&passkeys[i], 0, sizeof(passkeys[i]));
+        }
     }
+    /* ponytail: only boards that ran an early build of this branch hold it; drop the line after the merge */
+    nvs_erase_key(h, "passkeys");
+    nvs_close(h);
 }
 
 /* A passkey belongs to the name the page was opened by. Browsers allow one only over HTTPS without warnings,
@@ -978,7 +984,7 @@ esp_err_t auth_passkey_login(httpd_req_t *req)
     }
     if (a.count) {
         passkeys[i].count = a.count;
-        save_passkeys(); /* not saved: a copied passkey could log in once more, nothing else */
+        save_passkey(i); /* not saved: a copied passkey could log in once more, nothing else */
     }
     ESP_LOGI(TAG, "login with passkey \"%s\"", passkeys[i].name);
     auth_session_cookie(req);
@@ -1035,7 +1041,7 @@ esp_err_t auth_passkey_add(httpd_req_t *req)
         return send_error(req, "409 Conflict", "8 passkeys already, remove one first");
     }
     passkeys[slot] = pk;
-    if (save_passkeys() != ESP_OK) {
+    if (save_passkey(slot) != ESP_OK) {
         memset(&passkeys[slot], 0, sizeof(passkeys[slot]));
         return send_error(req, "500 Internal Server Error", "not saved");
     }
@@ -1089,7 +1095,7 @@ esp_err_t auth_passkey_edit(httpd_req_t *req)
             return send_error(req, "400 Bad Request", "name: 1 to 23 bytes");
         }
     }
-    if (save_passkeys() != ESP_OK) {
+    if (save_passkey(i) != ESP_OK) {
         passkeys[i] = before;
         return send_error(req, "500 Internal Server Error", "not saved");
     }
