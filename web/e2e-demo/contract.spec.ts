@@ -30,7 +30,7 @@ const { handle } = (await import(serverFile)) as {
 // The same GET to the mock and to the firmware simulator (firmware/sim, the real handlers on Linux) must answer
 // with the same keys and value types. Run by the "contract" project in playwright.demo.config.ts.
 
-const SIM = 'http://127.0.0.1:18230'
+const SIM = `http://127.0.0.1:${process.env.DC_SIM_PORT ?? 18230}`
 const AUTH = 'Basic ' + Buffer.from('admin:simulator-pass').toString('base64')
 
 const ROUTES = [

@@ -18,6 +18,8 @@ export interface DeckInfo {
   usb_speed?: 'high' | 'full'
   hub?: boolean
   surface?: number
+  /** In `decks`: who draws on it. */
+  writer?: string
   /** In `decks`: 0 to 3, kept per deck over replugs. It fixes the deck's Network Dock port and Satellite order. */
   slot?: number
   /** In `decks`: slot + 1. */
@@ -109,6 +111,11 @@ export interface Status {
   menu_open?: boolean
   /** Every deck is off, from the screen switch or from `screen_off_s` with `screen_dim` 0; the next input wakes them. */
   screen_off?: boolean
+  brightness?: number
+  volume?: number
+  screen_off_s?: number
+  screen_dim?: number
+  max_decks?: number
   /** The board has a speaker. */
   speaker?: boolean
   /** This page reached the device over its setup Wi-Fi, which needs no password. */

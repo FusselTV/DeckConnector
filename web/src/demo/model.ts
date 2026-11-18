@@ -121,6 +121,7 @@ export const DECK: DeckInfo = {
   model: 'Stream Deck +',
   serial: 'EL00K1A00001',
   firmware: '1.05.008',
+  dock: true,
   keys: 8,
   encoders: 4,
   width: 800,
@@ -278,7 +279,7 @@ export function history(s: Demo, now: number) {
   for (const [min, kind, text, line] of past) {
     const at = s.bootAt + min * 60_000
     if (at >= now || (kind === 'wlan' && !s.cfg.wifi_ssid) || (kind === 'source' && !s.cfg.satellite)) continue
-    s.events.push({ since_s: Math.floor((at - s.bootAt) / 1000), at: Math.floor(at / 1000), kind, text })
+    s.events.push({ since_s: Math.floor((at - s.bootAt) / 1000), boot: 0, at: Math.floor(at / 1000), kind, text })
     logLine(s, at, line)
   }
 }
@@ -287,7 +288,7 @@ export function history(s: Demo, now: number) {
 const up = (s: Demo, now: number) => Math.max(0, Math.floor((now - s.bootAt) / 1000))
 
 export function event(s: Demo, now: number, kind: string, text: string) {
-  s.events = [...s.events, { since_s: up(s, now), at: Math.floor(now / 1000), kind, text }].slice(-64)
+  s.events = [...s.events, { since_s: up(s, now), boot: 0, at: Math.floor(now / 1000), kind, text }].slice(-64)
 }
 
 export function logLine(s: Demo, now: number, text: string) {
@@ -452,12 +453,19 @@ export function status(s: Demo, now: number): Status {
     writer: w,
     menu_open: overlay(s, now),
     screen_off: false,
+    brightness: c.brightness,
+    volume: c.volume,
+    screen_off_s: c.screen_off_s,
+    screen_dim: c.screen_dim,
+    max_decks: c.max_decks,
     speaker: true,
     boot: { reason: s.bootReason, at: Math.floor(s.bootAt / 1000) },
     setup: { active: !c.setup_done || s.setupStep > 0, step: s.setupStep, rerun: c.setup_done && s.setupStep > 0 },
     device: deck(s),
-    decks: [deck(s)],
+    decks: [{ ...deck(s), slot: 0, number: 1, writer: w, brightness: c.brightness, locked: false }],
+    decks_over_limit: 0,
     https_custom: s.tls,
+    https_ca: s.tls ? '' : '7C2E 91A4 D06B 3F58',
     network: {
       lan: { cable: true, dead: false, ip: lanIp(s) },
       wlan: {
