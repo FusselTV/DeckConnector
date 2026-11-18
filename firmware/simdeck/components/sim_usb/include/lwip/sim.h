@@ -55,7 +55,8 @@ static inline char *ip4addr_ntoa_r(const ip4_addr_t *addr, char *buf, int len)
     return inet_ntop(AF_INET, &a, buf, (socklen_t)len) ? buf : NULL;
 }
 
-static inline err_t tcpip_api_call(err_t (*fn)(struct tcpip_api_call_data *), struct tcpip_api_call_data *call)
+static inline err_t tcpip_api_call(err_t (*fn)(struct tcpip_api_call_data *),
+                                   struct tcpip_api_call_data *call)
 {
     return fn(call);
 }
@@ -83,9 +84,9 @@ static inline char *inet_ntoa_r(struct in_addr a, char *buf, int len)
 }
 
 /*
- * The FreeRTOS Linux port runs one task at a time, and a task blocked in the kernel still counts as running: every
- * task of lower priority would wait with it. So a blocking socket call waits as lwIP lets a task wait on the chip:
- * it polls, and sleeps a tick in between. Socket timeouts hold as on the chip.
+ * The FreeRTOS Linux port runs one task at a time, and a task blocked in the kernel still counts as running:
+ * every task of lower priority would wait with it. So a blocking socket call waits as lwIP lets a task wait
+ * on the chip: it polls, and sleeps a tick in between. Socket timeouts hold as on the chip.
  */
 static inline int sim_wait(int s, short events, int ms)
 {

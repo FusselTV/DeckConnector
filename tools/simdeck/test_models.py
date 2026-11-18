@@ -32,6 +32,8 @@ def test_the_deck_comes_up_and_shows_the_ui(start, model):
     assert (deck["model"], deck["keys"], deck["encoders"]) == (name, keys, encoders)
     assert deck["dock"] == model.startswith(("original", "mk2", "xl", "mini", "neo", "plus", "pedal", "module"))
     if model == "pedal":
+        code, body = sim.api("GET", f"/api/screen.jpg?deck={deck['serial']}")
+        assert code == 404, body
         return
     _, desc = sim.screen(0)
     assert bool(desc["touch"]) == strip
@@ -67,10 +69,12 @@ def test_the_menu_chord_opens_the_menu(start, model):
 def test_the_screen_goes_dark_and_a_press_wakes_it(start, model):
     sim = start(model)
     dismiss_prompt(sim)
-    sim.config(screen_off_s=10)
+    sim.config(screen_off_s=10, setup_done=True)  # the home screen with its menu key, not the welcome
     bright = sim.decks / "0/brightness"
     assert sim.wait(lambda: bright.read_text() == "0", 15), "the deck stayed lit"
-    sim.tap(0, 0)
+    keys = sim.screen(0)[1]["keys"]
+    menu = sum(k["y"] == keys[0]["y"] for k in keys) - 1  # the home screen's menu key, last of the top row
+    sim.tap(0, menu)
     assert sim.wait(lambda: bright.read_text() not in ("0", "-1"), 3), "a press did not wake it"
-    assert not sim.status()["menu_open"], "the waking press reached the UI"
-
+    time.sleep(0.5)
+    assert not sim.status()["menu_open"], "the waking press opened the menu"

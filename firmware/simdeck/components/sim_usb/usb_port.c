@@ -3,13 +3,11 @@
  * at start, Elgato ones as host_test/deck_emu.c, Mirabox ones as mirabox_emu.c. With DB_SIM_DECK_DIR set,
  * each image a deck takes lands in <dir>/<n>/ (n the plug position from 0) as key-<i>.jpg/.bmp, lcd.jpg,
  * window.jpg or window-<x>-<y>-<w>-<h>.jpg (Elgato) or id-<hex>.jpg (Mirabox), as sent: turned as the deck
- * wants it, and <dir>/<n>/brightness as the deck got it last (Mirabox: the LIG byte). <dir>/ctl is a FIFO that takes one line per action, as a person at the deck:
- *   <n> key <i> <1|0>          Elgato key, sensors after the image keys
- *   <n> enc <i> <1|0>          Elgato encoder press
- *   <n> turn <i> <ticks>       Elgato encoder turn
- *   <n> touch <1|2|3> x y [x2 y2]   Elgato tap, long press, flick, window coordinates
- *   <n> rc <row> <col> <1|0|-1|+1>  Mirabox press, release; -1 and +1 turn (or swipe) there
- *   <n> unplug | plug
+ * wants it, and <dir>/<n>/brightness as the deck got it last (Mirabox: the LIG byte). <dir>/ctl is a FIFO
+ * that takes one line per action, as a person at the deck: <n> key <i> <1|0>          Elgato key, sensors
+ * after the image keys <n> enc <i> <1|0>          Elgato encoder press <n> turn <i> <ticks>       Elgato
+ * encoder turn <n> touch <1|2|3> x y [x2 y2]   Elgato tap, long press, flick, window coordinates <n> rc <row>
+ * <col> <1|0|-1|+1>  Mirabox press, release; -1 and +1 turn (or swipe) there <n> unplug | plug
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -20,15 +18,12 @@
 #include <unistd.h>
 
 #include "deck_emu.h"
-#include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mirabox_emu.h"
 #include "usb_port.h"
-
-static const char *TAG = "sim_usb";
 
 typedef struct {
     db_hid_io_t io; /* first: the callbacks find their device by it */
@@ -64,10 +59,11 @@ static void save(int deck, const char *name, const uint8_t *data, size_t len)
     snprintf(path, sizeof(path), "%s/%d/%s", dir, deck, name);
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     FILE *f = fopen(tmp, "wb");
-    if (f) {
-        fwrite(data, 1, len, f);
-        fclose(f);
-        rename(tmp, path); /* a reader never sees half an image */
+    bool ok = f && fwrite(data, 1, len, f) == len;
+    ok = f && fclose(f) == 0 && ok;
+    if (!ok || rename(tmp, path) != 0) { /* a reader never sees half an image */
+        fprintf(stderr, "sim_usb: cannot save %s\n", path);
+        unlink(tmp);
     }
 }
 
@@ -178,8 +174,16 @@ static void act(char *line)
     char what[8];
     int a[5] = {0};
     int got = sscanf(line, "%d %7s %d %d %d %d %d", &n, what, &a[0], &a[1], &a[2], &a[3], &a[4]);
-    if (got < 2 || n < 0 || n >= dev_count) {
-        ESP_LOGW(TAG, "bad line: %s", line);
+    static const struct {
+        const char *verb;
+        int args;
+    } verbs[] = {{"unplug", 2}, {"plug", 2}, {"key", 4}, {"enc", 4}, {"turn", 4}, {"touch", 5}, {"rc", 5}};
+    int need = 0;
+    for (size_t i = 0; got >= 2 && i < sizeof(verbs) / sizeof(verbs[0]); i++) {
+        need = strcmp(what, verbs[i].verb) ? need : verbs[i].args;
+    }
+    if (!need || got < need || n < 0 || n >= dev_count) {
+        fprintf(stderr, "sim_usb: bad line: %s\n", line);
         return;
     }
     if (!strcmp(what, "unplug") || !strcmp(what, "plug")) {
@@ -208,10 +212,10 @@ static void act(char *line)
         len = mirabox_emu_input(n, (uint8_t)a[0], (uint8_t)a[1], turn, a[2], r, sizeof(r));
     }
     xSemaphoreGive(lock);
-    if (len) {
+    if (len && len != MIRABOX_EMU_NONE) {
         cb.input(n, r, len, (uint64_t)esp_timer_get_time());
-    } else {
-        ESP_LOGW(TAG, "no such input: %s", line);
+    } else if (!len) {
+        fprintf(stderr, "sim_usb: no such input: %s\n", line);
     }
 }
 
@@ -222,6 +226,10 @@ static void ctl_task(void *arg)
     unlink(path);
     mkfifo(path, 0600);
     int fd = open(path, O_RDWR | O_NONBLOCK); /* RDWR: no EOF when a writer leaves */
+    if (fd < 0) {
+        perror("sim_usb: ctl");
+        abort();
+    }
     char buf[512];
     size_t have = 0;
     for (;;) {
@@ -240,6 +248,7 @@ static void ctl_task(void *arg)
             memmove(buf, nl + 1, have + 1);
         }
         if (have == sizeof(buf) - 1) {
+            fprintf(stderr, "sim_usb: line too long, dropped\n");
             have = 0;
         }
     }
@@ -256,16 +265,21 @@ esp_err_t usb_port_start(const usb_port_cb_t *callbacks, bool full_only)
     for (const char *p = models ? models : "0fd9:0084"; p && *p && dev_count < USB_PORT_DEVS;) {
         unsigned vid, pid;
         if (sscanf(p, "%x:%x", &vid, &pid) != 2) {
-            ESP_LOGE(TAG, "DB_SIM_DECK_MODELS: no vid:pid at \"%s\"", p);
-            break;
+            fprintf(stderr, "sim_usb: DB_SIM_DECK_MODELS: no vid:pid at \"%s\"\n", p);
+            abort();
+        }
+        if (vid == 0x0fd9 ? !deck_model((uint16_t)pid)
+                          : !mirabox_emu_start(dev_count, (uint16_t)vid, (uint16_t)pid)) {
+            fprintf(stderr, "sim_usb: DB_SIM_DECK_MODELS: no emulated deck %04x:%04x\n", vid, pid);
+            abort();
         }
         devs[dev_count++] = (sim_dev_t){.io = {.write = sim_write,
-                                           .flush = sim_flush,
-                                           .get_feature = sim_get_feature,
-                                           .set_feature = sim_set_feature},
-                                    .vid = (uint16_t)vid,
-                                    .pid = (uint16_t)pid,
-                                    .elgato = vid == 0x0fd9};
+                                               .flush = sim_flush,
+                                               .get_feature = sim_get_feature,
+                                               .set_feature = sim_set_feature},
+                                        .vid = (uint16_t)vid,
+                                        .pid = (uint16_t)pid,
+                                        .elgato = vid == 0x0fd9};
         p = strchr(p, ',');
         p = p ? p + 1 : NULL;
     }

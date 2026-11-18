@@ -50,6 +50,7 @@ async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(s
         dev = bridge.device
         assert (dev["model"], dev["keys"], dev["encoders"]) == (deck["model"], deck["keys"], deck["encoders"])
         keys = [t for t in dev["displays"][0]["targets"] if t["kind"] == "key"]
+        assert keys
         assert sorted(t["index"] for t in keys) == list(range(len(keys)))
         since = time.time()
         for t in keys:
@@ -57,7 +58,7 @@ async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(s
             ack = await bridge.send_image((t["x"], t["y"], t["w"], t["h"]), img)
             assert ack.result == p.AckResult.SHOWN, (t, ack)
         new = lambda: drawn_since(sim, 0, since)  # noqa: E731
-        assert sim.wait(lambda: len(new()) >= min(len(keys), 1) and all(reddish(Image.open(f)) for f in new()))
+        assert sim.wait(lambda: new() and all(reddish(Image.open(f)) for f in new()))
         if model not in ("plus", "plus-xl"):  # the + draws its keys into one LCD image
             assert len(new()) == len(keys), sorted(f.name for f in new())
         shot(sim, 0, f"{model}-server")
@@ -117,7 +118,9 @@ def test_satellite_adds_the_deck_and_takes_its_presses_and_pin(start, companion,
     sim = start(model)
     if model != "pedal":
         dismiss_prompt(sim)
-    sim.config(satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True)
+    sim.config(
+        satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True
+    )
     assert sim.wait(lambda: companion.devices and sim.status()["decks"][0]["writer"] == "satellite", 15), sim.log()
     deck = sim.status()["decks"][0]
     add = next(x for x in companion.lines if x.startswith("ADD-DEVICE"))
@@ -148,9 +151,10 @@ def test_satellite_adds_the_deck_and_takes_its_presses_and_pin(start, companion,
 
 def test_a_mix_of_decks_comes_up_in_satellite_each_with_its_layout(start, companion):
     sim = start("xl", "neo", "mirabox-293v3")
-    for n in range(3):
-        dismiss_prompt(sim, n)
-    sim.config(satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True)
+    dismiss_prompt(sim)  # one prompt, on every deck
+    sim.config(
+        satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True
+    )
     assert sim.wait(lambda: len(companion.devices) == 3, 15), companion.lines
     adds = [x for x in companion.lines if x.startswith("ADD-DEVICE")]
     names = sorted(x.split('PRODUCT_NAME="', 1)[1].split('"', 1)[0] for x in adds)
@@ -168,8 +172,13 @@ def test_companions_library_drives_the_dock(start, model):
     sim = start(model)
     # what Companion's library sends through a dock and the deck_emu spec reading does not take; the bridge
     # passes it on as the host sent it, and a real + takes it (tools/companion-check on the bench)
-    sim.tolerated = ("GET_FEATURE 0xa1", "GET_FEATURE 0x08", "GET_FEATURE 0x04", "SET_FEATURE 03 06 of 6 bytes",
-                     "SET_FEATURE 05 55 of 17 bytes")
+    sim.tolerated = (
+        "GET_FEATURE 0xa1",
+        "GET_FEATURE 0x08",
+        "GET_FEATURE 0x04",
+        "SET_FEATURE 03 06 of 6 bytes",
+        "SET_FEATURE 05 55 of 17 bytes",
+    )
     if model != "pedal":
         dismiss_prompt(sim)
     sim.config(controller="companion", host="", setup_done=True)

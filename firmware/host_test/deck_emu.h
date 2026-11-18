@@ -5,8 +5,8 @@
 /*
  * A virtual Stream Deck behind a db_hid_io_t, built only from Elgato's HID pages.
  * It answers feature reports like the real deck, checks every report a driver sends and records each
- * protocol violation. Up to DECK_EMU_DECKS decks run at once, each behind its own io; the deck_emu_* calls are
- * about the current one, which a driver call through an io makes its deck.
+ * protocol violation. Up to DECK_EMU_DECKS decks run at once, each behind its own io; the deck_emu_* calls
+ * are about the current one, which a driver call through an io makes its deck.
  */
 
 #define DECK_EMU_DECKS 4

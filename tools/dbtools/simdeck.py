@@ -19,7 +19,6 @@ ELF = Path(__file__).resolve().parents[2] / "firmware/simdeck/build/deckbridge_s
 MODELS = {
     "original": "0fd9:006d",
     "mk2": "0fd9:0080",
-    "mk2-scissor": "0fd9:00a5",
     "xl": "0fd9:008f",
     "mini": "0fd9:0090",
     "neo": "0fd9:009a",
@@ -31,8 +30,6 @@ MODELS = {
     "module32": "0fd9:00ba",
     "mirabox-293v3": "6603:1005",
     "mirabox-n4": "6602:1001",
-    "mirabox-n3": "6603:1003",
-    "mirabox-xl": "5548:1031",
 }
 
 
@@ -41,7 +38,14 @@ class SimDeck:
         self, models: list[str], port: int, work: Path, password: str = "simdeck-pass", limit: bool = True, **env: str
     ):
         """`limit`: raise max_decks (2 by default) to the number of models once the simulator is up."""
-        self.models, self.port, self.work, self.password, self.limit, self.env = models, port, work, password, limit, env
+        self.models, self.port, self.work, self.password, self.limit, self.env = (
+            models,
+            port,
+            work,
+            password,
+            limit,
+            env,
+        )
         self.decks = work / "decks"
         self.proc: subprocess.Popen | None = None
 
@@ -58,7 +62,7 @@ class SimDeck:
             **os.environ,
             "DB_SIM_PORT": str(self.port),
             "DB_SIM_PASSWORD": self.password,
-            "DB_SIM_DECK_MODELS": ",".join(MODELS.get(m, m) for m in self.models),
+            "DB_SIM_DECK_MODELS": ",".join(m if ":" in m else MODELS[m] for m in self.models),
             "DB_SIM_DECK_DIR": str(self.decks),
             **self.env,
         }
@@ -92,7 +96,7 @@ class SimDeck:
 
     def violations(self) -> list[str]:
         """What the emulated decks found wrong in the reports the drivers sent."""
-        return [line for line in self.log().splitlines() if line.startswith(("deck_emu ", "mirabox_emu "))]
+        return [line for line in self.log().splitlines() if line.startswith(("deck_emu ", "mirabox_emu ", "sim_usb "))]
 
     def api(self, method: str, path: str, body: dict | bytes | None = None, timeout: float = 10):
         data = json.dumps(body).encode() if isinstance(body, dict) else body
@@ -116,8 +120,12 @@ class SimDeck:
 
     def act(self, *lines: str) -> None:
         """Lines for the control FIFO, see firmware/simdeck/components/sim_usb/usb_port.c."""
-        with open(self.decks / "ctl", "w") as f:
-            f.write("".join(f"{line}\n" for line in lines))
+        assert self.proc and self.proc.poll() is None, f"the simulator has ended:\n{self.log()}"
+        fd = os.open(self.decks / "ctl", os.O_WRONLY | os.O_NONBLOCK)  # fails at once without a reader
+        try:
+            os.write(fd, "".join(f"{line}\n" for line in lines).encode())
+        finally:
+            os.close(fd)
 
     def key(self, n: int, key: int, down: bool) -> None:
         """Key `key` as the firmware numbers it. A Mirabox deck takes it at its row and column, worked out from
@@ -145,8 +153,8 @@ class SimDeck:
         img = Image.new("RGB", (desc["width"], desc["height"]))
         for shot in desc["images"]:
             code, jpg = self.api("GET", shot["url"])
-            if code == 200:
-                img.paste(Image.open(io.BytesIO(jpg)).convert("RGB"), (shot["x"], shot["y"]))
+            assert code == 200, (shot, jpg)
+            img.paste(Image.open(io.BytesIO(jpg)).convert("RGB"), (shot["x"], shot["y"]))
         return img, desc
 
     def shown(self, n: int) -> dict[str, Image.Image]:

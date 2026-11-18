@@ -25,14 +25,9 @@ int db_web_temp_c(void)
 esp_err_t __real_db_config_load(void);
 
 /* Before anything reads the settings: the password from DB_SIM_PASSWORD, as firmware/sim takes it, no flash
- * file left in /tmp, and a browser that drops a socket mid-write does not end the simulator. The scheduler's
- * tick signal restarts a socket call it interrupts: lwIP on the chip never fails one with EINTR. */
+ * file left in /tmp, and a browser that drops a socket mid-write does not end the simulator. */
 esp_err_t __wrap_db_config_load(void)
 {
-    struct sigaction tick;
-    sigaction(SIGALRM, NULL, &tick);
-    tick.sa_flags |= SA_RESTART;
-    sigaction(SIGALRM, &tick, NULL);
     signal(SIGPIPE, SIG_IGN);
     unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
     esp_err_t err = __real_db_config_load();

@@ -116,7 +116,8 @@ static db_err_t emu_write(const db_hid_io_t *io, const uint8_t *r, size_t len)
         e->data = NULL;
     } else if (memcmp(c, "LIG", 3) == 0) {
         e->brightness = c[5];
-    } else if (memcmp(c, "DIS", 3) && memcmp(c, "CLE", 3) && memcmp(c, "LBLIG", 5) && memcmp(c, "CONNECT", 7)) {
+    } else if (memcmp(c, "DIS", 3) && memcmp(c, "CLE", 3) && memcmp(c, "LBLIG", 5) &&
+               memcmp(c, "CONNECT", 7)) {
         violation(e, "unknown command %.3s", (const char *)c);
     }
     return DB_OK;
@@ -168,8 +169,11 @@ size_t mirabox_emu_input(int deck, uint8_t row, uint8_t col, bool turn, int stat
         bool right = in->kind == REF_RIGHT || in->kind == REF_SWIPE_RIGHT;
         bool press = in->kind == REF_BUTTON || in->kind == REF_PUSH;
         if (in->row != row || in->col != col ||
-            !(turn ? (state < 0 && left) || (state > 0 && right) : press && (state || in->kind == REF_BUTTON))) {
+            !(turn ? (state < 0 && left) || (state > 0 && right) : press)) {
             continue;
+        }
+        if (!turn && !state && in->kind == REF_PUSH) {
+            return MIRABOX_EMU_NONE;
         }
         memset(out, 0, IN_LEN);
         memcpy(out, "ACK\0\0OK\0\0", 9);

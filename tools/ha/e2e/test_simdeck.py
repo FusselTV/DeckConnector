@@ -32,8 +32,11 @@ pytestmark = pytest.mark.skipif(not SIM.exists(), reason="build firmware/simdeck
 
 
 def act(*lines: str) -> None:
-    with open(WORK / "decks/ctl", "w") as f:
-        f.write("".join(f"{line}\n" for line in lines))
+    fd = os.open(WORK / "decks/ctl", os.O_WRONLY | os.O_NONBLOCK)  # fails at once when the simulator is gone
+    try:
+        os.write(fd, "".join(f"{line}\n" for line in lines).encode())
+    finally:
+        os.close(fd)
 
 
 @pytest.fixture(scope="module")
@@ -49,9 +52,14 @@ def sim():
     }
     with (WORK / "sim.log").open("wb") as log:
         proc = subprocess.Popen([SIM], env=env, stdout=log, stderr=subprocess.STDOUT)
+    WORK.joinpath("events.json").unlink(missing_ok=True)
     yield proc
+    assert proc.poll() is None, "the simulator ended"
     if not os.environ.get("KEEP"):
         proc.kill()
+    log = (WORK / "sim.log").read_text(errors="replace").splitlines()
+    bad = [x for x in log if x.startswith(("deck_emu ", "mirabox_emu ", "sim_usb "))]
+    assert not bad, bad
 
 
 @pytest.fixture(scope="module")

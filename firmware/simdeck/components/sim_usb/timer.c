@@ -66,6 +66,9 @@ esp_err_t esp_timer_create(const esp_timer_create_args_t *args, esp_timer_handle
 
 static esp_err_t arm(esp_timer_handle_t t, uint64_t us, uint64_t period)
 {
+    if (t->due) {
+        return ESP_ERR_INVALID_STATE; /* as IDF's: a running timer is stopped first */
+    }
     xSemaphoreTake(lock, portMAX_DELAY);
     t->due = esp_timer_get_time() + (int64_t)us + 1;
     t->period = period;

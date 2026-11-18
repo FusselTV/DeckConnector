@@ -17,5 +17,7 @@ const char *mirabox_emu_name(int deck);
 const db_hid_io_t *mirabox_emu_io(int deck);
 int mirabox_emu_brightness(int deck); /* the byte of the last LIG, -1 before */
 /* The input report for a press (state 1), release (0) or turn (-1 left, 1 right) of the control at row,
- * col. 0 when it has no such input. */
+ * col. 0 when it has no such input, MIRABOX_EMU_NONE for the release of a control that reports only presses.
+ */
+#define MIRABOX_EMU_NONE ((size_t)-1)
 size_t mirabox_emu_input(int deck, uint8_t row, uint8_t col, bool turn, int state, uint8_t *out, size_t cap);

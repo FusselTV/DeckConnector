@@ -2,6 +2,7 @@
 simulator at a time. Pictures of each deck land in ~/.cache/simdeck/shots for a person to look at."""
 
 import itertools
+import time
 from pathlib import Path
 
 import pytest
@@ -34,10 +35,13 @@ def start(request):
         return sim
 
     yield start
+    bad = []
     for sim in sims:
-        bad = [v for v in sim.violations() if not any(x in v for x in getattr(sim, "tolerated", ()))]
+        if sim.proc.poll() is not None:
+            bad.append(f"the simulator ended: {sim.log()[-2000:]}")
+        bad += [v for v in sim.violations() if not any(x in v for x in getattr(sim, "tolerated", ()))]
         sim.stop()
-        assert not bad, bad
+    assert not bad, bad
 
 
 def shot(sim: SimDeck, n: int, name: str):
@@ -49,9 +53,13 @@ def shot(sim: SimDeck, n: int, name: str):
 
 
 def dismiss_prompt(sim: SimDeck, n: int = 0) -> None:
-    """The simulator finds a Companion at once; "Nein" is the third key on every deck."""
+    """The simulator finds a Companion at once; "Nein" is the third key on every deck. The deck's picture
+    changes when the prompt goes."""
+    assert sim.wait(lambda: drawn_since(sim, n, 0), 5), "the deck shows nothing"
+    time.sleep(0.3)
+    since = time.time()
     sim.tap(n, 2)
-    assert sim.wait(lambda: not sim.status()["menu_open"], 5)
+    assert sim.wait(lambda: drawn_since(sim, n, since), 5), "the prompt did not go"
 
 
 def drawn_since(sim: SimDeck, n: int, since: float) -> list[Path]:

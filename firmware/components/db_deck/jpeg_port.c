@@ -89,6 +89,10 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
     }
     jpeg_mem_src(&d, jpg, len);
     jpeg_read_header(&d, TRUE);
+    if (d.progressive_mode || d.arith_code) { /* the P4's decoder takes baseline only */
+        jpeg_destroy_decompress(&d);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
     d.out_color_space = JCS_EXT_BGR;
     jpeg_start_decompress(&d);
     size_t stride = (size_t)d.output_width * 3;
@@ -97,7 +101,8 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
         JSAMPROW row = px + d.output_scanline * stride;
         jpeg_read_scanlines(&d, &row, 1);
     }
-    esp_err_t e = !px ? ESP_ERR_NO_MEM
+    esp_err_t e = !px                    ? ESP_ERR_NO_MEM
+                  : err.mgr.num_warnings ? ESP_ERR_INVALID_ARG /* cut short: libjpeg fills it in grey */
                   : x >= dw || y >= dh ||
                           db_screen_blit(dst, dw, dh, x, y, px, stride, (uint16_t)d.output_width,
                                          (uint16_t)d.output_height) != DB_OK
@@ -114,7 +119,7 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
 #include "driver/jpeg_decode.h"
 #include "driver/jpeg_encode.h"
 
-/* The ESP32-P4 has a hardware JPEG encoder. Other chips would plug a software encoder in here. */
+/* The ESP32-P4 has a hardware JPEG encoder. */
 
 static const char *TAG = "jpeg";
 static jpeg_encoder_handle_t encoder;

@@ -27,10 +27,11 @@ typedef struct mdns_result_s {
     mdns_ip_addr_t *addr;
 } mdns_result_t;
 
-#define IPSTR         "%d.%d.%d.%d"
+#define IPSTR          "%d.%d.%d.%d"
 #define IP2STR(ipaddr) 0, 0, 0, 0
 
-static inline esp_err_t mdns_query_ptr(const char *s, const char *p, uint32_t t, size_t max, mdns_result_t **r)
+static inline esp_err_t mdns_query_ptr(const char *s, const char *p, uint32_t t, size_t max,
+                                       mdns_result_t **r)
 {
     return ESP_ERR_NOT_FOUND;
 }
@@ -52,7 +53,8 @@ static inline esp_err_t mdns_service_port_set_for_host(const char *i, const char
 {
     return ESP_OK;
 }
-static inline esp_err_t mdns_service_remove_for_host(const char *i, const char *s, const char *p, const char *h)
+static inline esp_err_t mdns_service_remove_for_host(const char *i, const char *s, const char *p,
+                                                     const char *h)
 {
     return ESP_OK;
 }
