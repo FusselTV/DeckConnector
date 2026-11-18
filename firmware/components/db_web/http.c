@@ -519,6 +519,11 @@ const char *db_web_fingerprint(void)
     return fingerprint;
 }
 
+const char *db_web_ca_short(void)
+{
+    return web_cert_ca_short();
+}
+
 bool db_web_cert_custom(void)
 {
     return web_cert_custom();

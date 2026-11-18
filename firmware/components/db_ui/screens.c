@@ -688,6 +688,19 @@ static void offer_page(page_t *p)
 static void password_page(page_t *p)
 {
     const ui_model_t *md = p->md;
+    if (md->ca_fp[0]) { /* GET /api/ca: the code to compare before trusting the file */
+        char half[2][10];
+        snprintf(half[0], sizeof(half[0]), "%.9s", md->ca_fp);
+        snprintf(half[1], sizeof(half[1]), "%s", md->ca_fp + 10);
+        card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, "CA 1/2", half[0], "");
+        card(put(p, at(p, 0, 1), K_NONE), ICON_WEB, "CA 2/2", half[1], "");
+        close_key(put(p, at(p, 0, -1), K_NONE), ICON_CLOSE, L("Schließen", "Close"), "");
+        if (p->l->strip) {
+            segment(&p->sc->seg[0], 4, ICON_WEB, C_WARN, L("CA des Connectors", "The connector's CA"),
+                    md->ca_fp, L("Muss gleich sein wie im Browser", "Must match the browser"));
+        }
+        return;
+    }
     card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, L("Benutzer", "User"), "admin", "");
     card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass, "");
     if (ip_of(md)) {

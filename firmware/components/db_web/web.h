@@ -80,6 +80,8 @@ bool web_cert_check(const char *cert, const char *key, char *info, size_t cap);
 /* Keep an uploaded pair for the next start, or drop it (cert NULL) and go back to the own certificate. */
 esp_err_t web_cert_store(const char *cert, const char *key);
 bool web_cert_custom(void);
+/* The start of the device CA's SHA-256 as the deck shows it on download, "" with an own certificate. */
+const char *web_cert_ca_short(void);
 bool web_cert_custom_unread(void);
 esp_err_t get_cert(httpd_req_t *req);
 esp_err_t get_ca(httpd_req_t *req);

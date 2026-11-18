@@ -6,51 +6,55 @@
 
 #define RENEW_S (30LL * 86400)
 
-/* The device CA may only vouch for these (its name constraints): an address outside would void the whole
- * certificate. */
-static bool private_ip(uint32_t ip)
-{
-    const uint8_t *b = (const uint8_t *)&ip;
-    return b[0] == 10 || (b[0] == 172 && (b[1] & 0xf0) == 16) || (b[0] == 192 && b[1] == 168) ||
-           (b[0] == 169 && b[1] == 254);
-}
-
-/* `list` has `item` as one of its comma separated entries. */
-static bool listed(const char *list, const char *item, size_t len)
-{
-    for (const char *p = list; *p; p += strcspn(p, ",") + (p[strcspn(p, ",")] == ',')) {
-        if (strcspn(p, ",") == len && strncasecmp(p, item, len) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool db_cert_names(const char *name, const uint32_t *ips, int n, char *out, size_t cap)
+bool db_cert_names(const char *name, char *out, size_t cap)
 {
     int len = snprintf(out, cap, "%s.local,localhost", name);
-    for (int i = 0; i < n && len >= 0 && (size_t)len < cap; i++) {
-        const uint8_t *b = (const uint8_t *)&ips[i];
-        char ip[16];
-        int l = snprintf(ip, sizeof(ip), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
-        if (ips[i] && private_ip(ips[i]) && !listed(out, ip, (size_t)l)) {
-            len += snprintf(out + len, cap - (size_t)len, ",%s", ip);
-        }
-    }
     return len >= 0 && (size_t)len < cap;
+}
+
+/* NameConstraints { permittedSubtrees [0] { dNSName [2] <name>.local, localhost },
+ *                   excludedSubtrees [1] { iPAddress [7] 0.0.0.0/0, ::/0 } }: a permitted list without an
+ * address leaves every address allowed (RFC 5280 checks each kind of name on its own). All lengths stay below
+ * 128. */
+size_t db_cert_constraints(const char *name, uint8_t *out, size_t cap)
+{
+    char dns[2][64];
+    int l0 = snprintf(dns[0], sizeof(dns[0]), "%s.local", name);
+    int l1 = snprintf(dns[1], sizeof(dns[1]), "localhost");
+    size_t permitted = 8 + (size_t)l0 + (size_t)l1;
+    size_t excluded = 4 + 8 + 4 + 32;
+    size_t total = 2 + permitted + 2 + excluded;
+    if (l0 < 0 || (size_t)l0 >= sizeof(dns[0]) || total + 2 > cap || total > 127) {
+        return 0;
+    }
+    uint8_t *p = out;
+    *p++ = 0x30;
+    *p++ = (uint8_t)total;
+    *p++ = 0xa0;
+    *p++ = (uint8_t)permitted;
+    for (int i = 0; i < 2; i++) {
+        size_t l = (size_t)(i ? l1 : l0);
+        *p++ = 0x30;
+        *p++ = (uint8_t)(l + 2);
+        *p++ = 0x82;
+        *p++ = (uint8_t)l;
+        memcpy(p, dns[i], l);
+        p += l;
+    }
+    *p++ = 0xa1;
+    *p++ = (uint8_t)excluded;
+    for (int len = 8; len <= 32; len += 24) { /* address and mask, all zero: every IPv4, then every IPv6 */
+        *p++ = 0x30;
+        *p++ = (uint8_t)(len + 2);
+        *p++ = 0x87;
+        *p++ = (uint8_t)len;
+        memset(p, 0, (size_t)len);
+        p += len;
+    }
+    return (size_t)(p - out);
 }
 
 bool db_cert_renew(const char *have, const char *want, int64_t now, int64_t until)
 {
-    size_t first = strcspn(want, ",");
-    if (!have[0] || strcspn(have, ",") != first || strncasecmp(have, want, first) != 0 ||
-        until - now < RENEW_S) {
-        return true;
-    }
-    for (const char *p = want; *p; p += strcspn(p, ",") + (p[strcspn(p, ",")] == ',')) {
-        if (!listed(have, p, strcspn(p, ","))) {
-            return true;
-        }
-    }
-    return false;
+    return strcasecmp(have, want) != 0 || until - now < RENEW_S;
 }

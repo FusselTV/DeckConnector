@@ -1,20 +1,20 @@
 """The board's own certificate comes from its device CA and passes what browsers and Apple check; an own certificate
 is checked before it is used."""
 
-import base64
 import datetime
 import hashlib
 import json
-import urllib.request
-from ipaddress import ip_address
+import subprocess
+from ipaddress import ip_address, ip_network
+from pathlib import Path
 
 import pytest
-from conftest import PASSWORD, TARGET, WORKER, api, start_sim, status
+from conftest import api, status
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
-from cryptography.x509.verification import PolicyBuilder, Store
+from cryptography.x509.verification import PolicyBuilder, Store, VerificationError
 
 
 def pair(cn: str) -> tuple[str, str]:
@@ -37,38 +37,89 @@ def pair(cn: str) -> tuple[str, str]:
     return cert.public_bytes(serialization.Encoding.PEM).decode(), pem_key.decode()
 
 
-def fetch(host: str, path: str) -> bytes:
-    auth = base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
-    req = urllib.request.Request(f"http://{host}{path}", headers={"Authorization": f"Basic {auth}"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        return r.read()
+def fetch(path: str) -> bytes:
+    code, body = api("GET", path)
+    assert code == 200, body
+    return body
 
 
-def check_chain(host: str, ips: list[str]) -> None:
-    ca = x509.load_der_x509_certificate(fetch(host, "/api/ca"))
-    leaf = x509.load_pem_x509_certificate(fetch(host, "/api/cert"))
-    name = json.loads(fetch(host, "/api/status"))["name"] + ".local"
+def ca_like(real: x509.Certificate, key: ec.EllipticCurvePrivateKey) -> x509.Certificate:
+    """A CA of our own with the name constraints of the board's: it can sign what a stolen CA key could."""
+    now = datetime.datetime.now(datetime.UTC)
+    return (
+        x509.CertificateBuilder()
+        .subject_name(real.subject)
+        .issuer_name(real.subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=30))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(real.extensions.get_extension_for_class(x509.KeyUsage).value, critical=True)
+        .add_extension(real.extensions.get_extension_for_class(x509.NameConstraints).value, critical=True)
+        .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+
+
+def leaf_for(ca: x509.Certificate, ca_key: ec.EllipticCurvePrivateKey, san: x509.GeneralName) -> x509.Certificate:
+    key = ec.generate_private_key(ec.SECP256R1())
+    now = datetime.datetime.now(datetime.UTC)
+    return (
+        x509.CertificateBuilder()
+        .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "forged")]))
+        .issuer_name(ca.subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=30))
+        .add_extension(x509.SubjectAlternativeName([san]), critical=False)
+        .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
+        .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), critical=False)
+        .sign(ca_key, hashes.SHA256())
+    )
+
+
+def openssl_verifies(ca: x509.Certificate, leaf: x509.Certificate, check: list[str], tmp: Path) -> bool:
+    (tmp / "ca.pem").write_bytes(ca.public_bytes(serialization.Encoding.PEM))
+    (tmp / "leaf.pem").write_bytes(leaf.public_bytes(serialization.Encoding.PEM))
+    run = ["openssl", "verify", "-x509_strict", "-purpose", "sslserver", *check, "-CAfile", "ca.pem", "leaf.pem"]
+    return subprocess.run(run, cwd=tmp, capture_output=True).returncode == 0
+
+
+@pytest.mark.sim
+def test_the_device_ca_vouches_only_for_this_board(tmp_path):
+    ca = x509.load_der_x509_certificate(fetch("/api/ca"))
+    leaf = x509.load_pem_x509_certificate(fetch("/api/cert"))
+    name = status()["name"] + ".local"
     assert ca.extensions.get_extension_for_class(x509.BasicConstraints).value.ca
-    assert ca.extensions.get_extension_for_class(x509.NameConstraints).critical
+    nc = ca.extensions.get_extension_for_class(x509.NameConstraints)
+    assert nc.critical and nc.value.permitted_subtrees == [x509.DNSName(name), x509.DNSName("localhost")]
+    assert nc.value.excluded_subtrees == [x509.IPAddress(ip_network("0.0.0.0/0")), x509.IPAddress(ip_network("::/0"))]
     assert ExtendedKeyUsageOID.SERVER_AUTH in leaf.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
     assert leaf.not_valid_after_utc - leaf.not_valid_before_utc <= datetime.timedelta(days=825)  # Apple's limit
     san = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert sorted(san.get_values_for_type(x509.DNSName)) == sorted([name, "localhost"])
-    assert [str(i) for i in san.get_values_for_type(x509.IPAddress)] == ips
-    for who in [x509.DNSName(name), x509.DNSName("localhost"), *(x509.IPAddress(ip_address(i)) for i in ips)]:
-        PolicyBuilder().store(Store([ca])).build_server_verifier(who).verify(leaf, [])
+    assert san.get_values_for_type(x509.IPAddress) == []
+    for who in [name, "localhost"]:
+        PolicyBuilder().store(Store([ca])).build_server_verifier(x509.DNSName(who)).verify(leaf, [])
+        assert openssl_verifies(ca, leaf, ["-verify_hostname", who], tmp_path)
 
-
-@pytest.mark.sim
-@pytest.mark.skipif(TARGET != "sim", reason="the simulator's LAN address")
-def test_the_device_ca_issues_a_certificate_browsers_and_apple_accept():
-    port = 28280 + WORKER
-    sim = start_sim(port, DB_SIM_PASSWORD=PASSWORD, DB_SIM_LAN_IP="192.168.77.5")
-    try:
-        check_chain(f"127.0.0.1:{port}", ["192.168.77.5"])
-    finally:
-        sim.kill()
-        sim.wait()
+    key = ec.generate_private_key(ec.SECP256R1())
+    stolen = ca_like(ca, key)
+    own = leaf_for(stolen, key, x509.DNSName(name))
+    PolicyBuilder().store(Store([stolen])).build_server_verifier(x509.DNSName(name)).verify(own, [])
+    assert openssl_verifies(stolen, own, ["-verify_hostname", name], tmp_path)
+    for san, check in [
+        (x509.DNSName("nas.local"), ["-verify_hostname", "nas.local"]),
+        (x509.DNSName("example.com"), ["-verify_hostname", "example.com"]),
+        (x509.IPAddress(ip_address("192.168.1.1")), ["-verify_ip", "192.168.1.1"]),
+        (x509.IPAddress(ip_address("fd00::1")), ["-verify_ip", "fd00::1"]),
+    ]:
+        forged = leaf_for(stolen, key, san)
+        with pytest.raises(VerificationError):
+            PolicyBuilder().store(Store([stolen])).build_server_verifier(san).verify(forged, [])
+        assert not openssl_verifies(stolen, forged, check, tmp_path), san
 
 
 def test_the_downloaded_certificate_matches_the_fingerprint():

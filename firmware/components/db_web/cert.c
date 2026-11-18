@@ -1,16 +1,16 @@
 #include "web.h"
 
-#include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 #include "cJSON.h"
 #include "db_cert.h"
 #include "db_config.h"
 #include "db_json.h"
-#include "db_net.h"
+#include "db_ui.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/pk.h"
+#include "mbedtls/platform_util.h"
 #include "mbedtls/x509_crt.h"
 #include "nvs.h"
 #include "psa/crypto.h"
@@ -36,7 +37,7 @@
 #define LEAF_DAYS                                                                                            \
     800 /* Apple refuses a server certificate valid longer than 825 days, also a trusted one                 \
          */
-#define SANS 6
+#define SANS 2
 
 static const char *TAG = "cert";
 
@@ -53,7 +54,9 @@ static bool custom;
 static bool custom_unread; /* an uploaded pair is kept but could not be read this boot */
 static uint8_t *ca;        /* the device CA, DER */
 static size_t ca_len;
-static char names[160]; /* the live own certificate is for these, see db_cert_names() */
+static char ca_for[33];   /* the name the CA may vouch for */
+static char ca_short[20]; /* "1A2B 3C4D 5E6F 7A8B": the start of its SHA-256, to compare with the deck */
+static char names[80];    /* the live own certificate is for these, see db_cert_names() */
 static int64_t until;
 static char *fp_out;
 static volatile bool renewing;
@@ -95,12 +98,16 @@ static bool new_key(mbedtls_pk_context *pk)
 /* Before SNTP the clock counts from 1970: then the build day stands in. */
 static int64_t now_s(void)
 {
-    static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
-    const char *d = __DATE__;
-    const char *m = strstr(months, (char[4]){d[0], d[1], d[2], '\0'});
-    struct tm b = {
-        .tm_mday = atoi(d + 4), .tm_mon = m ? (int)(m - months) / 3 : 0, .tm_year = atoi(d + 7) - 1900};
-    time_t built = mktime(&b), t = time(NULL);
+    static time_t built;
+    if (!built) {
+        static const char months[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+        const char *d = __DATE__;
+        const char *m = strstr(months, (char[4]){d[0], d[1], d[2], '\0'});
+        struct tm b = {
+            .tm_mday = atoi(d + 4), .tm_mon = m ? (int)(m - months) / 3 : 0, .tm_year = atoi(d + 7) - 1900};
+        built = mktime(&b);
+    }
+    time_t t = time(NULL);
     return t > built ? t : built;
 }
 
@@ -112,62 +119,33 @@ static void stamp(int64_t t, char out[16])
     strftime(out, 16, "%Y%m%d%H%M%S", &b);
 }
 
-/* "CN=DeckConnector 1A2B3C4D CA", the number from the CA's key: it stays when the board is renamed. */
-static bool ca_subject(mbedtls_pk_context *pk, char out[48])
-{
-    uint8_t der[128], hash[32];
-    size_t n;
-    int len = mbedtls_pk_write_pubkey_der(pk, der, sizeof(der));
-    if (len <= 0 || psa_hash_compute(PSA_ALG_SHA_256, der + sizeof(der) - len, (size_t)len, hash, 32, &n) !=
-                        PSA_SUCCESS) {
-        return false;
-    }
-    snprintf(out, 48, "CN=DeckConnector %02X%02X%02X%02X CA", hash[0], hash[1], hash[2], hash[3]);
-    return true;
-}
-
 /* The device CA (`san` NULL), or a server certificate for the names in `san` signed by it. PEM, or DER at the
  * start of `buf` with its length in `*len`. */
 static bool issue(mbedtls_pk_context *subject_key, mbedtls_pk_context *ca_key, const char *san, int64_t from,
                   bool pem, uint8_t *buf, size_t *len)
 {
-    /* The CA vouches only for .local, localhost and private IPv4 addresses: a trusted CA whose key leaves a
-     * stolen board cannot be used against any other site. */
-    static const uint8_t constraints[] = {
-        0x30, 0x48, 0xa0, 0x46, 0x30, 0x07, 0x82, 0x05, 'l',  'o',  'c',  'a',  'l',  0x30, 0x0b,
-        0x82, 0x09, 'l',  'o',  'c',  'a',  'l',  'h',  'o',  's',  't',  0x30, 0x0a, 0x87, 0x08,
-        10,   0,    0,    0,    255,  0,    0,    0,    0x30, 0x0a, 0x87, 0x08, 172,  16,   0,
-        0,    255,  240,  0,    0,    0x30, 0x0a, 0x87, 0x08, 192,  168,  0,    0,    255,  255,
-        0,    0,    0x30, 0x0a, 0x87, 0x08, 169,  254,  0,    0,    255,  255,  0,    0};
-    char issuer[48], subject[80], nb[16], na[16];
+    /* The CA vouches only for this board's own name: its key, read out of a stolen board (NVS is not
+     * encrypted), cannot pass for any other host to a device that trusts the CA. */
+    uint8_t constraints[128];
+    size_t constraints_len = db_cert_constraints(ca_for, constraints, sizeof(constraints));
+    char issuer[64], subject[80], nb[16], na[16];
     uint8_t serial[16];
     esp_fill_random(serial, sizeof(serial));
     serial[0] &= 0x7f; /* a positive number */
     stamp(from, nb);
     stamp(san ? from + LEAF_DAYS * DAY : 2524607999 /* 2049-12-31 */, na);
-    if (!ca_subject(ca_key, issuer)) {
-        return false;
-    }
+    snprintf(issuer, sizeof(issuer), "CN=DeckConnector %s CA", ca_for);
     if (san) {
         snprintf(subject, sizeof(subject), "CN=%.*s", (int)strcspn(san, ","), san);
     } else {
         strlcpy(subject, issuer, sizeof(subject));
     }
     mbedtls_x509_san_list sans[SANS] = {0};
-    uint8_t ips[SANS][4];
-    int n = 0;
-    for (const char *p = san; p && *p && n < SANS; n++) {
+    const char *p = san;
+    for (int n = 0; p && *p && n < SANS; n++) {
         size_t l = strcspn(p, ",");
-        char ip[16] = "";
-        bool dns = strspn(p, "0123456789.") != l || l >= sizeof(ip);
-        if (!dns) {
-            memcpy(ip, p, l);
-            uint32_t v = inet_addr(ip);
-            memcpy(ips[n], &v, 4);
-        }
-        sans[n].node.type = dns ? MBEDTLS_X509_SAN_DNS_NAME : MBEDTLS_X509_SAN_IP_ADDRESS;
-        sans[n].node.san.unstructured_name =
-            (mbedtls_x509_buf){.p = dns ? (unsigned char *)p : ips[n], .len = dns ? l : 4};
+        sans[n].node.type = MBEDTLS_X509_SAN_DNS_NAME;
+        sans[n].node.san.unstructured_name = (mbedtls_x509_buf){.p = (unsigned char *)p, .len = l};
         if (n) {
             sans[n - 1].next = &sans[n];
         }
@@ -200,7 +178,7 @@ static bool issue(mbedtls_pk_context *subject_key, mbedtls_pk_context *ca_key, c
                                                            MBEDTLS_X509_KU_CRL_SIGN) == 0 &&
              mbedtls_x509write_crt_set_extension(&crt, MBEDTLS_OID_NAME_CONSTRAINTS,
                                                  sizeof(MBEDTLS_OID_NAME_CONSTRAINTS) - 1, 1, constraints,
-                                                 sizeof(constraints)) == 0;
+                                                 constraints_len) == 0;
     }
     int r = !ok   ? -1
             : pem ? mbedtls_x509write_crt_pem(&crt, buf, *len)
@@ -243,28 +221,29 @@ static void go_live(pair_t *p)
 /* The names the board answers to now. */
 static void wanted(char *out, size_t cap)
 {
-    db_net_status_t n;
-    db_net_status(&n);
-    uint32_t ips[] = {n.lan_up ? inet_addr(n.lan_ip) : 0, n.wlan_up ? inet_addr(n.wlan_ip) : 0};
-    db_cert_names(db_config()->name, ips, 2, out, cap);
+    db_cert_names(db_config()->name, out, cap);
 }
 
-/* The device CA from NVS, made on the first start (`*fresh`). Its key stays in NVS and is read only to sign.
- */
+/* The device CA from NVS, made for the board's name. A new name, or a CA without a name from an earlier build
+ * (its constraints let it vouch for every .local name and private address), gets a new one (`*fresh`). Its
+ * key stays in NVS and is read only to sign. */
 static bool load_ca(nvs_handle_t h, bool *fresh)
 {
     ca = heap_caps_malloc(DER_MAX, MALLOC_CAP_SPIRAM);
     char *pem = heap_caps_calloc(1, PEM_MAX, MALLOC_CAP_SPIRAM);
-    size_t len = DER_MAX;
+    size_t len = DER_MAX, nl = sizeof(ca_for);
     esp_err_t err = ca && pem ? nvs_get_blob(h, "ca", ca, &len) : ESP_ERR_NO_MEM;
-    bool ok = err == ESP_OK;
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
+    esp_err_t named = err == ESP_OK ? nvs_get_str(h, "caname", ca_for, &nl) : err;
+    bool ok = named == ESP_OK && strcmp(ca_for, db_config()->name) == 0;
+    if (err == ESP_ERR_NVS_NOT_FOUND || named == ESP_ERR_NVS_NOT_FOUND || (named == ESP_OK && !ok)) {
+        strlcpy(ca_for, db_config()->name, sizeof(ca_for));
+        len = DER_MAX;
         mbedtls_pk_context pk;
         mbedtls_pk_init(&pk);
         ok = new_key(&pk) && issue(&pk, &pk, NULL, now_s() - DAY, false, ca, &len) &&
              mbedtls_pk_write_key_pem(&pk, (unsigned char *)pem, PEM_MAX) == 0 &&
              nvs_set_str(h, "cakey", pem) == ESP_OK && nvs_set_blob(h, "ca", ca, len) == ESP_OK &&
-             nvs_commit(h) == ESP_OK;
+             nvs_set_str(h, "caname", ca_for) == ESP_OK && nvs_commit(h) == ESP_OK;
         mbedtls_pk_free(&pk);
         *fresh = true;
         ESP_LOGI(TAG, "new device CA, %u B stack left: %s", (unsigned)uxTaskGetStackHighWaterMark(NULL),
@@ -272,8 +251,17 @@ static bool load_ca(nvs_handle_t h, bool *fresh)
     } else if (!ok) {
         ESP_LOGE(TAG, "device CA unreadable (%s), no HTTPS until the next start", esp_err_to_name(err));
     }
+    if (pem) {
+        mbedtls_platform_zeroize(pem, PEM_MAX);
+    }
     heap_caps_free(pem);
     ca_len = ok ? len : 0;
+    uint8_t hash[32];
+    size_t n;
+    if (ok && psa_hash_compute(PSA_ALG_SHA_256, ca, ca_len, hash, sizeof(hash), &n) == PSA_SUCCESS) {
+        snprintf(ca_short, sizeof(ca_short), "%02X%02X %02X%02X %02X%02X %02X%02X", hash[0], hash[1], hash[2],
+                 hash[3], hash[4], hash[5], hash[6], hash[7]);
+    }
     return ok;
 }
 
@@ -303,6 +291,9 @@ static bool renew(const char *want)
                  nvs_set_i64(h, "until", from + LEAF_DAYS * DAY) == ESP_OK && nvs_commit(h) == ESP_OK;
     if (h) {
         nvs_close(h);
+    }
+    if (ca_pem) {
+        mbedtls_platform_zeroize(ca_pem, PEM_MAX);
     }
     heap_caps_free(ca_pem);
     mbedtls_pk_free(&ca_key);
@@ -400,9 +391,8 @@ static void renew_task(void *arg)
 {
     char want[sizeof(names)];
     wanted(want, sizeof(want));
-    if (!renew(want)) {
-        next_try = esp_timer_get_time() + 3600 * 1000000LL;
-    }
+    /* ponytail: one renewal per minute at most, so the slot it reuses served its last handshake long ago */
+    next_try = esp_timer_get_time() + (renew(want) ? 60 : 3600) * 1000000LL;
     renewing = false;
     vTaskDelete(NULL);
 }
@@ -414,7 +404,8 @@ void web_cert_tick(void)
     }
     char want[sizeof(names)];
     wanted(want, sizeof(want));
-    if (!db_cert_renew(names, want, now_s(), until)) {
+    /* a new name waits for the restart that follows it: the CA is for the old one */
+    if (strcasecmp(want, names) != 0 || !db_cert_renew(names, want, now_s(), until)) {
         return;
     }
     renewing = true;
@@ -462,6 +453,11 @@ bool web_cert_check(const char *cert, const char *key, char *info, size_t cap)
     mbedtls_pk_free(&pk);
     mbedtls_x509_crt_free(&crt);
     return ok;
+}
+
+const char *web_cert_ca_short(void)
+{
+    return custom ? "" : ca_short;
 }
 
 bool web_cert_custom(void)
@@ -519,6 +515,7 @@ esp_err_t get_ca(httpd_req_t *req)
         return send_error(req, "404 Not Found",
                           custom ? "an own certificate is in use" : "HTTPS is not running");
     }
+    db_ui_show_ca(ca_short);
     httpd_resp_set_type(req, "application/x-x509-ca-cert");
     httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"deckconnector-ca.crt\"");
     return httpd_resp_send(req, (const char *)ca, (ssize_t)ca_len);

@@ -123,6 +123,7 @@ typedef struct {
     ui_qr_t login_qr;
     bool picked; /* the config names a host or a program other than the default: someone chose */
     bool show_pass;
+    char ca_fp[20]; /* the page of show_pass shows this instead of the password */
     bool reset_ask;
     bool from_deck;     /* the input being handled was pressed on the deck, not sent over the network */
     char login_ip[16];  /* a browser asks to log in without the password; empty: nobody */
