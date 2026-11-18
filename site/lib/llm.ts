@@ -40,14 +40,22 @@ function mdx(body: string) {
           return links.length ? `Next: ${links.map(([, t, u]) => `[${t}](${u})`).join(', ')}` : ''
         })
         .replace(/^[ \t]*<Buttons\b([\s\S]*?)\/>[ \t]*$/gm, (_, a: string) =>
-          [...a.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)].map(([, t, u]) => `- [${t}](${u})`).join('\n'),
+          [...a.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)]
+            .map(([, t, u]) => `- [${t}](${u})`)
+            .join('\n'),
         )
         .replace(/^[ \t]*<BenchBars\b([\s\S]*?)\/>[ \t]*$/gm, (_, a: string) => {
           const de = attr(a, 'lang') === 'de'
           const unit = attr(a, 'unit') ?? ''
           const n = (v: string) => `${de ? v.replace('.', ',') : v} ${unit}`
           const rows = [...a.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\]/g)]
-          return [`**${attr(a, 'title') ?? ''}**`, '', '| | DeckConnector | Elgato Network Dock |', '|---|---|---|', ...rows.map(([, l, x, y]) => `| ${l} | ${n(x ?? '')} | ${n(y ?? '')} |`)].join('\n')
+          return [
+            `**${attr(a, 'title') ?? ''}**`,
+            '',
+            '| | DeckConnector | Elgato Network Dock |',
+            '|---|---|---|',
+            ...rows.map(([, l, x, y]) => `| ${l} | ${n(x ?? '')} | ${n(y ?? '')} |`),
+          ].join('\n')
         })
         .replace(/^[ \t]*<[A-Z][\s\S]*?\/>[ \t]*$/gm, '')
         .replace(/^[ \t]*<\/?[A-Z]\w*[^>]*>[ \t]*$/gm, '')

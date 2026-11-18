@@ -60,7 +60,11 @@ export function SiteFooter({ lang }: { lang: Lang }) {
           {s.line}
           <span className="mt-3 flex gap-4">
             {(['contact', 'imprint', 'privacy'] as const).map((k) => (
-              <a key={k} href={legalPath[k][lang]} className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9">
+              <a
+                key={k}
+                href={legalPath[k][lang]}
+                className="flex min-h-11 items-center hover:text-fd-foreground lg:min-h-9"
+              >
                 {s[k]}
               </a>
             ))}
@@ -68,7 +72,11 @@ export function SiteFooter({ lang }: { lang: Lang }) {
         </p>
         <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 md:gap-x-10">
           {links.map(([text, url]) => (
-            <a key={url} href={url} className="flex min-h-11 items-center rounded-md transition-colors hover:text-fd-foreground lg:min-h-9">
+            <a
+              key={url}
+              href={url}
+              className="flex min-h-11 items-center rounded-md transition-colors hover:text-fd-foreground lg:min-h-9"
+            >
               {text}
             </a>
           ))}

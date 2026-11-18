@@ -16,7 +16,10 @@ export function Compare({ lang }: { lang: Lang }) {
   return (
     <main id="main" className="overflow-x-clip">
       <section className="relative">
-        <div aria-hidden className={`${dots} [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000,transparent)]`} />
+        <div
+          aria-hidden
+          className={`${dots} [mask-image:radial-gradient(ellipse_80%_60%_at_50%_0%,#000,transparent)]`}
+        />
         <div className={`${wrap} relative pt-10 pb-14 sm:pt-14`}>
           <div className="max-w-3xl">
             <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">{c.h1}</h1>
@@ -70,7 +73,6 @@ export function Compare({ lang }: { lang: Lang }) {
           </ul>
         </div>
       </section>
-
 
       <section aria-labelledby="faq" className={`border-t border-line ${section}`}>
         <div className={`${wrap} grid gap-10 lg:grid-cols-[1fr_2fr] lg:gap-16`}>

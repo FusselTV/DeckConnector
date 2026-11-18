@@ -33,8 +33,15 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
           '@type': 'BreadcrumbList',
           itemListElement: [
             { '@type': 'ListItem', position: 1, name: 'DeckConnector', item: `${site}${prefix(lang)}/` },
-            { '@type': 'ListItem', position: 2, name: lang === 'de' ? 'Anleitung' : 'Docs', item: `${site}${prefix(lang)}/docs/` },
-            ...(page.slugs.length ? [{ '@type': 'ListItem', position: 3, name: page.data.title, item: `${site}${page.url}/` }] : []),
+            {
+              '@type': 'ListItem',
+              position: 2,
+              name: lang === 'de' ? 'Anleitung' : 'Docs',
+              item: `${site}${prefix(lang)}/docs/`,
+            },
+            ...(page.slugs.length
+              ? [{ '@type': 'ListItem', position: 3, name: page.data.title, item: `${site}${page.url}/` }]
+              : []),
           ],
         }}
       />
@@ -44,7 +51,12 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
       <DocsDescription>{page.data.description}</DocsDescription>
       <div className="flex items-center gap-2 border-b pb-6">
         <MarkdownCopyButton markdownUrl={md} />
-        <PageActions lang={lang} md={md} pageUrl={`${site}${page.url}/`} sourceUrl={`${repo}/blob/main/site/content/docs/${page.path}`} />
+        <PageActions
+          lang={lang}
+          md={md}
+          pageUrl={`${site}${page.url}/`}
+          sourceUrl={`${repo}/blob/main/site/content/docs/${page.path}`}
+        />
       </div>
       <DocsBody>
         <MDX
@@ -71,16 +83,28 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
 // fumadocs' ViewOptionsPopover always adds Cursor and Scira AI
 function PageActions({ lang, md, pageUrl, sourceUrl }: { lang: Lang; md: string; pageUrl: string; sourceUrl: string }) {
   const de = lang === 'de'
-  const q = de ? `Lies ${pageUrl}, ich möchte Fragen dazu stellen.` : `Read ${pageUrl}, I want to ask questions about it.`
+  const q = de
+    ? `Lies ${pageUrl}, ich möchte Fragen dazu stellen.`
+    : `Read ${pageUrl}, I want to ask questions about it.`
   const items = [
     { title: de ? 'Auf GitHub öffnen' : 'Open in GitHub', href: sourceUrl, icon: github },
     { title: de ? 'Als Markdown ansehen' : 'View as Markdown', href: md, icon: <TextIcon /> },
-    { title: de ? 'In ChatGPT öffnen' : 'Open in ChatGPT', href: `https://chatgpt.com/?${new URLSearchParams({ prompt: q, hints: 'search' })}`, icon: openai },
-    { title: de ? 'In Claude öffnen' : 'Open in Claude', href: `https://claude.ai/new?${new URLSearchParams({ q })}`, icon: anthropic },
+    {
+      title: de ? 'In ChatGPT öffnen' : 'Open in ChatGPT',
+      href: `https://chatgpt.com/?${new URLSearchParams({ prompt: q, hints: 'search' })}`,
+      icon: openai,
+    },
+    {
+      title: de ? 'In Claude öffnen' : 'Open in Claude',
+      href: `https://claude.ai/new?${new URLSearchParams({ q })}`,
+      icon: anthropic,
+    },
   ]
   return (
     <Popover>
-      <PopoverTrigger className={`${buttonVariants({ variant: 'secondary', size: 'sm' })} gap-2 data-[popup-open]:bg-fd-accent data-[popup-open]:text-fd-accent-foreground`}>
+      <PopoverTrigger
+        className={`${buttonVariants({ variant: 'secondary', size: 'sm' })} gap-2 data-[popup-open]:bg-fd-accent data-[popup-open]:text-fd-accent-foreground`}
+      >
         {de ? 'Öffnen' : 'Open'}
         <ChevronDown className="size-3.5 text-fd-muted-foreground" />
       </PopoverTrigger>
@@ -119,6 +143,9 @@ export const docParams = (lang: Lang) => source.getPages(lang).map((p) => ({ slu
 export function docMetadata(lang: Lang, slug?: string[]): Metadata {
   const page = source.getPage(slug, lang)
   if (!page) notFound()
-  const m = pageMeta(lang, `/docs/${page.slugs.map((x) => `${x}/`).join('')}`, { title: page.data.title, description: page.data.description })
+  const m = pageMeta(lang, `/docs/${page.slugs.map((x) => `${x}/`).join('')}`, {
+    title: page.data.title,
+    description: page.data.description,
+  })
   return { ...m, alternates: { ...m.alternates, types: { 'text/markdown': mdPath(lang, page.slugs) } } }
 }

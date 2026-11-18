@@ -37,7 +37,9 @@ export class Board {
   }
 
   async config() {
-    const r = await fetch(`http://127.0.0.1:${this.o.simPort}/api/config`, { headers: { Authorization: `Basic ${Buffer.from('admin:simulator').toString('base64')}` } })
+    const r = await fetch(`http://127.0.0.1:${this.o.simPort}/api/config`, {
+      headers: { Authorization: `Basic ${Buffer.from('admin:simulator').toString('base64')}` },
+    })
     return r.json()
   }
 
@@ -61,7 +63,10 @@ export class Board {
     this.rx = []
     this.sim?.kill()
     this.sim = null
-    if (mode === 'download') this.out(Buffer.from('ESP-ROM:esp32p4-eco2-20240710\r\nboot:0x20f (DOWNLOAD(USB/UART0))\r\nwaiting for download\r\n'))
+    if (mode === 'download')
+      this.out(
+        Buffer.from('ESP-ROM:esp32p4-eco2-20240710\r\nboot:0x20f (DOWNLOAD(USB/UART0))\r\nwaiting for download\r\n'),
+      )
     if (mode === 'app') setTimeout(() => this.mode === mode && !this.sim && this.startSim(), this.o.bootMs ?? 0)
   }
 
@@ -86,7 +91,10 @@ export class Board {
       sim.stdin.write(Buffer.from([...body, body.reduce((a, b) => a + b, 0) & 0xff, 10]))
     }
     // The simulator exits where the firmware restarts.
-    sim.on('exit', () => this.sim === sim && this.mode === 'app' && setTimeout(() => this.sim === sim && this.startSim(), 300))
+    sim.on(
+      'exit',
+      () => this.sim === sim && this.mode === 'app' && setTimeout(() => this.sim === sim && this.startSim(), 300),
+    )
   }
 
   write(bytes) {
@@ -171,7 +179,9 @@ export class Board {
       }
       case 0x13: {
         const at = d.readUInt32LE(0)
-        const sum = createHash('md5').update(this.flash.subarray(at, at + d.readUInt32LE(4))).digest()
+        const sum = createHash('md5')
+          .update(this.flash.subarray(at, at + d.readUInt32LE(4)))
+          .digest()
         if (this.o.md5Bad && at !== 0x8000) sum[0] ^= 1
         return this.reply(op, 0, sum)
       }
@@ -181,7 +191,9 @@ export class Board {
   }
 
   md5(offset, size) {
-    return createHash('md5').update(this.flash.subarray(offset, offset + size)).digest('hex')
+    return createHash('md5')
+      .update(this.flash.subarray(offset, offset + size))
+      .digest('hex')
   }
 
   stop() {

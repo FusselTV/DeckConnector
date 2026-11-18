@@ -16,8 +16,15 @@ export function Root({ lang, children }: { lang: Lang; children: ReactNode }) {
   return (
     <html lang={lang} suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
-        <RootProvider i18n={ui.provider(lang)} search={{ SearchDialog: Search }} theme={{ defaultTheme: 'dark', enableSystem: false, disableTransitionOnChange: true }}>
-          <a href="#main" className="sr-only rounded-lg bg-amber px-4 py-2 font-semibold text-amber-ink focus:not-sr-only focus:fixed focus:start-3 focus:top-2 focus:z-50">
+        <RootProvider
+          i18n={ui.provider(lang)}
+          search={{ SearchDialog: Search }}
+          theme={{ defaultTheme: 'dark', enableSystem: false, disableTransitionOnChange: true }}
+        >
+          <a
+            href="#main"
+            className="sr-only rounded-lg bg-amber px-4 py-2 font-semibold text-amber-ink focus:not-sr-only focus:fixed focus:start-3 focus:top-2 focus:z-50"
+          >
             {skip[lang]}
           </a>
           <SiteHeader lang={lang} />

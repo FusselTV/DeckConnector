@@ -1,5 +1,33 @@
 import { useCurrentFrame } from 'remotion'
-import { AppWindow, Blinds, Clapperboard, Clock, DoorClosed, EthernetPort, Fan, Flame, Globe, LayoutGrid, Lightbulb, Mail, MessageCircle, Mic, MicOff, Music, Play, Server, Settings, SkipForward, Sun, SunDim, Thermometer, Timer, Tv, Volume2, Wifi } from 'lucide-react'
+import {
+  AppWindow,
+  Blinds,
+  Clapperboard,
+  Clock,
+  DoorClosed,
+  EthernetPort,
+  Fan,
+  Flame,
+  Globe,
+  LayoutGrid,
+  Lightbulb,
+  Mail,
+  MessageCircle,
+  Mic,
+  MicOff,
+  Music,
+  Play,
+  Server,
+  Settings,
+  SkipForward,
+  Sun,
+  SunDim,
+  Thermometer,
+  Timer,
+  Tv,
+  Volume2,
+  Wifi,
+} from 'lucide-react'
 import { AMBER, Deck, GREEN, keyBox, RED, SD, Zone, type Key, showKeys, showStrip } from './hw'
 import { breathe, Caption, Scene } from './scene'
 import { lin, pulse, ramp } from './time'
@@ -12,11 +40,7 @@ const BEAT = 100
 const MENU = 16
 const TAP = 44
 const SWEEP = [50, 70] as const
-const HOSTS = [
-  { color: AMBER },
-  { color: '#9b7bff' },
-  { color: '#5aa9ff' },
-] as const
+const HOSTS = [{ color: AMBER }, { color: '#9b7bff' }, { color: '#5aa9ff' }] as const
 
 function pages(t: Text, f: number) {
   return [
@@ -70,7 +94,12 @@ const HOST_ICONS = [LayoutGrid, AppWindow, Server] as const
 export function menuKeys(t: Text, chosen: number): Key[] {
   const host = (i: number): Key => {
     const on = i === chosen
-    return { icon: HOST_ICONS[i], bg: on ? AMBER : undefined, fg: on ? '#1a1200' : HOSTS[i]?.color, glow: on ? AMBER : HOSTS[i]?.color }
+    return {
+      icon: HOST_ICONS[i],
+      bg: on ? AMBER : undefined,
+      fg: on ? '#1a1200' : HOSTS[i]?.color,
+      glow: on ? AMBER : HOSTS[i]?.color,
+    }
   }
   return [
     host(0),
@@ -108,7 +137,9 @@ export default function Hosts({ lang }: LangProps) {
   const menu = menuKeys(t, l >= TAP - 1 ? to : from)
   const keys = cur.keys.map((k, i) => (l >= toNext(i) ? next.keys[i] : l >= toMenu(i) ? menu[i] : k) ?? null)
   const under = cur.keys.map((k, i) => (l >= toNext(i) ? menu[i] : k) ?? null)
-  const lit = keys.map((_, i) => (l >= toNext(i) ? ramp(l, toNext(i), toNext(i) + 7) : l >= toMenu(i) ? ramp(l, toMenu(i), toMenu(i) + 6) : 1))
+  const lit = keys.map((_, i) =>
+    l >= toNext(i) ? ramp(l, toNext(i), toNext(i) + 7) : l >= toMenu(i) ? ramp(l, toMenu(i), toMenu(i) + 6) : 1,
+  )
   const flash = keys.map((_, i) => 0.35 * pulse(l, toNext(i) + 4, toNext(i) + 16, 2, 10))
   const down = keys.map((_, i) => (i === to ? pulse(l, TAP - 2, TAP + 7, 2, 5) : 0))
   const ring = keys.map((_, i) => (i === to && l < SWEEP[0] ? pulse(l, TAP, SWEEP[0] - 1, 2, 5) : 0))
@@ -123,12 +154,38 @@ export default function Hosts({ lang }: LangProps) {
       cam={breathe(f, 3 * BEAT, WIDE)}
       over={
         <>
-          <Caption f={f} from={B - BEAT + SWEEP[0] + 2} to={B + SWEEP[0] + 2} text={names[from] ?? ''} sub={t.inControl} size={48} />
-          <Caption f={f} from={B + SWEEP[0] + 2} to={B + BEAT + SWEEP[0] + 2} text={names[to] ?? ''} sub={t.inControl} size={48} />
+          <Caption
+            f={f}
+            from={B - BEAT + SWEEP[0] + 2}
+            to={B + SWEEP[0] + 2}
+            text={names[from] ?? ''}
+            sub={t.inControl}
+            size={48}
+          />
+          <Caption
+            f={f}
+            from={B + SWEEP[0] + 2}
+            to={B + BEAT + SWEEP[0] + 2}
+            text={names[to] ?? ''}
+            sub={t.inControl}
+            size={48}
+          />
         </>
       }
     >
-      <Deck {...DECK} keys={keys} under={under} strip={strip} lit={lit} flash={flash} down={down} ring={ring} edge={sweeping ? hostColor : '#fff'} stripLit={l >= SWEEP[1] - 4 ? ramp(l, SWEEP[1] - 4, SWEEP[1] + 4) : 1} sheen={Math.sin((f / 300) * Math.PI * 6) * 0.6}>
+      <Deck
+        {...DECK}
+        keys={keys}
+        under={under}
+        strip={strip}
+        lit={lit}
+        flash={flash}
+        down={down}
+        ring={ring}
+        edge={sweeping ? hostColor : '#fff'}
+        stripLit={l >= SWEEP[1] - 4 ? ramp(l, SWEEP[1] - 4, SWEEP[1] + 4) : 1}
+        sheen={Math.sin((f / 300) * Math.PI * 6) * 0.6}
+      >
         <Finger l={l} target={to} />
       </Deck>
     </Scene>
@@ -148,10 +205,35 @@ function Finger({ l, target }: { l: number; target: number }) {
   const ripple = lin(l, TAP, TAP + 14)
   return (
     <g opacity={o}>
-      <ellipse cx={cx + 3 + lift * 0.5} cy={cy + 5 + lift} rx={8} ry={9} fill="#000" opacity={0.35 * (1 - press * 0.5)} />
-      {ripple > 0 && ripple < 1 && <circle cx={cx} cy={cy} r={5 + ripple * 11} fill="none" stroke="#fff" strokeWidth={1.2 * (1 - ripple)} opacity={1 - ripple} />}
+      <ellipse
+        cx={cx + 3 + lift * 0.5}
+        cy={cy + 5 + lift}
+        rx={8}
+        ry={9}
+        fill="#000"
+        opacity={0.35 * (1 - press * 0.5)}
+      />
+      {ripple > 0 && ripple < 1 && (
+        <circle
+          cx={cx}
+          cy={cy}
+          r={5 + ripple * 11}
+          fill="none"
+          stroke="#fff"
+          strokeWidth={1.2 * (1 - ripple)}
+          opacity={1 - ripple}
+        />
+      )}
       <circle cx={cx + lift * 0.4} cy={cy + lift * 0.6} r={6 - press * 0.8} fill="#fff" opacity={0.28 + press * 0.2} />
-      <circle cx={cx + lift * 0.4} cy={cy + lift * 0.6} r={6 - press * 0.8} fill="none" stroke="#fff" strokeWidth={0.8} opacity={0.85} />
+      <circle
+        cx={cx + lift * 0.4}
+        cy={cy + lift * 0.6}
+        r={6 - press * 0.8}
+        fill="none"
+        stroke="#fff"
+        strokeWidth={0.8}
+        opacity={0.85}
+      />
     </g>
   )
 }

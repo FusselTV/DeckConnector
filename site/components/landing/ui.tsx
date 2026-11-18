@@ -14,7 +14,8 @@ export const mono = 'font-mono text-xs font-medium tracking-[0.14em] uppercase'
 export const dots =
   'pointer-events-none absolute inset-0 bg-[radial-gradient(var(--line-2)_1.2px,transparent_1.2px)] bg-[size:28px_28px] opacity-50'
 export const card = 'rounded-2xl border border-line bg-panel shadow-panel'
-export const lift = 'transition-[translate,border-color,box-shadow] duration-300 motion-safe:hover:-translate-y-0.5 hover:border-line-2'
+export const lift =
+  'transition-[translate,border-color,box-shadow] duration-300 motion-safe:hover:-translate-y-0.5 hover:border-line-2'
 export const stage =
   'stage relative overflow-hidden rounded-2xl border border-line bg-[#0c0e10] shadow-[inset_0_1px_0_rgb(255_255_255/0.06),var(--stage-shadow)] [:root.light_&]:border-[#d3d7dc] [:root.light_&]:bg-[#eceeef]'
 export const h2 = 'text-[2rem] leading-[1.1] font-semibold tracking-[-0.025em] text-balance sm:text-5xl'
@@ -34,7 +35,12 @@ export function Text({ lang, r }: { lang: Lang; r: Rich }) {
 
 export function JsonLd({ data }: { data: object }) {
   // `<` escaped so text in the data can never close the script tag.
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }} />
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }}
+    />
+  )
 }
 
 export const faqLd = (items: [string, string][]) => ({

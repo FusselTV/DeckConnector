@@ -7,7 +7,9 @@
     "build": "node scripts/copy-firmware.mjs && node scripts/copy-demo.mjs && next build && node scripts/de-404.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "lint": "oxlint --type-aware --max-warnings 0 .",
-    "check": "npm run typecheck && npm run lint && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs contact-worker/mail.test.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs contact-worker/mail.test.mjs",
     "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs"
   },
   "dependencies": {
@@ -33,6 +35,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "oxlint": "1.93.0",
     "oxlint-tsgolint": "7.0.2006",
+    "prettier": "3.9.10",
     "tailwindcss": "4.3.5",
     "typescript": "7.0.2"
   }

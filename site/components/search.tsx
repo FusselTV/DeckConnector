@@ -4,7 +4,17 @@ import { create, getByID, suggest, type AnyZBSearch } from 'zbsearch'
 import type { SortedResult } from 'fumadocs-core/search'
 import { experimental_useSearch as useSearch } from 'fumadocs-core/search/client'
 import { staticClient, type StaticOptions } from 'fumadocs-core/search/client/orama-static'
-import { SearchDialog, SearchDialogClose, SearchDialogContent, SearchDialogHeader, SearchDialogIcon, SearchDialogInput, SearchDialogList, SearchDialogOverlay, useSearch as useDialog } from 'fumadocs-ui/components/dialog/search'
+import {
+  SearchDialog,
+  SearchDialogClose,
+  SearchDialogContent,
+  SearchDialogHeader,
+  SearchDialogIcon,
+  SearchDialogInput,
+  SearchDialogList,
+  SearchDialogOverlay,
+  useSearch as useDialog,
+} from 'fumadocs-ui/components/dialog/search'
 import { useI18n } from 'fumadocs-ui/contexts/i18n'
 import type { SharedProps } from 'fumadocs-ui/contexts/search'
 import { prefix, type Lang } from '~/lib/i18n'
@@ -26,7 +36,10 @@ async function find(lang: Lang, query: string) {
   const fix = async (w: string) => {
     const db = dbs[lang]
     if (!db || (await run(w, { limit: 1 })).length) return w
-    return suggest(db, { term: w, prefix: false, tolerance: w.length > 5 ? 2 : 1, limit: 1, properties: ['content'] }).suggestions[0]?.suggestion ?? w
+    return (
+      suggest(db, { term: w, prefix: false, tolerance: w.length > 5 ? 2 : 1, limit: 1, properties: ['content'] })
+        .suggestions[0]?.suggestion ?? w
+    )
   }
   await run('', { limit: 1 })
   const terms = await Promise.all(words(query, lang).map(fix))
@@ -59,7 +72,10 @@ function rank(list: SortedResult[], terms: string[]) {
   return groups
     .map((g, i) => ({ g, i, s: score(g) }))
     .sort((a, b) => b.s - a.s || b.g.hits.length - a.g.hits.length || a.i - b.i)
-    .map(({ g }) => ({ page: g.page, hits: g.hits.sort((a, b) => +exact(b) - +exact(a) || named(b) - named(a) || +prose(b) - +prose(a)) }))
+    .map(({ g }) => ({
+      page: g.page,
+      hits: g.hits.sort((a, b) => +exact(b) - +exact(a) || named(b) - named(a) || +prose(b) - +prose(a)),
+    }))
 }
 
 const MAX = 100
@@ -68,13 +84,25 @@ const MAX = 100
 function line(md: string, terms: string[]) {
   const has = (x: string) => terms.some((t) => x.toLowerCase().includes(t))
   let s = md.trim()
-  if (s.startsWith('```')) s = s.split('\n').slice(1).find((l) => has(l) && !l.startsWith('```')) ?? ''
+  if (s.startsWith('```'))
+    s =
+      s
+        .split('\n')
+        .slice(1)
+        .find((l) => has(l) && !l.startsWith('```')) ?? ''
   else if (s.startsWith('|')) {
-    const cells = (s.split('\n').at(-1) ?? '').split('|').slice(1, -1).map((c) => c.trim())
+    const cells = (s.split('\n').at(-1) ?? '')
+      .split('|')
+      .slice(1, -1)
+      .map((c) => c.trim())
     const hit = cells.find(has) ?? cells[0] ?? ''
     s = hit === cells[0] || `${cells[0]}: ${hit}`.length > MAX ? hit : `${cells[0]}: ${hit}`
   }
-  s = s.replace(/\*\*|__/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\s+/g, ' ').trim()
+  s = s
+    .replace(/\*\*|__/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (s.length <= MAX) return s
   const lower = s.toLowerCase()
   const at = Math.min(s.length, ...terms.map((t) => lower.indexOf(t)).filter((i) => i >= 0))
@@ -84,7 +112,10 @@ function line(md: string, terms: string[]) {
   if (dot > 0 && stop - dot < 40) dot = s.lastIndexOf('. ', dot - 1)
   s = s.slice(dot < 0 ? 0 : dot + 2, stop)
   if (s.length <= MAX) return s
-  const i = Math.max(0, s.toLowerCase().search(new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))))
+  const i = Math.max(
+    0,
+    s.toLowerCase().search(new RegExp(terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'))),
+  )
   const from = Math.max(0, Math.min(i - 40, s.length - MAX))
   const start = from ? s.indexOf(' ', from) + 1 : 0
   const cut = s.slice(start, start + MAX)
@@ -116,7 +147,7 @@ function outline(db: AnyZBSearch, page: string) {
 function shape(lang: Lang, groups: ReturnType<typeof rank>, terms: string[]): SortedResult[] {
   const db = dbs[lang]
   return groups.flatMap(({ page, hits }) => {
-    const o = db ? outline(db, page.id) : new Map() as Outline
+    const o = db ? outline(db, page.id) : (new Map() as Outline)
     const seen = new Set<string>()
     const rows: SortedResult[] = []
     // the description repeats under the title; it only counts when nothing else on the page matched
@@ -126,7 +157,13 @@ function shape(lang: Lang, groups: ReturnType<typeof rank>, terms: string[]): So
       const e = o.get(h.url)
       const text = h.type === 'heading' ? e?.text : h.content
       const heading = h.type === 'heading' ? h.content : e?.heading
-      rows.push({ id: h.id, url: h.url, type: 'text', content: text ? line(text, terms) : '', breadcrumbs: heading ? [heading] : undefined })
+      rows.push({
+        id: h.id,
+        url: h.url,
+        type: 'text',
+        content: text ? line(text, terms) : '',
+        breadcrumbs: heading ? [heading] : undefined,
+      })
     }
     return [page, ...rows.filter((r) => r.content || r.breadcrumbs)]
   })
@@ -159,7 +196,18 @@ export default function Search(props: SharedProps) {
         <SearchDialogHeader>
           <SearchDialogIcon />
           {/* Without these, password managers take the bare text field in a dialog for a login field. */}
-          <SearchDialogInput type="search" name="docs-query" autoComplete="off" autoCorrect="off" spellCheck={false} enterKeyHint="search" data-1p-ignore="" data-lpignore="true" data-bwignore="" data-form-type="other" />
+          <SearchDialogInput
+            type="search"
+            name="docs-query"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint="search"
+            data-1p-ignore=""
+            data-lpignore="true"
+            data-bwignore=""
+            data-form-type="other"
+          />
           <SearchDialogClose />
         </SearchDialogHeader>
         <SearchDialogList defaultItems={start} />

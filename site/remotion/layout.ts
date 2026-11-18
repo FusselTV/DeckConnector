@@ -26,7 +26,13 @@ const radio = (board: Layout['board'], r: Box, net0: Pt, lift: number): Pt[] => 
 // The deck cable runs straight into the board's USB-A, the power plug hangs from its USB-C, the name sits under the board.
 const landBoard = { x: 690, y: 440, s: 1.3 }
 const landRouter = { x: 1040, y: 450, w: 220, h: 90 }
-const landNet = rounded([[1160, 450], [1160, 310]], 20)
+const landNet = rounded(
+  [
+    [1160, 450],
+    [1160, 310],
+  ],
+  20,
+)
 const landC = at(landBoard, BOARD_USBC)
 export const LAND: Layout = {
   deck: { x: 60, y: 196, s: 3.7 },
@@ -44,7 +50,13 @@ export const LAND: Layout = {
 // Phones get a 4:5 stage: caption top left, Companion top right, board and router in the middle, deck at the bottom.
 const portBoard = { x: 230, y: 470, s: 1.5 }
 const portRouter = { x: 720, y: 560, w: 240, h: 90 }
-const portNet = rounded([[880, 560], [880, 360]], 20)
+const portNet = rounded(
+  [
+    [880, 560],
+    [880, 360],
+  ],
+  20,
+)
 const portC = at(portBoard, BOARD_USBC)
 export const PORT: Layout = {
   deck: { x: 274, y: 790, s: 3.8 },

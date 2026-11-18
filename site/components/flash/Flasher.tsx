@@ -1,10 +1,34 @@
 'use client'
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { ArrowRight, BookOpen, Check, ChevronRight, Copy as CopyIcon, Cpu, ExternalLink, FolderOpen, Laptop, Monitor, RotateCcw, Smartphone, Usb } from 'lucide-react'
+import {
+  ArrowRight,
+  BookOpen,
+  Check,
+  ChevronRight,
+  Copy as CopyIcon,
+  Cpu,
+  ExternalLink,
+  FolderOpen,
+  Laptop,
+  Monitor,
+  RotateCcw,
+  Smartphone,
+  Usb,
+} from 'lucide-react'
 import { prefix, type Lang } from '~/lib/i18n'
 import { copy, fill, type Copy } from './copy'
 import { Console, Esp, pickPort, serial, type Chip, type Progress, type WebSerialPort } from './device'
-import { FirmwareError, loadBuild, localSource, siteSource, totalSize, type Image, type Manifest, type Mode, type Source } from './firmware'
+import {
+  FirmwareError,
+  loadBuild,
+  localSource,
+  siteSource,
+  totalSize,
+  type Image,
+  type Manifest,
+  type Mode,
+  type Source,
+} from './firmware'
 import { Improv } from './improv'
 import { Setup, type Result } from './Setup'
 import { BoardArt, Bar, Btn, Fix, LinkBtn, LogPanel, Note, Spinner, Stepper, card, duration, kib, mono } from './ui'
@@ -14,7 +38,12 @@ type Support = 'ok' | 'mobile' | 'browser' | 'insecure'
 function detect(): Support {
   const ua = navigator.userAgent
   const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData
-  if (uaData?.mobile || /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'mobile'
+  if (
+    uaData?.mobile ||
+    /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+    (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+  )
+    return 'mobile'
   if (!window.isSecureContext) return 'insecure'
   return serial() ? 'ok' : 'browser'
 }
@@ -40,14 +69,22 @@ function FwErr({ c, err }: { c: Copy; err: string }) {
 }
 
 const rev = (r: number) => `${Math.floor(r / 100)}.${r % 100}`
-const partName = (c: Copy, path: string) => (path.includes('factory') ? c.partFactory : path.includes('ota_data') ? c.partOta : c.partApp)
+const partName = (c: Copy, path: string) =>
+  path.includes('factory') ? c.partFactory : path.includes('ota_data') ? c.partOta : c.partApp
 
 function connErr(c: Copy, e: unknown): ConnErr {
   const msg = e instanceof Error ? `${e.name} ${e.message}` : String(e)
-  if (/InvalidStateError|Failed to open|NetworkError.*open|already open/i.test(msg)) return { title: c.errBusy, text: c.errBusyDo, fix: 'port-busy' }
+  if (/InvalidStateError|Failed to open|NetworkError.*open|already open/i.test(msg))
+    return { title: c.errBusy, text: c.errBusyDo, fix: 'port-busy' }
   if (/lost|disconnected/i.test(msg)) return { title: c.errLost, fix: 'no-port' }
-  if (/Failed to connect|Serial data stream stopped|No serial data|Timeout/i.test(msg)) return { title: c.errNoAnswer, text: c.errNoAnswerDo, fix: 'no-answer', buttons: true }
-  if (/UnexpectedChip|Unexpected chip/i.test(msg)) return { title: c.wrongChipT, text: fill(c.wrongChip, { chip: msg.replace(/^.*?(0x[0-9a-f]+|\d+).*$/i, 'unknown chip ($1)') }), fix: 'wrong-chip' }
+  if (/Failed to connect|Serial data stream stopped|No serial data|Timeout/i.test(msg))
+    return { title: c.errNoAnswer, text: c.errNoAnswerDo, fix: 'no-answer', buttons: true }
+  if (/UnexpectedChip|Unexpected chip/i.test(msg))
+    return {
+      title: c.wrongChipT,
+      text: fill(c.wrongChip, { chip: msg.replace(/^.*?(0x[0-9a-f]+|\d+).*$/i, 'unknown chip ($1)') }),
+      fix: 'wrong-chip',
+    }
   return { title: c.errOther, text: e instanceof Error ? e.message : msg, fix: 'no-answer' }
 }
 
@@ -91,7 +128,11 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
   }, [step, flash?.err])
 
   const fwText = (e: unknown) =>
-    e instanceof FirmwareError ? fill(e.kind === 'fetch' ? c.fwFetch : c.fwSha, { file: e.path }) : e instanceof Error ? e.message : String(e)
+    e instanceof FirmwareError
+      ? fill(e.kind === 'fetch' ? c.fwFetch : c.fwSha, { file: e.path })
+      : e instanceof Error
+        ? e.message
+        : String(e)
 
   const startOver = async () => {
     await esp?.close()
@@ -123,7 +164,8 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
     }
     if (!port) return
     setBusy(true)
-    const ok = (ch: Chip) => ch.id === m.chip_id && ch.revision >= m.chip_revision.min && ch.revision <= m.chip_revision.max
+    const ok = (ch: Chip) =>
+      ch.id === m.chip_id && ch.revision >= m.chip_revision.min && ch.revision <= m.chip_revision.max
     try {
       const e = await Esp.connect(port, m.esptool.baud, log, ok)
       if (!ok(e.chip)) {
@@ -137,7 +179,8 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
         const imgs = await loadBuild(src, 'factory')
         setFactory(imgs)
         const first = imgs[0]
-        const same = !!m.builds.update && imgs.length === 1 && !!first && first.offset === 0 && (await e.sameLayout(first))
+        const same =
+          !!m.builds.update && imgs.length === 1 && !!first && first.offset === 0 && (await e.sameLayout(first))
         setSameLayout(same)
         setMode(same ? 'update' : 'factory')
       } catch (x) {
@@ -166,7 +209,13 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
     setBusy(false)
     const eraseAll = !!m.builds[mode]?.erase_all
     setStep('flash')
-    setFlash({ erase: eraseAll ? 'run' : null, parts: imgs.map((i) => ({ status: 'wait', done: 0, total: i.data.length })), start: 0, bytesAt: 0, err: null })
+    setFlash({
+      erase: eraseAll ? 'run' : null,
+      parts: imgs.map((i) => ({ status: 'wait', done: 0, total: i.data.length })),
+      start: 0,
+      bytesAt: 0,
+      err: null,
+    })
     const on = (p: Progress) =>
       setFlash((f) => {
         if (!f) return f
@@ -180,7 +229,13 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
         }
         parts[p.part] = { ...cur, status: p.phase, done: p.done }
         const fresh = !f.start
-        return { ...f, erase: f.erase && 'ok', parts, start: fresh ? Date.now() : f.start, bytesAt: fresh ? p.done : f.bytesAt }
+        return {
+          ...f,
+          erase: f.erase && 'ok',
+          parts,
+          start: fresh ? Date.now() : f.start,
+          bytesAt: fresh ? p.done : f.bytesAt,
+        }
       })
     try {
       await esp.flash(imgs, eraseAll, on)
@@ -194,7 +249,11 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
       }
       let con: Console | null = null
       const im = new Improv((b) => (con ? con.write(b) : Promise.reject(new Error('closed'))), log)
-      con = new Console(port, (b) => im.feed(b), () => setLost(true))
+      con = new Console(
+        port,
+        (b) => im.feed(b),
+        () => setLost(true),
+      )
       setLink({ im, con })
       setStep('setup')
     } catch (x) {
@@ -243,7 +302,20 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
               <ConnectStep c={c} busy={busy || support === null} err={cErr} focus={focus} onConnect={connect} />
             )
           ) : step === 'install' && esp ? (
-            <InstallStep c={c} m={m} chip={esp.chip} same={sameLayout} mode={mode} setMode={setMode} sure={sure} setSure={setSure} busy={busy} err={fwErr} onInstall={install} onOther={startOver} />
+            <InstallStep
+              c={c}
+              m={m}
+              chip={esp.chip}
+              same={sameLayout}
+              mode={mode}
+              setMode={setMode}
+              sure={sure}
+              setSure={setSure}
+              busy={busy}
+              err={fwErr}
+              onInstall={install}
+              onOther={startOver}
+            />
           ) : step === 'flash' && flash ? (
             <FlashStep c={c} f={flash} names={m.builds[mode]?.parts.map((p) => p.path) ?? []} onRetry={startOver} />
           ) : step === 'setup' && link ? (
@@ -281,7 +353,15 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
               <BoardArt focus={focus} className="block w-full bg-well px-4 pt-4 pb-2" />
             </div>
           )}
-          <FirmwareCard c={c} lang={lang} src={src} canChange={step === 'connect' && !busy && !unsupported} err={step === 'connect' && m ? fwErr : null} onFiles={pickLocal} onSite={manifest ? () => setSrc(siteSource(manifest)) : undefined} />
+          <FirmwareCard
+            c={c}
+            lang={lang}
+            src={src}
+            canChange={step === 'connect' && !busy && !unsupported}
+            err={step === 'connect' && m ? fwErr : null}
+            onFiles={pickLocal}
+            onSite={manifest ? () => setSrc(siteSource(manifest)) : undefined}
+          />
         </aside>
       </div>
 
@@ -348,7 +428,15 @@ function Unsupported({ c, kind, lang }: { c: Copy; kind: 'mobile' | 'browser' | 
   )
 }
 
-function NoFirmware({ c, err, onFiles }: { c: Copy; err: string | null; onFiles: (f: FileList | null) => Promise<void> }) {
+function NoFirmware({
+  c,
+  err,
+  onFiles,
+}: {
+  c: Copy
+  err: string | null
+  onFiles: (f: FileList | null) => Promise<void>
+}) {
   return (
     <div className="space-y-5">
       <Note lvl="warn" title={c.fwNone}>
@@ -366,21 +454,43 @@ function FilePick({ c, onFiles }: { c: Copy; onFiles: (f: FileList | null) => Pr
       <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-line-2 px-4 text-sm font-medium hover:bg-panel-2 has-focus-visible:outline-2 has-focus-visible:outline-(--focus) [&_svg]:size-4">
         <FolderOpen aria-hidden />
         {c.fwLocal}
-        <input type="file" multiple accept=".json,.bin" className="sr-only" onChange={(e) => void onFiles(e.target.files)} />
+        <input
+          type="file"
+          multiple
+          accept=".json,.bin"
+          className="sr-only"
+          onChange={(e) => void onFiles(e.target.files)}
+        />
       </label>
       <p className="mt-1.5 text-xs text-fg-3">{c.fwLocalHint}</p>
     </div>
   )
 }
 
-function ConnectStep({ c, busy, err, focus, onConnect }: { c: Copy; busy: boolean; err: ConnErr | null; focus: 'usb' | 'buttons' | 'none'; onConnect: (all?: boolean) => Promise<void> }) {
+function ConnectStep({
+  c,
+  busy,
+  err,
+  focus,
+  onConnect,
+}: {
+  c: Copy
+  busy: boolean
+  err: ConnErr | null
+  focus: 'usb' | 'buttons' | 'none'
+  onConnect: (all?: boolean) => Promise<void>
+}) {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">{c.connectT}</h2>
       <ol className="space-y-3">
         {[c.c1, c.c2, c.c3].map((t, i) => (
           <li key={t} className="flex gap-3">
-            <span className={`${mono} flex size-6 shrink-0 items-center justify-center rounded-md bg-panel-2 text-fg-2`}>{i + 1}</span>
+            <span
+              className={`${mono} flex size-6 shrink-0 items-center justify-center rounded-md bg-panel-2 text-fg-2`}
+            >
+              {i + 1}
+            </span>
             <span className="text-fg-2">{t}</span>
           </li>
         ))}
@@ -397,7 +507,12 @@ function ConnectStep({ c, busy, err, focus, onConnect }: { c: Copy; busy: boolea
           {busy ? <Spinner /> : <Usb aria-hidden />}
           {busy ? c.connecting : c.connect}
         </Btn>
-        <button type="button" disabled={busy} onClick={() => void onConnect(true)} className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg disabled:opacity-50">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onConnect(true)}
+          className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg disabled:opacity-50"
+        >
           {c.showAll}
         </button>
       </div>
@@ -419,7 +534,11 @@ function ConnectStep({ c, busy, err, focus, onConnect }: { c: Copy; busy: boolea
         <ol className="space-y-2 px-4 pb-4">
           {c.dl.map((t, i) => (
             <li key={t} className="flex items-center gap-3 text-sm text-fg-2">
-              <span className={`${mono} flex size-6 shrink-0 items-center justify-center rounded-md bg-panel-2 text-fg-2`}>{i + 1}</span>
+              <span
+                className={`${mono} flex size-6 shrink-0 items-center justify-center rounded-md bg-panel-2 text-fg-2`}
+              >
+                {i + 1}
+              </span>
               {t}
             </li>
           ))}
@@ -429,8 +548,23 @@ function ConnectStep({ c, busy, err, focus, onConnect }: { c: Copy; busy: boolea
   )
 }
 
-function WrongChip({ c, m, bad, onRetry }: { c: Copy; m: Manifest; bad: { chip: Chip; why: 'chip' | 'rev' }; onRetry: () => Promise<void> }) {
-  const v = { chip: bad.chip.name, rev: rev(bad.chip.revision), min: rev(m.chip_revision.min), max: rev(m.chip_revision.max) }
+function WrongChip({
+  c,
+  m,
+  bad,
+  onRetry,
+}: {
+  c: Copy
+  m: Manifest
+  bad: { chip: Chip; why: 'chip' | 'rev' }
+  onRetry: () => Promise<void>
+}) {
+  const v = {
+    chip: bad.chip.name,
+    rev: rev(bad.chip.revision),
+    min: rev(m.chip_revision.min),
+    max: rev(m.chip_revision.max),
+  }
   return (
     <div className="space-y-5">
       <Note lvl="bad" title={bad.why === 'chip' ? c.wrongChipT : c.wrongRevT}>
@@ -478,14 +612,28 @@ function InstallStep(p: {
   const opt = (value: Mode, title: string, text: string, disabled: boolean, extra?: React.ReactNode) => (
     <label
       className={`relative flex gap-3 rounded-xl border-2 p-4 transition-colors ${
-        disabled ? 'cursor-not-allowed border-line opacity-60' : mode === value ? 'cursor-pointer border-amber bg-amber-soft' : 'cursor-pointer border-line hover:border-line-2'
+        disabled
+          ? 'cursor-not-allowed border-line opacity-60'
+          : mode === value
+            ? 'cursor-pointer border-amber bg-amber-soft'
+            : 'cursor-pointer border-line hover:border-line-2'
       }`}
     >
-      <input type="radio" name="mode" value={value} checked={mode === value} disabled={disabled} onChange={() => p.setMode(value)} className="mt-1 size-4 accent-(--amber)" />
+      <input
+        type="radio"
+        name="mode"
+        value={value}
+        checked={mode === value}
+        disabled={disabled}
+        onChange={() => p.setMode(value)}
+        className="mt-1 size-4 accent-(--amber)"
+      />
       <span className="min-w-0 space-y-1">
         <span className="flex flex-wrap items-center gap-2 font-semibold">
           {title}
-          {value === 'update' && canUpdate && <span className="rounded bg-ok-soft px-1.5 py-0.5 text-xs font-medium text-ok-fg">{c.recommended}</span>}
+          {value === 'update' && canUpdate && (
+            <span className="rounded bg-ok-soft px-1.5 py-0.5 text-xs font-medium text-ok-fg">{c.recommended}</span>
+          )}
         </span>
         <span className="block text-sm text-fg-2">{text}</span>
         {extra}
@@ -509,7 +657,9 @@ function InstallStep(p: {
             c.update,
             c.updateText,
             !canUpdate,
-            !canUpdate && <span className="block text-sm text-fg-3">{m.builds.update ? c.updateNo : c.updateLocal}</span>,
+            !canUpdate && (
+              <span className="block text-sm text-fg-3">{m.builds.update ? c.updateNo : c.updateLocal}</span>
+            ),
           )}
           {opt('factory', c.fresh, c.freshText, false)}
         </div>
@@ -518,18 +668,31 @@ function InstallStep(p: {
         <div className="space-y-3 rounded-xl border border-bad/50 bg-bad-soft p-4">
           <p className="text-sm font-medium text-bad-fg">{c.freshWarn}</p>
           <label className="flex cursor-pointer items-start gap-3 text-sm">
-            <input type="checkbox" checked={p.sure} onChange={(e) => p.setSure(e.target.checked)} className="mt-0.5 size-4 accent-(--bad)" />
+            <input
+              type="checkbox"
+              checked={p.sure}
+              onChange={(e) => p.setSure(e.target.checked)}
+              className="mt-0.5 size-4 accent-(--bad)"
+            />
             <span>{c.confirm}</span>
           </label>
         </div>
       )}
       {p.err && <FwErr c={c} err={p.err} />}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <Btn kind={mode === 'factory' && ready ? 'bad' : 'pri'} disabled={!ready || p.busy} onClick={() => void p.onInstall()}>
+        <Btn
+          kind={mode === 'factory' && ready ? 'bad' : 'pri'}
+          disabled={!ready || p.busy}
+          onClick={() => void p.onInstall()}
+        >
           {p.busy ? <Spinner /> : <ArrowRight aria-hidden />}
           {p.busy ? c.loading : fill(c.install, { v: release(m.version) })}
         </Btn>
-        <button type="button" onClick={() => void p.onOther()} className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg">
+        <button
+          type="button"
+          onClick={() => void p.onOther()}
+          className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg"
+        >
           {c.otherBoard}
         </button>
       </div>
@@ -568,8 +731,17 @@ function FlashStep({ c, f, names, onRetry }: { c: Copy; f: Flash; names: string[
       )}
       <ul className="space-y-4">
         {f.erase && (
-          <Row label={c.erase} hint={c.eraseHint} status={f.erase === 'ok' ? c.erased : f.err ? c.failed : c.erasing} done={f.erase === 'ok'}>
-            <Bar value={f.erase === 'ok' ? 1 : f.err ? 0 : null} tone={f.erase === 'ok' ? 'ok' : f.err ? 'bad' : 'amber'} label={c.erase} />
+          <Row
+            label={c.erase}
+            hint={c.eraseHint}
+            status={f.erase === 'ok' ? c.erased : f.err ? c.failed : c.erasing}
+            done={f.erase === 'ok'}
+          >
+            <Bar
+              value={f.erase === 'ok' ? 1 : f.err ? 0 : null}
+              tone={f.erase === 'ok' ? 'ok' : f.err ? 'bad' : 'amber'}
+              label={c.erase}
+            />
           </Row>
         )}
         {f.parts.map((p, i) => (
@@ -580,11 +752,20 @@ function FlashStep({ c, f, names, onRetry }: { c: Copy; f: Flash; names: string[
             status={
               f.err && (p.status === 'write' || p.status === 'verify')
                 ? c.failed
-                : { wait: c.wait, write: `${c.writing} ${Math.floor((p.done / p.total) * 100)}%`, verify: c.verifying, ok: c.verified }[p.status]
+                : {
+                    wait: c.wait,
+                    write: `${c.writing} ${Math.floor((p.done / p.total) * 100)}%`,
+                    verify: c.verifying,
+                    ok: c.verified,
+                  }[p.status]
             }
             done={p.status === 'ok'}
           >
-            <Bar value={p.status === 'verify' && !f.err ? null : p.done / p.total} tone={p.status === 'ok' ? 'ok' : f.err && p.status !== 'wait' ? 'bad' : 'amber'} label={partName(c, names[i] ?? '')} />
+            <Bar
+              value={p.status === 'verify' && !f.err ? null : p.done / p.total}
+              tone={p.status === 'ok' ? 'ok' : f.err && p.status !== 'wait' ? 'bad' : 'amber'}
+              label={partName(c, names[i] ?? '')}
+            />
           </Row>
         ))}
       </ul>
@@ -605,7 +786,21 @@ function FlashStep({ c, f, names, onRetry }: { c: Copy; f: Flash; names: string[
   )
 }
 
-function Row({ label, sub, hint, status, done, children }: { label: string; sub?: string; hint?: string; status: string; done: boolean; children: React.ReactNode }) {
+function Row({
+  label,
+  sub,
+  hint,
+  status,
+  done,
+  children,
+}: {
+  label: string
+  sub?: string
+  hint?: string
+  status: string
+  done: boolean
+  children: React.ReactNode
+}) {
   return (
     <li className="space-y-2">
       <div className="flex items-baseline justify-between gap-3">
@@ -666,7 +861,10 @@ function Ready({ c, r, lang, onNext }: { c: Copy; r: Result; lang: Lang; onNext:
           {r.name && (
             <p className="flex items-center justify-between gap-3 border-t border-line pt-3">
               <span className="text-sm text-fg-3">{c.mdns}</span>
-              <a href={`${scheme}://${r.name}.local`} className={`${mono} text-amber-fg underline-offset-4 hover:underline`}>
+              <a
+                href={`${scheme}://${r.name}.local`}
+                className={`${mono} text-amber-fg underline-offset-4 hover:underline`}
+              >
                 {r.name}.local
               </a>
             </p>
@@ -699,10 +897,20 @@ const release = (v: string) => v.replace(/-dirty$/, '')
 /** The C compiler's "Nov  8 2026 19:10:22" in the page's language. */
 function builtAt(s: string, lang: Lang) {
   const d = new Date(s.replace(/\s+/g, ' '))
-  return Number.isNaN(d.getTime()) ? s : new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(d)
+  return Number.isNaN(d.getTime())
+    ? s
+    : new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(d)
 }
 
-function FirmwareCard(p: { c: Copy; lang: Lang; src: Source | null; canChange: boolean; err: string | null; onFiles: (f: FileList | null) => Promise<void>; onSite?: () => void }) {
+function FirmwareCard(p: {
+  c: Copy
+  lang: Lang
+  src: Source | null
+  canChange: boolean
+  err: string | null
+  onFiles: (f: FileList | null) => Promise<void>
+  onSite?: () => void
+}) {
   const { c, src } = p
   const m = src?.manifest
   if (!m) return null
@@ -716,8 +924,14 @@ function FirmwareCard(p: { c: Copy; lang: Lang; src: Source | null; canChange: b
     <div className={`${card} p-5`}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">{c.fw}</h2>
-        {src.local && <span className={`${mono} rounded bg-amber-soft px-1.5 py-0.5 text-[0.6875rem] text-amber-fg`}>{c.fwLocalOn}</span>}
-        {m.version.endsWith('-dirty') && <span className={`${mono} rounded bg-panel-2 px-1.5 py-0.5 text-[0.6875rem] text-fg-3`}>{c.fwDev}</span>}
+        {src.local && (
+          <span className={`${mono} rounded bg-amber-soft px-1.5 py-0.5 text-[0.6875rem] text-amber-fg`}>
+            {c.fwLocalOn}
+          </span>
+        )}
+        {m.version.endsWith('-dirty') && (
+          <span className={`${mono} rounded bg-panel-2 px-1.5 py-0.5 text-[0.6875rem] text-fg-3`}>{c.fwDev}</span>
+        )}
       </div>
       <dl className="mt-3 space-y-2 text-sm">
         {rows.map(([k, v]) => (
@@ -730,7 +944,11 @@ function FirmwareCard(p: { c: Copy; lang: Lang; src: Source | null; canChange: b
       {p.canChange && (
         <div className="mt-4 border-t border-line pt-4">
           {src.local && p.onSite ? (
-            <button type="button" onClick={p.onSite} className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg">
+            <button
+              type="button"
+              onClick={p.onSite}
+              className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg"
+            >
               {c.fwSite}
             </button>
           ) : (

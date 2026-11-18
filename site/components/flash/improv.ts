@@ -59,7 +59,7 @@ export function rpc(cmd: number, ...strings: string[]): Uint8Array {
 /** The strings of an RPC result's data, after command and length. */
 export function strings(data: Uint8Array): string[] {
   const out: string[] = []
-  for (let pos = 0; pos < data.length; ) {
+  for (let pos = 0; pos < data.length;) {
     const n = data[pos] ?? 0
     out.push(dec.decode(data.subarray(pos + 1, pos + 1 + n)))
     pos += 1 + n
@@ -254,7 +254,12 @@ export class Improv {
   }
 
   async setup(adminPassword: string, name: string, done: boolean, lang = ''): Promise<SetupReply> {
-    const [r = '', message = ''] = await this.result(SETUP, [adminPassword, name, done ? '1' : '', ...(lang ? [lang] : [])])
+    const [r = '', message = ''] = await this.result(SETUP, [
+      adminPassword,
+      name,
+      done ? '1' : '',
+      ...(lang ? [lang] : []),
+    ])
     if (r === 'ok' || r === 'restart') return { ok: true, restart: r === 'restart' }
     return { ok: false, message: message || r }
   }

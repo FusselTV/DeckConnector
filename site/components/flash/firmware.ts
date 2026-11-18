@@ -68,7 +68,10 @@ export async function loadBuild(src: Source, mode: Mode): Promise<Image[]> {
     build.parts.map(async (p) => {
       const data = await src.read(p.path)
       if (p.size && data.length !== p.size) throw new FirmwareError('size', p.path)
-      if (p.sha256 && hex(await crypto.subtle.digest('SHA-256', data as Uint8Array<ArrayBuffer>)) !== p.sha256.toLowerCase())
+      if (
+        p.sha256 &&
+        hex(await crypto.subtle.digest('SHA-256', data as Uint8Array<ArrayBuffer>)) !== p.sha256.toLowerCase()
+      )
         throw new FirmwareError('sha', p.path)
       return { ...p, data }
     }),
@@ -100,5 +103,9 @@ export async function localSource(files: File[]): Promise<Source> {
   const bin = bins[0]
   if (bins.length !== 1 || !bin) throw new FirmwareError('fetch', 'manifest.json')
   const part = { path: bin.name, offset: 0, size: bin.size }
-  return { manifest: { ...P4, version: bin.name, builds: { factory: { erase_all: true, parts: [part] } } }, local: true, read }
+  return {
+    manifest: { ...P4, version: bin.name, builds: { factory: { erase_all: true, parts: [part] } } },
+    local: true,
+    read,
+  }
 }

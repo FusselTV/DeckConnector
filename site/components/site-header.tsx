@@ -12,14 +12,42 @@ import { repo } from '~/site.config'
 import { github } from './github'
 
 const t = {
-  en: { docs: 'Docs', compare: 'Compare', flash: 'Set it up', demo: 'Demo', home: 'DeckConnector home', search: 'Search', language: 'Language', light: 'Light mode', dark: 'Dark mode', start: 'Home', menu: 'Menu', nav: 'Main' },
-  de: { docs: 'Anleitung', compare: 'Vergleich', flash: 'Einrichten', demo: 'Demo', home: 'Startseite von DeckConnector', search: 'Suchen', language: 'Sprache', light: 'Helles Design', dark: 'Dunkles Design', start: 'Startseite', menu: 'Menü', nav: 'Hauptmenü' },
+  en: {
+    docs: 'Docs',
+    compare: 'Compare',
+    flash: 'Set it up',
+    demo: 'Demo',
+    home: 'DeckConnector home',
+    search: 'Search',
+    language: 'Language',
+    light: 'Light mode',
+    dark: 'Dark mode',
+    start: 'Home',
+    menu: 'Menu',
+    nav: 'Main',
+  },
+  de: {
+    docs: 'Anleitung',
+    compare: 'Vergleich',
+    flash: 'Einrichten',
+    demo: 'Demo',
+    home: 'Startseite von DeckConnector',
+    search: 'Suchen',
+    language: 'Sprache',
+    light: 'Helles Design',
+    dark: 'Dunkles Design',
+    start: 'Startseite',
+    menu: 'Menü',
+    nav: 'Hauptmenü',
+  },
 }
 
 export const noop = () => () => undefined
 
-export const icon = 'inline-flex size-11 lg:size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-fd-accent [&_svg]:size-4'
-const link = 'relative flex h-11 lg:h-9 items-center rounded-lg px-3 text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground aria-[current=page]:text-fd-foreground'
+export const icon =
+  'inline-flex size-11 lg:size-9 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-fd-accent [&_svg]:size-4'
+const link =
+  'relative flex h-11 lg:h-9 items-center rounded-lg px-3 text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground aria-[current=page]:text-fd-foreground'
 
 export function SiteHeader({ lang }: { lang: Lang }) {
   const s = t[lang]
@@ -32,7 +60,16 @@ export function SiteHeader({ lang }: { lang: Lang }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
-      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || el.isContentEditable || el.closest('input, textarea, select, [role=dialog]')) return
+      if (
+        e.key !== '/' ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        e.defaultPrevented ||
+        el.isContentEditable ||
+        el.closest('input, textarea, select, [role=dialog]')
+      )
+        return
       e.preventDefault()
       setOpenSearch(true)
     }
@@ -59,9 +96,16 @@ export function SiteHeader({ lang }: { lang: Lang }) {
   return (
     <header className="sticky top-0 z-40 h-14 border-b bg-fd-background/95 backdrop-blur-md">
       <div className="mx-auto flex h-full max-w-(--fd-layout-width) items-center gap-1 px-4 sm:px-6">
-        <a href={`${p}/`} aria-label={s.home} title={s.home} className="me-auto flex h-11 min-w-11 items-center gap-2 rounded-lg transition-opacity hover:opacity-80 md:me-4">
+        <a
+          href={`${p}/`}
+          aria-label={s.home}
+          title={s.home}
+          className="me-auto flex h-11 min-w-11 items-center gap-2 rounded-lg transition-opacity hover:opacity-80 md:me-4"
+        >
           <Logo />
-          <span data-wordmark className="text-[15px] font-semibold tracking-tight max-[380px]:sr-only">DeckConnector</span>
+          <span data-wordmark className="text-[15px] font-semibold tracking-tight max-[380px]:sr-only">
+            DeckConnector
+          </span>
         </a>
         <nav aria-label={s.nav} className="flex items-center gap-1 max-md:hidden">
           {links.map(([text, href]) => (
@@ -75,7 +119,13 @@ export function SiteHeader({ lang }: { lang: Lang }) {
         </nav>
         <span className="flex-1 max-md:hidden" />
         {docs && <span id="docs-menu" className="size-11 md:hidden" />}
-        <button type="button" onClick={() => setOpenSearch(true)} aria-label={s.search} title={`${s.search} (/)`} className={`${icon} lg:w-44 lg:justify-start lg:gap-2 lg:border lg:bg-fd-secondary/50 lg:px-2.5 lg:text-sm lg:text-fd-muted-foreground`}>
+        <button
+          type="button"
+          onClick={() => setOpenSearch(true)}
+          aria-label={s.search}
+          title={`${s.search} (/)`}
+          className={`${icon} lg:w-44 lg:justify-start lg:gap-2 lg:border lg:bg-fd-secondary/50 lg:px-2.5 lg:text-sm lg:text-fd-muted-foreground`}
+        >
           <Search aria-hidden />
           <span className="max-lg:hidden">{s.search}</span>
           <kbd className="ms-auto flex gap-1 font-mono text-[11px] max-lg:hidden">
@@ -89,7 +139,11 @@ export function SiteHeader({ lang }: { lang: Lang }) {
           <ThemeButton light={s.light} dark={s.dark} />
         </span>
         <MobileMenu lang={lang} links={links} current={current} />
-        <a href={`${p}/flash/`} aria-current={flash ? 'page' : undefined} className="relative ms-1 inline-flex h-9 min-w-24 items-center justify-center before:absolute before:-inset-y-1 before:inset-x-0 gap-1.5 whitespace-nowrap rounded-lg bg-amber px-3.5 max-[380px]:px-2.5 text-sm font-semibold text-amber-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus) [&_svg]:size-4">
+        <a
+          href={`${p}/flash/`}
+          aria-current={flash ? 'page' : undefined}
+          className="relative ms-1 inline-flex h-9 min-w-24 items-center justify-center before:absolute before:-inset-y-1 before:inset-x-0 gap-1.5 whitespace-nowrap rounded-lg bg-amber px-3.5 max-[380px]:px-2.5 text-sm font-semibold text-amber-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-[filter] hover:brightness-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus) [&_svg]:size-4"
+        >
           {s.flash}
         </a>
       </div>
@@ -102,18 +156,39 @@ export function Logo() {
   return (
     <svg viewBox="0 0 32 32" className="size-7 shrink-0" aria-hidden>
       <rect x=".5" y=".5" width="31" height="31" rx="7.5" fill="#1b1e22" stroke="#3b4148" />
-      {[0, 1].map((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={6 + c * 7.2} y={5 + r * 7.2} width="5.2" height="5.2" rx="1.2" fill={r + c ? '#e8e6e1' : '#ffb020'} />))}
+      {[0, 1].map((r) =>
+        [0, 1, 2].map((c) => (
+          <rect
+            key={`${r}${c}`}
+            x={6 + c * 7.2}
+            y={5 + r * 7.2}
+            width="5.2"
+            height="5.2"
+            rx="1.2"
+            fill={r + c ? '#e8e6e1' : '#ffb020'}
+          />
+        )),
+      )}
       <rect x="13.5" y="19.8" width="5" height="5" rx="1" fill="#ffb020" />
       <path d="M16 24.8V32" stroke="#ffb020" strokeWidth="2.4" />
     </svg>
   )
 }
 
-function MobileMenu({ lang, links, current }: { lang: Lang; links: [string, string, ReactNode][]; current: (href: string) => 'page' | undefined }) {
+function MobileMenu({
+  lang,
+  links,
+  current,
+}: {
+  lang: Lang
+  links: [string, string, ReactNode][]
+  current: (href: string) => 'page' | undefined
+}) {
   const s = t[lang]
   const { locales = [], onChange } = useI18n()
   const { resolvedTheme, setTheme } = useTheme()
-  const row = 'flex h-11 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors hover:bg-fd-accent [&_svg]:size-4 [&_svg]:text-fd-muted-foreground'
+  const row =
+    'flex h-11 items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors hover:bg-fd-accent [&_svg]:size-4 [&_svg]:text-fd-muted-foreground'
   return (
     <Popover>
       <PopoverTrigger aria-label={s.menu} title={s.menu} className={`${icon} md:hidden`}>
@@ -133,12 +208,22 @@ function MobileMenu({ lang, links, current }: { lang: Lang; links: [string, stri
         <div className="my-1 h-px bg-fd-border" />
         <div className="flex gap-1 px-1 py-1" role="group" aria-label={s.language}>
           {locales.map((l) => (
-            <button key={l.locale} type="button" aria-pressed={l.locale === lang} onClick={() => onChange?.(l.locale)} className="h-11 flex-1 rounded-lg border text-sm font-medium transition-colors aria-pressed:border-transparent aria-pressed:bg-fd-accent aria-pressed:text-fd-foreground">
+            <button
+              key={l.locale}
+              type="button"
+              aria-pressed={l.locale === lang}
+              onClick={() => onChange?.(l.locale)}
+              className="h-11 flex-1 rounded-lg border text-sm font-medium transition-colors aria-pressed:border-transparent aria-pressed:bg-fd-accent aria-pressed:text-fd-foreground"
+            >
               {l.name}
             </button>
           ))}
         </div>
-        <button type="button" onClick={(e) => switchTheme(e.currentTarget, resolvedTheme === 'light' ? 'dark' : 'light', setTheme)} className={row}>
+        <button
+          type="button"
+          onClick={(e) => switchTheme(e.currentTarget, resolvedTheme === 'light' ? 'dark' : 'light', setTheme)}
+          className={row}
+        >
           <Sun className="dark:hidden" aria-hidden />
           <Moon className="hidden dark:block" aria-hidden />
           {resolvedTheme === 'light' ? s.dark : s.light}
@@ -157,7 +242,12 @@ function LanguageButton({ lang, label }: { lang: Lang; label: string }) {
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-44 min-w-0 bg-fd-popover backdrop-blur-none flex-col gap-0.5 p-1">
         {locales.map((l) => (
-          <button key={l.locale} type="button" onClick={() => onChange?.(l.locale)} className="flex items-center rounded-md px-2 py-1.5 text-start text-sm transition-colors hover:bg-fd-accent">
+          <button
+            key={l.locale}
+            type="button"
+            onClick={() => onChange?.(l.locale)}
+            className="flex items-center rounded-md px-2 py-1.5 text-start text-sm transition-colors hover:bg-fd-accent"
+          >
             {l.name}
             {l.locale === lang && <Check className="ms-auto size-4" aria-hidden />}
           </button>
@@ -170,7 +260,8 @@ function LanguageButton({ lang, label }: { lang: Lang; label: string }) {
 // The new theme grows from the button that switched it; without View Transitions or with reduced motion it switches at once.
 function switchTheme(from: HTMLElement, next: string, setTheme: (t: string) => void) {
   document.documentElement.toggleAttribute('data-theme-switched', true)
-  if (!('startViewTransition' in document) || matchMedia('(prefers-reduced-motion: reduce)').matches) return setTheme(next)
+  if (!('startViewTransition' in document) || matchMedia('(prefers-reduced-motion: reduce)').matches)
+    return setTheme(next)
   const r = from.getBoundingClientRect()
   const x = r.left + r.width / 2
   const y = r.top + r.height / 2
@@ -185,10 +276,20 @@ function switchTheme(from: HTMLElement, next: string, setTheme: (t: string) => v
 function ThemeButton({ light, dark }: { light: string; dark: string }) {
   const { resolvedTheme, setTheme } = useTheme()
   // The server does not know the theme, so the label waits for the client to avoid a hydration mismatch.
-  const mounted = useSyncExternalStore(noop, () => true, () => false)
+  const mounted = useSyncExternalStore(
+    noop,
+    () => true,
+    () => false,
+  )
   const label = mounted && resolvedTheme === 'light' ? dark : light
   return (
-    <button type="button" onClick={(e) => switchTheme(e.currentTarget, resolvedTheme === 'light' ? 'dark' : 'light', setTheme)} aria-label={label} title={label} className={icon}>
+    <button
+      type="button"
+      onClick={(e) => switchTheme(e.currentTarget, resolvedTheme === 'light' ? 'dark' : 'light', setTheme)}
+      aria-label={label}
+      title={label}
+      className={icon}
+    >
       <Sun className="theme-icon hidden dark:block" aria-hidden />
       <Moon className="theme-icon dark:hidden" aria-hidden />
     </button>

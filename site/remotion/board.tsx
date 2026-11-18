@@ -22,16 +22,41 @@ export function Glow({ c }: { c: string }) {
   )
 }
 
-export type BoardProps = { x: number; y: number; s?: number; link?: number; act?: number; power?: number; wifi?: number; hot?: number; ring?: number; sheen?: number }
+export type BoardProps = {
+  x: number
+  y: number
+  s?: number
+  link?: number
+  act?: number
+  power?: number
+  wifi?: number
+  hot?: number
+  ring?: number
+  sheen?: number
+}
 
 /** Waveshare ESP32-P4-WIFI6-POE-ETH, top view, 210 x 150 at s = 1. USB-A on the left, RJ45 on the right. */
 export const BOARD_USB: Pt = [-14, 60]
 export const BOARD_USBC: Pt = [-6, 115]
 export const BOARD_RJ45: Pt = [224, 75]
 export const BOARD_ANT: Pt = [162, 18]
-export const at = (b: { x: number; y: number; s?: number }, p: Pt): Pt => [b.x + p[0] * (b.s ?? 1), b.y + p[1] * (b.s ?? 1)]
+export const at = (b: { x: number; y: number; s?: number }, p: Pt): Pt => [
+  b.x + p[0] * (b.s ?? 1),
+  b.y + p[1] * (b.s ?? 1),
+]
 
-export function Board({ x, y, s = 1, link = 1, act = 0, power = 1, wifi = 0, hot = 0, ring = 0, sheen = 0 }: BoardProps) {
+export function Board({
+  x,
+  y,
+  s = 1,
+  link = 1,
+  act = 0,
+  power = 1,
+  wifi = 0,
+  hot = 0,
+  ring = 0,
+  sheen = 0,
+}: BoardProps) {
   const id = useId().replace(/:/g, '')
   return (
     <g transform={`translate(${x} ${y}) scale(${s})`}>
@@ -96,15 +121,34 @@ export function Board({ x, y, s = 1, link = 1, act = 0, power = 1, wifi = 0, hot
       <text x={89} y={84} textAnchor="middle" fontFamily={MONO} fontSize={8} fontWeight={800} fill="#afb4ba">
         -P4
       </text>
-      {hot > 0 && <rect x={64} y={50} width={50} height={50} rx={3} fill="none" stroke={AMBER} strokeWidth={1.6} opacity={hot} />}
+      {hot > 0 && (
+        <rect x={64} y={50} width={50} height={50} rx={3} fill="none" stroke={AMBER} strokeWidth={1.6} opacity={hot} />
+      )}
       {ring > 0 && (
-        <circle cx={89} cy={75} r={36} fill="none" stroke={AMBER} strokeWidth={4} strokeLinecap="round" strokeDasharray={`${ring * 226} 400`} transform="rotate(-90 89 75)" />
+        <circle
+          cx={89}
+          cy={75}
+          r={36}
+          fill="none"
+          stroke={AMBER}
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeDasharray={`${ring * 226} 400`}
+          transform="rotate(-90 89 75)"
+        />
       )}
       <rect x={118} y={14} width={50} height={36} rx={2} fill="#0f2a1e" />
       <rect x={118} y={22} width={38} height={28} rx={1.5} fill={`url(#${id}m)`} />
       <path d="M158 16 h8 v10 h-6 v8 h6" stroke="#d4aa55" strokeWidth={1.4} fill="none" />
       {wifi > 0 && (
-        <g transform="translate(163 6)" fill="none" stroke={AMBER} strokeWidth={2.6} strokeLinecap="round" opacity={wifi}>
+        <g
+          transform="translate(163 6)"
+          fill="none"
+          stroke={AMBER}
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          opacity={wifi}
+        >
           <path d="M-8 -1 a11 11 0 0 1 16 0" />
           <path d="M-14 -7 a19 19 0 0 1 28 0" />
         </g>

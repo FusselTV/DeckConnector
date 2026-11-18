@@ -15,7 +15,9 @@ const result = (cmd, ...strings) => {
 
 test('frames match IMPROV.md', () => {
   assert.deepEqual(im.rpc(im.CURRENT_STATE), hex('49 4D 50 52 4F 56 01 03 02 02 00 E5 0A'))
-  assert.deepEqual(new im.Reader().feed(hex('0A 49 4D 50 52 4F 56 01 01 01 02 E2 0A')), [{ type: im.STATE, data: hex('02') }])
+  assert.deepEqual(new im.Reader().feed(hex('0A 49 4D 50 52 4F 56 01 01 01 02 E2 0A')), [
+    { type: im.STATE, data: hex('02') },
+  ])
 })
 
 test('rpc refuses what the firmware refuses', () => {
@@ -70,15 +72,26 @@ function rig(answer) {
 
 test('state, info, network and scan', async () => {
   const { client } = rig((cmd) => {
-    if (cmd === im.CURRENT_STATE) return cat(im.frame(im.STATE, hex('04')), enc('log\n'), result(im.CURRENT_STATE, 'http://10.0.0.5'))
+    if (cmd === im.CURRENT_STATE)
+      return cat(im.frame(im.STATE, hex('04')), enc('log\n'), result(im.CURRENT_STATE, 'http://10.0.0.5'))
     if (cmd === im.INFO) return result(im.INFO, 'DeckConnector', 'v0.2.0', 'ESP32-P4', 'deck-a')
     if (cmd === im.NETWORK) return result(im.NETWORK, '7', 'http://10.0.0.5', 'http://10.0.0.9')
     if (cmd === im.SCAN)
-      return cat(result(im.SCAN, 'Home', '-48', 'YES'), result(im.SCAN, 'Guest', '-70', 'NO'), result(im.SCAN, 'Home', '-80', 'YES'), result(im.SCAN))
+      return cat(
+        result(im.SCAN, 'Home', '-48', 'YES'),
+        result(im.SCAN, 'Guest', '-70', 'NO'),
+        result(im.SCAN, 'Home', '-80', 'YES'),
+        result(im.SCAN),
+      )
   })
   assert.deepEqual(await client.state(), { state: 4, url: 'http://10.0.0.5' })
   assert.equal((await client.info()).name, 'deck-a')
-  assert.deepEqual(await client.network(), { online: true, wlan: true, lan: true, urls: ['http://10.0.0.5', 'http://10.0.0.9'] })
+  assert.deepEqual(await client.network(), {
+    online: true,
+    wlan: true,
+    lan: true,
+    urls: ['http://10.0.0.5', 'http://10.0.0.9'],
+  })
   assert.deepEqual(await client.scan(), [
     { ssid: 'Home', rssi: -48, secured: true },
     { ssid: 'Guest', rssi: -70, secured: false },
@@ -87,7 +100,9 @@ test('state, info, network and scan', async () => {
 
 test('errors reject with their code, a fresh command still works', async () => {
   const { client } = rig((cmd) =>
-    cmd === im.WIFI ? cat(im.frame(im.STATE, hex('03')), im.frame(im.ERROR, hex('03')), im.frame(im.STATE, hex('02'))) : result(im.INFO, 'DeckConnector'),
+    cmd === im.WIFI
+      ? cat(im.frame(im.STATE, hex('03')), im.frame(im.ERROR, hex('03')), im.frame(im.STATE, hex('02')))
+      : result(im.INFO, 'DeckConnector'),
   )
   await assert.rejects(client.wifi('Home', 'wrongpass'), (e) => e instanceof im.ImprovError && e.code === 3)
   assert.equal((await client.info()).product, 'DeckConnector')
@@ -125,9 +140,30 @@ test('md5 matches node', () => {
 
 test('every fix link in the flasher has its heading on the troubleshooting page', async () => {
   const { readFileSync } = await import('node:fs')
-  const src = ['Flasher.tsx', 'Setup.tsx'].map((f) => readFileSync(new URL(`../components/flash/${f}`, import.meta.url), 'utf8')).join('\n')
-  const ids = ['browser', 'https', 'no-port', 'driver', 'port-busy', 'no-answer', 'wrong-chip', 'chip-revision', 'flash-stopped', 'read-back', 'firmware-download', 'setup-no-answer', 'wifi-join', 'find-board']
-  for (const id of ids) assert.ok(src.includes(`'${id}'`) || src.includes(`"${id}"`) || src.includes(`#${id}\``), `the flasher links #${id}`)
+  const src = ['Flasher.tsx', 'Setup.tsx']
+    .map((f) => readFileSync(new URL(`../components/flash/${f}`, import.meta.url), 'utf8'))
+    .join('\n')
+  const ids = [
+    'browser',
+    'https',
+    'no-port',
+    'driver',
+    'port-busy',
+    'no-answer',
+    'wrong-chip',
+    'chip-revision',
+    'flash-stopped',
+    'read-back',
+    'firmware-download',
+    'setup-no-answer',
+    'wifi-join',
+    'find-board',
+  ]
+  for (const id of ids)
+    assert.ok(
+      src.includes(`'${id}'`) || src.includes(`"${id}"`) || src.includes(`#${id}\``),
+      `the flasher links #${id}`,
+    )
   for (const page of ['flash-troubleshooting.mdx', 'flash-troubleshooting.de.mdx']) {
     const md = readFileSync(new URL(`../content/docs/${page}`, import.meta.url), 'utf8')
     for (const id of ids) assert.match(md, new RegExp(`^#+ .*\\[#${id}\\]$`, 'm'), `${page} has #${id}`)

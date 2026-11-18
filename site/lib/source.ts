@@ -5,7 +5,9 @@ import { defineDocs } from 'fumadocs-mdx/macro'
 import { i18n } from './i18n'
 
 const docs = defineDocs({
-  docs: { mdxOptions: applyMdxPreset({ remarkStructureOptions: { types: [...remarkStructureDefaultOptions.types, 'code'] } }) },
+  docs: {
+    mdxOptions: applyMdxPreset({ remarkStructureOptions: { types: [...remarkStructureDefaultOptions.types, 'code'] } }),
+  },
 })
 
 export const source = loader(docs.toFumadocsSource(), { baseUrl: '/docs', i18n })

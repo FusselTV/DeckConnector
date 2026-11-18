@@ -14,4 +14,5 @@ export const owner = {
   // Days Cloudflare keeps the contact worker's Workers Logs on the owner's plan.
   logDays: env.OWNER_LOG_DAYS || 'TODO',
 }
-if (process.env.LEGAL_STRICT === '1' && JSON.stringify(owner).includes('TODO')) throw new Error('site.config.ts: owner still has TODO placeholders')
+if (process.env.LEGAL_STRICT === '1' && JSON.stringify(owner).includes('TODO'))
+  throw new Error('site.config.ts: owner still has TODO placeholders')

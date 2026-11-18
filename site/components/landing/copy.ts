@@ -70,7 +70,10 @@ const en = {
         'Free, open source firmware for the Waveshare ESP32-P4-WIFI6-POE-ETH board. The board drives an Elgato Stream Deck over USB and puts it on Wi-Fi or Ethernet, like an Elgato Network Dock with Wi-Fi.',
       ],
       ['Do I need PoE?', 'No. A USB-C power supply and Wi-Fi are enough. PoE is an option.'],
-      ['Which decks work?', 'Tested with the Stream Deck +. MK.2, XL, Neo and Stream Deck V2 are in the driver, not tested yet.'],
+      [
+        'Which decks work?',
+        'Tested with the Stream Deck +. MK.2, XL, Neo and Stream Deck V2 are in the driver, not tested yet.',
+      ],
       ['Which browser does the flasher need?', 'Chrome or Edge on a desktop. Firefox and Safari have no Web Serial.'],
       ['Does it work on 5 GHz Wi-Fi?', 'No. The board has 2.4 GHz Wi-Fi only.'],
     ] as [string, string][],
@@ -143,8 +146,14 @@ const de: typeof en = {
         'Eine freie Open-Source-Firmware für die Platine Waveshare ESP32-P4-WIFI6-POE-ETH. Die Platine steuert ein Elgato Stream Deck per USB und bringt es ins WLAN oder LAN, wie ein Elgato Network Dock mit WLAN.',
       ],
       ['Brauche ich PoE?', 'Nein. Ein USB-C-Netzteil und WLAN reichen. PoE geht auch.'],
-      ['Welche Decks laufen?', 'Getestet mit dem Stream Deck +. MK.2, XL, Neo und Stream Deck V2 sind im Treiber, aber noch nicht getestet.'],
-      ['Welchen Browser braucht der Flasher?', 'Chrome oder Edge am Desktop. Firefox und Safari können kein Web Serial.'],
+      [
+        'Welche Decks laufen?',
+        'Getestet mit dem Stream Deck +. MK.2, XL, Neo und Stream Deck V2 sind im Treiber, aber noch nicht getestet.',
+      ],
+      [
+        'Welchen Browser braucht der Flasher?',
+        'Chrome oder Edge am Desktop. Firefox und Safari können kein Web Serial.',
+      ],
       ['Geht 5-GHz-WLAN?', 'Nein. Die Platine kann nur 2,4-GHz-WLAN.'],
     ],
     more: 'Mehr in der Anleitung',

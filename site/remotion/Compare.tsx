@@ -1,5 +1,28 @@
 import { useCurrentFrame, useVideoConfig } from 'remotion'
-import { AMBER, at, Board, BOARD_ANT, BOARD_USB, BOARD_USBC, Cable, Deck, GREEN, Jack, Plug, Pool, RED, rounded, SANS, Shadow, showKeys, showStrip, Switch, switchPort, useInk, type Pt } from './hw'
+import {
+  AMBER,
+  at,
+  Board,
+  BOARD_ANT,
+  BOARD_USB,
+  BOARD_USBC,
+  Cable,
+  Deck,
+  GREEN,
+  Jack,
+  Plug,
+  Pool,
+  RED,
+  rounded,
+  SANS,
+  Shadow,
+  showKeys,
+  showStrip,
+  Switch,
+  switchPort,
+  useInk,
+  type Pt,
+} from './hw'
 import { menuKeys } from './Hosts'
 import { Scene } from './scene'
 import { pulse, ramp } from './time'
@@ -18,8 +41,26 @@ function Chip({ y, text, ok, k, size }: { y: number; text: string; ok: boolean; 
   const h = size * 1.9
   return (
     <g transform={`translate(0 ${y + (1 - k) * 10})`} opacity={k}>
-      <rect width={text.length * size * 0.56 + h * 1.5} height={h} rx={h / 2} fill={ok ? 'rgba(61,220,132,0.14)' : 'rgba(255,75,62,0.12)'} stroke={c} strokeOpacity={0.6} strokeWidth={2} />
-      <path d={ok ? `M${h * 0.36} ${h * 0.52} l${h * 0.14} ${h * 0.14} l${h * 0.26} -${h * 0.3}` : `M${h * 0.38} ${h * 0.32} l${h * 0.36} ${h * 0.36} m0 -${h * 0.36} l-${h * 0.36} ${h * 0.36}`} stroke={c} strokeWidth={size * 0.17} strokeLinecap="round" fill="none" />
+      <rect
+        width={text.length * size * 0.56 + h * 1.5}
+        height={h}
+        rx={h / 2}
+        fill={ok ? 'rgba(61,220,132,0.14)' : 'rgba(255,75,62,0.12)'}
+        stroke={c}
+        strokeOpacity={0.6}
+        strokeWidth={2}
+      />
+      <path
+        d={
+          ok
+            ? `M${h * 0.36} ${h * 0.52} l${h * 0.14} ${h * 0.14} l${h * 0.26} -${h * 0.3}`
+            : `M${h * 0.38} ${h * 0.32} l${h * 0.36} ${h * 0.36} m0 -${h * 0.36} l-${h * 0.36} ${h * 0.36}`
+        }
+        stroke={c}
+        strokeWidth={size * 0.17}
+        strokeLinecap="round"
+        fill="none"
+      />
       <text x={h * 1.02} y={h * 0.66} fontFamily={SANS} fontSize={size} fontWeight={600} fill={ink}>
         {text}
       </text>
@@ -64,7 +105,13 @@ function DockSide({ f, t, chip }: { f: number; t: Text; chip: number }) {
     <g>
       <Pool x={RIGHT / 2} y={DECK.y + 300} rx={260} ry={60} c="#ffffff" o={0.05} />
       <Switch f={f} {...SW} />
-      <Cable pts={[[RIGHT - 6, DOCK.y + 42], [DOCK.x, DOCK.y + 42]]} w={10} />
+      <Cable
+        pts={[
+          [RIGHT - 6, DOCK.y + 42],
+          [DOCK.x, DOCK.y + 42],
+        ]}
+        w={10}
+      />
       <Dock {...DOCK} />
       <Cable pts={[DOCK_RJ45, SW_PORT]} w={12} color="#2a2f36" glow={glow} glowColor={RED} />
       <Jack x={SW_PORT[0]} y={SW_PORT[1]} />
@@ -93,7 +140,13 @@ function BoardSide({ f, t, menu, chosen, tap }: { f: number; t: Text; menu: numb
       <Cable pts={[[RIGHT - 6, usb[1]], usb]} w={10} glow={0.3} />
       <Cable pts={rounded([c, [plugX, c[1]], [plugX, 448]], 10)} w={8} color="#2a2f36" />
       <Plug x={plugX} y={440} s={0.6} />
-      <Board {...B} wifi={0.6 + 0.4 * Math.sin(f / 8)} link={0} act={Math.floor(f / 4) % 2} sheen={Math.sin((f / 360) * Math.PI * 2)} />
+      <Board
+        {...B}
+        wifi={0.6 + 0.4 * Math.sin(f / 8)}
+        link={0}
+        act={Math.floor(f / 4) % 2}
+        sheen={Math.sin((f / 360) * Math.PI * 2)}
+      />
       <Deck {...DECK} keys={keys} lit={lit} ring={ring} down={down} strip={showStrip(40)} />
       <Chip y={40} text={t.noCable} ok k={1 - menu} size={26} />
       <Chip y={40} text={t.hostsOnDeck} ok k={menu} size={26} />
@@ -109,10 +162,16 @@ export default function Compare({ lang }: LangProps) {
   const menu = ramp(f, MENU[0], MENU[0] + 14) * (1 - ramp(f, MENU[1], MENU[1] + 14))
   const chosen = f < TAPS[0] ? 0 : f < TAPS[1] ? 1 : 2
   const tap = [0, 1, 2].map((i) => (i ? pulse(f, TAPS[i - 1] ?? 0, (TAPS[i - 1] ?? 0) + 24, 2, 12) : 0))
-  const [a, b] = port ? ['translate(195 82) scale(1.15)', 'translate(195 760) scale(1.15)'] : ['translate(30 175)', 'translate(670 175)']
+  const [a, b] = port
+    ? ['translate(195 82) scale(1.15)', 'translate(195 760) scale(1.15)']
+    : ['translate(30 175)', 'translate(670 175)']
   return (
     <Scene w={W} h={H} cam={{ x: W / 2, y: H / 2, z: 1 }}>
-      {port ? <line x1={80} x2={1000} y1={672} y2={672} stroke="#2a2f35" strokeWidth={2} /> : <line x1={640} x2={640} y1={70} y2={650} stroke="#2a2f35" strokeWidth={2} />}
+      {port ? (
+        <line x1={80} x2={1000} y1={672} y2={672} stroke="#2a2f35" strokeWidth={2} />
+      ) : (
+        <line x1={640} x2={640} y1={70} y2={650} stroke="#2a2f35" strokeWidth={2} />
+      )}
       <g transform={a}>
         <Title name={t.dock} dot="#8b929a" />
         <DockSide f={f} t={t} chip={menu} />

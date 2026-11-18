@@ -20,7 +20,8 @@ const en = {
   fwSite: 'Use the firmware of this page',
 
   mobileT: 'Flash from a computer',
-  mobile: 'Flashing needs a USB cable and Chrome or Edge on a computer. Phones and tablets cannot talk to the board over USB.',
+  mobile:
+    'Flashing needs a USB cable and Chrome or Edge on a computer. Phones and tablets cannot talk to the board over USB.',
   mobileOpen: 'Open this page on your computer:',
   copy: 'Copy',
   copied: 'Copied',
@@ -50,7 +51,8 @@ const en = {
   wrongChipT: 'This is not the right board',
   wrongChip: 'This board has an {chip}. DeckConnector runs only on the ESP32-P4.',
   wrongRevT: 'This chip revision is not supported',
-  wrongRev: 'This ESP32-P4 is revision v{rev}. DeckConnector needs v{min} to v{max}. The board would not start with it, so nothing was written.',
+  wrongRev:
+    'This ESP32-P4 is revision v{rev}. DeckConnector needs v{min} to v{max}. The board would not start with it, so nothing was written.',
   otherBoard: 'Use another board',
   found: '{chip}, revision v{rev}',
   mac: 'MAC {mac}',
@@ -91,7 +93,8 @@ const en = {
   restarting: 'Starting the new firmware…',
   flashErrT: 'The install stopped',
   flashErr: 'The board is not damaged. Check the cable and start again.',
-  flashMd5: 'What the board read back does not match the file. The board is not damaged. Try another USB port or cable, then start again.',
+  flashMd5:
+    'What the board read back does not match the file. The board is not damaged. Try another USB port or cable, then start again.',
   again: 'Start again',
 
   setupT: 'Set up Wi-Fi',
@@ -180,7 +183,8 @@ const de: Copy = {
   fwSite: 'Firmware dieser Seite verwenden',
 
   mobileT: 'Flashen geht nur am Computer',
-  mobile: 'Zum Flashen brauchst du ein USB-Kabel und Chrome oder Edge auf einem Computer. Handys und Tablets können nicht über USB mit der Platine sprechen.',
+  mobile:
+    'Zum Flashen brauchst du ein USB-Kabel und Chrome oder Edge auf einem Computer. Handys und Tablets können nicht über USB mit der Platine sprechen.',
   mobileOpen: 'Öffne diese Seite auf deinem Computer:',
   copy: 'Kopieren',
   copied: 'Kopiert',
@@ -200,7 +204,12 @@ const de: Copy = {
   showAll: 'Platine fehlt in der Liste? Alle Anschlüsse zeigen',
   cable: 'Die Liste bleibt leer? Manche USB-C-Kabel laden nur. Nimm ein anderes Kabel.',
   dlT: 'Wenn die Platine nicht antwortet',
-  dl: ['Halte die Taste BOOT auf der Platine gedrückt.', 'Drück kurz RST.', 'Lass BOOT los.', 'Klick noch einmal auf Verbinden.'],
+  dl: [
+    'Halte die Taste BOOT auf der Platine gedrückt.',
+    'Drück kurz RST.',
+    'Lass BOOT los.',
+    'Klick noch einmal auf Verbinden.',
+  ],
   errNoAnswer: 'Die Platine hat nicht geantwortet.',
   errNoAnswerDo: 'Bring sie wie unten gezeigt von Hand in den Download-Modus und klick dann noch einmal auf Verbinden.',
   errBusy: 'Ein anderes Programm benutzt diesen Anschluss.',
@@ -210,7 +219,8 @@ const de: Copy = {
   wrongChipT: 'Das ist nicht die richtige Platine',
   wrongChip: 'Auf dieser Platine sitzt ein {chip}. DeckConnector läuft nur auf dem ESP32-P4.',
   wrongRevT: 'Diese Chip-Revision wird nicht unterstützt',
-  wrongRev: 'Dieser ESP32-P4 hat Revision v{rev}. DeckConnector braucht v{min} bis v{max}. Damit würde die Platine nicht starten, deshalb wurde nichts geschrieben.',
+  wrongRev:
+    'Dieser ESP32-P4 hat Revision v{rev}. DeckConnector braucht v{min} bis v{max}. Damit würde die Platine nicht starten, deshalb wurde nichts geschrieben.',
   otherBoard: 'Andere Platine verwenden',
   found: '{chip}, Revision v{rev}',
   mac: 'MAC {mac}',
@@ -251,14 +261,16 @@ const de: Copy = {
   restarting: 'Starte die neue Firmware…',
   flashErrT: 'Die Installation wurde abgebrochen',
   flashErr: 'Die Platine nimmt keinen Schaden. Prüf das Kabel und starte neu.',
-  flashMd5: 'Was die Platine zurückgelesen hat, passt nicht zur Datei. Die Platine nimmt keinen Schaden. Nimm einen anderen USB-Anschluss oder ein anderes Kabel und starte neu.',
+  flashMd5:
+    'Was die Platine zurückgelesen hat, passt nicht zur Datei. Die Platine nimmt keinen Schaden. Nimm einen anderen USB-Anschluss oder ein anderes Kabel und starte neu.',
   again: 'Neu starten',
 
   setupT: 'WLAN einrichten',
   booting: 'Warte, bis der Connector gestartet ist…',
   bootingHint: 'Sie startet zuerst ihr Netzwerk und den Webserver. Das dauert bis zu 15 Sekunden.',
   noBoot: 'Der Connector antwortet nicht.',
-  noBootDo: 'Drück einmal RST auf der Platine und versuch es noch einmal. Antwortet sie weiter nicht, hilft ein Blick ins Protokoll unten.',
+  noBootDo:
+    'Drück einmal RST auf der Platine und versuch es noch einmal. Antwortet sie weiter nicht, hilft ein Blick ins Protokoll unten.',
   retry: 'Noch einmal',
   installed: 'DeckConnector {v} ist installiert',
   online: 'Online',
@@ -294,9 +306,12 @@ const de: Copy = {
   errLostSerial: 'Die Verbindung zur Platine ist weg. Steck das Kabel wieder ein und verbinde neu.',
 
   readyT: 'Dein Connector ist bereit',
-  readyText: 'DeckConnector läuft in deinem Netz. Öffne die Weboberfläche und verbinde dein Deck mit Companion oder der Elgato-App.',
-  readyOffline: 'Der Connector ist noch nicht online. Verbinde neu und richte WLAN ein oder steck ein Netzwerkkabel ein.',
-  readyLater: 'Die Firmware ist installiert. Schließ die Einrichtung in der Weboberfläche ab. Das Deck zeigt einen QR-Code, der sie öffnet.',
+  readyText:
+    'DeckConnector läuft in deinem Netz. Öffne die Weboberfläche und verbinde dein Deck mit Companion oder der Elgato-App.',
+  readyOffline:
+    'Der Connector ist noch nicht online. Verbinde neu und richte WLAN ein oder steck ein Netzwerkkabel ein.',
+  readyLater:
+    'Die Firmware ist installiert. Schließ die Einrichtung in der Weboberfläche ab. Das Deck zeigt einen QR-Code, der sie öffnet.',
   open: 'Weboberfläche öffnen',
   mdns: 'Auch als',
   address: 'Adresse',
@@ -318,4 +333,5 @@ const de: Copy = {
 
 export const copy = { en, de }
 
-export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (m, k: string) => String(v[k] ?? m))
+export const fill = (s: string, v: Record<string, string | number>) =>
+  s.replace(/\{(\w+)\}/g, (m, k: string) => String(v[k] ?? m))

@@ -7,7 +7,19 @@ import { RemotionStage } from '~/remotion/RemotionStage'
 
 const idle = (fn: () => void) => ('requestIdleCallback' in window ? requestIdleCallback(fn) : setTimeout(fn, 200))
 
-export function Stage({ id, lang, label, eager, className = '' }: { id: CompositionId; lang: Lang; label: string; eager?: boolean; className?: string }) {
+export function Stage({
+  id,
+  lang,
+  label,
+  eager,
+  className = '',
+}: {
+  id: CompositionId
+  lang: Lang
+  label: string
+  eager?: boolean
+  className?: string
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [near, setNear] = useState(!!eager)
   const [on, setOn] = useState(false)
@@ -23,7 +35,9 @@ export function Stage({ id, lang, label, eager, className = '' }: { id: Composit
     if (document.readyState === 'complete') go()
     else window.addEventListener('load', go, { once: true })
     if (eager) return () => window.removeEventListener('load', go)
-    const io = new IntersectionObserver(([e]) => e?.isIntersecting && (setNear(true), setOn(true), io.disconnect()), { rootMargin: '150% 0px' })
+    const io = new IntersectionObserver(([e]) => e?.isIntersecting && (setNear(true), setOn(true), io.disconnect()), {
+      rootMargin: '150% 0px',
+    })
     if (ref.current) io.observe(ref.current)
     return () => {
       window.removeEventListener('load', go)
@@ -47,7 +61,14 @@ export function Stage({ id, lang, label, eager, className = '' }: { id: Composit
 
   return (
     <div ref={ref} role="img" aria-label={label} className={`relative w-full overflow-hidden ${className}`}>
-      {near && <div aria-hidden className="poster absolute inset-0" data-port={'portrait' in compositions[id] || undefined} style={poster} />}
+      {near && (
+        <div
+          aria-hidden
+          className="poster absolute inset-0"
+          data-port={'portrait' in compositions[id] || undefined}
+          style={poster}
+        />
+      )}
       {on && <RemotionStage id={id} className="absolute inset-0" />}
     </div>
   )
