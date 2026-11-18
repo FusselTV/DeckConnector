@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import http.client
 import json
 import os
 import ssl
@@ -202,7 +203,25 @@ def test_a_bad_challenge_is_no_guess_but_a_bad_signature_is(key):
 
 
 def test_challenges_are_limited_per_address():
-    codes = [call("POST", "/api/passkeys/challenge", {"login": True})[0] for _ in range(32)]
+    """One kept-alive connection: a new TLS handshake per request would spread 32 of them over more than 10 s."""
+    ip, port = [*HOST.split(":"), "443"][:2]
+    conn = (
+        http.client.HTTPSConnection(ip, int(port), context=TLS)
+        if SCHEME == "https"
+        else http.client.HTTPConnection(ip, int(port))
+    )
+    codes = []
+    for _ in range(32):
+        conn.request(
+            "POST",
+            "/api/passkeys/challenge",
+            b'{"login": true}',
+            {"X-DeckConnector": "1", "Host": ORIGIN.split("://")[1], "Content-Type": "application/json"},
+        )
+        r = conn.getresponse()
+        r.read()
+        codes.append(r.status)
+    conn.close()
     assert codes.count(429) >= 1 and codes[0] == 200, codes
     time.sleep(10)
 
