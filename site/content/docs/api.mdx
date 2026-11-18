@@ -129,6 +129,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `GET /api/matter` | `qr` (the text of the QR code), `code` (the pairing code) and `qr_bits` | full |
 | `POST /api/matter` | `{"on": true}` or `{"on": false}`. Off takes effect after a restart. `{"pair": true}` opens pairing for 15 minutes. `{"show": true}` shows the code on the decks for 60 s | full |
 | `DELETE /api/matter` | Removes every Matter app, makes a new pairing code and restarts | full |
+| `POST /api/matter/press` | For tests: the body of [`POST /api/input`](#input), sent to Matter alone. No host, menu or input log sees it | full |
 
 ### Network
 

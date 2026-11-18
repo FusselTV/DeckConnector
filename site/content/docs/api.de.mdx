@@ -129,6 +129,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `GET /api/matter` | `qr` (der Text des QR-Codes), `code` (der Kopplungscode) und `qr_bits` | full |
 | `POST /api/matter` | `{"on": true}` oder `{"on": false}`. Aus gilt nach einem Neustart. `{"pair": true}` öffnet das Koppeln für 15 Minuten. `{"show": true}` zeigt den Code 60 s auf den Decks | full |
 | `DELETE /api/matter` | Entfernt alle Matter-Apps, macht einen neuen Kopplungscode und startet neu | full |
+| `POST /api/matter/press` | Für Tests: der Body von [`POST /api/input`](#eingaben), nur an Matter. Kein Programm, kein Menü und kein Eingabe-Log sieht ihn | full |
 
 ### Netzwerk
 
