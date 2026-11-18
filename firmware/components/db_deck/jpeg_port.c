@@ -28,6 +28,9 @@ uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h)
 static esp_err_t encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
                         size_t *out_len)
 {
+    if (!w || !h) {
+        return ESP_ERR_INVALID_SIZE; /* libjpeg would end the process */
+    }
     struct jpeg_compress_struct c;
     struct jpeg_error_mgr err;
     unsigned char *buf = NULL;

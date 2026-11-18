@@ -1599,6 +1599,9 @@ esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len)
     }
     xSemaphoreTake(busy, portMAX_DELAY);
     esp_err_t err = db_deck_info(deck, &dev) ? ESP_OK : ESP_ERR_INVALID_STATE;
+    if (err == ESP_OK && !dev.displays[0].width) {
+        err = ESP_ERR_NOT_FOUND; /* the Pedal: a 0 x 0 picture would be one more failed encoder run */
+    }
     if (err == ESP_OK) {
         db_source_t writer;
         size_t n = db_deck_shots(deck, &writer, shots, DB_SCREEN_MAX);

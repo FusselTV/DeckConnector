@@ -1696,6 +1696,9 @@ esp_err_t get_screen_jpg(httpd_req_t *req)
     if (err == ESP_ERR_INVALID_STATE) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    if (err == ESP_ERR_NOT_FOUND) {
+        return send_error(req, "404 Not Found", "the deck has no display");
+    }
     if (err != ESP_OK) {
         return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
     }
