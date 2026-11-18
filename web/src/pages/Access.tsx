@@ -7,6 +7,7 @@ import {
   Key,
   KeyRound,
   Lock,
+  Pencil,
   Plus,
   ShieldCheck,
   Trash2,
@@ -15,8 +16,8 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { useCallback, useEffect, useState, type SyntheticEvent } from 'react'
-import { api, certUrl } from '../api/client'
-import type { Right, TlsInfo, Token } from '../api/types'
+import { api, ApiError, caUrl, certUrl } from '../api/client'
+import type { Passkey, Right, TlsInfo, Token } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
 import { loginReasonAtom, toast } from '../app/state'
@@ -29,6 +30,8 @@ import { CopyField, FilePick, PwInput } from '../components/InputAction'
 import { KeyValue } from '../components/KeyValue'
 import { Row } from '../components/Row'
 import { useDraft } from '../components/SaveBar'
+import { addPasskey, passkeysHere } from '../lib/passkey'
+import { deviceLabel } from '../lib/util'
 import { corsError, passwordError, tokenNameError } from '../lib/validate'
 
 const RIGHT_ICON = { control: Gamepad2, full: ShieldCheck }
@@ -204,6 +207,144 @@ function CertModal({ close }: { close: () => void }) {
   )
 }
 
+function PasskeyModal({ pk, close, done }: { pk: Passkey | null; close: () => void; done: () => void }) {
+  const { t } = useUi()
+  const [name, setName] = useState(pk?.name ?? deviceLabel(navigator.userAgent).slice(0, 23))
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const save = async (e: SyntheticEvent) => {
+    e.preventDefault()
+    if (busy) return
+    setBusy(true)
+    try {
+      await (pk ? api.renamePasskey(pk.id, name.trim()) : addPasskey(name.trim()))
+      done()
+      close()
+    } catch (x) {
+      setErr(x instanceof ApiError ? errText(x, t) : t('pk.fail'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal
+      icon={KeyRound}
+      title={t(pk ? 'pk.rename' : 'pk.add')}
+      close={busy ? () => undefined : close}
+      foot={
+        <>
+          <Btn kind="ghost" onClick={close} disabled={busy}>
+            {t('c.cancel')}
+          </Btn>
+          <button type="submit" form="pkform" className="btn pri" disabled={busy} aria-busy={busy || undefined}>
+            {t(pk ? 'c.save' : 'pk.add')}
+          </button>
+        </>
+      }
+    >
+      <form id="pkform" className="stack" onSubmit={(e) => void save(e)} noValidate>
+        <Field id="pkname" label={t('access.tname')} err={err}>
+          <input
+            {...describedBy('pkname', err)}
+            className="in"
+            value={name}
+            maxLength={23}
+            onChange={(e) => (setName(e.target.value), setErr(null))}
+            data-autofocus
+          />
+        </Field>
+      </form>
+    </Modal>
+  )
+}
+
+function Passkeys() {
+  const { t, act, ask } = useUi()
+  const st = useStore((s) => s.status)
+  const [list, setList] = useState<Passkey[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [edit, setEdit] = useState<Passkey | true | null>(null)
+  const load = useCallback(() => {
+    api.passkeys().then(
+      (x) => {
+        setList(x)
+        setFailed(false)
+      },
+      () => setFailed(true),
+    )
+  }, [])
+  useEffect(load, [load])
+  const here = passkeysHere()
+  const drop = async (p: Passkey) => {
+    if (
+      !(await ask({ title: t('cf.pkdel', { name: p.name }), body: t('cf.pkdel_b'), ok: t('btn.delete'), danger: true }))
+    )
+      return
+    await act(async () => {
+      await api.dropPasskey(p.id)
+      load()
+    })
+  }
+  const add = (
+    <Btn id="pk-add" icon={Plus} onClick={() => setEdit(true)} disabled={!list || list.length >= 8}>
+      {t('pk.add')}
+    </Btn>
+  )
+  const named = st.name ? `${st.name}.local` : ''
+  return (
+    <Card
+      id="card-pk"
+      icon={KeyRound}
+      title={t('pk.title')}
+      right={
+        <>
+          {here && !!list?.length && add}
+          <Help right label={t('pk.title')} text={t('pk.h')} />
+        </>
+      }
+    >
+      {!here && (
+        <div className="warnline">
+          <TriangleAlert size={16} aria-hidden />
+          <span>
+            {t('err.passkey_host')} {named && <a href={`https://${named}/`}>{named}</a>}
+          </span>
+        </div>
+      )}
+      {failed ? (
+        <div className="warnline">
+          <TriangleAlert size={16} aria-hidden />
+          {t('access.tload')}
+          <Btn sm kind="ghost" icon={RefreshCw} onClick={load}>
+            {t('ban.retry')}
+          </Btn>
+        </div>
+      ) : list?.length ? (
+        <div className="list">
+          {list.map((p) => (
+            <div key={p.id} className="li">
+              <SIcon icon={KeyRound} />
+              <span className="grow">{p.name}</span>
+              <span className="mono small muted">{p.rp}</span>
+              <IconBtn icon={Pencil} label={`${t('pk.rename')}: ${p.name}`} onClick={() => setEdit(p)} />
+              <IconBtn icon={Trash2} label={`${t('btn.delete')}: ${p.name}`} onClick={() => void drop(p)} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        list &&
+        here && (
+          <Empty icon={KeyRound}>
+            <p>{t('pk.empty')}</p>
+            {add}
+          </Empty>
+        )
+      )}
+      {edit && <PasskeyModal pk={edit === true ? null : edit} close={() => setEdit(null)} done={load} />}
+    </Card>
+  )
+}
+
 export function Access() {
   const { t, act, ask, go } = useUi()
   const st = useStore((s) => s.status)
@@ -337,10 +478,17 @@ export function Access() {
             <span className="small">{st.https_custom ? t('cert.applied') : t('cert.own')}</span>
           </div>
           <div className="row">
-            <a className="btn" id="cert-dl" href={certUrl} download={`${st.name ?? 'deckconnector'}.pem`}>
-              <Download size={16} aria-hidden />
-              {t('cert.dl')}
-            </a>
+            {st.https_custom ? (
+              <a className="btn" id="cert-dl" href={certUrl} download={`${st.name ?? 'deckconnector'}.pem`}>
+                <Download size={16} aria-hidden />
+                {t('cert.dl')}
+              </a>
+            ) : (
+              <a className="btn" id="ca-dl" href={caUrl} download={`${st.name ?? 'deckconnector'}-ca.crt`}>
+                <Download size={16} aria-hidden />
+                {t('cert.ca')}
+              </a>
+            )}
             {st.https_custom ? (
               <Btn icon={Undo2} onClick={() => void act(async () => (await api.resetTls(), expectRestart()))}>
                 {t('cert.reset')}
@@ -351,7 +499,21 @@ export function Access() {
               </Btn>
             )}
           </div>
+          {!st.https_custom && (
+            <Row id="trust-fold" icon={ShieldCheck} title={t('cert.trust')}>
+              <KeyValue
+                rows={[
+                  ['iPhone, iPad', t('cert.t_ios')],
+                  ['macOS', t('cert.t_mac')],
+                  ['Windows', t('cert.t_win')],
+                  ['Android', t('cert.t_android')],
+                  ['Firefox, Linux', t('cert.t_other')],
+                ]}
+              />
+            </Row>
+          )}
         </Card>
+        <Passkeys />
       </div>
       <Card
         id="card-tok"

@@ -256,6 +256,13 @@ export interface Token {
   last_used?: string
 }
 
+export interface Passkey {
+  id: number
+  name: string
+  /** The host name it was made on: it works only there. */
+  rp: string
+}
+
 export interface Found {
   name: string
   host: string
