@@ -41,12 +41,12 @@ class BoardEntity(DeckConnectorEntity):
         self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, coordinator.board_id)})
 
 
-def maker(model: str) -> str:
+def maker(model: str) -> str | None:
     if model.startswith("Stream Deck"):
         return "Elgato"
     if model.startswith("Stream Dock"):
         return "Mirabox"
-    return model.split()[0]
+    return next(iter(model.split()), None)
 
 
 class DeckEntity(DeckConnectorEntity):

@@ -22,7 +22,7 @@ class BoardBinaryDescription(BinarySensorEntityDescription):
 
 
 def _net(data: dict[str, Any], iface: str) -> dict[str, Any]:
-    return dict((data.get("network") or {}).get(iface) or {})
+    return (data.get("network") or {}).get(iface) or {}
 
 
 BOARD = (
@@ -46,7 +46,7 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     if "network" in coordinator.data:
         async_add_entities(BoardBinary(coordinator, d) for d in BOARD)
-    add_per_deck(entry, async_add_entities, lambda c, d: [Unlocked(c, d)])
+    add_per_deck(entry, async_add_entities, lambda c, d: [PinLock(c, d)])
 
 
 class BoardBinary(BoardEntity, BinarySensorEntity):
@@ -61,7 +61,7 @@ class BoardBinary(BoardEntity, BinarySensorEntity):
         return self.entity_description.value(self.coordinator.data)
 
 
-class Unlocked(DeckEntity, BinarySensorEntity):
+class PinLock(DeckEntity, BinarySensorEntity):
     _attr_device_class = BinarySensorDeviceClass.LOCK
     _attr_entity_registry_enabled_default = False  # its device triggers would become buttons in a HomeKit bridge
 

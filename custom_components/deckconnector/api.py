@@ -68,7 +68,10 @@ class Api:
         return (await _call(self.session, method, f"http://{self.host}{path}", json=body, headers=self.headers))[0]
 
     async def status(self) -> dict[str, Any]:
-        return dict(await self.request("GET", "/api/status"))
+        body = await self.request("GET", "/api/status")
+        if not isinstance(body, dict):
+            raise DeckConnectorError("the status is not a JSON object")
+        return body
 
     async def screen_jpg(self, serial: str) -> bytes | None:
         try:

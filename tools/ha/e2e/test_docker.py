@@ -155,16 +155,23 @@ async def test_pair_and_press(press_file, ha):
 async def test_a_setting_reaches_the_board(press_file, ha):
     async with aiohttp.ClientSession() as s:
         auth = await login(s)
-        body = {"entity_id": "number.deckconnector_5678ab_screen_off_after", "value": 15}
+        entity = "number.deckconnector_5678ab_screen_off_after"
+        async with s.get(f"{HA}/api/states/{entity}", headers=auth) as r:
+            before = float((await r.json())["state"])
+        body = {"entity_id": entity, "value": 15}
         async with s.post(f"{HA}/api/services/number/set_value", json=body, headers=auth) as r:
             assert r.status == 200, await r.text()
         board = aiohttp.BasicAuth("admin", "sim-pass")
         async with s.get(f"http://127.0.0.1:{SIM_PORT}/api/status", auth=board) as r:
             assert (await r.json())["screen_off_s"] == 900
-        await asyncio.sleep(2)
-        async with s.get(f"{HA}/api/states/{body['entity_id']}", headers=auth) as r:
-            assert (await r.json())["state"] == "15.0"
-        async with s.post(f"{HA}/api/services/number/set_value", json={**body, "value": 0}, headers=auth) as r:
+        for _ in range(20):
+            async with s.get(f"{HA}/api/states/{entity}", headers=auth) as r:
+                if (await r.json())["state"] == "15.0":
+                    break
+            await asyncio.sleep(0.5)
+        else:
+            raise AssertionError("the pushed value did not reach Home Assistant")
+        async with s.post(f"{HA}/api/services/number/set_value", json={**body, "value": before}, headers=auth) as r:
             assert r.status == 200
 
 

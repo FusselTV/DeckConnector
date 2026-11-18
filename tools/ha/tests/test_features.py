@@ -154,13 +154,19 @@ async def test_the_connection_is_logged_once_lost_and_once_back(hass, entry, aio
 
 async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
-    aioclient_mock.get(f"http://{HOST}/api/events", json=[{"kind": "boot", "text": "power"}])
+    aioclient_mock.get(f"http://{HOST}/api/events", json=[{"kind": "dock", "text": "192.168.1.15 paired"}])
+    network = {"lan": {"ip": "192.168.1.50"}, "wlan": {"ssid": "studio", "bssid": "aa:bb", "lock": "aa:bb"}}
+    source = {"kind": "app", "host": "192.168.1.20", "name": "studio-pc", "deck": 0}
+    await push(hass, socket, network=network, sources=[source], pairing={"hosts": [{"ip": "x", "mac": "y"}]})
     assert await async_setup_component(hass, "diagnostics", {})
     diag = await get_diagnostics_for_config_entry(hass, hass_client, entry)
+    st = diag["status"]
     assert diag["entry"] == {"host": REDACTED, "token": REDACTED}
-    assert diag["status"]["id"] == REDACTED and diag["status"]["decks"][0]["serial"] == REDACTED
-    assert diag["status"]["network"]["wlan"]["ssid"] == REDACTED
-    assert diag["events"] == [{"kind": "boot", "text": "power"}] and diag["connected"] is True
+    assert st["id"] == REDACTED and st["decks"][0]["serial"] == REDACTED
+    assert st["network"]["lan"]["ip"] == REDACTED
+    assert {st["network"]["wlan"][k] for k in ("ssid", "bssid", "lock")} == {REDACTED}
+    assert st["sources"][0]["host"] == REDACTED and st["pairing"]["hosts"][0] == {"ip": REDACTED, "mac": REDACTED}
+    assert diag["events"] == [{"kind": "dock", "text": f"{REDACTED} paired"}] and diag["connected"] is True
 
 
 async def test_system_health(hass, entry, aioclient_mock, socket):
@@ -198,9 +204,54 @@ async def test_only_detached_devices_can_be_deleted(hass, hass_ws_client, entry,
 
 
 def test_maker():
-    assert [maker(m) for m in ("Stream Deck +", "Stream Dock N4", "Ajazz AKP153", "Soomfon CN002")] == [
+    assert [maker(m) for m in ("Stream Deck +", "Stream Dock N4", "Ajazz AKP153", "Soomfon CN002", "")] == [
         "Elgato",
         "Mirabox",
         "Ajazz",
         "Soomfon",
+        None,
     ]
+
+
+async def test_a_bad_message_keeps_the_socket(hass, entry, aioclient_mock, socket, caplog):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    await socket.queue.put({"t": "state", **status(PLUS), "decks": [{"no": "serial"}]})
+    await hass.async_block_till_done()
+    assert "KeyError: 'serial'" in caplog.text
+    await push(hass, socket, brightness=20)
+    assert hass.states.get(f"number.{BOARD}_brightness").state == "20"
+
+
+async def test_a_status_that_is_no_object_cannot_connect(hass, entry, aioclient_mock, socket):
+    aioclient_mock.get(f"http://{HOST}/api/status", json=["x"])
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state.name == "SETUP_RETRY"
+
+
+async def test_the_same_or_a_missing_firmware_does_not_reload(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    with patch.object(hass.config_entries, "async_schedule_reload") as reload:
+        await push(hass, socket, firmware=None)
+        await push(hass, socket)
+    reload.assert_not_called()
+
+
+async def test_https_only_while_running(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"http://{HOST}/api/status", status=403, text="HTTPS only")
+    await entry.runtime_data.async_refresh()
+    issue_id = f"https_only_{entry.entry_id}"
+    assert ir.async_get(hass).async_get_issue("deckconnector", issue_id)
+    assert hass.states.get(f"number.{BOARD}_brightness").state == "80"
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    assert ir.async_get(hass).async_get_issue("deckconnector", issue_id) is None
+
+
+async def test_diagnostics_say_why_the_events_are_missing(hass, hass_client, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.get(f"http://{HOST}/api/events", status=500, json={"error": "busy"})
+    assert await async_setup_component(hass, "diagnostics", {})
+    diag = await get_diagnostics_for_config_entry(hass, hass_client, entry)
+    assert diag["events"] == "not read: busy"

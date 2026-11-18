@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from homeassistant.const import CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr, issue_registry as ir
@@ -8,6 +10,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .api import Api
 from .const import DOMAIN, ISSUE_DECKS_OVER_LIMIT, ISSUE_HTTPS_ONLY
 from .coordinator import DeckConnectorConfigEntry, DeckCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
@@ -32,7 +36,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
     @callback
     def board_device() -> None:
         data = coordinator.data
-        if data.get("firmware") != firmware:
+        if data.get("firmware") and data["firmware"] != firmware:
+            _LOGGER.info("%s runs firmware %s now, loading it again", entry.title, data["firmware"])
             hass.config_entries.async_schedule_reload(entry.entry_id)
             return
         coordinator.board_device_id = (

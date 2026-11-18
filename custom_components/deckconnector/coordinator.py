@@ -75,13 +75,14 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             status = await self.api.status()
         except AuthError as err:
             raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="auth_failed") from err
-        except HttpsOnlyError as err:
-            self._issue(ISSUE_HTTPS_ONLY, True)
-            raise UpdateFailed(translation_domain=DOMAIN, translation_key="https_only") from err
         except DeckConnectorError as err:
+            https_only = isinstance(err, HttpsOnlyError)
+            self._issue(ISSUE_HTTPS_ONLY, https_only)
             if self.connected and self.data:
                 _LOGGER.debug("poll of %s failed, the websocket is up: %s", self.api.host, err)
                 return self.data
+            if https_only:
+                raise UpdateFailed(translation_domain=DOMAIN, translation_key="https_only") from err
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="cannot_connect",
@@ -117,14 +118,17 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         msg = await ws.receive(timeout=SILENCE_S)
                         if msg.type != aiohttp.WSMsgType.TEXT:
                             break
-                        self._handle(msg.json())
+                        try:
+                            self._handle(msg.json())
+                        except Exception:
+                            _LOGGER.exception("cannot use a message from %s: %.200s", self.api.host, msg.data)
             except aiohttp.WSServerHandshakeError as err:
                 if err.status == 401:
                     self._disconnected()
                     self.config_entry.async_start_reauth(self.hass)
                     return
                 _LOGGER.debug("websocket refused: %s", err)
-            except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+            except (aiohttp.ClientError, TimeoutError) as err:
                 _LOGGER.debug("websocket lost: %s", err)
             except Exception:
                 _LOGGER.exception("unexpected message from %s", self.api.host)

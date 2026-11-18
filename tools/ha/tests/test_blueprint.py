@@ -3,9 +3,9 @@ import shutil
 
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import async_mock_service
-
-from conftest import PLUS
 from test_setup import setup
+
+from conftest import PLUS, status
 
 BLUEPRINT = Path(__file__).resolve().parents[3] / "blueprints/automation/deckconnector/dial_light.yaml"
 
@@ -17,9 +17,8 @@ async def turn(hass, socket, kind, value=0, index=1):
 
 async def test_the_dial_dims_and_toggles(hass, entry, aioclient_mock, socket, tmp_path):
     hass.config.config_dir = str(tmp_path)
-    target = Path(hass.config.path("blueprints/automation/deckconnector"))
-    target.mkdir(parents=True)
-    shutil.copy(BLUEPRINT, target)
+    target = tmp_path / "blueprints/automation/deckconnector"
+    await hass.async_add_executor_job(lambda: target.mkdir(parents=True) or shutil.copy(BLUEPRINT, target))
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     turn_on = async_mock_service(hass, "light", "turn_on")
     toggle = async_mock_service(hass, "light", "toggle")
@@ -37,3 +36,11 @@ async def test_the_dial_dims_and_toggles(hass, entry, aioclient_mock, socket, tm
     await turn(hass, socket, "encoder_up")
     assert [c.data["brightness_step_pct"] for c in turn_on] == [15, -5]
     assert len(toggle) == 1 and toggle[0].data["entity_id"] == ["light.desk"]
+
+    await turn(hass, socket, "encoder_down")
+    await socket.queue.put(None)
+    await hass.async_block_till_done()
+    await socket.opened.wait()
+    await socket.queue.put({"t": "state", **status(PLUS)})
+    await hass.async_block_till_done()
+    assert len(toggle) == 2
