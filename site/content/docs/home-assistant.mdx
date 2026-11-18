@@ -48,6 +48,10 @@ Presses from the web page or a script never reach Home Assistant. Home Assistant
 
 The host draws the keys. A key that Companion or the Elgato app also uses runs both actions.
 
+## Apple Home
+
+The [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) shows a deck as a set of buttons in the Home app. Open the options of the HomeKit Bridge in bridge mode and pick the deck under **Devices (Triggers)**. Each key press, dial press, dial turn and touch is one button.
+
 ## Remove
 
 Delete the integration in Home Assistant. Then remove its key `home-assistant-xxxxxxxx` under **Access › API keys** on the board.
