@@ -41,6 +41,22 @@ describe('demo bridge', () => {
     input(s, T0, { key: 7 })
     expect(host(s).keys[0]?.t).toBe('Front')
     expect(s.inputs.map((e) => e.kind)).toEqual(['key_down', 'key_up', 'encoder_turn', 'key_down', 'key_up'])
+    input(s, T0, { key: 5 })
+    expect(
+      host(s)
+        .keys.slice(0, 5)
+        .map((k) => k.bg),
+    ).toEqual(Array(5).fill('#2b2d31'))
+  })
+
+  it('mutes the Elgato App mic from its key and from the dial alike', () => {
+    const s = demo()
+    s.cfg = { ...s.cfg, controller: 'app', host: '192.168.1.31' }
+    expect(writer(s, T0)).toBe('dock1')
+    input(s, T0, { key: 3 })
+    expect([host(s).keys[3]?.t, host(s).strip.zones[3]?.text]).toEqual(['Muted', 'muted'])
+    input(s, T0, { encoder: 3 })
+    expect(host(s).keys[3]?.t).toBe('Mic')
   })
 
   it('labels the host pages in German and lets a pairing request lapse after a minute', () => {
