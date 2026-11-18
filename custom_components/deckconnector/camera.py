@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.camera import Camera
+from aiohttp import web
+from homeassistant.components.camera import Camera, async_get_still_stream
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -46,3 +47,22 @@ class ScreenCamera(DeckEntity, Camera):
             else:
                 self._jpg = jpg
         return self._jpg
+
+    async def handle_async_mjpeg_stream(self, request: web.Request) -> web.StreamResponse:
+        last: bytes | None = None
+        echo = False
+
+        # Chrome shows an MJPEG frame only when the next one arrives, and HA sends a frame only when the bytes change.
+        # A copy with a byte after the JPEG end marker follows each new picture, so the picture shows at once.
+        async def frame() -> bytes | None:
+            nonlocal last, echo
+            jpg = await self.async_camera_image()
+            if jpg is not None and jpg != last:
+                last, echo = jpg, True
+                return jpg
+            if echo and jpg is not None:
+                echo = False
+                return jpg + b"\0"
+            return jpg
+
+        return await async_get_still_stream(request, frame, self.content_type, self.frame_interval)

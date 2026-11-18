@@ -31,6 +31,16 @@ async def test_the_camera_fetches_only_after_a_change(hass, entry, aioclient_moc
     assert (await async_get_image(hass, "camera.stream_deck_screen")).content == b"\xff\xd8one"
 
 
+async def test_the_live_stream_sends_each_new_picture_twice(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.get(JPG, content=b"\xff\xd8one")
+    cam = hass.data["camera"].get_entity("camera.stream_deck_screen")
+    with patch("custom_components.deckconnector.camera.async_get_still_stream") as stream:
+        await cam.handle_async_mjpeg_stream(MagicMock())
+    frame = stream.call_args.args[1]
+    assert [await frame() for _ in range(3)] == [b"\xff\xd8one", b"\xff\xd8one\0", b"\xff\xd8one"]
+
+
 async def test_every_input_kind_becomes_an_event(hass, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     base = {"t": "input", "deck": "A1", "index": 1, "value": 3, "x": 10, "y": 400, "x2": 300, "y2": 400}
