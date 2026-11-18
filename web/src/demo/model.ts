@@ -871,8 +871,6 @@ export interface KeyFace {
   sub?: string
   bg: string
   fg?: string
-  on?: boolean
-  bar?: number
   /** The website's key look (site/remotion/hw.tsx Face): this icon over t. */
   site?: SiteIcon
   /** Colour of the rec dot. */
