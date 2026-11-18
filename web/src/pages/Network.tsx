@@ -286,9 +286,14 @@ export function Network() {
         </>
       </Card>
       <Card id="card-names" icon={TagIcon} title={t('net.names')}>
-        <Field id="name" label={t('net.name')} err={err.name && t(err.name)}>
+        <Field
+          id="name"
+          label={t('net.name')}
+          hint={v.name !== base.name ? t('net.name_ca') : undefined}
+          err={err.name && t(err.name)}
+        >
           <input
-            {...describedBy('name', err.name && t(err.name))}
+            {...describedBy('name', err.name && t(err.name), v.name !== base.name)}
             className="in mono"
             maxLength={31}
             pattern={NAME_RE.source}

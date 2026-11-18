@@ -499,8 +499,14 @@ export function Access() {
               </Btn>
             )}
           </div>
+          {st.https_ca && (
+            <p className="small" id="ca-fp">
+              {t('cert.ca_fp')} <span className="mono">{st.https_ca}</span>
+            </p>
+          )}
           {!st.https_custom && (
             <Row id="trust-fold" icon={ShieldCheck} title={t('cert.trust')}>
+              <p className="small muted">{t('cert.t_ip', { name: `${st.name ?? 'deckconnector'}.local` })}</p>
               <KeyValue
                 rows={[
                   ['iPhone, iPad', t('cert.t_ios')],

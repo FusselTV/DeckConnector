@@ -797,4 +797,7 @@ export const de: Dict = {
   'cert.t_other': 'In den Zertifikat-Einstellungen des Browsers als Zertifizierungsstelle importieren.',
   'err.passkey_host': 'Passkeys brauchen HTTPS und den Namen des Connectors, nicht seine IP-Adresse.',
   'err.passkey_refused': 'Der Passkey wurde nicht angenommen.',
+  'cert.ca_fp': 'Das Deck zeigt diesen Code, wenn du die CA herunterlädst. Vertraue ihr nur, wenn beide gleich sind:',
+  'cert.t_ip': 'Das gilt für {name}. Per IP-Adresse warnt der Browser weiter.',
+  'net.name_ca': 'Ein neuer Name bekommt eine neue CA. Vertraue ihr auf jedem Gerät neu.',
 }

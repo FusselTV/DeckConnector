@@ -20,7 +20,7 @@ export async function addPasskey(name: string) {
       // one id per passkey: the same id again would replace an older passkey on that device
       user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'admin', displayName: location.hostname },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
-      authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
+      authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
       attestation: 'none',
     },
   })) as PublicKeyCredential
@@ -39,7 +39,7 @@ export async function addPasskey(name: string) {
 export async function passkeyLogin() {
   const { challenge } = await api.passkeyChallenge(true)
   const c = (await navigator.credentials.get({
-    publicKey: { challenge: bytes(challenge), rpId: location.hostname, userVerification: 'preferred' },
+    publicKey: { challenge: bytes(challenge), rpId: location.hostname, userVerification: 'required' },
   })) as PublicKeyCredential
   const r = c.response as AuthenticatorAssertionResponse
   return api.passkeyLogin({

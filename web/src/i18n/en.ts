@@ -777,4 +777,7 @@ export const en = {
   'cert.t_other': 'Import it as an authority in the certificate settings of the browser.',
   'err.passkey_host': 'Passkeys need HTTPS and the name of the connector, not its IP address.',
   'err.passkey_refused': 'The passkey was not accepted.',
+  'cert.ca_fp': 'The deck shows this code when you download the CA. Trust it only if both match:',
+  'cert.t_ip': 'This works for {name}. By IP address the browser still warns.',
+  'net.name_ca': 'A new name gets a new CA. Trust it again on each device.',
 }
