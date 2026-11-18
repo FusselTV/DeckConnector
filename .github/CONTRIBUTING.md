@@ -19,28 +19,12 @@ with that key.
 
 | Folder | What it is |
 |---|---|
-| `firmware/` | the ESP-IDF project, with host tests in `firmware/host_test`, a Linux build of the web code in `firmware/sim` and the Matter image in `firmware/matter` |
+| `firmware/` | the ESP-IDF project ([firmware/README.md](../firmware/README.md)) |
 | `web/` | the web UI, built into the firmware ([web/README.md](../web/README.md)) |
 | `site/` | deckconnector.com with the docs, the demo and the flasher ([site/README.md](../site/README.md)) |
-| `tools/` | Python tools: a reference server, signing, flashing, the end to end tests |
+| `tools/` | Python tools: a reference server, signing, flashing, the end to end tests ([tools/README.md](../tools/README.md)) |
 
 ## Firmware
-
-| Component | What it is |
-|---|---|
-| `db_core` | plain C without ESP-IDF: device model, deck drivers, image queue, protocol, Cora framing, Satellite lines, layout, PNG |
-| `db_board` | pins and features per board, picked in menuconfig |
-| `db_config` | settings in NVS |
-| `db_deck` | USB host port, JPEG encoder, and the deck service: who may draw, writer task, input |
-| `db_net` | Ethernet, Wi-Fi, setup access point, mDNS |
-| `db_link` | the WebSocket servers and the Companion Satellite client |
-| `db_dock` | the Network Dock emulation |
-| `db_ui` | status screens, menu and font on the deck |
-| `db_ota` | signed updates and rollback, the `.dbfw` header is in `db_ota.c` |
-| `db_web` | web UI, JSON API, captive DNS |
-| `db_audio` | the speaker: sounds and the self-test |
-| `db_log` | the log ring kept over a restart, boot time marks |
-| `db_serial` | Improv over USB serial, for the flasher |
 
 `idf.py -C firmware/matter build` builds the Matter image from the same components.
 
