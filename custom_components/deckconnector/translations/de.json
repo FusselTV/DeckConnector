@@ -219,5 +219,61 @@
     "no_update": {
       "message": "Es gibt keine neuere Firmware."
     }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "press": "{subtype} gedrückt",
+      "turn_left": "{subtype} nach links gedreht",
+      "turn_right": "{subtype} nach rechts gedreht",
+      "tap": "{subtype} angetippt",
+      "long_press": "{subtype} gehalten",
+      "swipe_left": "{subtype} nach links gewischt",
+      "swipe_right": "{subtype} nach rechts gewischt"
+    },
+    "trigger_subtype": {
+      "key_1": "Taste 1",
+      "key_2": "Taste 2",
+      "key_3": "Taste 3",
+      "key_4": "Taste 4",
+      "key_5": "Taste 5",
+      "key_6": "Taste 6",
+      "key_7": "Taste 7",
+      "key_8": "Taste 8",
+      "key_9": "Taste 9",
+      "key_10": "Taste 10",
+      "key_11": "Taste 11",
+      "key_12": "Taste 12",
+      "key_13": "Taste 13",
+      "key_14": "Taste 14",
+      "key_15": "Taste 15",
+      "key_16": "Taste 16",
+      "key_17": "Taste 17",
+      "key_18": "Taste 18",
+      "key_19": "Taste 19",
+      "key_20": "Taste 20",
+      "key_21": "Taste 21",
+      "key_22": "Taste 22",
+      "key_23": "Taste 23",
+      "key_24": "Taste 24",
+      "key_25": "Taste 25",
+      "key_26": "Taste 26",
+      "key_27": "Taste 27",
+      "key_28": "Taste 28",
+      "key_29": "Taste 29",
+      "key_30": "Taste 30",
+      "key_31": "Taste 31",
+      "key_32": "Taste 32",
+      "key_33": "Taste 33",
+      "key_34": "Taste 34",
+      "key_35": "Taste 35",
+      "key_36": "Taste 36",
+      "dial_1": "Drehregler 1",
+      "dial_2": "Drehregler 2",
+      "dial_3": "Drehregler 3",
+      "dial_4": "Drehregler 4",
+      "dial_5": "Drehregler 5",
+      "dial_6": "Drehregler 6",
+      "touch_strip": "Touchleiste"
+    }
   }
 }
