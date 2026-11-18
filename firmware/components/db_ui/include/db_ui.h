@@ -50,6 +50,10 @@ esp_err_t db_ui_open_menu(int deck);
 void db_ui_close_menu(void);
 /* The menu, the password page, the reset question or a login request covers the deck. */
 bool db_ui_menu_open(void);
+#define DB_UI_QR_BYTES ((41 * 41 + 7) / 8)
+/* `text` as a QR code, row by row from the top left, the lowest bit first; returns its size, 0 when it does
+ * not fit. */
+int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES]);
 /* The Matter pairing code for 60 s, in the Matter image. The number of decks it shows on. */
 int db_ui_show_matter(const char *qr, const char *code);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */

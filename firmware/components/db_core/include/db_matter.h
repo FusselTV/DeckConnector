@@ -22,7 +22,9 @@ typedef struct {
     uint8_t gen;
 } db_matter_slot_t;
 
-/* The node's endpoint of `slot` (0 to DB_MAX_DECKS - 1) for the deck `serial`. *moved: a different deck than
+/* The node's endpoint of `slot` (0 to DB_MAX_DECKS - 1) in block generation `gen`. */
+uint16_t db_matter_ep(uint8_t gen, int slot);
+/* The node's endpoint of `slot` for the deck `serial`. *moved: a different deck than
  * the last one, the block moved on. */
 uint16_t db_matter_node_ep(db_matter_slot_t *slot, int index, const char *serial, bool *moved);
 /* The switch a key or dial press or release goes to, 0 for any other input. */

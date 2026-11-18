@@ -27,7 +27,6 @@ extern "C" {
 #include "freertos/queue.h"
 #include "nvs.h"
 #include "nvs_flash.h"
-#include "qrcode.h"
 
 using namespace esp_matter;
 using namespace chip::app::Clusters;
@@ -221,13 +220,12 @@ static void set_reachable(uint16_t ep, bool on)
 
 static uint16_t node_ep(int slot)
 {
-    return (uint16_t)(64 * (1 + s.slots[slot].id.gen * DB_MAX_DECKS + slot));
+    return db_matter_ep(s.slots[slot].id.gen, slot);
 }
 
-static void drop(int slot)
+static void drop(int slot, uint16_t base)
 {
-    uint16_t base = node_ep(slot);
-    for (uint16_t id = base + 1; id < base + 1 + DB_MATTER_KEYS + DB_MATTER_DIALS; id++) {
+    for (uint16_t id = base + 1; id <= base + DB_MATTER_INPUTS; id++) {
         endpoint_t *ep = endpoint::get(node::get(), id);
         if (ep) {
             endpoint::destroy(node::get(), ep);
@@ -288,6 +286,7 @@ static void deck_changed(int slot)
         return;
     }
     slot_t old = s.slots[slot];
+    uint16_t old_base = node_ep(slot);
     bool moved;
     db_matter_node_ep(&s.slots[slot].id, slot, info.serial, &moved);
     slot_t *k = &s.slots[slot];
@@ -296,10 +295,7 @@ static void deck_changed(int slot)
     k->image_keys = db_device_image_keys(&info);
     strlcpy(k->model, info.model, sizeof(k->model));
     if (moved && s.live[slot]) {
-        slot_t now = *k;
-        *k = old;
-        drop(slot);
-        *k = now;
+        drop(slot, old_base);
     }
     if (memcmp(&old, k, sizeof(old)) != 0) {
         save_slots();
@@ -428,6 +424,13 @@ static void on_device(int deck, const db_device_info_t *info)
     xQueueSend(s.q, &m, pdMS_TO_TICKS(1000));
 }
 
+/* Under the stack lock */
+static void refresh(void)
+{
+    s.fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
+    s.window = chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
+}
+
 static void on_event(const ChipDeviceEvent *e, intptr_t arg)
 {
     switch (e->Type) {
@@ -440,8 +443,7 @@ static void on_event(const ChipDeviceEvent *e, intptr_t arg)
     default:
         break;
     }
-    s.fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
-    s.window = chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
+    refresh();
 }
 
 /* Matter talks IPv6; the bridge's own interfaces have only IPv4 until asked. Without its own Wi-Fi station,
@@ -508,8 +510,7 @@ static void start(void)
     }
     {
         lock::ScopedChipStackLock lock(portMAX_DELAY);
-        s.fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
-        s.window = chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
+        refresh();
     }
     s.started = true;
     db_deck_listener_t l = {.device_changed = on_device, .input = on_input, .external = true};
@@ -527,42 +528,20 @@ void db_matter_status(db_json_t *j)
     db_json_obj_close(j);
 }
 
-static char *qr_hex;
-
-static void take_qr(esp_qrcode_handle_t q)
-{
-    int n = esp_qrcode_get_size(q);
-    uint8_t bits[(41 * 41 + 7) / 8] = {0};
-    if (n > 41) {
-        return;
-    }
-    for (int i = 0; i < n * n; i++) {
-        bits[i / 8] |= (uint8_t)(esp_qrcode_get_module(q, i % n, i / n) << (i % 8));
-    }
-    char *o = qr_hex + sprintf(qr_hex, "%d:", n);
-    for (int i = 0; i < (n * n + 7) / 8; i++) {
-        o += sprintf(o, "%02x", bits[i]);
-    }
-}
-
 void db_matter_codes(db_json_t *j)
 {
     char qr[32], code[16];
     payload(qr, sizeof(qr), code, sizeof(code));
     db_json_str(j, "qr", qr);
     db_json_str(j, "code", code);
-    static char hex[4 + 2 * (41 * 41 + 7) / 8 + 1];
-    static SemaphoreHandle_t lock = xSemaphoreCreateMutex();
-    xSemaphoreTake(lock, portMAX_DELAY);
-    qr_hex = hex;
-    hex[0] = 0;
-    esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
-    cfg.display_func = take_qr;
-    cfg.max_qrcode_version = 6;
-    esp_log_level_set("QRCODE", ESP_LOG_WARN); /* it logs the text: the pairing code */
-    esp_qrcode_generate(&cfg, qr);
+    uint8_t bits[DB_UI_QR_BYTES];
+    int n = db_ui_qr(qr, bits);
+    char hex[4 + 2 * DB_UI_QR_BYTES + 1];
+    char *o = hex + sprintf(hex, "%d:", n);
+    for (int i = 0; i < (n * n + 7) / 8; i++) {
+        o += sprintf(o, "%02x", bits[i]);
+    }
     db_json_str(j, "qr_bits", hex);
-    xSemaphoreGive(lock);
 }
 
 void db_matter_set_on(bool on)

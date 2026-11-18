@@ -236,6 +236,18 @@ static bool make_qr(ui_qr_t *qr, const char *text)
     return esp_qrcode_generate(&cfg, text) == ESP_OK;
 }
 
+_Static_assert(sizeof(((ui_qr_t *)0)->bits) == DB_UI_QR_BYTES, "db_ui_qr copies the whole code");
+
+int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES])
+{
+    static ui_qr_t qr;
+    xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+    int size = make_qr(&qr, text) ? qr.size : 0;
+    memcpy(bits, qr.bits, DB_UI_QR_BYTES);
+    xSemaphoreGive(s.qr_lock);
+    return size;
+}
+
 /* Made again only when the setup WLAN's name or password changed. */
 static void model_qr(ui_model_t *md)
 {

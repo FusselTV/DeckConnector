@@ -10,7 +10,12 @@ uint16_t db_matter_node_ep(db_matter_slot_t *slot, int index, const char *serial
         strncpy(slot->serial, serial, sizeof(slot->serial) - 1);
         slot->serial[sizeof(slot->serial) - 1] = 0;
     }
-    return (uint16_t)(64 * (1 + slot->gen * DB_MAX_DECKS + index));
+    return db_matter_ep(slot->gen, index);
+}
+
+uint16_t db_matter_ep(uint8_t gen, int slot)
+{
+    return (uint16_t)(64 * (1 + gen * DB_MAX_DECKS + slot));
 }
 
 uint16_t db_matter_input_ep(uint16_t node_ep, const db_input_t *in)
