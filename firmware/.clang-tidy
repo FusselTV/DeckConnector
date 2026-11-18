@@ -5,7 +5,7 @@
 # The bounds checker cannot see lwIP's socket numbers in FD_SET or the counts the Wi-Fi scan returns. Enums mark
 # ranges (K_FIELD0 + field), int8_t tables hold -1, typeof() needs its parentheses, and FreeRTOS.h includes itself.
 # A memcmp of two structs asks whether any byte changed: padding can only cause one redraw or restart too many.
-# components/db_core/.clang-tidy adds the stricter checks for the plain C core.
+# The plain C core keeps the rest: components/db_core/.clang-tidy turns them back on.
 Checks: >
   -*,
   bugprone-*,

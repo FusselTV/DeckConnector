@@ -1,6 +1,15 @@
 InheritParentConfig: true
 Checks: >
   bugprone-assignment-in-selection-statement,
+  bugprone-signed-char-misuse,
+  bugprone-suspicious-memory-comparison,
+  cert-exp42-c,
+  cert-flp37-c,
+  cert-int09-c,
+  cert-str34-c,
+  misc-header-include-cycle,
+  readability-enum-initial-value,
+  readability-redundant-parentheses,
   bugprone-implicit-widening-of-multiplication-result,
   bugprone-unchecked-string-to-number-conversion,
   cert-err34-c,
@@ -14,6 +23,8 @@ Checks: >
   readability-isolate-declaration,
   readability-uppercase-literal-suffix
 CheckOptions:
+  - key: readability-identifier-naming.VariableIgnoredRegexp
+    value: ''
   - key: readability-function-size.LineThreshold
     value: 80
   - key: readability-function-size.NestingThreshold
