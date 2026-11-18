@@ -8,6 +8,7 @@ const cfg: Config = {
   controller: 'companion',
   host: '',
   brightness: 80,
+  volume: 0,
   lan: ip,
   wlan: ip,
   wifi_ssid: '',
@@ -44,20 +45,22 @@ describe('planRestore', () => {
     const p = planRestore(cfg, {
       ...cfg,
       brightness: 50,
+      volume: 40,
       wifi_pass_set: true,
       lan: { ...ip, dhcp: false, ip: '10.0.0.2', mask: '255.0.0.0' },
     })
-    expect(p.rows.map((r) => r.key).sort()).toEqual(['brightness', 'lan.dhcp', 'lan.ip', 'lan.mask'])
+    expect(p.rows.map((r) => r.key).sort()).toEqual(['brightness', 'lan.dhcp', 'lan.ip', 'lan.mask', 'volume'])
     expect(p.restart).toBe(true)
     expect(p.patch).not.toHaveProperty('wifi_pass_set')
     expect(p.errors).toEqual([])
   })
   it('instant keys need no restart', () => {
-    expect(planRestore(cfg, { ...cfg, brightness: 10 }).restart).toBe(false)
+    expect(planRestore(cfg, { ...cfg, brightness: 10, volume: 30 }).restart).toBe(false)
   })
   it('reports invalid values', () => {
     expect(planRestore(cfg, { ...cfg, lan: { dhcp: false, ip: 'x', mask: '' } }).errors.length).toBeGreaterThan(0)
     expect(planRestore(cfg, { ...cfg, brightness: 200 }).errors).toEqual([{ key: 'brightness', err: 'fw.r_bri' }])
+    expect(planRestore(cfg, { ...cfg, volume: 101 }).errors).toEqual([{ key: 'volume', err: 'fw.r_bri' }])
   })
   it('takes only a backup', () => {
     const not = [{ key: '', err: 'fw.not_backup' }]

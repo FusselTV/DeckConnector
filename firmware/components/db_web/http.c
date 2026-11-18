@@ -391,8 +391,9 @@ static esp_err_t timed(httpd_req_t *req)
         return refuse_plain(req);
     }
     route_t *r = req->user_ctx;
-    /* an upload takes seconds and shares nothing; the update check waits on GitHub and keeps its own cache */
-    bool lock = r->handler != post_ota && r->handler != get_update_check;
+    /* an upload and the speaker self-test take seconds and share nothing; the update check waits on GitHub
+     * and keeps its own cache */
+    bool lock = r->handler != post_ota && r->handler != get_update_check && r->handler != post_sound_selftest;
     /* a handler that hangs must not take every other request on both ports with it */
     if (lock && !web_lock_for(10000)) {
         return send_error(req, "503 Service Unavailable", "busy");
@@ -597,6 +598,8 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/config", .method = HTTP_POST, .handler = post_companion_setup}, WEB_OPEN},
         {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
+        {{.uri = "/api/sound", .method = HTTP_POST, .handler = post_sound}, WEB_CONTROL},
+        {{.uri = "/api/sound/selftest", .method = HTTP_POST, .handler = post_sound_selftest}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
 #if CONFIG_DB_MATTER

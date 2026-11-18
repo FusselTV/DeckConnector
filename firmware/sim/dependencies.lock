@@ -15,6 +15,6 @@ dependencies:
     version: 6.0.2
 direct_dependencies:
 - espressif/cjson
-manifest_hash: b176d597221633755343734bd9dad47c568b86ff4df95ca68c1c2b1a797ea815
+manifest_hash: 75c1f025449f55cbbdfabd0dc4a55edc79d98b9d83a3d80afcb9ffd665cb515a
 target: linux
 version: 3.0.0

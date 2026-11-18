@@ -20,6 +20,10 @@ foreach(t test_regions test_proto test_elgato test_image test_cora test_screen t
     add_test(NAME ${t} COMMAND ${t})
 endforeach()
 
+add_executable(test_tones test_tones.c)
+target_link_libraries(test_tones db_core unity m)
+add_test(NAME test_tones COMMAND test_tones)
+
 add_executable(test_sat test_sat.c)
 target_link_libraries(test_sat db_core unity z)
 add_test(NAME test_sat COMMAND test_sat)

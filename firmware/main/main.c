@@ -3,6 +3,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "db_audio.h"
+#include "db_board.h"
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_dock.h"
@@ -296,6 +298,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_bool(j, "menu_open", db_ui_menu_open());
     db_json_bool(j, "screen_off", db_deck_screen_is_off());
     db_json_int(j, "brightness", db_config()->brightness);
+    db_json_bool(j, "speaker", db_board()->speaker.present);
     write_device(j);
     write_network(j, live);
     write_sources(j, live);
@@ -419,6 +422,30 @@ static char applied_sat[sizeof(db_config()->satellite) + sizeof(db_config()->sat
 static void satellite_now(char *out)
 {
     snprintf(out, sizeof(applied_sat), "%s %s", db_config()->satellite, db_config()->satellite_pin);
+}
+
+/* Ready once per start, when a host first draws; then lost when no host is there for 3 s (a menu or an update
+ * over the picture does not count) and connected when one is back. */
+static void sound_watch(void *arg)
+{
+    static bool ready, lost;
+    static int gone_s;
+    if (!ready) {
+        if ((ready = db_log_mark_ms(DB_MARK_HOST_DRAWS) != 0)) {
+            db_audio_play(DB_SOUND_READY);
+        }
+        return;
+    }
+    int first = db_deck_first();
+    bool host = first >= 0 && db_ui_chosen_source(first) != DB_SOURCE_UI;
+    gone_s = host ? 0 : gone_s + 1;
+    if (host && lost) {
+        lost = false;
+        db_audio_play(DB_SOUND_CONNECTED);
+    } else if (gone_s == 3) {
+        lost = true;
+        db_audio_play(DB_SOUND_LOST);
+    }
 }
 
 static void apply_controller(void)
@@ -559,6 +586,12 @@ void app_main(void)
     db_config_on_save(apply_controller);
     started("web", db_web_start(web_status, web_state));
     started("Improv", db_serial_start());
+    started("speaker", db_audio_start());
+    esp_timer_handle_t sounds;
+    esp_timer_create_args_t every = {.callback = sound_watch, .name = "sounds"};
+    if (db_board()->speaker.present && esp_timer_create(&every, &sounds) == ESP_OK) {
+        esp_timer_start_periodic(sounds, 1000000);
+    }
     db_ota_confirm_when(healthy);
     xTaskCreate(setup_ap_task, "setup_ap", 3072, NULL, 2, NULL);
 }

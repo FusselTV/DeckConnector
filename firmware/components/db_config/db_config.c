@@ -17,7 +17,7 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 3 /* 2: setup_done, 3: four servers and host */
+#define CONFIG_VERSION 4 /* 2: setup_done, 3: four servers and host, 4: volume */
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -122,6 +122,9 @@ esp_err_t db_config_load(void)
             memcpy(&current, blob, len < sizeof(current) ? len : sizeof(current));
             if (current.version < 2) {
                 current.setup_done = true; /* saved before the welcome steps existed: already set up */
+            }
+            if (current.version < 4 || current.volume > 100) {
+                current.volume = 0; /* older blobs end in padding where volume now sits */
             }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
@@ -301,6 +304,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "https_only", cfg->https_only);
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
+    db_json_int(&j, "volume", cfg->volume);
     ip_to_json(&j, "lan", &cfg->lan);
     ip_to_json(&j, "wlan", &cfg->wlan);
     db_json_str(&j, "wifi_ssid", cfg->wifi_ssid);
@@ -591,6 +595,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->brightness = (uint8_t)b->valueint;
+    }
+    const cJSON *vol = cJSON_GetObjectItemCaseSensitive(root, "volume");
+    if (vol) {
+        if (!cJSON_IsNumber(vol) || vol->valueint < 0 || vol->valueint > 100) {
+            snprintf(err, err_cap, "volume: 0 to 100 expected");
+            return false;
+        }
+        cfg->volume = (uint8_t)vol->valueint;
     }
     const cJSON *hold = cJSON_GetObjectItemCaseSensitive(root, "menu_hold_ms");
     if (hold) {
