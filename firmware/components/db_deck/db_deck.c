@@ -52,7 +52,8 @@ typedef struct {
     SemaphoreHandle_t lock;    /* device, queue, writer */
     SemaphoreHandle_t io_lock; /* USB access */
     TaskHandle_t writer_task;
-    int port; /* the usb_port device while present */
+    int port;        /* the usb_port device while present */
+    uint8_t address; /* its USB address while present */
     db_dev_t dev;
     /* simulated input has its own key states, or a test's held key would turn a person's next real report
      * into a release nobody made. Swapped in for it: both run in the event task. */
@@ -507,6 +508,11 @@ static void handle_attach(uint8_t address)
      * other decks go too; left alone the deck would hang and on_stuck would cycle it later anyway. */
     uint16_t vid;
     uint16_t pid;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (decks[d].present && decks[d].address == address) {
+            return; /* waiting, it was asked in again by each of two limit changes before it came */
+        }
+    }
     if ((address & 0x0f) == 0 && present_count() < s.max_decks &&
         usb_port_ids(address, &vid, &pid) == ESP_OK && db_driver_find(vid, pid)) {
         if (take_cycle(esp_timer_get_time())) {
@@ -574,6 +580,7 @@ static void handle_attach(uint8_t address)
     bool other_model = k->dev.info.pid != dev.info.pid;
     k->dev = dev;
     k->port = port;
+    k->address = address;
     memcpy(k->sim_state, k->dev.state, sizeof(k->sim_state));
     if (other_model) {
         heap_caps_free(k->black);
