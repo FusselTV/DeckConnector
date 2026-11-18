@@ -134,7 +134,8 @@ async function open(t, { board, width = 1280, lang = '', ctx = {} } = {}) {
 let n = 0
 async function shot(page, name) {
   const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-  assert.equal(over, 0, `${name} scrolls sideways by ${over}px`)
+  // negative: the stable scrollbar gutter, which is no sideways scroll
+  assert.ok(over <= 0, `${name} scrolls sideways by ${over}px`)
   if (!SHOTS) return
   mkdirSync(SHOTS, { recursive: true })
   const w = page.viewportSize().width
@@ -242,7 +243,8 @@ for (const width of widths)
         await page.getByText('Waiting for the board to start').waitFor({ timeout: 120000 })
         await shot(page, 'booting')
       }
-      await page.getByText('Set up the board').waitFor({ timeout: 120000 })
+      await page.getByText('Set up Wi-Fi').waitFor({ timeout: 120000 })
+      assert.equal((await board.config()).lang, 'en', 'the deck speaks the language of the flasher')
       assert.equal(board.md5(0, factory.length), (await import('node:crypto')).createHash('md5').update(factory).digest('hex'))
 
       await page.getByLabel('Join a Wi-Fi network').check()
@@ -252,18 +254,9 @@ for (const width of widths)
       await shot(page, 'setup-log')
       await page.locator('summary', { hasText: 'Log' }).click()
 
-      await page.getByLabel('Device name').fill('-bad')
-      await page.getByLabel('Admin password').fill('abc')
-      await page.getByRole('button', { name: 'Save' }).click()
-      await page.getByText('At least 6 characters.').waitFor()
-      assert.ok(await page.getByText('Use letters, digits and hyphens only').isVisible())
-      await shot(page, 'setup-invalid')
-
       await page.getByRole('radio', { name: 'Other network' }).check()
       await page.getByLabel('Network name (SSID)').fill('Elsewhere')
       await page.getByLabel('Wi-Fi password').fill('password1')
-      await page.getByLabel('Admin password').fill('studio-pass')
-      await page.getByLabel('Device name').fill('studio-deck')
       await page.getByRole('button', { name: 'Save' }).click()
       await page.getByText('Could not join "Elsewhere"').waitFor()
       assert.equal(await page.getByLabel('Wi-Fi password').inputValue(), '', 'the sent password is gone')
@@ -272,18 +265,12 @@ for (const width of widths)
 
       await page.getByRole('radio', { name: /Zuhause/ }).check()
       await page.getByLabel('Wi-Fi password').fill('password1')
-      await page.getByLabel('Admin password').fill('studio-pass')
       await page.getByRole('button', { name: 'Save' }).click()
-      if (SHOTS) {
-        await page.getByText(/Saving password|restarts with the new settings/).waitFor()
-        await shot(page, 'setup-saving')
-      }
-      await page.getByText('Your board is ready').waitFor({ timeout: 60000 })
-      // The simulator forgets settings when it restarts, so the name read back is its default one.
+      await page.getByText('Your connector is ready').waitFor({ timeout: 60000 })
       assert.ok(await page.getByRole('link', { name: /^deckconnector-\w+\.local$/ }).isVisible())
       assert.ok(await page.getByRole('link', { name: 'Open web UI' }).isVisible())
       const html = await page.content()
-      assert.ok(!html.includes('studio-pass') && !html.includes('password1'), 'no password on the page')
+      assert.ok(!html.includes('password1'), 'no password on the page')
       await shot(page, 'ready')
     })
 
@@ -299,7 +286,7 @@ for (const width of widths)
       assert.equal(board.md5(0x20000, app.length), (await import('node:crypto')).createHash('md5').update(app).digest('hex'))
       await shot(page, 'setup-online-de')
       await page.getByRole('button', { name: 'Später in der Weboberfläche' }).click()
-      await page.getByText('Deine Platine ist bereit').waitFor()
+      await page.getByText('Dein Connector ist bereit').waitFor()
       await shot(page, 'ready-de')
     })
 
@@ -308,7 +295,10 @@ for (const width of widths)
       const page = await open(t, { board, width })
       await page.getByRole('button', { name: 'Connect', exact: true }).click()
       await page.getByRole('button', { name: /^Install v/ }).click()
-      await page.getByLabel('Device name').fill('other-name')
+      await page.getByLabel('Join a Wi-Fi network').check()
+      await page.getByRole('radio', { name: 'Other network' }).check()
+      await page.getByLabel('Network name (SSID)').fill('Zuhause')
+      await page.getByLabel('Wi-Fi password').fill('password1')
       await page.getByRole('button', { name: 'Save' }).click()
       await page.getByText('Press RST on the board, then save again.').waitFor()
       await fix(page, 'setup-no-answer')

@@ -253,8 +253,8 @@ export class Improv {
     return { online: !!(f & 1), wlan: !!(f & 2), lan: !!(f & 4), urls: [lanUrl, wlanUrl].filter(Boolean) }
   }
 
-  async setup(adminPassword: string, name: string, done: boolean): Promise<SetupReply> {
-    const [r = '', message = ''] = await this.result(SETUP, [adminPassword, name, done ? '1' : ''])
+  async setup(adminPassword: string, name: string, done: boolean, lang = ''): Promise<SetupReply> {
+    const [r = '', message = ''] = await this.result(SETUP, [adminPassword, name, done ? '1' : '', ...(lang ? [lang] : [])])
     if (r === 'ok' || r === 'restart') return { ok: true, restart: r === 'restart' }
     return { ok: false, message: message || r }
   }

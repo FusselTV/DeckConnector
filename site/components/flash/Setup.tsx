@@ -11,17 +11,14 @@ export interface Result {
   later?: boolean
 }
 
-// The web UI's rules, from web/src/lib/validate.ts.
-const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
 const bytes = (v: string) => new TextEncoder().encode(v).length
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 type Err = { text: string; fix?: string }
 
 export function improvErr(c: Copy, e: unknown, ssid = ''): Err {
   if (!(e instanceof ImprovError)) return { text: e instanceof Error ? e.message : String(e), fix: 'setup-no-answer' }
-  const t: Record<number, string> = { 1: c.err1, 2: c.err2, 3: c.err3, 4: c.err4, 5: c.err5, 255: c.errFF, [-1]: c.errTimeout }
-  const fix = e.code === 1 || e.code === 3 ? 'wifi-join' : e.code === 5 ? undefined : 'setup-no-answer'
+  const t: Record<number, string> = { 1: c.err1, 2: c.err2, 3: c.err3, 4: c.err4, 255: c.errFF, [-1]: c.errTimeout }
+  const fix = e.code === 1 || e.code === 3 ? 'wifi-join' : 'setup-no-answer'
   return { text: fill(t[e.code] ?? c.errFF, { ssid }), fix }
 }
 
@@ -36,7 +33,7 @@ function Signal({ rssi }: { rssi: number }) {
   )
 }
 
-export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version: string; onDone: (r: Result) => void }) {
+export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; version: string; lang?: string; onDone: (r: Result) => void }) {
   const [phase, setPhase] = useState<'boot' | 'noboot' | 'form' | 'busy'>('boot')
   const [msg, setMsg] = useState('')
   const [board, setBoard] = useState<{ name: string; version: string; urls: string[]; lan: boolean } | null>(null)
@@ -47,9 +44,6 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
   const [ssid, setSsid] = useState('')
   const [other, setOther] = useState(false)
   const [wpass, setWpass] = useState('')
-  const [apass, setApass] = useState('')
-  const [name, setName] = useState('')
-  const [skipWiz, setSkipWiz] = useState(false)
   const [tried, setTried] = useState(false)
   const [err, setErr] = useState<Err | null>(null)
   const [wifiErr, setWifiErr] = useState<Err | null>(null)
@@ -66,8 +60,6 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
           : wpass && !(wpass.length >= 8 && wpass.length <= 63) && !/^[0-9a-f]{64}$/i.test(wpass)
             ? c.wifiPassLen
             : null
-  const pwE = !apass ? null : bytes(apass) < 6 ? c.pwShort : bytes(apass) > 23 ? c.pwLong : null
-  const nameE = NAME_RE.test(name) ? null : c.badName
 
   const scan = async () => {
     setScanning(true)
@@ -97,9 +89,9 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
     setErr(null)
     try {
       await im.waitReady(15000)
+      if (lang) await im.setup('', '', false, lang).catch(() => undefined)
       const b = await read()
       setBoard(b)
-      setName(b.name)
       setUseWifi(!b.online)
       setPhase('form')
       if (!b.online) void scan()
@@ -116,15 +108,13 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
 
   const save = async () => {
     setTried(true)
-    if (wifiE || pwE || nameE || !board) {
+    if (wifiE || !board) {
       setTimeout(() => document.querySelector<HTMLElement>('#flash-setup [aria-invalid="true"]')?.focus(), 0)
       return
     }
     setErr(null)
     setWifiErr(null)
     setPhase('busy')
-    const pass = apass
-    const newName = name !== board.name ? name : ''
     try {
       if (useWifi && !joined) {
         setMsg(fill(c.joining, { ssid }))
@@ -139,21 +129,6 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
           return
         }
         setJoined(ssid)
-      }
-      if (pass || newName || skipWiz) {
-        setMsg(c.saving)
-        setApass('')
-        const r = await im.setup(pass, newName, skipWiz)
-        if (!r.ok) {
-          setErr({ text: r.message })
-          setPhase('form')
-          return
-        }
-        if (r.restart) {
-          setMsg(c.rebooting)
-          await sleep(2000)
-          await im.waitReady(20000)
-        }
       }
       setMsg(c.reading)
       const b = await read()
@@ -303,27 +278,6 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
         )}
       </fieldset>
 
-      <fieldset className="grid gap-5 sm:grid-cols-2" disabled={busy}>
-        <Field id="f-apass" label={c.pw} hint={c.pwHint} err={tried ? pwE : null}>
-          <Secret c={c} id="f-apass" value={apass} maxLength={23} onChange={(e) => setApass(e.target.value)} {...inv(pwE)} />
-        </Field>
-        <Field id="f-name" label={c.name} hint={<Hint text={c.nameHint} url={`${nameE ? '…' : name}.local`} />} err={tried ? nameE : null}>
-          <input
-            id="f-name"
-            className={`${input} font-mono`}
-            value={name}
-            maxLength={31}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            onChange={(e) => setName(e.target.value.trim())}
-            {...inv(nameE)}
-          />
-        </Field>
-      </fieldset>
-
-      <Toggle id="f-skipwiz" label={c.skipWiz} hint={c.skipWizHint} checked={skipWiz} disabled={busy} onChange={(e) => setSkipWiz(e.target.checked)} />
-
       {err && (
         <Note lvl="bad" title={err.text}>
           {err.fix && <Fix c={c} id={err.fix} />}
@@ -342,16 +296,5 @@ export function Setup({ c, im, version, onDone }: { c: Copy; im: Improv; version
         )}
       </div>
     </form>
-  )
-}
-
-function Hint({ text, url }: { text: string; url: string }) {
-  const [a = '', b = ''] = text.split('{url}')
-  return (
-    <>
-      {a}
-      <span className="font-mono whitespace-nowrap">{url}</span>
-      {b}
-    </>
   )
 }

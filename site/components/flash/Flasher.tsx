@@ -262,6 +262,7 @@ export function Flasher({ lang, manifest }: { lang: Lang; manifest: Manifest | n
                 c={c}
                 im={link.im}
                 version={m.version}
+                lang={mode === 'factory' ? lang : undefined}
                 onDone={(r) => {
                   void link.con.close()
                   setResult(r)
