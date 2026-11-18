@@ -762,8 +762,7 @@ export const en = {
   'mt.title': 'Matter',
   'mt.intro':
     'Keys and dial presses show up as buttons in Apple Home, Google Home, Home Assistant and other Matter apps.',
-  'mt.on': 'Matter',
-  'mt.on_h': 'Turning it off restarts the connector.',
+  'mt.on': 'On',
   'mt.paired_one': 'Paired with {n} app.',
   'mt.paired_other': 'Paired with {n} apps.',
   'mt.unpaired': 'Not paired yet.',

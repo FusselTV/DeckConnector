@@ -57,7 +57,7 @@ export function MatterCard() {
       title={t('mt.title')}
       right={<Help right label={t('mt.title')} text={t('mt.intro')} />}
     >
-      <Switch id="matter-on" on={m.on} onChange={(v) => void toggle(v)} label={t('mt.on')} hint={t('mt.on_h')} />
+      <Switch id="matter-on" on={m.on} onChange={(v) => void toggle(v)} label={t('mt.on')} />
       {running && (
         <>
           <p className="small muted" id="matter-state">

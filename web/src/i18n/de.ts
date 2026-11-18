@@ -780,8 +780,7 @@ export const de: Dict = {
   'mt.title': 'Matter',
   'mt.intro':
     'Tasten und Drehregler-Drücke erscheinen als Taster in Apple Home, Google Home, Home Assistant und anderen Matter-Apps.',
-  'mt.on': 'Matter',
-  'mt.on_h': 'Ausschalten startet den Connector neu.',
+  'mt.on': 'An',
   'mt.paired_one': 'Mit {n} App gekoppelt.',
   'mt.paired_other': 'Mit {n} Apps gekoppelt.',
   'mt.unpaired': 'Noch nicht gekoppelt.',
