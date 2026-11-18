@@ -86,7 +86,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `OPTIONS /api/...` | The CORS preflight for the origins in `cors_origins` | open |
 | `GET /api/ws` | The live [WebSocket](#websocket) | control |
 | `GET /api/status` | State of the board, see [Status](#status) | control |
-| `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set` and `token_set` | full |
+| `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set`, `wifi2_pass_set` and `token_set` | full |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config` | full |
 | `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. During setup the board connects at once, later the deck asks for 60 s | open |
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
@@ -170,7 +170,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 {"name": "deckconnector-a1b2c3", "controller": "companion", "host": "satellite", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
- "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
+ "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "", "wifi2_ssid": "", "wifi2_pass_set": false,
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
@@ -185,6 +185,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `lan`, `wlan` | `dhcp`, or `ip` and `mask` with an optional `gateway` and `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` has 8 to 63 characters, 64 hex digits, or is empty for an open network |
 | `wifi_bssid` | Lock to one access point, empty for any |
+| `wifi2_ssid`, `wifi2_pass` | The backup Wi-Fi, same values as `wifi_ssid` and `wifi_pass`. Empty turns it off |
 | `servers` | Up to 4 `ws://` or `wss://` URLs. Empty finds servers over mDNS |
 | `server_pins` | SHA-256 per server, same position as in `servers` |
 | `satellite` | Companion's address: `host`, `host:port` or a `ws://` or `wss://` URL. Empty turns it off |
@@ -204,7 +205,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -223,7 +224,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
              "wlan": {"ssid": "studio", "ip": "192.168.1.51", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
-                      "lock": "", "rssi": -48, "join": "", "join_error": ""},
+                      "lock": "", "backup": false, "rssi": -48, "join": "", "join_error": ""},
              "ap": {"on": false, "ssid": ""}},
  "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
               "connected": true, "chosen": true, "drawing": true}],
@@ -243,6 +244,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `menu_open` | The menu, the password, the reset question or a login request covers the deck |
 | `screen_off` | Every deck is dark after `screen_off_s` without input. The first input wakes them and reaches no host. `decks[].brightness` is 0 then |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
+| `network.wlan.backup` | The board is on the backup Wi-Fi, `ssid` names it |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
 
