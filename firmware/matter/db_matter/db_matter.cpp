@@ -39,7 +39,7 @@ static const char *TAG = "matter";
 
 typedef struct {
     db_matter_slot_t id;
-    uint8_t keys, dials, image_keys;
+    uint8_t keys, dials;
     char model[24];
 } slot_t;
 
@@ -292,7 +292,6 @@ static void deck_changed(int slot)
     slot_t *k = &s.slots[slot];
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
-    k->image_keys = db_device_image_keys(&info);
     strlcpy(k->model, info.model, sizeof(k->model));
     if (moved && s.live[slot]) {
         drop(slot, old_base);
@@ -337,7 +336,9 @@ static const int *chord(int slot)
     bool on_dials;
     int last;
     const slot_t *k = &s.slots[slot];
-    if (!db_ui_menu_chord(k->dials, k->image_keys, &on_dials, &last)) {
+    db_device_info_t dev;
+    if (!db_deck_info(slot, &dev) || !db_ui_menu_chord(&dev, NULL, &on_dials, &last) ||
+        last >= (on_dials ? k->dials : k->keys)) {
         c[0] = c[1] = -1;
     } else {
         c[0] = on_dials ? DB_MATTER_KEYS : 0;
