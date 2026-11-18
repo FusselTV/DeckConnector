@@ -28,6 +28,7 @@ async def async_setup_entry(
 class Firmware(BoardEntity, UpdateEntity):
     _attr_device_class = UpdateDeviceClass.FIRMWARE
     _attr_supported_features = UpdateEntityFeature.INSTALL | UpdateEntityFeature.PROGRESS
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coordinator: DeckCoordinator, key: str) -> None:
         super().__init__(coordinator, key)

@@ -48,9 +48,10 @@ The board sets its clock over NTP. It uses the server that DHCP names, then `poo
 The board talks to the internet only in these cases. Each one shows the IP address of your network to that server.
 
 - **Time.** `pool.ntp.org`, only when your router names no time server and you set none.
-- **Update check.** GitHub, only when you click **Check** under **Firmware**.
+- **Update check.** GitHub, only when you click **Check** under **Firmware**, or every 6 hours while the Home Assistant firmware entity is on.
 - **Update by URL.** The address you give, and GitHub for a release.
 - **Your servers.** The Companion, Satellite and own servers you set.
+- **Matter.** Nothing from the board. The Home app, Google Home or Alexa you pair it with can send the deck's names and presses to Apple, Google or Amazon.
 
 It sends no usage data and no crash reports.
 
