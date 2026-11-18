@@ -725,15 +725,16 @@ esp_err_t auth_logout(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-#define PASSKEYS     8
-#define CHALLENGES   4
-#define CHALLENGE_US (120 * 1000000LL)
-#define WEBAUTHN_MAX 3072
+#define PASSKEYS       8
+#define CHALLENGE_S    120
+#define USED           16
+#define ASKERS         8
+#define CHALLENGES_10S 30 /* per address */
+#define WEBAUTHN_MAX   3072
 
 typedef struct {
     uint8_t id[128];
     uint8_t id_len;
-    bool uv; /* made with user verification: every login needs it too */
     uint8_t xy[64];
     char rp[64];
     char name[24];
@@ -741,12 +742,20 @@ typedef struct {
 } passkey_t;
 static passkey_t passkeys[PASSKEYS]; /* NVS "auth" pk0 to pk7 like the tokens: a free slot takes no room */
 
+/* A challenge keeps nothing on the board until it is used, so a flood of challenges pushes out no user's one:
+ * seconds since the start (4 bytes), login or not (1), random (3), then 24 bytes of an HMAC over those 8
+ * bytes and the address, with a key made at each start. */
+static psa_key_id_t challenge_key;
 static struct {
-    uint8_t c[32];
+    uint8_t head[8];
     int64_t until;
+} used[USED]; /* under mux */
+static int next_used;
+static struct {
     uint32_t ip;
-    bool login;
-} challenges[CHALLENGES]; /* under mux */
+    int64_t since;
+    int n;
+} askers[ASKERS]; /* under mux */
 
 static esp_err_t save_passkey(int i)
 {
@@ -781,6 +790,52 @@ static void load_passkeys(void)
     /* ponytail: only boards that ran an early build of this branch hold it; drop the line after the merge */
     nvs_erase_key(h, "passkeys");
     nvs_close(h);
+    uint8_t key[32];
+    esp_fill_random(key, sizeof(key));
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attr, PSA_KEY_TYPE_HMAC);
+    psa_set_key_bits(&attr, 256);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attr, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    if (psa_crypto_init() != PSA_SUCCESS ||
+        psa_import_key(&attr, key, sizeof(key), &challenge_key) != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "no key for passkey challenges: passkeys do not work until the next start");
+    }
+    mbedtls_platform_zeroize(key, sizeof(key));
+}
+
+static bool challenge_mac(const uint8_t head[8], uint32_t ip, uint8_t mac[32])
+{
+    uint8_t msg[12];
+    size_t n;
+    memcpy(msg, head, 8);
+    memcpy(msg + 8, &ip, 4);
+    return challenge_key && psa_mac_compute(challenge_key, PSA_ALG_HMAC(PSA_ALG_SHA_256), msg, sizeof(msg),
+                                            mac, 32, &n) == PSA_SUCCESS;
+}
+
+/* CHALLENGES_10S per 10 s and address. The oldest entry makes room, so many addresses can still ask: that
+ * costs the board an HMAC each, nothing it keeps. */
+static bool asks_too_often(uint32_t ip)
+{
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&mux);
+    int k = 0;
+    for (int i = 0; i < ASKERS; i++) {
+        if (askers[i].ip == ip) {
+            k = i;
+            break;
+        }
+        k = askers[i].since < askers[k].since ? i : k;
+    }
+    if (askers[k].ip != ip || now - askers[k].since > 10000000) {
+        askers[k].ip = ip;
+        askers[k].since = now;
+        askers[k].n = 0;
+    }
+    bool over = ++askers[k].n > CHALLENGES_10S;
+    portEXIT_CRITICAL(&mux);
+    return over;
 }
 
 /* A passkey belongs to the name the page was opened by. Browsers allow one only over HTTPS without warnings,
@@ -827,24 +882,20 @@ esp_err_t auth_passkey_challenge(httpd_req_t *req)
     cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
     bool login = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "login"));
     cJSON_Delete(root);
-    uint8_t c[32];
-    esp_fill_random(c, sizeof(c));
     uint32_t ip = peer_ip(req);
-    int64_t now = esp_timer_get_time();
-    portENTER_CRITICAL(&mux);
-    int slot = 0;
-    for (int i = 0; i < CHALLENGES; i++) { /* one per address and kind, else the oldest makes room */
-        if (challenges[i].ip == ip && challenges[i].login == login) {
-            slot = i;
-            break;
-        }
-        slot = challenges[i].until < challenges[slot].until ? i : slot;
+    if (asks_too_often(ip)) {
+        return send_error(req, "429 Too Many Requests", "30 challenges per 10 s");
     }
-    memcpy(challenges[slot].c, c, sizeof(c));
-    challenges[slot].until = now + CHALLENGE_US;
-    challenges[slot].ip = ip;
-    challenges[slot].login = login;
-    portEXIT_CRITICAL(&mux);
+    uint8_t c[32];
+    uint32_t t = (uint32_t)(esp_timer_get_time() / 1000000);
+    memcpy(c, &t, 4);
+    c[4] = login;
+    esp_fill_random(c + 5, 3);
+    uint8_t mac[32];
+    if (!challenge_mac(c, ip, mac)) {
+        return send_error(req, "500 Internal Server Error", "no challenge");
+    }
+    memcpy(c + 8, mac, 24);
     char reply[96];
     snprintf(reply, sizeof(reply), "{\"challenge\":\"");
     db_hex(reply + strlen(reply), c, sizeof(c));
@@ -852,20 +903,38 @@ esp_err_t auth_passkey_challenge(httpd_req_t *req)
     return send_json(req, reply);
 }
 
-/* Used up by any answer that names it, right or wrong. */
+/* One of ours for this address and kind, under 2 min old and not used yet. Used up by any answer that names
+ * it, right or wrong. */
 static bool take_challenge(const uint8_t c[32], uint32_t ip, bool login)
 {
+    uint8_t mac[32];
+    uint32_t t;
+    memcpy(&t, c, 4);
     int64_t now = esp_timer_get_time();
-    bool ok = false;
+    unsigned diff = c[4] != login;
+    if (!challenge_mac(c, ip, mac)) {
+        return false;
+    }
+    for (int i = 0; i < 24; i++) {
+        diff |= mac[i] ^ c[8 + i];
+    }
+    if (diff || now / 1000000 - t > CHALLENGE_S || t > now / 1000000) {
+        return false;
+    }
+    bool fresh = true;
     portENTER_CRITICAL(&mux);
-    for (int i = 0; i < CHALLENGES; i++) {
-        if (challenges[i].until && memcmp(challenges[i].c, c, 32) == 0) {
-            ok = challenges[i].ip == ip && challenges[i].login == login && now < challenges[i].until;
-            memset(&challenges[i], 0, sizeof(challenges[i]));
-        }
+    for (int i = 0; i < USED; i++) {
+        fresh &= !(now < used[i].until && memcmp(used[i].head, c, 8) == 0);
+    }
+    if (fresh) {
+        /* ponytail: more than 16 used within 2 min, and the oldest could count once more; a replay still
+         * needs the authenticator's signature over it */
+        memcpy(used[next_used].head, c, 8);
+        used[next_used].until = ((int64_t)t + CHALLENGE_S + 1) * 1000000;
+        next_used = (next_used + 1) % USED;
     }
     portEXIT_CRITICAL(&mux);
-    return ok;
+    return fresh;
 }
 
 typedef struct {
@@ -887,7 +956,10 @@ static bool read_webauthn(httpd_req_t *req, webauthn_t *w)
     char *body = heap_caps_malloc(WEBAUTHN_MAX, MALLOC_CAP_SPIRAM);
     cJSON *root = body && read_body(req, body, WEBAUTHN_MAX) >= 0 ? cJSON_Parse(body) : NULL;
     heap_caps_free(body);
-    w->id_len = field(root, "id", w->id, sizeof(w->id));
+    const cJSON *id = cJSON_GetObjectItemCaseSensitive(root, "id");
+    w->id_len = cJSON_IsString(id) && strlen(id->valuestring) > 4 * sizeof(w->id) / 3 + 1
+                    ? -2
+                    : field(root, "id", w->id, sizeof(w->id));
     w->client_len = field(root, "clientDataJSON", w->client, sizeof(w->client));
     w->ad_len = field(root, "authenticatorData", w->ad, sizeof(w->ad));
     w->sig_len = field(root, "signature", w->sig, sizeof(w->sig));
@@ -903,28 +975,32 @@ static bool read_webauthn(httpd_req_t *req, webauthn_t *w)
     return root && w->id_len > 0 && w->client_len > 0 && w->ad_len > 0;
 }
 
-/* clientDataJSON as the authenticator signed it: the kind, a challenge of ours, the page's origin. */
-static bool client_ok(httpd_req_t *req, const webauthn_t *w, bool login, const char *origin)
+/* clientDataJSON as the authenticator signed it: a challenge of ours (else -1: no guess, nothing to count),
+ * then the kind and the page's origin (else 0). */
+static int client_ok(httpd_req_t *req, const webauthn_t *w, bool login, const char *origin)
 {
     cJSON *c = cJSON_ParseWithLength((const char *)w->client, (size_t)w->client_len);
     const cJSON *type = cJSON_GetObjectItemCaseSensitive(c, "type");
     const cJSON *ch = cJSON_GetObjectItemCaseSensitive(c, "challenge");
     const cJSON *o = cJSON_GetObjectItemCaseSensitive(c, "origin");
     uint8_t raw[33];
-    bool ok = cJSON_IsString(ch) && db_b64url(ch->valuestring, raw, sizeof(raw)) == 32 &&
-              take_challenge(raw, peer_ip(req), login) && cJSON_IsString(type) &&
-              strcmp(type->valuestring, login ? "webauthn.get" : "webauthn.create") == 0 &&
-              cJSON_IsString(o) && strcmp(o->valuestring, origin) == 0 &&
-              !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(c, "crossOrigin"));
+    int ok = !cJSON_IsString(ch) || db_b64url(ch->valuestring, raw, sizeof(raw)) != 32 ||
+                     !take_challenge(raw, peer_ip(req), login)
+                 ? -1
+                 : cJSON_IsString(type) &&
+                       strcmp(type->valuestring, login ? "webauthn.get" : "webauthn.create") == 0 &&
+                       cJSON_IsString(o) && strcmp(o->valuestring, origin) == 0 &&
+                       !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(c, "crossOrigin"));
     cJSON_Delete(c);
     return ok;
 }
 
+/* For this host, with the user present and verified: a passkey stands in for the admin password. */
 static bool rp_ok(const db_authdata_t *a, const char *rp)
 {
     uint8_t h[32];
     sha256(rp, h);
-    return memcmp(a->rp_hash, h, 32) == 0 && (a->flags & DB_AD_UP);
+    return memcmp(a->rp_hash, h, 32) == 0 && (a->flags & DB_AD_UP) && (a->flags & DB_AD_UV);
 }
 
 /* ES256 over authenticatorData || SHA-256(clientDataJSON). */
@@ -972,12 +1048,14 @@ esp_err_t auth_passkey_login(httpd_req_t *req)
     }
     webauthn_t *w = heap_caps_malloc(sizeof(*w), MALLOC_CAP_SPIRAM);
     db_authdata_t a = {0};
-    bool ok = w && read_webauthn(req, w) && client_ok(req, w, true, origin) &&
-              db_authdata(w->ad, (size_t)w->ad_len, &a) && rp_ok(&a, rp);
+    int client = w && read_webauthn(req, w) ? client_ok(req, w, true, origin) : -1;
+    bool ok = client == 1 && db_authdata(w->ad, (size_t)w->ad_len, &a) && rp_ok(&a, rp);
     int i = ok ? passkey_by_id(w, rp) : -1;
-    ok = i >= 0 && (!passkeys[i].uv || (a.flags & DB_AD_UV)) && db_count_ok(passkeys[i].count, a.count) &&
-         signed_by(&passkeys[i], w);
+    ok = i >= 0 && db_count_ok(passkeys[i].count, a.count) && signed_by(&passkeys[i], w);
     heap_caps_free(w);
+    if (client < 0) {
+        return send_error(req, "403 Forbidden", "passkey challenge unknown, used or expired");
+    }
     count_try(req, ok, true);
     if (!ok) {
         return send_error(req, "403 Forbidden", "passkey not accepted");
@@ -1012,11 +1090,12 @@ esp_err_t auth_passkey_add(httpd_req_t *req)
     passkey_t pk = {0};
     db_authdata_t a = {0};
     bool read = w && read_webauthn(req, w);
-    const char *bad = !read               ? "a WebAuthn registration expected"
-                      : !name_ok(w->name) ? "name: 1 to 23 bytes"
+    const char *bad = w && w->id_len == -2 ? "credential id longer than 128 bytes"
+                      : !read              ? "a WebAuthn registration expected"
+                      : !name_ok(w->name)  ? "name: 1 to 23 bytes"
                       : w->alg != -7 || w->spki_len < 0 || !db_spki_p256(w->spki, (size_t)w->spki_len, pk.xy)
                           ? "only ES256 (P-256) passkeys, with the public key from the browser"
-                      : !client_ok(req, w, false, origin) || !db_authdata(w->ad, (size_t)w->ad_len, &a) ||
+                      : client_ok(req, w, false, origin) != 1 || !db_authdata(w->ad, (size_t)w->ad_len, &a) ||
                               !rp_ok(&a, rp) || !a.cred || a.cred_len != (size_t)w->id_len ||
                               a.cred_len > sizeof(pk.id) || memcmp(a.cred, w->id, a.cred_len) != 0
                           ? "passkey not accepted"
@@ -1024,7 +1103,6 @@ esp_err_t auth_passkey_add(httpd_req_t *req)
     if (!bad) {
         memcpy(pk.id, w->id, a.cred_len);
         pk.id_len = (uint8_t)a.cred_len;
-        pk.uv = a.flags & DB_AD_UV;
         pk.count = a.count;
         strlcpy(pk.rp, rp, sizeof(pk.rp));
         strlcpy(pk.name, w->name, sizeof(pk.name));

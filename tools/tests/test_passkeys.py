@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import ssl
+import time
 import urllib.request
 
 import pytest
@@ -48,7 +49,11 @@ def call(method: str, path: str, body: dict | None = None, host: str = "", admin
 
 
 def challenge(login: bool) -> bytes:
-    code, body, _ = call("POST", "/api/passkeys/challenge", {"login": login})
+    for _ in range(12):  # 30 per 10 s and address
+        code, body, _ = call("POST", "/api/passkeys/challenge", {"login": login})
+        if code != 429:
+            break
+        time.sleep(1)
     assert code == 200, body
     return bytes.fromhex(body["challenge"])
 
@@ -176,7 +181,36 @@ def test_a_challenge_counts_once_and_for_its_kind(key):
     assert key.login()[0] == 200
 
 
+def test_many_challenges_push_out_none(key):
+    first = challenge(True)
+    for _ in range(8):
+        challenge(True)
+    assert key.login(challenge=first)[0] == 200
+
+
+def test_a_bad_challenge_is_no_guess_but_a_bad_signature_is(key):
+    """Only a reply to one of the board's challenges counts towards the lockout, like a wrong password."""
+    for _ in range(7):
+        code, body, _ = key.login(challenge=os.urandom(32))
+        assert code == 403 and "challenge" in body["error"]
+    assert key.login()[0] == 200
+    other = ec.generate_private_key(ec.SECP256R1())
+    codes = [key.login(key=other)[0] for _ in range(6)]
+    assert codes[:5] == [403] * 5 and codes[5] == 429, codes
+    time.sleep(2)
+    assert key.login()[0] == 200
+
+
+def test_challenges_are_limited_per_address():
+    codes = [call("POST", "/api/passkeys/challenge", {"login": True})[0] for _ in range(32)]
+    assert codes.count(429) >= 1 and codes[0] == 200, codes
+    time.sleep(10)
+
+
 def test_a_registration_is_checked(kept):
+    assert Authenticator(uv=False).register()[0] == 400
+    code, body = Authenticator().register(id=b64u(os.urandom(129)))
+    assert code == 400 and "128" in body["error"]
     a = Authenticator()
     assert a.register(publicKeyAlgorithm=-8)[0] == 400
     p384 = ec.generate_private_key(ec.SECP384R1()).public_key()
