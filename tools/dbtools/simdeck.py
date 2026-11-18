@@ -1,6 +1,7 @@
 """firmware/simdeck: the firmware's own stack on emulated decks. Start one with a mix of models, act as a person
 at the decks through its control FIFO, and read back what the decks show."""
 
+import atexit
 import base64
 import io
 import json
@@ -61,6 +62,7 @@ class SimDeck:
         self.log_path = self.work / "sim.log"
         log = self.log_path.open("wb")
         self.proc = subprocess.Popen([ELF], env=env, stdout=log, stderr=subprocess.STDOUT)
+        atexit.register(self.proc.kill)
         end = time.monotonic() + 10
         while time.monotonic() < end:
             try:

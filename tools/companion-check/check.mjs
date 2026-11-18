@@ -1,8 +1,8 @@
 // Drives the bridge in dock mode with @elgato-stream-deck/tcp, the library inside Bitfocus Companion.
-// Usage: node check.mjs <bridge ip> [seconds to listen for input]
+// Usage: node check.mjs <bridge ip>[:dock port, which skips mDNS] [seconds to listen for input]
 import { StreamDeckTcpConnectionManager, StreamDeckTcpDiscoveryService } from '@elgato-stream-deck/tcp'
 
-const host = process.argv[2]
+const [host, port] = process.argv[2].split(':')
 const listen = Number(process.argv[3] ?? 0)
 const fail = (msg) => {
 	console.error('FAIL', msg)
@@ -10,7 +10,7 @@ const fail = (msg) => {
 }
 
 const discovery = new StreamDeckTcpDiscoveryService()
-const found = await new Promise((resolve) => {
+const found = port ? { name: 'by address', modelName: '-', serialNumber: '-' } : await new Promise((resolve) => {
 	const t = setTimeout(() => resolve(null), 8000)
 	discovery.on('up', (svc) => {
 		if (svc.address === host) {
@@ -35,10 +35,11 @@ const deck = await new Promise((resolve) => {
 			resolve(sd)
 		}
 	})
-	manager.connectTo(host)
+	manager.connectTo(host, port ? Number(port) : undefined)
 })
 if (!deck) fail('device port did not open')
 
+console.log('model', deck.MODEL, 'keys', deck.CONTROLS.filter((c) => c.type === 'button').length)
 console.log('serial', await deck.getSerialNumber(), 'firmware', await deck.getFirmwareVersion())
 await deck.setBrightness(70)
 
