@@ -33,6 +33,7 @@ import { Notice } from '../components/Notice'
 import { mmss } from '../lib/format'
 import { companionError, fallback, findCompanion, worst } from '../lib/companion'
 import { normPin, pinError, wsUrlError } from '../lib/validate'
+import { MatterCard } from './Matter'
 
 type SrcType = 'comp' | 'app' | 'srv'
 interface SrcRow extends Source {
@@ -607,6 +608,7 @@ export function Sources() {
           </Btn>
         </div>
       )}
+      <MatterCard />
       {modal && cfg && <SourceModal cfg={cfg} type={modal.type} src={modal.src} close={() => setModal(null)} />}
     </>
   )

@@ -8,6 +8,7 @@ import type {
   InputBody,
   InputLogEntry,
   Inspect,
+  MatterCodes,
   Metrics,
   Profile,
   PutReply,
@@ -177,6 +178,10 @@ export const api = {
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
   claimSetup: () => request<{ ok: boolean }>('/api/setup/claim', { method: 'POST' }),
   events: () => list(request<DeviceEvent[]>('/api/events')),
+  matter: () => request<MatterCodes>('/api/matter'),
+  setMatter: (body: { on: boolean } | { pair: true } | { show: true }) =>
+    request<{ ok: boolean }>('/api/matter', { body }),
+  resetMatter: () => request<{ ok: boolean }>('/api/matter', { method: 'DELETE' }),
 }
 
 export const certUrl = '/api/cert'

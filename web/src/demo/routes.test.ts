@@ -12,17 +12,17 @@ beforeAll(() => deckUiReady)
 
 const ACCESS = { WEB_OPEN: 'open', WEB_CONTROL: 'control', WEB_FULL: 'full', WEB_ADMIN: 'admin' } as const
 
-/** method, path and access of every route; routes behind #ifdef DB_DEBUG_CRASH are for debug builds only. */
+/** method, path and access of every route; `extra`: behind #ifdef DB_DEBUG_CRASH or #if CONFIG_DB_MATTER, not in the demo's firmware. */
 function firmwareRoutes() {
   const table = http.slice(http.indexOf('} list[] = {'), http.indexOf('_Static_assert(sizeof(list)'))
-  const out: { method: string; path: string; access: string; debug: boolean }[] = []
-  let debug = false
-  for (const chunk of table.split(/(?=#ifdef|#endif|\{\{\.uri)/)) {
-    if (chunk.startsWith('#ifdef DB_DEBUG')) debug = true
-    if (chunk.startsWith('#endif')) debug = false
+  const out: { method: string; path: string; access: string; extra: boolean }[] = []
+  let extra = false
+  for (const chunk of table.split(/(?=#if|#endif|\{\{\.uri)/)) {
+    if (chunk.startsWith('#ifdef DB_DEBUG') || chunk.startsWith('#if CONFIG_DB_MATTER')) extra = true
+    if (chunk.startsWith('#endif')) extra = false
     const [, path, method, level] =
       /^\{\{\.uri = "([^"]+)",\s*\.method = HTTP_(\w+)[\s\S]*?\},\s*(WEB_\w+)\}/.exec(chunk) ?? []
-    if (path && method) out.push({ path, method, access: ACCESS[level as keyof typeof ACCESS], debug })
+    if (path && method) out.push({ path, method, access: ACCESS[level as keyof typeof ACCESS], extra })
   }
   return out
 }
@@ -75,7 +75,7 @@ describe('the mock against the firmware route table', () => {
     const missing: string[] = []
     for (const r of await uiRequests()) {
       // The socket is the DemoSocket in install.ts; deck pictures come as data: URLs in the /api/screen reply.
-      if (r.path === '/api/ws' || r.path.startsWith('/api/screen/')) continue
+      if (r.path === '/api/ws' || r.path.startsWith('/api/screen/') || routeOf(r.method, r.path)?.extra) continue
       const s = fresh(0)
       boot(s, 0)
       const reply = handle(s, 1000, r.method, r.path, r.method === 'GET' ? undefined : {}, () => [])
@@ -89,7 +89,7 @@ describe('the mock against the firmware route table', () => {
     const mine = (handle(s, 0, 'GET', '/api', undefined, () => []).body as typeof FW)
       .map((r) => `${key(r)} ${r.access}`)
       .sort()
-    const theirs = FW.filter((r) => !r.debug)
+    const theirs = FW.filter((r) => !r.extra)
       .map((r) => `${key(r)} ${r.access}`)
       .sort()
     expect(mine).toEqual(theirs)

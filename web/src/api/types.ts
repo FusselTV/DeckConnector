@@ -117,6 +117,15 @@ export interface Status {
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
   boot?: { reason?: string; at?: number | null }
+  /** Only in the Matter image. */
+  matter?: { on: boolean; running: boolean; controllers: number; pairing: boolean }
+}
+
+export interface MatterCodes {
+  qr: string
+  code: string
+  /** "size:hex", the modules row by row, lowest bit first */
+  qr_bits: string
 }
 
 export interface IpConf {

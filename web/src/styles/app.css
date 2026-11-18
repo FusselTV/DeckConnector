@@ -2088,6 +2088,21 @@
     gap: 16px;
     align-items: start;
   }
+  .mtcode {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+  }
+  .mtcode .field {
+    flex: 1;
+    min-width: 200px;
+  }
+  .mtqr {
+    width: 160px;
+    height: 160px;
+    border-radius: 6px;
+  }
   .codebox {
     flex: 1;
     padding: 8px 10px;
