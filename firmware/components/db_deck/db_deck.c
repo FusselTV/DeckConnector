@@ -7,6 +7,7 @@
 #include "db_driver.h"
 #include "db_regions.h"
 #include "db_screen.h"
+#include "db_wake.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -70,7 +71,7 @@ typedef struct {
     bool replay;
     bool keep_picture; /* of the old writer, until the new one draws: under lock */
     bool clear_first;  /* the display goes black before the writer's first image */
-    int brightness;    /* pct + 1 for the writer task to set, 0: nothing */
+    int brightness;    /* nonzero: the writer task sets `lit`, 0 while dark */
     int lit;           /* the brightness the deck has, -1: not known; atomic */
     char last_serial[sizeof(((db_device_info_t *)0)->serial)];
     db_shot_t replay_shots[DB_SCREEN_MAX];
@@ -96,6 +97,14 @@ static struct {
     int over;                             /* of them still plugged in, counted by the event task */
     db_slot_owner_t owners[DB_MAX_DECKS]; /* whose slot is whose, kept in NVS */
 } s;
+
+static portMUX_TYPE wake_mux = portMUX_INITIALIZER_UNLOCKED;
+static db_wake_t wake;
+
+static bool dark(void)
+{
+    return __atomic_load_n(&wake.dark, __ATOMIC_RELAXED);
+}
 
 static void *psram_realloc(void *ptr, size_t size)
 {
@@ -173,10 +182,10 @@ static void replay(int deck)
         clear_display(k);
     }
     if (bright >= 0) {
+        __atomic_store_n(&k->lit, bright, __ATOMIC_RELAXED); /* before dark(): a wake after it lights this */
         xSemaphoreTake(k->io_lock, portMAX_DELAY);
-        k->dev.driver->set_brightness(&k->dev, (uint8_t)bright);
+        k->dev.driver->set_brightness(&k->dev, dark() ? 0 : (uint8_t)bright);
         xSemaphoreGive(k->io_lock);
-        __atomic_store_n(&k->lit, bright, __ATOMIC_RELAXED);
     }
     if (feature_len) {
         xSemaphoreTake(k->io_lock, portMAX_DELAY);
@@ -271,13 +280,13 @@ static void writer_task(void *arg)
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         for (;;) {
-            int pct = __atomic_exchange_n(&k->brightness, 0,
-                                          __ATOMIC_RELAXED); /* between images, also in a stream */
-            if (pct && k->present) {
+            /* between images, also in a stream; read now, so a wake or a dark that raced it still wins */
+            int lit = __atomic_load_n(&k->lit, __ATOMIC_RELAXED);
+            if (__atomic_exchange_n(&k->brightness, 0, __ATOMIC_RELAXED) && k->present &&
+                (lit >= 0 || dark())) {
                 xSemaphoreTake(k->io_lock, portMAX_DELAY);
-                k->dev.driver->set_brightness(&k->dev, (uint8_t)(pct - 1));
+                k->dev.driver->set_brightness(&k->dev, dark() ? 0 : (uint8_t)lit);
                 xSemaphoreGive(k->io_lock);
-                __atomic_store_n(&k->lit, pct - 1, __ATOMIC_RELAXED);
             }
             if (k->replay) {
                 replay(deck);
@@ -582,6 +591,9 @@ static void handle_detach(int port)
     xSemaphoreTake(k->lock, portMAX_DELAY);
     k->present = false;
     db_regions_clear(&k->pending, free_region, (void *)&no_device);
+    taskENTER_CRITICAL(&wake_mux);
+    db_wake_forget(&wake, deck); /* its releases never come */
+    taskEXIT_CRITICAL(&wake_mux);
     xSemaphoreGive(k->lock);
     xSemaphoreTake(k->io_lock, portMAX_DELAY);
     usb_port_close(port);
@@ -589,6 +601,47 @@ static void handle_detach(int port)
     s.port_deck[port] = -1;
     notify_device(deck, NULL); /* the kept pictures stay: the same deck plugged in again shows them at once */
     unpark();
+}
+
+/* Each writer sets 0 or what its host set last, as dark() is when it gets there. */
+static void light_all(bool off)
+{
+    db_log_event(TAG, "deck", off ? "screen off" : "screen on");
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (decks[d].present) {
+            __atomic_store_n(&decks[d].brightness, 1, __ATOMIC_RELAXED);
+            xTaskNotifyGive(decks[d].writer_task);
+        }
+    }
+}
+
+void db_deck_screen_off(bool off)
+{
+    taskENTER_CRITICAL(&wake_mux);
+    bool changed = db_wake_set(&wake, off, esp_timer_get_time());
+    taskEXIT_CRITICAL(&wake_mux);
+    if (changed) {
+        light_all(off);
+    }
+}
+
+void db_deck_screen_tick(int off_s, bool covered)
+{
+    int64_t now = esp_timer_get_time();
+    bool off = false;
+    taskENTER_CRITICAL(&wake_mux);
+    /* a question or the menu restarts the idle time: they must not go dark the moment it closes */
+    bool changed = covered ? db_wake_set(&wake, false, now)
+                           : db_wake_due(&wake, off_s, false, now, &off) && db_wake_set(&wake, off, now);
+    taskEXIT_CRITICAL(&wake_mux);
+    if (changed) {
+        light_all(off);
+    }
+}
+
+bool db_deck_screen_is_off(void)
+{
+    return dark();
 }
 
 static bool input_real;
@@ -619,15 +672,30 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     input_real = ev->real;
     input_from_deck = ev->kind == EV_INPUT;
     input_only_ip = ev->only_ip;
-    for (int i = 0; i < s.listener_count; i++) {
+    db_input_t out[EVENTS_PER_RPT];
+    size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
+    bool swallowed[EVENTS_PER_RPT];
+    bool any = false;
+    bool woke = false;
+    int64_t now = esp_timer_get_time();
+    taskENTER_CRITICAL(&wake_mux);
+    for (size_t e = 0; e < n; e++) {
+        bool w;
+        swallowed[e] = db_wake_input(&wake, deck, &out[e], now, &w);
+        any |= swallowed[e];
+        woke |= w;
+    }
+    taskEXIT_CRITICAL(&wake_mux);
+    if (woke) {
+        light_all(false);
+    }
+    for (int i = 0; i < s.listener_count && !any; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
             s.listeners[i].raw_input(deck, raw, ev->len);
         }
     }
-    db_input_t out[EVENTS_PER_RPT];
-    size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
     for (size_t e = 0; e < n; e++) {
-        for (int i = 0; i < s.listener_count; i++) {
+        for (int i = 0; i < s.listener_count && !swallowed[e]; i++) {
             if (s.listeners[i].input && (ev->real || !s.listeners[i].external)) {
                 s.listeners[i].input(deck, &out[e]);
             }
@@ -757,6 +825,7 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
 esp_err_t db_deck_start(bool full_speed, int max_decks)
 {
     s.max_decks = max_decks;
+    db_wake_init(&wake, esp_timer_get_time());
     memset(s.port_deck, -1, sizeof(s.port_deck));
     nvs_handle_t h;
     if (nvs_open("decks", NVS_READONLY, &h) == ESP_OK) {
@@ -962,9 +1031,9 @@ esp_err_t db_deck_set_brightness(int deck, uint8_t pct)
     if (!k->present) {
         return ESP_ERR_INVALID_STATE;
     }
-    __atomic_store_n(&k->brightness, pct + 1, __ATOMIC_RELAXED);
     __atomic_store_n(&k->lit, pct,
                      __ATOMIC_RELAXED); /* as the deck will have it: a menu opening now reads it */
+    __atomic_store_n(&k->brightness, 1, __ATOMIC_RELAXED);
     xTaskNotifyGive(k->writer_task);
     return ESP_OK;
 }
@@ -1057,15 +1126,15 @@ esp_err_t db_deck_raw_set_feature(int deck, db_source_t source, const uint8_t *b
         k->bright[source] = (uint8_t)(pct > 100 ? 101 : pct + 1);
     }
     if (k->writer == source) {
+        if (pct >= 0) {
+            __atomic_store_n(&k->lit, pct, __ATOMIC_RELAXED); /* before dark(): a wake after it lights this */
+        }
         /* the io lock before the shot lock goes: a writer change cannot slip in, and nobody who only reads
          * the picture waits for the USB transfer */
         xSemaphoreTake(k->io_lock, portMAX_DELAY);
         xSemaphoreGive(k->shot_lock);
-        err = k->dev.io->set_feature(k->dev.io, buf, len);
+        err = pct >= 0 && dark() ? DB_OK : k->dev.io->set_feature(k->dev.io, buf, len);
         xSemaphoreGive(k->io_lock);
-        if (pct >= 0) {
-            __atomic_store_n(&k->lit, pct, __ATOMIC_RELAXED);
-        }
         return to_esp(err);
     }
     if (pct < 0 && len <= sizeof(k->feature[source].buf)) {

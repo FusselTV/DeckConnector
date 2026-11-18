@@ -63,6 +63,7 @@ typedef struct {
                                 deck, so no offer and no move from the dock path to Satellite */
     char lang[3];            /* what the deck's own screens speak: "de" or "en" */
     uint8_t max_decks;       /* decks driven at once, 1 to DB_MAX_DECKS: they share the 2 A of the USB port */
+    uint32_t screen_off_s;   /* the decks go dark after this long without input, 10 to 86400; 0: never */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
@@ -70,6 +71,7 @@ char *db_config_server(db_config_t *cfg, int i);
 const char *db_config_server_of(const db_config_t *cfg, int i);
 /* A host name or address without spaces, quotes or slashes; empty is fine. */
 bool db_config_ntp_ok(const char *s);
+bool db_config_screen_off_ok(long s);
 /* Empty (an open network), 8 to 63 characters, or 64 hex digits. */
 bool db_config_wifi_pass_ok(const char *p);
 

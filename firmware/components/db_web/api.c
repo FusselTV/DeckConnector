@@ -108,7 +108,11 @@ static int config_edit(const char *body, char *reply, size_t cap)
     memcpy(live.lang, old.lang, sizeof(old.lang));
     live.menu_hold_ms = old.menu_hold_ms;
     live.max_decks = old.max_decks;
+    live.screen_off_s = old.screen_off_s;
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
+    if (cfg.screen_off_s != old.screen_off_s) {
+        db_deck_screen_off(false);
+    }
     for (int d = 0; cfg.brightness != old.brightness && d < DB_MAX_DECKS; d++) {
         db_deck_set_brightness(d, cfg.brightness);
     }
@@ -577,6 +581,24 @@ esp_err_t delete_menu(httpd_req_t *req)
 {
     db_ui_close_menu();
     return send_json(req, "{\"ok\":true}");
+}
+
+/* {"on": false} turns every deck dark now, {"on": true} lights them; neither swallows a press. */
+esp_err_t post_screen(httpd_req_t *req)
+{
+    char body[32];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *on = cJSON_GetObjectItemCaseSensitive(root, "on");
+    bool ok = cJSON_IsBool(on);
+    if (ok) {
+        db_deck_screen_off(!cJSON_IsTrue(on));
+    }
+    cJSON_Delete(root);
+    return ok ? send_json(req, "{\"ok\":true}")
+              : send_error(req, "400 Bad Request", "on: true or false expected");
 }
 
 /* {"accept": true|false} answers a request, {"pairing": seconds} opens pairing (0 closes it), {"forget":

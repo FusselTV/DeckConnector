@@ -18,6 +18,8 @@ export interface DeckInfo {
   slot?: number
   /** In `decks`: slot + 1. */
   number?: number
+  /** In `decks`: what the deck shows now, 0 while the screen is off. */
+  brightness?: number
 }
 
 export interface Source {
@@ -95,6 +97,8 @@ export interface Status {
   writer?: string
   /** The deck menu covers the deck. */
   menu_open?: boolean
+  /** Every deck is dark after `screen_off_s` without input; the next input wakes them. */
+  screen_off?: boolean
   /** This page reached the device over its setup Wi-Fi, which needs no password. */
   via_ap?: boolean
   device?: DeckInfo | null
@@ -150,6 +154,8 @@ export interface Config {
   lang: 'de' | 'en'
   usb_speed: 'auto' | 'full'
   max_decks: number
+  /** 0: never, else 10 to 86400 seconds without input until the decks go dark. */
+  screen_off_s: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean

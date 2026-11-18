@@ -53,6 +53,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/input', 'control'],
   ['POST', '/api/menu', 'control'],
   ['DELETE', '/api/menu', 'control'],
+  ['POST', '/api/screen', 'full'],
   ['POST', '/api/deck/reconnect', 'control'],
   ['POST', '/api/deck/stall', 'full'],
   ['POST', '/api/dock', 'full'],
@@ -266,6 +267,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       s.recoveries = (s.recoveries ?? 0) + 1
       event(s, now, 'deck', 'deck reconnected on request, USB recovery')
       return ok()
+    case 'POST /api/screen':
     case 'POST /api/deck/stall':
       return ok()
     case 'DELETE /api/ap':

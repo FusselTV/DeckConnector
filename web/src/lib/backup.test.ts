@@ -24,6 +24,7 @@ const cfg: Config = {
   lang: 'de',
   usb_speed: 'auto',
   max_decks: 2,
+  screen_off_s: 0,
   wifi_bssid: '',
   qr_login: true,
   ntp_server: 'pool.ntp.org',

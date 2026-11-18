@@ -1,6 +1,8 @@
 /* Stand-ins for everything the API layer calls on the chip: Stream Deck + decks that are always attached
  * (DB_SIM_DECKS of them, 1 by default, serials SIM0001 and up; the ones over max_decks stay dark), no dock
- * hosts, no updates. Simulated input goes to the listeners, so the web socket reports it like on the device. */
+ * hosts, no updates. Simulated input goes to the listeners, so the web socket reports it like on the device.
+ */
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +17,7 @@
 #include "db_ota.h"
 #include "db_satellite.h"
 #include "db_ui.h"
+#include "db_wake.h"
 #include "esp_http_server.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -26,6 +29,9 @@
 
 static db_deck_listener_t listeners[LISTENERS];
 static int listener_count;
+static pthread_mutex_t wake_lock = PTHREAD_MUTEX_INITIALIZER;
+static db_wake_t wake;
+static int lit[DB_MAX_DECKS];
 
 void db_deck_add_listener(const db_deck_listener_t *l)
 {
@@ -46,6 +52,10 @@ static int decks(void)
     if (n < 0) {
         int max = db_config()->max_decks;
         n = plugged() < max ? plugged() : max; /* before db_deck_info asks for it */
+        db_wake_init(&wake, esp_timer_get_time());
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            lit[d] = db_config()->brightness;
+        }
         for (int d = 0; d < n; d++) { /* as the deck task tells them on the device */
             db_device_info_t info;
             db_deck_info(d, &info);
@@ -131,9 +141,13 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
     if (deck >= decks()) {
         return ESP_ERR_INVALID_STATE;
     }
+    bool woke;
+    pthread_mutex_lock(&wake_lock);
+    bool swallowed = db_wake_input(&wake, deck, in, esp_timer_get_time(), &woke);
+    pthread_mutex_unlock(&wake_lock);
     input_real = real;
     input_only_ip = only_ip;
-    for (int i = 0; i < listener_count; i++) {
+    for (int i = 0; i < listener_count && !swallowed; i++) {
         if (listeners[i].input && (real || !listeners[i].external)) {
             listeners[i].input(deck, in);
         }
@@ -160,7 +174,39 @@ const char *db_deck_source_name(db_source_t source)
 }
 esp_err_t db_deck_set_brightness(int deck, uint8_t pct)
 {
+    lit[deck] = pct;
     return ESP_OK;
+}
+
+int db_deck_brightness(int deck)
+{
+    return lit[deck];
+}
+
+void db_deck_screen_off(bool off)
+{
+    pthread_mutex_lock(&wake_lock);
+    db_wake_set(&wake, off, esp_timer_get_time());
+    pthread_mutex_unlock(&wake_lock);
+}
+
+void db_deck_screen_tick(int off_s, bool covered)
+{
+    bool off;
+    int64_t now = esp_timer_get_time();
+    decks(); /* the wake state starts there */
+    pthread_mutex_lock(&wake_lock);
+    if (covered) {
+        db_wake_set(&wake, false, now);
+    } else if (db_wake_due(&wake, off_s, false, now, &off)) {
+        db_wake_set(&wake, off, now);
+    }
+    pthread_mutex_unlock(&wake_lock);
+}
+
+bool db_deck_screen_is_off(void)
+{
+    return wake.dark;
 }
 
 size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)

@@ -519,6 +519,11 @@ export const de: Dict = {
   'deck.max': 'Decks gleichzeitig',
   'deck.max_h':
     'Alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports. Ein kleineres Limit gilt für Decks, die danach eingesteckt werden.',
+  'deck.off': 'Bildschirm aus nach',
+  'deck.off_h':
+    'Ohne Eingabe gehen alle Decks dunkel. Die erste Taste, Drehung oder Berührung weckt sie und löst sonst nichts aus.',
+  'deck.never': 'Nie',
+  'deck.dark': 'Bildschirm aus. Die erste Eingabe weckt die Decks.',
   'is.decks_n': '{n} Decks',
   'is.compdock': 'Companion „{name}“ nutzt den Dock-Weg',
   'is.compdock_h': 'Satellite ist stabiler und hat alle Tasten und Drehregler.',

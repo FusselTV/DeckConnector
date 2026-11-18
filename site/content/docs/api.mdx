@@ -106,6 +106,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/input/log` | The last 200 inputs. `?since=<seq>` for newer ones only | control |
 | `POST /api/menu` | Open the deck menu. 409 without a deck | control |
 | `DELETE /api/menu` | Close the deck menu, the password, the reset question and a login request | control |
+| `POST /api/screen` | `{"on": false}` turns every deck dark now, `{"on": true}` lights them again. No press is swallowed | full |
 | `POST /api/deck/reconnect` | Turn the USB port off and on. `?off_s=N` (1 to 600) keeps it off for N seconds | control |
 | `POST /api/deck/stall` | Stop the image output as a hung deck would, for tests | full |
 
@@ -173,7 +174,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
+ "max_decks": 2, "screen_off_s": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
 ```
 
 | Key | Values |
@@ -196,13 +197,14 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `menu_hold_ms` | 500 to 10000 |
 | `usb_speed` | `auto` or `full` |
 | `max_decks` | 1 to 4 decks at once, 2 by default |
+| `screen_off_s` | Seconds without input until every deck goes dark, 10 to 86400. 0 means never and is the default |
 | `dock_paired_only` | Only paired dock hosts get in |
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -216,7 +218,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 {"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
- "menu_open": false,
+ "menu_open": false, "screen_off": false,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
@@ -239,6 +241,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` or `other` |
 | `setup` | `step` of the web wizard, `active` until setup is done |
 | `menu_open` | The menu, the password, the reset question or a login request covers the deck |
+| `screen_off` | Every deck is dark after `screen_off_s` without input. The first input wakes them and reaches no host. `decks[].brightness` is 0 then |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |

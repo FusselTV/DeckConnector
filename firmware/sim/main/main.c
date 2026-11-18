@@ -25,6 +25,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_str(&j, "firmware", "sim");
     db_json_str(&j, "controller", "companion");
     db_json_bool(&j, "menu_open", db_ui_menu_open());
+    db_json_bool(&j, "screen_off", db_deck_screen_is_off());
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
@@ -46,6 +47,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
         db_json_int(&j, "number", d + 1);
         db_json_str(&j, "model", dev.model);
         db_json_str(&j, "serial", dev.serial);
+        db_json_int(&j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
         db_json_obj_close(&j);
     }
     db_json_arr_close(&j);
@@ -82,7 +84,8 @@ void app_main(void)
     db_config_save(&cfg);
     db_web_start(status_json, state_json);
     db_serial_start();
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    for (;;) { /* the device's UI tick */
+        vTaskDelay(pdMS_TO_TICKS(200));
+        db_deck_screen_tick((int)db_config()->screen_off_s, db_ui_menu_open());
     }
 }

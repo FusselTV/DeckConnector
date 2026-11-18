@@ -414,6 +414,7 @@ const LiveDeck = memo(function LiveDeck() {
   const armedAt = armAtom.use()
   const live = useStore((s) => s.conn === 'live')
   const bri = useStore((s) => s.config?.brightness ?? 80)
+  const dark = useStore((s) => !!s.status.screen_off)
   const last = useStore((s) => s.inputs[0])
   const nudge = nudgeAtom.use() > 0
   const decks = useMemo(
@@ -468,12 +469,14 @@ const LiveDeck = memo(function LiveDeck() {
       <span className="sr" role="status">
         {nudge ? t('arm.hint') : ''}
       </span>
+      {dark && <p className="small muted">{t('deck.dark')}</p>}
       <DeckFront
         key={sel}
         model={deck.kind}
         label={deckName(deck, sel, decks.length, t)}
         screen={screen}
         brightness={bri}
+        dark={dark}
         armed={armedAt > 0 && live}
         last={last}
         onLocked={onLocked}

@@ -180,6 +180,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       lang: 'de',
       usb_speed: 'auto',
       max_decks: 2,
+      screen_off_s: 0,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,
@@ -443,6 +444,7 @@ export function status(s: Demo, now: number): Status {
     controller: c.controller,
     writer: w,
     menu_open: overlay(s, now),
+    screen_off: false,
     boot: { reason: s.bootReason, at: Math.floor(s.bootAt / 1000) },
     setup: { active: !c.setup_done || s.setupStep > 0, step: s.setupStep, rerun: c.setup_done && s.setupStep > 0 },
     device: deck(s),
@@ -526,6 +528,7 @@ const LIVE: (keyof ConfigPatch)[] = [
   'menu_hold_ms',
   'lang',
   'max_decks',
+  'screen_off_s',
 ]
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/

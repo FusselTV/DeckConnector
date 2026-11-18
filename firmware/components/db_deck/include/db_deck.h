@@ -91,8 +91,16 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
                     uint8_t *data, size_t len, uint64_t t_recv);
 
 esp_err_t db_deck_set_brightness(int deck, uint8_t pct);
-/* The brightness the deck has now, from whoever set it last; -1 before anyone did. */
+/* The brightness the deck has when lit, from whoever set it last; -1 before anyone did. */
 int db_deck_brightness(int deck);
+
+/* Screen saver, for all decks at once: dark is brightness 0 while images are still drawn, and a brightness
+ * set meanwhile is applied on waking. The first input on a dark deck wakes them and reaches no listener, nor
+ * does the rest of that gesture (see db_wake.h). */
+void db_deck_screen_off(bool off);
+bool db_deck_screen_is_off(void);
+/* A few times a second: dark after `off_s` seconds without input (0: never); lit while `covered`. */
+void db_deck_screen_tick(int off_s, bool covered);
 
 size_t db_deck_input_space(void);
 /* Handle `in` as if the device had sent it. External listeners get it only when `real`; with `only_ip` set,

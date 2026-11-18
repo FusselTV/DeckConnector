@@ -12,6 +12,9 @@ import { MODELS, type Model, type ModelKey } from '../deck/models'
 import type { T } from '../i18n'
 import { cx, roam } from '../lib/util'
 
+const OFF_PRESETS = ['0', '60', '300', '900', '1800', '3600']
+const duration = (s: number) => (s % 60 ? `${s} s` : `${s / 60} min`)
+
 type Chord = Config['menu_chord']
 interface Hl {
   keys: number[]
@@ -68,6 +71,7 @@ export function DeckTab() {
     hold: (cfg?.menu_hold_ms ?? 2000) / 1000,
     usb: cfg?.usb_speed ?? 'auto',
     max: String(cfg?.max_decks) as '1' | '2' | '3' | '4',
+    off: String(cfg?.screen_off_s ?? 0),
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
@@ -94,9 +98,11 @@ export function DeckTab() {
       ...(changed('hold') ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
       ...(changed('usb') ? { usb_speed: v.usb } : {}),
       ...(changed('max') ? { max_decks: Number(v.max) } : {}),
+      ...(changed('off') ? { screen_off_s: Number(v.off) } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
+  const offs = OFF_PRESETS.includes(base.off) ? OFF_PRESETS : [...OFF_PRESETS, base.off]
   return (
     <div className="cards">
       <Card
@@ -192,6 +198,19 @@ export function DeckTab() {
             />
           </fieldset>
         )}
+        <fieldset className="gate field" disabled={!cfg}>
+          <span className="flabel">
+            {t('deck.off')}
+            <Help label={t('deck.off')} text={t('deck.off_h')} />
+          </span>
+          <Seg
+            id="screen-off"
+            label={t('deck.off')}
+            value={v.off}
+            onChange={(off) => set({ off })}
+            options={offs.map((s) => [s, s === '0' ? t('deck.never') : duration(Number(s))] as const)}
+          />
+        </fieldset>
       </Card>
       <fieldset className="gate" disabled={!cfg}>
         <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
