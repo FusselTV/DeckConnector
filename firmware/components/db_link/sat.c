@@ -467,7 +467,8 @@ static bool handle(char *line)
     sat_dev_t *d = deck >= 0 ? &s.devs[deck] : NULL;
     if (strcmp(m.cmd, "KEY-STATE") == 0) {
         return key_state(deck, &m);
-    } else if (strcmp(m.cmd, "BEGIN") == 0) {
+    }
+    if (strcmp(m.cmd, "BEGIN") == 0) {
         const char *api = db_sat_get(&m, "ApiVersion");
         v = db_sat_get(&m, "CompanionVersion");
         ESP_LOGI(TAG, "Companion %s, API %s", v ? v : "?", api ? api : "?");

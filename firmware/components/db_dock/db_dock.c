@@ -299,6 +299,10 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
 static int listen_on(uint16_t port, int backlog)
 {
     int ls = socket(AF_INET, SOCK_STREAM, 0);
+    if (ls < 0) {
+        ESP_LOGE(TAG, "no socket for port %u", port);
+        return -1;
+    }
     int one = 1;
     setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
     struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(port)};
@@ -682,7 +686,7 @@ static void load_known(void)
 static int find(uint32_t ip, const uint8_t mac[6])
 {
     for (int i = 0; i < pair.count; i++) {
-        bool macs = memcmp(mac, no_mac, 6) && memcmp(pair.known[i].mac, no_mac, 6);
+        bool macs = memcmp(mac, no_mac, 6) != 0 && memcmp(pair.known[i].mac, no_mac, 6) != 0;
         if (macs ? memcmp(pair.known[i].mac, mac, 6) == 0 : pair.known[i].ip == ip) {
             return i;
         }
@@ -719,9 +723,10 @@ static bool admit(uint32_t ip)
     int i = find(ip, mac);
     if (i >= 0) {
         in = true;
-        changed = pair.known[i].ip != ip || (memcmp(mac, no_mac, 6) && memcmp(pair.known[i].mac, mac, 6));
+        changed =
+            pair.known[i].ip != ip || (memcmp(mac, no_mac, 6) != 0 && memcmp(pair.known[i].mac, mac, 6) != 0);
         pair.known[i].ip = ip; /* a new address from DHCP */
-        if (memcmp(mac, no_mac, 6)) {
+        if (memcmp(mac, no_mac, 6) != 0) {
             memcpy(pair.known[i].mac, mac, 6);
         }
     } else if (!strict || pair.count == 0 || now < pair.open_until) {

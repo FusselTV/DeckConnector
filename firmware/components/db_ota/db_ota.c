@@ -434,7 +434,7 @@ static esp_err_t commit_boot(void)
         bool read = esp_partition_read(final, 0, placed, s.payload_len) == ESP_OK;
         if (err != ESP_OK && read && memcmp(placed, old, s.payload_len) == 0) {
             ESP_LOGE(TAG, "%s refused before the copy: %s", target_name(), esp_err_to_name(err));
-        } else if (err != ESP_OK || !read || memcmp(placed, staged, s.payload_len)) {
+        } else if (err != ESP_OK || !read || memcmp(placed, staged, s.payload_len) != 0) {
             /* the region may be half written: the board may not start again until it is written again */
             ESP_LOGE(TAG, "the %s at 0x%lx is written incompletely (%s): do not power off, write it again",
                      target_name(), (unsigned long) final->address, esp_err_to_name(err));
@@ -496,7 +496,7 @@ esp_err_t db_ota_end(void)
     report("verify", 100, NULL);
     if (s.header_got < HEADER_LEN || s.written != s.payload_len ||
         psa_hash_finish(&s.hash, digest, sizeof(digest), &n) != PSA_SUCCESS ||
-        memcmp(digest, s.header + 44, 32)) {
+        memcmp(digest, s.header + 44, 32) != 0) {
         db_ota_abort("hash");
         return ESP_ERR_INVALID_CRC;
     }

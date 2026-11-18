@@ -50,7 +50,7 @@ void ui_fill(ui_canvas_t *c, db_rect_t r, uint32_t color)
 static void blend_px(uint8_t *p, const uint8_t rgb[3], float a)
 {
     for (int i = 0; i < 3; i++) {
-        p[i] = (uint8_t)(p[i] + (rgb[i] - p[i]) * a + 0.5f);
+        p[i] = (uint8_t)((float)p[i] + (float)(rgb[i] - p[i]) * a + 0.5f);
     }
 }
 
@@ -122,7 +122,7 @@ static uint16_t next_codepoint(const char **s)
     return cp > 0xffff ? '?' : (uint16_t)cp;
 }
 
-static const ui_glyph_t *glyph(const ui_font_t *f, uint16_t cp)
+static const ui_glyph_t *find_glyph(const ui_font_t *f, uint16_t cp)
 {
     /* the text fonts start with 32..126 in order (gen_font.py), the hot path of every width and draw */
     if (cp >= 32 && cp - 32u < f->count && f->glyphs[cp - 32].codepoint == cp) {
@@ -133,7 +133,13 @@ static const ui_glyph_t *glyph(const ui_font_t *f, uint16_t cp)
             return &f->glyphs[i];
         }
     }
-    return cp == '?' ? NULL : glyph(f, '?');
+    return NULL;
+}
+
+static const ui_glyph_t *glyph(const ui_font_t *f, uint16_t cp)
+{
+    const ui_glyph_t *g = find_glyph(f, cp);
+    return g ? g : find_glyph(f, '?');
 }
 
 int ui_text_width_n(const ui_font_t *f, const char *s, const char *end)

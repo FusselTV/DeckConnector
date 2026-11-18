@@ -461,7 +461,6 @@ static void link_task(void *arg)
         }
         wait_ms = RETRY_MS;
         failed[0] = '\0';
-        via_wlan = false; /* next time start with LAN again */
         logged_err[0] = logged_err[1] = 0;
         db_log_event(TAG, "source", "server %d connected over %s: %s", l->index, over, l->url);
         l->over_wlan = bound && wlan;

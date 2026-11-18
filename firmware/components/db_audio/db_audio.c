@@ -80,7 +80,7 @@ static esp_err_t codec_new(void)
         .codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH,
         .pa_pin = -1, /* ours: the self-test keeps it off through a whole run */
         .use_mclk = true,
-        .hw_gain = {.pa_voltage = 5.0, .codec_dac_voltage = 3.3},
+        .hw_gain = {.pa_voltage = 5.0f, .codec_dac_voltage = 3.3f},
     };
     const audio_codec_if_t *codec = ec.ctrl_if && ec.gpio_if ? es8311_codec_new(&ec) : NULL;
     esp_codec_dev_cfg_t dc = {

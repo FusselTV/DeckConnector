@@ -185,7 +185,7 @@ static db_err_t io_write(const db_hid_io_t *io, const uint8_t *report, size_t le
     d->next_out = (d->next_out + 1) % OUT_SLOTS;
     d->wrote = true;
     memcpy(t->data_buffer, report, len);
-    t->num_bytes = len;
+    t->num_bytes = (int)len;
     if (usb_host_transfer_submit(t) != ESP_OK) {
         xSemaphoreGive(d->out_free);
         return write_failed(d, DB_ERR_IO);
