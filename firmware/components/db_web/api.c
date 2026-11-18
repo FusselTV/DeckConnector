@@ -17,6 +17,7 @@
 #include "db_json.h"
 #include "db_link.h"
 #include "db_log.h"
+#include "db_matter.h"
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_sat.h"
@@ -610,6 +611,82 @@ esp_err_t post_screen(httpd_req_t *req)
               : send_error(req, "400 Bad Request", "on: true or false expected");
 }
 
+#if CONFIG_DB_MATTER
+esp_err_t get_matter(httpd_req_t *req)
+{
+    char buf[512];
+    db_json_t j;
+    db_json_begin(&j, buf, sizeof(buf));
+    db_json_obj_open(&j, NULL);
+    db_matter_codes(&j);
+    db_json_obj_close(&j);
+    db_json_end(&j);
+    return send_json(req, buf);
+}
+
+/* {"on": true|false}, {"pair": true}, {"show": true} */
+esp_err_t post_matter(httpd_req_t *req)
+{
+    char body[32];
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    const cJSON *on = cJSON_GetObjectItemCaseSensitive(root, "on");
+    bool pair = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "pair"));
+    bool show = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "show"));
+    bool ok = cJSON_IsBool(on) || pair || show;
+    if (cJSON_IsBool(on)) {
+        db_matter_set_on(cJSON_IsTrue(on));
+    }
+    cJSON_Delete(root);
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "on: true or false, pair: true or show: true expected");
+    }
+    if (pair && !db_matter_open_window()) {
+        return send_error(req, "409 Conflict", "Matter is off");
+    }
+    if (show && !db_matter_show()) {
+        return send_error(req, "409 Conflict", "no deck connected, or Matter is off");
+    }
+    return send_json(req, "{\"ok\":true}");
+}
+
+/* Debug: the body of POST /api/input, for Matter alone. */
+static int matter_press(const char *body, char *reply, size_t cap)
+{
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *serial = cJSON_GetObjectItemCaseSensitive(root, "deck");
+    int deck = cJSON_IsString(serial) ? db_deck_find(serial->valuestring) : db_deck_first();
+    db_input_t ev;
+    db_input_t then = {.kind = 0};
+    const char *err = deck < 0 || !db_deck_info(deck, &dev) ? "no such deck"
+                      : root                                ? read_input(root, &dev, &ev, &then)
+                                                            : "invalid JSON";
+    cJSON_Delete(root);
+    if (err) {
+        return fail(reply, cap, 400, err);
+    }
+    if (!db_matter_debug_input(deck, &ev) || (then.kind && !db_matter_debug_input(deck, &then))) {
+        return fail(reply, cap, 409, "Matter is off");
+    }
+    snprintf(reply, cap, "{\"ok\":true}");
+    return 200;
+}
+
+esp_err_t post_matter_press(httpd_req_t *req)
+{
+    return body_api(req, matter_press);
+}
+
+esp_err_t delete_matter(httpd_req_t *req)
+{
+    if (db_matter_erase() != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "reset failed");
+    }
+    send_json(req, "{\"ok\":true}");
+    restart_soon();
+    return ESP_OK;
+}
+#endif
+
 /* {"accept": true|false} answers a request, {"pairing": seconds} opens pairing (0 closes it), {"forget":
  * true} drops every paired host, {"forget": "IP"} one. */
 esp_err_t post_dock(httpd_req_t *req)
@@ -1031,6 +1108,11 @@ esp_err_t put_setup(httpd_req_t *req)
 }
 
 #define RELEASES "https://github.com/FusselTV/DeckConnector/releases.atom"
+#if CONFIG_DB_MATTER
+#define IMAGE "deckconnector-matter"
+#else
+#define IMAGE "deckconnector"
+#endif
 #define FEED_MAX (128 * 1024)
 #define TAG_PATH "/releases/tag/"
 
@@ -1172,7 +1254,7 @@ esp_err_t get_update_check(httpd_req_t *req)
         snprintf(link, sizeof(link), "%s" TAG_PATH "%s", base, best);
         db_json_str(&j, "notes", link);
         if (db_version_cmp(best, current) > 0) {
-            snprintf(link, sizeof(link), "%s/releases/download/%s/deckconnector-%s.dbfw", base, best, best);
+            snprintf(link, sizeof(link), "%s/releases/download/%s/" IMAGE "-%s.dbfw", base, best, best);
             db_json_str(&j, "url", link);
         }
     }

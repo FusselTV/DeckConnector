@@ -53,15 +53,21 @@ bool db_ui_locked(int deck);
 void db_ui_close_menu(void);
 /* The menu, the password page, the reset question or a login request covers the deck. */
 bool db_ui_menu_open(void);
+#define DB_UI_QR_BYTES ((41 * 41 + 7) / 8)
+/* `text` as a QR code, row by row from the top left, the lowest bit first; returns its size, 0 when it does
+ * not fit. */
+int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES]);
+/* The Matter pairing code for 60 s, in the Matter image. The number of decks it shows on. */
+int db_ui_show_matter(const char *qr, const char *code);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
 /* The same page shows the device CA's short fingerprint for 30 s instead, when someone downloads the CA. */
 void db_ui_show_ca(const char *fingerprint);
 /* The deck asks for 60 s whether to reset every setting; only taps on the deck itself answer. Seconds left,
  * -1 when no deck is connected. */
-/** Factory reset, the deck's and the web page's: settings, API keys, pairings, the crash report (its stacks
- * can hold the password) and an uploaded web page. The firmware, its slots and the bridge's own certificate
- * stay. */
+/** Factory reset, the deck's and the web page's: settings, API keys, pairings (Matter's too), the crash
+ * report (its stacks can hold the password) and an uploaded web page. The firmware, its slots and the
+ * bridge's own certificate stay. */
 esp_err_t db_ui_factory_reset(void);
 int db_ui_ask_reset(void);
 void db_ui_cancel_reset(void);

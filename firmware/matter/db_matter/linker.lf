@@ -1,0 +1,11 @@
+# The Matter SDK's zero-initialised data goes to PSRAM: about 170 KB of internal RAM otherwise. esp_matter's own
+# fragment moves only .ext_ram.bss, which nothing there has.
+[scheme:matter_psram]
+entries:
+    bss -> extern_ram
+    common -> extern_ram
+
+[mapping:matter_psram]
+archive: libesp_matter.a
+entries:
+    * (matter_psram)

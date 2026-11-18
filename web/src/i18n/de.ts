@@ -812,4 +812,22 @@ export const de: Dict = {
   'access.proxy': 'Reverse Proxy',
   'access.proxy_h':
     'Die Adresse eines Proxys wie Caddy vor dem Connector. Sein X-Forwarded-For nennt dann den Client. Leer: keiner.',
+  'mt.title': 'Matter',
+  'mt.intro':
+    'Tasten und Drehregler-Drücke erscheinen als Taster in Apple Home, Google Home, Home Assistant und anderen Matter-Apps.',
+  'mt.on': 'An',
+  'mt.paired_one': 'Mit {n} App gekoppelt.',
+  'mt.paired_other': 'Mit {n} Apps gekoppelt.',
+  'mt.unpaired': 'Noch nicht gekoppelt.',
+  'mt.code': 'Kopplungscode',
+  'mt.open': 'Koppeln ist 15 Minuten lang offen. Füg in deiner App ein Gerät hinzu und scann den Code.',
+  'mt.pair_first': 'Koppeln starten',
+  'mt.pair': 'Weitere App koppeln',
+  'mt.show': 'Auf dem Deck zeigen',
+  'mt.shown': 'Der Code ist auf dem Deck.',
+  'mt.reset': 'Matter zurücksetzen',
+  'cf.mt_off': 'Matter ausschalten?',
+  'cf.mt_off_b': 'Der Connector startet neu. Das Deck ist etwa 10 s dunkel.',
+  'cf.mt_reset': 'Matter zurücksetzen?',
+  'cf.mt_reset_b': 'Jede App verliert das Deck. Der Kopplungscode ändert sich. Der Connector startet neu.',
 }

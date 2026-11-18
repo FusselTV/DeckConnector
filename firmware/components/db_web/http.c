@@ -594,6 +594,12 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
+#if CONFIG_DB_MATTER
+        {{.uri = "/api/matter", .method = HTTP_GET, .handler = get_matter}, WEB_FULL},
+        {{.uri = "/api/matter", .method = HTTP_POST, .handler = post_matter}, WEB_FULL},
+        {{.uri = "/api/matter", .method = HTTP_DELETE, .handler = delete_matter}, WEB_FULL},
+        {{.uri = "/api/matter/press", .method = HTTP_POST, .handler = post_matter_press}, WEB_FULL},
+#endif
         {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_FULL},
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},
         {{.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image}, WEB_CONTROL},

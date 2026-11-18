@@ -8,6 +8,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#if __has_include("sdkconfig.h")
+#include "sdkconfig.h" /* CONFIG_DB_MATTER changes the model: every file must see it */
+#endif
 
 #include "canvas.h"
 #include "db_device.h"
@@ -149,6 +152,11 @@ typedef struct {
     uint32_t login_seq; /* which request the page shows, so an answer cannot reach a newer one */
     bool locked;        /* Companion locked the deck with its PIN */
     db_sat_pin_t pin;   /* when locked */
+#if CONFIG_DB_MATTER
+    bool show_matter;
+    char matter_code[16];
+    ui_qr_t matter_qr;
+#endif
 } ui_model_t;
 
 typedef enum {
@@ -190,6 +198,7 @@ typedef enum {
     PAGE_REQUEST,  /* shown over every page while a host that is not paired asks */
     PAGE_OFFER,    /* instead of home or welcome while a found Companion is offered */
     PAGE_PASSWORD, /* over every page, below a request, PAGE_RESET and PAGE_LOGIN_REQ */
+    PAGE_MATTER,   /* the Matter pairing code, like PAGE_PASSWORD */
     PAGE_RESET,
     PAGE_LOGIN_REQ, /* over every page, below a request and PAGE_RESET */
     PAGE_LOCK,      /* Companion's PIN pad, over every page below the password */
