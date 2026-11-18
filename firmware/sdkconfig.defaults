@@ -48,7 +48,8 @@ CONFIG_LWIP_TCP_MSL=1000
 # the address comes seconds sooner: no ARP probe of the offered address, and the last one is asked for first
 CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP=y
 CONFIG_LWIP_DHCP_RESTORE_LAST_IP=y
-CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+# a browser sends every cookie of a shared parent domain (deck.example.com behind a proxy)
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=8192
 
 # The co-processor (ESP32-C6) gives the P4 its WLAN
 CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6=y
