@@ -28,6 +28,10 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_bool(&j, "menu_open", db_ui_menu_open());
     db_json_bool(&j, "screen_off", db_deck_screen_is_off());
     db_json_int(&j, "brightness", db_config()->brightness);
+    db_json_int(&j, "volume", db_config()->volume);
+    db_json_int(&j, "screen_off_s", (int)db_config()->screen_off_s);
+    db_json_int(&j, "max_decks", db_config()->max_decks);
+    db_json_bool(&j, "speaker", false);
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
@@ -56,6 +60,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
         db_json_str(&j, "writer", db_deck_source_name(db_deck_writer(d)));
         db_json_bool(&j, "dock", dev.dock);
         db_json_int(&j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
+        db_json_bool(&j, "locked", false);
         db_json_obj_close(&j);
     }
     db_json_arr_close(&j);

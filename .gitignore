@@ -18,3 +18,4 @@ node_modules/
 # private bench notes and values
 CLAUDE.local.md
 bench.json
+.coverage

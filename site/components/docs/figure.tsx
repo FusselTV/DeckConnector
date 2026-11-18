@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import Image from 'next/image'
 import { ArrowDown, ArrowRight } from 'lucide-react'
 
 export type Lang = 'en' | 'de'
@@ -34,5 +35,15 @@ export function Next({ links, lang = 'en' }: { links: [string, string][]; lang?:
         </a>
       ))}
     </nav>
+  )
+}
+
+/** A screenshot in both themes: /docs/<src>-dark.webp and -light.webp, shown by the site's theme. */
+export function Shot({ src, alt, width, height }: { src: string; alt: string; width: number; height: number }) {
+  return (
+    <>
+      <Image src={`/docs/${src}-dark.webp`} alt={alt} width={width} height={height} className="shot-dark h-auto max-w-full" />
+      <Image src={`/docs/${src}-light.webp`} alt={alt} width={width} height={height} className="shot-light h-auto max-w-full" />
+    </>
   )
 }

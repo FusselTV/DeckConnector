@@ -4,7 +4,7 @@ import json
 import time
 
 import pytest
-from conftest import HOST, TARGET, api, wait_for_bridge
+from conftest import HOST, TARGET, api, status, wait_for_bridge
 
 
 @pytest.mark.sim
@@ -27,6 +27,17 @@ def test_volume_works_at_once():
         assert code == 200 and json.loads(body)["restart"] is False, body
     finally:
         api("PUT", "/api/config", json.dumps({"volume": before}).encode())
+
+
+@pytest.mark.sim
+def test_the_status_carries_the_settings_home_assistant_sets():
+    config = json.loads(api("GET", "/api/config")[1])
+    try:
+        api("PUT", "/api/config", json.dumps({"screen_off_s": 600, "volume": 33}).encode())
+        st = status()
+        assert (st["screen_off_s"], st["volume"], st["max_decks"]) == (600, 33, config["max_decks"]), st
+    finally:
+        api("PUT", "/api/config", json.dumps({k: config[k] for k in ("screen_off_s", "volume")}).encode())
 
 
 @pytest.mark.skipif(TARGET == "sim", reason="the simulator ends on a restart")

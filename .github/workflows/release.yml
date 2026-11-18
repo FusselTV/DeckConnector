@@ -16,6 +16,11 @@ jobs:
       actions: read # ci.yml's sizes job asks for it, used on pull requests only
       pull-requests: read # ci.yml asks for it, used on pull requests only
 
+  ha:
+    uses: ./.github/workflows/ha.yml
+    permissions:
+      contents: read
+
   sign:
     needs: ci
     runs-on: [self-hosted, deckconnector]
@@ -87,7 +92,7 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    needs: sign
+    needs: [sign, ha]
     runs-on: [self-hosted, deckconnector]
     timeout-minutes: 10
     permissions:
@@ -107,6 +112,25 @@ jobs:
         with:
           name: web-page
           path: web/dist
+      # HACS installs this asset (hacs.json zip_release), with the tag as the integration's version.
+      - name: Home Assistant integration
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, zipfile
+          from pathlib import Path
+
+          src = Path("custom_components/deckconnector")
+          with zipfile.ZipFile("assets/deckconnector.zip", "w", zipfile.ZIP_DEFLATED) as z:
+              for f in sorted(p for p in src.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
+                  data = f.read_bytes()
+                  if f.name == "manifest.json":
+                      manifest = json.loads(data)
+                      manifest["version"] = os.environ["TAG"].removeprefix("v")
+                      data = (json.dumps(manifest, indent=2) + "\n").encode()
+                  z.writestr(str(f.relative_to(src)), data)
+          EOF
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}

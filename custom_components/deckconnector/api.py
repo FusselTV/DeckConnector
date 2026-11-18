@@ -68,7 +68,10 @@ class Api:
         return (await _call(self.session, method, f"http://{self.host}{path}", json=body, headers=self.headers))[0]
 
     async def status(self) -> dict[str, Any]:
-        return await self.request("GET", "/api/status")
+        body = await self.request("GET", "/api/status")
+        if not isinstance(body, dict):
+            raise DeckConnectorError("the status is not a JSON object")
+        return body
 
     async def screen_jpg(self, serial: str) -> bytes | None:
         try:
@@ -95,7 +98,7 @@ async def login_request(session: aiohttp.ClientSession, host: str) -> str:
         )
     except ConflictError as err:
         raise NoDeckError(str(err)) from err
-    return body["id"]
+    return str(body["id"])
 
 
 async def login_cancel(session: aiohttp.ClientSession, host: str, request: str) -> None:
@@ -133,4 +136,4 @@ async def create_token(
     if cookie:
         with contextlib.suppress(DeckConnectorError):
             await _call(session, "POST", f"http://{host}/api/logout", headers=headers)
-    return body["token"]
+    return str(body["token"])

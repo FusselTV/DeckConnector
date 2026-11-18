@@ -27,6 +27,7 @@ async def test_triggers_per_model(hass, entry, aioclient_mock, socket):
     assert len(plus) == 8 + 4 * 3 + 4
     assert len(xl) == 32
     assert not [t for t in found[ids["board"]] if t["domain"] == "deckconnector"]
+    assert {t["domain"] for t in found[ids["plus"]]} == {"deckconnector"}, "HomeKit would show the others as buttons"
     assert {"type": "turn_left", "subtype": "dial_4"}.items() <= next(
         t for t in plus if t["subtype"] == "dial_4" and t["type"] == "turn_left"
     ).items()

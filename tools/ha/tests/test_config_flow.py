@@ -189,3 +189,118 @@ async def test_something_else_answers(hass, aioclient_mock):
     result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": HOST})
     assert result["errors"] == {"base": "not_deckconnector"}
+
+
+def login(aioclient_mock, state="accepted"):
+    aioclient_mock.post(f"{BASE}/api/login/request", json={"id": "f" * 32, "s": 60})
+    aioclient_mock.get(
+        f"{BASE}/api/login/request/{'f' * 32}", json={"state": state, "s": 0}, cookies={"dc_session": "c" * 64}
+    )
+    aioclient_mock.delete(f"{BASE}/api/login/request/{'f' * 32}", json={"ok": True})
+    aioclient_mock.post(f"{BASE}/api/logout", json={"ok": True})
+
+
+async def zeroconf(hass):
+    return await hass.config_entries.flow.async_init(
+        "deckconnector", context={"source": SOURCE_ZEROCONF}, data=DISCOVERY
+    )
+
+
+@pytest.mark.parametrize(
+    ("tokens", "error"),
+    [
+        ({"status": 409, "json": {"ok": False, "error": "8 tokens"}}, "too_many_keys"),
+        ({"status": 500, "json": {"ok": False, "error": "busy"}}, "cannot_connect"),
+    ],
+)
+async def test_pairing_that_cannot_make_a_key(hass, aioclient_mock, tokens, error):
+    result = await zeroconf(hass)
+    login(aioclient_mock)
+    aioclient_mock.post(f"{BASE}/api/tokens", **tokens)
+    result = await pair(hass, result["flow_id"])
+    assert result["step_id"] == "password" and result["errors"] == {"base": error}
+
+
+async def test_a_request_nobody_answers_runs_out(hass, aioclient_mock):
+    result = await zeroconf(hass)
+    login(aioclient_mock, state="pending")
+    with patch("custom_components.deckconnector.config_flow.ASK_S", 2):
+        result = await pair(hass, result["flow_id"])
+    assert result["errors"] == {"base": "not_accepted"}
+
+
+async def test_closing_the_dialog_stops_the_pairing(hass, aioclient_mock):
+    result = await zeroconf(hass)
+    login(aioclient_mock, state="pending")
+    with patch("custom_components.deckconnector.config_flow.POLL_S", 60):
+        progress = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "pair"})
+        assert progress["type"] is FlowResultType.SHOW_PROGRESS
+        hass.config_entries.flow.async_abort(result["flow_id"])
+        await hass.async_block_till_done()
+    assert any(c[0] == "DELETE" for c in aioclient_mock.mock_calls)
+
+
+async def test_password_on_an_unreachable_board(hass, aioclient_mock):
+    result = await zeroconf(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "password"})
+    aioclient_mock.post(f"{BASE}/api/tokens", exc=TimeoutError)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
+    assert result["errors"] == {"base": "cannot_connect"}
+
+
+async def test_the_board_goes_away_after_the_key(hass, aioclient_mock):
+    result = await zeroconf(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "password"})
+    aioclient_mock.post(f"{BASE}/api/tokens", json={"token": TOKEN})
+    aioclient_mock.get(f"{BASE}/api/status", exc=TimeoutError)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "cannot_connect"
+
+
+NEW = "192.0.2.77"
+
+
+async def test_reconfigure_keeps_the_key(hass, entry, aioclient_mock):
+    entry.add_to_hass(hass)
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["step_id"] == "reconfigure"
+    aioclient_mock.get(f"http://{NEW}/api/status", json=STATUS)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": NEW})
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "reconfigure_successful"
+    assert entry.data == {"host": NEW, "token": TOKEN}
+
+
+async def test_reconfigure_to_another_board_is_refused(hass, entry, aioclient_mock):
+    entry.add_to_hass(hass)
+    result = await entry.start_reconfigure_flow(hass)
+    aioclient_mock.get(f"http://{NEW}/api/status", json={**STATUS, "id": "ffffffffffff"})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": NEW})
+    assert result["type"] is FlowResultType.ABORT and result["reason"] == "unique_id_mismatch"
+    assert entry.data["host"] == HOST
+
+
+async def test_reconfigure_asks_for_access_when_the_key_is_unknown(hass, entry, aioclient_mock):
+    entry.add_to_hass(hass)
+    result = await entry.start_reconfigure_flow(hass)
+    aioclient_mock.get(f"http://{NEW}/api/status", status=401, json={"ok": False})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": NEW})
+    assert result["type"] is FlowResultType.MENU
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"next_step_id": "password"})
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(f"http://{NEW}/api/tokens", json={"token": "n" * 64})
+    aioclient_mock.get(f"http://{NEW}/api/status", json=STATUS)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"password": "secret"})
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data == {"host": NEW, "token": "n" * 64}
+
+
+@pytest.mark.parametrize(
+    ("answer", "error"),
+    [({"exc": TimeoutError}, "cannot_connect"), ({"status": 403, "text": "HTTPS only"}, "https_only")],
+)
+async def test_reconfigure_errors(hass, entry, aioclient_mock, answer, error):
+    entry.add_to_hass(hass)
+    result = await entry.start_reconfigure_flow(hass)
+    aioclient_mock.get(f"http://{NEW}/api/status", **answer)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": NEW})
+    assert result["step_id"] == "reconfigure" and result["errors"] == {"base": error}

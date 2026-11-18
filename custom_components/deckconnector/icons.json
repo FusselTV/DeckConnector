@@ -1,14 +1,40 @@
 {
   "entity": {
+    "binary_sensor": {
+      "backup_wifi": {
+        "default": "mdi:wifi",
+        "state": { "on": "mdi:wifi-alert" }
+      },
+      "ethernet": {
+        "default": "mdi:ethernet",
+        "state": { "off": "mdi:ethernet-off" }
+      },
+      "pin_lock": {
+        "default": "mdi:lock-open-variant",
+        "state": { "off": "mdi:dialpad" }
+      }
+    },
+    "button": {
+      "find": { "default": "mdi:volume-high" },
+      "reconnect": { "default": "mdi:usb-port" }
+    },
     "camera": { "screen": { "default": "mdi:view-grid" } },
     "event": { "controls": { "default": "mdi:gesture-tap-button" } },
-    "number": { "brightness": { "default": "mdi:brightness-6" } },
+    "number": {
+      "brightness": { "default": "mdi:brightness-6" },
+      "screen_off_after": { "default": "mdi:monitor-off" },
+      "volume": {
+        "default": "mdi:volume-high",
+        "range": { "0": "mdi:volume-off", "1": "mdi:volume-low", "34": "mdi:volume-medium", "67": "mdi:volume-high" }
+      }
+    },
     "select": { "controller": { "default": "mdi:swap-horizontal" } },
     "sensor": {
       "host": {
         "default": "mdi:monitor-share",
         "state": { "board": "mdi:home-outline" }
-      }
+      },
+      "wifi_network": { "default": "mdi:wifi" }
     },
     "switch": {
       "screen": {

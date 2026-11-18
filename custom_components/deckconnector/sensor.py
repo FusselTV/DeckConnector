@@ -52,6 +52,12 @@ BOARD_SENSORS = (
         value=lambda d: d.get("network", {}).get("wlan", {}).get("rssi") or None,
     ),
     BoardSensorDescription(
+        key="wifi_network",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        value=lambda d: d.get("network", {}).get("wlan", {}).get("ssid") or None,
+    ),
+    BoardSensorDescription(
         key="last_restart",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -71,7 +77,7 @@ def host_of(data: dict[str, Any], deck: dict[str, Any]) -> str | None:
         return "server"
     for source in data.get("sources", []):
         if source.get("drawing") and source.get("deck") == deck["slot"] and source["kind"] in HOSTS:
-            return source["kind"]
+            return str(source["kind"])
     return None
 
 

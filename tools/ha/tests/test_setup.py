@@ -36,7 +36,7 @@ def entities(hass, entry):
 
 @pytest.mark.parametrize(
     ("decks", "count"),
-    [((), 8), ((PLUS,), 11), ((PLUS, XL), 14)],
+    [((), 14), ((PLUS,), 19), ((PLUS, XL), 24)],
 )
 async def test_entity_count(hass: HomeAssistant, entry, aioclient_mock, socket, decks, count):
     await setup(hass, entry, aioclient_mock, socket, *decks)
@@ -157,7 +157,7 @@ async def test_polled_values_survive_a_state_push(hass, entry, aioclient_mock, s
     del pushed["temp_c"]
     await socket.queue.put({"t": "state", **pushed})
     await hass.async_block_till_done()
-    assert coordinator.data["network"]["wlan"] == {"rssi": -48, "ssid": "studio"}
+    assert coordinator.data["network"]["wlan"] == {"rssi": -48, "ssid": "studio", "backup": False}
     assert hass.states.get("sensor.deckconnector_a1b2c3_temperature").state == "41"
 
 
@@ -181,8 +181,8 @@ async def test_the_same_deck_on_two_boards_gets_entities_on_both(hass, entry, ai
     other.add_to_hass(hass)
     assert await hass.config_entries.async_setup(other.entry_id)
     await hass.async_block_till_done()
-    assert len(entities(hass, entry)) == 11
-    assert len(entities(hass, other)) == 11
+    assert len(entities(hass, entry)) == 19
+    assert len(entities(hass, other)) == 19
 
 
 async def test_a_deck_in_another_slot_keeps_its_entities(hass, entry, aioclient_mock, socket):
@@ -192,7 +192,7 @@ async def test_a_deck_in_another_slot_keeps_its_entities(hass, entry, aioclient_
     await hass.async_block_till_done()
     assert before <= {e.entity_id for e in entities(hass, entry)}
     assert hass.states.get("event.stream_deck_controls").state == STATE_UNKNOWN
-    assert len(entities(hass, entry)) == 14
+    assert len(entities(hass, entry)) == 24
 
 
 async def test_a_refused_command_is_a_translated_error(hass, entry, aioclient_mock, socket):

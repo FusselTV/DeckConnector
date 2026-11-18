@@ -1,3 +1,6 @@
 DOMAIN = "deckconnector"
 SIGNAL_INPUT = "deckconnector_input_{}"
 SIGNAL_SCREEN = "deckconnector_screen_{}"
+DOCS = "https://deckconnector.com/docs/"
+ISSUE_HTTPS_ONLY = "https_only"
+ISSUE_DECKS_OVER_LIMIT = "decks_over_limit"

@@ -23,6 +23,15 @@
         "data": {
           "password": "Passwort"
         }
+      },
+      "reconfigure": {
+        "description": "Neue Adresse von {name}. Home Assistant behält seinen API-Schlüssel oder fragt neu nach Zugriff, wenn die Platine ihn nicht kennt.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP-Adresse oder Hostname, zum Beispiel 192.168.1.50 oder deckconnector-a1b2c3.local"
+        }
       }
     },
     "progress": {
@@ -41,13 +50,31 @@
       "already_configured": "Diese Platine ist schon eingerichtet.",
       "cannot_connect": "Die Platine ist nicht erreichbar.",
       "reauth_successful": "Zugriff erneuert.",
-      "unique_id_mismatch": "Das ist eine andere Platine."
+      "unique_id_mismatch": "Das ist eine andere Platine.",
+      "reconfigure_successful": "Adresse geändert."
     }
   },
   "entity": {
+    "binary_sensor": {
+      "ethernet": {
+        "name": "Ethernet"
+      },
+      "backup_wifi": {
+        "name": "Ersatz-WLAN"
+      },
+      "pin_lock": {
+        "name": "PIN-Sperre"
+      }
+    },
     "button": {
       "restart": {
         "name": "Neustart"
+      },
+      "find": {
+        "name": "Finden"
+      },
+      "reconnect": {
+        "name": "Neu verbinden"
       }
     },
     "camera": {
@@ -169,6 +196,12 @@
     "number": {
       "brightness": {
         "name": "Helligkeit"
+      },
+      "screen_off_after": {
+        "name": "Bildschirm aus nach"
+      },
+      "volume": {
+        "name": "Lautstärke"
       }
     },
     "select": {
@@ -199,6 +232,9 @@
       },
       "last_restart": {
         "name": "Letzter Neustart"
+      },
+      "wifi_network": {
+        "name": "WLAN-Netz"
       }
     },
     "switch": {
@@ -218,6 +254,15 @@
     },
     "no_update": {
       "message": "Es gibt keine neuere Firmware."
+    },
+    "cannot_connect": {
+      "message": "Die Platine ist nicht erreichbar: {error}"
+    },
+    "auth_failed": {
+      "message": "Die Platine nimmt den API-Schlüssel von Home Assistant nicht mehr an."
+    },
+    "https_only": {
+      "message": "Die Platine erlaubt nur HTTPS."
     }
   },
   "device_automation": {
@@ -274,6 +319,24 @@
       "dial_5": "Drehregler 5",
       "dial_6": "Drehregler 6",
       "touch_strip": "Touchleiste"
+    }
+  },
+  "issues": {
+    "https_only": {
+      "title": "{name} erlaubt nur HTTPS",
+      "description": "Home Assistant spricht über HTTP mit der Platine. Schalte **Nur HTTPS** unter **Zugang** auf der Weboberfläche von {name} aus. Die Integration verbindet sich dann von selbst wieder."
+    },
+    "decks_over_limit": {
+      "title": "{count} Deck(s) an {name} bleiben dunkel",
+      "description": "{name} betreibt {max} Deck(s) gleichzeitig. Erhöhe die Grenze unter **Deck** auf der Weboberfläche oder stecke ein Deck ab. Die Decks teilen sich den Strom des USB-Anschlusses der Platine, nimm für mehr Decks einen Hub mit eigenem Netzteil."
+    }
+  },
+  "system_health": {
+    "info": {
+      "boards": "Platinen",
+      "connected": "Verbunden",
+      "decks": "Decks",
+      "firmware": "Firmware"
     }
   }
 }
