@@ -1,0 +1,5 @@
+dependencies:
+  espressif/esp_matter:
+    version: "1.6.1"
+    override_path: "../esp_matter"
+  espressif/qrcode: "^0.1.0"

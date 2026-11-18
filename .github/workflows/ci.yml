@@ -65,7 +65,7 @@ jobs:
         with:
           enable-cache: false
       - run: cd tools && uvx ruff@0.17.4 check . && uvx ruff@0.17.4 format --check .
-      - run: git ls-files 'firmware/components/db_*/*.c' 'firmware/components/db_*/*.h' 'firmware/components/db_*/include/*.h' 'firmware/main/*.c' 'firmware/components/db_core/drivers/*.c' 'firmware/host_test/*.c' | grep -v font_data.c | xargs pipx run clang-format==23.1.3 --dry-run --Werror
+      - run: git ls-files 'firmware/components/db_*/*.c' 'firmware/components/db_*/*.h' 'firmware/components/db_*/include/*.h' 'firmware/main/*.c' 'firmware/components/db_core/drivers/*.c' 'firmware/host_test/*.c' 'firmware/matter/db_matter/*.cpp' | grep -v font_data.c | xargs pipx run clang-format==23.1.3 --dry-run --Werror
       - run: sudo apt-get install -y ninja-build && cmake -S firmware/host_test -B build-host -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - run: pipx run clang-tidy==23.1.4 -p build-host firmware/components/db_core/*.c firmware/components/db_core/drivers/*.c
 
@@ -199,6 +199,55 @@ jobs:
           if-no-files-found: error
 
 
+  # The Matter image (firmware/matter): the same firmware plus Matter, a separate download.
+  firmware-matter:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+    steps:
+      - run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup > /dev/null 2>&1 < /dev/null &
+          (docker pull -q "$IDF_IMAGE"; echo $? > "$RUNNER_TEMP/pull-status") > "$RUNNER_TEMP/pull.log" 2>&1 < /dev/null &
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # git describe sets the firmware version
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: ${{ github.ref_type != 'tag' && 'npm' || '' }}
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci && npx vite build
+      - if: github.ref_type != 'tag'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ccache
+          key: ccache-matter-${{ github.sha }}
+          restore-keys: ccache-matter-
+      - name: Wait for the ESP-IDF image
+        timeout-minutes: 8
+        run: |
+          until test -s "$RUNNER_TEMP/pull-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/pull.log"
+          exit "$(cat "$RUNNER_TEMP/pull-status")"
+      - name: Build
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/w" -w /w -e CCACHE_DIR=/w/.ccache -e CCACHE_MAXSIZE=1G "$IDF_IMAGE" bash -c '
+            set -e
+            git config --global --add safe.directory /w
+            idf.py -C firmware/matter build
+          '
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deckconnector-matter
+          path: firmware/matter/build/deckconnector.bin
+          if-no-files-found: error
+
   # A PR may grow the web page or the firmware by 1 % at most, or it needs the label
   # size-increase (then re-run this job).
   sizes:
@@ -246,7 +295,7 @@ jobs:
 
   # The one check branch protection needs: it fails when any job above failed or was cancelled.
   ci-ok:
-    needs: [changes, host-tests, lint, web, demo, firmware, sizes]
+    needs: [changes, host-tests, lint, web, demo, firmware, firmware-matter, sizes]
     if: always()
     runs-on: ubuntu-26.04
     timeout-minutes: 2

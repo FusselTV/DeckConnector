@@ -40,6 +40,11 @@ jobs:
       - if: env.OTA_SIGNING_KEY != ''
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
+          name: deckconnector-matter
+          path: firmware/matter/build
+      - if: env.OTA_SIGNING_KEY != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
           name: web-page
           path: web/dist
       - if: env.OTA_SIGNING_KEY != ''
@@ -69,6 +74,8 @@ jobs:
           tag = os.environ["GITHUB_REF_NAME"]
           app = Path("../firmware/build/deckconnector.bin").read_bytes()
           Path(f"out/deckconnector-{tag}.dbfw").write_bytes(dbfw.build("p4", app, tag, key))
+          matter = Path("../firmware/matter/build/deckconnector.bin").read_bytes()
+          Path(f"out/deckconnector-matter-{tag}.dbfw").write_bytes(dbfw.build("p4", matter, tag, key))
           Path(f"out/deckconnector-web-{tag}.dbfw").write_bytes(dbfw.web_image(key))
           EOF
           rm ~/.config/deckbridge/ota_key.pem

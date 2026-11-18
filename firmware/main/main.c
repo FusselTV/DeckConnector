@@ -9,6 +9,7 @@
 #include "db_json.h"
 #include "db_link.h"
 #include "db_log.h"
+#include "db_matter.h"
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_satellite.h"
@@ -282,6 +283,9 @@ static void write_status(db_json_t *j, bool live)
     write_device(j);
     write_network(j, live);
     write_sources(j, live);
+#if CONFIG_DB_MATTER
+    db_matter_status(j);
+#endif
     if (!live) {
         return;
     }
@@ -521,6 +525,9 @@ void app_main(void)
     db_net_on_change(on_net);
     started("deck", db_deck_start(strcmp(db_config()->usb_speed, "full") == 0, db_config()->max_decks));
     started("network", db_net_start());
+#if CONFIG_DB_MATTER
+    db_matter_start();
+#endif
     db_ui_set_c6_version(db_ota_c6_version());
     db_ota_set_progress_cb(on_ota_progress);
 

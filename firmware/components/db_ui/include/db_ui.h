@@ -50,6 +50,8 @@ esp_err_t db_ui_open_menu(int deck);
 void db_ui_close_menu(void);
 /* The menu, the password page, the reset question or a login request covers the deck. */
 bool db_ui_menu_open(void);
+/* The Matter pairing code for 60 s, in the Matter image. The number of decks it shows on. */
+int db_ui_show_matter(const char *qr, const char *code);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
 /* The deck asks for 60 s whether to reset every setting; only taps on the deck itself answer. Seconds left,

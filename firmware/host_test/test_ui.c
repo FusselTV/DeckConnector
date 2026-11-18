@@ -292,6 +292,14 @@ static void test_no_page_cuts_a_text(void)
             snprintf(name, sizeof(name), "%s_password_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
             md.show_pass = false;
+            md.show_matter = true;
+            strcpy(md.matter_code, "3497-011-2332");
+            md.matter_qr.size = 25;
+            memset(md.matter_qr.bits, 0xa5, sizeof(md.matter_qr.bits));
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_matter_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
+            md.show_matter = false;
             md.reset_ask = true;
             for (int again = 0; again < 2; again++) {
                 m.confirm_key = again ? 1 : -1;
@@ -662,6 +670,12 @@ static void test_password_and_reset_pages(void)
     press(&m, &md, &l, 5, &act); /* any key hides the password */
     TEST_ASSERT_EQUAL_INT(UI_DO_HIDE_PASSWORD, act.what);
     TEST_ASSERT_EQUAL_INT(PAGE_MAIN, m.page);
+    md.show_pass = false;
+    md.show_matter = true;
+    press(&m, &md, &l, 5, &act); /* and the Matter code */
+    TEST_ASSERT_EQUAL_INT(UI_DO_HIDE_PASSWORD, act.what);
+    TEST_ASSERT_EQUAL_INT(PAGE_MAIN, m.page);
+    md.show_matter = false;
 
     md.reset_ask = true; /* comes first */
     md.from_deck = false;
