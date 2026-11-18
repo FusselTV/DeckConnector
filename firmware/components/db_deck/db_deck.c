@@ -245,6 +245,8 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
         reject = DB_ACK_NO_DEVICE;
     } else if (!db_device_find_target(&k->dev.info, display, rect)) {
         reject = DB_ACK_REJECTED_RECT;
+    } else if (k->dev.info.displays[display].max_bytes && len > k->dev.info.displays[display].max_bytes) {
+        reject = DB_ACK_TOO_BIG;
     } else if (source == DB_SOURCE_SAT && source != k->writer) {
         /* under the lock: a writer change cannot slip in between and replay the picture without it */
         xSemaphoreTake(k->shot_lock, portMAX_DELAY);
@@ -282,13 +284,17 @@ static void writer_task(void *arg)
         const db_driver_t *drv = k->dev.driver;
         ulTaskNotifyTake(pdTRUE, drv && drv->tick ? pdMS_TO_TICKS(drv->tick_ms) : portMAX_DELAY);
         for (;;) {
-            xSemaphoreTake(k->io_lock, portMAX_DELAY);
-            int64_t now = esp_timer_get_time();
-            if (k->present && k->dev.driver->tick && now - ticked >= k->dev.driver->tick_ms * 1000LL) {
-                ticked = now;
-                k->dev.driver->tick(&k->dev);
+            drv = k->dev.driver;
+            if (drv && drv->tick) {
+                xSemaphoreTake(k->io_lock, portMAX_DELAY);
+                int64_t now = esp_timer_get_time();
+                drv = k->dev.driver; /* another deck may have come meanwhile */
+                if (k->present && drv->tick && now - ticked >= drv->tick_ms * 1000LL) {
+                    ticked = now;
+                    drv->tick(&k->dev);
+                }
+                xSemaphoreGive(k->io_lock);
             }
-            xSemaphoreGive(k->io_lock);
             /* between images, also in a stream; read now, so a wake or a dark that raced it still wins */
             int lit = __atomic_load_n(&k->lit, __ATOMIC_RELAXED);
             if (__atomic_exchange_n(&k->brightness, 0, __ATOMIC_RELAXED) && k->present &&
@@ -470,14 +476,8 @@ static void save_owners(void)
     }
 }
 
-static int take_slot(int port, const char *serial)
+static int take_slot(const char *id)
 {
-    db_slot_owner_t id;
-    if (serial[0]) {
-        snprintf(id, sizeof(id), "%s", serial);
-    } else {
-        snprintf(id, sizeof(id), "port %s", usb_port_path(port));
-    }
     bool taken[DB_MAX_DECKS];
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         taken[d] = decks[d].present;
@@ -536,8 +536,16 @@ static void handle_attach(uint8_t address)
     if (!dev.info.serial[0]) {
         usb_port_serial(port, dev.info.serial, sizeof(dev.info.serial));
     }
+    db_slot_owner_t others[DB_MAX_DECKS];
+    int n = 0;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (decks[d].present) {
+            snprintf(others[n++], sizeof(others[0]), "%s", decks[d].dev.info.serial);
+        }
+    }
+    db_deck_identity(dev.info.serial, usb_port_path(port), others, n);
     bool full = present_count() >= s.max_decks;
-    int deck = full ? -1 : take_slot(port, dev.info.serial);
+    int deck = full ? -1 : take_slot(dev.info.serial);
     if (deck < 0) {
         driver->set_brightness(&dev, 0); /* lit, it would show its logo and draw current */
         usb_port_close(port);
@@ -573,7 +581,7 @@ static void handle_attach(uint8_t address)
     db_log_mark(DB_MARK_DECK);
     /* another deck: the kept pictures have its predecessor's layout. The same one: draw them again at once,
      * it lost its picture with its power, and a host may not send it again. */
-    bool same = dev.info.serial[0] && strcmp(k->last_serial, dev.info.serial) == 0;
+    bool same = strcmp(k->last_serial, dev.info.serial) == 0;
     strlcpy(k->last_serial, dev.info.serial, sizeof(k->last_serial));
     xSemaphoreTake(k->shot_lock, portMAX_DELAY);
     for (int i = 0; i < DB_SOURCE_COUNT && !same; i++) {
@@ -587,9 +595,7 @@ static void handle_attach(uint8_t address)
     k->replay = same;
     xSemaphoreGive(k->lock);
     notify_device(deck, &k->dev.info);
-    if (same) {
-        xTaskNotifyGive(k->writer_task);
-    }
+    xTaskNotifyGive(k->writer_task); /* a replay, and a deck with a keepalive gets its first one */
 }
 
 static void handle_detach(int port)

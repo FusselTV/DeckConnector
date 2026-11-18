@@ -510,17 +510,49 @@ static void test_menu_chord_on_every_deck(void)
 {
     for (size_t i = 0; i < sizeof(decks) / sizeof(decks[0]); i++) {
         db_device_info_t dev = open_deck(decks[i].pid);
+        ui_layout_t l = ui_layout_of(&dev);
         bool enc;
         int last;
-        TEST_ASSERT_TRUE(ui_menu_chord("auto", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_TRUE(ui_menu_chord("auto", &l, &enc, &last));
         TEST_ASSERT_EQUAL(dev.encoder_count >= 2, enc);
-        TEST_ASSERT_EQUAL((enc ? dev.encoder_count : dev.key_count) - 1, last);
-        TEST_ASSERT_TRUE(ui_menu_chord("encoders", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_EQUAL((enc ? dev.encoder_count : db_device_image_keys(&dev)) - 1, last);
+        TEST_ASSERT_TRUE(ui_menu_chord("encoders", &l, &enc, &last));
         TEST_ASSERT_EQUAL(dev.encoder_count >= 2, enc);
-        TEST_ASSERT_TRUE(ui_menu_chord("keys", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_TRUE(ui_menu_chord("keys", &l, &enc, &last));
         TEST_ASSERT_FALSE(enc);
-        TEST_ASSERT_EQUAL(dev.key_count - 1, last);
-        TEST_ASSERT_FALSE(ui_menu_chord("off", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_EQUAL(db_device_image_keys(&dev) - 1, last);
+        TEST_ASSERT_FALSE(ui_menu_chord("off", &l, &enc, &last));
+    }
+}
+
+/* Knob presses of the N4, the 293S's side keys and every AKP153 key report no release: they cannot be held.
+ */
+static void test_menu_chord_only_on_controls_that_can_be_held(void)
+{
+    const struct {
+        uint16_t vid, pid;
+        const char *chord;
+        bool any, enc;
+        int last;
+    } cases[] = {
+        {0x6602, 0x1001, "auto", true, false, 9}, /* N4: corner keys, not the knobs */
+        {0x6602, 0x1001, "encoders", true, false, 9}, {0x5548, 0x6674, "auto", false, false, 0}, /* AKP153 */
+        {0x6603, 0x1014, "keys", true, false, 16}, /* HSV 293S: the right column reports only presses */
+        {0x6603, 0x1003, "auto", true, true, 2},   /* N3: knob presses do report their release */
+        {0x6603, 0x1005, "auto", true, false, 14}, /* 293V3 */
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        db_dev_t dev = {.io = &io, .driver = db_driver_find(cases[i].vid, cases[i].pid)};
+        TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, cases[i].vid, cases[i].pid));
+        ui_layout_t l = ui_layout_of(&dev.info);
+        bool enc = false;
+        int last = 0;
+        TEST_ASSERT_EQUAL_MESSAGE(cases[i].any, ui_menu_chord(cases[i].chord, &l, &enc, &last),
+                                  dev.info.model);
+        if (cases[i].any) {
+            TEST_ASSERT_EQUAL_MESSAGE(cases[i].enc, enc, dev.info.model);
+            TEST_ASSERT_EQUAL_INT_MESSAGE(cases[i].last, last, dev.info.model);
+        }
     }
 }
 
@@ -803,6 +835,7 @@ int main(void)
     RUN_TEST(test_setup_shows_the_login_code_and_the_wizard_step);
     RUN_TEST(test_a_running_setup_wlan_shows_on_the_deck);
     RUN_TEST(test_menu_chord_on_every_deck);
+    RUN_TEST(test_menu_chord_only_on_controls_that_can_be_held);
     RUN_TEST(test_without_the_web_ui);
     RUN_TEST(test_password_and_reset_pages);
     RUN_TEST(test_login_request_page);

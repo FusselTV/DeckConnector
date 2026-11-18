@@ -522,7 +522,7 @@ static void chord_words(const page_t *p, char *which, size_t cap, char *hold, si
 {
     bool enc;
     int last;
-    if (!ui_menu_chord(p->md->menu_chord, p->l->encoders, p->l->cols * p->l->rows, &enc, &last)) {
+    if (!ui_menu_chord(p->md->menu_chord, p->l, &enc, &last)) {
         snprintf(which, cap, "%s", L("aus", "off"));
         snprintf(hold, hold_cap, "%s", fit(p, L("nur im Web", "web only"), ""));
         return;
@@ -1184,13 +1184,24 @@ bool ui_menu_tick(ui_menu_t *m, const ui_model_t *md)
     return redraw || m->restart_down; /* the countdown on the restart key */
 }
 
-bool ui_menu_chord(const char *chord, int encoders, int keys, bool *on_encoders, int *last)
+static int held_last(int n, uint64_t tap)
+{
+    for (int i = n - 1; i >= 1 && !(tap & 1); i--) {
+        if (!(tap >> i & 1)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool ui_menu_chord(const char *chord, const ui_layout_t *l, bool *on_encoders, int *last)
 {
     if (strcmp(chord, "off") == 0) {
         return false;
     }
-    *on_encoders =
-        encoders >= 2 && strcmp(chord, "keys") != 0; /* encoders: auto's choice when there are some */
-    *last = (*on_encoders ? encoders : keys) - 1;
+    /* encoders: auto's choice when there are some */
+    int enc = strcmp(chord, "keys") != 0 ? held_last(l->encoders, l->tap_encoders) : -1;
+    *on_encoders = enc >= 1;
+    *last = *on_encoders ? enc : held_last(l->cols * l->rows, l->tap_keys);
     return *last >= 1;
 }

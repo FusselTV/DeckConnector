@@ -1418,7 +1418,7 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_int(j, "encoders", dev->encoder_count);
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(dev->encoder_count, db_device_image_keys(dev), &on_encoders, &last);
+    bool any = db_ui_menu_chord(dev, NULL, &on_encoders, &last);
     db_json_obj_open(j, "menu_chord");
     db_json_str(j, "on", !any ? "off" : on_encoders ? "encoders" : "keys");
     if (any) {

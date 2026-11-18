@@ -286,10 +286,11 @@ esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len)
     return ESP_OK;
 }
 
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last)
 {
+    (void)chord;
     *on_encoders = false;
-    *last = keys - 1;
+    *last = db_device_image_keys(dev) - 1;
     return *last >= 1;
 }
 

@@ -105,8 +105,11 @@ static const ctl_t l_s15[] = {ROW_293S(0, 0), ROW_293S(1, 0), ROW_293S(2, 0)};
 static const family_t f_293v3 = {LAYOUT(l_293v3), {112}, {112}, 180, 1024, false};
 static const family_t f_xl = {LAYOUT(l_xl), {80}, {80}, 180, 1024, false};
 static const family_t f_n4 = {LAYOUT(l_n4), {112, 176}, {112, 124}, 180, 1024, false};
-/* Bitfocus has 270 here, which its rotation code treats as none; the SDK and the AKP03E row say -90 */
+/* Both SDKs: upright and 60 px on vendor 0x6602, else turned by -90. Bitfocus' 270 for the N3 turns nothing
+ * in its code: right for 0x6602, which it lists with 64 px; its AKP03E row has -90. */
 static const family_t f_n3 = {LAYOUT(l_n3), {64}, {64}, 90, 1024, false};
+static const family_t f_n3_6602 = {LAYOUT(l_n3), {60}, {60}, 0, 1024, false};
+static const family_t f_n3_6602_64 = {LAYOUT(l_n3), {64}, {64}, 0, 1024, false};
 static const family_t f_293s = {LAYOUT(l_hsv), {100, 80}, {100, 80}, 270, 1024, false};
 static const family_t f_293s_85 = {LAYOUT(l_293s), {85, 80}, {85, 80}, 270, 512, true};
 static const family_t f_293s_96 = {LAYOUT(l_293s), {96, 80}, {96, 80}, 270, 1024, false};
@@ -124,12 +127,13 @@ static const model_t models[] = {
     {0x5548, 0x1021, "Mirabox", "Stream Dock N4 Pro", &f_n4},
     {0x5548, 0x1023, "Mirabox", "Stream Dock N4 Pro", &f_n4},
     {0x0300, 0x3004, "Ajazz", "Ajazz AKP05E", &f_n4},
-    {0x6602, 0x1002, "Mirabox", "Stream Dock N3", &f_n3},
-    {0x6602, 0x1003, "Mirabox", "Stream Dock N3", &f_n3},
+    {0x6602, 0x1000, "Mirabox", "Stream Dock N3", &f_n3_6602},
+    {0x6602, 0x1002, "Mirabox", "Stream Dock N3", &f_n3_6602},
+    {0x6602, 0x1003, "Mirabox", "Stream Dock N3", &f_n3_6602_64},
+    {0x6602, 0x2929, "Mirabox", "Stream Dock N3", &f_n3_6602},
     {0x6603, 0x1002, "Mirabox", "Stream Dock N3", &f_n3},
     {0x6603, 0x1003, "Mirabox", "Stream Dock N3", &f_n3},
     {0x5548, 0x1001, "Mirabox", "Stream Dock N3", &f_n3},
-    {0xeeef, 0x2929, "Mirabox", "Stream Dock N3", &f_n3},
     {0x0300, 0x3002, "Ajazz", "Ajazz AKP03E", &f_n3},
     {0x1500, 0x3001, "Soomfon", "Soomfon CN002", &f_n3},
     {0x6602, 0x1014, "Mirabox", "Stream Dock 293S", &f_293s},
@@ -211,6 +215,7 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
             }
             uint8_t k = info->key_count++;
             s->key[k] = i;
+            info->tap_keys |= (uint64_t)(!c->in || c->push || f->push) << k;
             info->places[info->place_count++] = (db_place_t){.row = c->row, .col = c->col, .index = k};
             if (c->out) {
                 db_rect_t r = {(uint16_t)(c->col * cw), (uint16_t)(c->row * ch), f->w[c->size],
@@ -225,6 +230,7 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
         const ctl_t *c = &f->ctl[i];
         if (c->left) {
             s->enc[info->encoder_count] = i;
+            info->tap_encoders |= (uint8_t)((!c->in || c->push || f->push) << info->encoder_count);
             info->places[info->place_count++] =
                 (db_place_t){.row = c->row, .col = c->col, .encoder = true, .index = info->encoder_count++};
         }

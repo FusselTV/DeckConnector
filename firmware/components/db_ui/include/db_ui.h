@@ -31,9 +31,9 @@ db_source_t db_ui_chosen_source(int deck);
 void db_ui_refresh(void);
 /* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */
 esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len);
-/* The two controls that open the menu (config `menu_chord`): index 0 and *last of the encoders or the keys.
- * False when there are none. */
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last);
+/* The two controls that open the menu for `chord` (NULL: config `menu_chord`): index 0 and *last of the
+ * encoders or the keys. False when there are none. */
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last);
 /* True once for the token the welcome pages show as a QR code, while it is shown and not 10 min old. */
 bool db_ui_login_take(const char *token);
 /* The deck shows a one-time login code, the password or the setup WLAN's password: pictures of the deck are

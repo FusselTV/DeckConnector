@@ -155,11 +155,14 @@ static void test_brightness_follows_the_reference_curve(void)
     TEST_ASSERT_EQUAL_UINT8(100, sent[0][10]);
 }
 
-/* Degrees clockwise. Bitfocus' 270 for the N3 turns nothing in its code; the SDK and its AKP03E row say -90.
- */
-static uint16_t rotation(int bitfocus)
+/* Degrees clockwise as Bitfocus' code turns, where 270 turns nothing. That is right for the N3 on vendor
+ * 0x6602; for the others both SDKs and Bitfocus' AKP03E row say -90. */
+static uint16_t rotation(int bitfocus, uint16_t vid)
 {
-    return bitfocus == 180 ? 180 : bitfocus == 90 ? 270 : bitfocus == 0 ? 0 : 90;
+    if (bitfocus == 270) {
+        return vid == 0x6602 ? 0 : 90;
+    }
+    return bitfocus == 180 ? 180 : bitfocus == 90 ? 270 : bitfocus == -90 ? 90 : 0;
 }
 
 static void check_input(db_dev_t *dev, const ref_in_t *in, const char *msg)
@@ -207,7 +210,7 @@ static void test_every_model_matches_the_reference(void)
             }
             db_dev_t dev = open_deck(rm->ids[u].vid, rm->ids[u].pid);
             const db_display_t *d = &dev.info.displays[0];
-            TEST_ASSERT_EQUAL_UINT16_MESSAGE(rotation(rm->rotation), d->rotate, msg);
+            TEST_ASSERT_EQUAL_UINT16_MESSAGE(rotation(rm->rotation, rm->ids[u].vid), d->rotate, msg);
             TEST_ASSERT_EQUAL_UINT8_MESSAGE(rm->out_count, d->target_count, msg);
             TEST_ASSERT_EQUAL_size_t_MESSAGE(rm->packet, sent_len[0], msg);
             TEST_ASSERT_FALSE_MESSAGE(dev.info.dock, msg);
@@ -303,6 +306,35 @@ static void test_an_image_over_10_kb_is_refused(void)
     TEST_ASSERT_EQUAL_INT(1 + 10 + 1, sent_n);
 }
 
+/* N3 ids that only Mirabox's SDKs list: upright 60 px keys on vendor 0x6602. */
+static void test_n3_ids_from_the_sdk(void)
+{
+    static const uint16_t pids[] = {0x1000, 0x1002, 0x2929};
+    for (size_t i = 0; i < 3; i++) {
+        db_dev_t dev = open_deck(0x6602, pids[i]);
+        TEST_ASSERT_EQUAL_UINT16(0, dev.info.displays[0].rotate);
+        TEST_ASSERT_EQUAL_UINT16(60, dev.info.displays[0].targets[0].rect.w);
+    }
+    TEST_ASSERT_NULL(db_driver_find(0xeeef, 0x2929));
+    db_dev_t dev = open_deck(0x6603, 0x1002);
+    TEST_ASSERT_EQUAL_UINT16(90, dev.info.displays[0].rotate);
+    TEST_ASSERT_EQUAL_UINT16(64, dev.info.displays[0].targets[0].rect.w);
+}
+
+static void test_controls_that_report_no_release(void)
+{
+    db_dev_t n4 = open_deck(0x6602, 0x1001);
+    TEST_ASSERT_EQUAL_HEX64(0x3c00, n4.info.tap_keys); /* the strip zones */
+    TEST_ASSERT_EQUAL_HEX8(0x1f, n4.info.tap_encoders);
+    db_dev_t akp153 = open_deck(0x5548, 0x6674);
+    TEST_ASSERT_EQUAL_HEX64(0x3ffff, akp153.info.tap_keys);
+    db_dev_t hsv = open_deck(0x6603, 0x1014);
+    TEST_ASSERT_EQUAL_HEX64((1u << 5) | (1u << 11) | (1u << 17), hsv.info.tap_keys);
+    db_dev_t n3 = open_deck(0x6603, 0x1003);
+    TEST_ASSERT_EQUAL_HEX64(0, n3.info.tap_keys);
+    TEST_ASSERT_EQUAL_HEX8(0, n3.info.tap_encoders);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -312,5 +344,7 @@ int main(void)
     RUN_TEST(test_built_input_parses_back);
     RUN_TEST(test_reports_that_are_no_input_give_nothing);
     RUN_TEST(test_an_image_over_10_kb_is_refused);
+    RUN_TEST(test_n3_ids_from_the_sdk);
+    RUN_TEST(test_controls_that_report_no_release);
     return UNITY_END();
 }

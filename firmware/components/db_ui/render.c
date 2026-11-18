@@ -321,7 +321,10 @@ static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
 
 ui_layout_t ui_layout_of(const db_device_info_t *info)
 {
-    ui_layout_t l = {.encoders = info->encoder_count, .strip = false};
+    ui_layout_t l = {.encoders = info->encoder_count,
+                     .strip = false,
+                     .tap_keys = info->tap_keys,
+                     .tap_encoders = info->tap_encoders};
     const db_display_t *d = &info->displays[0];
     uint16_t first_y = 0;
     bool seen = false;
