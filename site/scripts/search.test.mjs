@@ -24,7 +24,7 @@ const queries = {
     'elgato app does not find deck': ['/docs/troubleshooting#the-elgato-app-does-not-find-the-deck'],
     websocket: ['/docs/api#websocket'],
     'mdns name': ['/docs/network#names'],
-    'Authorization: Bearer': ['/docs/security#api-keys', '/docs/api#login', '/docs/home-assistant#api-key'],
+    'Authorization: Bearer': ['/docs/security#api-keys', '/docs/api#login', '/docs/home-assistant#api-key', '/docs/own-server#connection'],
     'hidden network': ['/docs/network#wi-fi'],
     port: ['/docs/network#ports'],
     ports: ['/docs/network#ports'],
