@@ -88,7 +88,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `OPTIONS /api/...` | Der CORS-Preflight für die Origins in `cors_origins` | open |
 | `GET /api/ws` | Der Live-[WebSocket](#websocket) | control |
 | `GET /api/status` | Zustand der Platine, siehe [Status](#status) | control |
-| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set` und `token_set` | full |
+| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set`, `wifi2_pass_set` und `token_set` | full |
 | `PUT /api/config` | Einstellungen ändern. Schick nur die Schlüssel, die sich ändern. Die Antwort hat `restart` und `config` | full |
 | `POST /api/config` | **Setup** aus Companions Surfaces › Discover: `{"host": "...", "port": 16622}` als `application/json`. Während der Einrichtung verbindet sich die Platine sofort, danach fragt das Deck 60 s lang | open |
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
@@ -177,7 +177,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 {"name": "deckconnector-a1b2c3", "controller": "companion", "host": "satellite", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
- "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
+ "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "", "wifi2_ssid": "", "wifi2_pass_set": false,
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
@@ -192,6 +192,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
 | `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
+| `wifi2_ssid`, `wifi2_pass` | Das Ersatz-WLAN, Werte wie bei `wifi_ssid` und `wifi_pass`. Leer schaltet es ab |
 | `servers` | Bis zu 4 `ws://`- oder `wss://`-URLs. Leer sucht Server per mDNS |
 | `server_pins` | SHA-256 je Server, an derselben Stelle wie in `servers` |
 | `satellite` | Die Adresse von Companion als `host`, `host:port` oder `ws://`- bzw. `wss://`-URL. Leer schaltet es ab |
@@ -212,7 +213,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -226,12 +227,12 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 {"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
- "menu_open": false, "screen_off": false,
+ "menu_open": false, "screen_off": false, "brightness": 80,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
              "wlan": {"ssid": "studio", "ip": "192.168.1.51", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
-                      "lock": "", "rssi": -48, "join": "", "join_error": ""},
+                      "lock": "", "backup": false, "rssi": -48, "join": "", "join_error": ""},
              "ap": {"on": false, "ssid": ""}},
  "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
               "connected": true, "chosen": true, "drawing": true}],
@@ -244,13 +245,16 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
 | `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder das gewählte Programm nicht verbunden ist |
 | `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck mit seinem `slot` (0 für Deck 1) und seiner `number` (1 für Deck 1) |
+| `decks[].locked` | Companion zeichnet über Satellite auf dem Deck und hat es mit seiner PIN gesperrt. Das Deck zeigt das Zahlenfeld |
 | `decks_over_limit` | Decks, die stecken, aber wegen `max_decks` dunkel bleiben |
 | `sources` | Jedes Programm. `chosen` markiert das, das zeichnet, wenn kein Menü darüber liegt. Server und Satellite haben dazu `error`, `since_s` und `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
 | `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
 | `menu_open` | Menü, Passwort, Rücksetzfrage oder Login-Anfrage liegen über dem Deck |
 | `screen_off` | Alle Decks sind nach `screen_off_s` ohne Eingabe dunkel. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0 |
+| `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
+| `network.wlan.backup` | Die Platine ist im Ersatz-WLAN, `ssid` nennt es |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
 

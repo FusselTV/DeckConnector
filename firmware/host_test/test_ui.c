@@ -519,17 +519,49 @@ static void test_menu_chord_on_every_deck(void)
 {
     for (size_t i = 0; i < sizeof(decks) / sizeof(decks[0]); i++) {
         db_device_info_t dev = open_deck(decks[i].pid);
+        ui_layout_t l = ui_layout_of(&dev);
         bool enc;
         int last;
-        TEST_ASSERT_TRUE(ui_menu_chord("auto", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_TRUE(ui_menu_chord("auto", &l, &enc, &last));
         TEST_ASSERT_EQUAL(dev.encoder_count >= 2, enc);
-        TEST_ASSERT_EQUAL((enc ? dev.encoder_count : dev.key_count) - 1, last);
-        TEST_ASSERT_TRUE(ui_menu_chord("encoders", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_EQUAL((enc ? dev.encoder_count : db_device_image_keys(&dev)) - 1, last);
+        TEST_ASSERT_TRUE(ui_menu_chord("encoders", &l, &enc, &last));
         TEST_ASSERT_EQUAL(dev.encoder_count >= 2, enc);
-        TEST_ASSERT_TRUE(ui_menu_chord("keys", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_TRUE(ui_menu_chord("keys", &l, &enc, &last));
         TEST_ASSERT_FALSE(enc);
-        TEST_ASSERT_EQUAL(dev.key_count - 1, last);
-        TEST_ASSERT_FALSE(ui_menu_chord("off", dev.encoder_count, dev.key_count, &enc, &last));
+        TEST_ASSERT_EQUAL(db_device_image_keys(&dev) - 1, last);
+        TEST_ASSERT_FALSE(ui_menu_chord("off", &l, &enc, &last));
+    }
+}
+
+/* Knob presses of the N4, the 293S's side keys and every AKP153 key report no release: they cannot be held.
+ */
+static void test_menu_chord_only_on_controls_that_can_be_held(void)
+{
+    const struct {
+        uint16_t vid, pid;
+        const char *chord;
+        bool any, enc;
+        int last;
+    } cases[] = {
+        {0x6602, 0x1001, "auto", true, false, 9}, /* N4: corner keys, not the knobs */
+        {0x6602, 0x1001, "encoders", true, false, 9}, {0x5548, 0x6674, "auto", false, false, 0}, /* AKP153 */
+        {0x6603, 0x1014, "keys", true, false, 16}, /* HSV 293S: the right column reports only presses */
+        {0x6603, 0x1003, "auto", true, true, 2},   /* N3: knob presses do report their release */
+        {0x6603, 0x1005, "auto", true, false, 14}, /* 293V3 */
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        db_dev_t dev = {.io = &io, .driver = db_driver_find(cases[i].vid, cases[i].pid)};
+        TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, cases[i].vid, cases[i].pid));
+        ui_layout_t l = ui_layout_of(&dev.info);
+        bool enc = false;
+        int last = 0;
+        TEST_ASSERT_EQUAL_MESSAGE(cases[i].any, ui_menu_chord(cases[i].chord, &l, &enc, &last),
+                                  dev.info.model);
+        if (cases[i].any) {
+            TEST_ASSERT_EQUAL_MESSAGE(cases[i].enc, enc, dev.info.model);
+            TEST_ASSERT_EQUAL_INT_MESSAGE(cases[i].last, last, dev.info.model);
+        }
     }
 }
 
@@ -796,6 +828,163 @@ void setUp(void)
     ui_on_cut = print_cut;
 }
 
+static int pin_of(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, db_input_t ev)
+{
+    ui_action_t act;
+    ui_menu_input(m, md, l, &ev, &act);
+    return act.what == UI_DO_PIN ? act.value : -1;
+}
+
+static int pin_key(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, uint8_t key)
+{
+    int digit = pin_of(m, md, l, (db_input_t){.kind = DB_INPUT_KEY_DOWN, .index = key});
+    TEST_ASSERT_EQUAL_INT(-1, pin_of(m, md, l, (db_input_t){.kind = DB_INPUT_KEY_UP, .index = key}));
+    return digit;
+}
+
+/* The pad in phone order on every deck with a screen, in every state, and which control types which digit. */
+static void test_pin_pad_on_every_deck(void)
+{
+    static const struct {
+        uint16_t pid;
+        const char *name;
+        uint8_t keys[10]; /* the key of each digit, 0 to 9; 255: not on a key */
+    } pads[] = {
+        {0x0084, "plus", {255, 0, 1, 2, 3, 4, 5, 6, 7, 255}},
+        {0x00c6, "plusxl", {31, 3, 4, 5, 12, 13, 14, 21, 22, 23}},
+        {0x0080, "mk2", {9, 1, 2, 3, 6, 7, 8, 11, 12, 13}},
+        {0x008f, "xl", {27, 2, 3, 4, 10, 11, 12, 18, 19, 20}},
+        {0x009a, "neo", {9, 0, 1, 2, 3, 4, 5, 6, 7, 8}},
+        {0x0063, "mini", {4, 0, 1, 2, 3, 4, 0, 1, 2, 3}},
+    };
+    for (size_t d = 0; d < sizeof(pads) / sizeof(pads[0]); d++) {
+        db_device_info_t dev = open_deck(pads[d].pid);
+        ui_layout_t l = ui_layout_of(&dev);
+        for (int v = 0; v < 8; v++) {
+            ui_model_t md = base_model();
+            md.locked = true;
+            md.english = english = v >= 4;
+            md.pin.count = (uint8_t)(v % 4 == 1 ? 3 : (v % 4 == 3 ? 12 : 0));
+            md.pin.wrong = v % 4 == 2;
+            for (uint8_t page = 0; page < (l.cols == 3 ? 2 : 1); page++) {
+                ui_menu_t m = {.page = v % 2 ? PAGE_MAIN : PAGE_HOME, .confirm_key = -1, .pin_page = page};
+                ui_screen_t sc;
+                ui_menu_screen(&m, &md, &l, &sc);
+                char name[64];
+                snprintf(name, sizeof(name), "%s_lock%s_%d", pads[d].name, page ? "_b" : "", v);
+                check_page(&dev, &sc, name);
+                TEST_ASSERT_EQUAL_INT(md.pin.wrong, sc.tiles[pads[d].keys[1]].active);
+            }
+        }
+        english = false;
+        ui_model_t md = base_model();
+        md.locked = true;
+        ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+        for (int digit = 0; digit <= 9; digit++) {
+            uint8_t key = pads[d].keys[digit];
+            if (l.cols == 3 && (digit >= 6 || digit == 0) != (m.pin_page == 1)) {
+                TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 5)); /* to the other page */
+            }
+            if (key != 255) {
+                TEST_ASSERT_EQUAL_INT_MESSAGE(digit, pin_key(&m, &md, &l, key), pads[d].name);
+            }
+        }
+        if (!l.cols || l.rows < 3) {
+            continue;
+        }
+        TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 0)); /* a key beside the pad does nothing */
+        md.locked = false;
+        TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, pads[d].keys[5]));
+    }
+    db_device_info_t dev = open_deck(0x009a);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.locked = true;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    TEST_ASSERT_EQUAL_INT(9, pin_key(&m, &md, &l, 8)); /* the left touch point */
+    dev = open_deck(0x0084);
+    l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_INT(9, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 2}));
+    TEST_ASSERT_EQUAL_INT(0, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 3}));
+    TEST_ASSERT_EQUAL_INT(-1, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_DOWN, .index = 0}));
+    TEST_ASSERT_EQUAL_INT(
+        -1, pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_ENCODER_TURN, .index = 3, .value = 1}));
+    TEST_ASSERT_EQUAL_INT(9,
+                          pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_TOUCH_TAP, .x = 450, .y = 400}));
+    TEST_ASSERT_EQUAL_INT(0,
+                          pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_TOUCH_TAP, .x = 790, .y = 400}));
+    TEST_ASSERT_EQUAL_INT(-1,
+                          pin_of(&m, &md, &l, (db_input_t){.kind = DB_INPUT_TOUCH_TAP, .x = 100, .y = 400}));
+    dev = open_deck(0x0086); /* the Pedal has nothing to show the pad on */
+    l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 1));
+    TEST_ASSERT_EQUAL_INT(0, cut_pages);
+    TEST_ASSERT_EQUAL_INT(0, german_pages);
+}
+
+static void test_pin_pad_turns_with_the_deck(void)
+{
+    static const struct {
+        uint16_t pid;
+        const char *name;
+    } decks[] = {{0x0080, "mk2"}, {0x008f, "xl"}, {0x0063, "mini"}, {0x0084, "plus"}, {0x009a, "neo"}};
+    static const int16_t turns[] = {90, -90, 180};
+    for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
+        db_device_info_t dev = open_deck(decks[d].pid);
+        ui_layout_t l = ui_layout_of(&dev);
+        for (size_t t = 0; t < 3; t++) {
+            ui_model_t md = base_model();
+            md.locked = true;
+            md.pin.count = 2;
+            md.pin.rotation = turns[t];
+            ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+            ui_screen_t sc;
+            ui_menu_screen(&m, &md, &l, &sc);
+            char name[64];
+            snprintf(name, sizeof(name), "%s_lock_turn%d", decks[d].name, turns[t]);
+            check_page(&dev, &sc, name);
+        }
+    }
+    /* as Companion's rotateXYForPanel: turned 90, the top left of the 3 x 5 view is the bottom left key */
+    db_device_info_t dev = open_deck(0x0080);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.locked = true;
+    md.pin.rotation = 90;
+    ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 10));
+    TEST_ASSERT_EQUAL_INT(0, pin_key(&m, &md, &l, 8));
+    md.pin.rotation = 180;
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 13));
+    dev = open_deck(0x0084); /* the + stays upright */
+    l = ui_layout_of(&dev);
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 0));
+    TEST_ASSERT_EQUAL_INT(0, cut_pages);
+}
+
+static void test_the_lock_closes_the_menu_and_its_end_the_mini_page(void)
+{
+    db_device_info_t dev = open_deck(0x0063);
+    ui_layout_t l = ui_layout_of(&dev);
+    ui_model_t md = base_model();
+    md.locked = true;
+    ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+    ui_menu_lock(&m, true, md.now_us);
+    TEST_ASSERT_FALSE(ui_menu_open(&m));
+    TEST_ASSERT_EQUAL_INT(-1, pin_key(&m, &md, &l, 5)); /* to 6 to 0 */
+    TEST_ASSERT_EQUAL_INT(6, pin_key(&m, &md, &l, 0));
+    ui_menu_lock(&m, true, md.now_us);
+    TEST_ASSERT_EQUAL_INT(6, pin_key(&m, &md, &l, 0));
+    ui_menu_lock(&m, false, md.now_us);
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 0));
+    /* unlocked, before Companion draws again: a press on the home page does nothing on its own */
+    md.locked = false;
+    ui_action_t act;
+    db_input_t down = {.kind = DB_INPUT_KEY_DOWN, .index = 0};
+    TEST_ASSERT_FALSE(ui_menu_input(&m, &md, &l, &down, &act));
+    TEST_ASSERT_EQUAL_INT(UI_DO_NOTHING, act.what);
+}
+
 void tearDown(void)
 {
 }
@@ -812,10 +1001,14 @@ int main(void)
     RUN_TEST(test_setup_shows_the_login_code_and_the_wizard_step);
     RUN_TEST(test_a_running_setup_wlan_shows_on_the_deck);
     RUN_TEST(test_menu_chord_on_every_deck);
+    RUN_TEST(test_menu_chord_only_on_controls_that_can_be_held);
     RUN_TEST(test_without_the_web_ui);
     RUN_TEST(test_password_and_reset_pages);
     RUN_TEST(test_login_request_page);
     RUN_TEST(test_simulated_presses_cannot_act_on_the_bridge);
     RUN_TEST(test_restart_release_without_its_press);
+    RUN_TEST(test_pin_pad_on_every_deck);
+    RUN_TEST(test_pin_pad_turns_with_the_deck);
+    RUN_TEST(test_the_lock_closes_the_menu_and_its_end_the_mini_page);
     return UNITY_END();
 }

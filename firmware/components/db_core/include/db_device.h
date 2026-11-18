@@ -6,6 +6,7 @@
 #define DB_MAX_DISPLAYS 2
 #define DB_MAX_TARGETS  40
 #define DB_MAX_TOUCH    2
+#define DB_MAX_PLACES   48
 
 typedef enum {
     DB_TARGET_FULL,  /* the whole display in one image */
@@ -32,6 +33,7 @@ typedef struct {
     uint16_t rotate; /* degrees clockwise, then flip_x and flip_y, before encoding (db_image_orient) */
     bool flip_x;
     bool flip_y;
+    uint16_t max_bytes; /* largest image the display takes, 0: no limit */
     uint8_t target_count;
     db_target_t targets[DB_MAX_TARGETS];
 } db_display_t;
@@ -41,13 +43,23 @@ typedef struct {
     db_rect_t rect;
 } db_touch_area_t;
 
+/* Where Companion's own plugin for the deck puts a key or encoder. */
+typedef struct {
+    uint8_t row;
+    uint8_t col;
+    bool encoder;
+    uint8_t index;
+} db_place_t;
+
 /* What the server needs to know to render for a device. Filled by the driver. */
 typedef struct {
     const char *vendor;
     const char *model;
     uint16_t vid;
     uint16_t pid;
-    bool tested; /* checked end to end on real hardware */
+    bool tested;         /* checked end to end on real hardware */
+    bool dock;           /* offered as a Network Dock to the Elgato App and Companion's Elgato plugin */
+    const char *surface; /* Companion's surface id is "<surface>:<serial>" */
     char serial[32];
     char firmware[16];
     char product[32];      /* the USB product string, empty when unknown */
@@ -58,6 +70,10 @@ typedef struct {
     db_display_t displays[DB_MAX_DISPLAYS];
     uint8_t touch_count;
     db_touch_area_t touch[DB_MAX_TOUCH];
+    uint64_t tap_keys; /* bit per key that reports no release, so it cannot be held */
+    uint8_t tap_encoders;
+    uint8_t place_count; /* 0: the layout of Companion's Elgato plugin */
+    db_place_t places[DB_MAX_PLACES];
 } db_device_info_t;
 
 typedef enum {
@@ -88,8 +104,13 @@ const db_target_t *db_device_find_target(const db_device_info_t *info, uint8_t d
 /* Keys with a picture, numbered first. The rest of key_count (Neo sensors, Pedal) only give input. */
 uint8_t db_device_image_keys(const db_device_info_t *info);
 
-/* A deck's name in the slot list: its serial, or "port <hub ports>" for one without. */
+/* A deck's name in the slot list: its serial, or what db_deck_identity() makes for one without. */
 typedef char db_slot_owner_t[32];
+
+/* Clone decks share a serial or have none. An empty one, one many clones report, or one of the `n` present
+ * decks in `others` has already becomes "port-<hub ports>" ("port-root" on the root port): no space, it goes
+ * into URL queries undecoded. */
+void db_deck_identity(db_slot_owner_t serial, const char *path, const db_slot_owner_t *others, int n);
 
 /* The slot below `limit` for deck `id`: its own one when free. Else, alone, the lowest free one, so a
  * replaced single deck keeps the dock port; with others there, the lowest free one no other deck owns, else

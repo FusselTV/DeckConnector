@@ -20,7 +20,7 @@ import { api } from '../api/client'
 import type { Config, Found, Source } from '../api/types'
 import { pendingAtom, putConfig, useActions } from '../app/actions'
 import { refreshStatus } from '../app/connection'
-import { compDock, hk, hostName, KIND_ICON, stateKey } from '../app/derive'
+import { compDock, hk, hostName, KIND_ICON, noDock, stateKey } from '../app/derive'
 import { useIssues } from '../app/issues'
 import { toast } from '../app/state'
 import { getState, useStore } from '../app/store'
@@ -249,7 +249,9 @@ function AppForm({ close }: { close: () => void }) {
   const bootAt = useStore((s) => s.bootAt)
   const P = useStore((s) => s.status.pairing)
   const ip = useStore((s) => s.status.network?.lan?.ip || s.status.network?.wlan?.ip || location.hostname)
+  const noApp = useStore((s) => noDock(s.status))
   const a = usePairing()
+  if (noApp) return <Notice n={{ id: 'app-elgato', icon: Monitor, lvl: 'info', title: t('src.app_elgato') }} />
   return (
     <>
       <p className="small muted">{t('src.app_what')}</p>

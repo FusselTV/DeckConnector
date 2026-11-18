@@ -1,6 +1,5 @@
 import { CircleCheck, Gauge, LayoutGrid, SquareMenu, TriangleAlert, Turtle, Unplug, Usb } from 'lucide-react'
 import { useState } from 'react'
-import type { Config } from '../api/types'
 import { decksOf, deckName } from '../app/derive'
 import { deckSelAtom } from '../app/state'
 import { useStore } from '../app/store'
@@ -8,31 +7,12 @@ import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { describedBy, Field, Help, Seg, SIcon } from '../components/controls'
 import { useDraft } from '../components/SaveBar'
+import { chordHl, chordSentence, type Hl } from '../deck/chord'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
-import type { T } from '../i18n'
 import { cx, roam } from '../lib/util'
 
 const OFF_PRESETS = ['0', '60', '300', '900', '1800', '3600']
 const duration = (s: number) => (s % 60 ? `${s} s` : `${s / 60} min`)
-
-type Chord = Config['menu_chord']
-interface Hl {
-  keys: number[]
-  dials: number[]
-}
-function chordHl(o: Chord, M: Model): Hl {
-  const nk = M.cols * M.rows
-  const dials = M.dials?.n ?? 0
-  const enc = { keys: [], dials: [0, Math.min(3, dials - 1)] }
-  const key = { keys: [0, nk - 1], dials: [] }
-  return o === 'encoders' ? enc : o === 'keys' ? key : o === 'auto' ? (dials ? enc : key) : { keys: [], dials: [] }
-}
-export function chordSentence(t: T, o: Chord, M: Model, holdS: string) {
-  const hl = chordHl(o, M)
-  if (o === 'off') return t('chord.s_off')
-  const [a = 0, b = 0] = hl.dials.length ? hl.dials : hl.keys
-  return t(hl.dials.length ? 'chord.s_dials' : 'chord.s_keys', { a: a + 1, b: b + 1, s: holdS })
-}
 
 function MiniDeck({ kind, hl }: { kind: ModelKey; hl: Hl }) {
   const M: Model = MODELS[kind]
@@ -215,9 +195,15 @@ export function DeckTab() {
       <fieldset className="gate" disabled={!cfg}>
         <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
           <div className="chordnow">
-            <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind])} />
+            <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind], deck)} />
             <p>
-              {chordSentence(t, v.chord, MODELS[kind], fmt.dec(holdErr ? (cfg?.menu_hold_ms ?? 2000) / 1000 : v.hold))}
+              {chordSentence(
+                t,
+                v.chord,
+                MODELS[kind],
+                fmt.dec(holdErr ? (cfg?.menu_hold_ms ?? 2000) / 1000 : v.hold),
+                deck,
+              )}
               {multi && deck && (
                 <>
                   <br />
@@ -253,7 +239,7 @@ export function DeckTab() {
                     disabled={dis}
                     onClick={() => set({ chord: o })}
                   >
-                    <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind])} />
+                    <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind], deck)} />
                     <div>
                       <b>{t(`chord.${o}`)}</b>
                       <span>{dis ? t('deck.no_dials') : t(`chord.d_${o}`)}</span>

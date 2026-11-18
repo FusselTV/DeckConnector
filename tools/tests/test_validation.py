@@ -24,6 +24,8 @@ def put(body: dict) -> tuple[int, str]:
         ({"admin_pass": "short"}, "6 to 23"),
         ({"wifi_pass": "1234567"}, "wifi_pass"),
         ({"wifi_pass": "x" * 64}, "wifi_pass"),
+        ({"wifi2_pass": "1234567"}, "wifi2_pass"),
+        ({"wifi2_ssid": "x" * 33}, "wifi2_ssid"),
         ({"servers": ["wss://h /x"]}, "servers"),
         ({"servers": ["http://h:1/x"]}, "servers"),
         ({"satellite": "h /x"}, "satellite"),

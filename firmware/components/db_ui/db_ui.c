@@ -53,6 +53,7 @@ typedef struct {
     bool full;         /* the next picture goes out whole: someone else drew meanwhile */
     ui_screen_t shown; /* what is on the deck, to send only what changed */
     ui_menu_t menu;
+    db_sat_held_t pad_kept;
     int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
     int before;    /* the deck's brightness when the menu opened; -1: none */
     bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
@@ -128,6 +129,18 @@ static db_source_t choice(int deck, db_controller_t kind)
 db_source_t db_ui_chosen_source(int deck)
 {
     return choice(deck, db_config()->controller);
+}
+
+/* Companion over Satellite is the chosen source of `deck` and locked it: the deck shows the PIN pad. */
+static bool locked(int deck, db_sat_pin_t *pin)
+{
+    db_sat_pin_t spare;
+    return db_satellite_locked(deck, pin ? pin : &spare) && db_ui_chosen_source(deck) == DB_SOURCE_SAT;
+}
+
+bool db_ui_locked(int deck)
+{
+    return locked(deck, NULL);
 }
 
 /* "ws://192.168.1.5:8765/x" -> "192.168.1.5:8765" */
@@ -432,6 +445,7 @@ static void model(int deck, ui_model_t *md)
         .english = strcmp(c->lang, "en") == 0,
         .sat_failed = db_satellite_health().error[0] != '\0',
     };
+    md->locked = locked(deck, &md->pin);
     if (ui_menu_open(&u->menu) && !u->turned && u->before >= 0) {
         md->brightness = u->before; /* the deck shows at least 20 %, the number stays what it had */
     }
@@ -505,7 +519,7 @@ static db_source_t wanted_writer(int deck)
     char request[16];
     const ui_deck_t *u = &decks[deck];
     if (ui_menu_open(&u->menu) || s.update_pct >= 0 || !db_config()->setup_done || db_dock_request(request) ||
-        u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time())) {
+        u->menu.page == PAGE_WELCOME_NET || overlay(esp_timer_get_time()) || locked(deck, NULL)) {
         return DB_SOURCE_UI;
     }
     db_source_t chosen = db_ui_chosen_source(deck);
@@ -763,6 +777,9 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
     case UI_DO_SHOW_PASSWORD:
         db_ui_show_password();
         break;
+    case UI_DO_PIN:
+        db_satellite_pincode(deck, act->value);
+        break;
     default:
         break;
     }
@@ -860,6 +877,10 @@ static bool draw_deck(int deck, ui_screen_t *sc, ui_model_t *md)
     ui_deck_t *u = &decks[deck];
     /* the light lock keeps a writer change on another task from crossing the menu's brightness; never
      * held across model(), which takes other components' locks */
+    bool is_locked = locked(deck, NULL);
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    ui_menu_lock(&u->menu, is_locked, esp_timer_get_time());
+    xSemaphoreGive(s.lock);
     light_lock(true);
     bool ours = u->present && db_deck_writer(deck) == DB_SOURCE_UI;
     bool menu = false;
@@ -926,9 +947,10 @@ static void ui_task(void *arg)
     }
 }
 
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last)
 {
-    return ui_menu_chord(db_config()->menu_chord, encoders, keys, on_encoders, last);
+    ui_layout_t l = ui_layout_of(dev);
+    return ui_menu_chord(chord ? chord : db_config()->menu_chord, &l, on_encoders, last);
 }
 
 /* On `deck` only: a menu open on another deck closes. */
@@ -955,6 +977,9 @@ esp_err_t db_ui_open_menu(int deck)
 {
     if (!decks[deck].present) {
         return ESP_ERR_INVALID_STATE;
+    }
+    if (locked(deck, NULL)) {
+        return ESP_ERR_NOT_ALLOWED;
     }
     open_menu(deck, esp_timer_get_time());
     return ESP_OK;
@@ -1004,10 +1029,11 @@ static void check_menu_chord(int deck)
     ui_deck_t *u = &decks[deck];
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(u->dev.encoder_count, db_device_image_keys(&u->dev), &on_encoders, &last);
+    bool any = db_ui_menu_chord(&u->dev, NULL, &on_encoders, &last);
     const bool *down = on_encoders ? u->enc_down : u->key_down;
     int size = on_encoders ? sizeof(u->enc_down) : sizeof(u->key_down);
-    bool held = any && last < size && down[0] && down[last];
+    /* no menu on a locked deck: its source switch would be a way around the lock */
+    bool held = any && last < size && down[0] && down[last] && !locked(deck, NULL);
     int64_t now = esp_timer_get_time();
     if (!held) {
         u->chord_since = 0;
@@ -1048,6 +1074,11 @@ static void on_input(int deck, const db_input_t *ev)
             xTaskNotifyGive(s.task);
         }
     }
+}
+
+static bool keeps(int deck, const db_input_t *ev)
+{
+    return db_sat_pad_keeps(&decks[deck].pad_kept, ev, locked(deck, NULL));
 }
 
 static void on_device(int deck, const db_device_info_t *info)
@@ -1091,6 +1122,16 @@ static void tick(void *arg)
     if (overlay(now) != overlaid) {
         overlaid = !overlaid;
         changed();
+    }
+    static uint16_t pins[DB_MAX_DECKS]; /* a wrong PIN's red ends */
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        db_sat_pin_t p = {0};
+        bool on = db_satellite_locked(d, &p);
+        uint16_t pin = (uint16_t)(on | p.wrong << 1 | p.count << 2);
+        if (pin != pins[d]) {
+            pins[d] = pin;
+            changed();
+        }
     }
     static bool handing_over;
     if ((now < s.handover_until) != handing_over) {
@@ -1244,7 +1285,7 @@ esp_err_t db_ui_start(void)
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
+    db_deck_listener_t l = {.input = on_input, .device_changed = on_device, .keeps = keeps};
     db_deck_add_listener(&l);
     const esp_timer_create_args_t targs = {.callback = tick, .name = "ui_tick"};
     esp_timer_handle_t timer;

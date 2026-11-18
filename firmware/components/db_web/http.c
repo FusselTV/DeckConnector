@@ -420,7 +420,9 @@ static esp_err_t no_delay(httpd_handle_t hd, int fd)
 static void announce_api(void)
 {
     const char *fw = esp_app_get_description()->version;
-    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}};
+    char id[13];
+    db_config_board_id(id);
+    mdns_txt_item_t txt[] = {{"path", "/api"}, {"fw", fw}, {"id", id}};
     esp_err_t err =
         mdns_service_add(NULL, "_deckconnector-api", "_tcp", 80, txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {

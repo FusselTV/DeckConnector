@@ -1,0 +1,84 @@
+from homeassistant.components import automation
+from homeassistant.components.device_automation import DeviceAutomationType, async_get_device_automations
+from homeassistant.components.device_automation.trigger import async_validate_trigger_config
+from homeassistant.helpers import device_registry as dr
+from homeassistant.setup import async_setup_component
+from test_setup import setup
+
+from conftest import PLUS, XL
+
+
+def device(hass, entry, ident):
+    return dr.async_get(hass).async_get_device_by_identifier(("deckconnector", ident), entry.entry_id)
+
+
+def trigger(device_id, type_, subtype):
+    return {"trigger": "device", "domain": "deckconnector", "device_id": device_id, "type": type_, "subtype": subtype}
+
+
+async def test_triggers_per_model(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS, XL)
+    ids = {
+        name: device(hass, entry, ident).id for name, ident in (("plus", "A1"), ("xl", "B2"), ("board", "a0b1c2a1b2c3"))
+    }
+    found = await async_get_device_automations(hass, DeviceAutomationType.TRIGGER, list(ids.values()))
+    plus = [t for t in found[ids["plus"]] if t["domain"] == "deckconnector"]
+    xl = [t for t in found[ids["xl"]] if t["domain"] == "deckconnector"]
+    assert len(plus) == 8 + 4 * 3 + 4
+    assert len(xl) == 32
+    assert not [t for t in found[ids["board"]] if t["domain"] == "deckconnector"]
+    assert {"type": "turn_left", "subtype": "dial_4"}.items() <= next(
+        t for t in plus if t["subtype"] == "dial_4" and t["type"] == "turn_left"
+    ).items()
+    for trigger in plus + xl:
+        await async_validate_trigger_config(hass, trigger)
+
+
+async def test_an_automation_runs_on_a_press(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    deck = device(hass, entry, "A1").id
+    runs = []
+    hass.services.async_register("test", "run", lambda call: runs.append(dict(call.data)))
+    assert await async_setup_component(
+        hass,
+        automation.DOMAIN,
+        {
+            automation.DOMAIN: [
+                {
+                    "triggers": [
+                        {
+                            "trigger": "device",
+                            "domain": "deckconnector",
+                            "device_id": deck,
+                            "type": "press",
+                            "subtype": "key_3",
+                        }
+                    ],
+                    "actions": [{"action": "test.run", "data": {"subtype": "{{ trigger.subtype }}"}}],
+                },
+                {
+                    "triggers": [
+                        {
+                            "trigger": "device",
+                            "domain": "deckconnector",
+                            "device_id": deck,
+                            "type": "turn_right",
+                            "subtype": "dial_2",
+                        }
+                    ],
+                    "actions": [{"action": "test.run", "data": {"ticks": "{{ trigger.ticks }}"}}],
+                },
+            ]
+        },
+    )
+    press = {"t": "input", "kind": "key_down", "index": 2, "value": 0, "x": 0, "y": 0, "deck": "A1", "simulated": False}
+    for msg in (
+        {**press, "kind": "key_up"},
+        {**press, "simulated": True},
+        {**press, "index": 3},
+        press,
+        {**press, "kind": "encoder_turn", "index": 1, "value": 3},
+    ):
+        await socket.queue.put(msg)
+    await hass.async_block_till_done()
+    assert runs == [{"subtype": "key_3"}, {"ticks": 3}]

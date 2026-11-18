@@ -45,6 +45,13 @@ MIT License (text B)
     Nayuki. https://www.nayuki.io/page/qr-code-generator-library
   HTTP Parser 2.7.0, Copyright Joyent, Inc. and other Node contributors.
     Based on src/http/ngx_http_parse.c from NGINX, copyright Igor Sysoev.
+  Mirabox Stream Dock commands, USB ids, key ids and sizes in
+    firmware/components/db_core/drivers/mirabox.c, adapted from:
+    companion-surface-mirabox-stream-dock, Copyright (c) 2022 Bitfocus AS -
+      Open Source.
+      https://github.com/bitfocus/companion-surface-mirabox-stream-dock
+    StreamDock-Device-SDK, Copyright (c) 2024 MiraboxSpace.
+      https://github.com/MiraboxSpace/StreamDock-Device-SDK
 
 BSD 3-Clause License (text C)
   lwIP 2.2.0, https://savannah.nongnu.org/projects/lwip/

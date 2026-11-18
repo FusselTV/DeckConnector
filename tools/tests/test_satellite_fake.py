@@ -2,6 +2,7 @@
 gate on the Satellite path. Runs without a real Companion."""
 
 import base64
+import contextlib
 import io
 import json
 import socketserver
@@ -9,8 +10,10 @@ import threading
 import time
 
 import pytest
-from conftest import api, put_config, status
+from conftest import HOST, PASSWORD, api, put_config, status
 from PIL import Image
+from websockets.exceptions import ConnectionClosed
+from websockets.sync.client import connect
 
 from dbtools.safety import real_input_target
 from dbtools.server import local_ip
@@ -33,6 +36,8 @@ class Fake(socketserver.StreamRequestHandler):
                 self.wfile.write(f'ADD-DEVICE OK DEVICEID="{dev}"\n'.encode())
             elif cmd == "PING":
                 self.wfile.write(b"PONG\n")
+            elif cmd == "PINCODE-KEY":
+                self.wfile.write(f'PINCODE-KEY OK DEVICEID="{srv.device}"\n'.encode())
 
     def finish(self):
         self.server.conn = None
@@ -59,12 +64,12 @@ def fake():
         srv.server_close()
 
 
-def wait(cond, secs: float = 20):
+def wait(cond, secs: float = 20, step: float = 0.25):
     end = time.time() + secs
     while time.time() < end:
         if got := cond():
             return got
-        time.sleep(0.25)
+        time.sleep(step)
     return None
 
 
@@ -113,3 +118,81 @@ def test_only_presses_bound_to_this_host_reach_satellite(fake):
     assert api("POST", "/api/input", json.dumps({"key": 0, "real": me}).encode())[0] == 200
     assert wait(lambda: len(presses(fake)) == 2, 5), f"the real press did not arrive: {presses(fake)}"
     assert [p.rsplit("PRESSED=", 1)[1] for p in presses(fake)] == ["1", "0"]
+
+
+def locked(srv, count: int, on: int = 1) -> None:
+    send(srv, f'LOCKED-STATE DEVICEID="{srv.device}" LOCKED={on} CHARACTER_COUNT={count} ROTATION=0')
+
+
+def pins(srv) -> list:
+    return [x.rsplit("KEY=", 1)[1] for x in srv.lines if x.startswith("PINCODE-KEY")]
+
+
+def key0_frame():
+    img = Image.open(io.BytesIO(api("GET", "/api/screen.jpg")[1])).convert("RGB")
+    return img.getpixel((15, 72))  # inside key 0's frame on the Stream Deck +
+
+
+def input_seq() -> int:
+    log = json.loads(api("GET", "/api/input/log")[1])
+    return log[-1]["seq"] if log else 0
+
+
+def logged_since(seq: int) -> list:
+    return [(e["kind"], e["index"]) for e in json.loads(api("GET", f"/api/input/log?since={seq}")[1])]
+
+
+@contextlib.contextmanager
+def ws_inputs():
+    """The input events a web socket listener gets meanwhile."""
+    auth = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}
+    seen = []
+    with connect(f"ws://{HOST}/api/ws", additional_headers=auth) as ws:
+
+        def read():
+            with contextlib.suppress(ConnectionClosed):
+                for raw in ws:
+                    msg = json.loads(raw)
+                    if msg["t"] == "input":
+                        seen.append((msg["kind"], msg["index"]))
+
+        threading.Thread(target=read, daemon=True).start()
+        yield seen
+
+
+def test_a_locked_deck_takes_the_pin_on_its_own_pad(fake):
+    assert "PINCODE_LOCK=FULL" in next(x for x in fake.lines if x.startswith("ADD-DEVICE"))
+    me = real_input_target(status())  # while the fake still draws
+    locked(fake, 0)
+    assert wait(lambda: status()["decks"][0]["locked"] and not drawing(), 5), "the deck did not show the pad"
+    with ws_inputs() as seen:
+        seq = input_seq()
+        _typed_on_the_pad(fake, me)
+        assert logged_since(seq) == [], f"the input log kept PIN digits: {logged_since(seq)}"
+        assert seen == [], f"a web socket listener got PIN digits: {seen}"
+        assert api("POST", "/api/input", json.dumps({"key": 1, "real": me}).encode())[0] == 200
+        assert wait(lambda: len(seen) == 2, 5), f"an unlocked press did not reach the web socket: {seen}"
+        assert logged_since(seq)[-2:] == [("key_down", 1), ("key_up", 1)], logged_since(seq)
+
+
+def _typed_on_the_pad(fake, me) -> None:
+    assert api("POST", "/api/menu")[0] == 409, "the menu opened on a locked deck"
+    assert api("POST", "/api/input", json.dumps({"key": 0}).encode())[0] == 200
+    time.sleep(1)
+    assert pins(fake) == [], "a simulated press reached Companion"
+    for key in (0, 1):
+        assert api("POST", "/api/input", json.dumps({"key": key, "real": me}).encode())[0] == 200
+    assert wait(lambda: pins(fake) == ["1", "2"], 5), f"digits: {pins(fake)}"
+    assert presses(fake) == [], f"a locked deck sent presses: {presses(fake)}"
+    locked(fake, 2)
+    locked(fake, 0)
+    assert wait(lambda: reddish(key0_frame()), 2, 0.05), "a wrong PIN did not flash red"
+    assert wait(lambda: not reddish(key0_frame()), 3), "the red stayed"
+    held = json.dumps({"key": 2, "action": "down", "real": me}).encode()
+    assert api("POST", "/api/input", held)[0] == 200  # the last digit, held while Companion unlocks
+    assert wait(lambda: pins(fake) == ["1", "2", "3"], 5), f"digits: {pins(fake)}"
+    locked(fake, 0, 0)
+    assert wait(lambda: drawing() and not status()["decks"][0]["locked"], 5), "Companion did not draw again"
+    assert api("POST", "/api/input", json.dumps({"key": 2, "action": "up", "real": me}).encode())[0] == 200
+    time.sleep(1)
+    assert presses(fake) == [], f"the release of a PIN digit reached Companion: {presses(fake)}"

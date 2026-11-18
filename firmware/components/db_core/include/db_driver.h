@@ -49,6 +49,9 @@ struct db_driver {
     /* The input report the device would send for `ev`, for input simulated from the web UI. Key and encoder
      * presses keep the state of the others. Returns the length, 0 when the device has no such input. */
     size_t (*build_input)(const db_dev_t *dev, const db_input_t *ev, uint8_t *report, size_t cap);
+    /* Every `tick_ms` while the device is open, for a device that drops a host it does not hear from. */
+    db_err_t (*tick)(db_dev_t *dev);
+    uint32_t tick_ms;
 };
 
 const db_driver_t *db_driver_find(uint16_t vid, uint16_t pid);

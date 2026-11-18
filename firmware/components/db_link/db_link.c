@@ -16,7 +16,6 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -152,9 +151,7 @@ static void send_hello(int link)
 {
     char buf[384];
     char id[13];
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_BASE);
-    snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    db_config_board_id(id);
     const char *c6 = s.hooks.c6_version();
     db_json_t j;
     db_json_begin(&j, buf, sizeof(buf));
