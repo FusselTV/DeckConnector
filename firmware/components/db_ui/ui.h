@@ -11,6 +11,7 @@
 
 #include "canvas.h"
 #include "db_device.h"
+#include "db_sat.h"
 
 #define UI_MAX_KEYS 36
 #define UI_SEGMENTS 4
@@ -142,11 +143,9 @@ typedef struct {
     char login_who[40]; /* the label the browser sent, cut to 20 characters, what a key shows */
     char login_mac[18]; /* empty when it is not in the ARP table */
     char login_name[40];
-    uint32_t login_seq;   /* which request the page shows, so an answer cannot reach a newer one */
-    bool locked;          /* Companion locked the deck with its PIN */
-    uint8_t pin_count;    /* digits typed */
-    bool pin_wrong;       /* the last entry was wrong, for a moment */
-    int16_t pin_rotation; /* Companion turns the deck by 90, -90 or 180 degrees */
+    uint32_t login_seq; /* which request the page shows, so an answer cannot reach a newer one */
+    bool locked;        /* Companion locked the deck with its PIN */
+    db_sat_pin_t pin;   /* when locked */
 } ui_model_t;
 
 typedef enum {

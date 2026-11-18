@@ -961,7 +961,7 @@ void db_satellite_retry(void)
     }
 }
 
-bool db_satellite_locked(int deck, db_satellite_pin_t *out)
+bool db_satellite_locked(int deck, db_sat_pin_t *out)
 {
     const sat_dev_t *v = &s.devs[deck];
     int64_t now = now_ms();
@@ -978,7 +978,7 @@ bool db_satellite_locked(int deck, db_satellite_pin_t *out)
 void db_satellite_pincode(int deck, int digit)
 {
     sat_dev_t *v = &s.devs[deck];
-    db_satellite_pin_t pin;
+    db_sat_pin_t pin;
     if (!db_satellite_locked(deck, &pin) || !db_deck_input_real_for(s.peer)) {
         return;
     }

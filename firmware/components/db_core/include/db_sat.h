@@ -60,6 +60,13 @@ typedef struct {
     int16_t rotation; /* 0, 90, -90 or 180, as Companion turns the surface */
 } db_sat_lock_t;
 
+/* The lock as the deck shows it. */
+typedef struct {
+    uint8_t count;    /* digits typed */
+    bool wrong;       /* the last entry was wrong, for a moment */
+    int16_t rotation; /* as Companion turns the surface: 0, 90, -90 or 180 */
+} db_sat_pin_t;
+
 /* A LOCKED-STATE or the answer to a PINCODE-KEY into `l`. True when Companion cleared digits it had counted
  * while still locked: a wrong PIN. */
 bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m);

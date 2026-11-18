@@ -823,8 +823,8 @@ static void test_pin_pad_on_every_deck(void)
             ui_model_t md = base_model();
             md.locked = true;
             md.english = english = v >= 4;
-            md.pin_count = (uint8_t)(v % 4 == 1 ? 3 : (v % 4 == 3 ? 12 : 0));
-            md.pin_wrong = v % 4 == 2;
+            md.pin.count = (uint8_t)(v % 4 == 1 ? 3 : (v % 4 == 3 ? 12 : 0));
+            md.pin.wrong = v % 4 == 2;
             for (uint8_t page = 0; page < (l.cols == 3 ? 2 : 1); page++) {
                 ui_menu_t m = {.page = v % 2 ? PAGE_MAIN : PAGE_HOME, .confirm_key = -1, .pin_page = page};
                 ui_screen_t sc;
@@ -832,7 +832,7 @@ static void test_pin_pad_on_every_deck(void)
                 char name[64];
                 snprintf(name, sizeof(name), "%s_lock%s_%d", pads[d].name, page ? "_b" : "", v);
                 check_page(&dev, &sc, name);
-                TEST_ASSERT_EQUAL_INT(md.pin_wrong, sc.tiles[pads[d].keys[1]].active);
+                TEST_ASSERT_EQUAL_INT(md.pin.wrong, sc.tiles[pads[d].keys[1]].active);
             }
         }
         english = false;
@@ -894,8 +894,8 @@ static void test_pin_pad_turns_with_the_deck(void)
         for (size_t t = 0; t < 3; t++) {
             ui_model_t md = base_model();
             md.locked = true;
-            md.pin_count = 2;
-            md.pin_rotation = turns[t];
+            md.pin.count = 2;
+            md.pin.rotation = turns[t];
             ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
             ui_screen_t sc;
             ui_menu_screen(&m, &md, &l, &sc);
@@ -909,11 +909,11 @@ static void test_pin_pad_turns_with_the_deck(void)
     ui_layout_t l = ui_layout_of(&dev);
     ui_model_t md = base_model();
     md.locked = true;
-    md.pin_rotation = 90;
+    md.pin.rotation = 90;
     ui_menu_t m = {.page = PAGE_HOME, .confirm_key = -1};
     TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 10));
     TEST_ASSERT_EQUAL_INT(0, pin_key(&m, &md, &l, 8));
-    md.pin_rotation = 180;
+    md.pin.rotation = 180;
     TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 13));
     dev = open_deck(0x0084); /* the + stays upright */
     l = ui_layout_of(&dev);

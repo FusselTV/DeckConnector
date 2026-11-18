@@ -785,7 +785,7 @@ static void sources_page(page_t *p)
 static void digit_key(page_t *p, int key, int digit)
 {
     ui_tile_t *t = put(p, key, (key_act_t)(K_DIGIT0 + digit));
-    *t = (ui_tile_t){.kind = TILE_DIGIT, .active = p->md->pin_wrong, .color = C_DANGER};
+    *t = (ui_tile_t){.kind = TILE_DIGIT, .active = p->md->pin.wrong, .color = C_DANGER};
     snprintf(t->label, sizeof(t->label), "%d", digit);
 }
 
@@ -793,27 +793,30 @@ static void digit_key(page_t *p, int key, int digit)
 static void pin_card(page_t *p, ui_tile_t *t, const char *label)
 {
     const ui_model_t *md = p->md;
-    card(t, ICON_LOCK, label, md->pin_wrong ? L("Falsch", "Wrong") : (md->pin_count ? "" : "PIN"),
-         md->pin_wrong ? L("nochmal", "again") : (md->pin_count ? "" : L("eingeben", "enter")));
-    t->dots = md->pin_wrong ? 0 : md->pin_count;
-    t->active = md->pin_wrong;
+    card(t, ICON_LOCK, label, md->pin.wrong ? L("Falsch", "Wrong") : (md->pin.count ? "" : "PIN"),
+         md->pin.wrong ? L("nochmal", "again") : (md->pin.count ? "" : L("eingeben", "enter")));
+    t->dots = md->pin.wrong ? 0 : md->pin.count;
+    t->active = md->pin.wrong;
     t->color = C_DANGER;
 }
 
-static void pin_segment(page_t *p, ui_segment_t *g, int span, const char *sub)
+/* On a strip part, or with `left` and `right` on the edges of the Neo's narrow info bar. */
+static void pin_segment(page_t *p, ui_segment_t *g, int span, const char *sub, const char *left,
+                        const char *right)
 {
-    const ui_model_t *md = p->md;
-    segment(g, span, ICON_LOCK, md->pin_wrong ? C_DANGER : C_DIM, L("Gesperrt", "Locked"),
-            md->pin_wrong ? L("Falsche PIN", "Wrong PIN")
-                          : (md->pin_count ? "" : L("PIN eingeben", "Enter the PIN")),
-            md->pin_wrong ? L("Nochmal von vorn", "Start again") : sub);
-    g->dots = md->pin_wrong ? 0 : md->pin_count;
+    const db_sat_pin_t *pin = &p->md->pin;
+    const char *wrong = left ? L("Falsch", "Wrong") : L("Falsche PIN", "Wrong PIN");
+    const char *enter = left ? "PIN" : L("PIN eingeben", "Enter the PIN");
+    segment(g, span, ICON_LOCK, pin->wrong ? C_DANGER : C_DIM, left ? left : L("Gesperrt", "Locked"),
+            pin->wrong ? wrong : (pin->count ? "" : enter),
+            right ? right : (pin->wrong ? L("Nochmal von vorn", "Start again") : sub));
+    g->dots = pin->wrong ? 0 : pin->count;
 }
 
 static void digit_segment(page_t *p, int i, int digit)
 {
     ui_segment_t *g = &p->sc->seg[i];
-    *g = (ui_segment_t){.span = 1, .bar = -1, .digit = true, .icon_color = p->md->pin_wrong ? C_DANGER : 0};
+    *g = (ui_segment_t){.span = 1, .bar = -1, .digit = true, .icon_color = p->md->pin.wrong ? C_DANGER : 0};
     snprintf(g->value, sizeof(g->value), "%d", digit);
 }
 
@@ -834,7 +837,7 @@ static void pad(page_t *p)
             digit_key(p, at(p, 1, c0 + 3), 0);
         }
         if (l->strip) {
-            pin_segment(p, &p->sc->seg[0], 4, "");
+            pin_segment(p, &p->sc->seg[0], 4, "", NULL, NULL);
         } else {
             pin_card(p, put(p, l->rows >= 4 ? at(p, r0 + 3, c0) : at(p, 1, c0 - 1), K_NONE),
                      L("Gesperrt", "Locked"));
@@ -844,16 +847,13 @@ static void pad(page_t *p)
             digit_key(p, d - 1, d);
         }
         if (l->strip) { /* the strip's right half and encoders 3 and 4 */
-            pin_segment(p, &p->sc->seg[0], 2, L("9 und 0 rechts", "9 and 0 on the right"));
+            pin_segment(p, &p->sc->seg[0], 2, L("9 und 0 rechts", "9 and 0 on the right"), NULL, NULL);
             digit_segment(p, 2, 9);
             digit_segment(p, 3, 0);
         } else { /* the Neo's two touch points below the keys */
             put(p, 8, K_DIGIT9);
             put(p, 9, K_DIGIT0);
-            ui_segment_t *g = &p->sc->bar;
-            segment(g, 1, ICON_LOCK, p->md->pin_wrong ? C_DANGER : C_DIM, "9",
-                    p->md->pin_wrong ? L("Falsch", "Wrong") : (p->md->pin_count ? "" : "PIN"), "0");
-            g->dots = p->md->pin_wrong ? 0 : p->md->pin_count;
+            pin_segment(p, &p->sc->bar, 1, NULL, "9", "0");
         }
     } else if (l->rows * l->cols == 6) { /* two pages, the last key switches */
         int first = p->m->pin_page ? 6 : 1;
@@ -866,13 +866,12 @@ static void pad(page_t *p)
     }
 }
 
-/* Companion's PIN, digits in phone order. Companion checks it: no delete and no enter, a wrong entry clears
- * itself once it is as long as the PIN. A deck of keys only follows Companion's rotation, as its
- * rotateXYForPanel places the buttons; the + and the Neo stay upright, their strip has one way up. */
+/* A deck of keys only follows Companion's rotation, as its rotateXYForPanel places the buttons; the + and the
+ * Neo stay upright, their strip has one way up. */
 static void lock_page(page_t *p)
 {
     const ui_layout_t *l = p->l;
-    int turn = p->md->pin_rotation;
+    int turn = p->md->pin.rotation;
     if (!turn || l->strip || l->bar || l->cols * l->rows > UI_MAX_KEYS) {
         pad(p);
         return;

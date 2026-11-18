@@ -229,12 +229,17 @@ static void draw_qr(ui_canvas_t *c, const ui_qr_t *qr, db_rect_t r)
     }
 }
 
-/* `n` dots of `d` px centred on `cx`, `cy`, as many as fit in `room`. */
-static void draw_dots(ui_canvas_t *c, int cx, int cy, int room, int n, int d, uint32_t color)
+static int dots_w(int n, int d)
+{
+    return n * (d + d / 2) - d / 2;
+}
+
+/* `n` dots of `d` px, as many as fit in `room`, centred on `x` or starting at it. */
+static void draw_dots(ui_canvas_t *c, int x, int cy, int room, int n, int d, uint32_t color, bool left)
 {
     int step = d + d / 2;
-    n = n * step - d / 2 > room ? (room + d / 2) / step : n;
-    int x = cx - (n * step - d / 2) / 2;
+    n = dots_w(n, d) > room ? (room + d / 2) / step : n;
+    x = left ? x : x - dots_w(n, d) / 2;
     for (int i = 0; i < n; i++, x += step) {
         ui_round(c, (db_rect_t){(uint16_t)x, (uint16_t)(cy - d / 2), (uint16_t)d, (uint16_t)d}, d / 2, color);
     }
@@ -289,7 +294,8 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_
         db_rect_t lab = {(uint16_t)(r.x + label_x), r.y, (uint16_t)(r.w - label_x - right), r.h};
         ui_text_fit(c, st->sub_fonts, st->sub_n, lab, r.y + st->card_label_y, C_DIM, t->label, UI_LEFT);
         if (t->dots) {
-            draw_dots(c, r.x + r.w / 2, r.y + st->value_y - 7, text.w, t->dots, r.h >= 90 ? 14 : 10, C_TEXT);
+            draw_dots(c, r.x + r.w / 2, r.y + st->value_y - 7, text.w, t->dots, r.h >= 90 ? 14 : 10, C_TEXT,
+                      false);
         } else if (!value_lines(c, st, text, r.y + st->value_y, t->value)) {
             ui_text_fit(c, st->sub_fonts, st->sub_n, text, r.y + st->card_sub_y, C_DIM, t->sub, UI_CENTER);
         }
@@ -340,9 +346,7 @@ static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     int top = !wide && g->icon && g->bar < 0;
     if (g->dots) {
         db_rect_t at = wide || g->icon ? col : full;
-        int d = 16;
-        int n = g->dots * (d + d / 2) > at.w ? at.w / (d + d / 2) : g->dots;
-        draw_dots(c, at.x + (n * (d + d / 2) - d / 2) / 2, r.y + 54, at.w, g->dots, d, C_TEXT);
+        draw_dots(c, at.x, r.y + 54, at.w, g->dots, 16, C_TEXT, true);
     } else {
         ui_text_fit(c, title_fonts + top, 4 - top, wide || g->icon ? col : full, r.y + (wide ? 64 : 66),
                     C_TEXT, g->value, UI_LEFT);
@@ -373,14 +377,14 @@ static void draw_bar(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     ui_text_at(c, &ui_font_title, edge, y, C_TEXT, g->sub, UI_LEFT);
     int d = 12;
     int room = r.w - 2 * 50 - 30;
-    int content = g->dots ? g->dots * (d + d / 2) - d / 2 : ui_text_width(&ui_font_label, g->value);
+    int content = g->dots ? dots_w(g->dots, d) : ui_text_width(&ui_font_label, g->value);
     content = content > room ? room : content;
     int x = r.x + (r.w - 30 - content) / 2;
     ui_text_at(c, &ui_font_icon_small, (db_rect_t){(uint16_t)x, r.y, 26, r.h}, y - 1, g->icon_color, g->icon,
                UI_LEFT);
     db_rect_t mid = {(uint16_t)(x + 30), r.y, (uint16_t)room, r.h};
     if (g->dots) {
-        draw_dots(c, mid.x + content / 2, r.y + r.h / 2, room, g->dots, d, C_TEXT);
+        draw_dots(c, mid.x + content / 2, r.y + r.h / 2, room, g->dots, d, C_TEXT, false);
     } else {
         ui_text_at(c, &ui_font_label, mid, y - 3, C_TEXT, g->value, UI_LEFT);
     }

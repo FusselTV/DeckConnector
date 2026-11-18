@@ -131,9 +131,9 @@ db_source_t db_ui_chosen_source(int deck)
 }
 
 /* Companion over Satellite is the chosen source of `deck` and locked it: the deck shows the PIN pad. */
-static bool locked(int deck, db_satellite_pin_t *pin)
+static bool locked(int deck, db_sat_pin_t *pin)
 {
-    db_satellite_pin_t spare;
+    db_sat_pin_t spare;
     return db_satellite_locked(deck, pin ? pin : &spare) && db_ui_chosen_source(deck) == DB_SOURCE_SAT;
 }
 
@@ -443,11 +443,7 @@ static void model(int deck, ui_model_t *md)
         .english = strcmp(c->lang, "en") == 0,
         .sat_failed = db_satellite_health().error[0] != '\0',
     };
-    db_satellite_pin_t pin;
-    md->locked = locked(deck, &pin);
-    md->pin_count = pin.count;
-    md->pin_wrong = pin.wrong;
-    md->pin_rotation = pin.rotation;
+    md->locked = locked(deck, &md->pin);
     if (ui_menu_open(&u->menu) && !u->turned && u->before >= 0) {
         md->brightness = u->before; /* the deck shows at least 20 %, the number stays what it had */
     }
@@ -1118,7 +1114,7 @@ static void tick(void *arg)
     }
     static uint16_t pins[DB_MAX_DECKS]; /* a wrong PIN's red ends */
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        db_satellite_pin_t p = {0};
+        db_sat_pin_t p = {0};
         bool on = db_satellite_locked(d, &p);
         uint16_t pin = (uint16_t)(on | p.wrong << 1 | p.count << 2);
         if (pin != pins[d]) {
