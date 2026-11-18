@@ -3,24 +3,6 @@ title: Flashing problems
 description: Flashing the ESP32-P4 board fails? Every error the flasher shows, what causes it, and how to fix it.
 ---
 
-Find the message or symptom, then read its section.
-
-| Symptom | Section |
-|---|---|
-| This browser cannot flash | [Browser](#browser) |
-| Web Serial works only on https | [Not https](#https) |
-| The board is not in the port list | [No port](#no-port) |
-| Another program is using this port | [Port busy](#port-busy) |
-| The board did not answer | [Download mode](#no-answer) |
-| This is not the right board | [Wrong chip](#wrong-chip) |
-| This chip revision is not supported | [Chip revision](#chip-revision) |
-| The install stopped | [Stopped midway](#flash-stopped) |
-| What the board read back does not match | [Read-back](#read-back) |
-| Could not load, or the file is damaged | [Firmware download](#firmware-download) |
-| The board does not answer, after the install | [Setup over USB](#setup-no-answer) |
-| Could not join the Wi-Fi | [Wi-Fi](#wifi-join) |
-| Flashed, but where is the board? | [Find the board](#find-board) |
-
 ## This browser cannot flash [#browser]
 
 **Cause.** The flasher uses [Web Serial](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API). Only Chrome, Edge and other Chromium browsers on a computer have it. Firefox, Safari, phones and tablets do not.
@@ -103,15 +85,15 @@ If it keeps failing, flash slower with [esptool](/docs/flashing#with-esptool) an
 
 **Fix.** Reload the page. With **Use local files** you can load a `manifest.json` and its `.bin` files from a [release](/docs/updates#releases) instead.
 
-## Setup over USB does not answer [#setup-no-answer]
+## Wi-Fi over USB does not answer [#setup-no-answer]
 
 | Cause | Fix |
 |---|---|
-| The board is still starting | Wait 15 seconds |
-| Setup is already done, and the board started more than 5 minutes ago | Press **RST**, then save again within 5 minutes |
+| The connector is still starting | Wait 15 seconds |
+| Setup is already done, and the connector started more than 5 minutes ago | Press **RST**, then save again within 5 minutes |
 | An old firmware without USB setup | Install the current firmware |
 
-You can always skip this step and use the [web setup](/docs/first-setup).
+You can always skip this step. Plug in a network cable or use the [setup Wi-Fi](/docs/first-setup#over-the-setup-wi-fi).
 
 ## Wi-Fi join fails [#wifi-join]
 
@@ -120,15 +102,15 @@ You can always skip this step and use the [web setup](/docs/first-setup).
 | A 5 GHz network | The Wi-Fi chip, an [ESP32-C6](https://www.espressif.com/en/products/socs/esp32-c6), has 2.4 GHz only. Turn on 2.4 GHz in the router, or pick its 2.4 GHz network |
 | Wrong password | It has 8 to 63 characters, or 64 hex digits. Check capital letters |
 | A hidden network | It is not in the list. Choose **Other network** and type the name |
-| Out of range | Move the board closer, or use a network cable |
+| Out of range | Move the connector closer, or use a network cable |
 
-## Cannot find the board afterwards [#find-board]
+## Cannot find the connector afterwards [#find-board]
 
 - The flasher's last step shows the address and the `.local` name.
 - The deck shows the address on the touch strip.
 - Some networks block `.local` names. Use the IP address instead.
 - Look in your router's device list for a name like `deckconnector-a1b2c3`.
 - The computer must be in the same network, not a guest Wi-Fi.
-- Before setup is done and without a network, the board opens its own [setup Wi-Fi](/docs/first-setup#over-the-setup-wi-fi) after a minute. The deck shows its name and password.
+- Before setup is done and without a network, the connector opens its own [setup Wi-Fi](/docs/first-setup#over-the-setup-wi-fi) after a minute. The deck shows its name and password.
 
 <Next links={[['Troubleshooting', '/docs/troubleshooting/']]} />

@@ -7,21 +7,21 @@ Flashing fails? See [Flashing problems](/docs/flash-troubleshooting).
 
 ## The deck screens
 
-| On the deck | Meaning and fix |
+| On the deck | What to do |
 |---|---|
-| **Kein Netz** (no network) | Neither LAN nor Wi-Fi has an address. Plug in a cable, or tap **WLAN** on the deck to start the setup Wi-Fi |
-| **Warte auf Companion** | Companion is chosen but not connected. See [below](#companion-does-not-connect) |
-| **Companion nicht erreichbar** (Companion not reachable) | The Satellite address on the deck does not answer. Check it under **Sources**. See [below](#companion-does-not-connect) |
-| **Warte auf die Elgato App** | The Elgato app is chosen but not connected. See [below](#the-elgato-app-does-not-find-the-deck) |
-| **Suche Server** | No server URL set, and none announces itself. Add one under **Sources** |
-| **Server getrennt** | The server does not answer. Check that it runs, and the URL and port |
-| **Verbindungsanfrage** | An unknown computer wants the deck. **Annehmen** lets it in, **Ablehnen** keeps it out |
-| **Companion gefunden** | Companion announces Satellite. **Verbinden** connects, **Nein** stops asking |
-| **Setup 2/5** | Someone runs the web wizard. Finish or skip it in the browser |
+| ![No network](/docs/deck-st-no-network-en.webp) | Neither LAN nor Wi-Fi has an address. Plug in a cable, or tap **Wi-Fi** on the deck to start the setup Wi-Fi |
+| ![Waiting for Companion](/docs/deck-st-companion-en.webp) | Companion is the active source but not connected. See [below](#companion-does-not-connect) |
+| ![Companion not reachable](/docs/deck-st-companion-away-en.webp) | The Companion address does not answer. Check it under **Sources** |
+| ![Waiting for the Elgato App](/docs/deck-st-app-en.webp) | See [below](#the-elgato-app-does-not-find-the-deck) |
+| ![Looking for a server](/docs/deck-st-server-en.webp) | No server address set, and none announces itself. Add one under **Sources** |
+| ![Server offline](/docs/deck-st-server-off-en.webp) | Check that the server runs, and its address and port |
+| ![Connection request](/docs/deck-st-request-en.webp) | An unknown computer wants the deck. **Accept** lets it in, **Deny** keeps it out |
+| ![Companion found](/docs/deck-st-offer-en.webp) | **Connect** connects it over Satellite. **No** stops asking |
+| **Setup 2/5** on a key | Someone runs the setup in a browser. Finish or skip it there |
 
 ## The deck stays dark or is slow
 
-- The board needs power. With PoE, the switch port must deliver it.
+- The connector needs power. With PoE, the switch port must deliver it.
 - The deck goes into the **USB-A** port.
 - **Reconnect** in the web UI turns its USB power off and on.
 - Behind a USB hub the deck may run at full speed, and pictures come slower. Plug it in directly.
@@ -37,7 +37,7 @@ Flashing fails? See [Flashing problems](/docs/flash-troubleshooting).
 ## Companion does not connect
 
 - **Settings › Satellite** must be on in Companion.
-- The board must reach Companion on TCP 16622, or 16623 for `ws://`. In Docker, publish that port and enter the address by hand.
+- The connector must reach Companion on TCP 16622, or 16623 for `ws://`. For Docker see [Connect Companion](/docs/companion).
 - **Check** next to the address under **Sources** shows whether Companion answers.
 - The deck shows up twice? A proxy hides Companion's address. Remove the remote surface in Companion.
 
@@ -45,7 +45,7 @@ Flashing fails? See [Flashing problems](/docs/flash-troubleshooting).
 
 - The computer must be in the same network, not a guest Wi-Fi.
 - A firewall on the computer may block the app.
-- The deck must be plugged in. A dock without a deck is ignored until the app restarts.
+- The deck must be plugged in when the app starts. Otherwise restart the app.
 - A denied app asks again only after it restarts.
 
 ## An update does not stay

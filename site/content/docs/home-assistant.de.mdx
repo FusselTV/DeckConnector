@@ -1,51 +1,48 @@
 ---
 title: Home Assistant
-description: Die DeckConnector-Integration für Home Assistant. Tastendrücke als Auslöser, Helligkeit, Bildschirm aus, Host, Deck-Bild und Updates.
+description: Die DeckConnector-Integration für Home Assistant. Tastendrücke als Auslöser, Helligkeit, Bildschirm aus, Quelle, Deck-Bild und Updates.
 ---
 
-Die DeckConnector-Integration holt die Platine und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen, jede Drehung und jede Berührung kommt sofort an und kann eine Automation starten. Du stellst die Helligkeit ein, schaltest die Bildschirme aus, wählst den Host und siehst, was jedes Deck zeigt.
+Die DeckConnector-Integration holt den Connector und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen, jede Drehung und jede Berührung kommt sofort an und kann eine Automation starten. Du stellst die Helligkeit ein, schaltest die Bildschirme aus, wählst die Quelle und siehst, was jedes Deck zeigt.
 
 <table>
   <tr>
-    <td width="50%" valign="top"><Shot src="ha-board-de" alt="Die Platine in Home Assistant: Bildschirm, Finden, Helligkeit, Bildschirm aus nach, Lautstärke, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={392} height={874} /></td>
-    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Host, PIN-Sperre, Ereignis Bedienung und Neu verbinden" width={392} height={530} /><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Host und Bedienung" width={532} height={622} /></td>
+    <td width="50%" valign="top"><Shot src="ha-board-de" alt="Der Connector in Home Assistant: Bildschirm, Finden, Helligkeit, Bildschirm aus nach, Lautstärke, Neustart, Quelle, Ersatz-WLAN, Ethernet und Temperatur" width={392} height={874} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Quelle, PIN-Sperre, Ereignis Bedienung und Neu verbinden" width={392} height={530} /><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Quelle und Bedienung" width={532} height={622} /></td>
   </tr>
 </table>
 
 ## Installieren
 
-Öffne **Einstellungen › Marketplace**, wähl **Über Link hinzufügen** und füge diese Adresse ein. Vor Home Assistant 2026.11 fügst du sie in HACS unter **Benutzerdefinierte Repositories** als **Integration** hinzu.
+<Buttons links={[['Mit HACS installieren', 'https://my.home-assistant.io/redirect/hacs_repository/?owner=FusselTV&repository=DeckConnector&category=integration'], ['Zu Home Assistant hinzufügen', 'https://my.home-assistant.io/redirect/config_flow_start/?domain=deckconnector']]} />
+
+1. **Mit HACS installieren** öffnet das Repository in deinem Home Assistant. Lade **DeckConnector** herunter und starte Home Assistant neu.
+2. Home Assistant findet den Connector von selbst und bietet ihn unter **Einstellungen › Geräte & Dienste** an. Sonst nimm **Zu Home Assistant hinzufügen** und gib die Adresse des Connectors ein.
+
+Ohne HACS öffnest du **Einstellungen › Marketplace**, wählst **Über Link hinzufügen** und fügst die Adresse des Repositorys ein.
 
 ```text
 https://github.com/FusselTV/DeckConnector
 ```
 
-Lade **DeckConnector** herunter und starte Home Assistant neu.
-
-## Einrichten
-
-Home Assistant findet die Platine von selbst und bietet sie unter **Einstellungen › Geräte & Dienste** an. Sonst fügst du dort **DeckConnector** hinzu und gibst die Adresse der Platine ein.
-
-Wähl **Am Deck bestätigen** oder, ohne Deck, **Web-Passwort eingeben**. Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf der Platine an.
-
 <Shot src="ha-flow-de" alt="Wählen, wie Home Assistant Zugriff bekommt: am Deck bestätigen oder Web-Passwort eingeben" width={580} height={264} />
 
-**Neu konfigurieren** an der Integration ändert die Adresse der Platine und behält den Schlüssel.
+Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf dem Connector an. **Neu konfigurieren** an der Integration ändert die Adresse des Connectors und behält den Schlüssel.
 
 ## Was du bekommst
 
-Die Platine ist ein Gerät, jedes Deck ein Gerät dahinter. Ein Deck, das du später ansteckst, erscheint sofort.
+Der Connector ist ein Gerät, jedes Deck ein Gerät dahinter. Ein Deck, das du später ansteckst, erscheint sofort.
 
 Diese sind zuerst deaktiviert. Schalte sie am Gerät ein, wenn du sie brauchst:
 
-- **WLAN-Signal**, **WLAN-Netz** und **Letzter Neustart** der Platine.
-- Das Update **Firmware**. Damit fragt die Platine alle 6 Stunden bei GitHub nach neuen Versionen.
+- **WLAN-Signal**, **WLAN-Netz** und **Letzter Neustart** des Connectors.
+- Das Update **Firmware**. Damit fragt der Connector alle 6 Stunden bei GitHub nach neuen Versionen.
 - **PIN-Sperre** eines Decks. Sie zeigt **Verriegelt**, solange Companion das Deck mit seiner PIN sperrt. Ihre zwei Auslöser erscheinen auch als Tasten in einer HomeKit Bridge.
 - **Neu verbinden** eines Decks. Es schaltet den USB-Anschluss aus und wieder ein, für ein Deck, das hängt.
 
-**Lautstärke** und **Finden** gibt es nur bei einer Platine mit Lautsprecher. **Bildschirm aus nach** ist in Minuten, 0 heißt nie.
+**Lautstärke** und **Finden** gibt es nur bei einem Connector mit Lautsprecher. **Bildschirm aus nach** ist in Minuten, 0 heißt nie.
 
-Die Platine schickt jede Änderung sofort. Signal und Temperatur kommen einmal pro Minute.
+Der Connector schickt jede Änderung sofort. Signal und Temperatur kommen einmal pro Minute.
 
 ## Automationen
 
@@ -66,7 +63,7 @@ conditions:
     state: key_3_press
 ```
 
-Der Host zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
+Die Quelle zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
 
 ### Blueprint
 
@@ -80,17 +77,17 @@ Die [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) zeigt 
 
 ## Gut zu wissen
 
-- Home Assistant spricht mit der Platine über HTTP auf Port 80.
+- Home Assistant spricht mit dem Connector über HTTP auf Port 80.
 - Tastendrücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
 - Nach einem Firmware-Update lädt sich die Integration selbst neu, neue Entitäten erscheinen dann.
 - Der Logger heißt `custom_components.deckconnector`.
 
 ## Fehlersuche
 
-Probleme, die Home Assistant erkennt, stehen unter **Einstellungen › Reparaturen**: eine Platine, die nur HTTPS erlaubt, und Decks, die wegen der Deck-Grenze dunkel bleiben.
+Probleme, die Home Assistant beheben kann, stehen unter **Einstellungen › Reparaturen**.
 
-Sind alle Entitäten nicht verfügbar, erreicht Home Assistant die Platine nicht. Öffne die Adresse der Platine im Browser. Hat sich die Adresse geändert, nimm **Neu konfigurieren**.
+Sind alle Entitäten nicht verfügbar, erreicht Home Assistant den Connector nicht. Öffne die Adresse des Connectors im Browser. Hat sich die Adresse geändert, nimm **Neu konfigurieren**.
 
-Für einen Fehlerbericht nimm **Diagnosedaten herunterladen** am Gerät der Platine. Schlüssel, Adressen und Seriennummern fehlen darin.
+Für einen Fehlerbericht nimm **Diagnosedaten herunterladen** am Gerät des Connectors. Schlüssel, Adressen und Seriennummern fehlen darin.
 
 <Next lang="de" links={[['API', '/de/docs/api/'], ['Zugang und Sicherheit', '/de/docs/security/']]} />

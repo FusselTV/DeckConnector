@@ -1,7 +1,21 @@
 # Contributing
 
-How to build the firmware is on the website, under [From source](https://deckconnector.com/docs/flashing#from-source).
-All user docs are there too. This page is for working on the code.
+The user docs are on the [website](https://deckconnector.com/docs). This page is for working on the code.
+
+## Build
+
+Needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).
+
+```bash
+git clone https://github.com/FusselTV/DeckConnector.git
+cd DeckConnector/web && npm ci && npm run build
+cd ../tools && uv run python -m dbtools.dbfw keygen
+cd ../firmware && idf.py build && idf.py -p /dev/ttyACM0 flash
+```
+
+The web UI is part of the firmware, so it builds first. `keygen` runs once. It keeps the private key in
+`~/.config/deckbridge/ota_key.pem` and writes the public key into the firmware. A connector takes only updates signed
+with that key.
 
 | Folder | What it is |
 |---|---|

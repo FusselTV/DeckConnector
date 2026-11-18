@@ -3,27 +3,27 @@ title: Own server
 description: Draw the deck from your own program over WebSocket. Protocol version 1.
 ---
 
-Your server renders the images. The board shows them and sends back every press, turn and touch. Start from `tools/dbtools/server.py` in the repository, a small Python server.
+Your server renders the images. The connector shows them and sends back every press, turn and touch. Start from `tools/dbtools/server.py` in the repository, a small Python server.
 
 ## Connection
 
-- The board is the client. It opens up to four URLs from **Sources** with the subprotocol `deckconnector.v1`.
+- The connector is the client. It opens up to four URLs from **Sources** with the subprotocol `deckconnector.v1`.
 - With an empty list, it finds servers that announce `_deckconnector._tcp` over mDNS and opens `ws://<address>:<port>/deckbridge`.
 - `wss://` needs a certificate from a public CA for that host, or the SHA-256 pin set for that server.
-- To check who connects, set `token` in the [settings](/docs/api#settings). The board sends it as `Authorization: Bearer` to the servers you entered.
+- To check who connects, set `token` in the [settings](/docs/api#settings). The connector sends it as `Authorization: Bearer` to the servers you entered.
 - The first connected server is **active**, the others **standby**. Only the active one draws and gets input.
 - When it is lost, the next one becomes active, gets a `role` message, and must draw every area again. Until then the deck shows what that server drew last, which may be old.
 - The active server also gets `role` after the menu or an update drew over its picture.
-- While Companion or the Elgato app is chosen, every server is standby. See [Multiple hosts](/docs/hosts).
-- The board pings every 2 s. A server silent for 6 s counts as lost.
+- While Companion or the Elgato app is the active source, every server is standby. See [Sources](/docs/hosts).
+- The connector pings every 2 s. A server silent for 6 s counts as lost.
 
 Text frames carry JSON. Binary frames carry images, acknowledgements, input and time sync. All binary integers are little endian.
 
 ## Coordinates
 
-Each display has one pixel coordinate system, origin at the top left of the whole glass. Keys and strips are rectangles in it. Send any rectangle from the display's `targets`, and the board picks the USB command. Apply the listed rotation and flip before you encode the JPEG.
+Each display has one pixel coordinate system, origin at the top left of the whole glass. Keys and strips are rectangles in it. Send any rectangle from the display's `targets`, and the connector picks the USB command. Apply the listed rotation and flip before you encode the JPEG.
 
-## From the board
+## From the connector
 
 ```json
 {"t": "hello", "proto": 1, "id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3", "fw": "0.1.0",
@@ -49,9 +49,9 @@ A `strip` target with `partial: true` takes any rectangle inside it. Other targe
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
 
-`status` has the fields of [`GET /api/status`](/docs/api#status) without `memory`. OTA `state` is `download`, `verify`, `done` or `error`. After `done` the board restarts.
+`status` has the fields of [`GET /api/status`](/docs/api#status) without `memory`. OTA `state` is `download`, `verify`, `done` or `error`. After `done` the connector restarts.
 
-## To the board
+## To the connector
 
 ```json
 {"t": "brightness", "pct": 70}
@@ -65,14 +65,14 @@ The signed file decides which chip it is for. `target` only comes back in the pr
 
 The first byte is the type.
 
-### Server to board
+### Server to connector
 
 | Type | Name | After the type byte |
 |---|---|---|
 | `0x01` | IMAGE | `u8 display, u16 x, u16 y, u16 w, u16 h, u32 seq`, then the JPEG |
 | `0x02` | TIME | `u8[7] reserved, u64 server_time_us` |
 
-### Board to server
+### Connector to server
 
 | Type | Name | After the type byte |
 |---|---|---|
@@ -80,7 +80,7 @@ The first byte is the type.
 | `0x82` | TIME | `u8[7] reserved, u64 server_time_us, u64 bridge_time_us` |
 | `0x83` | INPUT | `u8 kind, u8 index, u8 display, i16 value, u16 x, u16 y, u16 x2, u16 y2, u8[10] reserved, u64 t` |
 
-Times are microseconds on the board's clock. `t_recv` is when the image was complete. `t_start` and `t_done` frame the USB transfer. INPUT `t` is when the USB report arrived.
+Times are microseconds on the connector's clock. `t_recv` is when the image was complete. `t_start` and `t_done` frame the USB transfer. INPUT `t` is when the USB report arrived.
 
 ### ACK result
 
@@ -91,7 +91,7 @@ Times are microseconds on the board's clock. `t_recv` is when the image was comp
 | 2 | `REJECTED_RECT` | The rectangle is not a target of this display |
 | 3 | `REJECTED_ROLE` | This server is not active, or the menu, the Elgato app or Companion has the deck |
 | 4 | `NO_DEVICE` | No deck, or the USB transfer failed |
-| 5 | `BUSY` | The board is out of image memory |
+| 5 | `BUSY` | The connector is out of image memory |
 | 6 | `TOO_BIG` | The image is larger than the display's `max_bytes` |
 
 ### INPUT kind

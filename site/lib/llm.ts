@@ -39,6 +39,9 @@ function mdx(body: string) {
           const links = [...a.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)]
           return links.length ? `Next: ${links.map(([, t, u]) => `[${t}](${u})`).join(', ')}` : ''
         })
+        .replace(/^[ \t]*<Buttons\b([\s\S]*?)\/>[ \t]*$/gm, (_, a: string) =>
+          [...a.matchAll(/\[\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"]\s*\]/g)].map(([, t, u]) => `- [${t}](${u})`).join('\n'),
+        )
         .replace(/^[ \t]*<BenchBars\b([\s\S]*?)\/>[ \t]*$/gm, (_, a: string) => {
           const de = attr(a, 'lang') === 'de'
           const unit = attr(a, 'unit') ?? ''

@@ -3,57 +3,57 @@ title: Netzwerk
 description: WLAN und LAN gleichzeitig, Ausfallsicherheit, feste Adressen, Namen und Ports.
 ---
 
-Die Platine nutzt WLAN und LAN gleichzeitig, jedes mit eigener Adresse. Sind beide da, laufen Verbindungen übers Kabel, und WLAN ist die Reserve.
+Der Connector nutzt WLAN und LAN gleichzeitig, jedes mit eigener Adresse. Sind beide da, laufen Verbindungen übers Kabel, und WLAN ist die Reserve.
 
 ## Ausfallsicherheit
 
 <Failover lang="de" />
 
-Per mDNS meldet sich die Platine immer nur in einem Netz an. Das ist das LAN, außer es hat keine Adresse oder gilt als tot. Dann ist es das WLAN.
+Seinen Namen meldet der Connector immer nur in einem Netz an. Das ist das LAN, außer es hat keine Adresse oder gilt als tot. Dann ist es das WLAN.
 
 ## WLAN
 
-- Nur 2,4 GHz. Ein verstecktes Netz steht nicht in der Liste, du kannst seinen Namen aber eintippen.
-- Die Platine testet ein neues Netz zuerst und behält es nur, wenn sie dort eine Adresse bekommt. Sonst kommt das alte zurück.
-- **Zugangspunkte (BSSID)** bindet die Platine an einen Zugangspunkt. Ohne das nimmt sie den stärksten und wechselt bei Bedarf.
-- **Zweites WLAN (Ersatz)** ist ein zweites Netz. Die Platine geht hinein, wenn das erste 10 s lang keine Verbindung gibt. Dort sucht sie alle 2 Minuten nach dem ersten. Fällt es immer wieder aus, sucht sie seltener. Sie geht zurück, sobald es guten Empfang hat. Im Ersatz-WLAN holt sie ihre Adresse immer per DHCP.
+- Ein verstecktes Netz steht nicht in der Liste, du kannst seinen Namen aber eintippen.
+- Der Connector testet ein neues Netz zuerst und behält es nur, wenn er dort eine Adresse bekommt. Sonst kommt das alte zurück.
+- **Zugangspunkte** bindet den Connector an einen Zugangspunkt. Ohne das nimmt er den stärksten und wechselt bei Bedarf.
+- **Zweites WLAN (Ersatz)** ist ein zweites Netz. Der Connector geht hinein, wenn das erste weg ist, und kehrt von selbst zurück. Im Ersatz-WLAN holt er seine Adresse immer per DHCP.
 
 ## Feste Adresse
 
-LAN und WLAN nehmen jeweils DHCP oder eine feste Adresse. Eine feste Adresse braucht IP und Netzmaske, das Gateway ist optional und muss im selben Netz liegen. Im IP-Feld geht auch `10.0.0.5/24`. Speichern startet die Platine neu, und die Weboberfläche zeigt, wo sie dann zu finden ist ([Demo](/de/demo/#network)).
+LAN und WLAN nehmen jeweils DHCP oder eine feste Adresse. Eine feste Adresse braucht IP und Netzmaske, das Gateway ist optional und muss im selben Netz liegen. Im IP-Feld geht auch `10.0.0.5/24`. Speichern startet den Connector neu, und die Weboberfläche zeigt, wo er dann zu finden ist ([Demo](/de/demo/#network)).
 
-Auf einem Deck mit Drehreglern stellst du eine feste LAN-Adresse auch im Deck-Menü unter **LAN** ein.
+Auf einem Deck mit Drehreglern stellst du eine feste LAN-Adresse auch im [Deck-Menü](/de/docs/first-setup#nur-am-deck) ein.
 
 ## Namen
 
-Der mDNS-Name der Platine ist `<name>.local`, zum Beispiel `deckconnector-a1b2c3.local`.
+Der Name des Connectors im Netz ist `<name>.local`, zum Beispiel `deckconnector-a1b2c3.local`.
 
 | mDNS-Dienst | Was |
 |---|---|
 | `_deckconnector-api._tcp` | Weboberfläche und API |
 | `_elg._tcp` | Das Network Dock, nur solange ein Deck steckt |
-| `_companion-satellite._tcp`, `_comp-sat-app._tcp` | Zeigt die Platine in Companion unter **Surfaces › Discover** |
+| `_companion-satellite._tcp`, `_comp-sat-app._tcp` | Zeigt den Connector in Companion unter **Surfaces › Discover** |
 
 ## Ports
 
-- **80 und 443** auf der Platine: Weboberfläche und API, über HTTP und HTTPS.
-- **5343 und 5344** auf der Platine: das Network Dock, für Companion und die Elgato-App. Deck 2 nutzt 5345 und 5346, und so weiter.
+- **80 und 443** auf dem Connector: Weboberfläche und API, über HTTP und HTTPS.
+- **5343 und 5344** auf dem Connector: das Network Dock, für Companion und die Elgato-App. Deck 2 nutzt 5345 und 5346, und so weiter.
 - **16622** auf dem Companion-Rechner: Satellite. **16623** für eine `ws://`-Adresse.
 
 ## Uhr
 
-Die Platine stellt ihre Uhr per NTP. Sie nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. Einen eigenen legst du in der Weboberfläche unter **Netzwerk** fest.
+Der Connector stellt seine Uhr per NTP. Er nimmt den Server, den DHCP nennt, sonst `pool.ntp.org`. Einen eigenen legst du in der Weboberfläche unter **Netzwerk** fest.
 
 ## Internet
 
-Die Platine spricht nur in diesen Fällen mit dem Internet. Jedes Mal sieht der Server die IP-Adresse deines Netzes.
+Der Connector spricht nur in diesen Fällen mit dem Internet. Jedes Mal sieht der Server die IP-Adresse deines Netzes.
 
 - **Uhrzeit.** `pool.ntp.org`, nur wenn dein Router keinen Zeitserver nennt und du keinen festlegst.
-- **Update-Prüfung.** GitHub, nur wenn du unter **Firmware** auf **Prüfen** klickst, oder alle 6 Stunden, solange die Firmware-Entität in Home Assistant an ist.
+- **Update-Prüfung.** GitHub, nur wenn du unter **Firmware** auf **Prüfen** klickst, oder solange die Firmware-Entität in [Home Assistant](/de/docs/home-assistant) an ist.
 - **Update per URL.** Die Adresse, die du angibst, bei einem Release auch GitHub.
 - **Deine Server.** Companion, Satellite und eigene Server, die du einträgst.
-- **Matter.** Nichts von der Platine. Die Home-App, Google Home oder Alexa, mit der du sie koppelst, kann Namen und Tastendrücke an Apple, Google oder Amazon schicken.
+- **Matter.** Nichts vom Connector. Die Home-App, Google Home oder Alexa, mit der du ihn koppelst, kann Namen und Tastendrücke an Apple, Google oder Amazon schicken.
 
 Sie schickt keine Nutzungsdaten und keine Absturzberichte.
 
-<Next lang="de" links={[['Mehrere Programme', '/de/docs/hosts/']]} />
+<Next lang="de" links={[['Quellen', '/de/docs/hosts/']]} />

@@ -38,7 +38,7 @@ function Node({ icon, title, sub, tone, slim }: { icon: ReactNode; title: ReactN
 export function Topology({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
     title: 'How DeckConnector connects',
-    desc: 'The Stream Deck plugs into the board over USB. The board joins your network over Wi-Fi, Ethernet or both. Companion, the Elgato app, your own server and a browser reach the deck through the network.',
+    desc: 'The Stream Deck plugs into the connector over USB. The connector joins your network over Wi-Fi, Ethernet or both. Companion, the Elgato app, your own server and a browser reach the deck through the network.',
     deck: 'Your deck, unchanged',
     board: 'DeckConnector',
     boardSub: 'ESP32-P4, USB-C or PoE power',
@@ -55,7 +55,7 @@ export function Topology({ lang }: { lang?: Lang }) {
     webSub: 'web UI and API',
   }, {
     title: 'So verbindet sich DeckConnector',
-    desc: 'Das Stream Deck steckt per USB an der Platine. Die Platine ist per WLAN, LAN oder beidem im Netzwerk. Companion, die Elgato-App, ein eigener Server und ein Browser erreichen das Deck über das Netzwerk.',
+    desc: 'Das Stream Deck steckt per USB am Connector. Der Connector ist per WLAN, LAN oder beidem im Netzwerk. Companion, die Elgato-App, ein eigener Server und ein Browser erreichen das Deck über das Netzwerk.',
     deck: 'Dein Deck, unverändert',
     board: 'DeckConnector',
     boardSub: 'ESP32-P4, Strom per USB-C oder PoE',
@@ -133,19 +133,19 @@ export function SetupFlow({ lang }: { lang?: Lang }) {
 export function SetupPaths({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
     title: 'Three ways into the setup',
-    desc: 'With a network cable, scan the QR code on the deck. Without a network, join the setup Wi-Fi the board opens. Or skip the web UI and enter the address shown on the deck in Companion or the Elgato app. All three end in the same settings.',
+    desc: 'With a network cable, scan the QR code on the deck. Without a network, join the setup Wi-Fi the connector opens. Or skip the web UI and enter the address shown on the deck in Companion or the Elgato app. All three end in the same settings.',
     ways: [
       ['Cable and QR code', 'The deck shows its address and a QR code. Scan it with a phone.', <Network key="n" />],
-      ['Setup Wi-Fi', 'No network yet? The board opens its own Wi-Fi after a minute.', <Wifi key="w" />],
+      ['Setup Wi-Fi', 'No network yet? The connector opens its own Wi-Fi after a minute.', <Wifi key="w" />],
       ['Deck only', 'Enter the address from the deck in Companion or the Elgato app.', <SlidersHorizontal key="s" />],
     ],
     end: 'Same settings: name, password, network, program',
   }, {
     title: 'Drei Wege in die Einrichtung',
-    desc: 'Mit Netzwerkkabel den QR-Code auf dem Deck scannen. Ohne Netzwerk ins Setup-WLAN der Platine gehen. Oder ohne Weboberfläche die Adresse vom Deck in Companion oder der Elgato-App eintragen. Alle drei enden bei denselben Einstellungen.',
+    desc: 'Mit Netzwerkkabel den QR-Code auf dem Deck scannen. Ohne Netzwerk ins Setup-WLAN des Connectors gehen. Oder ohne Weboberfläche die Adresse vom Deck in Companion oder der Elgato-App eintragen. Alle drei enden bei denselben Einstellungen.',
     ways: [
       ['Kabel und QR-Code', 'Das Deck zeigt Adresse und QR-Code. Mit dem Handy scannen.', <Network key="n" />],
-      ['Setup-WLAN', 'Noch kein Netz? Dann öffnet die Platine nach einer Minute ein eigenes WLAN.', <Wifi key="w" />],
+      ['Setup-WLAN', 'Noch kein Netz? Dann öffnet der Connector nach einer Minute ein eigenes WLAN.', <Wifi key="w" />],
       ['Nur am Deck', 'Die Adresse vom Deck in Companion oder der Elgato-App eintragen.', <SlidersHorizontal key="s" />],
     ],
     end: 'Dieselben Einstellungen: Name, Passwort, Netzwerk, Programm',
@@ -175,7 +175,7 @@ export function SetupPaths({ lang }: { lang?: Lang }) {
 export function Failover({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
     title: 'What happens when the LAN fails',
-    desc: 'Connections go over LAN. The board pings the gateway once per second. After three missed pings in a row, about 3 seconds, the LAN counts as dead. A connection that hears nothing for 6 seconds starts again, now over Wi-Fi. While on Wi-Fi the board tries the LAN every 5 seconds and moves back as soon as the LAN reaches the host.',
+    desc: 'Connections go over LAN. The connector pings the gateway once per second. After three missed pings in a row, about 3 seconds, the LAN counts as dead. A connection that hears nothing for 6 seconds starts again, now over Wi-Fi. While on Wi-Fi the connector tries the LAN every 5 seconds and moves back as soon as the LAN reaches the host.',
     phases: [
       ['LAN', 'Connections go over the cable'],
       ['LAN fails', '3 gateway pings missed, about 3 s'],
@@ -184,7 +184,7 @@ export function Failover({ lang }: { lang?: Lang }) {
     ],
   }, {
     title: 'Was passiert, wenn das LAN ausfällt',
-    desc: 'Verbindungen laufen über LAN. Die Platine pingt das Gateway einmal pro Sekunde. Fehlen drei Antworten hintereinander, gilt das LAN nach etwa 3 Sekunden als tot. Eine Verbindung, die 6 Sekunden lang nichts hört, startet neu, jetzt über WLAN. Im WLAN probiert die Platine alle 5 Sekunden das LAN und wechselt zurück, sobald es das Ziel erreicht.',
+    desc: 'Verbindungen laufen über LAN. Der Connector pingt das Gateway einmal pro Sekunde. Fehlen drei Antworten hintereinander, gilt das LAN nach etwa 3 Sekunden als tot. Eine Verbindung, die 6 Sekunden lang nichts hört, startet neu, jetzt über WLAN. Im WLAN probiert der Connector alle 5 Sekunden das LAN und wechselt zurück, sobald es das Ziel erreicht.',
     phases: [
       ['LAN', 'Verbindungen laufen über das Kabel'],
       ['LAN fällt aus', '3 Gateway-Pings ohne Antwort, etwa 3 s'],
@@ -227,15 +227,15 @@ function Shot({ src, alt, w, h }: { src: string; alt: string; w: number; h: numb
 
 export function HostSwitch({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
-    title: 'Switching hosts on the deck',
+    title: 'Switching sources on the deck',
     a: 'Home screen, Companion away',
-    aAlt: 'Top row of the deck. Companion in amber says getrennt, wartet (away, waiting). Next to it the keys Elgato App STUDIO-PC Dock, Server regie and Menü Einstellungen.',
+    aAlt: 'Top row of the deck. Companion in amber says offline, waiting. Next to it the keys Elgato App STUDIO-PC Dock, Server regie and Menu settings.',
     b: 'First tap on the Elgato app',
-    bAlt: 'The same row after one tap. The Elgato app key is blue and says Wechseln?, nochmal tippen (switch?, tap again).',
+    bAlt: 'The same row after one tap. The Elgato app key is blue and says Switch?, tap again.',
     c: 'Second tap within 3 s',
     draws: 'The Elgato app draws',
   }, {
-    title: 'Programm am Deck wechseln',
+    title: 'Quelle am Deck wechseln',
     a: 'Startbildschirm, Companion fehlt',
     aAlt: 'Obere Reihe des Decks. Companion in Gelb mit getrennt, wartet. Daneben die Tasten Elgato App STUDIO-PC Dock, Server regie und Menü Einstellungen.',
     b: 'Erstes Tippen auf die Elgato-App',
@@ -250,7 +250,7 @@ export function HostSwitch({ lang }: { lang?: Lang }) {
           <div key={img}>
             <p className={`${mono} mb-1.5`}>{name}</p>
             <div className="overflow-hidden rounded-xl">
-              <Shot src={`/docs/deck-${img}.webp`} alt={alt} w={912} h={186} />
+              <Shot src={`/docs/deck-${img}-${lang ?? 'en'}.webp`} alt={alt} w={912} h={186} />
             </div>
           </div>
         ))}
@@ -269,13 +269,13 @@ export function HostSwitch({ lang }: { lang?: Lang }) {
 export function DeckMenu({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
     title: 'The deck menu on a Stream Deck +',
-    alt: 'The deck menu in the web UI\'s live deck view. Top row: English Sprache, two empty keys, Menü schließen. Second row: LAN 192.168.1.50 automatisch, Setup-WLAN starten, Firmware with its version, Neustart 5 s: Werkszustand. Touch strip: Helligkeit 80 %, Web-Zugang http://192.168.1.50 with user admin and the password, Schließen.',
+    alt: 'The deck menu in the web UI\'s live deck view. Top row: Deutsch Language, two empty keys, Menu close. Second row: LAN 192.168.1.50 automatic, Setup Wi-Fi start, Firmware with its version, Restart 5 s: factory reset. Touch strip: Brightness 80 %, Web access http://192.168.1.50 with user admin and the password, Close.',
     rows: [
-      ['English', 'Switches the deck to English. In English it says Deutsch'],
+      ['Deutsch', 'Switches the deck to German. In German it says English'],
       ['LAN', 'Fixed or automatic address'],
-      ['Setup-WLAN', 'Starts the setup Wi-Fi'],
-      ['Neustart', 'Tap twice: restart. Hold 5 s: factory reset'],
-      ['Strip', 'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, user admin, password. Schließen (close)'],
+      ['Setup Wi-Fi', 'Starts the setup Wi-Fi'],
+      ['Restart', 'Tap twice: restart. Hold 5 s: factory reset'],
+      ['Strip', 'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, user admin, password. Close'],
     ],
   }, {
     title: 'Das Deck-Menü auf einem Stream Deck +',
@@ -291,8 +291,8 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
   return (
     <Figure title={t.title}>
       <div className="grid gap-4">
-        <a href="/docs/deck-menu.webp" className="mx-auto block w-full max-w-lg">
-          <Shot src="/docs/deck-menu.webp" alt={t.alt} w={1146} h={1092} />
+        <a href={`/docs/deck-menu-${lang ?? 'en'}.webp`} className="mx-auto block w-full max-w-lg">
+          <Shot src={`/docs/deck-menu-${lang ?? 'en'}.webp`} alt={t.alt} w={1146} h={1092} />
         </a>
         <dl className="grid gap-2 text-sm">
           {t.rows.map(([k, v]) => (
@@ -310,7 +310,7 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
 export function OtaFlow({ lang }: { lang?: Lang }) {
   const t = pick(lang, {
     title: 'How an update is checked and kept',
-    desc: 'The board checks the signature, the security level and the SHA-256, then writes the new firmware into the slot after the running one and restarts into it. The new firmware must reach the network within 2 minutes and then stay up for 20 seconds. If it does not, or it crashes, the old slot starts again.',
+    desc: 'The connector checks the signature, the security level and the SHA-256, then writes the new firmware into the slot after the running one and restarts into it. The new firmware must reach the network within 2 minutes and then stay up for 20 seconds. If it does not, or it crashes, the old slot starts again.',
     checks: ['Signature', 'Security level', 'SHA-256', 'Restart into the new slot', 'Network within 2 min, then 20 s up'],
     ok: 'Kept',
     fail: 'Any step fails, or the new firmware crashes? The old slot starts again.',
@@ -321,7 +321,7 @@ export function OtaFlow({ lang }: { lang?: Lang }) {
     prev: 'older firmware',
   }, {
     title: 'So wird ein Update geprüft und behalten',
-    desc: 'Die Platine prüft Signatur, Sicherheitsstufe und SHA-256, schreibt die neue Firmware in den Platz nach dem laufenden und startet ihn. Die neue Firmware muss in 2 Minuten das Netzwerk erreichen und dann 20 Sekunden laufen. Sonst, oder nach einem Absturz, startet wieder der alte Platz.',
+    desc: 'Der Connector prüft Signatur, Sicherheitsstufe und SHA-256, schreibt die neue Firmware in den Platz nach dem laufenden und startet ihn. Die neue Firmware muss in 2 Minuten das Netzwerk erreichen und dann 20 Sekunden laufen. Sonst, oder nach einem Absturz, startet wieder der alte Platz.',
     checks: ['Signatur', 'Sicherheitsstufe', 'SHA-256', 'Neustart in den neuen Platz', 'Netz in 2 min, dann 20 s stabil'],
     ok: 'Behalten',
     fail: 'Scheitert ein Schritt oder stürzt die neue Firmware ab, startet wieder der alte Platz.',

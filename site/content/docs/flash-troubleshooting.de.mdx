@@ -3,24 +3,6 @@ title: Probleme beim Flashen
 description: Das Flashen der ESP32-P4-Platine klappt nicht? Jede Meldung des Flashers, ihre Ursache und was hilft.
 ---
 
-Such die Meldung oder das Problem und lies den passenden Abschnitt.
-
-| Problem | Abschnitt |
-|---|---|
-| Mit diesem Browser geht es nicht | [Browser](#browser) |
-| Web Serial funktioniert nur über https | [Kein https](#https) |
-| Die Platine fehlt in der Liste | [Kein Anschluss](#no-port) |
-| Ein anderes Programm benutzt diesen Anschluss | [Anschluss belegt](#port-busy) |
-| Die Platine hat nicht geantwortet | [Download-Modus](#no-answer) |
-| Das ist nicht die richtige Platine | [Falscher Chip](#wrong-chip) |
-| Diese Chip-Revision wird nicht unterstützt | [Chip-Revision](#chip-revision) |
-| Die Installation wurde abgebrochen | [Abbruch](#flash-stopped) |
-| Was die Platine zurückgelesen hat, passt nicht | [Zurücklesen](#read-back) |
-| Ließ sich nicht laden, oder die Datei ist beschädigt | [Firmware laden](#firmware-download) |
-| Die Platine antwortet nicht, nach der Installation | [Einrichtung über USB](#setup-no-answer) |
-| Verbindung mit dem WLAN fehlgeschlagen | [WLAN](#wifi-join) |
-| Geflasht, aber wo ist die Platine? | [Platine finden](#find-board) |
-
 ## Mit diesem Browser geht es nicht [#browser]
 
 **Ursache.** Der Flasher nutzt [Web Serial](https://developer.mozilla.org/de/docs/Web/API/Web_Serial_API). Das haben nur Chrome, Edge und andere Chromium-Browser auf einem Computer. Firefox, Safari, Handys und Tablets haben es nicht.
@@ -103,15 +85,15 @@ Klappt es weiter nicht, flash langsamer mit [esptool](/de/docs/flashing#mit-espt
 
 **Lösung.** Lade die Seite neu. Mit **Lokale Dateien verwenden** lädst du stattdessen eine `manifest.json` mit ihren `.bin`-Dateien aus einem [Release](/de/docs/updates#releases).
 
-## Einrichtung über USB antwortet nicht [#setup-no-answer]
+## WLAN über USB antwortet nicht [#setup-no-answer]
 
 | Ursache | Lösung |
 |---|---|
-| Die Platine startet noch | 15 Sekunden warten |
-| Die Einrichtung ist schon fertig, und der Start ist länger als 5 Minuten her | **RST** drücken, dann innerhalb von 5 Minuten noch einmal speichern |
+| Der Connector startet noch | 15 Sekunden warten |
+| Die Einrichtung ist schon fertig, und der Start des Connectors ist länger als 5 Minuten her | **RST** drücken, dann innerhalb von 5 Minuten noch einmal speichern |
 | Eine alte Firmware ohne Einrichtung über USB | Die aktuelle Firmware installieren |
 
-Du kannst diesen Schritt immer überspringen und die [Einrichtung im Browser](/de/docs/first-setup) nehmen.
+Du kannst diesen Schritt immer überspringen. Steck ein Netzwerkkabel ein oder nimm das [Setup-WLAN](/de/docs/first-setup#über-das-setup-wlan).
 
 ## WLAN-Verbindung scheitert [#wifi-join]
 
@@ -120,15 +102,15 @@ Du kannst diesen Schritt immer überspringen und die [Einrichtung im Browser](/d
 | Ein 5-GHz-Netz | Der WLAN-Chip, ein [ESP32-C6](https://www.espressif.com/en/products/socs/esp32-c6), kann nur 2,4 GHz. Schalte 2,4 GHz im Router ein oder wähl dessen 2,4-GHz-Netz |
 | Falsches Passwort | Es hat 8 bis 63 Zeichen oder 64 Hex-Ziffern. Achte auf Großbuchstaben |
 | Ein verstecktes Netz | Es steht nicht in der Liste. Wähl **Anderes Netz** und tipp den Namen ein |
-| Zu weit weg | Platine näher an den Router, oder ein Netzwerkkabel nehmen |
+| Zu weit weg | Connector näher an den Router, oder ein Netzwerkkabel nehmen |
 
-## Platine danach nicht gefunden [#find-board]
+## Connector danach nicht gefunden [#find-board]
 
 - Der letzte Schritt im Flasher zeigt die Adresse und den `.local`-Namen.
 - Das Deck zeigt die Adresse auf der Touchleiste.
 - Manche Netze blockieren `.local`-Namen. Nimm dann die IP-Adresse.
 - Schau in der Geräteliste deines Routers nach einem Namen wie `deckconnector-a1b2c3`.
 - Der Computer muss im selben Netz sein, nicht in einem Gast-WLAN.
-- Solange die Einrichtung nicht fertig ist und kein Netz da ist, öffnet die Platine nach einer Minute ihr eigenes [Setup-WLAN](/de/docs/first-setup#über-das-setup-wlan). Das Deck zeigt Name und Passwort.
+- Solange die Einrichtung nicht fertig ist und kein Netz da ist, öffnet der Connector nach einer Minute sein eigenes [Setup-WLAN](/de/docs/first-setup#über-das-setup-wlan). Das Deck zeigt Name und Passwort.
 
 <Next lang="de" links={[['Fehlersuche', '/de/docs/troubleshooting/']]} />

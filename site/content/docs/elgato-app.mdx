@@ -1,18 +1,16 @@
 ---
 title: Elgato app
-description: The Elgato app (Stream Deck software) uses the board as a Network Dock, over Wi-Fi or Ethernet.
+description: The Elgato app (Stream Deck software) uses the connector as a Network Dock, over Wi-Fi or Ethernet.
 ---
 
-The board answers like an [Elgato Network Dock](https://www.elgato.com/us/en/p/network-dock-stream-deck) with the deck plugged in. The [Stream Deck app](https://www.elgato.com/us/en/s/stream-deck-app) on a computer in the same network finds it by itself.
+The connector answers like an [Elgato Network Dock](https://www.elgato.com/us/en/p/network-dock-stream-deck) with the deck plugged in. The [Stream Deck app](https://www.elgato.com/us/en/s/stream-deck-app) on a computer in the same network finds it by itself.
 
-If the deck does not show up, add it under **Settings › Devices › Add network deck** with the board's address.
-
-A board without a deck does not announce the dock. The app ignores a dock without a deck until the app restarts.
+If the deck does not show up, add it under **Settings › Devices › Add network deck** with the connector's address.
 
 ## Pairing
 
-The board lists up to 8 computers that connected, by MAC address. A laptop with a new DHCP address stays the same host.
+The connector remembers up to 8 computers that connected.
 
-With **Paired hosts only** on, the first computer still gets in. Every later one waits until you accept it on the deck or in the web UI ([demo](/demo/#sources)), or until you open pairing for 5 minutes. A denied app asks again only after it restarts.
+With **Paired sources only** on, the first computer still gets in. Every later one waits until you accept it on the deck or in the web UI ([demo](/demo/#sources)), or until you open pairing for 5 minutes.
 
-<Next links={[['Multiple hosts', '/docs/hosts/'], ['Troubleshooting', '/docs/troubleshooting/#the-elgato-app-does-not-find-the-deck']]} />
+<Next links={[['Sources', '/docs/hosts/'], ['Troubleshooting', '/docs/troubleshooting/#the-elgato-app-does-not-find-the-deck']]} />

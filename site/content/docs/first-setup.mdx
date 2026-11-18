@@ -1,46 +1,40 @@
 ---
 title: First setup
-description: Set up DeckConnector after flashing. Give the board a name, a password, a network and the program that drives the deck.
+description: Set up DeckConnector after flashing. Give the connector a name, a password, a network and the source that drives the deck.
 ---
 
 <SetupPaths />
 
 ## In the browser
 
-Without a cable, set Wi-Fi in the [flasher](/flash/) or use the [setup Wi-Fi](#over-the-setup-wi-fi) first. With a network cable, the deck shows its address and a QR code. Scan the code with a phone, or open `http://<address>/` on a computer in the same network.
+The deck shows the connector's address and a QR code. Scan the code with a phone, or open `http://<address>/` on a computer in the same network. No address? The connector has no network yet. Join a Wi-Fi in the [flasher](/flash/), plug in a cable, or use the [setup Wi-Fi](#over-the-setup-wi-fi).
 
-The first browser that opens the page within 30 minutes after the start goes straight into setup. Every later one scans the QR code, which logs a browser in once (each code for 10 minutes, until setup is done), or logs in as `admin` with the password from the [deck menu](/docs/getting-started#the-deck-menu).
+The first browser that opens the page goes straight into setup. This works for 30 minutes after the connector starts. Later, scan the QR code on the deck instead. It logs you in.
 
-The wizard asks for the language and name, your own password, the network, and the program that controls the deck. The name is also the network name, for example `deckconnector-a1b2c3.local`. [Try the wizard in the demo](/demo/?setup).
-
-You can run it again later under **Firmware › Backup**.
+The wizard asks for the name, your own password, the network and the source that controls the deck. The name is also the network name, for example `deckconnector-a1b2c3.local`. [Try the wizard in the demo](/demo/?setup).
 
 ## Over the setup Wi-Fi
 
-Before setup is done, a board with no cable and no Wi-Fi from the flasher opens its own Wi-Fi right after the start. With a cable or a Wi-Fi that does not work, it waits one minute. You can also start it in the deck menu under **Setup-WLAN** (setup Wi-Fi).
+Without a network, the connector opens its own Wi-Fi. This happens right after the start, or after one minute when a cable is plugged in. You can also start it in the deck menu under **Setup Wi-Fi**.
 
-Scan the QR code on the deck with the phone camera. The phone joins and opens the page by itself. Without a QR scanner, join the network with the name and password the deck shows. If the page does not open, or you closed it, open any `http://` address, or the one on the deck.
+Scan the QR code on the deck with the phone camera. The phone joins and opens the page by itself. Without a QR scanner, join the network with the name and password the deck shows. If the page does not open, open any `http://` address, or the one on the deck.
 
 The page only asks for your Wi-Fi. You finish setup on your own network.
-
-<Callout type="warn">
-The board has 2.4 GHz Wi-Fi only.
-</Callout>
 
 ## On the deck alone
 
 The web UI is optional. Plug in a network cable and enter the address from the deck in the [Elgato app](/docs/elgato-app) or in [Companion](/docs/companion).
 
-When Companion announces Satellite in the network, the deck asks **Companion gefunden, verbinden?** (Companion found, connect?). One key connects it.
+When Companion is in the network, the deck shows **Companion found**. Tap **Connect**.
 
-On a deck with dials you can set a fixed LAN address in the deck menu under **LAN**. Turn a dial to change a number, press it for the next field, then tap **Speichern** (save).
+On a deck with dials you can set a fixed LAN address in the deck menu under **LAN**. Turn a dial to change a number, press it for the next field, then tap **Save**.
 
 ## Factory reset
 
-- In the deck menu, hold **Neustart** (restart) for 5 seconds, then let go.
+- In the deck menu, hold **Restart** for 5 seconds, then let go.
 - Or pick **Reset** on the web login page and confirm twice on the deck.
-- Or, logged in with the password, pick **Reset** under **Firmware** in the web page.
+- Or, logged in, pick **Reset** under **Firmware** in the web page.
 
-A reset removes every setting, the API keys, the paired hosts, an uploaded certificate, an uploaded web page and the crash report. The new password shows on the deck, and setup starts again.
+A reset removes every setting, the API keys, the paired sources, an uploaded certificate, an uploaded web page and the crash report. The new password shows on the deck, and setup starts again.
 
-<Next links={[['Elgato app', '/docs/elgato-app/'], ['Network', '/docs/network/']]} />
+<Next links={[['Connect Companion', '/docs/companion/'], ['Network', '/docs/network/']]} />

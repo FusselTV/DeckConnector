@@ -1,39 +1,39 @@
 ---
-title: Mehrere Programme
+title: Quellen
 description: Mehrere Programme gleichzeitig verbunden, und wie du das zeichnende wählst.
 ---
 
-Companion über Satellite, die Network-Dock-Rechner (Companion und die Elgato-App) und deine eigenen Server stehen in einer Liste. Bis zu 4 Server und 4 Dock-Rechner sind gleichzeitig verbunden, in jeder Mischung.
+Eine Quelle ist ein Programm, das aufs Deck zeichnet: Companion, die Elgato-App oder dein eigener Server. Bis zu 4 Server und 4 Network-Dock-Quellen sind gleichzeitig verbunden, in jeder Mischung.
 
-Eines davon ist **gewählt**. Es zeichnet und bekommt die Eingaben. Die anderen bleiben verbunden und zeichnen im Hintergrund in ihr eigenes Bild. Nach einem Wechsel zeigt das Deck sofort das Bild des neuen Programms.
+Eine Quelle ist **aktiv**. Sie zeichnet und bekommt die Eingaben. Die anderen bleiben verbunden und zeichnen im Hintergrund in ihr eigenes Bild. Nach einem Wechsel zeigt das Deck sofort das Bild der neuen Quelle.
 
 ## Wechseln
 
 <HostSwitch lang="de" />
 
-- **Am Deck.** Auf dem Startbildschirm tippst du ein Programm an und innerhalb von 3 s noch einmal, solange **Wechseln?** dasteht.
+- **Am Deck.** Auf dem Startbildschirm tippst du eine Quelle an und innerhalb von 3 s noch einmal, solange **Wechseln?** dasteht.
 - **In der Weboberfläche.** Unter **Aktive Quelle** auf der Übersicht eine andere Zeile wählen ([Demo](/de/demo/#overview)).
 - **Über die API.** `controller` und `host` setzen, siehe unten.
 
-Zeichnet niemand, zeigt das Deck seinen Startbildschirm und sagt, was fehlt, zum Beispiel **Warte auf Companion**.
+Zeichnet keine Quelle, zeigt das Deck seinen Startbildschirm und sagt, was fehlt, zum Beispiel **Warte auf Companion**.
 
-## Wenn ein Programm wegfällt
+## Wenn eine Quelle wegfällt
 
-- Der erste verbundene Rechner desselben Programms zeichnet. Bei Companion kommt Satellite zuerst.
+- Die erste verbundene Quelle desselben Programms zeichnet. Bei Companion kommt Satellite zuerst.
 - Server übernehmen in der Reihenfolge der Liste. Sofort, wenn die Verbindung schließt, innerhalb von 6 s, wenn der Server verstummt.
-- Ist kein Rechner des gewählten Programms da, zeigt das Deck seinen Startbildschirm.
+- Ist keine Quelle dieses Programms da, zeigt das Deck seinen Startbildschirm.
 
 ## Über die API
 
-Zwei Einstellungen wählen das Programm. `controller` ist das Programm, `host` nennt den Eintrag aus `sources` im Status.
+Zwei Einstellungen wählen die Quelle. `controller` ist das Programm, `host` nennt den Eintrag aus `sources` im Status.
 
 | `controller` | Programm | `host` |
 |---|---|---|
-| `companion` | Companion, Satellite oder Dock | `satellite` oder die IP des Dock-Rechners |
-| `app` | Die Elgato-App | Die IP des Dock-Rechners |
+| `companion` | Companion, Satellite oder Dock | `satellite` oder die IP des Rechners |
+| `app` | Die Elgato-App | Die IP des Rechners |
 | `server` | Deine eigenen Server | Die Server-URL |
 
-Ist `host` leer, zeichnet der erste verbundene Rechner dieses Programms. Die Änderung wirkt sofort.
+Ist `host` leer, zeichnet die erste verbundene Quelle dieses Programms. Die Änderung wirkt sofort.
 
 ```bash
 curl -u admin:PASSWORT -H 'X-DeckConnector: 1' -X PUT \

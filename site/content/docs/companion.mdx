@@ -1,41 +1,23 @@
 ---
 title: Connect Companion
-description: Use the deck in Bitfocus Companion over Wi-Fi or Ethernet, as a Satellite surface or as a Network Dock.
+description: Use the deck in Bitfocus Companion over Wi-Fi or Ethernet, as a Satellite surface.
 ---
-
-[Bitfocus Companion](https://bitfocus.io/companion) can use the deck in two ways.
-
-| | Satellite | Network Dock |
-|---|---|---|
-| Who connects | The board connects to Companion | Companion connects to the board |
-| Companion must find the board | No, so Docker without host networking works | Yes, by discovery or its address |
-
-Satellite is the better choice. When Companion connects as a dock and its Satellite answers on the same address, the board moves it to Satellite by itself.
 
 ## Satellite
 
 <Steps>
 <Step>
-In Companion, keep **Settings › Satellite** on. It needs Satellite API 1.9 or newer, tested with Companion 5.2.
+In [Bitfocus Companion](https://bitfocus.io/companion), keep **Settings › Satellite** on. It needs Satellite API 1.9 or newer, tested with Companion 5.2.
 </Step>
 <Step>
-In Companion, open **Surfaces › Discover** and click **Setup** next to the board. Once the board is set up, the deck asks first.
-
-Or in the web UI, open **Sources** ([demo](/demo/#sources)) and enter the Companion address. Every Companion that announces itself in the network is listed too. One click connects it.
+In Companion, open **Surfaces › Discover** and click **Setup** next to the connector. Or open **Sources** in the web UI ([demo](/demo/#sources)) and click the Companion it found.
 </Step>
 <Step>
 The deck shows up under **Surfaces** as `streamdeck:<serial>`, the same id as over USB. Your pages and surface settings stay.
 </Step>
 </Steps>
 
-| Address | Goes to |
-|---|---|
-| `192.168.1.10` | TCP port 16622 |
-| `192.168.1.10:17000` | TCP on that port |
-| `ws://192.168.1.10:16623` | Companion's WebSocket port |
-| `wss://companion.example.org/satellite` | A TLS reverse proxy in front of port 16623 |
-
-You can also paste the address of Companion's web page or leave out the port. The board then tries the forms above in turn, keeps the first that answers, and says which one it found.
+Companion in Docker without host networking cannot be found. Publish port 16622 and type its address under **Sources**.
 
 A `wss://` address needs a certificate from a public CA. For any other certificate, paste the SHA-256 of the server's own certificate as the pin. When that certificate is renewed, enter the new pin.
 
@@ -43,26 +25,26 @@ A `wss://` address needs a certificate from a public CA. For any other certifica
 openssl x509 -noout -fingerprint -sha256 -in cert.pem
 ```
 
-### Layout
+## Layout
 
-Companion sees two rows of keys, the touch strip as four 200 × 100 zones, then the four dials, the same as its own Stream Deck plugin. A tap presses the zone. A swipe up or down turns that zone like a dial. A sideways swipe changes the page once you turn on **Horizontal Swipe Changes Page** in the surface settings. On a Stream Deck Neo, Companion also gets the two touch points and the info bar between them.
+Companion sees two rows of keys, the touch strip as four 200 × 100 zones, then the four dials. This is the same as its own Stream Deck plugin.
 
-### PIN lock
+- A tap presses the zone. A swipe up or down turns that zone like a dial.
+- A sideways swipe changes the page. Turn on **Horizontal Swipe Changes Page** in the surface settings first.
+- On a Stream Deck Neo, Companion also gets the two touch points and the info bar between them.
+
+## PIN lock
 
 When Companion locks the deck, the deck shows a number pad. Type the PIN on it. While the deck is locked, its keys only enter the PIN and the menu does not open. A Stream Deck Pedal has no screen and stays locked until Companion unlocks it.
 
 ## Network Dock
 
-Companion finds the board under **Surfaces › Discover**, or you add its address as a remote surface.
-
-To stop the move to Satellite, remove the Companion address or answer **Nein** (no) on the deck. A new address turns it on again.
+Companion can also add the connector as a Network Dock under **Surfaces › Discover**. When its Satellite answers on the same address, the connector moves it to Satellite by itself. Satellite works through Docker and needs no discovery. To stay a dock, answer **No** on the deck or remove the Companion address under **Sources**.
 
 <Callout title="Behind a proxy">
-The board then sees only the proxy's address and cannot end the dock connection. Companion shows the deck twice, the second as `streamdeck:<serial>-dev2`.
+The connector then sees only the proxy's address and cannot end the dock connection. Companion shows the deck twice, the second as `streamdeck:<serial>-dev2`.
 </Callout>
 
-## Limits
+One Companion connects over Satellite at a time. For more see [Sources](/docs/hosts).
 
-- One Companion over Satellite at a time. For more programs see [Multiple hosts](/docs/hosts).
-
-<Next links={[['Multiple hosts', '/docs/hosts/'], ['Troubleshooting', '/docs/troubleshooting/#companion-does-not-connect']]} />
+<Next links={[['Sources', '/docs/hosts/'], ['Troubleshooting', '/docs/troubleshooting/#companion-does-not-connect']]} />
