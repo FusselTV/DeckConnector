@@ -30,6 +30,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_int(&j, "brightness", db_config()->brightness);
     db_json_int(&j, "volume", db_config()->volume);
     db_json_int(&j, "screen_off_s", (int)db_config()->screen_off_s);
+    db_json_int(&j, "screen_dim", db_config()->screen_dim);
     db_json_int(&j, "max_decks", db_config()->max_decks);
     db_json_bool(&j, "speaker", false);
     db_json_int(&j, "api", DB_WEB_API);
@@ -59,7 +60,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
         db_json_int(&j, "encoders", dev.encoder_count);
         db_json_str(&j, "writer", db_deck_source_name(db_deck_writer(d)));
         db_json_bool(&j, "dock", dev.dock);
-        db_json_int(&j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
+        db_json_int(&j, "brightness", db_deck_shown(d));
         db_json_bool(&j, "locked", false);
         db_json_obj_close(&j);
     }
@@ -99,7 +100,8 @@ void app_main(void)
     db_serial_start();
     for (;;) { /* the device's UI tick */
         vTaskDelay(pdMS_TO_TICKS(200));
-        db_deck_screen_tick((int)db_config()->screen_off_s, db_ui_menu_open());
+        const db_config_t *c = db_config();
+        db_deck_screen_tick((int)c->screen_off_s, c->screen_dim, c->brightness, db_ui_menu_open());
         /* DB_SIM_PRESS_FILE: once it exists, key 1 of deck 1 is pressed as at the deck and the file removed. An
          * API press is never real for a token, so the Home Assistant test needs this one. */
         const char *press = getenv("DB_SIM_PRESS_FILE");

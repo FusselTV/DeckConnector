@@ -195,14 +195,14 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false}
 ```
 
 | Schlüssel | Werte |
 |---|---|
 | `name` | 1 bis 31 Buchstaben, Ziffern und Bindestriche, kein Bindestrich am Anfang oder Ende. Auch der Hostname |
 | `controller`, `host` | Die Quelle, die zeichnet, siehe [Quellen](/de/docs/hosts#über-die-api) |
-| `brightness` | 0 bis 100 |
+| `brightness` | 0 bis 100. Ein Druck auf ein Deck bei 0 setzt sie auf 50 |
 | `volume` | Der Lautsprecher, 0 (aus, ab Werk) bis 100 |
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
@@ -221,7 +221,8 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `menu_hold_ms` | 500 bis 10000 |
 | `usb_speed` | `auto` oder `full` |
 | `max_decks` | 1 bis 4 Decks gleichzeitig, Standard 2 |
-| `screen_off_s` | Sekunden ohne Eingabe, bis alle Decks dunkel werden, 10 bis 86400. 0 heißt nie und ist der Standard |
+| `screen_off_s` | Sekunden ohne Eingabe, bis der Bildschirmschoner startet, 10 bis 86400. 0 heißt nie und ist der Standard |
+| `screen_dim` | Was der Bildschirmschoner tut. 0 schaltet alle Decks dunkel und ist der Standard. 10 bis 90 in Zehnerschritten dimmt sie auf so viel Prozent |
 | `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
@@ -229,7 +230,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -267,7 +268,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
 | `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
 | `menu_open` | Menü, Passwort, Rücksetzfrage oder Login-Anfrage liegen über dem Deck |
-| `screen_off` | Alle Decks sind nach `screen_off_s` ohne Eingabe dunkel. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0 |
+| `screen_off` | Alle Decks sind dunkel, durch den Bildschirmschoner oder `POST /api/screen`. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0. Ein gedimmtes Deck ist nicht aus |
 | `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
 | `network.wlan.backup` | Der Connector ist im Ersatz-WLAN, `ssid` nennt es |

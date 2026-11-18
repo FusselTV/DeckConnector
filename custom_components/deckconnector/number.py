@@ -45,6 +45,17 @@ NUMBERS = (
         exists=lambda d: "screen_off_s" in d,
     ),
     BoardNumberDescription(
+        key="screen_dim",
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement=PERCENTAGE,
+        native_min_value=0,
+        native_max_value=90,
+        native_step=10,
+        value=lambda d: d["screen_dim"],
+        payload=lambda v: {"screen_dim": round(v / 10) * 10},
+        exists=lambda d: "screen_dim" in d,
+    ),
+    BoardNumberDescription(
         key="volume",
         entity_category=EntityCategory.CONFIG,
         native_unit_of_measurement=PERCENTAGE,

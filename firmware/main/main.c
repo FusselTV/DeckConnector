@@ -81,7 +81,7 @@ static void write_device(db_json_t *j)
             db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
             db_json_bool(j, "hub", db_deck_behind_hub(d));
             db_json_str(j, "writer", db_deck_source_name(db_deck_writer(d)));
-            db_json_int(j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
+            db_json_int(j, "brightness", db_deck_shown(d));
             db_sat_pin_t pin;
             bool locked = db_ui_locked(d) && db_satellite_locked(d, &pin);
             db_json_bool(j, "locked", locked);
@@ -307,6 +307,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_int(j, "brightness", db_config()->brightness);
     db_json_int(j, "volume", db_config()->volume);
     db_json_int(j, "screen_off_s", (int)db_config()->screen_off_s);
+    db_json_int(j, "screen_dim", db_config()->screen_dim);
     db_json_int(j, "max_decks", db_config()->max_decks);
     db_json_bool(j, "speaker", db_board()->speaker.present);
     write_device(j);

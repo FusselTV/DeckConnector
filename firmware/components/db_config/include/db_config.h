@@ -69,6 +69,7 @@ typedef struct {
     char trusted_proxy[16]; /* a reverse proxy's IPv4 address: its X-Forwarded-For names the client; empty:
                                none */
     uint8_t volume;         /* the speaker, 0 (off) to 100 */
+    uint8_t screen_dim;     /* after screen_off_s the decks dim to this, 10 to 90 in tens; 0: they go off */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
@@ -77,6 +78,7 @@ const char *db_config_server_of(const db_config_t *cfg, int i);
 /* A host name or address without spaces, quotes or slashes; empty is fine. */
 bool db_config_ntp_ok(const char *s);
 bool db_config_screen_off_ok(long s);
+bool db_config_screen_dim_ok(long pct);
 /* Empty (an open network), 8 to 63 characters, or 64 hex digits. */
 bool db_config_wifi_pass_ok(const char *p);
 

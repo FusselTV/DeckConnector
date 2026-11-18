@@ -186,6 +186,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       usb_speed: 'auto',
       max_decks: 2,
       screen_off_s: 0,
+      screen_dim: 0,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,
@@ -539,6 +540,7 @@ const LIVE: (keyof ConfigPatch)[] = [
   'lang',
   'max_decks',
   'screen_off_s',
+  'screen_dim',
   'wifi2_ssid',
   'wifi2_pass',
 ]

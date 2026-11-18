@@ -107,7 +107,7 @@ export interface Status {
   writer?: string
   /** The deck menu covers the deck. */
   menu_open?: boolean
-  /** Every deck is dark after `screen_off_s` without input; the next input wakes them. */
+  /** Every deck is off, from the screen switch or from `screen_off_s` with `screen_dim` 0; the next input wakes them. */
   screen_off?: boolean
   /** The board has a speaker. */
   speaker?: boolean
@@ -184,8 +184,10 @@ export interface Config {
   lang: 'de' | 'en'
   usb_speed: 'auto' | 'full'
   max_decks: number
-  /** 0: never, else 10 to 86400 seconds without input until the decks go dark. */
+  /** 0: never, else 10 to 86400 seconds without input until the decks dim or go dark. */
   screen_off_s: number
+  /** After screen_off_s the decks dim to this, 10 to 90 in tens; 0: they go dark. */
+  screen_dim: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean

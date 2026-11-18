@@ -200,6 +200,9 @@
       "screen_off_after": {
         "name": "Screen off after"
       },
+      "screen_dim": {
+        "name": "Screen saver brightness"
+      },
       "volume": {
         "name": "Volume"
       }

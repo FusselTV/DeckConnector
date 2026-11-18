@@ -12,6 +12,7 @@ import { MODELS, type Model, type ModelKey } from '../deck/models'
 import { cx, roam } from '../lib/util'
 
 const OFF_PRESETS = ['0', '60', '300', '900', '1800', '3600']
+const DIM_PRESETS = ['0', '10', '30', '50']
 const duration = (s: number) => (s % 60 ? `${s} s` : `${s / 60} min`)
 
 function MiniDeck({ kind, hl }: { kind: ModelKey; hl: Hl }) {
@@ -52,6 +53,7 @@ export function DeckTab() {
     usb: cfg?.usb_speed ?? 'auto',
     max: String(cfg?.max_decks) as '1' | '2' | '3' | '4',
     off: String(cfg?.screen_off_s ?? 0),
+    dim: String(cfg?.screen_dim ?? 0),
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
@@ -79,10 +81,12 @@ export function DeckTab() {
       ...(changed('usb') ? { usb_speed: v.usb } : {}),
       ...(changed('max') ? { max_decks: Number(v.max) } : {}),
       ...(changed('off') ? { screen_off_s: Number(v.off) } : {}),
+      ...(changed('dim') ? { screen_dim: Number(v.dim) } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
   const offs = OFF_PRESETS.includes(base.off) ? OFF_PRESETS : [...OFF_PRESETS, base.off]
+  const dims = DIM_PRESETS.includes(base.dim) ? DIM_PRESETS : [...DIM_PRESETS, base.dim]
   return (
     <div className="cards">
       <Card
@@ -191,6 +195,18 @@ export function DeckTab() {
             options={offs.map((s) => [s, s === '0' ? t('deck.never') : duration(Number(s))] as const)}
           />
         </fieldset>
+        {v.off !== '0' && (
+          <fieldset className="gate field" disabled={!cfg}>
+            <span className="flabel">{t('deck.dim')}</span>
+            <Seg
+              id="screen-dim"
+              label={t('deck.dim')}
+              value={v.dim}
+              onChange={(dim) => set({ dim })}
+              options={dims.map((p) => [p, p === '0' ? t('deck.dim_off') : t('deck.dim_to', { pct: p })] as const)}
+            />
+          </fieldset>
+        )}
       </Card>
       <fieldset className="gate" disabled={!cfg}>
         <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>

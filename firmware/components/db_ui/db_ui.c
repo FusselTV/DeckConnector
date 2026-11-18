@@ -16,6 +16,7 @@
 #include "db_ota.h"
 #include "db_sat.h"
 #include "db_satellite.h"
+#include "db_wake.h"
 #include "esp_app_desc.h"
 #include "esp_attr.h"
 #include "esp_core_dump.h"
@@ -906,6 +907,16 @@ static void brightness_due(void *arg)
     }
 }
 
+/* A press woke a deck the brightness setting of 0 kept black: the setting goes up, or the next redraw would
+ * turn it black again. */
+static void lit_up(int deck)
+{
+    if (db_deck_writer(deck) == DB_SOURCE_UI && db_config()->brightness == 0 && s.brightness <= 0) {
+        s.brightness = DB_WAKE_PCT;
+        brightness_due(NULL);
+    }
+}
+
 /* False when an action was carried out: its save brings the next round. */
 static bool draw_deck(int deck, ui_screen_t *sc, ui_model_t *md)
 {
@@ -939,7 +950,8 @@ static bool draw_deck(int deck, ui_screen_t *sc, ui_model_t *md)
     light_lock(true);
     if (db_deck_writer(deck) ==
         DB_SOURCE_UI) { /* still: else pick_writer gave the deck to a host meanwhile */
-        int light = ui_light(menu, md->brightness);
+        int light = ui_light(menu || md->locked || md->request[0],
+                             md->brightness); /* a question or the PIN pad is never black */
         if (light != u->lit) {
             u->lit = light;
             db_deck_set_brightness(deck, (uint8_t)light);
@@ -1142,7 +1154,8 @@ static void tick(void *arg)
         asking = !asking;
         changed();
     }
-    db_deck_screen_tick((int)db_config()->screen_off_s, asking || db_ui_menu_open());
+    const db_config_t *c = db_config();
+    db_deck_screen_tick((int)c->screen_off_s, c->screen_dim, c->brightness, asking || db_ui_menu_open());
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         if (decks[d].chord_since) {
             check_menu_chord(d);
@@ -1172,7 +1185,6 @@ static void tick(void *arg)
         changed();
     }
     static int64_t next_look;
-    const db_config_t *c = db_config();
     bool ui_draws = false;
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         ui_draws |= decks[d].present && db_deck_writer(d) == DB_SOURCE_UI;
@@ -1318,7 +1330,7 @@ esp_err_t db_ui_start(void)
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    db_deck_listener_t l = {.input = on_input, .device_changed = on_device, .keeps = keeps};
+    db_deck_listener_t l = {.input = on_input, .device_changed = on_device, .keeps = keeps, .lit_up = lit_up};
     db_deck_add_listener(&l);
     const esp_timer_create_args_t targs = {.callback = tick, .name = "ui_tick"};
     esp_timer_handle_t timer;
