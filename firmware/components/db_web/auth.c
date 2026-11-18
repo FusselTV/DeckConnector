@@ -820,8 +820,6 @@ static void load_passkeys(void)
             memset(&passkeys[i], 0, sizeof(passkeys[i]));
         }
     }
-    /* ponytail: only boards that ran an early build of this branch hold it; drop the line after the merge */
-    nvs_erase_key(h, "passkeys");
     nvs_close(h);
     uint8_t key[32];
     esp_fill_random(key, sizeof(key));
