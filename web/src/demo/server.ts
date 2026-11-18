@@ -231,7 +231,13 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
         status: 200,
         body: {
           ...config(s),
-          ...(q.get('secrets') ? { admin_pass: s.pass, wifi_pass: s.cfg.wifi_pass_set ? 'studio-wifi-pass' : '' } : {}),
+          ...(q.get('secrets')
+            ? {
+                admin_pass: s.pass,
+                wifi_pass: s.cfg.wifi_pass_set ? 'studio-wifi-pass' : '',
+                wifi2_pass: s.cfg.wifi2_pass_set ? 'backup-wifi-pass' : '',
+              }
+            : {}),
         },
       }
     case 'PUT /api/config':

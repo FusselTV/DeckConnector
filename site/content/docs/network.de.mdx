@@ -16,6 +16,7 @@ Per mDNS meldet sich die Platine immer nur in einem Netz an. Das ist das LAN, au
 - Nur 2,4 GHz. Ein verstecktes Netz steht nicht in der Liste, du kannst seinen Namen aber eintippen.
 - Die Platine testet ein neues Netz zuerst und behält es nur, wenn sie dort eine Adresse bekommt. Sonst kommt das alte zurück.
 - **Zugangspunkte (BSSID)** bindet die Platine an einen Zugangspunkt. Ohne das nimmt sie den stärksten und wechselt bei Bedarf.
+- **Zweites WLAN (Ersatz)** ist ein zweites Netz. Die Platine geht hinein, wenn das erste 10 s lang keine Verbindung gibt. Dort sucht sie alle 2 Minuten nach dem ersten und geht zurück, sobald es guten Empfang hat. Im Ersatz-WLAN holt sie ihre Adresse immer per DHCP.
 
 ## Feste Adresse
 

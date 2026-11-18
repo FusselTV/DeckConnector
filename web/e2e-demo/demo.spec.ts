@@ -85,7 +85,10 @@ test('login mode lets the deck accept the browser', async ({ demo: page }) => {
 test('Wi-Fi scan lists example networks', async ({ demo: page }) => {
   await page.goto('?lang=en')
   await openTab(page, en, 'network')
-  await page.locator('summary').filter({ hasText: en['net.wlan'] }).click()
+  await page
+    .locator('summary')
+    .filter({ hasText: new RegExp(`^${en['net.wlan']}`) })
+    .click()
   await expect(page.getByText('Studio Guest').first()).toBeVisible({ timeout: 8000 })
 })
 

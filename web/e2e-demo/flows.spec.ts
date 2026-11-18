@@ -30,7 +30,10 @@ test('Wi-Fi: scan, a wrong password fails, the right one joins, a hidden network
   test.setTimeout(60_000)
   await page.goto('?lang=en')
   await openTab(page, en, 'network')
-  await page.locator('summary').filter({ hasText: en['net.wlan'] }).click()
+  await page
+    .locator('summary')
+    .filter({ hasText: new RegExp(`^${en['net.wlan']}`) })
+    .click()
   await page.getByRole('button', { name: en['wifi.rescan'] }).click()
   await page.getByRole('button', { name: /Office/ }).click()
   await page.locator('#wifi-pass').fill('wrongpass')

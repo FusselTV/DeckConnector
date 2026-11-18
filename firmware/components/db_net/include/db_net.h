@@ -22,6 +22,7 @@ typedef struct {
     char wlan_ssid[33]; /* the network joined, and the access point and channel */
     char wlan_bssid[18];
     uint8_t wlan_channel;
+    bool wlan_backup;       /* the network joined is wifi2_ssid */
     const char *join_state; /* a join from db_net_wifi_join: "", "testing", "ok" or "failed" */
     char join_error[32];
 } db_net_status_t;
@@ -73,6 +74,8 @@ int db_net_wifi_scan(db_net_ap_t *out, size_t max);
 /* Try a network in the background; it is saved only when it gives an address within 15 s, otherwise the old
  * one comes back. The state shows in db_net_status(). */
 esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid);
+/* wifi2_ssid or wifi2_pass changed: off the backup now, the primary first. */
+void db_net_wifi_backup_changed(void);
 /* Setup access point "<name>" with a fresh random WPA2 password. */
 esp_err_t db_net_ap_start(void);
 esp_err_t db_net_ap_stop(void);

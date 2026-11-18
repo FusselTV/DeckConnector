@@ -64,6 +64,8 @@ typedef struct {
     char lang[3];            /* what the deck's own screens speak: "de" or "en" */
     uint8_t max_decks;       /* decks driven at once, 1 to DB_MAX_DECKS: they share the 2 A of the USB port */
     uint32_t screen_off_s;   /* the decks go dark after this long without input, 10 to 86400; 0: never */
+    char wifi2_ssid[33];     /* joined when wifi_ssid gives no link; empty: none */
+    char wifi2_pass[65];
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

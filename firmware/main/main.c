@@ -89,7 +89,8 @@ static void write_network(db_json_t *j, bool live)
     db_json_str(j, "ip", n.lan_up ? n.lan_ip : "");
     db_json_obj_close(j);
     db_json_obj_open(j, "wlan");
-    db_json_str(j, "ssid", db_config()->wifi_ssid);
+    db_json_str(j, "ssid", n.wlan_up ? n.wlan_ssid : db_config()->wifi_ssid);
+    db_json_bool(j, "backup", n.wlan_up && n.wlan_backup);
     db_json_str(j, "ip", n.wlan_up ? n.wlan_ip : "");
     db_json_str(j, "bssid", n.wlan_up ? n.wlan_bssid : "");
     db_json_int(j, "channel", n.wlan_up ? n.wlan_channel : 0);
