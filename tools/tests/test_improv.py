@@ -116,6 +116,13 @@ def test_setup_follows_the_web_rules(sim):
     assert sim.config("simulator")["setup_done"] is True
 
 
+def test_setup_sets_the_deck_language(sim):
+    assert sim.result(im.SETUP, "", "", "", "en") == ["ok"]
+    assert sim.config("simulator")["lang"] == "en"
+    assert sim.result(im.SETUP, "", "", "", "fr") == ["error", "lang: de or en expected"]
+    assert sim.config("simulator")["lang"] == "en"
+
+
 def test_setup_saves_password_and_name(sim):
     assert sim.result(im.SETUP, "improv-pass", "improv-test", "") == ["restart"]
     cfg = sim.config("improv-pass")  # before the restart one second later ends the simulator

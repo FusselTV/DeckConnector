@@ -36,6 +36,11 @@ export class Board {
     this.queue = Promise.resolve()
   }
 
+  async config() {
+    const r = await fetch(`http://127.0.0.1:${this.o.simPort}/api/config`, { headers: { Authorization: `Basic ${Buffer.from('admin:simulator').toString('base64')}` } })
+    return r.json()
+  }
+
   /** Bytes the board sends go here. */
   onOutput(fn) {
     this.out = fn

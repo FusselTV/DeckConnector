@@ -254,14 +254,21 @@ static void name(uint8_t cmd, const uint8_t *d, uint8_t len)
     result(cmd, s, 1);
 }
 
-/* Vendor command: admin password, device name, "1" to end setup; an empty string keeps that setting. */
+/* Vendor command: admin password, device name, "1" to end setup, and optionally the deck's language; an empty
+ * string keeps that setting. */
 static void setup(const uint8_t *d, uint8_t len)
 {
-    char pass[sizeof(db_config()->admin_pass)], n[sizeof(db_config()->name)], done[2];
+    char pass[sizeof(db_config()->admin_pass)], n[sizeof(db_config()->name)], done[2],
+        lang[sizeof(db_config()->lang)] = "";
     size_t pos = 0;
     if (!db_improv_str(d, len, &pos, pass, sizeof(pass)) || !db_improv_str(d, len, &pos, n, sizeof(n)) ||
         !db_improv_str(d, len, &pos, done, sizeof(done))) {
         const char *s[] = {"error", "admin password, name and done expected"};
+        result(CMD_SETUP, s, 2);
+        return;
+    }
+    if (pos < len && !db_improv_str(d, len, &pos, lang, sizeof(lang))) {
+        const char *s[] = {"error", "lang: de or en expected"};
         result(CMD_SETUP, s, 2);
         return;
     }
@@ -276,6 +283,9 @@ static void setup(const uint8_t *d, uint8_t len)
     }
     if (strcmp(done, "1") == 0) {
         db_json_bool(&j, "setup_done", true);
+    }
+    if (lang[0]) {
+        db_json_str(&j, "lang", lang);
     }
     db_json_obj_close(&j);
     if (!db_json_end(&j)) {
