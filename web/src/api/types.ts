@@ -7,6 +7,8 @@ export interface DeckInfo {
   model: string
   serial: string
   firmware?: string
+  /** False when the Elgato app and Companion's Elgato plugin cannot use the deck. */
+  dock?: boolean
   keys?: number
   encoders?: number
   width?: number
