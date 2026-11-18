@@ -5,7 +5,7 @@ description: Gemessenes Tempo von DeckConnector neben dem Elgato Network Dock, a
 
 Am Deck ist DeckConnector so schnell wie das [Elgato Network Dock](https://www.elgato.com/de/de/p/network-dock-stream-deck) oder schneller. Hier sind die Zahlen.
 
-Beide Geräte steuerten dasselbe Stream Deck + am selben Messplatz, mit demselben Companion, derselben Kamera und denselben Werkzeugen (8. November 2026). Das Network Dock lief mit Firmware 1.01.014, die Elgato-App war 7.6.1. Die Werte sind Mediane. Ein Kamerabild dauert 17 ms, Unterschiede unter 5 bis 10 ms sind also Rauschen.
+Beide Geräte steuerten dasselbe Stream Deck + mit demselben Companion. Die Werte sind Mediane. Ein Kamerabild dauert 17 ms, Unterschiede unter 5 bis 10 ms sind also Rauschen.
 
 ## Companion
 
@@ -17,7 +17,7 @@ Beide Geräte steuerten dasselbe Stream Deck + am selben Messplatz, mit demselbe
 
 <BenchBars lang="de" title="Sekunden, weniger ist besser" unit="s" rows={[
   ['Companion-Neustart bis Startseite', 1.2, 1.96],
-  ['Netz weg, Deck verlässt den toten Host', 5.4, 6.5],
+  ['Netz weg, Deck verlässt die tote Quelle', 5.4, 6.5],
 ]} />
 
 Die Companion-Werte gelten für beide Geräte im Network-Dock-Modus. Companion schickt beiden dieselben Bytes, etwa 26 KB/s bei einem Seitenwechsel pro Sekunde.
@@ -41,8 +41,6 @@ Die Companion-Werte gelten für beide Geräte im Network-Dock-Modus. Companion s
 | PoE-Stromausfall bis Companion-Bild, Network-Dock-Modus | 7,9 s | 17,6 s |
 | PoE-Stromausfall bis Companion-Bild, Satellite | 6,75 s | Kein Satellite |
 | PoE-Stromausfall, Elgato-App wieder verbunden | 9 bis 13,5 s, in 3 von 4 Versuchen | Nicht innerhalb von 4 Minuten (0 von 2) |
-
-Die Stromausfall-Werte von DeckConnector stammen vom 7. und 8. November 2026, mit einer älteren Firmware.
 
 ## Eigenes Server-Protokoll
 

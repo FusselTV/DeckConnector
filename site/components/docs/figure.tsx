@@ -38,6 +38,22 @@ export function Next({ links, lang = 'en' }: { links: [string, string][]; lang?:
   )
 }
 
+export function Buttons({ links }: { links: [string, string][] }) {
+  return (
+    <div className="not-prose my-6 flex flex-wrap gap-3">
+      {links.map(([text, href], i) => (
+        <a
+          key={href}
+          href={href}
+          className={`inline-flex h-11 items-center justify-center rounded-lg px-5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus) ${i ? 'border border-line-2 text-fg hover:bg-panel-2' : 'bg-amber text-amber-ink hover:brightness-110'}`}
+        >
+          {text}
+        </a>
+      ))}
+    </div>
+  )
+}
+
 /** A screenshot in both themes: /docs/<src>-dark.webp and -light.webp, shown by the site's theme. */
 export function Shot({ src, alt, width, height }: { src: string; alt: string; width: number; height: number }) {
   return (

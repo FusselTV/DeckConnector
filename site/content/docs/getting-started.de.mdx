@@ -1,21 +1,23 @@
 ---
 title: Erste Schritte
-description: Von der neuen Platine zum Deck, das Companion oder die Elgato-App steuert.
+description: Von der neuen Platine zum Deck, das Companion, die Elgato-App oder Home Assistant nutzt.
 ---
 
 <SetupFlow lang="de" />
 
-1. **Flashen.** Verbinde den USB-C-Port der Platine mit deinem Computer und öffne den [Flasher](/de/flash/). Er kann gleich WLAN, Passwort und Namen setzen. Probleme? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooting).
-2. **Einstecken.** Das Deck kommt in den USB-A-Port der Platine. Strom bekommt die Platine über USB-C, dann verbindet sie sich mit dem WLAN aus dem letzten Schritt des Flashers. Noch kein WLAN gesetzt? Nimm das [Setup-WLAN](/de/docs/first-setup#über-das-setup-wlan). Für Ethernet steckst du ein Netzwerkkabel dazu, ein PoE-Port versorgt die Platine gleich mit Strom. Das Deck zeigt dann seine Adresse.
+1. **Flashen.** Verbinde den USB-C-Port der Platine mit deinem Computer und öffne den [Flasher](/de/flash/). Er kann auch gleich dein WLAN eintragen. Probleme? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooting).
+2. **Einstecken.** Das Deck kommt in den USB-A-Port. Strom bekommt der Connector über ein USB-C-Netzteil oder über ein Netzwerkkabel von einem PoE-Port. Das Deck zeigt dann seine Adresse.
 3. **Einrichten.** Öffne die Adresse im Browser und folge der Einrichtung. Siehe [Einrichtung](/de/docs/first-setup).
 4. **Verbinden.** [Companion](/de/docs/companion), die [Elgato-App](/de/docs/elgato-app) oder dein [eigener Server](/de/docs/own-server). Wer sich zuerst verbindet, bekommt das Deck.
 
+Du nutzt [Home Assistant](/de/docs/home-assistant)? Es findet den Connector von selbst und bekommt jeden Tastendruck. Das geht neben Companion oder der Elgato-App. Für Apple Home oder Google Home installierst du die [Matter-Firmware](/de/docs/matter).
+
 ## Das Deck-Menü
 
-Während ein Programm zeichnet, hältst du den ersten und den letzten Drehregler 2 Sekunden lang. Auf einem Deck ohne Drehregler sind es die erste und die letzte Taste. Nach einer Minute ohne Eingabe geht das Menü zu.
+Während eine Quelle zeichnet, hältst du den ersten und den letzten Drehregler 2 Sekunden lang. Auf einem Deck ohne Drehregler sind es die erste und die letzte Taste. Nach einer Minute ohne Eingabe geht das Menü zu.
 
 <DeckMenu lang="de" />
 
-Das Deck spricht Deutsch oder Englisch. Die Taste oben links im Menü wechselt, die Einrichtung stellt es auch ein.
+Das Deck spricht die Sprache, mit der du es eingerichtet hast. Die Taste oben links im Menü wechselt zwischen Deutsch und Englisch.
 
-<Next lang="de" links={[['Einrichtung', '/de/docs/first-setup/'], ['Companion verbinden', '/de/docs/companion/'], ['Elgato-App', '/de/docs/elgato-app/']]} />
+<Next lang="de" links={[['Einrichtung', '/de/docs/first-setup/'], ['Companion verbinden', '/de/docs/companion/'], ['Home Assistant', '/de/docs/home-assistant/']]} />

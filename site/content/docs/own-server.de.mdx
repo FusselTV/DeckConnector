@@ -3,27 +3,27 @@ title: Eigener Server
 description: Das Deck per WebSocket aus dem eigenen Programm zeichnen. Protokoll Version 1.
 ---
 
-Dein Server rendert die Bilder. Die Platine zeigt sie an und schickt jeden Druck, jede Drehung und jede Berührung zurück. Als Ausgangspunkt dient `tools/dbtools/server.py` im Repository, ein kleiner Python-Server.
+Dein Server rendert die Bilder. Der Connector zeigt sie an und schickt jeden Druck, jede Drehung und jede Berührung zurück. Als Ausgangspunkt dient `tools/dbtools/server.py` im Repository, ein kleiner Python-Server.
 
 ## Verbindung
 
-- Die Platine ist der Client. Sie öffnet bis zu vier URLs aus **Quellen** mit dem Subprotokoll `deckconnector.v1`.
+- Der Connector ist der Client. Er öffnet bis zu vier URLs aus **Quellen** mit dem Subprotokoll `deckconnector.v1`.
 - Ist die Liste leer, findet sie Server, die `_deckconnector._tcp` per mDNS anmelden, und öffnet `ws://<adresse>:<port>/deckbridge`.
 - `wss://` braucht ein Zertifikat einer öffentlichen CA für diesen Host oder den SHA-256-Pin dieses Servers.
-- Damit dein Server prüfen kann, wer sich verbindet, setz `token` in den [Einstellungen](/de/docs/api#einstellungen). Die Platine schickt ihn als `Authorization: Bearer` an die Server, die du eingetragen hast.
+- Damit dein Server prüfen kann, wer sich verbindet, setz `token` in den [Einstellungen](/de/docs/api#einstellungen). Der Connector schickt ihn als `Authorization: Bearer` an die Server, die du eingetragen hast.
 - Der erste verbundene Server ist **aktiv**, die anderen stehen auf **Standby**. Nur der aktive zeichnet und bekommt Eingaben.
 - Fällt er weg, wird der nächste aktiv, bekommt eine `role`-Nachricht und muss alle Bereiche neu zeichnen. Bis dahin zeigt das Deck, was dieser Server zuletzt gezeichnet hat. Das kann alt sein.
 - Der aktive Server bekommt `role` auch, wenn das Menü oder ein Update über sein Bild gezeichnet hat.
-- Solange Companion oder die Elgato-App gewählt ist, stehen alle Server auf Standby. Siehe [Mehrere Programme](/de/docs/hosts).
-- Die Platine pingt alle 2 s. Ein Server, der 6 s schweigt, gilt als verloren.
+- Solange Companion oder die Elgato-App die aktive Quelle ist, stehen alle Server auf Standby. Siehe [Quellen](/de/docs/hosts).
+- Der Connector pingt alle 2 s. Ein Server, der 6 s schweigt, gilt als verloren.
 
 Text-Frames tragen JSON. Binäre Frames tragen Bilder, Bestätigungen, Eingaben und Zeitabgleich. Alle binären Ganzzahlen sind Little Endian.
 
 ## Koordinaten
 
-Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganzen Glas. Tasten und Leisten sind Rechtecke darin. Schick jedes Rechteck aus `targets` des Displays, den USB-Befehl wählt die Platine. Wende Drehung und Spiegelung an, bevor du das JPEG kodierst.
+Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganzen Glas. Tasten und Leisten sind Rechtecke darin. Schick jedes Rechteck aus `targets` des Displays, den USB-Befehl wählt der Connector. Wende Drehung und Spiegelung an, bevor du das JPEG kodierst.
 
-## Von der Platine
+## Vom Connector
 
 ```json
 {"t": "hello", "proto": 1, "id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3", "fw": "0.1.0",
@@ -49,9 +49,9 @@ Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
 
-`status` hat die Felder von [`GET /api/status`](/de/docs/api#status) ohne `memory`. OTA-`state` ist `download`, `verify`, `done` oder `error`. Nach `done` startet die Platine neu.
+`status` hat die Felder von [`GET /api/status`](/de/docs/api#status) ohne `memory`. OTA-`state` ist `download`, `verify`, `done` oder `error`. Nach `done` startet der Connector neu.
 
-## An die Platine
+## An den Connector
 
 ```json
 {"t": "brightness", "pct": 70}
@@ -65,14 +65,14 @@ Die signierte Datei bestimmt, für welchen Chip sie ist. `target` kommt nur in d
 
 Das erste Byte ist der Typ.
 
-### Server an Platine
+### Server an Connector
 
 | Typ | Name | Nach dem Typ-Byte |
 |---|---|---|
 | `0x01` | IMAGE | `u8 display, u16 x, u16 y, u16 w, u16 h, u32 seq`, dann das JPEG |
 | `0x02` | TIME | `u8[7] reserved, u64 server_time_us` |
 
-### Platine an Server
+### Connector an Server
 
 | Typ | Name | Nach dem Typ-Byte |
 |---|---|---|
@@ -80,7 +80,7 @@ Das erste Byte ist der Typ.
 | `0x82` | TIME | `u8[7] reserved, u64 server_time_us, u64 bridge_time_us` |
 | `0x83` | INPUT | `u8 kind, u8 index, u8 display, i16 value, u16 x, u16 y, u16 x2, u16 y2, u8[10] reserved, u64 t` |
 
-Zeiten sind Mikrosekunden auf der Uhr der Platine. `t_recv` ist der Moment, in dem das Bild vollständig war. `t_start` und `t_done` rahmen die USB-Übertragung ein. Bei INPUT ist `t` der Eingang des USB-Reports.
+Zeiten sind Mikrosekunden auf der Uhr des Connectors. `t_recv` ist der Moment, in dem das Bild vollständig war. `t_start` und `t_done` rahmen die USB-Übertragung ein. Bei INPUT ist `t` der Eingang des USB-Reports.
 
 ### ACK result
 
@@ -91,7 +91,7 @@ Zeiten sind Mikrosekunden auf der Uhr der Platine. `t_recv` ist der Moment, in d
 | 2 | `REJECTED_RECT` | Das Rechteck ist kein Ziel dieses Displays |
 | 3 | `REJECTED_ROLE` | Dieser Server ist nicht aktiv, oder Menü, Elgato-App oder Companion haben das Deck |
 | 4 | `NO_DEVICE` | Kein Deck, oder die USB-Übertragung ist fehlgeschlagen |
-| 5 | `BUSY` | Der Platine ist der Bildspeicher ausgegangen |
+| 5 | `BUSY` | Dem Connector ist der Bildspeicher ausgegangen |
 | 6 | `TOO_BIG` | Das Bild ist größer als `max_bytes` des Displays |
 
 ### INPUT kind

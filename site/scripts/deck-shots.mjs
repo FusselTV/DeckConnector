@@ -61,9 +61,20 @@ await page.keyboard.press('Enter')
 await page.locator('.front').waitFor()
 
 // The host switch only changes the top row, so those pictures keep just that row.
-for (const [name, row] of [['menu', false], ['away', true], ['asking', true]]) {
+const raw = (name) => {
   const ppm = readFileSync(join(work, `${name}.ppm`))
-  const png = await sharp(ppm.subarray(ppm.indexOf('255\n') + 4), { raw: { width: 800, height: 480, channels: 3 } }).png().toBuffer()
+  return sharp(ppm.subarray(ppm.indexOf('255\n') + 4), { raw: { width: 800, height: 480, channels: 3 } })
+}
+// The troubleshooting table: the touch strip of each status screen, without the brightness on its left.
+for (const lang of ['en', 'de'])
+  for (const [name, left] of [['no-network', 200], ['companion', 200], ['companion-away', 200], ['app', 200], ['server', 200], ['server-off', 200], ['request', 0], ['offer', 0]]) {
+    const file = join(out, `deck-st-${name}-${lang}.webp`)
+    await raw(`st-${name}-${lang}`).extract({ left, top: 380, width: 800 - left, height: 100 }).webp({ quality: 90 }).toFile(file)
+    console.log(file)
+  }
+
+for (const [name, row] of ['en', 'de'].flatMap((l) => [[`menu-${l}`, false], [`away-${l}`, true], [`asking-${l}`, true]])) {
+  const png = await raw(name).png().toBuffer()
   url = `data:image/png;base64,${png.toString('base64')}`
   await page.reload()
   await page.locator('.front .face img').first().waitFor()

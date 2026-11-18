@@ -1,6 +1,6 @@
 ---
 title: HTTP and WebSocket API
-description: Every route of the board's JSON API, the settings, the status and the live WebSocket.
+description: Every route of the connector's JSON API, the settings, the status and the live WebSocket.
 ---
 
 Everything the web UI does goes through this API, on port 80 and over HTTPS on port 443. `GET /api` lists every route with its access level.
@@ -44,7 +44,7 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 |---|---|
 | `ota_too_short` | The file is too short to be a firmware file |
 | `ota_not_dbfw` | Not a `.dbfw` file |
-| `ota_not_signed` | Not signed with this board's key |
+| `ota_not_signed` | Not signed with this connector's key |
 | `ota_wrong_target` | For another device or part |
 | `ota_too_old` | Below the security level |
 | `url_http_only` | The URL must start with `http://` or `https://` |
@@ -53,7 +53,7 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 | `probe_no_answer` | The address takes the connection but sends nothing within 3 s |
 | `probe_not_companion` | Something answers, but it is not Companion Satellite |
 | `strip_outside` | The point is outside the touch strip |
-| `busy` | The board is busy. Try again |
+| `busy` | The connector is busy. Try again |
 | `locked` | Too many wrong passwords. The reply has `retry` in seconds, with status 429 |
 | `wrong_password` | Wrong password |
 | `needs_password` | Needs the password, an API key is not enough |
@@ -87,14 +87,14 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api` | Every route with `method`, `path` and `access` | control |
 | `OPTIONS /api/...` | The CORS preflight for the origins in `cors_origins` | open |
 | `GET /api/ws` | The live [WebSocket](#websocket) | control |
-| `GET /api/status` | State of the board, see [Status](#status) | control |
+| `GET /api/status` | State of the connector, see [Status](#status) | control |
 | `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set`, `wifi2_pass_set` and `token_set` | full |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config` | full |
-| `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. During setup the board connects at once, later the deck asks for 60 s | open |
+| `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. During setup the connector connects at once, later the deck asks for 60 s | open |
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
-| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or on a board without a speaker | control |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or on a connector without a speaker | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 
@@ -112,7 +112,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `POST /api/screen` | `{"on": false}` turns every deck dark now, `{"on": true}` lights them again. No press is swallowed | full |
 | `POST /api/deck/reconnect` | Turn the USB port off and on. `?off_s=N` (1 to 600) keeps it off for N seconds | control |
 | `POST /api/deck/stall` | Stop the image output as a hung deck would, for tests | full |
-| `POST /api/sound/selftest` | Play `find` and record it with the board's microphone, for tests. Three controls: another pitch (1500 Hz) in the same recording, `find` at volume 0, and `find` with the amplifier off. `heard` is true when the tone is more than 10 times each of them. Optional: `volume` 1 to 100 (60), `gain` 0 to 42 dB (24). Takes about 6 seconds. 503 with the reason when a run fails | full |
+| `POST /api/sound/selftest` | Play `find` and record it with the connector's microphone, for tests. Three controls: another pitch (1500 Hz) in the same recording, `find` at volume 0, and `find` with the amplifier off. `heard` is true when the tone is more than 10 times each of them. Optional: `volume` 1 to 100 (60), `gain` 0 to 42 dB (24). Takes about 6 seconds. 503 with the reason when a run fails | full |
 
 ### Sources and pairing
 
@@ -147,7 +147,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | Route | What it does | Level |
 |---|---|---|
 | `POST /api/ota` | A signed `.dbfw` file as the body. Goes into the next slot and restarts. `?slot=N` writes into slot N, `?boot=0` keeps the running firmware | full |
-| `POST /api/ota/url` | `{"url": "https://..."}`, the board loads the file itself, also behind a redirect. Progress comes over the WebSocket | full |
+| `POST /api/ota/url` | `{"url": "https://..."}`, the connector loads the file itself, also behind a redirect. Progress comes over the WebSocket | full |
 | `POST /api/ota/inspect` | The first 144 bytes of a file. Answers `target`, `version`, `length`, `sha256`, and `ok` with `error` | full |
 | `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}` | full |
 | `GET /api/slots` | The four slots with `state`, `version`, `running`, `next`, `bootable` and `why_not` | full |
@@ -170,9 +170,9 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 to 23 bytes | admin |
 | `DELETE /api/passkeys/<id>` | Removes that passkey | admin |
 | `GET /api/cert` | The HTTPS certificate as PEM | open |
-| `GET /api/ca` | The board's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status | open |
-| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate. With `"apply": true` it is kept and the board restarts | admin |
-| `DELETE /api/tls` | Back to the board's own certificate, with a restart | full |
+| `GET /api/ca` | The connector's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status | open |
+| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate. With `"apply": true` it is kept and the connector restarts | admin |
+| `DELETE /api/tls` | Back to the connector's own certificate, with a restart | full |
 
 ### Diagnostics
 
@@ -201,7 +201,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | Key | Values |
 |---|---|
 | `name` | 1 to 31 letters, digits and dashes, no dash at the start or end. Also the host name |
-| `controller`, `host` | The host that draws, see [Multiple hosts](/docs/hosts#over-the-api) |
+| `controller`, `host` | The source that draws, see [Sources](/docs/hosts#over-the-api) |
 | `brightness` | 0 to 100 |
 | `volume` | The speaker, 0 (off, the default) to 100 |
 | `lan`, `wlan` | `dhcp`, or `ip` and `mask` with an optional `gateway` and `dns` |
@@ -229,13 +229,13 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-A refused value gets 400 with the reason, and the board saves nothing. The reply of `GET /api/config` is a backup without passwords. A `PUT` of it restores the settings.
+A refused value gets 400 with the reason, and the connector saves nothing. The reply of `GET /api/config` is a backup without passwords. A `PUT` of it restores the settings.
 
 ## Status
 
@@ -270,15 +270,15 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `screen_off` | Every deck is dark after `screen_off_s` without input. The first input wakes them and reaches no host. `decks[].brightness` is 0 then |
 | `brightness` | The brightness setting. `decks[].brightness` is what each deck shows |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
-| `network.wlan.backup` | The board is on the backup Wi-Fi, `ssid` names it |
+| `network.wlan.backup` | The connector is on the backup Wi-Fi, `ssid` names it |
 | `matter` | Only in the Matter firmware: `on`, `running`, `controllers` (paired apps) and `pairing` (open for a new app) |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
 | `decks[].writer` | Who draws on that deck, values as `writer` |
 | `decks[].hub` | The deck is behind a USB hub |
-| `speaker` | The board has a speaker output, see [Hardware](/docs/hardware#board) |
+| `speaker` | The connector has a speaker output, see [Hardware](/docs/hardware#board) |
 | `temp_c` | The chip temperature in °C. Missing until the first reading |
-| `https_ca` | The short code of the board's CA, see [HTTPS](/docs/security#https). Empty with your own certificate, then `https_custom` is true |
+| `https_ca` | The short code of the connector's CA, see [HTTPS](/docs/security#https). Empty with your own certificate, then `https_custom` is true |
 
 The status also has `boot_ms`, `memory` and `https_fingerprint`.
 
@@ -309,7 +309,7 @@ Draw the JPEGs in order at their place to get the picture. An image keeps its UR
 `action` is `press` (the default), `down`, `up`, or `turn` for dials. Positive ticks turn right.
 
 <Callout type="warn" title="Real presses">
-Companion, the Elgato app and the Satellite connection get an API press only with `"real"`, because their keys switch real things. Without it, the press reaches only the board's own screens and your own servers. `"real": true` is for a person at a web page. A script names the host instead, `"real": "192.168.1.10"`, and the press goes out only while that host draws.
+Companion, the Elgato app and the Satellite connection get an API press only with `"real"`, because their keys switch real things. Without it, the press reaches only the connector's own screens and your own servers. `"real": true` is for a person at a web page. A script names the host instead, `"real": "192.168.1.10"`, and the press goes out only while that host draws.
 </Callout>
 
 Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host in work only on the deck itself.

@@ -44,7 +44,7 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 |---|---|
 | `ota_too_short` | Die Datei ist zu kurz für eine Firmware-Datei |
 | `ota_not_dbfw` | Keine `.dbfw`-Datei |
-| `ota_not_signed` | Nicht mit dem Schlüssel dieser Platine signiert |
+| `ota_not_signed` | Nicht mit dem Schlüssel dieses Connectors signiert |
 | `ota_wrong_target` | Für ein anderes Gerät oder einen anderen Teil |
 | `ota_too_old` | Unter der Sicherheitsstufe |
 | `url_http_only` | Die URL muss mit `http://` oder `https://` beginnen |
@@ -53,7 +53,7 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 | `probe_no_answer` | Die Adresse nimmt die Verbindung an, schickt aber 3 s lang nichts |
 | `probe_not_companion` | Etwas antwortet, aber nicht Companion Satellite |
 | `strip_outside` | Der Punkt liegt außerhalb der Touchleiste |
-| `busy` | Die Platine ist beschäftigt. Versuch es noch einmal |
+| `busy` | Der Connector ist beschäftigt. Versuch es noch einmal |
 | `locked` | Zu viele falsche Passwörter. Status 429, die Antwort hat `retry` in Sekunden |
 | `wrong_password` | Falsches Passwort |
 | `needs_password` | Braucht das Passwort, ein API-Schlüssel reicht nicht |
@@ -87,14 +87,14 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api` | Jede Route mit `method`, `path` und `access` | control |
 | `OPTIONS /api/...` | Der CORS-Preflight für die Origins in `cors_origins` | open |
 | `GET /api/ws` | Der Live-[WebSocket](#websocket) | control |
-| `GET /api/status` | Zustand der Platine, siehe [Status](#status) | control |
+| `GET /api/status` | Zustand des Connectors, siehe [Status](#status) | control |
 | `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set`, `wifi2_pass_set` und `token_set` | full |
 | `PUT /api/config` | Einstellungen ändern. Schick nur die Schlüssel, die sich ändern. Die Antwort hat `restart` und `config` | full |
-| `POST /api/config` | **Setup** aus Companions Surfaces › Discover: `{"host": "...", "port": 16622}` als `application/json`. Während der Einrichtung verbindet sich die Platine sofort, danach fragt das Deck 60 s lang | open |
+| `POST /api/config` | **Setup** aus Companions Surfaces › Discover: `{"host": "...", "port": 16622}` als `application/json`. Während der Einrichtung verbindet sich der Connector sofort, danach fragt das Deck 60 s lang | open |
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
-| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind, und auf einer Platine ohne Lautsprecher | control |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind, und auf einem Connector ohne Lautsprecher | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
@@ -147,7 +147,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
-| `POST /api/ota/url` | `{"url": "https://..."}`, die Platine lädt die Datei selbst, auch über eine Weiterleitung. Der Fortschritt kommt über den WebSocket | full |
+| `POST /api/ota/url` | `{"url": "https://..."}`, der Connector lädt die Datei selbst, auch über eine Weiterleitung. Der Fortschritt kommt über den WebSocket | full |
 | `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
 | `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}` | full |
 | `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |
@@ -170,9 +170,9 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 bis 23 Bytes | admin |
 | `DELETE /api/passkeys/<id>` | Entfernt diesen Passkey | admin |
 | `GET /api/cert` | Das HTTPS-Zertifikat als PEM | open |
-| `GET /api/ca` | Die CA der Platine als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status | open |
-| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und die Platine startet neu | admin |
-| `DELETE /api/tls` | Zurück zum eigenen Zertifikat der Platine, mit Neustart | full |
+| `GET /api/ca` | Die CA des Connectors als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status | open |
+| `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und der Connector startet neu | admin |
+| `DELETE /api/tls` | Zurück zum eigenen Zertifikat des Connectors, mit Neustart | full |
 
 ### Diagnose
 
@@ -201,7 +201,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | Schlüssel | Werte |
 |---|---|
 | `name` | 1 bis 31 Buchstaben, Ziffern und Bindestriche, kein Bindestrich am Anfang oder Ende. Auch der Hostname |
-| `controller`, `host` | Das Programm, das zeichnet, siehe [Mehrere Programme](/de/docs/hosts#über-die-api) |
+| `controller`, `host` | Die Quelle, die zeichnet, siehe [Quellen](/de/docs/hosts#über-die-api) |
 | `brightness` | 0 bis 100 |
 | `volume` | Der Lautsprecher, 0 (aus, ab Werk) bis 100 |
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
@@ -229,13 +229,13 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter. Ein `PUT` davon stellt die Einstellungen wieder her.
+Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter. Ein `PUT` davon stellt die Einstellungen wieder her.
 
 ## Status
 
@@ -259,7 +259,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | Feld | Bedeutung |
 |---|---|
 | `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
-| `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder das gewählte Programm nicht verbunden ist |
+| `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder die aktive Quelle nicht verbunden ist |
 | `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck mit seinem `slot` (0 für Deck 1) und seiner `number` (1 für Deck 1) |
 | `decks[].locked` | Companion zeichnet über Satellite auf dem Deck und hat es mit seiner PIN gesperrt. Das Deck zeigt das Zahlenfeld |
 | `decks_over_limit` | Decks, die stecken, aber wegen `max_decks` dunkel bleiben |
@@ -270,15 +270,15 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | `screen_off` | Alle Decks sind nach `screen_off_s` ohne Eingabe dunkel. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0 |
 | `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
-| `network.wlan.backup` | Die Platine ist im Ersatz-WLAN, `ssid` nennt es |
+| `network.wlan.backup` | Der Connector ist im Ersatz-WLAN, `ssid` nennt es |
 | `matter` | Nur in der Matter-Firmware: `on`, `running`, `controllers` (gekoppelte Apps) und `pairing` (offen für eine neue App) |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
 | `decks[].writer` | Wer auf diesem Deck zeichnet, Werte wie bei `writer` |
 | `decks[].hub` | Das Deck hängt an einem USB-Hub |
-| `speaker` | Die Platine hat einen Lautsprecher-Ausgang, siehe [Hardware](/de/docs/hardware#platine) |
+| `speaker` | Der Connector hat einen Lautsprecher-Ausgang, siehe [Hardware](/de/docs/hardware#platine) |
 | `temp_c` | Die Chiptemperatur in °C. Fehlt bis zur ersten Messung |
-| `https_ca` | Der Kurzcode der CA der Platine, siehe [HTTPS](/de/docs/security#https). Leer mit eigenem Zertifikat, dann ist `https_custom` true |
+| `https_ca` | Der Kurzcode der CA des Connectors, siehe [HTTPS](/de/docs/security#https). Leer mit eigenem Zertifikat, dann ist `https_custom` true |
 
 Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
 
@@ -309,7 +309,7 @@ Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. E
 `action` ist `press` (Standard), `down`, `up` oder `turn` für Drehregler. Positive Rastungen drehen nach rechts.
 
 <Callout type="warn" title="Echte Eingaben">
-Companion, die Elgato-App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme der Platine und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
+Companion, die Elgato-App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme des Connectors und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
 </Callout>
 
 Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, die einen Rechner reinlassen, gehen nur am Deck selbst.

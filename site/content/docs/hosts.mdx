@@ -1,39 +1,39 @@
 ---
-title: Multiple hosts
+title: Sources
 description: Several programs connected at once, and how to pick the one that draws.
 ---
 
-Companion over Satellite, the Network Dock hosts (Companion and the Elgato app) and your own servers share one list. Up to 4 servers and 4 dock hosts connect at once, in any mix.
+A source is a program that draws on the deck: Companion, the Elgato app or your own server. Up to 4 servers and 4 Network Dock sources connect at once, in any mix.
 
-One host is **chosen**. It draws and gets the input. The others stay connected and keep drawing into their own picture in the background. A switch shows the new host's picture at once.
+One source is **active**. It draws and gets the input. The others stay connected and keep drawing into their own picture in the background. A switch shows the new source's picture at once.
 
 ## Switching
 
 <HostSwitch />
 
-- **On the deck.** On the home screen, tap a host, then tap again within 3 s while it says **Wechseln?** (switch?).
+- **On the deck.** On the home screen, tap a source, then tap again within 3 s while it says **Switch?**.
 - **In the web UI.** Pick a row under **Active source** on the overview ([demo](/demo/#overview)).
 - **Over the API.** Set `controller` and `host`, see below.
 
-When nobody draws, the deck shows its home screen and says what is missing, for example **Warte auf Companion** (waiting for Companion).
+When no source draws, the deck shows its home screen and says what is missing, for example **Waiting for Companion**.
 
-## When a host goes away
+## When a source goes away
 
-- The first connected host of the same program draws. For Companion, Satellite comes first.
+- The first connected source of the same program draws. For Companion, Satellite comes first.
 - Servers take over in list order. At once when the connection closes, within 6 s when the server goes silent.
-- With no host of the chosen program, the deck shows its home screen.
+- With no source of that program, the deck shows its home screen.
 
 ## Over the API
 
-Two settings pick the host. `controller` is the program, `host` names the entry from `sources` in the status.
+Two settings pick the source. `controller` is the program, `host` names the entry from `sources` in the status.
 
 | `controller` | Program | `host` |
 |---|---|---|
-| `companion` | Companion, Satellite or dock | `satellite`, or the dock host's IP |
-| `app` | The Elgato app | The dock host's IP |
+| `companion` | Companion, Satellite or dock | `satellite`, or the computer's IP |
+| `app` | The Elgato app | The computer's IP |
 | `server` | Your own servers | The server URL |
 
-An empty `host` means the first connected host of that program. The change works at once.
+An empty `host` means the first connected source of that program. The change works at once.
 
 ```bash
 curl -u admin:PASSWORD -H 'X-DeckConnector: 1' -X PUT \

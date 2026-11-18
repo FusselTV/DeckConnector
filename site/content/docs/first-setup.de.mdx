@@ -1,37 +1,31 @@
 ---
 title: Einrichtung
-description: DeckConnector nach dem Flashen einrichten. Name, Passwort, Netzwerk und das Programm festlegen, das das Deck steuert.
+description: DeckConnector nach dem Flashen einrichten. Name, Passwort, Netzwerk und die Quelle festlegen, die das Deck steuert.
 ---
 
 <SetupPaths lang="de" />
 
 ## Im Browser
 
-Ohne Kabel setzt du zuerst das WLAN im [Flasher](/de/flash/) oder nimmst das [Setup-WLAN](#über-das-setup-wlan). Mit Netzwerkkabel zeigt das Deck seine Adresse und einen QR-Code. Scanne den Code mit dem Handy oder öffne `http://<adresse>/` auf einem Computer im selben Netz.
+Das Deck zeigt die Adresse des Connectors und einen QR-Code. Scanne den Code mit dem Handy oder öffne `http://<adresse>/` auf einem Computer im selben Netz. Keine Adresse? Dann hat der Connector noch kein Netz. Trag ein WLAN im [Flasher](/de/flash/) ein, steck ein Kabel ein oder nimm das [Setup-WLAN](#über-das-setup-wlan).
 
-Der erste Browser, der die Seite in den 30 Minuten nach dem Start öffnet, kommt direkt in die Einrichtung. Jeder weitere scannt den QR-Code, der einen Browser einmal anmeldet (jeder Code für 10 Minuten, bis die Einrichtung fertig ist), oder meldet sich als `admin` mit dem Passwort aus dem [Deck-Menü](/de/docs/getting-started#das-deck-menü) an.
+Der erste Browser, der die Seite öffnet, kommt direkt in die Einrichtung. Das geht 30 Minuten lang nach dem Start des Connectors. Später scannst du stattdessen den QR-Code am Deck. Er meldet dich an.
 
-Die Einrichtung fragt nach Sprache und Name, deinem eigenen Passwort, dem Netzwerk und dem Programm, das das Deck steuert. Der Name ist auch der Netzwerkname, zum Beispiel `deckconnector-a1b2c3.local`. [Die Einrichtung in der Demo ausprobieren](/de/demo/?setup).
-
-Unter **Firmware › Sicherung** startest du sie später noch einmal.
+Die Einrichtung fragt nach dem Namen, deinem eigenen Passwort, dem Netzwerk und der Quelle, die das Deck steuert. Der Name ist auch der Netzwerkname, zum Beispiel `deckconnector-a1b2c3.local`. [Die Einrichtung in der Demo ausprobieren](/de/demo/?setup).
 
 ## Über das Setup-WLAN
 
-Vor der Einrichtung öffnet eine Platine ohne Kabel und ohne WLAN aus dem Flasher gleich nach dem Start ein eigenes WLAN. Mit Kabel oder mit einem WLAN, das nicht klappt, wartet sie eine Minute. Du kannst es auch im Deck-Menü unter **Setup-WLAN** starten.
+Ohne Netz öffnet der Connector ein eigenes WLAN. Das passiert gleich nach dem Start, mit eingestecktem Kabel nach einer Minute. Du kannst es auch im Deck-Menü unter **Setup-WLAN** starten.
 
-Scanne den QR-Code am Deck mit der Handykamera. Das Handy verbindet sich und öffnet die Seite von selbst. Ohne QR-Scanner verbindest du dich mit Name und Passwort, die das Deck zeigt. Öffnet sich die Seite nicht oder hast du sie geschlossen, öffne irgendeine `http://`-Adresse oder die vom Deck.
+Scanne den QR-Code am Deck mit der Handykamera. Das Handy verbindet sich und öffnet die Seite von selbst. Ohne QR-Scanner verbindest du dich mit Name und Passwort, die das Deck zeigt. Öffnet sich die Seite nicht, öffne irgendeine `http://`-Adresse oder die vom Deck.
 
 Die Seite fragt nur nach deinem WLAN. Die Einrichtung schließt du danach in deinem eigenen Netz ab.
-
-<Callout type="warn">
-Die Platine kann nur 2,4-GHz-WLAN.
-</Callout>
 
 ## Nur am Deck
 
 Die Weboberfläche ist optional. Steck ein Netzwerkkabel ein und trag die Adresse vom Deck in der [Elgato-App](/de/docs/elgato-app) oder in [Companion](/de/docs/companion) ein.
 
-Meldet Companion Satellite im Netz an, fragt das Deck **Companion gefunden, verbinden?** Eine Taste verbindet es.
+Ist Companion im Netz, zeigt das Deck **Companion gefunden**. Tippe auf **Verbinden**.
 
 Auf einem Deck mit Drehreglern stellst du im Deck-Menü unter **LAN** eine feste Adresse ein. Ein Drehregler ändert eine Zahl, Drücken springt zum nächsten Feld, dann tippst du auf **Speichern**.
 
@@ -39,8 +33,8 @@ Auf einem Deck mit Drehreglern stellst du im Deck-Menü unter **LAN** eine feste
 
 - Im Deck-Menü **Neustart** 5 Sekunden halten, dann loslassen.
 - Oder auf der Anmeldeseite **Zurücksetzen** wählen und zweimal am Deck bestätigen.
-- Oder, mit dem Passwort angemeldet, auf der Web-Seite unter **Firmware** **Zurücksetzen** wählen.
+- Oder, angemeldet, auf der Web-Seite unter **Firmware** **Zurücksetzen** wählen.
 
-Das löscht alle Einstellungen, die API-Schlüssel, die gekoppelten Rechner, ein hochgeladenes Zertifikat, eine hochgeladene Web-Seite und den Absturzbericht. Das neue Passwort steht auf dem Deck, und die Einrichtung startet neu.
+Das löscht alle Einstellungen, die API-Schlüssel, die gekoppelten Quellen, ein hochgeladenes Zertifikat, eine hochgeladene Web-Seite und den Absturzbericht. Das neue Passwort steht auf dem Deck, und die Einrichtung startet neu.
 
-<Next lang="de" links={[['Elgato-App', '/de/docs/elgato-app/'], ['Netzwerk', '/de/docs/network/']]} />
+<Next lang="de" links={[['Companion verbinden', '/de/docs/companion/'], ['Netzwerk', '/de/docs/network/']]} />

@@ -5,11 +5,11 @@ description: Password, login on the deck, API keys, lockout, HTTPS and CORS.
 
 ## Password
 
-The web UI has one user, `admin`. On its first start the board makes a random password and shows it in the deck menu. Set your own (6 to 23 characters) in the setup or under **Access** ([demo](/demo/#access)).
+The web UI has one user, `admin`. On its first start the connector makes a random password and shows it in the deck menu. Set your own (6 to 23 characters) in the setup or under **Access** ([demo](/demo/#access)).
 
-Before setup, the first browser on the board's address or `name.local` in the 30 minutes after the start gets in without the password. That works once until a factory reset, and a password set in the flasher closes it too. This login ends when setup is done; the browser that finishes setup gets a new one.
+Before setup, the first browser that opens the connector gets in without the password. This works once, in the 30 minutes after the start. A factory reset opens it again.
 
-A new password restarts the board and ends every session. A session ends after 12 hours without use, and on a power cut.
+A new password restarts the connector and ends every session. A session ends after 12 hours without use, and on a power cut.
 
 ## Lost password
 
@@ -17,9 +17,9 @@ The login page offers three ways. Each needs someone at the deck, and presses se
 
 | Way | On the deck |
 |---|---|
-| Ask the deck | Tap **Annehmen** (accept) within 60 s |
+| Ask the deck | Tap **Accept** within 60 s |
 | Password on the deck | The password shows for 30 s |
-| Reset | Tap **Zurücksetzen** (reset) twice within 60 s. Every setting is gone |
+| Reset | Tap **Reset** twice within 60 s. Every setting is gone |
 
 ## Lockout
 
@@ -37,14 +37,13 @@ curl -H 'Authorization: Bearer KEY' http://192.168.1.50/api/status
 
 <AuthLevels />
 
-A key has **Control** (`control`) or **Full access** (`full`). Up to 8 keys exist. Deleting one ends it at once. A new key with the same name replaces the old one. The board keeps only a hash, and a backup never holds a key.
+A key has **Control** (`control`) or **Full access** (`full`). Up to 8 keys exist. Deleting one ends it at once. A new key with the same name replaces the old one. The connector keeps only a hash, and a backup never holds a key. Home Assistant deletes its own key when you remove the integration.
 
 ## HTTPS
 
-The board serves port 80 and HTTPS on 443. Its certificate comes from its own CA, which the board makes on its first start. Download the CA under **Access › HTTPS** and trust it once on each device. Then no browser warns at `https://<name>.local`, also on iPhone and Mac. By IP address the browser still warns. There, compare the fingerprint with the one under **Access**.
+The connector serves port 80 and HTTPS on 443. Its certificate comes from its own CA, which the connector makes on its first start. Trust the CA once on each device under **Access › HTTPS**. Then no browser warns at `https://<name>.local`.
 
-- When you download the CA, the deck shows a short code for 30 seconds. **Access** shows the same code. Trust the CA only if both match.
-- The CA vouches only for `<name>.local` and `localhost`, never for another name or an IP address. Someone who takes the key out of the board can pass only for this board.
+- The CA vouches only for `<name>.local` and `localhost`, never for another name or an IP address.
 - The certificate is renewed 30 days before it runs out. The fingerprint changes each time, the CA stays.
 - A new name gets a new CA. Trust it again on each device.
 - A factory reset deletes the CA.
@@ -56,21 +55,21 @@ The board serves port 80 and HTTPS on 443. Its certificate comes from its own CA
 
 A passkey logs you in with your fingerprint, face or device PIN. Add one under **Access › Passkeys**.
 
-- It needs HTTPS without a warning and a name, like `https://deckconnector-a1b2c3.local`. Never an IP address. Trust the CA first, or upload a certificate for your own name.
+- It needs HTTPS without a warning and a name, like `https://deckconnector-a1b2c3.local`. Trust the CA first, or upload a certificate for your own name.
 - A passkey works only at the name it was made on. After a rename, add it again.
-- Up to 8 passkeys, ES256 only. The password keeps working. A factory reset deletes all passkeys.
+- Up to 8 passkeys. The password keeps working. A factory reset deletes all passkeys.
 
 ## Behind a reverse proxy
 
-A proxy such as Caddy can serve the board under its own name. Then every request comes from the proxy's address. Enter that address under **Access › HTTPS › Reverse proxy**. The board then takes the client from the last entry of `X-Forwarded-For`. It uses it for the lockout, for passkeys and for the login question on the deck.
+A proxy such as Caddy can serve the connector under its own name. Then every request comes from the proxy's address. Enter that address under **Access › HTTPS › Reverse proxy**. The connector then takes the client from the last entry of `X-Forwarded-For`. It uses it for the lockout, for passkeys and for the login question on the deck.
 
-- The board reads the header only from that one address. From anyone else it ignores it.
+- The connector reads the header only from that one address. From anyone else it ignores it.
 - The proxy must keep the `Host` header and add the client to `X-Forwarded-For`. Caddy does both by default.
 - Through the proxy, the first-browser setup and Companion's Discover do not work.
 
 ## Setup Wi-Fi
 
-A browser on the setup Wi-Fi needs no web password. Only the deck shows the Wi-Fi password, so you must be at the deck to join. Only phones on the setup Wi-Fi get the sign-in page and the board's own DNS answers. The LAN never does.
+A browser on the setup Wi-Fi needs no web password. Only the deck shows the Wi-Fi password, so you must be at the deck to join. Only phones on the setup Wi-Fi get the sign-in page and the connector's own DNS answers. The LAN never does.
 
 ## CORS
 

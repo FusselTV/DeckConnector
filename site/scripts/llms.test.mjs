@@ -26,3 +26,8 @@ for (const f of files) {
     }
   })
 }
+
+test('buttons keep their links in Markdown', () => {
+  for (const [f, label] of [['md/docs/home-assistant.md', 'Install with HACS'], ['md/de/docs/home-assistant.md', 'Mit HACS installieren']])
+    assert.match(readFileSync(new URL(f, out), 'utf8'), new RegExp(`- \\[${label}\\]\\(https://my\\.home-assistant\\.io/redirect/hacs_repository/`))
+})

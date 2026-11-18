@@ -9,12 +9,7 @@ Der [Flasher](/de/flash/) schreibt das neueste stabile [Release](/de/docs/update
 
 <Ports lang="de" />
 
-| Art | Was passiert |
-|---|---|
-| **Neuinstallation** | Löscht alles und startet mit Standardeinstellungen. Für eine neue Platine oder eine mit anderer Firmware |
-| **Update** | Schreibt nur die Firmware. Einstellungen, gekoppelte Rechner und API-Schlüssel bleiben |
-
-Nach dem Flashen kann der Flasher über dasselbe Kabel WLAN, Admin-Passwort und Namen setzen. Oder du überspringst das und nimmst die [Einrichtung im Browser](/de/docs/first-setup). Über USB nimmt die Platine das nur an, bis die Einrichtung fertig ist, und in den ersten 5 Minuten nach jedem Start.
+Nach dem Flashen kann der Flasher über dasselbe Kabel dein WLAN eintragen. Alles andere folgt in der [Einrichtung im Browser](/de/docs/first-setup).
 
 Der Flasher schreibt nur den Hauptchip. Der WLAN-Chip bekommt seine Firmware als normales [Update](/de/docs/updates).
 
@@ -43,21 +38,5 @@ esptool --chip esp32p4 -p /dev/ttyACM0 -b 921600 write-flash 0xf000 ota_data_ini
 </Tabs>
 
 Unter Windows heißt der Port `COM3` oder ähnlich, unter macOS `/dev/cu.*`.
-
-## Aus dem Quellcode
-
-Du brauchst ESP-IDF 6.0.2, Node.js und [uv](https://docs.astral.sh/uv/).
-
-```bash
-git clone https://github.com/FusselTV/DeckConnector.git
-```
-
-```bash
-cd DeckConnector/web && npm ci && npm run build
-cd ../tools && uv run python -m dbtools.dbfw keygen
-cd ../firmware && idf.py build && idf.py -p /dev/ttyACM0 flash
-```
-
-Die Weboberfläche gehört zur Firmware, deshalb wird sie zuerst gebaut. `keygen` erzeugt einmal deinen eigenen Update-Schlüssel. Eine Platine nimmt nur Updates an, die mit dem Schlüssel ihrer Firmware signiert sind.
 
 <Next lang="de" links={[['Einrichtung', '/de/docs/first-setup/']]} />

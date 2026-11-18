@@ -7,18 +7,15 @@ description: Die ESP32-P4-Platine für DeckConnector, ihre Stromversorgung und w
 
 [Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), etwa 25 bis 35 Euro. Das Basis-Kit reicht. Details stehen im [Waveshare-Wiki](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-POE-ETH).
 
-| Teil | Wofür |
-|---|---|
-| [ESP32-P4](https://www.espressif.com/en/products/socs/esp32-p4) | Führt die Firmware aus. Chip-Revision v3.x, ab v3.1 |
-| [ESP32-C6](https://www.espressif.com/en/products/socs/esp32-c6) | WLAN, nur 2,4 GHz |
+Sie braucht die ESP32-P4-Chip-Revision v3.1 oder eine spätere v3. Manche Platinen kamen mit älteren v1.3-Chips. Frag den Händler. Der [Flasher](/de/flash/) prüft die Revision, bevor er etwas schreibt.
 
-Manche Platinen dieses Modells wurden mit älteren v1.3-Chips ausgeliefert, auf denen DeckConnector nicht läuft. Frag den Händler nach Revision v3.1 oder einer späteren v3. Der [Flasher](/de/flash/) zeigt die Revision beim Verbinden an, bevor er etwas schreibt.
+Ihr WLAN kann nur 2,4 GHz.
 
 <Ports lang="de" />
 
 Mit PoE laufen Platine und Deck über ein Kabel. Stecken PoE und USB-C, läuft die Platine weiter, wenn PoE wegfällt.
 
-Ein Lautsprecher am Lautsprecher-Anschluss der Platine spielt einen kurzen Ton, wenn ein Host zu zeichnen beginnt, wenn er wegfällt und wenn er zurückkommt. Die Töne sind anfangs aus. Du schaltest sie in der Übersicht unter **Töne** ein.
+Ein Lautsprecher am Lautsprecher-Anschluss der Platine spielt einen kurzen Ton, wenn eine Quelle zu zeichnen beginnt. Er tönt auch, wenn die Quelle wegfällt und zurückkommt. Die Töne sind anfangs aus. Du drehst sie mit dem Lautsprecher-Regler unter **Steuerung** in der Übersicht auf.
 
 ## Decks
 
@@ -28,13 +25,17 @@ Ein Lautsprecher am Lautsprecher-Anschluss der Platine spielt einen kurzen Ton, 
 | Stream Deck MK.2, XL, V2, Mini, Neo, + XL, Pedal, Module 6, 15 und 32 | Im Treiber, noch nicht getestet |
 | Mirabox, Ajazz, Soomfon, Streonor: Stream Dock 293V3, 293S, XL, N3, N4, N4 Pro, AKP153, AKP153E, AKP03E, AKP05E, CN002, S15 | Sollte laufen, nicht auf Hardware getestet. Nur mit Companion und eigenen Servern |
 
-Manche dieser Decks haben alle dieselbe Seriennummer. Die Platine erkennt sie an ihrem USB-Port. Steck jedes deshalb immer in denselben Port.
+Manche dieser Decks haben alle dieselbe Seriennummer. Der Connector erkennt sie an ihrem USB-Port. Steck jedes deshalb immer in denselben Port.
 
-Manche Bedienelemente melden nur das Drücken, nicht das Loslassen: die Drehregler und die Touchleiste von N4, N4 Pro und Ajazz AKP05E, die rechte Tastenspalte des 293S und alle Tasten des Ajazz AKP153 und des 293S mit der USB-ID 5548:6670. Halten geht bei ihnen nicht, ein langer Druck in Companion wirkt dort also nicht. Welche Tasten das Menü öffnen, zeigt der Reiter Deck.
+Manche Bedienelemente melden nur das Drücken, nicht das Loslassen. Halten geht bei ihnen nicht, ein langer Druck in Companion wirkt dort also nicht. Das betrifft:
 
-Ein Server bekommt für ein ungetestetes Modell `"tested": false` in der `device`-Nachricht.
+- die Drehregler und die Touchleiste von N4, N4 Pro und Ajazz AKP05E
+- die rechte Tastenspalte des 293S
+- alle Tasten des Ajazz AKP153 und des 293S mit der USB-ID 5548:6670
 
-Hinter einem USB-Hub steuert die Platine bis zu vier Decks. Standard sind zwei, denn alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports der Platine. Das Limit stellst du in der Weboberfläche unter Deck ein. Decks über dem Limit bleiben dunkel. Ein kleineres Limit gilt für Decks, die du danach einsteckst.
+Welche Tasten das Menü öffnen, zeigt der Reiter Deck.
+
+Hinter einem USB-Hub steuert der Connector bis zu vier Decks. Standard sind zwei. Alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports. Das Limit stellst du in der Weboberfläche unter Deck ein. Decks über dem Limit bleiben dunkel. Ein kleineres Limit gilt für Decks, die du danach einsteckst.
 
 Ein Deck allein ist immer Deck 1. Bei mehreren Decks behält jedes seine Nummer, auch wenn du es neu einsteckst. Companion und die Elgato-App sehen jedes Deck als eigene Surface oder eigenes Gerät. Ein [eigener Server](/de/docs/own-server) zeichnet nur auf dem Deck mit der kleinsten Nummer. Das Menü öffnet sich auf dem Deck, an dem du die Tasten hältst. Ein Hub erzwingt oft Full Speed, dann kommen Bilder langsamer.
 

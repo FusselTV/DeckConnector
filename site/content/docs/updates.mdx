@@ -3,11 +3,11 @@ title: Updates
 description: Signed updates for the firmware, the Wi-Fi chip and the web page, with slots and rollback.
 ---
 
-The board takes signed `.dbfw` files. Each file holds one part, and the board sees which part it is.
+The connector takes signed `.dbfw` files. Each file holds one part, and the connector sees which part it is.
 
 | Part | After the update |
 |---|---|
-| Firmware | Goes into the next slot, the board restarts into it |
+| Firmware | Goes into the next slot, the connector restarts into it |
 | Wi-Fi chip | Both chips restart |
 | Web page | Served at once |
 | Bootloader, partition table | Written in place, no restart |
@@ -22,11 +22,11 @@ The board takes signed `.dbfw` files. Each file holds one part, and the board se
 
 <OtaFlow />
 
-A board takes only files signed with the key its firmware was built with. It refuses a file below its own security level, so an old firmware with a known hole cannot come back. Under **Firmware slots** you can start an older slot. It must confirm itself like a new update.
+A connector takes only files signed with the key its firmware was built with. It refuses a file below its own security level, so an old firmware with a known hole cannot come back. Under **Firmware slots** you can start an older slot. It must confirm itself like a new update.
 
 ## Releases
 
-On the [GitHub releases page](https://github.com/FusselTV/DeckConnector/releases). A tag `vX.Y.Z` makes a release, `vX.Y.Z-rc1` a pre-release.
+On the [GitHub releases page](https://github.com/FusselTV/DeckConnector/releases).
 
 | File | Use |
 |---|---|
@@ -39,20 +39,10 @@ Check a download with `sha256sum -c SHA256SUMS --ignore-missing`.
 
 ## Web page
 
-The web page can change without a firmware update and stays over restarts. When it does not fit the firmware, the board serves the page built into its firmware. **Remove uploaded page** goes back to that page.
+The web page can change without a firmware update and stays over restarts. When it does not fit the firmware, the connector serves the page built into its firmware. **Remove uploaded page** goes back to that page.
 
 ## Recovery over USB
 
-When the board no longer starts, flash it over USB-C. An **Update** in the [flasher](/flash/) keeps the settings. The chip cannot be bricked, because its USB loader cannot be overwritten.
-
-## Sign your own
-
-```bash
-cd tools
-uv run python -m dbtools.dbfw keygen
-uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin fw.dbfw
-```
-
-`keygen` runs once. It keeps the private key in `~/.config/deckbridge/ota_key.pem` and writes the public key into the firmware. Without the private key, the next firmware goes on over USB.
+When the connector no longer starts, flash it over USB-C. An **Update** in the [flasher](/flash/) keeps the settings. The chip cannot be bricked, because its USB loader cannot be overwritten.
 
 <Next links={[['An update does not stay', '/docs/troubleshooting/#an-update-does-not-stay'], ['Flashing', '/docs/flashing/']]} />

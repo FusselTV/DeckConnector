@@ -7,18 +7,15 @@ description: The ESP32-P4 board that runs DeckConnector, how to power it, and wh
 
 [Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), from about 25 US dollars at Waveshare, plus shipping. The base kit is enough. Details are in the [Waveshare wiki](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-POE-ETH).
 
-| Part | Use |
-|---|---|
-| [ESP32-P4](https://www.espressif.com/en/products/socs/esp32-p4) | Runs the firmware. Chip revision v3.x, from v3.1 |
-| [ESP32-C6](https://www.espressif.com/en/products/socs/esp32-c6) | Wi-Fi, 2.4 GHz only |
+It needs ESP32-P4 chip revision v3.1 or a later v3. Some boards shipped with older v1.3 chips. Ask the seller. The [flasher](/flash/) checks the revision before it writes anything.
 
-Some boards of this model shipped with older v1.3 chips, which cannot run DeckConnector. Ask the seller for revision v3.1 or a later v3. The [flasher](/flash/) shows the revision when it connects, before it writes anything.
+Its Wi-Fi is 2.4 GHz only.
 
 <Ports />
 
 With PoE the board and the deck run from one cable. With PoE and USB-C both plugged in, the board keeps running when PoE goes away.
 
-A speaker on the board's speaker connector plays a short sound when a host starts to draw, when it goes away and when it comes back. The sounds are off by default. Turn them on under **Sounds** on the overview.
+A speaker on the board's speaker connector plays a short sound when a source starts to draw. It also sounds when the source goes away and comes back. The sounds are off by default. Turn them up with the speaker slider under **Controls** on the overview.
 
 ## Decks
 
@@ -28,13 +25,17 @@ A speaker on the board's speaker connector plays a short sound when a host start
 | Stream Deck MK.2, XL, V2, Mini, Neo, + XL, Pedal, Module 6, 15 and 32 | In the driver, not tested yet |
 | Mirabox, Ajazz, Soomfon, Streonor: Stream Dock 293V3, 293S, XL, N3, N4, N4 Pro, AKP153, AKP153E, AKP03E, AKP05E, CN002, S15 | Should work, not tested on hardware. Companion and own servers only |
 
-Some of these decks share one serial number. The board tells them apart by their USB port, so keep each deck on its port.
+Some of these decks share one serial number. The connector tells them apart by their USB port, so keep each deck on its port.
 
-Some controls send only the press, not the release: the dials and the touch strip of the N4, N4 Pro and Ajazz AKP05E, the right key column of the 293S, and every key of the Ajazz AKP153 and of the 293S with USB ID 5548:6670. You cannot hold them, so a long press in Companion does not work there. The Deck tab shows which keys open the menu.
+Some controls send only the press, not the release. You cannot hold them, so a long press in Companion does not work there. This affects:
 
-A server gets `"tested": false` in the `device` message for an untested model.
+- the dials and the touch strip of the N4, N4 Pro and Ajazz AKP05E
+- the right key column of the 293S
+- every key of the Ajazz AKP153, and of the 293S with USB ID 5548:6670
 
-Behind a USB hub the board drives up to four decks. Two is the default, because all decks on a hub without its own power supply share the 2 A of the board's USB port. Set the limit in the web UI under Deck. Decks over the limit stay dark. A lower limit applies to decks you plug in after the change.
+The Deck tab shows which keys open the menu.
+
+Behind a USB hub the connector drives up to four decks. Two is the default. All decks on a hub without its own power supply share the 2 A of the USB port. Set the limit in the web UI under Deck. Decks over the limit stay dark. A lower limit applies to decks you plug in after the change.
 
 A deck on its own is always deck 1. With several decks, each keeps its number when you plug it in again. Companion and the Elgato app see each deck as its own surface or device. An [own server](/docs/own-server) draws on the deck with the lowest number only. The menu opens on the deck where you hold the keys. A hub often forces full speed, which makes pictures slower.
 

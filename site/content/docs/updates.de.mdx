@@ -3,11 +3,11 @@ title: Updates
 description: Signierte Updates für Firmware, WLAN-Chip und Weboberfläche, mit Plätzen und Rückfall.
 ---
 
-Die Platine nimmt signierte `.dbfw`-Dateien an. Jede Datei enthält einen Teil, und die Platine erkennt, welchen.
+Der Connector nimmt signierte `.dbfw`-Dateien an. Jede Datei enthält einen Teil, und der Connector erkennt, welchen.
 
 | Teil | Nach dem Update |
 |---|---|
-| Firmware | Kommt in den nächsten Platz, die Platine startet ihn |
+| Firmware | Kommt in den nächsten Platz, der Connector startet ihn |
 | WLAN-Chip | Beide Chips starten neu |
 | Weboberfläche | Sofort ausgeliefert |
 | Bootloader, Partitionstabelle | An Ort und Stelle geschrieben, kein Neustart |
@@ -22,11 +22,11 @@ Die Platine nimmt signierte `.dbfw`-Dateien an. Jede Datei enthält einen Teil, 
 
 <OtaFlow lang="de" />
 
-Eine Platine nimmt nur Dateien an, die mit dem Schlüssel ihrer Firmware signiert sind. Eine Datei unter ihrer eigenen Sicherheitsstufe lehnt sie ab, damit eine alte Firmware mit bekannter Lücke nicht zurückkommt. Unter **Firmware-Plätze** startest du einen älteren Platz. Er muss sich bestätigen wie ein neues Update.
+Ein Connector nimmt nur Dateien an, die mit dem Schlüssel seiner Firmware signiert sind. Eine Datei unter seiner eigenen Sicherheitsstufe lehnt er ab, damit eine alte Firmware mit bekannter Lücke nicht zurückkommt. Unter **Firmware-Plätze** startest du einen älteren Platz. Er muss sich bestätigen wie ein neues Update.
 
 ## Releases
 
-Auf der [GitHub-Release-Seite](https://github.com/FusselTV/DeckConnector/releases). Ein Tag `vX.Y.Z` erzeugt ein Release, `vX.Y.Z-rc1` ein Pre-Release.
+Auf der [GitHub-Release-Seite](https://github.com/FusselTV/DeckConnector/releases).
 
 | Datei | Wofür |
 |---|---|
@@ -39,20 +39,10 @@ Einen Download prüfst du mit `sha256sum -c SHA256SUMS --ignore-missing`.
 
 ## Weboberfläche
 
-Die Weboberfläche kann sich ohne Firmware-Update ändern und bleibt über Neustarts erhalten. Passt sie nicht zur Firmware, liefert die Platine die eingebaute aus. **Hochgeladene Seite entfernen** geht zu ihr zurück.
+Die Weboberfläche kann sich ohne Firmware-Update ändern und bleibt über Neustarts erhalten. Passt sie nicht zur Firmware, liefert der Connector die eingebaute aus. **Hochgeladene Seite entfernen** geht zu ihr zurück.
 
 ## Wiederherstellung über USB
 
-Startet die Platine nicht mehr, flash sie über USB-C. Ein **Update** im [Flasher](/de/flash/) behält die Einstellungen. Der Chip lässt sich nicht unbrauchbar machen, weil sein USB-Lader nicht überschrieben werden kann.
-
-## Selbst signieren
-
-```bash
-cd tools
-uv run python -m dbtools.dbfw keygen
-uv run python -m dbtools.dbfw pack --target p4 --version "$(git describe)" ../firmware/build/deckconnector.bin fw.dbfw
-```
-
-`keygen` läuft einmal. Es legt den privaten Schlüssel in `~/.config/deckbridge/ota_key.pem` ab und schreibt den öffentlichen in die Firmware. Ohne den privaten Schlüssel muss die nächste Firmware über USB drauf.
+Startet der Connector nicht mehr, flash ihn über USB-C. Ein **Update** im [Flasher](/de/flash/) behält die Einstellungen. Der Chip lässt sich nicht unbrauchbar machen, weil sein USB-Lader nicht überschrieben werden kann.
 
 <Next lang="de" links={[['Ein Update bleibt nicht', '/de/docs/troubleshooting/#ein-update-bleibt-nicht'], ['Flashen', '/de/docs/flashing/']]} />

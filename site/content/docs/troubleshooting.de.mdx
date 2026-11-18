@@ -7,21 +7,21 @@ Flashen klappt nicht? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooti
 
 ## Die Deck-Bildschirme
 
-| Auf dem Deck | Bedeutung und Lösung |
+| Auf dem Deck | Was hilft |
 |---|---|
-| **Kein Netz** | Weder LAN noch WLAN hat eine Adresse. Kabel einstecken oder am Deck auf **WLAN** tippen, das startet das Setup-WLAN |
-| **Warte auf Companion** | Companion ist gewählt, aber nicht verbunden. Siehe [unten](#companion-verbindet-sich-nicht) |
-| **Companion nicht erreichbar** | Die Satellite-Adresse, die das Deck zeigt, antwortet nicht. Unter **Quellen** prüfen. Siehe [unten](#companion-verbindet-sich-nicht) |
-| **Warte auf die Elgato App** | Die Elgato-App ist gewählt, aber nicht verbunden. Siehe [unten](#die-elgato-app-findet-das-deck-nicht) |
-| **Suche Server** | Keine Server-URL gesetzt, und keiner meldet sich. Eine unter **Quellen** eintragen |
-| **Server getrennt** | Der Server antwortet nicht. Prüfen, ob er läuft und URL und Port stimmen |
-| **Verbindungsanfrage** | Ein unbekannter Rechner will das Deck. **Annehmen** lässt ihn rein, **Ablehnen** hält ihn draußen |
-| **Companion gefunden** | Companion meldet Satellite an. **Verbinden** verbindet, **Nein** fragt nicht mehr |
-| **Setup 2/5** | Jemand ist in der Einrichtung im Browser. Dort beenden oder überspringen |
+| ![Kein Netz](/docs/deck-st-no-network-de.webp) | Weder LAN noch WLAN hat eine Adresse. Kabel einstecken oder am Deck auf **WLAN** tippen, das startet das Setup-WLAN |
+| ![Warte auf Companion](/docs/deck-st-companion-de.webp) | Companion ist die aktive Quelle, aber nicht verbunden. Siehe [unten](#companion-verbindet-sich-nicht) |
+| ![Companion nicht erreichbar](/docs/deck-st-companion-away-de.webp) | Die Companion-Adresse antwortet nicht. Unter **Quellen** prüfen |
+| ![Warte auf die Elgato App](/docs/deck-st-app-de.webp) | Siehe [unten](#die-elgato-app-findet-das-deck-nicht) |
+| ![Suche Server](/docs/deck-st-server-de.webp) | Keine Server-Adresse gesetzt, und keiner meldet sich. Eine unter **Quellen** eintragen |
+| ![Server getrennt](/docs/deck-st-server-off-de.webp) | Prüfen, ob der Server läuft und Adresse und Port stimmen |
+| ![Verbindungsanfrage](/docs/deck-st-request-de.webp) | Ein unbekannter Rechner will das Deck. **Annehmen** lässt ihn rein, **Ablehnen** hält ihn draußen |
+| ![Companion gefunden](/docs/deck-st-offer-de.webp) | **Verbinden** verbindet es über Satellite. **Nein** fragt nicht mehr |
+| **Setup 2/5** auf einer Taste | Jemand ist in der Einrichtung im Browser. Dort beenden oder überspringen |
 
 ## Das Deck bleibt dunkel oder ist langsam
 
-- Die Platine braucht Strom. Mit PoE muss der Switch-Port ihn liefern.
+- Der Connector braucht Strom. Mit PoE muss der Switch-Port ihn liefern.
 - Das Deck gehört in den **USB-A**-Port.
 - **Neu verbinden** in der Weboberfläche schaltet seinen USB-Strom aus und wieder an.
 - Hinter einem USB-Hub läuft das Deck oft nur mit Full Speed, Bilder kommen dann langsamer. Steck es direkt ein.
@@ -37,7 +37,7 @@ Flashen klappt nicht? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooti
 ## Companion verbindet sich nicht
 
 - In Companion muss **Settings › Satellite** an sein.
-- Die Platine muss Companion auf TCP 16622 erreichen, oder 16623 für `ws://`. In Docker gibst du den Port frei und trägst die Adresse von Hand ein.
+- Der Connector muss Companion auf TCP 16622 erreichen, oder 16623 für `ws://`. Für Docker siehe [Companion verbinden](/de/docs/companion).
 - **Prüfen** neben der Adresse unter **Quellen** zeigt, ob Companion antwortet.
 - Das Deck erscheint doppelt? Ein Proxy verdeckt die Adresse von Companion. Entferne die Remote Surface in Companion.
 
@@ -45,7 +45,7 @@ Flashen klappt nicht? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooti
 
 - Der Computer muss im selben Netz sein, nicht in einem Gast-WLAN.
 - Eine Firewall auf dem Computer kann die App blockieren.
-- Das Deck muss stecken. Ein Dock ohne Deck beachtet die App erst nach ihrem Neustart.
+- Das Deck muss stecken, wenn die App startet. Sonst starte die App neu.
 - Eine abgelehnte App fragt erst nach ihrem Neustart wieder.
 
 ## Ein Update bleibt nicht

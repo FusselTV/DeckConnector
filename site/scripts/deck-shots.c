@@ -62,6 +62,16 @@ static void save(const db_device_info_t *dev, const ui_screen_t *sc, const char 
     free(c.px);
 }
 
+static void shot(const db_device_info_t *dev, ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l,
+                 const char *dir, const char *name)
+{
+    ui_screen_t sc;
+    char file[64];
+    ui_menu_screen(m, md, l, &sc);
+    snprintf(file, sizeof(file), "%s-%s", name, md->english ? "en" : "de");
+    save(dev, &sc, dir, file);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : ".";
@@ -70,50 +80,80 @@ int main(int argc, char **argv)
         return 1;
     }
     ui_layout_t l = ui_layout_of(&d.info);
-    ui_model_t md = {
-        .now_us = 100000000,
-        .controller = UI_CTRL_COMPANION,
-        .hosts = {1, 1, 1},
-        .sources = {{.kind = UI_CTRL_COMPANION, .via = UI_VIA_SATELLITE, .chosen = true, .label = "studio"},
-                    {.kind = UI_CTRL_APP, .via = UI_VIA_DOCK, .label = "STUDIO-PC"},
-                    {.kind = UI_CTRL_SERVER, .via = UI_VIA_SERVER, .label = "regie"}},
-        .source_count = 3,
-        .lan_link = true,
-        .lan_up = true,
-        .lan_dhcp = true,
-        .wlan_chip = true,
-        .wlan_up = true,
-        .wlan_rssi = -58,
-        .brightness = 80,
-        .update_pct = -1,
-        .menu_hold_ms = 2000,
-        .setup_done = true,
-    };
-    strcpy(md.menu_chord, "auto");
-    strcpy(md.lan_ip, "192.168.1.50");
-    strcpy(md.wlan_ip, "192.168.1.51");
-    strcpy(md.wifi_ssid, "studio");
-    strcpy(md.web_pass, "k3t9m2xq");
-    strcpy(md.fw, "v1.0.0");
-    strcpy(md.wlan_fw, "3.0.10");
-    ui_screen_t sc;
+    for (int english = 0; english < 2; english++) {
+        ui_model_t md = {
+            .now_us = 100000000,
+            .controller = UI_CTRL_COMPANION,
+            .hosts = {1, 1, 1},
+            .sources = {{.kind = UI_CTRL_COMPANION, .via = UI_VIA_SATELLITE, .chosen = true, .label = "studio"},
+                        {.kind = UI_CTRL_APP, .via = UI_VIA_DOCK, .label = "STUDIO-PC"},
+                        {.kind = UI_CTRL_SERVER, .via = UI_VIA_SERVER, .label = "regie"}},
+            .source_count = 3,
+            .lan_link = true,
+            .lan_up = true,
+            .lan_dhcp = true,
+            .wlan_chip = true,
+            .wlan_up = true,
+            .wlan_rssi = -58,
+            .brightness = 80,
+            .update_pct = -1,
+            .menu_hold_ms = 2000,
+            .setup_done = true,
+            .english = english,
+        };
+        strcpy(md.menu_chord, "auto");
+        strcpy(md.lan_ip, "192.168.1.50");
+        strcpy(md.wlan_ip, "192.168.1.51");
+        strcpy(md.wifi_ssid, "studio");
+        strcpy(md.web_pass, "k3t9m2xq");
+        strcpy(md.fw, "v1.0.0");
+        strcpy(md.wlan_fw, "3.0.10");
 
-    ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
-    ui_menu_screen(&m, &md, &l, &sc);
-    save(&d.info, &sc, dir, "menu");
+        ui_menu_t m = {.page = PAGE_MAIN, .confirm_key = -1};
+        shot(&d.info, &m, &md, &l, dir, "menu");
 
-    /* Companion is chosen but gone; the Elgato App and a server are connected. */
-    md.hosts[UI_CTRL_COMPANION] = 0;
-    md.sources[0] = md.sources[1];
-    md.sources[1] = md.sources[2];
-    md.source_count = 2;
-    m = (ui_menu_t){.page = PAGE_HOME, .confirm_key = -1};
-    ui_menu_screen(&m, &md, &l, &sc);
-    save(&d.info, &sc, dir, "away");
+        /* Companion is chosen but gone; the Elgato App and a server are connected. */
+        ui_model_t away = md;
+        away.hosts[UI_CTRL_COMPANION] = 0;
+        away.sources[0] = md.sources[1];
+        away.sources[1] = md.sources[2];
+        away.source_count = 2;
+        m = (ui_menu_t){.page = PAGE_HOME, .confirm_key = -1};
+        shot(&d.info, &m, &away, &l, dir, "away");
+        m.confirm_key = 1;
+        m.confirm_until = md.now_us + 1;
+        shot(&d.info, &m, &away, &l, dir, "asking");
 
-    m.confirm_key = 1;
-    m.confirm_until = md.now_us + 1;
-    ui_menu_screen(&m, &md, &l, &sc);
-    save(&d.info, &sc, dir, "asking");
+        /* The home screen's status for each thing that can be missing, nothing connected. */
+        ui_model_t st = md;
+        st.hosts[UI_CTRL_COMPANION] = st.hosts[UI_CTRL_APP] = st.hosts[UI_CTRL_SERVER] = 0;
+        st.source_count = 0;
+        m = (ui_menu_t){.page = PAGE_HOME, .confirm_key = -1};
+        ui_model_t x = st;
+        x.lan_up = x.wlan_up = x.lan_link = false;
+        shot(&d.info, &m, &x, &l, dir, "st-no-network");
+        x = st;
+        shot(&d.info, &m, &x, &l, dir, "st-companion");
+        strcpy(x.satellite, "192.168.1.20");
+        x.sat_failed = true;
+        shot(&d.info, &m, &x, &l, dir, "st-companion-away");
+        x = st;
+        x.controller = UI_CTRL_APP;
+        shot(&d.info, &m, &x, &l, dir, "st-app");
+        x.controller = UI_CTRL_SERVER;
+        shot(&d.info, &m, &x, &l, dir, "st-server");
+        strcpy(x.server_url, "ws://192.168.1.30:9000");
+        shot(&d.info, &m, &x, &l, dir, "st-server-off");
+        x = md;
+        strcpy(x.request, "192.168.1.31");
+        strcpy(x.request_name, "EDIT-PC");
+        m = (ui_menu_t){.page = PAGE_REQUEST, .confirm_key = -1};
+        shot(&d.info, &m, &x, &l, dir, "st-request");
+        x = md;
+        strcpy(x.offer_name, "Studio Companion");
+        strcpy(x.offer_addr, "192.168.1.20:16622");
+        m = (ui_menu_t){.page = PAGE_OFFER, .confirm_key = -1};
+        shot(&d.info, &m, &x, &l, dir, "st-offer");
+    }
     return 0;
 }

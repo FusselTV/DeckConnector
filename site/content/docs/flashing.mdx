@@ -9,12 +9,7 @@ The [flasher](/flash/) writes the latest stable [release](/docs/updates#releases
 
 <Ports />
 
-| Mode | What it does |
-|---|---|
-| **Full install** | Erases everything and starts with default settings. For a new board, or one that ran other firmware |
-| **Update** | Writes only the firmware. Settings, paired hosts and API keys stay |
-
-After flashing, the flasher can set Wi-Fi, the admin password and the name over the same cable. Or skip it and use the [web setup](/docs/first-setup). Over USB the board takes these only until setup is done, and in the first 5 minutes after each start.
+After flashing, the flasher can join your Wi-Fi over the same cable. Everything else follows in the [web setup](/docs/first-setup).
 
 The flasher writes only the main chip. The Wi-Fi chip gets its firmware as a normal [update](/docs/updates).
 
@@ -43,21 +38,5 @@ esptool --chip esp32p4 -p /dev/ttyACM0 -b 921600 write-flash 0xf000 ota_data_ini
 </Tabs>
 
 On Windows the port is `COM3` or similar, on macOS `/dev/cu.*`.
-
-## From source
-
-Needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).
-
-```bash
-git clone https://github.com/FusselTV/DeckConnector.git
-```
-
-```bash
-cd DeckConnector/web && npm ci && npm run build
-cd ../tools && uv run python -m dbtools.dbfw keygen
-cd ../firmware && idf.py build && idf.py -p /dev/ttyACM0 flash
-```
-
-The web UI is part of the firmware, so it builds first. `keygen` makes your own update key once. A board takes only updates signed with the key its firmware was built with.
 
 <Next links={[['First setup', '/docs/first-setup/']]} />

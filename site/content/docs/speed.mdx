@@ -5,7 +5,7 @@ description: Measured speed of DeckConnector next to the Elgato Network Dock, on
 
 On the deck, DeckConnector is as fast as the [Elgato Network Dock](https://www.elgato.com/us/en/p/network-dock-stream-deck) or faster. Here are the numbers.
 
-Both devices drove the same Stream Deck + on the same bench, with the same Companion, the same camera and the same tools (8 November 2026). The Network Dock ran its firmware 1.01.014, the Elgato app was 7.6.1. Values are medians. A camera frame is 17 ms, so differences under 5 to 10 ms are noise.
+Both devices drove the same Stream Deck + with the same Companion. Values are medians. A camera frame is 17 ms, so differences under 5 to 10 ms are noise.
 
 ## Companion
 
@@ -17,7 +17,7 @@ Both devices drove the same Stream Deck + on the same bench, with the same Compa
 
 <BenchBars title="Seconds, lower is better" unit="s" rows={[
   ['Companion restart to home page', 1.2, 1.96],
-  ['Network gone, deck leaves the dead host', 5.4, 6.5],
+  ['Network gone, deck leaves the dead source', 5.4, 6.5],
 ]} />
 
 Companion numbers are for both devices in Network Dock mode. Companion sends both the same bytes, about 26 KB/s on one page change per second.
@@ -41,8 +41,6 @@ Companion numbers are for both devices in Network Dock mode. Companion sends bot
 | PoE power cut to Companion picture, Network Dock mode | 7.9 s | 17.6 s |
 | PoE power cut to Companion picture, Satellite | 6.75 s | No Satellite |
 | PoE power cut, Elgato app connected again | 9 to 13.5 s, in 3 of 4 tries | Not within 4 minutes (0 of 2) |
-
-DeckConnector's power cut numbers are from 7 and 8 November 2026, with an older firmware.
 
 ## Own server protocol
 

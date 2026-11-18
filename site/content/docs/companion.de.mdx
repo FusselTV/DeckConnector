@@ -1,41 +1,23 @@
 ---
 title: Companion verbinden
-description: Das Deck in Bitfocus Companion über WLAN oder LAN nutzen, als Satellite-Surface oder als Network Dock.
+description: Das Deck in Bitfocus Companion über WLAN oder LAN nutzen, als Satellite-Surface.
 ---
-
-[Bitfocus Companion](https://bitfocus.io/companion) kann das Deck auf zwei Wegen nutzen.
-
-| | Satellite | Network Dock |
-|---|---|---|
-| Wer verbindet sich | Die Platine mit Companion | Companion mit der Platine |
-| Companion muss die Platine finden | Nein, deshalb geht auch Docker ohne Host-Netzwerk | Ja, per Suche oder über ihre Adresse |
-
-Satellite ist die bessere Wahl. Verbindet sich Companion als Dock und antwortet seine Satellite-API unter derselben Adresse, stellt die Platine es von selbst auf Satellite um.
 
 ## Satellite
 
 <Steps>
 <Step>
-In Companion muss **Settings › Satellite** eingeschaltet sein. Nötig ist Satellite-API 1.9 oder neuer, getestet mit Companion 5.2.
+In [Bitfocus Companion](https://bitfocus.io/companion) muss **Settings › Satellite** eingeschaltet sein. Nötig ist Satellite-API 1.9 oder neuer, getestet mit Companion 5.2.
 </Step>
 <Step>
-Öffne in Companion **Surfaces › Discover** und klick neben der Platine auf **Setup**. Ist die Platine schon eingerichtet, fragt das Deck vorher.
-
-Oder trag in der Weboberfläche unter **Quellen** ([Demo](/de/demo/#sources)) die Companion-Adresse ein. Jedes Companion, das sich im Netz meldet, steht auch in der Liste. Ein Klick verbindet es.
+Öffne in Companion **Surfaces › Discover** und klick neben dem Connector auf **Setup**. Oder öffne in der Weboberfläche **Quellen** ([Demo](/de/demo/#sources)) und klick auf das gefundene Companion.
 </Step>
 <Step>
 Unter **Surfaces** erscheint das Deck als `streamdeck:<seriennummer>`, mit derselben ID wie über USB. Deine Seiten und Surface-Einstellungen bleiben.
 </Step>
 </Steps>
 
-| Adresse | Geht an |
-|---|---|
-| `192.168.1.10` | TCP-Port 16622 |
-| `192.168.1.10:17000` | TCP auf diesem Port |
-| `ws://192.168.1.10:16623` | Den WebSocket-Port von Companion |
-| `wss://companion.example.org/satellite` | Einen Reverse Proxy mit TLS vor Port 16623 |
-
-Du kannst auch die Adresse der Companion-Webseite einfügen oder den Port weglassen. Dann probiert die Platine die Formen oben der Reihe nach, behält die erste, die antwortet, und sagt, welche sie gefunden hat.
+Companion in Docker ohne Host-Netzwerk lässt sich nicht finden. Gib Port 16622 frei und trag seine Adresse unter **Quellen** ein.
 
 Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA. Für jedes andere Zertifikat fügst du den SHA-256 des Server-Zertifikats selbst als Pin ein. Wird dieses Zertifikat erneuert, trägst du den neuen Pin ein.
 
@@ -43,26 +25,26 @@ Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA. Für jedes 
 openssl x509 -noout -fingerprint -sha256 -in cert.pem
 ```
 
-### Aufteilung
+## Aufteilung
 
-Companion sieht zwei Tastenreihen, die Touchleiste als vier Felder zu 200 × 100 und die vier Drehregler, wie in seinem eigenen Stream-Deck-Plugin. Tippen drückt das Feld. Wischen nach oben oder unten dreht das Feld wie einen Drehregler. Wischen zur Seite wechselt die Seite, sobald du in den Surface-Einstellungen **Horizontal Swipe Changes Page** einschaltest. Auf einem Stream Deck Neo bekommt Companion auch die zwei Touch-Punkte und die Infoleiste dazwischen.
+Companion sieht zwei Tastenreihen, die Touchleiste als vier Felder zu 200 × 100 und die vier Drehregler. Das ist wie in seinem eigenen Stream-Deck-Plugin.
 
-### PIN-Sperre
+- Tippen drückt das Feld. Wischen nach oben oder unten dreht das Feld wie einen Drehregler.
+- Wischen zur Seite wechselt die Seite. Schalte dafür in den Surface-Einstellungen **Horizontal Swipe Changes Page** ein.
+- Auf einem Stream Deck Neo bekommt Companion auch die zwei Touch-Punkte und die Infoleiste dazwischen.
+
+## PIN-Sperre
 
 Sperrt Companion das Deck, zeigt das Deck ein Zahlenfeld. Gib dort die PIN ein. Solange das Deck gesperrt ist, geben seine Tasten nur die PIN ein, und das Menü öffnet sich nicht. Ein Stream Deck Pedal hat keinen Bildschirm und bleibt gesperrt, bis Companion es entsperrt.
 
 ## Network Dock
 
-Companion findet die Platine unter **Surfaces › Discover**, oder du trägst ihre Adresse als Remote Surface ein.
-
-Damit die Platine nicht mehr auf Satellite umstellt, entfernst du die Companion-Adresse oder tippst am Deck auf **Nein**. Eine neue Adresse schaltet es wieder ein.
+Companion kann den Connector unter **Surfaces › Discover** auch als Network Dock eintragen. Antwortet seine Satellite-API unter derselben Adresse, stellt der Connector es von selbst auf Satellite um. Satellite geht auch durch Docker und braucht keine Suche. Soll es ein Dock bleiben, tippst du am Deck auf **Nein** oder entfernst die Companion-Adresse unter **Quellen**.
 
 <Callout title="Hinter einem Proxy">
-Die Platine sieht dann nur die Adresse des Proxys und kann die Dock-Verbindung nicht beenden. Companion zeigt das Deck doppelt, das zweite als `streamdeck:<seriennummer>-dev2`.
+Der Connector sieht dann nur die Adresse des Proxys und kann die Dock-Verbindung nicht beenden. Companion zeigt das Deck doppelt, das zweite als `streamdeck:<seriennummer>-dev2`.
 </Callout>
 
-## Grenzen
+Über Satellite verbindet sich ein Companion gleichzeitig. Für mehr siehe [Quellen](/de/docs/hosts).
 
-- Ein Companion gleichzeitig über Satellite. Für mehr Programme siehe [Mehrere Programme](/de/docs/hosts).
-
-<Next lang="de" links={[['Mehrere Programme', '/de/docs/hosts/'], ['Fehlersuche', '/de/docs/troubleshooting/#companion-verbindet-sich-nicht']]} />
+<Next lang="de" links={[['Quellen', '/de/docs/hosts/'], ['Fehlersuche', '/de/docs/troubleshooting/#companion-verbindet-sich-nicht']]} />
