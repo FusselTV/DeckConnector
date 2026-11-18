@@ -290,13 +290,11 @@ class Run:
         try:
             if mode == "satellite" and not self.bridge:  # other firmware: the Satellite REST API, as Discover
                 self.comp.dock("off")
-                req = urllib.request.Request(
-                    f"http://{self.a.target}/api/config",
-                    data=json.dumps({"host": self.me, "port": 16622}).encode(),
-                    method="POST",
-                    headers={"Content-Type": "application/json"},
+                code, body = Http(f"http://{self.a.target}").call(
+                    "POST", "/api/config", {"host": self.me, "port": 16622}
                 )
-                urllib.request.urlopen(req, timeout=10).read()
+                if code != 200:
+                    raise RuntimeError(f"{self.a.target} /api/config: {code} {body[:100]!r}")
                 time.sleep(10)
             elif mode == "satellite":
                 self.comp.dock("off")
@@ -816,6 +814,11 @@ def m_blip(r: Run) -> dict:
     return out
 
 
+def boot_result(runs: list, how: str) -> dict:
+    keys = [k for k in runs[0] if k.endswith("_ms") and k != "bridge_boot_ms"]
+    return {**{k: stats([x[k] for x in runs]) for k in keys}, "runs": runs, "how": how}
+
+
 def serial_reset() -> None:
     """The board's EN pulled low over the RFC2217 bridge: a reset as from the button, the deck keeps its power."""
     import serial
@@ -855,13 +858,11 @@ def m_boot_serial(r: Run) -> dict:
                     run["bridge_boot_ms"] = r.bridge.status()["boot_ms"]
             print(run)
             runs.append(run)
-    keys = [k for k in runs[0] if k.endswith("_ms") and k != "bridge_boot_ms"]
-    return {
-        **{k: stats([x[k] for x in runs]) for k in keys},
-        "runs": runs,
-        "how": "reset over the serial bridge (EN low 0.2 s), the deck keeps its power; left = the deck leaves "
+    return boot_result(
+        runs,
+        "reset over the serial bridge (EN low 0.2 s), the deck keeps its power; left = the deck leaves "
         "Companion's page; host picture = Companion's page on all keys again; connected = Companion log line",
-    }
+    )
 
 
 def m_boot(r: Run) -> dict:
@@ -900,14 +901,12 @@ def m_boot(r: Run) -> dict:
                     run["bridge_boot_ms"] = r.bridge.status()["boot_ms"]
             print(run)
             runs.append(run)
-    keys = [k for k in runs[0] if k.endswith("_ms") and k != "bridge_boot_ms"]
-    return {
-        **{k: stats([x[k] for x in runs]) for k in keys},
-        "runs": runs,
-        "how": f"PoE power-cycle of switch port {r.a.port}; dark = the keys lose power; light = the deck's "
+    return boot_result(
+        runs,
+        f"PoE power-cycle of switch port {r.a.port}; dark = the keys lose power; light = the deck's "
         "backlight is back (the bridge or dock opened the deck); host picture = Companion's page on all keys; "
         "connected = Companion log line. Dark to picture includes the switch's off time, the same for both devices",
-    }
+    )
 
 
 def lum(f: dict) -> float:
