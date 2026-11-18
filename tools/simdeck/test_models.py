@@ -78,3 +78,17 @@ def test_the_screen_goes_dark_and_a_press_wakes_it(start, model):
     assert sim.wait(lambda: bright.read_text() not in ("0", "-1"), 3), "a press did not wake it"
     time.sleep(0.5)
     assert not sim.status()["menu_open"], "the waking press opened the menu"
+
+
+def test_the_screen_names_the_neo_info_bar(start):
+    sim = start("neo")
+    _, desc = sim.screen(0)
+    assert not desc["touch"] and len(desc["strips"]) == 1, desc
+
+
+def test_a_waiting_deck_stops_counting_as_dark_once_it_is_in(start):
+    sim = start("mk2", "mini", "neo", limit=False)
+    assert sim.wait(lambda: sim.status()["decks_over_limit"] == 1, 10)
+    sim.config(max_decks=3)
+    st = sim.wait(lambda: len((s := sim.status())["decks"]) == 3 and s, 10)
+    assert st and st["decks_over_limit"] == 0, st and st["decks_over_limit"]
