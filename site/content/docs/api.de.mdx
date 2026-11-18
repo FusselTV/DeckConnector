@@ -236,6 +236,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
 | `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder das gewählte Programm nicht verbunden ist |
 | `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck mit seinem `slot` (0 für Deck 1) und seiner `number` (1 für Deck 1) |
+| `decks[].locked` | Companion zeichnet über Satellite auf dem Deck und hat es mit seiner PIN gesperrt. Das Deck zeigt das Zahlenfeld |
 | `decks_over_limit` | Decks, die stecken, aber wegen `max_decks` dunkel bleiben |
 | `sources` | Jedes Programm. `chosen` markiert das, das zeichnet, wenn kein Menü darüber liegt. Server und Satellite haben dazu `error`, `since_s` und `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |

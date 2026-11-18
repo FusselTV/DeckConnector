@@ -236,7 +236,7 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `id` | The MAC address. Stays when the name changes |
 | `writer` | Who draws now: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. `ui` while the menu is open, an update runs, or the chosen host is not connected |
 | `device` | The first deck, `null` without one. `decks` lists every deck with its `slot` (0 for deck 1) and `number` (1 for deck 1) |
-| `decks[].locked` | Companion locked the deck with its PIN, and the deck shows the number pad |
+| `decks[].locked` | Companion over Satellite draws on the deck and locked it with its PIN. The deck shows the number pad |
 | `decks_over_limit` | Decks plugged in but dark because of `max_decks` |
 | `sources` | Every host. `chosen` marks the one that draws when no menu covers it. Servers and Satellite also have `error`, `since_s` and `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` or `other` |
