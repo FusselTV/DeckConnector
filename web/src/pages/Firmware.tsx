@@ -35,7 +35,7 @@ import { Notice } from '../components/Notice'
 import { Row } from '../components/Row'
 import type { T, TKey } from '../i18n'
 import { backupOf, planRestore } from '../lib/backup'
-import { download, licensePage, roam, sourceUrl } from '../lib/util'
+import { docsPage, download, otherImage, roam, sourceUrl } from '../lib/util'
 import { httpUrlError } from '../lib/validate'
 
 type Target = 'p4' | 'c6' | 'page' | 'bootloader' | 'ptable' | null
@@ -269,6 +269,8 @@ function SaveModal({ close, cfg }: { close: () => void; cfg: Config }) {
 function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   const { t, fmt, act, ask } = useUi()
   const fw = useStore((s) => s.status.firmware ?? '')
+  const matter = useStore((s) => !!s.status.matter)
+  const [other, setOther] = useState<{ v: string; url: string } | null>(null)
   const [st, setSt] = useState<
     | { state: 'idle' | 'checking' | 'none' }
     | { state: 'error'; msg: string }
@@ -277,9 +279,11 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   const [at, setAt] = useState(0)
   const check = async () => {
     setSt({ state: 'checking' })
+    setOther(null)
     try {
       const u = await api.updateCheck()
       setAt(Date.now())
+      setOther(otherImage(u, matter))
       if (u.latest && u.url && u.latest !== u.current)
         setSt({ state: 'new', u: { ...u, latest: u.latest, url: u.url } })
       else setSt(u.error ? { state: 'error', msg: codeText(t, u.code, u.error) } : { state: 'none' })
@@ -334,6 +338,24 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
           }}
         />
       )}
+      {other && (
+        <div className="row acts">
+          <Btn
+            id="upd-other"
+            kind="ghost"
+            icon={Cpu}
+            onClick={() =>
+              void ask({
+                title: t(matter ? 'upd.to_std' : 'upd.to_matter'),
+                body: t(matter ? 'upd.to_std_b' : 'upd.to_matter_b', { v: other.v }),
+                ok: t('btn.install'),
+              }).then((ok) => (ok ? act(() => api.otaUrl(other.url)) : undefined))
+            }
+          >
+            {t(matter ? 'upd.to_std' : 'upd.to_matter')}
+          </Btn>
+        </div>
+      )}
     </>
   )
 }
@@ -347,7 +369,7 @@ function Source({ version }: { version?: string }) {
         {t('fw.source')}
       </a>{' '}
       ·{' '}
-      <a href={licensePage(lang)} target="_blank" rel="noreferrer">
+      <a href={docsPage(lang, 'license')} target="_blank" rel="noreferrer">
         {t('fw.licenses')}
       </a>
     </>
