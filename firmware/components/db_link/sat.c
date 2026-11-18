@@ -25,24 +25,26 @@
 #include "nvs.h"
 #include "ws.h"
 
-#define LINE_CAP     (256 * 1024) /* an rgb strip part is 80 KB of base64; Companion's own limit is 2 MB */
-#define RX_CHUNK     8192
-#define RX_WAIT_MS   200
-#define SEND_WAIT_MS 500
-#define CONNECT_MS   3000
-#define RETRY_MS     2000
-#define REFUSED_MS   500 /* refused or reset: Companion is starting, its port opens soon */
-#define REFUSED_MAX  40  /* then RETRY_MS */
-#define FAIL_GAP_MS  250
-#define PING_MS      2000
-#define SILENT_MS    6000 /* Companion answers every PING */
-#define ADD_AGAIN_MS 3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
-#define LAN_PROBE_MS 5000
-#define BOOT_LAN_US  (30LL * 1000000)
-#define QUALITY      90
-#define CACHE_SLOTS  2048
-#define CACHE_BUDGET (4 * 1024 * 1024)
-#define PNG_PREFIX   "data:image/png;base64,"
+#define LINE_CAP       (256 * 1024) /* an rgb strip part is 80 KB of base64; Companion's own limit is 2 MB */
+#define RX_CHUNK       8192
+#define RX_WAIT_MS     200
+#define SEND_WAIT_MS   500
+#define CONNECT_MS     3000
+#define RETRY_MS       2000
+#define REFUSED_MS     500 /* refused or reset: Companion is starting, its port opens soon */
+#define REFUSED_MAX    40  /* then RETRY_MS */
+#define FAIL_GAP_MS    250
+#define PING_MS        2000
+#define SILENT_MS      6000 /* Companion answers every PING */
+#define ADD_AGAIN_MS   3000 /* a "Device exists elsewhere" goes to the old session's socket, not to us */
+#define REFUSED_MAX_MS 60000
+#define LAN_PROBE_MS   5000
+#define BOOT_LAN_US    (30LL * 1000000)
+#define QUALITY        90
+#define CACHE_SLOTS    2048
+#define CACHE_BUDGET   (4 * 1024 * 1024)
+#define PNG_PREFIX     "data:image/png;base64,"
+#define WRONG_PIN_MS   600
 
 /* "host" or "host:port" from the satellite setting: the host into `host`, and the port. */
 static unsigned tcp_host(const char *addr, char *host, size_t cap)
@@ -64,6 +66,26 @@ typedef struct {
     size_t len;
 } cached_t;
 
+/* One deck as Companion knows it, by DEVICEID: its serial. */
+typedef struct {
+    volatile bool added;
+    volatile bool dirty;  /* came, went or changed: Companion gets the new layout */
+    db_display_t display; /* format and orientation the deck takes */
+    bool swipe;
+    int brightness;
+    bool was_writer;
+    int64_t add_sent_ms;
+    uint32_t refused_ms; /* the wait before it is offered again after a refusal, 0: none */
+    db_sat_lock_t pin;   /* under pin_mux: read on the esp_timer task */
+    int64_t wrong_until_ms;
+    db_sat_held_t held; /* the deck's event task only */
+    char serial[32];
+    char model[32];
+    const char *surface;
+    db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
+    size_t nctl;
+} sat_dev_t;
+
 static struct {
     void (*changed)(void);
     SemaphoreHandle_t lock; /* the controls, between the deck's event task and the client */
@@ -78,36 +100,36 @@ static struct {
     bool ws_mode;
     uint64_t frame_left;
     char pin[sizeof(((db_config_t *)0)->satellite_pin)];
-    volatile bool added;
     volatile bool broken;
-    volatile bool device_dirty;
-    db_display_t display; /* format and orientation the deck takes */
     bool png;
     bool rotary_amount;
-    bool swipe;
     bool caching;
-    int brightness;
-    bool was_writer;
     bool over_wlan;
     bool to_lan;
     db_health_t health;
     TaskHandle_t task;
-    int64_t add_sent_ms;
     char addr[sizeof(((db_config_t *)0)->satellite)];
     char host[sizeof(((db_config_t *)0)->satellite)];
     unsigned port;
-    char serial[32];
-    char model[32];
-    db_sat_control_t ctl[DB_SAT_MAX_CONTROLS];
-    size_t nctl;
+    sat_dev_t devs[DB_MAX_DECKS]; /* by slot */
     uint8_t *line;
     size_t fill;
-    uint8_t *rgb; /* B, G, R for the encoder, as big as the largest control */
+    uint8_t *rgb; /* B, G, R for the encoder, as big as the largest control of any deck */
     uint8_t *work;
     size_t work_cap;
     uint32_t seq;
     cached_t *cache;
-} s = {.sock = -1, .brightness = -1};
+} s = {.sock = -1};
+
+static portMUX_TYPE pin_mux = portMUX_INITIALIZER_UNLOCKED;
+
+/* Companion sends the lock again with the next ADD-DEVICE. */
+static void unlock(sat_dev_t *v)
+{
+    portENTER_CRITICAL(&pin_mux);
+    v->pin = (db_sat_lock_t){0};
+    portEXIT_CRITICAL(&pin_mux);
+}
 
 static int64_t now_ms(void)
 {
@@ -232,10 +254,23 @@ static void cache_evict(char *ids)
     }
 }
 
-static bool find_control(const char *id, db_sat_control_t *out)
+/* The deck of a message's DEVICEID, else -1. */
+static int deck_of(const db_sat_msg_t *m)
 {
+    const char *id = db_sat_get(m, "DEVICEID");
+    for (int d = 0; id && d < DB_MAX_DECKS; d++) {
+        if (s.devs[d].nctl && strcmp(s.devs[d].serial, id) == 0) {
+            return d;
+        }
+    }
+    return -1;
+}
+
+static bool find_control(int deck, const char *id, db_sat_control_t *out)
+{
+    const sat_dev_t *v = &s.devs[deck];
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    const db_sat_control_t *c = id ? db_sat_find(s.ctl, s.nctl, id) : NULL;
+    const db_sat_control_t *c = id ? db_sat_find(v->ctl, v->nctl, id) : NULL;
     if (c) {
         *out = *c;
     }
@@ -244,7 +279,7 @@ static bool find_control(const char *id, db_sat_control_t *out)
 }
 
 /* A bitmap as Companion sends it (a PNG data URL, or raw R, G, B) to an image in the deck's format. */
-static esp_err_t to_jpeg(char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
+static esp_err_t to_jpeg(const db_display_t *display, char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
 {
     bool png = strncmp(bitmap, PNG_PREFIX, strlen(PNG_PREFIX)) == 0;
     char *b64 = png ? bitmap + strlen(PNG_PREFIX) : bitmap;
@@ -268,19 +303,19 @@ static esp_err_t to_jpeg(char *bitmap, db_rect_t r, uint8_t **jpeg, size_t *len)
     } else {
         return ESP_ERR_INVALID_SIZE;
     }
-    return jpeg_port_encode_for(&s.display, s.rgb, r.w, r.h, QUALITY, jpeg, len);
+    return jpeg_port_encode_for(display, s.rgb, r.w, r.h, QUALITY, jpeg, len);
 }
 
-static void draw(const db_sat_control_t *c, uint8_t *jpeg, size_t len)
+static void draw(int deck, const db_sat_control_t *c, uint8_t *jpeg, size_t len)
 {
-    db_deck_submit(DB_SOURCE_SAT, 0, c->rect, ++s.seq, jpeg, len, (uint64_t)esp_timer_get_time());
+    db_deck_submit(deck, DB_SOURCE_SAT, 0, c->rect, ++s.seq, jpeg, len, (uint64_t)esp_timer_get_time());
 }
 
 /* false: the picture cannot be drawn as Companion thinks, and only a new session puts that right. */
-static bool key_state(const db_sat_msg_t *m)
+static bool key_state(int deck, const db_sat_msg_t *m)
 {
     db_sat_control_t c;
-    if (!s.rgb || !s.work || !find_control(db_sat_get(m, "CONTROLID"), &c) || !c.rect.w) {
+    if (deck < 0 || !s.rgb || !s.work || !find_control(deck, db_sat_get(m, "CONTROLID"), &c) || !c.rect.w) {
         return true;
     }
     char *bitmap = (char *)db_sat_get(m, "BITMAP");
@@ -288,7 +323,7 @@ static bool key_state(const db_sat_msg_t *m)
     uint8_t *jpeg = NULL;
     size_t len = 0;
     if (bitmap && bitmap[0]) {
-        esp_err_t err = to_jpeg(bitmap, c.rect, &jpeg, &len);
+        esp_err_t err = to_jpeg(&s.devs[deck].display, bitmap, c.rect, &jpeg, &len);
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "bitmap for %u/%u not drawn: %s", c.row, c.col, esp_err_to_name(err));
             return true;
@@ -310,48 +345,44 @@ static bool key_state(const db_sat_msg_t *m)
     } else {
         return true;
     }
-    draw(&c, jpeg, len);
+    draw(deck, &c, jpeg, len);
     return true;
 }
 
-static void clear_keys(void)
+static void clear_keys(int deck)
 {
-    for (size_t i = 0; s.rgb && i < s.nctl; i++) {
-        const db_sat_control_t *c = &s.ctl[i];
+    const sat_dev_t *v = &s.devs[deck];
+    for (size_t i = 0; s.rgb && i < v->nctl; i++) {
+        const db_sat_control_t *c = &v->ctl[i];
         uint8_t *jpeg = NULL;
         size_t len = 0;
         if (c->rect.w) {
             memset(s.rgb, 0, (size_t)c->rect.w * c->rect.h * 3);
-            if (jpeg_port_encode_for(&s.display, s.rgb, c->rect.w, c->rect.h, QUALITY, &jpeg, &len) ==
+            if (jpeg_port_encode_for(&v->display, s.rgb, c->rect.w, c->rect.h, QUALITY, &jpeg, &len) ==
                 ESP_OK) {
-                draw(c, jpeg, len);
+                draw(deck, c, jpeg, len);
             }
         }
     }
 }
 
-static void add_device(void)
+static void add_device(int deck)
 {
+    sat_dev_t *v = &s.devs[deck];
     char *json = malloc(2048);
     char *b64 = malloc(2800);
     char *line = malloc(3200);
     size_t n = 0;
     bool sent = false;
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    size_t len = json ? db_sat_manifest(s.ctl, s.nctl, json, 2048) : 0;
+    size_t len = json ? db_sat_manifest(v->ctl, v->nctl, json, 2048) : 0;
     xSemaphoreGive(s.lock);
     if (len && b64 && line &&
         mbedtls_base64_encode((unsigned char *)b64, 2800, &n, (unsigned char *)json, len) == 0) {
-        /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock.
-         * Without CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
-        int k = snprintf(line, 3200,
-                         "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"streamdeck:%s\" PRODUCT_NAME=\"%s\" "
-                         "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s%s\n",
-                         s.serial, s.serial, s.model, b64, s.png ? "png" : "rgb",
-                         s.swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
+        size_t k = db_sat_add_device(line, 3200, v->surface, v->serial, v->model, b64, s.png, v->swipe);
         xSemaphoreTake(s.tx, portMAX_DELAY);
-        if (k > 0 && k < 3200) {
-            raw_send(line, (size_t)k);
+        if (k) {
+            raw_send(line, k);
             sent = true;
         }
         xSemaphoreGive(s.tx);
@@ -359,53 +390,70 @@ static void add_device(void)
     if (!sent) {
         ESP_LOGW(TAG, "deck not offered to Companion (no memory), trying again");
     }
-    s.add_sent_ms = now_ms(); /* without an answer session() sends it again */
+    v->add_sent_ms = now_ms(); /* without an answer session() sends it again */
     free(json);
     free(b64);
     free(line);
 }
 
-/* The deck came, went or changed: Companion gets the new layout, and the buffers fit its largest control. */
-static void apply_device(void)
+static bool size_buffers(void)
 {
-    db_device_info_t *dev = malloc(sizeof(*dev));
-    if (!dev) {
-        s.device_dirty = true; /* the next round tries again: a missing deck would take it from Companion */
-        return;
-    }
-    s.device_dirty = false;
-    s.add_sent_ms = 0;
-    if (s.added) {
-        send_line("REMOVE-DEVICE DEVICEID=\"%s\"\n", s.serial);
-        s.added = false;
-        s.changed();
-    }
-    bool present = db_deck_info(dev);
-    xSemaphoreTake(s.lock, portMAX_DELAY);
-    s.nctl = present ? db_sat_controls(dev, s.ctl, DB_SAT_MAX_CONTROLS) : 0;
-    xSemaphoreGive(s.lock);
-    if (present) {
-        snprintf(s.serial, sizeof(s.serial), "%s", dev->serial);
-        snprintf(s.model, sizeof(s.model), "%s", dev->model);
-        s.display = dev->displays[0];
-    }
-    s.swipe = present && dev->touch_count > 0;
-    free(dev);
     size_t px = 0;
-    for (size_t i = 0; i < s.nctl; i++) {
-        size_t a = (size_t)s.ctl[i].rect.w * s.ctl[i].rect.h;
-        px = a > px ? a : px;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        for (size_t i = 0; i < s.devs[d].nctl; i++) {
+            size_t a = (size_t)s.devs[d].ctl[i].rect.w * s.devs[d].ctl[i].rect.h;
+            px = a > px ? a : px;
+        }
     }
     heap_caps_free(s.rgb);
     heap_caps_free(s.work);
     s.rgb = px ? jpeg_port_alloc_rgb(px, 1) : NULL;
     s.work_cap = px * 4 + 1024; /* rows of RGBA plus a filter byte each */
     s.work = px ? heap_caps_malloc(s.work_cap, MALLOC_CAP_SPIRAM) : NULL;
-    if (px && (!s.rgb || !s.work)) {
+    return !px || (s.rgb && s.work);
+}
+
+/* The deck came, went or changed: Companion gets the new layout. */
+static void apply_device(int deck)
+{
+    sat_dev_t *v = &s.devs[deck];
+    db_device_info_t *dev = malloc(sizeof(*dev));
+    if (!dev) {
+        return; /* still dirty: the next round tries again, a missing deck would take it from Companion */
+    }
+    v->dirty = false;
+    v->add_sent_ms = 0;
+    v->refused_ms = 0;
+    if (v->added) {
+        send_line("REMOVE-DEVICE DEVICEID=\"%s\"\n", v->serial);
+        v->added = false;
+        unlock(v);
+        s.changed();
+    }
+    bool present = db_deck_info(deck, dev);
+    xSemaphoreTake(s.lock, portMAX_DELAY);
+    v->nctl = present ? db_sat_controls(dev, v->ctl, DB_SAT_MAX_CONTROLS) : 0;
+    xSemaphoreGive(s.lock);
+    if (present) {
+        snprintf(v->serial, sizeof(v->serial), "%s", dev->serial);
+        snprintf(v->model, sizeof(v->model), "%s", dev->model);
+        v->surface = dev->surface;
+        v->display = dev->displays[0];
+    }
+    v->swipe = present && dev->touch_count > 0;
+    free(dev);
+    if (!size_buffers()) {
         ESP_LOGW(TAG, "no memory for the deck's pictures, trying again");
-        s.device_dirty = true;
-    } else if (s.nctl) {
-        add_device();
+        v->dirty = true;
+    } else if (v->nctl) {
+        add_device(deck);
+    }
+}
+
+static void all_dirty(void)
+{
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        s.devs[d].dirty = true;
     }
 }
 
@@ -415,8 +463,10 @@ static bool handle(char *line)
     db_sat_msg_t m;
     db_sat_parse(line, &m);
     const char *v;
+    int deck = deck_of(&m);
+    sat_dev_t *d = deck >= 0 ? &s.devs[deck] : NULL;
     if (strcmp(m.cmd, "KEY-STATE") == 0) {
-        return key_state(&m);
+        return key_state(deck, &m);
     } else if (strcmp(m.cmd, "BEGIN") == 0) {
         const char *api = db_sat_get(&m, "ApiVersion");
         v = db_sat_get(&m, "CompanionVersion");
@@ -427,7 +477,7 @@ static bool handle(char *line)
         if ((v = db_sat_get(&m, "BITMAP_CACHE")) && strcmp(v, "1") == 0) {
             send_line("BITMAP-CACHE BYTES=%u\n", (unsigned)CACHE_BUDGET);
         }
-        apply_device();
+        all_dirty(); /* the session's loop offers every deck */
     } else if (strcmp(m.cmd, "BITMAP-CACHE") == 0) {
         s.caching = db_sat_get(&m, "OK") != NULL;
     } else if (strcmp(m.cmd, "BITMAP-EVICT") == 0) {
@@ -437,22 +487,46 @@ static bool handle(char *line)
         } else if (ids) {
             cache_evict(ids);
         }
-    } else if (strcmp(m.cmd, "ADD-DEVICE") == 0) {
-        s.added = db_sat_get(&m, "OK") != NULL;
-        s.add_sent_ms = 0;
-        if (s.added) {
-            ESP_LOGI(TAG, "Companion took the %s", s.model);
+    } else if (strcmp(m.cmd, "ADD-DEVICE") == 0 && d) {
+        v = db_sat_get(&m, "MESSAGE");
+        /* "already added": our resend crossed a slow OK */
+        bool added = db_sat_get(&m, "OK") != NULL || (v && strstr(v, "already"));
+        if (added && !d->added) {
+            ESP_LOGI(TAG, "Companion took the %s %s", d->model, d->serial);
             db_log_mark(DB_MARK_SATELLITE);
+            d->added = true;
             s.changed();
-        } else {
-            ESP_LOGW(TAG, "Companion refused the deck: %s", (v = db_sat_get(&m, "MESSAGE")) ? v : "?");
-            return false; /* e.g. "Device exists elsewhere" while it has not noticed the last session ended */
         }
-    } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE"))) {
-        s.brightness = atoi(v);
-        s.was_writer = false; /* applied below, now or once the deck is ours */
-    } else if (strcmp(m.cmd, "KEYS-CLEAR") == 0) {
-        clear_keys();
+        if (added) {
+            d->add_sent_ms = 0;
+            d->refused_ms = 0;
+        } else {
+            /* e.g. "Device exists elsewhere" while it has not noticed the last session ended: this deck
+             * waits longer each time, the others stay */
+            d->refused_ms = d->refused_ms
+                                ? (d->refused_ms * 2 > REFUSED_MAX_MS ? REFUSED_MAX_MS : d->refused_ms * 2)
+                                : ADD_AGAIN_MS;
+            d->add_sent_ms = now_ms();
+            ESP_LOGW(TAG, "Companion refused the %s: %s, again in %lu s", d->serial, v ? v : "?",
+                     (unsigned long)(d->refused_ms / 1000));
+        }
+    } else if (strcmp(m.cmd, "BRIGHTNESS") == 0 && (v = db_sat_get(&m, "VALUE")) && d) {
+        d->brightness = atoi(v);
+        d->was_writer = false; /* applied below, now or once the deck is ours */
+    } else if ((strcmp(m.cmd, "LOCKED-STATE") == 0 || strcmp(m.cmd, "PINCODE-KEY") == 0) && d) {
+        int64_t now = now_ms();
+        portENTER_CRITICAL(&pin_mux);
+        db_sat_lock_t was = d->pin;
+        if (db_sat_lock_update(&d->pin, &m)) {
+            d->wrong_until_ms = now + WRONG_PIN_MS;
+        }
+        bool news = memcmp(&was, &d->pin, sizeof(was)) != 0;
+        portEXIT_CRITICAL(&pin_mux);
+        if (news) {
+            s.changed();
+        }
+    } else if (strcmp(m.cmd, "KEYS-CLEAR") == 0 && d) {
+        clear_keys(deck);
     } else if (strcmp(m.cmd, "ERROR") == 0) {
         ESP_LOGW(TAG, "Companion: %s", (v = db_sat_get(&m, "MESSAGE")) ? v : line);
     }
@@ -464,9 +538,13 @@ static volatile uint32_t moves; /* saves of the address or pin, see db_satellite
 static void session(uint32_t moved_at)
 {
     s.fill = 0;
-    s.added = s.caching = s.png = s.rotary_amount = false;
-    s.was_writer = false;
-    s.add_sent_ms = 0;
+    s.caching = s.png = s.rotary_amount = false;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        s.devs[d].added = s.devs[d].was_writer = s.devs[d].dirty = false;
+        s.devs[d].add_sent_ms = 0;
+        s.devs[d].refused_ms = 0;
+        s.devs[d].brightness = -1;
+    }
     int64_t last_rx = now_ms();
     int64_t last_ping = last_rx;
     int64_t last_probe = last_rx;
@@ -476,14 +554,17 @@ static void session(uint32_t moved_at)
             ESP_LOGI(TAG, "address changed");
             return;
         }
-        if (s.device_dirty) {
-            apply_device();
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            sat_dev_t *v = &s.devs[d];
+            if (v->dirty) {
+                apply_device(d);
+            }
+            bool writer = db_deck_writer(d) == DB_SOURCE_SAT;
+            if (writer && !v->was_writer && v->brightness >= 0) {
+                db_deck_set_brightness(d, (uint8_t)(v->brightness > 100 ? 100 : v->brightness));
+            }
+            v->was_writer = writer;
         }
-        bool writer = db_deck_writer() == DB_SOURCE_SAT;
-        if (writer && !s.was_writer && s.brightness >= 0) {
-            db_deck_set_brightness((uint8_t)(s.brightness > 100 ? 100 : s.brightness));
-        }
-        s.was_writer = writer;
         if (s.fill == LINE_CAP) {
             ESP_LOGW(TAG, "line longer than %d KB", LINE_CAP / 1024);
             return;
@@ -517,8 +598,12 @@ static void session(uint32_t moved_at)
             last_ping = now;
             send_line("PING\n");
         }
-        if (!s.added && s.add_sent_ms && now - s.add_sent_ms > ADD_AGAIN_MS) {
-            add_device();
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            const sat_dev_t *v = &s.devs[d];
+            if (!v->added && v->add_sent_ms &&
+                now - v->add_sent_ms > (v->refused_ms ? v->refused_ms : ADD_AGAIN_MS)) {
+                add_device(d);
+            }
         }
         char lan[6];
         if (s.over_wlan && now - last_probe >= LAN_PROBE_MS && db_net_ifname(false, lan)) {
@@ -722,12 +807,18 @@ static void client_task(void *arg)
             close(sock);
         }
         xSemaphoreGive(s.tx);
-        if (s.added) {
-            s.added = false;
+        bool had = false;
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            had |= s.devs[d].added;
+            s.devs[d].added = false;
+            unlock(&s.devs[d]);
+            s.devs[d].nctl = 0; /* the next session's CAPS offers them anew */
+            db_deck_forget(d, DB_SOURCE_SAT);
+        }
+        if (had) {
             s.changed();
         }
         failed("connection lost");
-        db_deck_forget(DB_SOURCE_SAT);
         cache_clear();
         heap_caps_free(s.rgb);
         heap_caps_free(s.work);
@@ -741,29 +832,29 @@ static void client_task(void *arg)
     }
 }
 
-static void press(const db_sat_control_t *c, bool down)
+static void press(const sat_dev_t *v, const db_sat_control_t *c, bool down)
 {
-    send_line("KEY-PRESS DEVICEID=\"%s\" CONTROLID=\"%u/%u\" PRESSED=%d\n", s.serial, c->row, c->col, down);
+    send_line("KEY-PRESS DEVICEID=\"%s\" CONTROLID=\"%u/%u\" PRESSED=%d\n", v->serial, c->row, c->col, down);
 }
 
-static void rotate(const db_sat_control_t *c, int ticks)
+static void rotate(const sat_dev_t *v, const db_sat_control_t *c, int ticks)
 {
     if (s.rotary_amount) {
-        send_line("KEY-ROTATE DEVICEID=\"%s\" CONTROLID=\"%u/%u\" DIRECTION=%d\n", s.serial, c->row, c->col,
+        send_line("KEY-ROTATE DEVICEID=\"%s\" CONTROLID=\"%u/%u\" DIRECTION=%d\n", v->serial, c->row, c->col,
                   ticks);
         return;
     }
     for (int i = 0; i < abs(ticks); i++) {
-        send_line("KEY-ROTATE DEVICEID=\"%s\" CONTROLID=\"%u/%u\" DIRECTION=%d\n", s.serial, c->row, c->col,
+        send_line("KEY-ROTATE DEVICEID=\"%s\" CONTROLID=\"%u/%u\" DIRECTION=%d\n", v->serial, c->row, c->col,
                   ticks > 0);
     }
 }
 
-static const db_sat_control_t *control_of(db_sat_kind_t kind, uint8_t index)
+static const db_sat_control_t *control_of(const sat_dev_t *v, db_sat_kind_t kind, uint8_t index)
 {
-    for (size_t i = 0; i < s.nctl; i++) {
-        if (s.ctl[i].kind == kind && s.ctl[i].index == index) {
-            return &s.ctl[i];
+    for (size_t i = 0; i < v->nctl; i++) {
+        if (v->ctl[i].kind == kind && v->ctl[i].index == index) {
+            return &v->ctl[i];
         }
     }
     return NULL;
@@ -771,9 +862,12 @@ static const db_sat_control_t *control_of(db_sat_kind_t kind, uint8_t index)
 
 /* As the deck plugin does it: a tap presses the strip part under the finger, a sideways swipe turns
  * the page, an upward or downward one turns the part. */
-static void on_input(const db_input_t *ev)
+static void on_input(int deck, const db_input_t *ev)
 {
-    if (!s.added || db_deck_writer() != DB_SOURCE_SAT || !db_deck_input_real_for(s.peer)) {
+    sat_dev_t *v = &s.devs[deck];
+    /* a press made while the deck was locked or showed the menu is not Companion's, nor is its release */
+    if (!db_sat_pass(&v->held, ev,
+                     v->added && db_deck_writer(deck) == DB_SOURCE_SAT && db_deck_input_real_for(s.peer))) {
         return;
     }
     xSemaphoreTake(s.lock, portMAX_DELAY);
@@ -781,37 +875,37 @@ static void on_input(const db_input_t *ev)
     switch (ev->kind) {
     case DB_INPUT_KEY_DOWN:
     case DB_INPUT_KEY_UP:
-        if ((c = control_of(DB_SAT_KEY, ev->index))) {
-            press(c, ev->kind == DB_INPUT_KEY_DOWN);
+        if ((c = control_of(v, DB_SAT_KEY, ev->index))) {
+            press(v, c, ev->kind == DB_INPUT_KEY_DOWN);
         }
         break;
     case DB_INPUT_ENCODER_DOWN:
     case DB_INPUT_ENCODER_UP:
-        if ((c = control_of(DB_SAT_ENCODER, ev->index))) {
-            press(c, ev->kind == DB_INPUT_ENCODER_DOWN);
+        if ((c = control_of(v, DB_SAT_ENCODER, ev->index))) {
+            press(v, c, ev->kind == DB_INPUT_ENCODER_DOWN);
         }
         break;
     case DB_INPUT_ENCODER_TURN:
-        if ((c = control_of(DB_SAT_ENCODER, ev->index))) {
-            rotate(c, ev->value);
+        if ((c = control_of(v, DB_SAT_ENCODER, ev->index))) {
+            rotate(v, c, ev->value);
         }
         break;
     case DB_INPUT_TOUCH_TAP:
     case DB_INPUT_TOUCH_LONG:
-        if ((c = db_sat_lcd_at(s.ctl, s.nctl, ev->x))) {
-            press(c, true);
-            press(c, false);
+        if ((c = db_sat_lcd_at(v->ctl, v->nctl, ev->x))) {
+            press(v, c, true);
+            press(v, c, false);
         }
         break;
     case DB_INPUT_TOUCH_SWIPE: {
         int dx = abs(ev->x2 - ev->x);
         int dy = abs(ev->y2 - ev->y);
-        c = db_sat_lcd_at(s.ctl, s.nctl, ev->x);
+        c = db_sat_lcd_at(v->ctl, v->nctl, ev->x);
         if (c && 100 * dy >= 119 * dx &&
-            c == db_sat_lcd_at(s.ctl, s.nctl, ev->x2)) { /* steeper than 50 deg */
-            rotate(c, ev->y > ev->y2 ? 1 : -1);
+            c == db_sat_lcd_at(v->ctl, v->nctl, ev->x2)) { /* steeper than 50 deg */
+            rotate(v, c, ev->y > ev->y2 ? 1 : -1);
         } else if (1000 * dy <= 414 * dx) { /* flatter than 22.5 degrees */
-            send_line("CHANGE-PAGE DEVICEID=\"%s\" DIRECTION=%d\n", s.serial, ev->x > ev->x2);
+            send_line("CHANGE-PAGE DEVICEID=\"%s\" DIRECTION=%d\n", v->serial, ev->x > ev->x2);
         }
         break;
     }
@@ -819,9 +913,9 @@ static void on_input(const db_input_t *ev)
     xSemaphoreGive(s.lock);
 }
 
-static void on_device(const db_device_info_t *info)
+static void on_device(int deck, const db_device_info_t *info)
 {
-    s.device_dirty = true;
+    s.devs[deck].dirty = true;
 }
 
 esp_err_t db_satellite_start(void (*changed)(void))
@@ -842,9 +936,13 @@ esp_err_t db_satellite_start(void (*changed)(void))
                : ESP_ERR_NO_MEM;
 }
 
-bool db_satellite_connected(void)
+bool db_satellite_connected(int deck)
 {
-    return s.added && strcmp(s.addr, db_config()->satellite) == 0; /* not the old address after a change */
+    bool added = false;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        added |= s.devs[d].added && (deck < 0 || d == deck);
+    }
+    return added && strcmp(s.addr, db_config()->satellite) == 0; /* not the old address after a change */
 }
 
 db_health_t db_satellite_health(void)
@@ -863,6 +961,33 @@ void db_satellite_retry(void)
     if (s.task) {
         xTaskNotifyGive(s.task);
     }
+}
+
+bool db_satellite_locked(int deck, db_sat_pin_t *out)
+{
+    const sat_dev_t *v = &s.devs[deck];
+    int64_t now = now_ms();
+    portENTER_CRITICAL(&pin_mux);
+    db_sat_lock_t pin = v->pin;
+    out->wrong = now < v->wrong_until_ms;
+    portEXIT_CRITICAL(&pin_mux);
+    unsigned typed = (unsigned)pin.count + pin.pending; /* a dot at once, Companion's count follows */
+    out->count = (uint8_t)(typed > 255 ? 255 : typed);
+    out->rotation = pin.rotation;
+    return pin.locked && db_satellite_connected(deck);
+}
+
+void db_satellite_pincode(int deck, int digit)
+{
+    sat_dev_t *v = &s.devs[deck];
+    db_sat_pin_t pin;
+    if (!db_satellite_locked(deck, &pin) || !db_deck_input_real_for(s.peer)) {
+        return;
+    }
+    portENTER_CRITICAL(&pin_mux);
+    v->pin.pending = (uint8_t)(v->pin.pending < 255 ? v->pin.pending + 1 : 255);
+    portEXIT_CRITICAL(&pin_mux);
+    send_line("PINCODE-KEY DEVICEID=\"%s\" KEY=%d\n", v->serial, digit);
 }
 
 uint32_t db_satellite_peer(void)

@@ -1,6 +1,6 @@
 ---
 title: Hardware
-description: The ESP32-P4 board that runs DeckConnector, how to power it, and which Elgato Stream Decks work with it.
+description: The ESP32-P4 board that runs DeckConnector, how to power it, and which decks work with it.
 ---
 
 ## Board
@@ -24,11 +24,18 @@ With PoE the board and the deck run from one cable. With PoE and USB-C both plug
 |---|---|
 | Stream Deck + | Tested. 8 keys, 4 dials, touch strip |
 | Stream Deck MK.2, XL, Stream Deck V2 | In the driver, not tested yet |
-| Stream Deck Neo | In the driver, not tested yet. Companion gets only the eight keys |
+| Stream Deck Neo | In the driver, not tested yet |
+| Mirabox, Ajazz, Soomfon, Streonor: Stream Dock 293V3, 293S, XL, N3, N4, N4 Pro, AKP153, AKP153E, AKP03E, AKP05E, CN002, S15 | Should work, not tested on hardware. Companion and own servers only |
+
+Some of these decks share one serial number. The board tells them apart by their USB port, so keep each deck on its port.
+
+Some controls send only the press, not the release: the dials and the touch strip of the N4, N4 Pro and Ajazz AKP05E, the right key column of the 293S, and every key of the Ajazz AKP153 and of the 293S with USB ID 5548:6670. You cannot hold them, so a long press in Companion does not work there. The Deck tab shows which keys open the menu.
 
 A server gets `"tested": false` in the `device` message for an untested model.
 
-Behind a USB hub the board drives more than one deck. The chosen program controls all of them, each as its own surface or device. A hub often forces full speed, which makes pictures slower.
+Behind a USB hub the board drives up to four decks. Two is the default, because all decks on a hub without its own power supply share the 2 A of the board's USB port. Set the limit in the web UI under Deck. Decks over the limit stay dark. A lower limit applies to decks you plug in after the change.
+
+A deck on its own is always deck 1. With several decks, each keeps its number when you plug it in again. Companion and the Elgato app see each deck as its own surface or device. An [own server](/docs/own-server) draws on the deck with the lowest number only. The menu opens on the deck where you hold the keys. A hub often forces full speed, which makes pictures slower.
 
 Speed numbers are on [Benchmarks](/docs/speed).
 

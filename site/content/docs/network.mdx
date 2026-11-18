@@ -16,6 +16,7 @@ The board announces itself over mDNS on one network at a time. That is the LAN, 
 - 2.4 GHz only. A hidden network is not in the list, but you can type its name.
 - The board tests a new network first and keeps it only when it gets an address there. Otherwise the old one comes back.
 - **Access points (BSSID)** locks the board to one access point. By default it takes the strongest and roams.
+- **Backup Wi-Fi** is a second network. The board joins it when the first one gives no link for 10 s. There it looks for the first one every 2 minutes and goes back once its signal is good. On the backup the board always takes its address over DHCP.
 
 ## Fixed address
 
@@ -35,7 +36,7 @@ The board's mDNS name is `<name>.local`, for example `deckconnector-a1b2c3.local
 ## Ports
 
 - **80 and 443** on the board: web UI and API, over HTTP and HTTPS.
-- **5343 and 5344** on the board: the Network Dock, for Companion and the Elgato app.
+- **5343 and 5344** on the board: the Network Dock, for Companion and the Elgato app. Deck 2 uses 5345 and 5346, and so on.
 - **16622** on the Companion computer: Satellite. **16623** for a `ws://` address.
 
 ## Clock

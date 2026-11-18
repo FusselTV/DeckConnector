@@ -62,7 +62,13 @@ typedef struct {
     bool satellite_auto_off; /* JSON satellite_auto: false; a person removed the address or said no on the
                                 deck, so no offer and no move from the dock path to Satellite */
     char lang[3];            /* what the deck's own screens speak: "de" or "en" */
-    uint8_t volume;          /* the speaker, 0 (off) to 100 */
+    uint8_t max_decks;       /* decks driven at once, 1 to DB_MAX_DECKS: they share the 2 A of the USB port */
+    uint32_t screen_off_s;   /* the decks go dark after this long without input, 10 to 86400; 0: never */
+    char wifi2_ssid[33];     /* joined when wifi_ssid gives no link; empty: none */
+    char wifi2_pass[65];
+    char trusted_proxy[16]; /* a reverse proxy's IPv4 address: its X-Forwarded-For names the client; empty:
+                               none */
+    uint8_t volume;         /* the speaker, 0 (off) to 100 */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
@@ -70,6 +76,7 @@ char *db_config_server(db_config_t *cfg, int i);
 const char *db_config_server_of(const db_config_t *cfg, int i);
 /* A host name or address without spaces, quotes or slashes; empty is fine. */
 bool db_config_ntp_ok(const char *s);
+bool db_config_screen_off_ok(long s);
 /* Empty (an open network), 8 to 63 characters, or 64 hex digits. */
 bool db_config_wifi_pass_ok(const char *p);
 
@@ -96,6 +103,9 @@ const char *db_controller_name(db_controller_t c);
 
 /* `len - 1` characters without look-alikes (no l, 1, o, 0), NUL terminated. */
 void db_config_random_password(char *out, size_t len);
+
+/* The base MAC as 12 lowercase hex digits: stays when the name changes. */
+void db_config_board_id(char out[13]);
 
 /*
  * JSON for the web UI and servers. Secrets are left out unless `with_secrets`.

@@ -16,7 +16,6 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -134,7 +133,7 @@ static void send_device(int link)
     db_device_info_t *info = malloc(sizeof(*info));
     char *buf = malloc(4096);
     if (info && buf) {
-        bool present = db_deck_info(info);
+        bool present = db_deck_info(db_link_deck(), info);
         send_text(link, buf, db_proto_device_json(present ? info : NULL, buf, 4096));
     }
     free(buf);
@@ -152,9 +151,7 @@ static void send_hello(int link)
 {
     char buf[384];
     char id[13];
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_BASE);
-    snprintf(id, sizeof(id), "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    db_config_board_id(id);
     const char *c6 = s.hooks.c6_version();
     db_json_t j;
     db_json_begin(&j, buf, sizeof(buf));
@@ -236,8 +233,9 @@ static void handle_command(link_t *l, const char *text)
         if (cJSON_IsNumber(pct) && l->index == s.active) {
             int v = pct->valueint;
             s.pct = v < 0 ? 0 : (v > 100 ? 100 : v);
-            if (db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + l->index)) { /* else after the menu */
-                db_deck_set_brightness((uint8_t)s.pct);
+            if (db_deck_writer(db_link_deck()) ==
+                (db_source_t)(DB_SOURCE_LINK0 + l->index)) { /* else after the menu */
+                db_deck_set_brightness(db_link_deck(), (uint8_t)s.pct);
             }
         }
     } else if (strcmp(t->valuestring, "ota") == 0) {
@@ -293,8 +291,8 @@ static int read_image(link_t *l, uint64_t len)
         heap_caps_free(img);
         return err;
     }
-    db_deck_submit((db_source_t)(DB_SOURCE_LINK0 + l->index), h.display, h.rect, h.seq, img, n,
-                   (uint64_t)esp_timer_get_time());
+    db_deck_submit(db_link_deck(), (db_source_t)(DB_SOURCE_LINK0 + l->index), h.display, h.rect, h.seq, img,
+                   n, (uint64_t)esp_timer_get_time());
     return 0;
 }
 
@@ -493,10 +491,11 @@ static void on_ack(db_ack_result_t result, uint8_t display, uint32_t seq, uint64
     send_inline((int)(intptr_t)arg, WS_OP_BINARY, out, sizeof(out), 0);
 }
 
-static void on_input(const db_input_t *ev)
+static void on_input(int deck, const db_input_t *ev)
 {
     int a = s.active;
-    if (a >= 0 && db_deck_writer() == (db_source_t)(DB_SOURCE_LINK0 + a)) {
+    if (deck == db_link_deck() && a >= 0 &&
+        db_deck_writer(db_link_deck()) == (db_source_t)(DB_SOURCE_LINK0 + a)) {
         uint8_t out[DB_INPUT_LEN];
         db_proto_write_input(out, ev);
         if (!send_inline(a, WS_OP_BINARY, out, sizeof(out), pdMS_TO_TICKS(20))) {
@@ -505,9 +504,9 @@ static void on_input(const db_input_t *ev)
     }
 }
 
-static void on_device(const db_device_info_t *info)
+static void on_device(int deck, const db_device_info_t *info)
 {
-    send_device(ALL_LINKS);
+    send_device(ALL_LINKS); /* also when another deck becomes the first */
 }
 
 static bool any_configured(void)
@@ -640,10 +639,16 @@ void db_link_set_enabled(bool enabled)
     recompute_active();
 }
 
+int db_link_deck(void)
+{
+    int first = db_deck_first();
+    return first < 0 ? 0 : first;
+}
+
 void db_link_brightness_again(void)
 {
     if (s.active >= 0 && s.pct >= 0) {
-        db_deck_set_brightness((uint8_t)s.pct);
+        db_deck_set_brightness(db_link_deck(), (uint8_t)s.pct);
     }
 }
 

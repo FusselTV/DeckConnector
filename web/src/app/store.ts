@@ -64,6 +64,7 @@ export function fromLog(list: InputLogEntry[], bootAt: number): InputEvent[] {
       key: e.index,
       delta: e.kind === 'turn' ? e.value : undefined,
       source: e.writer,
+      deck: e.deck,
     }))
     .reverse()
 }

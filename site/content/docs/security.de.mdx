@@ -41,11 +41,32 @@ Ein Schlüssel hat **Steuern** (`control`) oder **Vollzugriff** (`full`). Es gib
 
 ## HTTPS
 
-Die Platine antwortet auf Port 80 und per HTTPS auf 443, mit eigenem Zertifikat, deshalb warnt der Browser einmal. Vergleiche den Fingerabdruck mit dem unter **Zugang**.
+Die Platine antwortet auf Port 80 und per HTTPS auf 443. Ihr Zertifikat stammt von ihrer eigenen CA, die sie beim ersten Start anlegt. Lade die CA unter **Zugang › HTTPS** herunter und vertraue ihr einmal auf jedem Gerät. Dann warnt unter `https://<name>.local` kein Browser mehr, auch nicht auf iPhone und Mac. Per IP-Adresse warnt der Browser weiter. Dort vergleiche den Fingerabdruck mit dem unter **Zugang**.
 
-- `GET /api/cert` liefert das Zertifikat als PEM, zum Importieren oder Pinnen.
+- Wenn du die CA herunterlädst, zeigt das Deck 30 Sekunden lang einen kurzen Code. **Zugang** zeigt denselben Code. Vertraue der CA nur, wenn beide gleich sind.
+- Die CA bürgt nur für `<name>.local` und `localhost`, nie für einen anderen Namen oder eine IP-Adresse. Wer den Schlüssel aus der Platine ausliest, kann sich nur als diese Platine ausgeben.
+- Das Zertifikat wird 30 Tage vor Ablauf erneuert. Der Fingerabdruck ändert sich dabei, die CA bleibt.
+- Ein neuer Name bekommt eine neue CA. Vertraue ihr dann auf jedem Gerät neu.
+- Ein Zurücksetzen auf Werkszustand löscht die CA.
+- `GET /api/ca` liefert die CA, `GET /api/cert` das aktuelle Zertifikat als PEM.
 - **Nur HTTPS** schaltet unverschlüsseltes HTTP ab. Seiten leiten um, API-Aufrufe über HTTP bekommen 403. Solange das Setup-WLAN offen ist, bleibt HTTP an.
 - Du kannst ein eigenes Zertifikat mit Schlüssel als PEM hochladen. Einen Schlüssel mit Passwort lehnt die Platine ab.
+
+## Passkeys
+
+Mit einem Passkey meldest du dich per Fingerabdruck, Gesicht oder Geräte-PIN an. Du legst ihn unter **Zugang › Passkeys** an.
+
+- Er braucht HTTPS ohne Warnung und einen Namen, etwa `https://deckconnector-a1b2c3.local`. Nie eine IP-Adresse. Vertraue zuerst der CA oder lade ein Zertifikat für deinen eigenen Namen hoch.
+- Ein Passkey gilt nur unter dem Namen, unter dem er angelegt wurde. Nach einer Umbenennung legst du ihn neu an.
+- Höchstens 8 Passkeys, nur ES256. Das Passwort gilt weiter. Ein Zurücksetzen auf Werkszustand löscht alle Passkeys.
+
+## Hinter einem Reverse Proxy
+
+Ein Proxy wie Caddy kann die Platine unter seinem eigenen Namen ausliefern. Dann kommt jede Anfrage von der Adresse des Proxys. Trage diese Adresse unter **Zugang › HTTPS › Reverse Proxy** ein. Die Platine nimmt den Client dann aus dem letzten Eintrag von `X-Forwarded-For`. Sie nutzt ihn für die Sperre, für Passkeys und für die Anmeldefrage auf dem Deck.
+
+- Die Platine liest den Header nur von dieser einen Adresse. Von allen anderen ignoriert sie ihn.
+- Der Proxy muss den `Host`-Header behalten und den Client an `X-Forwarded-For` anhängen. Caddy macht beides von selbst.
+- Durch den Proxy gehen die Einrichtung im ersten Browser und Companions Discover nicht.
 
 ## Setup-WLAN
 

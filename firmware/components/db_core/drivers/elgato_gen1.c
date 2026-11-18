@@ -40,7 +40,7 @@ static void read_feature_string(db_dev_t *dev, uint8_t id, char *out, size_t cap
     uint8_t buf[FEATURE_LEN] = {id};
     size_t n = 0;
     out[0] = '\0';
-    if (dev->io->get_feature(buf, sizeof(buf), &n) != DB_OK || n <= 5) {
+    if (dev->io->get_feature(dev->io, buf, sizeof(buf), &n) != DB_OK || n <= 5) {
         return;
     }
     size_t len = strnlen((const char *)buf + 5, n - 5);
@@ -64,6 +64,8 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .model = name,
                                .vid = ELGATO_VID,
                                .pid = pid,
+                               .dock = true,
+                               .surface = "streamdeck",
                                .key_count = KEYS,
                                .display_count = 1};
     /* Each key image is transposed, so pixel x,y of the upload is row x, column y of the picture. That is a
@@ -104,12 +106,12 @@ static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect,
         rep[4] = off + n >= len;
         rep[5] = (uint8_t)(t->index + 1);
         memcpy(rep + HEADER_LEN, data + off, n);
-        db_err_t err = dev->io->write(rep, sizeof(rep));
+        db_err_t err = dev->io->write(dev->io, rep, sizeof(rep));
         if (err != DB_OK) {
             return err;
         }
     }
-    return dev->io->flush();
+    return dev->io->flush(dev->io);
 }
 
 static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_chunk_t *out)
@@ -162,7 +164,7 @@ static size_t build_input(const db_dev_t *dev, const db_input_t *ev, uint8_t *r,
 static db_err_t set_brightness(db_dev_t *dev, uint8_t pct)
 {
     uint8_t buf[FEATURE_LEN] = {0x05, 0x55, 0xaa, 0xd1, 0x01, pct > 100 ? 100 : pct};
-    return dev->io->set_feature(buf, sizeof(buf));
+    return dev->io->set_feature(dev->io, buf, sizeof(buf));
 }
 
 const db_driver_t db_driver_elgato_gen1 = {

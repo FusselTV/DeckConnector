@@ -48,7 +48,7 @@ static void device2_info(const db_cora_dock_t *dock, uint8_t *out)
     strlcpy((char *)out + 62, dock->device->product, 32);
     size_t n = strnlen(dock->device->serial, 31);
     memcpy(out + 94, dock->device->serial, n);
-    db_put_u16(out + 126, DB_CORA_DEVICE_PORT);
+    db_put_u16(out + 126, dock->device_port);
 }
 
 /* Fixed answers the emulated dock reports to Companion and the Elgato App, which checks 0x81 to 0x8f. */

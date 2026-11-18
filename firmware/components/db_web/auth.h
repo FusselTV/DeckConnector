@@ -59,5 +59,12 @@ bool auth_session_alive(const char *token);
  * takes the request back. */
 esp_err_t auth_login_request(httpd_req_t *req);
 esp_err_t auth_login_request_id(httpd_req_t *req);
+/* Passkeys (WebAuthn, ES256 only), up to 8, each for the host name it was made on: over HTTPS by a name only.
+ * A challenge is for one login or registration from one address within 2 min. Logins count like passwords. */
+esp_err_t auth_passkey_challenge(httpd_req_t *req);
+esp_err_t auth_passkey_login(httpd_req_t *req);
+esp_err_t auth_passkey_add(httpd_req_t *req);
+esp_err_t auth_passkeys_list(httpd_req_t *req);
+esp_err_t auth_passkey_edit(httpd_req_t *req);
 /* The Host header names an address or a .local name: not another site's page through DNS rebinding. */
 bool auth_host_is_local(httpd_req_t *req);

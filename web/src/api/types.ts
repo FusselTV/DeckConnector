@@ -7,6 +7,10 @@ export interface DeckInfo {
   model: string
   serial: string
   firmware?: string
+  /** False when the Elgato app and Companion's Elgato plugin cannot use the deck. */
+  dock?: boolean
+  /** The menu controls per menu_chord choice, for decks with controls that cannot be held. */
+  chords?: Record<'auto' | 'keys' | 'encoders', { on: 'keys' | 'encoders' | 'off'; last: number }>
   keys?: number
   encoders?: number
   width?: number
@@ -14,8 +18,12 @@ export interface DeckInfo {
   usb_speed?: 'high' | 'full'
   hub?: boolean
   surface?: number
-  /** In `decks`, from 1. */
+  /** In `decks`: 0 to 3, kept per deck over replugs. It fixes the deck's Network Dock port and Satellite order. */
+  slot?: number
+  /** In `decks`: slot + 1. */
   number?: number
+  /** In `decks`: what the deck shows now, 0 while the screen is off. */
+  brightness?: number
 }
 
 export interface Source {
@@ -62,6 +70,8 @@ export interface Network {
     bssid?: string
     channel?: number
     lock?: string
+    /** `ssid` is the backup Wi-Fi, wifi2_ssid. */
+    backup?: boolean
     rssi?: number
     join?: '' | 'testing' | 'ok' | 'failed'
     join_error?: string
@@ -93,12 +103,16 @@ export interface Status {
   writer?: string
   /** The deck menu covers the deck. */
   menu_open?: boolean
+  /** Every deck is dark after `screen_off_s` without input; the next input wakes them. */
+  screen_off?: boolean
   /** The board has a speaker. */
   speaker?: boolean
   /** This page reached the device over its setup Wi-Fi, which needs no password. */
   via_ap?: boolean
   device?: DeckInfo | null
   decks?: DeckInfo[]
+  /** Decks plugged in but left dark by `max_decks`. */
+  decks_over_limit?: number
   network?: Network
   sources?: Source[]
   pairing?: Pairing
@@ -110,6 +124,8 @@ export interface Status {
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
+  /** The device CA's short fingerprint, also shown on the deck when the CA is downloaded. */
+  https_ca?: string
   boot?: { reason?: string; at?: number | null }
 }
 
@@ -133,6 +149,9 @@ export interface Config {
   wifi_ssid: string
   wifi_pass_set: boolean
   wifi_bssid: string
+  /** Joined when the first Wi-Fi gives no link; the bridge goes back to the first once it is in reach. */
+  wifi2_ssid: string
+  wifi2_pass_set: boolean
   servers: string[]
   server_pins: string[]
   satellite: string
@@ -144,11 +163,16 @@ export interface Config {
   qr_login: boolean
   ntp_server: string
   cors_origins: string
+  /** A reverse proxy's IPv4 address: behind it, its X-Forwarded-For names the client. Empty: none. */
+  trusted_proxy: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
   /** What the deck's own screens speak. */
   lang: 'de' | 'en'
   usb_speed: 'auto' | 'full'
+  max_decks: number
+  /** 0: never, else 10 to 86400 seconds without input until the decks go dark. */
+  screen_off_s: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean
@@ -157,6 +181,7 @@ export interface Config {
 /** Keys PUT /api/config takes besides those of Config. */
 interface ConfigSecrets {
   wifi_pass?: string
+  wifi2_pass?: string
   admin_pass?: string
   token?: string
 }
@@ -249,6 +274,13 @@ export interface Token {
   last_used?: string
 }
 
+export interface Passkey {
+  id: number
+  name: string
+  /** The host name it was made on: it works only there. */
+  rp: string
+}
+
 export interface Found {
   name: string
   host: string
@@ -304,13 +336,15 @@ export interface InputLogEntry {
   index?: number
   value?: number
   writer?: string
+  /** The deck's serial. */
+  deck?: string
 }
 
 export interface InputEvent {
   at: number
   origin: 'deck' | 'web' | 'api'
   client?: string
-  deck?: number
+  deck?: string
   kind: string
   key?: number
   delta?: number

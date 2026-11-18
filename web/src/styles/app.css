@@ -1543,6 +1543,13 @@
     color: var(--amber-fg);
     margin-top: 2px;
   }
+  .choice:disabled {
+    cursor: not-allowed;
+  }
+  .choice:disabled .ic,
+  .choice:disabled b {
+    opacity: 0.45;
+  }
   .choice b {
     display: block;
     font-size: 17px;

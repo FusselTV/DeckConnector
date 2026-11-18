@@ -16,6 +16,7 @@ Per mDNS meldet sich die Platine immer nur in einem Netz an. Das ist das LAN, au
 - Nur 2,4 GHz. Ein verstecktes Netz steht nicht in der Liste, du kannst seinen Namen aber eintippen.
 - Die Platine testet ein neues Netz zuerst und behält es nur, wenn sie dort eine Adresse bekommt. Sonst kommt das alte zurück.
 - **Zugangspunkte (BSSID)** bindet die Platine an einen Zugangspunkt. Ohne das nimmt sie den stärksten und wechselt bei Bedarf.
+- **Zweites WLAN (Ersatz)** ist ein zweites Netz. Die Platine geht hinein, wenn das erste 10 s lang keine Verbindung gibt. Dort sucht sie alle 2 Minuten nach dem ersten und geht zurück, sobald es guten Empfang hat. Im Ersatz-WLAN holt sie ihre Adresse immer per DHCP.
 
 ## Feste Adresse
 
@@ -35,7 +36,7 @@ Der mDNS-Name der Platine ist `<name>.local`, zum Beispiel `deckconnector-a1b2c3
 ## Ports
 
 - **80 und 443** auf der Platine: Weboberfläche und API, über HTTP und HTTPS.
-- **5343 und 5344** auf der Platine: das Network Dock, für Companion und die Elgato-App.
+- **5343 und 5344** auf der Platine: das Network Dock, für Companion und die Elgato-App. Deck 2 nutzt 5345 und 5346, und so weiter.
 - **16622** auf dem Companion-Rechner: Satellite. **16623** für eine `ws://`-Adresse.
 
 ## Uhr

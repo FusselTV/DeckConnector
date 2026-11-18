@@ -166,6 +166,8 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       wlan: ip(),
       wifi_ssid: setup ? '' : 'Studio',
       wifi_pass_set: !setup,
+      wifi2_ssid: '',
+      wifi2_pass_set: false,
       wifi_bssid: '',
       servers: setup ? ['', '', '', ''] : ['ws://192.168.1.40:8765', '', '', ''],
       server_pins: ['', '', '', ''],
@@ -176,10 +178,13 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       qr_login: setup,
       ntp_server: '',
       cors_origins: '',
+      trusted_proxy: '',
       menu_chord: 'auto',
       menu_hold_ms: 2000,
       lang: 'de',
       usb_speed: 'auto',
+      max_decks: 2,
+      screen_off_s: 0,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,
@@ -443,6 +448,7 @@ export function status(s: Demo, now: number): Status {
     controller: c.controller,
     writer: w,
     menu_open: overlay(s, now),
+    screen_off: false,
     speaker: true,
     boot: { reason: s.bootReason, at: Math.floor(s.bootAt / 1000) },
     setup: { active: !c.setup_done || s.setupStep > 0, step: s.setupStep, rerun: c.setup_done && s.setupStep > 0 },
@@ -457,6 +463,7 @@ export function status(s: Demo, now: number): Status {
         bssid: c.wifi_ssid ? (ap?.bssid ?? '02:00:00:00:09:01') : '',
         channel: c.wifi_ssid ? (ap?.channel ?? 11) : 0,
         lock: c.wifi_bssid,
+        backup: false,
         rssi: c.wifi_ssid ? (ap?.rssi ?? -58) - Math.round(Math.abs(Math.sin(now / 9000)) * 6) : 0,
         join: s.joinState,
         join_error: s.joinError,
@@ -524,9 +531,14 @@ const LIVE: (keyof ConfigPatch)[] = [
   'satellite_auto',
   'https_only',
   'cors_origins',
+  'trusted_proxy',
   'menu_chord',
   'menu_hold_ms',
   'lang',
+  'max_decks',
+  'screen_off_s',
+  'wifi2_ssid',
+  'wifi2_pass',
 ]
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
@@ -552,12 +564,13 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   const next: Config = {
     ...old,
     ...Object.fromEntries(
-      Object.entries(p).filter(([k]) => !['wifi_pass', 'admin_pass', 'token', 'lan', 'wlan'].includes(k)),
+      Object.entries(p).filter(([k]) => !['wifi_pass', 'wifi2_pass', 'admin_pass', 'token', 'lan', 'wlan'].includes(k)),
     ),
     lan: { ...old.lan, ...p.lan },
     wlan: { ...old.wlan, ...p.wlan },
   }
   if (p.wifi_pass !== undefined) next.wifi_pass_set = !!p.wifi_pass || !next.wifi_ssid
+  if (p.wifi2_pass !== undefined) next.wifi2_pass_set = !!p.wifi2_pass
   if (p.token !== undefined) next.token_set = !!p.token
   if (p.satellite !== undefined && p.satellite !== old.satellite) {
     next.satellite_auto = !!p.satellite

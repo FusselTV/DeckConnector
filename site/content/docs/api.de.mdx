@@ -72,6 +72,8 @@ Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im St
 | `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage | open |
 | `GET /api/login/request/<id>` | `state` ist `pending`, `accepted`, `denied`, `expired` oder `used`. Bei `accepted` setzt die Antwort einmal das Sitzungs-Cookie | open |
 | `DELETE /api/login/request/<id>` | Zieht die Anfrage zurück | open |
+| `POST /api/passkeys/challenge` | `{"login": true}` für eine Anmeldung, `false` für einen neuen Passkey. Antwortet `{"challenge": "<hex>"}`. Gilt einmal, 2 Minuten lang, von dieser Adresse. 30 je 10 s und Adresse, sonst 429. Nur per HTTPS unter einem Namen, sonst 403 | open |
+| `POST /api/login/passkey` | Die Antwort von `navigator.credentials.get()`, mit `id`, `clientDataJSON`, `authenticatorData` und `signature` in base64url. Der Passkey muss den Nutzer prüfen. Setzt das Sitzungs-Cookie. Ein abgelehnter Passkey zählt wie ein falsches Passwort, eine unbekannte oder benutzte Challenge nicht | open |
 | `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck | open |
 | `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}` | open |
 | `DELETE /api/password/reset` | Beendet die Frage | open |
@@ -86,7 +88,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `OPTIONS /api/...` | Der CORS-Preflight für die Origins in `cors_origins` | open |
 | `GET /api/ws` | Der Live-[WebSocket](#websocket) | control |
 | `GET /api/status` | Zustand der Platine, siehe [Status](#status) | control |
-| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set` und `token_set` | full |
+| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set`, `wifi2_pass_set` und `token_set` | full |
 | `PUT /api/config` | Einstellungen ändern. Schick nur die Schlüssel, die sich ändern. Die Antwort hat `restart` und `config` | full |
 | `POST /api/config` | **Setup** aus Companions Surfaces › Discover: `{"host": "...", "port": 16622}` als `application/json`. Während der Einrichtung verbindet sich die Platine sofort, danach fragt das Deck 60 s lang | open |
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
@@ -107,6 +109,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/input/log` | Die letzten 200 Eingaben. `?since=<seq>` nur für neuere | control |
 | `POST /api/menu` | Deck-Menü öffnen. 409 ohne Deck | control |
 | `DELETE /api/menu` | Schließt Deck-Menü, Passwort, Rücksetzfrage und Login-Anfrage | control |
+| `POST /api/screen` | `{"on": false}` schaltet alle Decks sofort dunkel, `{"on": true}` wieder an. Kein Druck wird verschluckt | full |
 | `POST /api/deck/reconnect` | Schaltet den USB-Port aus und wieder an. `?off_s=N` (1 bis 600) lässt ihn N Sekunden aus | control |
 | `POST /api/deck/stall` | Stoppt die Bildausgabe wie bei einem hängenden Deck, für Tests | full |
 | `POST /api/sound/selftest` | Spielt `find` und nimmt es mit dem Mikrofon der Platine auf, für Tests. Drei Gegenproben: eine andere Tonhöhe (1500 Hz) in derselben Aufnahme, `find` mit Lautstärke 0 und `find` mit ausgeschaltetem Verstärker. `heard` ist true, wenn der Ton mehr als 10-mal stärker ist als jede davon. Optional: `volume` 1 bis 100 (60), `gain` 0 bis 42 dB (24). Dauert etwa 6 Sekunden. 503 mit dem Grund, wenn ein Durchlauf scheitert | full |
@@ -150,7 +153,12 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/tokens` | Die API-Schlüssel, `name` und `right` | admin |
 | `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Zeigt den Schlüssel einmal. `name` hat 1 bis 23 Buchstaben, Ziffern, `-` oder `_` | admin |
 | `DELETE /api/tokens/<name>` | Beendet diesen Schlüssel sofort | admin |
+| `GET /api/passkeys` | Die Passkeys, mit `id`, `name` und `rp`, dem Namen, unter dem jeder gilt | admin |
+| `POST /api/passkeys` | Die Antwort von `navigator.credentials.create()`, mit `name`, `id`, `clientDataJSON`, `authenticatorData`, `publicKey` (SPKI) und `publicKeyAlgorithm` (`-7`), binäre Teile in base64url. Nur ES256 mit Nutzerprüfung, höchstens 8 | admin |
+| `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 bis 23 Bytes | admin |
+| `DELETE /api/passkeys/<id>` | Entfernt diesen Passkey | admin |
 | `GET /api/cert` | Das HTTPS-Zertifikat als PEM | open |
+| `GET /api/ca` | Die CA der Platine als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und die Platine startet neu | admin |
 | `DELETE /api/tls` | Zurück zum eigenen Zertifikat der Platine, mit Neustart | full |
 
@@ -171,11 +179,11 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 {"name": "deckconnector-a1b2c3", "controller": "companion", "host": "satellite", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
- "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
+ "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "", "wifi2_ssid": "", "wifi2_pass_set": false,
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
+ "max_decks": 2, "screen_off_s": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false}
 ```
 
 | Schlüssel | Werte |
@@ -187,6 +195,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
 | `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
+| `wifi2_ssid`, `wifi2_pass` | Das Ersatz-WLAN, Werte wie bei `wifi_ssid` und `wifi_pass`. Leer schaltet es ab |
 | `servers` | Bis zu 4 `ws://`- oder `wss://`-URLs. Leer sucht Server per mDNS |
 | `server_pins` | SHA-256 je Server, an derselben Stelle wie in `servers` |
 | `satellite` | Die Adresse von Companion als `host`, `host:port` oder `ws://`- bzw. `wss://`-URL. Leer schaltet es ab |
@@ -198,13 +207,16 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `lang` | Die Sprache der eigenen Deck-Seiten: `de` oder `en` |
 | `menu_hold_ms` | 500 bis 10000 |
 | `usb_speed` | `auto` oder `full` |
+| `max_decks` | 1 bis 4 Decks gleichzeitig, Standard 2 |
+| `screen_off_s` | Sekunden ohne Eingabe, bis alle Decks dunkel werden, 10 bis 86400. 0 heißt nie und ist der Standard |
 | `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
+| `trusted_proxy` | IPv4-Adresse eines Reverse Proxys, leer für keinen. Siehe [Hinter einem Reverse Proxy](/de/docs/security/#hinter-einem-reverse-proxy) |
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -218,12 +230,12 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 {"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
- "menu_open": false,
+ "menu_open": false, "screen_off": false, "brightness": 80,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
              "wlan": {"ssid": "studio", "ip": "192.168.1.51", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
-                      "lock": "", "rssi": -48, "join": "", "join_error": ""},
+                      "lock": "", "backup": false, "rssi": -48, "join": "", "join_error": ""},
              "ap": {"on": false, "ssid": ""}},
  "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
               "connected": true, "chosen": true, "drawing": true}],
@@ -235,12 +247,17 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 |---|---|
 | `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
 | `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder das gewählte Programm nicht verbunden ist |
-| `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck |
+| `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck mit seinem `slot` (0 für Deck 1) und seiner `number` (1 für Deck 1) |
+| `decks[].locked` | Companion zeichnet über Satellite auf dem Deck und hat es mit seiner PIN gesperrt. Das Deck zeigt das Zahlenfeld |
+| `decks_over_limit` | Decks, die stecken, aber wegen `max_decks` dunkel bleiben |
 | `sources` | Jedes Programm. `chosen` markiert das, das zeichnet, wenn kein Menü darüber liegt. Server und Satellite haben dazu `error`, `since_s` und `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
 | `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
 | `menu_open` | Menü, Passwort, Rücksetzfrage oder Login-Anfrage liegen über dem Deck |
+| `screen_off` | Alle Decks sind nach `screen_off_s` ohne Eingabe dunkel. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0 |
+| `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
+| `network.wlan.backup` | Die Platine ist im Ersatz-WLAN, `ssid` nennt es |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
 
@@ -300,13 +317,13 @@ Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, di
 | `t` | Wann |
 |---|---|
 | `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal und Zähler |
-| `screen` | Das Bild hat sich geändert |
-| `input` | Jemand hat das Deck benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
+| `screen` | Das Bild des Decks in `deck` (seine Seriennummer) hat sich geändert |
+| `input` | Jemand hat das Deck in `deck` benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
 | `ota` | Update-Fortschritt mit `target`, `state`, `pct` und `error` |
 | `ping` | Alle 5 s. Kommt 12 s lang gar nichts, neu verbinden |
 | `log` | Neuer Log-Text, erst nach `{"t": "log"}`. Braucht das Passwort oder einen `full`-Schlüssel |
 
-Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/input` mit einer `id`.
+Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/input` mit einer `id`. Eine Eingabe geht an das erste Deck oder an das, dessen Seriennummer in `deck` steht. `GET /api/input/log` nennt das Deck genauso.
 
 ```json
 {"t": "set", "id": 1, "brightness": 40}

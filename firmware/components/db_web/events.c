@@ -26,7 +26,7 @@
 #define SCREEN_MS  50 /* how soon a changed deck picture reaches the page */
 #define SCREEN_MAX 8192
 #define FRAME_MAX  512
-#define INPUT_MAX  160
+#define INPUT_MAX  224
 #define LOG_CHUNK  4096 /* per listener and poll: a full log backlog goes out in about 1 s */
 /* a listener hears something this often, so it can tell a dead link from a quiet deck */
 #define PING_MS 5000
@@ -40,7 +40,7 @@ static const char *TAG = "events";
 
 static struct {
     size_t (*state_json)(char *buf, size_t cap);
-    size_t (*screen_json)(char *buf, size_t cap);
+    size_t (*screen_json)(int deck, char *buf, size_t cap);
     SemaphoreHandle_t lock; /* the client list, and one frame on the wire at a time */
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
     int fds[CLIENTS];
@@ -51,7 +51,8 @@ static struct {
     char session[CLIENTS][65];       /* the cookie it opened with, checked again per command; empty: none */
     uint64_t log_pos[CLIENTS];
     char *state; /* the last state sent, to send only changes */
-    uint32_t screen;
+    uint32_t screen[DB_MAX_DECKS];
+    char serial[DB_MAX_DECKS][32]; /* of each attached deck, "" for none; the deck's event task writes it */
     unsigned evict;
     struct outbox {
         httpd_handle_t server;
@@ -273,11 +274,12 @@ typedef struct {
     uint8_t writer;
     int16_t value;
     uint16_t x, y;
+    char deck[16]; /* its serial */
 } logged_t;
 static logged_t *input_log;
 static uint32_t input_seq; /* inputs ever logged; entry n is at n % INPUT_LOG */
 
-static void log_input(const db_input_t *ev)
+static void log_input(int deck, const db_input_t *ev)
 {
     if (input_log) {
         input_log[input_seq % INPUT_LOG] = (logged_t){.at_ms = (uint32_t)(esp_timer_get_time() / 1000),
@@ -286,10 +288,11 @@ static void log_input(const db_input_t *ev)
                                                       .origin = db_deck_input_from_deck()   ? 0
                                                                 : db_deck_input_real_for(0) ? 1
                                                                                             : 2,
-                                                      .writer = (uint8_t)db_deck_writer(),
+                                                      .writer = (uint8_t)db_deck_writer(deck),
                                                       .value = ev->value,
                                                       .x = ev->x,
                                                       .y = ev->y};
+        strlcpy(input_log[input_seq % INPUT_LOG].deck, e.serial[deck], sizeof(input_log[0].deck));
         input_seq++;
     }
 }
@@ -314,15 +317,21 @@ size_t events_input_log(char *buf, size_t cap, uint32_t since)
         db_json_int(&j, "x", l->x);
         db_json_int(&j, "y", l->y);
         db_json_str(&j, "writer", db_deck_source_name((db_source_t)l->writer));
+        db_json_str(&j, "deck", l->deck);
         db_json_obj_close(&j);
     }
     db_json_arr_close(&j);
     return db_json_end(&j);
 }
 
-static void on_input(const db_input_t *ev)
+static void on_device(int deck, const db_device_info_t *info)
 {
-    log_input(ev);
+    strlcpy(e.serial[deck], info ? info->serial : "", sizeof(e.serial[deck]));
+}
+
+static void on_input(int deck, const db_input_t *ev)
+{
+    log_input(deck, ev);
     if (!anyone() || ev->kind >= sizeof(kinds) / sizeof(kinds[0])) {
         return;
     }
@@ -330,10 +339,11 @@ static void on_input(const db_input_t *ev)
     snprintf(
         json, sizeof(json),
         "{\"t\":\"input\",\"kind\":\"%s\",\"index\":%u,\"value\":%d,\"x\":%u,\"y\":%u,\"x2\":%u,\"y2\":%u,"
-        "\"writer\":\"%s\",\"simulated\":%s}",
+        "\"writer\":\"%s\",\"simulated\":%s,\"deck\":\"%s\"}",
         kinds[ev->kind], ev->index, ev->value, ev->x, ev->y, ev->x2, ev->y2,
-        db_deck_source_name(db_deck_writer()),
-        db_deck_input_real_for(0) ? "false" : "true"); /* a person's, not a tool's */
+        db_deck_source_name(db_deck_writer(deck)),
+        db_deck_input_real_for(0) ? "false" : "true", /* a person's */
+        e.serial[deck]);
     xQueueSend(e.inputs, json, 0); /* full: the press is dropped for listeners, never for the deck */
 }
 
@@ -360,12 +370,19 @@ static void poll_task(void *arg)
         if (!anyone()) {
             continue;
         }
-        db_source_t writer;
-        size_t count = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
-        uint32_t key = db_deck_shots_key(writer, shots, count);
-        if (key != e.screen) {
-            char json[96];
-            int k = snprintf(json, sizeof(json), "{\"t\":\"screen\",\"writer\":\"%s\",\"images\":%u",
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            if (!e.serial[d][0]) {
+                continue;
+            }
+            db_source_t writer;
+            size_t count = db_deck_shots(d, &writer, shots, DB_SCREEN_MAX);
+            uint32_t key = db_deck_shots_key(writer, shots, count);
+            if (key == e.screen[d]) {
+                continue;
+            }
+            char json[128];
+            int k = snprintf(json, sizeof(json),
+                             "{\"t\":\"screen\",\"deck\":\"%s\",\"writer\":\"%s\",\"images\":%u", e.serial[d],
                              db_deck_source_name(writer), (unsigned)count);
             /* a page with a login gets the picture list along and saves a request; tokens fetch it, so the
              * deck's login code stays hidden from them */
@@ -373,17 +390,17 @@ static void poll_task(void *arg)
             if (scr) {
                 memcpy(scr, json, (size_t)k);
                 memcpy(scr + k, ",\"screen\":", 10);
-                m = e.screen_json(scr + k + 10, SCREEN_MAX);
+                m = e.screen_json(d, scr + k + 10, SCREEN_MAX);
             }
             strcpy(json + k, "}");
             if (m) {
                 strcpy(scr + k + 10 + m, "}");
                 bool sessions = broadcast_to(scr, TO_SESSIONS);
                 if (broadcast_to(json, TO_TOKENS) && sessions) {
-                    e.screen = key;
+                    e.screen[d] = key;
                 }
             } else if (broadcast(json)) {
-                e.screen = key;
+                e.screen[d] = key;
             }
         }
         if (xTaskGetTickCount() - polled < pdMS_TO_TICKS(POLL_MS) || !buf) {
@@ -476,7 +493,7 @@ static void command(httpd_handle_t server, int fd, const char *text)
             code = 503;
         } else {
             code = body ? (set ? (any_token ? api_config_token : api_config)(body, reply, sizeof(reply))
-                               : api_input(body, reply, sizeof(reply)))
+                               : api_input(-1, body, reply, sizeof(reply)))
                         : 500;
             web_unlock();
         }
@@ -572,7 +589,7 @@ void db_web_broadcast(const char *json)
 }
 
 esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap),
-                       size_t (*screen_json)(char *buf, size_t cap))
+                       size_t (*screen_json)(int deck, char *buf, size_t cap))
 {
     e.state_json = state_json;
     e.screen_json = screen_json;
@@ -588,8 +605,14 @@ esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap),
     if (!e.lock || !e.inputs || !e.state || !e.out[0].jobs || !e.out[1].jobs) {
         return ESP_ERR_NO_MEM;
     }
-    db_deck_listener_t l = {.input = on_input};
+    db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
+    static db_device_info_t info; /* decks that came before the listener */
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (db_deck_info(d, &info)) {
+            on_device(d, &info);
+        }
+    }
     return xTaskCreatePinnedToCore(poll_task, "events", 3072, NULL, 3, NULL, 0) == pdPASS ? ESP_OK
                                                                                           : ESP_ERR_NO_MEM;
 }

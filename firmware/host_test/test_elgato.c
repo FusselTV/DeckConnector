@@ -11,21 +11,24 @@ static int written_n;
 static uint8_t feature_set[32];
 static int flushes;
 
-static db_err_t fake_write(const uint8_t *r, size_t len)
+static db_err_t fake_write(const db_hid_io_t *io, const uint8_t *r, size_t len)
 {
+    (void)io;
     TEST_ASSERT_EQUAL_size_t(1024, len);
     memcpy(written[written_n++], r, len);
     return DB_OK;
 }
 
-static db_err_t fake_flush(void)
+static db_err_t fake_flush(const db_hid_io_t *io)
 {
+    (void)io;
     flushes++;
     return DB_OK;
 }
 
-static db_err_t fake_get_feature(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t fake_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
+    (void)io;
     static const char serial[] = "A00SA0000AA0A0";
     static const char fw[] = "1.01.008";
     memset(buf + 1, 0, len - 1);
@@ -44,8 +47,9 @@ static db_err_t fake_get_feature(uint8_t *buf, size_t len, size_t *out_len)
     return DB_OK;
 }
 
-static db_err_t fake_set_feature(const uint8_t *buf, size_t len)
+static db_err_t fake_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
+    (void)io;
     memcpy(feature_set, buf, len);
     return DB_OK;
 }
@@ -142,6 +146,33 @@ static void test_full_and_partial_strip_headers(void)
     /* x and y are relative to the strip */
     const uint8_t sh[16] = {0x02, 0x0c, 0x90, 0x01, 0, 0, 200, 0, 100, 0, 1, 0, 0, 10, 0, 0};
     TEST_ASSERT_EQUAL_HEX8_ARRAY(sh, written[1], 16);
+}
+
+static void test_neo_info_bar_is_one_whole_picture(void)
+{
+    TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, 0x0fd9, 0x009a));
+    db_rect_t bar = {0, 192, 248, 58};
+    const db_target_t *t = db_device_find_target(&dev.info, 0, bar);
+    TEST_ASSERT_NOT_NULL(t);
+    TEST_ASSERT_FALSE(t->partial);
+    uint8_t jpeg[1100];
+    for (size_t i = 0; i < sizeof(jpeg); i++) {
+        jpeg[i] = (uint8_t)i;
+    }
+    TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->write_image(&dev, t, bar, jpeg, sizeof(jpeg)));
+    TEST_ASSERT_EQUAL_INT(2, written_n);
+    const uint8_t first[8] = {0x02, 0x0b, 0, 0, 0xf8, 0x03, 0, 0}; /* 1016 bytes, part 0 */
+    const uint8_t last[8] = {0x02, 0x0b, 0, 1, 84, 0, 1, 0};
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(first, written[0], 8);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(last, written[1], 8);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(jpeg + 1016, written[1] + 8, 84);
+    db_chunk_t c;
+    TEST_ASSERT_TRUE(dev.driver->parse_output(&dev, written[1], 1024, &c));
+    TEST_ASSERT_TRUE(db_rect_eq(bar, c.rect));
+    TEST_ASSERT_EQUAL_UINT16(1, c.part);
+    TEST_ASSERT_TRUE(c.last);
+    written[0][1] = 0x0c; /* the + strip's command means nothing to the Neo */
+    TEST_ASSERT_FALSE(dev.driver->parse_output(&dev, written[0], 1024, &c));
 }
 
 static void round_trip(db_rect_t rect, size_t size)
@@ -307,6 +338,7 @@ int main(void)
     RUN_TEST(test_unit_info_as_the_dock_keeps_it);
     RUN_TEST(test_splits_key_image_into_reports);
     RUN_TEST(test_full_and_partial_strip_headers);
+    RUN_TEST(test_neo_info_bar_is_one_whole_picture);
     RUN_TEST(test_reads_back_what_it_writes);
     RUN_TEST(test_key_edges);
     RUN_TEST(test_encoder_turn_and_press);

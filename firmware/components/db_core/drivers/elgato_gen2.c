@@ -16,6 +16,7 @@
 enum {
     CMD_KEY = 0x07,
     CMD_FULL = 0x08,
+    CMD_STRIP_FULL = 0x0b,
     CMD_STRIP_PARTIAL = 0x0c,
     IN_KEYS = 0x00,
     IN_TOUCH = 0x02,
@@ -41,6 +42,7 @@ typedef struct {
     uint8_t encoders;
     uint8_t sensors; /* input-only keys after the image keys (Neo) */
     bool touch;      /* the strip takes touches */
+    bool strip_full; /* the strip takes only whole pictures, with an 8 byte header (Neo) */
     bool flip;
     uint16_t rotate; /* degrees clockwise before upload, see db_display_t */
 } model_t;
@@ -118,6 +120,7 @@ static const model_t models[] = {
      .height = 250,
      .strip = {0, 192, 248, 58},
      .sensors = 2,
+     .strip_full = true,
      .flip = true},
     {.pid = 0x008f,
      .name = "Stream Deck XL",
@@ -189,7 +192,7 @@ static void read_feature_string(db_dev_t *dev, uint8_t id, size_t skip, char *ou
     uint8_t buf[FEATURE_LEN] = {id};
     size_t n = 0;
     out[0] = '\0';
-    if (dev->io->get_feature(buf, sizeof(buf), &n) != DB_OK || n < 2) {
+    if (dev->io->get_feature(dev->io, buf, sizeof(buf), &n) != DB_OK || n < 2) {
         return;
     }
     size_t end = (size_t)buf[1] + 2;
@@ -234,7 +237,7 @@ static void fill_display(const model_t *m, db_device_info_t *info)
         }
     }
     if (m->strip.w) {
-        add_target(d, DB_TARGET_STRIP, 0, m->strip, true);
+        add_target(d, DB_TARGET_STRIP, 0, m->strip, !m->strip_full);
     }
     if (m->touch) {
         info->touch[info->touch_count++] = (db_touch_area_t){.display = 0, .rect = m->strip};
@@ -250,7 +253,7 @@ static void read_unit_info(db_dev_t *dev, const model_t *m)
     uint8_t buf[FEATURE_LEN] = {0x08};
     size_t n = 0;
     uint8_t *u = dev->info.unit_info;
-    if (dev->io->get_feature(buf, sizeof(buf), &n) == DB_OK && n >= 21 && buf[0] == 0x08) {
+    if (dev->io->get_feature(dev->io, buf, sizeof(buf), &n) == DB_OK && n >= 21 && buf[0] == 0x08) {
         u[0] = buf[1];
         u[1] = buf[2];
         memcpy(u + 3, buf + 3, 13);
@@ -284,6 +287,8 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .vid = ELGATO_VID,
                                .pid = pid,
                                .tested = m->tested,
+                               .dock = true,
+                               .surface = "streamdeck",
                                .key_count = (uint8_t)(m->cols * m->rows + m->sensors),
                                .encoder_count = m->encoders};
     fill_display(m, info);
@@ -294,14 +299,14 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
 }
 
 /* The header layout differs per command; see the Elgato docs. */
-static size_t write_header(uint8_t *rep, const db_target_t *t, db_rect_t rect, db_rect_t strip, bool last,
+static size_t write_header(uint8_t *rep, const db_target_t *t, db_rect_t rect, const model_t *m, bool last,
                            uint16_t part, uint16_t n)
 {
     rep[0] = 0x02;
-    if (t->kind == DB_TARGET_STRIP) {
+    if (t->kind == DB_TARGET_STRIP && !m->strip_full) {
         rep[1] = CMD_STRIP_PARTIAL;
-        db_put_u16(rep + 2, (uint16_t)(rect.x - strip.x));
-        db_put_u16(rep + 4, (uint16_t)(rect.y - strip.y));
+        db_put_u16(rep + 2, (uint16_t)(rect.x - m->strip.x));
+        db_put_u16(rep + 4, (uint16_t)(rect.y - m->strip.y));
         db_put_u16(rep + 6, rect.w);
         db_put_u16(rep + 8, rect.h);
         rep[10] = last;
@@ -309,7 +314,7 @@ static size_t write_header(uint8_t *rep, const db_target_t *t, db_rect_t rect, d
         db_put_u16(rep + 13, n);
         return 16;
     }
-    rep[1] = t->kind == DB_TARGET_FULL ? CMD_FULL : CMD_KEY;
+    rep[1] = t->kind == DB_TARGET_STRIP ? CMD_STRIP_FULL : (t->kind == DB_TARGET_FULL ? CMD_FULL : CMD_KEY);
     rep[2] = t->kind == DB_TARGET_KEY ? t->index : 0;
     rep[3] = last;
     db_put_u16(rep + 4, n);
@@ -325,20 +330,20 @@ static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect,
     size_t off = 0;
     uint16_t part = 0;
     while (off < len) {
-        size_t hdr = t->kind == DB_TARGET_STRIP ? 16 : 8;
+        size_t hdr = t->kind == DB_TARGET_STRIP && !m->strip_full ? 16 : 8;
         size_t room = REPORT_LEN - hdr;
         size_t n = len - off < room ? len - off : room;
         memset(rep, 0, sizeof(rep));
-        write_header(rep, t, rect, m->strip, off + n >= len, part, (uint16_t)n);
+        write_header(rep, t, rect, m, off + n >= len, part, (uint16_t)n);
         memcpy(rep + hdr, data + off, n);
-        db_err_t err = dev->io->write(rep, sizeof(rep));
+        db_err_t err = dev->io->write(dev->io, rep, sizeof(rep));
         if (err != DB_OK) {
             return err;
         }
         off += n;
         part++;
     }
-    return dev->io->flush();
+    return dev->io->flush(dev->io);
 }
 
 static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_chunk_t *out)
@@ -349,7 +354,7 @@ static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_c
     }
     size_t hdr = 8;
     *out = (db_chunk_t){.display = 0};
-    if (r[1] == CMD_STRIP_PARTIAL && m->strip.w) {
+    if (r[1] == CMD_STRIP_PARTIAL && m->strip.w && !m->strip_full) {
         hdr = 16;
         out->rect =
             (db_rect_t){(uint16_t)(db_get_u16(r + 2) + m->strip.x),
@@ -357,6 +362,11 @@ static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_c
         out->last = r[10] != 0;
         out->part = db_get_u16(r + 11);
         out->len = db_get_u16(r + 13);
+    } else if (r[1] == CMD_STRIP_FULL && m->strip_full) {
+        out->rect = m->strip;
+        out->last = r[3] != 0;
+        out->len = db_get_u16(r + 4);
+        out->part = db_get_u16(r + 6);
     } else if (r[1] == CMD_KEY || (r[1] == CMD_FULL && m->full_image)) {
         const db_display_t *d = &dev->info.displays[0];
         bool found = false;
@@ -547,7 +557,7 @@ static db_err_t set_brightness(db_dev_t *dev, uint8_t pct)
         return DB_OK; /* the Pedal has nothing to light; the Elgato dock sends it no display reports either */
     }
     uint8_t buf[FEATURE_LEN] = {0x03, 0x08, pct > 100 ? 100 : pct};
-    return dev->io->set_feature(buf, sizeof(buf));
+    return dev->io->set_feature(dev->io, buf, sizeof(buf));
 }
 
 const db_driver_t db_driver_elgato_gen2 = {

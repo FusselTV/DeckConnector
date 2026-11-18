@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 // The built demo (npm run build:demo) under a sub path, as the website serves it. No device. The "contract" project
 // compares the mock with the firmware simulator on its own port.
-const PORT = 5191
+const PORT = Number(process.env.DC_DEMO_PORT ?? 5191)
 const SIM = 18230
 export default defineConfig({
   testDir: 'e2e-demo',

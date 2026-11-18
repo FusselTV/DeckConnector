@@ -175,6 +175,12 @@ esp_err_t jpeg_port_encode_for(const db_display_t *display, const uint8_t *rgb, 
         }
     } else {
         err = jpeg_port_encode(src, ow, oh, quality, out, out_len);
+        while (err == ESP_OK && display->max_bytes && *out_len > display->max_bytes && quality > 20) {
+            heap_caps_free(*out);
+            *out = NULL;
+            quality = (uint8_t)(quality - 10);
+            err = jpeg_port_encode(src, ow, oh, quality, out, out_len);
+        }
     }
     heap_caps_free(up);
     return err;

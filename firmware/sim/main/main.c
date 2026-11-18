@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "db_config.h"
+#include "db_deck.h"
 #include "db_json.h"
 #include "db_serial.h"
 #include "db_ui.h"
@@ -21,12 +22,16 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "t", t);
+    db_json_str(&j, "id", "02005e000001");
     db_json_str(&j, "firmware", "sim");
     db_json_str(&j, "controller", "companion");
     db_json_bool(&j, "menu_open", db_ui_menu_open());
+    db_json_bool(&j, "screen_off", db_deck_screen_is_off());
+    db_json_int(&j, "brightness", db_config()->brightness);
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
+    db_json_str(&j, "https_ca", db_web_ca_short());
     db_json_int(&j, "uptime_s", 0);
     db_json_obj_open(&j, "setup");
     db_json_bool(&j, "active", !db_config()->setup_done || db_web_setup_step());
@@ -38,11 +43,23 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_null(&j, "at");
     db_json_obj_close(&j);
     db_json_arr_open(&j, "decks");
-    db_json_obj_open(&j, NULL);
-    db_json_str(&j, "model", "Stream Deck +");
-    db_json_str(&j, "serial", "SIM0001");
-    db_json_obj_close(&j);
+    db_device_info_t dev;
+    for (int d = 0; db_deck_info(d, &dev); d++) {
+        db_json_obj_open(&j, NULL);
+        db_json_int(&j, "slot", d);
+        db_json_int(&j, "number", d + 1);
+        db_json_str(&j, "model", dev.model);
+        db_json_str(&j, "serial", dev.serial);
+        db_json_str(&j, "firmware", dev.firmware);
+        db_json_int(&j, "keys", dev.key_count);
+        db_json_int(&j, "encoders", dev.encoder_count);
+        db_json_str(&j, "writer", db_deck_source_name(db_deck_writer(d)));
+        db_json_bool(&j, "dock", dev.dock);
+        db_json_int(&j, "brightness", db_deck_screen_is_off() ? 0 : db_deck_brightness(d));
+        db_json_obj_close(&j);
+    }
     db_json_arr_close(&j);
+    db_json_int(&j, "decks_over_limit", db_deck_over_limit());
     db_json_arr_open(&j, "sources");
     db_json_arr_close(&j);
     db_json_obj_close(&j);
@@ -75,7 +92,17 @@ void app_main(void)
     db_config_save(&cfg);
     db_web_start(status_json, state_json);
     db_serial_start();
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    for (;;) { /* the device's UI tick */
+        vTaskDelay(pdMS_TO_TICKS(200));
+        db_deck_screen_tick((int)db_config()->screen_off_s, db_ui_menu_open());
+        /* DB_SIM_PRESS_FILE: once it exists, key 1 of deck 1 is pressed as at the deck and the file removed. An
+         * API press is never real for a token, so the Home Assistant test needs this one. */
+        const char *press = getenv("DB_SIM_PRESS_FILE");
+        if (press && unlink(press) == 0) {
+            db_input_t in = {.kind = DB_INPUT_KEY_DOWN};
+            db_deck_simulate(0, &in, true, 0);
+            in.kind = DB_INPUT_KEY_UP;
+            db_deck_simulate(0, &in, true, 0);
+        }
     }
 }

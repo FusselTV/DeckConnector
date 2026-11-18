@@ -65,6 +65,7 @@ interface DeckFrontProps {
   label: string
   screen: Screen | null
   brightness: number
+  dark?: boolean
   armed: boolean
   /** The last input from the store, so presses on the real deck light up here. */
   last: InputEvent | undefined
@@ -354,7 +355,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     }
   }
 
-  const bri = 0.35 + (0.65 * p.brightness) / 100
+  const bri = p.dark ? 0.12 : 0.35 + (0.65 * p.brightness) / 100
   const D = M.dials
   const dialX = (i: number) => (D ? D.x + (D.w / D.n) * (i + 0.5) : 0)
   const style = {

@@ -40,7 +40,7 @@ import { DeckFront } from '../deck/DeckFront'
 import { MODELS } from '../deck/models'
 import type { T } from '../i18n'
 import { cx, ls, useLatest } from '../lib/util'
-import { chordSentence } from './DeckTab'
+import { chordSentence } from '../deck/chord'
 
 function Hero() {
   const { t, fmt } = useUi()
@@ -115,8 +115,10 @@ function Meter() {
       el: 'row-wlan',
       to: 'network',
       icon: Wifi,
-      tone: wlan?.ip ? ((wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
-      v: wlan?.ip ? `${wlan.ssid ?? ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}` : t('arm.off'),
+      tone: wlan?.ip ? (wlan.backup || (wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
+      v: wlan?.ip
+        ? `${wlan.ssid ?? ''}${wlan.backup ? ' · ' + t('wifi2.in_use') : ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}`
+        : t('arm.off'),
     },
     {
       k: 'tab.deck',
@@ -417,6 +419,7 @@ const LiveDeck = memo(function LiveDeck() {
   const armedAt = armAtom.use()
   const live = useStore((s) => s.conn === 'live')
   const bri = useStore((s) => s.config?.brightness ?? 80)
+  const dark = useStore((s) => !!s.status.screen_off)
   const last = useStore((s) => s.inputs[0])
   const nudge = nudgeAtom.use() > 0
   const decks = useMemo(
@@ -471,12 +474,14 @@ const LiveDeck = memo(function LiveDeck() {
       <span className="sr" role="status">
         {nudge ? t('arm.hint') : ''}
       </span>
+      {dark && <p className="small muted">{t('deck.dark')}</p>}
       <DeckFront
         key={sel}
         model={deck.kind}
         label={deckName(deck, sel, decks.length, t)}
         screen={screen}
         brightness={bri}
+        dark={dark}
         armed={armedAt > 0 && live}
         last={last}
         onLocked={onLocked}
@@ -723,7 +728,7 @@ function Controls() {
           type="button"
           className="btn"
           disabled={!deck}
-          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000))}
+          title={deck && chordSentence(t, chord, MODELS[deck.kind], fmt.dec(hold / 1000), deck)}
           aria-pressed={!!st.menu_open}
           onClick={() => void a.menu(decks.length > 1 ? deck?.serial : undefined)}
         >

@@ -55,6 +55,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/input', 'control'],
   ['POST', '/api/menu', 'control'],
   ['DELETE', '/api/menu', 'control'],
+  ['POST', '/api/screen', 'full'],
   ['POST', '/api/deck/reconnect', 'control'],
   ['POST', '/api/deck/stall', 'full'],
   ['POST', '/api/dock', 'full'],
@@ -67,6 +68,12 @@ const ROUTES: [string, string, Route['access']][] = [
   ['GET', '/api/backup', 'admin'],
   ['POST', '/api/tokens', 'admin'],
   ['DELETE', '/api/tokens/*', 'admin'],
+  ['GET', '/api/passkeys', 'admin'],
+  ['POST', '/api/passkeys', 'admin'],
+  ['PUT', '/api/passkeys/*', 'admin'],
+  ['DELETE', '/api/passkeys/*', 'admin'],
+  ['POST', '/api/passkeys/challenge', 'open'],
+  ['POST', '/api/login/passkey', 'open'],
   ['GET', '/api/ws', 'control'],
   ['POST', '/api/login', 'open'],
   ['POST', '/api/logout', 'open'],
@@ -82,6 +89,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['GET', '/api/frontend', 'control'],
   ['GET', '/api/companion/found', 'full'],
   ['GET', '/api/cert', 'open'],
+  ['GET', '/api/ca', 'open'],
   ['PUT', '/api/tls', 'admin'],
   ['DELETE', '/api/tls', 'full'],
   ['GET', '/api/input/log', 'control'],
@@ -210,7 +218,10 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     }
     return res('loginState', { state, s: left })
   }
-  if (route === 'GET /api/cert') return { status: 200, body: CERT }
+  if (route === 'GET /api/cert' || route === 'GET /api/ca') return { status: 200, body: CERT }
+  // the demo has no device to keep a passkey: the browser would make a real one for this site
+  if (route === 'POST /api/login/passkey' || (method !== 'GET' && path.startsWith('/api/passkeys')))
+    return fail(403, 'passkeys need HTTPS and a name, not an address', 'passkey_host')
   if (!OPEN.has(route) && !s.authed) return fail(401, 'login required')
 
   switch (route) {
@@ -232,7 +243,13 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
         status: 200,
         body: {
           ...config(s),
-          ...(q.get('secrets') ? { admin_pass: s.pass, wifi_pass: s.cfg.wifi_pass_set ? 'studio-wifi-pass' : '' } : {}),
+          ...(q.get('secrets')
+            ? {
+                admin_pass: s.pass,
+                wifi_pass: s.cfg.wifi_pass_set ? 'studio-wifi-pass' : '',
+                wifi2_pass: s.cfg.wifi2_pass_set ? 'backup-wifi-pass' : '',
+              }
+            : {}),
         },
       }
     case 'PUT /api/config':
@@ -268,6 +285,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       s.recoveries = (s.recoveries ?? 0) + 1
       event(s, now, 'deck', 'deck reconnected on request, USB recovery')
       return ok()
+    case 'POST /api/screen':
     case 'POST /api/deck/stall':
       return ok()
     case 'DELETE /api/ap':
@@ -414,6 +432,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
           stack_free: { deck: 2140, link: 3012, web: 4420, net: 1880, main: 2600 },
         },
       }
+    case 'GET /api/passkeys':
+      return res('passkeys', [])
     case 'GET /api/tokens':
       return res('tokens', s.tokens)
     case 'POST /api/tokens':

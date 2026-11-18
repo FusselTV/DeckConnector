@@ -8,6 +8,7 @@ import type {
   InputBody,
   InputLogEntry,
   Inspect,
+  Passkey,
   Metrics,
   Profile,
   PutReply,
@@ -162,6 +163,14 @@ export const api = {
   makeToken: (name: string, right: 'control' | 'full') =>
     request<Token & { token: string }>('/api/tokens', { body: { name, right } }),
   dropToken: (name: string) => request<{ ok: boolean }>('/api/tokens/' + enc(name), { method: 'DELETE' }),
+  passkeys: () => list(request<Passkey[]>('/api/passkeys')),
+  passkeyChallenge: (login: boolean) =>
+    request<{ challenge: string }>('/api/passkeys/challenge', { body: { login }, quiet: login }),
+  addPasskey: (body: Record<string, string | number>) => request<{ id: number }>('/api/passkeys', { body }),
+  renamePasskey: (id: number, name: string) =>
+    request<{ ok: boolean }>(`/api/passkeys/${id}`, { method: 'PUT', body: { name } }),
+  dropPasskey: (id: number) => request<{ ok: boolean }>(`/api/passkeys/${id}`, { method: 'DELETE' }),
+  passkeyLogin: (body: Record<string, string>) => request<{ ok: boolean }>('/api/login/passkey', { body, quiet: true }),
   inputLog: (since = 0) => list(request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : ''))),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>
@@ -181,4 +190,5 @@ export const api = {
 }
 
 export const certUrl = '/api/cert'
+export const caUrl = '/api/ca'
 export const coredumpRawUrl = '/api/coredump?raw=1'

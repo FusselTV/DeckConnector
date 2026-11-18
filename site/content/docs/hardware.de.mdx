@@ -1,6 +1,6 @@
 ---
 title: Hardware
-description: Die ESP32-P4-Platine für DeckConnector, ihre Stromversorgung und welche Elgato Stream Decks damit laufen.
+description: Die ESP32-P4-Platine für DeckConnector, ihre Stromversorgung und welche Decks damit laufen.
 ---
 
 ## Platine
@@ -24,11 +24,18 @@ Mit PoE laufen Platine und Deck über ein Kabel. Stecken PoE und USB-C, läuft d
 |---|---|
 | Stream Deck + | Getestet. 8 Tasten, 4 Drehregler, Touchleiste |
 | Stream Deck MK.2, XL, Stream Deck V2 | Im Treiber, noch nicht getestet |
-| Stream Deck Neo | Im Treiber, noch nicht getestet. Companion bekommt nur die acht Tasten |
+| Stream Deck Neo | Im Treiber, noch nicht getestet |
+| Mirabox, Ajazz, Soomfon, Streonor: Stream Dock 293V3, 293S, XL, N3, N4, N4 Pro, AKP153, AKP153E, AKP03E, AKP05E, CN002, S15 | Sollte laufen, nicht auf Hardware getestet. Nur mit Companion und eigenen Servern |
+
+Manche dieser Decks haben alle dieselbe Seriennummer. Die Platine erkennt sie an ihrem USB-Port. Steck jedes deshalb immer in denselben Port.
+
+Manche Bedienelemente melden nur das Drücken, nicht das Loslassen: die Drehregler und die Touchleiste von N4, N4 Pro und Ajazz AKP05E, die rechte Tastenspalte des 293S und alle Tasten des Ajazz AKP153 und des 293S mit der USB-ID 5548:6670. Halten geht bei ihnen nicht, ein langer Druck in Companion wirkt dort also nicht. Welche Tasten das Menü öffnen, zeigt der Reiter Deck.
 
 Ein Server bekommt für ein ungetestetes Modell `"tested": false` in der `device`-Nachricht.
 
-Hinter einem USB-Hub steuert die Platine mehr als ein Deck. Das gewählte Programm steuert alle, jedes als eigene Surface oder eigenes Gerät. Ein Hub erzwingt oft Full Speed, dann kommen Bilder langsamer.
+Hinter einem USB-Hub steuert die Platine bis zu vier Decks. Standard sind zwei, denn alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports der Platine. Das Limit stellst du in der Weboberfläche unter Deck ein. Decks über dem Limit bleiben dunkel. Ein kleineres Limit gilt für Decks, die du danach einsteckst.
+
+Ein Deck allein ist immer Deck 1. Bei mehreren Decks behält jedes seine Nummer, auch wenn du es neu einsteckst. Companion und die Elgato-App sehen jedes Deck als eigene Surface oder eigenes Gerät. Ein [eigener Server](/de/docs/own-server) zeichnet nur auf dem Deck mit der kleinsten Nummer. Das Menü öffnet sich auf dem Deck, an dem du die Tasten hältst. Ein Hub erzwingt oft Full Speed, dann kommen Bilder langsamer.
 
 Messwerte stehen unter [Messwerte](/de/docs/speed).
 

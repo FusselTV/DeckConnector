@@ -83,6 +83,9 @@ static void write_display(db_json_t *j, uint8_t id, const db_display_t *d)
     db_json_int(j, "rotate", d->rotate);
     db_json_bool(j, "flip_x", d->flip_x);
     db_json_bool(j, "flip_y", d->flip_y);
+    if (d->max_bytes) {
+        db_json_int(j, "max_bytes", d->max_bytes);
+    }
     db_json_arr_open(j, "targets");
     for (uint8_t i = 0; i < d->target_count; i++) {
         const db_target_t *t = &d->targets[i];

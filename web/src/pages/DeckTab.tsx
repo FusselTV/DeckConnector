@@ -1,6 +1,5 @@
 import { CircleCheck, Gauge, LayoutGrid, SquareMenu, TriangleAlert, Turtle, Unplug, Usb } from 'lucide-react'
 import { useState } from 'react'
-import type { Config } from '../api/types'
 import { decksOf, deckName } from '../app/derive'
 import { deckSelAtom } from '../app/state'
 import { useStore } from '../app/store'
@@ -8,28 +7,12 @@ import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { describedBy, Field, Help, Seg, SIcon } from '../components/controls'
 import { useDraft } from '../components/SaveBar'
+import { chordHl, chordSentence, type Hl } from '../deck/chord'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
-import type { T } from '../i18n'
 import { cx, roam } from '../lib/util'
 
-type Chord = Config['menu_chord']
-interface Hl {
-  keys: number[]
-  dials: number[]
-}
-function chordHl(o: Chord, M: Model): Hl {
-  const nk = M.cols * M.rows
-  const dials = M.dials?.n ?? 0
-  const enc = { keys: [], dials: [0, Math.min(3, dials - 1)] }
-  const key = { keys: [0, nk - 1], dials: [] }
-  return o === 'encoders' ? enc : o === 'keys' ? key : o === 'auto' ? (dials ? enc : key) : { keys: [], dials: [] }
-}
-export function chordSentence(t: T, o: Chord, M: Model, holdS: string) {
-  const hl = chordHl(o, M)
-  if (o === 'off') return t('chord.s_off')
-  const [a = 0, b = 0] = hl.dials.length ? hl.dials : hl.keys
-  return t(hl.dials.length ? 'chord.s_dials' : 'chord.s_keys', { a: a + 1, b: b + 1, s: holdS })
-}
+const OFF_PRESETS = ['0', '60', '300', '900', '1800', '3600']
+const duration = (s: number) => (s % 60 ? `${s} s` : `${s / 60} min`)
 
 function MiniDeck({ kind, hl }: { kind: ModelKey; hl: Hl }) {
   const M: Model = MODELS[kind]
@@ -67,6 +50,8 @@ export function DeckTab() {
     chord: cfg?.menu_chord ?? 'auto',
     hold: (cfg?.menu_hold_ms ?? 2000) / 1000,
     usb: cfg?.usb_speed ?? 'auto',
+    max: String(cfg?.max_decks) as '1' | '2' | '3' | '4',
+    off: String(cfg?.screen_off_s ?? 0),
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
@@ -92,9 +77,12 @@ export function DeckTab() {
       ...(changed('chord') ? { menu_chord: v.chord } : {}),
       ...(changed('hold') ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
       ...(changed('usb') ? { usb_speed: v.usb } : {}),
+      ...(changed('max') ? { max_decks: Number(v.max) } : {}),
+      ...(changed('off') ? { screen_off_s: Number(v.off) } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
+  const offs = OFF_PRESETS.includes(base.off) ? OFF_PRESETS : [...OFF_PRESETS, base.off]
   return (
     <div className="cards">
       <Card
@@ -175,13 +163,47 @@ export function DeckTab() {
           />
           {multi && <span className="hint">{t('deck.settings_for')}</span>}
         </fieldset>
+        {(multi || !!st.decks_over_limit) && (
+          <fieldset className="gate field" disabled={!cfg}>
+            <span className="flabel">
+              {t('deck.max')}
+              <Help label={t('deck.max')} text={t('deck.max_h')} />
+            </span>
+            <Seg
+              id="max-decks"
+              label={t('deck.max')}
+              value={v.max}
+              onChange={(max) => set({ max })}
+              options={(['1', '2', '3', '4'] as const).map((n) => [n, n] as const)}
+            />
+          </fieldset>
+        )}
+        <fieldset className="gate field" disabled={!cfg}>
+          <span className="flabel">
+            {t('deck.off')}
+            <Help label={t('deck.off')} text={t('deck.off_h')} />
+          </span>
+          <Seg
+            id="screen-off"
+            label={t('deck.off')}
+            value={v.off}
+            onChange={(off) => set({ off })}
+            options={offs.map((s) => [s, s === '0' ? t('deck.never') : duration(Number(s))] as const)}
+          />
+        </fieldset>
       </Card>
       <fieldset className="gate" disabled={!cfg}>
         <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>
           <div className="chordnow">
-            <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind])} />
+            <MiniDeck kind={kind} hl={chordHl(v.chord, MODELS[kind], deck)} />
             <p>
-              {chordSentence(t, v.chord, MODELS[kind], fmt.dec(holdErr ? (cfg?.menu_hold_ms ?? 2000) / 1000 : v.hold))}
+              {chordSentence(
+                t,
+                v.chord,
+                MODELS[kind],
+                fmt.dec(holdErr ? (cfg?.menu_hold_ms ?? 2000) / 1000 : v.hold),
+                deck,
+              )}
               {multi && deck && (
                 <>
                   <br />
@@ -217,7 +239,7 @@ export function DeckTab() {
                     disabled={dis}
                     onClick={() => set({ chord: o })}
                   >
-                    <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind])} />
+                    <MiniDeck kind={kind} hl={chordHl(o, MODELS[kind], deck)} />
                     <div>
                       <b>{t(`chord.${o}`)}</b>
                       <span>{dis ? t('deck.no_dials') : t(`chord.d_${o}`)}</span>

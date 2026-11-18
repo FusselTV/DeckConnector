@@ -72,6 +72,8 @@ Routes that act on a deck take `?deck=<serial>` from `decks` in the status. With
 | `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request | open |
 | `GET /api/login/request/<id>` | `state` is `pending`, `accepted`, `denied`, `expired` or `used`. With `accepted` the reply sets the session cookie once | open |
 | `DELETE /api/login/request/<id>` | Takes the request back | open |
+| `POST /api/passkeys/challenge` | `{"login": true}` for a login, `false` for a new passkey. Answers `{"challenge": "<hex>"}`. It works once, for 2 minutes, from this address. 30 per 10 s and address, else 429. Over HTTPS by name only, else 403 | open |
+| `POST /api/login/passkey` | The reply of `navigator.credentials.get()`, with `id`, `clientDataJSON`, `authenticatorData` and `signature` in base64url. The passkey must verify the user. Sets the session cookie. A refused passkey counts like a wrong password, an unknown or used challenge does not | open |
 | `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck | open |
 | `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}` | open |
 | `DELETE /api/password/reset` | Ends the question | open |
@@ -86,7 +88,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `OPTIONS /api/...` | The CORS preflight for the origins in `cors_origins` | open |
 | `GET /api/ws` | The live [WebSocket](#websocket) | control |
 | `GET /api/status` | State of the board, see [Status](#status) | control |
-| `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set` and `token_set` | full |
+| `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set`, `wifi2_pass_set` and `token_set` | full |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config` | full |
 | `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. During setup the board connects at once, later the deck asks for 60 s | open |
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
@@ -107,6 +109,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/input/log` | The last 200 inputs. `?since=<seq>` for newer ones only | control |
 | `POST /api/menu` | Open the deck menu. 409 without a deck | control |
 | `DELETE /api/menu` | Close the deck menu, the password, the reset question and a login request | control |
+| `POST /api/screen` | `{"on": false}` turns every deck dark now, `{"on": true}` lights them again. No press is swallowed | full |
 | `POST /api/deck/reconnect` | Turn the USB port off and on. `?off_s=N` (1 to 600) keeps it off for N seconds | control |
 | `POST /api/deck/stall` | Stop the image output as a hung deck would, for tests | full |
 | `POST /api/sound/selftest` | Play `find` and record it with the board's microphone, for tests. Three controls: another pitch (1500 Hz) in the same recording, `find` at volume 0, and `find` with the amplifier off. `heard` is true when the tone is more than 10 times each of them. Optional: `volume` 1 to 100 (60), `gain` 0 to 42 dB (24). Takes about 6 seconds. 503 with the reason when a run fails | full |
@@ -150,7 +153,12 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/tokens` | The API keys, `name` and `right` | admin |
 | `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Shows the key once. `name` has 1 to 23 letters, digits, `-` or `_` | admin |
 | `DELETE /api/tokens/<name>` | Ends that key at once | admin |
+| `GET /api/passkeys` | The passkeys, with `id`, `name` and `rp`, the name each one works at | admin |
+| `POST /api/passkeys` | The reply of `navigator.credentials.create()`, with `name`, `id`, `clientDataJSON`, `authenticatorData`, `publicKey` (SPKI) and `publicKeyAlgorithm` (`-7`), binary parts in base64url. ES256 with user verification only, up to 8 | admin |
+| `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 to 23 bytes | admin |
+| `DELETE /api/passkeys/<id>` | Removes that passkey | admin |
 | `GET /api/cert` | The HTTPS certificate as PEM | open |
+| `GET /api/ca` | The board's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate. With `"apply": true` it is kept and the board restarts | admin |
 | `DELETE /api/tls` | Back to the board's own certificate, with a restart | full |
 
@@ -171,11 +179,11 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 {"name": "deckconnector-a1b2c3", "controller": "companion", "host": "satellite", "brightness": 80,
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
- "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "",
+ "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "", "wifi2_ssid": "", "wifi2_pass_set": false,
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "dock_paired_only": false, "qr_login": true, "ntp_server": "", "setup_done": true, "token_set": false}
+ "max_decks": 2, "screen_off_s": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false}
 ```
 
 | Key | Values |
@@ -187,6 +195,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `lan`, `wlan` | `dhcp`, or `ip` and `mask` with an optional `gateway` and `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` has 8 to 63 characters, 64 hex digits, or is empty for an open network |
 | `wifi_bssid` | Lock to one access point, empty for any |
+| `wifi2_ssid`, `wifi2_pass` | The backup Wi-Fi, same values as `wifi_ssid` and `wifi_pass`. Empty turns it off |
 | `servers` | Up to 4 `ws://` or `wss://` URLs. Empty finds servers over mDNS |
 | `server_pins` | SHA-256 per server, same position as in `servers` |
 | `satellite` | Companion's address: `host`, `host:port` or a `ws://` or `wss://` URL. Empty turns it off |
@@ -198,13 +207,16 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `lang` | What the deck's own screens speak: `de` or `en` |
 | `menu_hold_ms` | 500 to 10000 |
 | `usb_speed` | `auto` or `full` |
+| `max_decks` | 1 to 4 decks at once, 2 by default |
+| `screen_off_s` | Seconds without input until every deck goes dark, 10 to 86400. 0 means never and is the default |
 | `dock_paired_only` | Only paired dock hosts get in |
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
+| `trusted_proxy` | A reverse proxy's IPv4 address, empty for none. See [Behind a reverse proxy](/docs/security/#behind-a-reverse-proxy) |
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -218,12 +230,12 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 {"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
- "menu_open": false,
+ "menu_open": false, "screen_off": false, "brightness": 80,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
              "wlan": {"ssid": "studio", "ip": "192.168.1.51", "bssid": "aa:bb:cc:dd:ee:ff", "channel": 1,
-                      "lock": "", "rssi": -48, "join": "", "join_error": ""},
+                      "lock": "", "backup": false, "rssi": -48, "join": "", "join_error": ""},
              "ap": {"on": false, "ssid": ""}},
  "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
               "connected": true, "chosen": true, "drawing": true}],
@@ -235,12 +247,17 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 |---|---|
 | `id` | The MAC address. Stays when the name changes |
 | `writer` | Who draws now: `ui`, `server1` to `server4`, `dock1` to `dock4`, or `satellite`. `ui` while the menu is open, an update runs, or the chosen host is not connected |
-| `device` | The first deck, `null` without one. `decks` lists every deck |
+| `device` | The first deck, `null` without one. `decks` lists every deck with its `slot` (0 for deck 1) and `number` (1 for deck 1) |
+| `decks[].locked` | Companion over Satellite draws on the deck and locked it with its PIN. The deck shows the number pad |
+| `decks_over_limit` | Decks plugged in but dark because of `max_decks` |
 | `sources` | Every host. `chosen` marks the one that draws when no menu covers it. Servers and Satellite also have `error`, `since_s` and `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` or `other` |
 | `setup` | `step` of the web wizard, `active` until setup is done |
 | `menu_open` | The menu, the password, the reset question or a login request covers the deck |
+| `screen_off` | Every deck is dark after `screen_off_s` without input. The first input wakes them and reaches no host. `decks[].brightness` is 0 then |
+| `brightness` | The brightness setting. `decks[].brightness` is what each deck shows |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
+| `network.wlan.backup` | The board is on the backup Wi-Fi, `ssid` names it |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
 
@@ -300,13 +317,13 @@ Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host i
 | `t` | When |
 |---|---|
 | `state` | At once, then on every change. The status without uptime, signal and counters |
-| `screen` | The picture changed |
-| `input` | Someone used the deck. `simulated` is true for an API press without `"real"`. An API key never gets simulated presses |
+| `screen` | The picture of the deck in `deck` (its serial) changed |
+| `input` | Someone used the deck in `deck`. `simulated` is true for an API press without `"real"`. An API key never gets simulated presses |
 | `ota` | Update progress: `target`, `state`, `pct`, and `error` |
 | `ping` | Every 5 s. Without any message for 12 s, connect again |
 | `log` | New log text, only after `{"t": "log"}`. Needs the password or a `full` key |
 
-To change something, send the keys of `PUT /api/config` or `POST /api/input` with an `id`.
+To change something, send the keys of `PUT /api/config` or `POST /api/input` with an `id`. An input goes to the first deck, or to the one whose serial is in `deck`. `GET /api/input/log` names the deck the same way.
 
 ```json
 {"t": "set", "id": 1, "brightness": 40}

@@ -13,6 +13,7 @@
 #include "db_quirks.h"
 #include "db_sat.h"
 #include "db_satellite.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -38,6 +39,8 @@ static const char *TAG = "dock";
 
 /* One host connection. The dock port answers about the dock, the device port passes HID through. */
 typedef struct {
+    int deck;
+    int host; /* its deck source is DB_SOURCE_DOCK0 + host */
     bool device_port;
     uint8_t connection_no;
     volatile int sock;
@@ -49,18 +52,34 @@ typedef struct {
     uint8_t out[DB_CORA_HDR_LEN + DB_CORA_REPORT_LEN]; /* under tx */
 } conn_t;
 
+#define CONNS (DB_MAX_DECKS * 2 * DB_DOCK_HOSTS)
+
 static struct {
     void (*hosts_changed)(void);
-    conn_t docks[DB_DOCK_HOSTS];
-    conn_t devices[DB_DOCK_HOSTS];
-    db_cora_dock_t info;
-    db_device_info_t attached;
+    db_cora_dock_t info[DB_MAX_DECKS];
     SemaphoreHandle_t info_lock;
 } s;
+
+/* By deck, then dock and device port, then host. Zero until db_dock_start: the deck's UI asks for hosts
+ * before then. */
+static conn_t conns[CONNS] EXT_RAM_BSS_ATTR;
+static db_device_info_t attached[DB_MAX_DECKS] EXT_RAM_BSS_ATTR;
+
+static conn_t *conn(int deck, bool device_port, int host)
+{
+    return &conns[(deck * 2 + device_port) * DB_DOCK_HOSTS + host];
+}
+
+static uint16_t port_of(int deck, bool device_port)
+{
+    return (uint16_t)((device_port ? DB_CORA_DEVICE_PORT : DB_CORA_DOCK_PORT) + 2 * deck);
+}
 
 static void note_kind(uint32_t ip, db_controller_t kind);
 static bool refuse(conn_t *c, db_controller_t kind);
 static void keep_peers(void);
+/* the keepalive task saves them: a flash write held a host's first answer 3 to 70 ms */
+static bool peers_due;
 
 /* block false: skip a host that is not reading instead of waiting up to the send timeout for it */
 static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload,
@@ -97,7 +116,7 @@ static void send_dock_report(conn_t *c, uint8_t cmd, uint32_t id)
 {
     uint8_t out[DB_CORA_REPORT_LEN];
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
-    db_cora_dock_report(cmd, &s.info, out);
+    db_cora_dock_report(cmd, &s.info[c->deck], out);
     xSemaphoreGive(s.info_lock);
     send_frame(c, 0, 0, id, out, sizeof(out));
 }
@@ -106,7 +125,7 @@ _Static_assert(DB_DOCK_HOSTS == DB_SOURCE_DOCKS, "one deck source per dock host"
 
 static db_source_t source_of(const conn_t *c)
 {
-    return (db_source_t)(DB_SOURCE_DOCK0 + (c - s.devices));
+    return (db_source_t)(DB_SOURCE_DOCK0 + c->host);
 }
 
 static void report_clients(void)
@@ -129,7 +148,7 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
         db_log_event(TAG, "source", "%s at %s connected", db_controller_name(c->kind), ip);
         note_kind(c->ip, c->kind);
-        keep_peers();
+        __atomic_store_n(&peers_due, true, __ATOMIC_RELAXED);
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
                              next event */
     }
@@ -149,7 +168,7 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         }
         ESP_LOGI(TAG, "device host is %s", db_controller_name(c->kind));
         note_kind(c->ip, c->kind);
-        keep_peers();
+        __atomic_store_n(&peers_due, true, __ATOMIC_RELAXED);
         db_log_mark(c->kind == DB_CTRL_APP ? DB_MARK_APP : DB_MARK_COMPANION);
         report_clients();
     }
@@ -161,21 +180,22 @@ static void handle_device(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         }
         return;
     }
-    db_quirk_t q = s.info.device ? db_quirk(s.info.device->pid, h->op, p, h->len) : (db_quirk_t){0};
+    const db_device_info_t *dev = s.info[c->deck].device;
+    db_quirk_t q = dev ? db_quirk(dev->pid, h->op, p, h->len) : (db_quirk_t){0};
     esp_err_t err = ESP_OK;
     switch (h->op) {
     case DB_CORA_OP_WRITE:
-        err = q.block ? ESP_FAIL : db_deck_raw_write(source_of(c), p, h->len);
+        err = q.block ? ESP_FAIL : db_deck_raw_write(c->deck, source_of(c), p, h->len);
         break;
     case DB_CORA_OP_SEND_REPORT:
-        err = q.block ? ESP_FAIL : db_deck_raw_set_feature(source_of(c), p, h->len);
+        err = q.block ? ESP_FAIL : db_deck_raw_set_feature(c->deck, source_of(c), p, h->len);
         break;
     case DB_CORA_OP_GET_REPORT: {
         /* Always answer a whole 32 byte report with op 0. Companion sends
          * only the report id and needs all 32 bytes, or the serial number is lost. */
         uint8_t buf[32] = {h->len ? p[0] : 0};
         size_t n = 0;
-        if (db_deck_raw_get_feature(buf, sizeof(buf), &n) != ESP_OK) {
+        if (db_deck_raw_get_feature(c->deck, buf, sizeof(buf), &n) != ESP_OK) {
             ESP_LOGW(TAG, "feature report 0x%02x failed", buf[0]);
         }
         send_frame(c, DB_CORA_FLAG_VERBATIM | DB_CORA_FLAG_RESULT, 0, h->id, buf, sizeof(buf));
@@ -216,6 +236,7 @@ static bool read_full(int sock, uint8_t *buf, size_t len)
 
 static volatile bool rejoining;
 static uint32_t rejoin_ip, rejoin_local_ip; /* one rejoin at a time, while rejoining */
+static int rejoin_deck;
 static void rejoin_app(void *arg);
 
 static void serve(conn_t *c, int sock, uint8_t *payload)
@@ -249,7 +270,8 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     uint32_t ip = c->ip;
     uint32_t local_ip = c->local_ip;
     if (c->device_port) {
-        db_deck_forget(source_of(c)); /* the next host in this slot must not show this one's picture */
+        db_deck_forget(c->deck,
+                       source_of(c)); /* the next host in this slot must not show this one's picture */
     }
     xSemaphoreTake(c->tx, portMAX_DELAY);
     c->sock = -1;
@@ -266,6 +288,7 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
         rejoining = true;
         rejoin_ip = ip;
         rejoin_local_ip = local_ip;
+        rejoin_deck = c->deck;
         if (xTaskCreate(rejoin_app, "dock_rejoin", 3072, NULL, 3, NULL) != pdPASS) {
             rejoining = false;
         }
@@ -302,11 +325,11 @@ static void host_task(void *arg)
     vTaskDelete(NULL);
 }
 
-static char dock_instance[48]; /* set while the dock service is registered */
+static char dock_instance[DB_MAX_DECKS][48]; /* set while the dock service is registered */
 /* the keepalive, the deck timer and the rejoin tasks all add and remove the service */
 static SemaphoreHandle_t mdns_lock;
-static void announce(void);
-static void withdraw(void);
+static void announce(int deck);
+static void withdraw(int deck);
 
 /* The hosts of the last boot, so that after a power cut their old connections can be ended. */
 typedef struct {
@@ -321,14 +344,14 @@ typedef struct {
 /* After a host said what it is: a refused one must not write to NVS every few seconds. */
 static void keep_peers(void)
 {
-    static peer_t saved[2 * DB_DOCK_HOSTS];
-    peer_t now[2 * DB_DOCK_HOSTS] = {0};
+    static peer_t saved[CONNS];
+    static peer_t now[CONNS];
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
-    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
-        const conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+    memset(now, 0, sizeof(now));
+    for (int i = 0; i < CONNS; i++) {
+        const conn_t *c = &conns[i];
         if (c->sock >= 0 && c->kind != DB_CTRL_SERVER) {
-            now[i] = (peer_t){c->ip, c->local_ip, c->peer_port,
-                              c->device_port ? DB_CORA_DEVICE_PORT : DB_CORA_DOCK_PORT};
+            now[i] = (peer_t){c->ip, c->local_ip, c->peer_port, port_of(c->deck, c->device_port)};
         }
     }
     if (memcmp(now, saved, sizeof(now)) == 0) {
@@ -352,15 +375,15 @@ static void keep_peers(void)
 
 /* the Elgato App marks the dock offline and waits for the service to come online again; it misses an
  * announcement that comes before it has noticed */
-static void announce_anew(void)
+static void announce_anew(int deck)
 {
-    if (!dock_instance[0]) {
+    if (!dock_instance[deck][0]) {
         return;
     }
     vTaskDelay(pdMS_TO_TICKS(3000));
-    withdraw();
+    withdraw(deck);
     vTaskDelay(pdMS_TO_TICKS(500));
-    announce();
+    announce(deck);
 }
 
 /*
@@ -371,8 +394,8 @@ static void announce_anew(void)
  */
 static void reset_old_peers(void *arg)
 {
-    peer_t peers[2 * DB_DOCK_HOSTS] = {0};
-    size_t len = sizeof(peers);
+    peer_t peers[CONNS] = {0};
+    size_t len = sizeof(peers); /* a blob of older firmware is shorter and fits */
     nvs_handle_t h;
     if (nvs_open("dock", NVS_READONLY, &h) != ESP_OK) {
         vTaskDelete(NULL);
@@ -384,13 +407,13 @@ static void reset_old_peers(void *arg)
         vTaskDelete(NULL);
         return;
     }
-    int socks[2 * DB_DOCK_HOSTS];
+    int socks[CONNS];
     int n = 0;
     /* lwIP binds to an address no interface has yet, and the reset would leave the wrong way: wait until the
      * old address is up again, LAN can take 10 s */
     for (int round = 0; round < 100; round++) {
         bool waiting = false;
-        for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+        for (int i = 0; i < CONNS; i++) {
             if (!peers[i].ip) {
                 continue;
             }
@@ -416,12 +439,12 @@ static void reset_old_peers(void *arg)
         close(socks[i]);
     }
     int missed = 0;
-    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
+    for (int i = 0; i < CONNS; i++) {
         missed += peers[i].ip != 0;
     }
     ESP_LOGI(TAG, "ended %d connections of the last boot, %d hosts not reached", n, missed);
-    if (n) {
-        announce_anew();
+    for (int d = 0; n && d < DB_MAX_DECKS; d++) {
+        announce_anew(d);
     }
     vTaskDelete(NULL);
 }
@@ -452,7 +475,7 @@ static void rejoin_app(void *arg)
         uint32_t from = n.lan_dead && n.wlan_up ? inet_addr(n.wlan_ip)
                                                 : rejoin_local_ip; /* a dead LAN keeps its address */
         if (db_net_path_ready(from, rejoin_ip)) {
-            announce_anew();
+            announce_anew(rejoin_deck);
             break;
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -830,8 +853,8 @@ size_t db_dock_known(db_dock_peer_t *out, size_t max)
 
 bool db_dock_peer_connected(const db_dock_peer_t *p)
 {
-    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
-        const conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+    for (int i = 0; i < CONNS; i++) {
+        const conn_t *c = &conns[i];
         if (c->sock >= 0 && c->ip == p->ip) {
             return true;
         }
@@ -887,8 +910,11 @@ static bool refuse(conn_t *c, db_controller_t kind)
 
 void db_dock_drop_satellite_host(void)
 {
-    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
-        conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+    for (int i = 0; i < CONNS; i++) {
+        conn_t *c = &conns[i];
+        if (!c->tx) {
+            return; /* before db_dock_start */
+        }
         xSemaphoreTake(c->tx, portMAX_DELAY);
         if (c->sock >= 0 && c->kind == DB_CTRL_COMPANION && satellite_host(c->ip)) {
             shutdown(c->sock, SHUT_RDWR);
@@ -897,79 +923,107 @@ void db_dock_drop_satellite_host(void)
     }
 }
 
+static void accept_host(int ls, int deck, bool device_port)
+{
+    uint16_t port = port_of(deck, device_port);
+    struct sockaddr_in from;
+    socklen_t len = sizeof(from);
+    int sock = accept(ls, (struct sockaddr *)&from, &len);
+    if (sock < 0) {
+        ESP_LOGW(TAG, "port %u: accept failed: %s", port, strerror(errno));
+        return;
+    }
+    conn_t *c = NULL;
+    for (int i = 0; i < DB_DOCK_HOSTS && !c; i++) {
+        c = conn(deck, device_port, i)->sock < 0 ? conn(deck, device_port, i) : NULL;
+    }
+    char ip[16];
+    inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
+    if (!admit(from.sin_addr.s_addr)) {
+        ESP_LOGW(TAG, "port %u: %s is not paired, asking on the deck", port, ip);
+        close(sock);
+        return;
+    }
+    if (!c) {
+        ESP_LOGW(TAG, "port %u: %s refused, %d hosts connected", port, ip, DB_DOCK_HOSTS);
+        close(sock);
+        return;
+    }
+    ESP_LOGI(TAG, "%s host %s on port %u", device_port ? "device" : "dock", ip, port);
+    c->ip = from.sin_addr.s_addr;
+    c->peer_port = from.sin_port;
+    struct sockaddr_in at;
+    socklen_t at_len = sizeof(at);
+    c->local_ip = getsockname(sock, (struct sockaddr *)&at, &at_len) == 0 ? at.sin_addr.s_addr : 0;
+    c->kind = DB_CTRL_SERVER;
+    c->sock = sock;
+    if (xTaskCreatePinnedToCore(host_task, device_port ? "dock_dev" : "dock_host", 4096, c,
+                                device_port ? 7 : 6, NULL, 0) != pdPASS) {
+        ESP_LOGE(TAG, "no memory for a host task, %s refused", ip);
+        close(sock);
+        c->sock = -1;
+    }
+}
+
 static void listen_task(void *arg)
 {
-    bool device_port = arg != NULL;
-    conn_t *pool = device_port ? s.devices : s.docks;
-    uint16_t port = device_port ? DB_CORA_DEVICE_PORT : DB_CORA_DOCK_PORT;
-    int ls = -1;
+    int ls[DB_MAX_DECKS * 2];
+    memset(ls, -1, sizeof(ls));
     for (;;) {
-        if (ls < 0) {
-            ls = listen_on(port, DB_DOCK_HOSTS);
-        }
-        struct sockaddr_in from;
-        socklen_t len = sizeof(from);
-        int sock = ls >= 0 ? accept(ls, (struct sockaddr *)&from, &len) : -1;
-        if (sock < 0) {
-            if (ls >= 0) {
-                ESP_LOGW(TAG, "port %u: accept failed: %s", port, strerror(errno));
+        fd_set ready;
+        FD_ZERO(&ready);
+        int top = -1;
+        for (int i = 0; i < DB_MAX_DECKS * 2; i++) {
+            /* a socket each, of 40 in all; a deck over a lowered limit keeps its ports until it goes */
+            if (i / 2 >= db_config()->max_decks && !db_deck_present(i / 2)) {
+                if (ls[i] >= 0) {
+                    close(ls[i]);
+                    ls[i] = -1;
+                }
+                continue;
             }
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            if (ls[i] < 0) {
+                ls[i] = listen_on(port_of(i / 2, i % 2), DB_DOCK_HOSTS);
+            }
+            if (ls[i] >= 0) {
+                FD_SET(ls[i], &ready);
+                top = ls[i] > top ? ls[i] : top;
+            }
+        }
+        struct timeval wait = {.tv_sec = 1}; /* a port that could not listen is tried again */
+        if (top < 0 || select(top + 1, &ready, NULL, NULL, &wait) <= 0) {
+            vTaskDelay(pdMS_TO_TICKS(top < 0 ? 1000 : 0));
             continue;
         }
-        conn_t *c = NULL;
-        for (int i = 0; i < DB_DOCK_HOSTS && !c; i++) {
-            c = pool[i].sock < 0 ? &pool[i] : NULL;
-        }
-        char ip[16];
-        inet_ntoa_r(from.sin_addr, ip, sizeof(ip));
-        if (!admit(from.sin_addr.s_addr)) {
-            ESP_LOGW(TAG, "port %u: %s is not paired, asking on the deck", port, ip);
-            close(sock);
-            continue;
-        }
-        if (!c) {
-            ESP_LOGW(TAG, "port %u: %s refused, %d hosts connected", port, ip, DB_DOCK_HOSTS);
-            close(sock);
-            continue;
-        }
-        ESP_LOGI(TAG, "%s host %s", device_port ? "device" : "dock", ip);
-        c->ip = from.sin_addr.s_addr;
-        c->peer_port = from.sin_port;
-        struct sockaddr_in at;
-        socklen_t at_len = sizeof(at);
-        c->local_ip = getsockname(sock, (struct sockaddr *)&at, &at_len) == 0 ? at.sin_addr.s_addr : 0;
-        c->kind = DB_CTRL_SERVER;
-        c->sock = sock;
-        if (xTaskCreatePinnedToCore(host_task, device_port ? "dock_dev" : "dock_host", 4096, c,
-                                    device_port ? 7 : 6, NULL, 0) != pdPASS) {
-            ESP_LOGE(TAG, "no memory for a host task, %s refused", ip);
-            close(sock);
-            c->sock = -1;
+        for (int i = 0; i < DB_MAX_DECKS * 2; i++) {
+            if (ls[i] >= 0 && FD_ISSET(ls[i], &ready)) {
+                accept_host(ls[i], i / 2, i % 2);
+            }
         }
     }
 }
 
-static char device_instance[32];
+static char device_instance[DB_MAX_DECKS][32];
 
 static esp_timer_handle_t services_timer;
+static uint32_t services_due; /* decks whose services sync_services renews; under info_lock */
 
-static void reannounce(void)
+static void reannounce(int deck)
 {
     xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
-    if (!dock_instance[0]) {
+    if (!dock_instance[deck][0]) {
         if (!esp_timer_is_active(services_timer)) { /* a deck that just came waits for its debounce */
-            announce();
+            announce(deck);
         }
         xSemaphoreGiveRecursive(mdns_lock);
         return;
     }
     /* setting the unchanged port is the API's only way to send the full service announcement again */
-    mdns_service_port_set_for_host(dock_instance, "_elg", "_tcp", NULL, DB_CORA_DOCK_PORT);
+    mdns_service_port_set_for_host(dock_instance[deck], "_elg", "_tcp", NULL, port_of(deck, false));
     xSemaphoreGiveRecursive(mdns_lock);
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
-    if (device_instance[0]) {
-        mdns_service_port_set_for_host(device_instance, "_elg", "_tcp", NULL, DB_CORA_DEVICE_PORT);
+    if (device_instance[deck][0]) {
+        mdns_service_port_set_for_host(device_instance[deck], "_elg", "_tcp", NULL, port_of(deck, true));
     }
     xSemaphoreGive(s.info_lock);
 }
@@ -980,13 +1034,18 @@ static void keepalive_task(void *arg)
     for (int tick = 1;; tick++) {
         vTaskDelay(pdMS_TO_TICKS(KEEPALIVE_MS));
         if (tick % (ANNOUNCE_MS / KEEPALIVE_MS) == 0) {
-            reannounce();
+            for (int d = 0; d < DB_MAX_DECKS; d++) {
+                reannounce(d);
+            }
+        }
+        if (__atomic_exchange_n(&peers_due, false, __ATOMIC_RELAXED)) {
+            keep_peers();
         }
         db_net_status_t n;
         db_net_status(&n);
         uint32_t wlan = n.wlan_up && n.lan_up && !n.lan_dead ? inet_addr(n.wlan_ip) : 0;
-        for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
-            conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
+        for (int i = 0; i < CONNS; i++) {
+            conn_t *c = &conns[i];
             if (c->sock >= 0 && wlan && c->local_ip == wlan) {
                 shutdown(c->sock,
                          SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
@@ -1000,25 +1059,27 @@ static void keepalive_task(void *arg)
 }
 
 /* Input goes to the host that draws, so presses in the menu stay in the menu. */
-static void on_raw_input(const uint8_t *report, size_t len)
+static void on_raw_input(int deck, const uint8_t *report, size_t len)
 {
     uint8_t buf[DB_CORA_REPORT_LEN] = {0}; /* the dock forwards full 512 byte input reports */
     memcpy(buf, report, len < sizeof(buf) ? len : sizeof(buf));
-    db_source_t writer = db_deck_writer();
+    db_source_t writer = db_deck_writer(deck);
     for (int i = 0; i < DB_DOCK_HOSTS; i++) {
-        if (s.devices[i].sock >= 0 && s.devices[i].kind != DB_CTRL_SERVER &&
-            source_of(&s.devices[i]) == writer && db_deck_input_real_for(s.devices[i].ip)) {
-            send_frame(&s.devices[i], DB_CORA_FLAG_VERBATIM, 0, 0, buf, sizeof(buf));
+        conn_t *c = conn(deck, true, i);
+        if (c->sock >= 0 && c->kind != DB_CTRL_SERVER && source_of(c) == writer &&
+            db_deck_input_real_for(c->ip)) {
+            send_frame(c, DB_CORA_FLAG_VERBATIM, 0, 0, buf, sizeof(buf));
         }
     }
 }
 
 /* The attached device is also announced as its own service on the device port. */
-static void device_service(const db_device_info_t *info)
+static void device_service(int deck, const db_device_info_t *info)
 {
-    if (device_instance[0]) {
-        mdns_service_remove_for_host(device_instance, "_elg", "_tcp", NULL);
-        device_instance[0] = '\0';
+    char *instance = device_instance[deck];
+    if (instance[0]) {
+        mdns_service_remove_for_host(instance, "_elg", "_tcp", NULL);
+        instance[0] = '\0';
     }
     if (!info) {
         return;
@@ -1032,23 +1093,24 @@ static void device_service(const db_device_info_t *info)
         {"pv", "1.0"}, {"sn", info->serial},   {"vid", vid},
         {"pid", pid},  {"fw", info->firmware}, {"prt", "2"},
     };
-    strlcpy(device_instance, info->serial, sizeof(device_instance));
-    esp_err_t err = mdns_service_add_for_host(device_instance, "_elg", "_tcp", NULL, DB_CORA_DEVICE_PORT, txt,
+    strlcpy(instance, info->serial, sizeof(device_instance[deck]));
+    esp_err_t err = mdns_service_add_for_host(instance, "_elg", "_tcp", NULL, port_of(deck, true), txt,
                                               sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS device announcement failed: %s", esp_err_to_name(err));
-        device_instance[0] = '\0';
+        instance[0] = '\0';
     }
 }
 
 /* Unasked 0x1c reports tell connected hosts that a device came or went; they then open or close the device
  * port. The Elgato App drops a dock that had no device for it and only comes back when the service goes
  * offline and online again, so the service is announced anew as well. */
-static void tell_hosts(void)
+static void tell_hosts(int deck)
 {
     for (int i = 0; i < DB_DOCK_HOSTS; i++) {
-        if (s.docks[i].sock >= 0 && s.docks[i].kind != DB_CTRL_SERVER) {
-            send_dock_report(&s.docks[i], 0x1c, 0);
+        conn_t *c = conn(deck, false, i);
+        if (c->sock >= 0 && c->kind != DB_CTRL_SERVER) {
+            send_dock_report(c, 0x1c, 0);
         }
     }
 }
@@ -1056,41 +1118,57 @@ static void tell_hosts(void)
 static void sync_services(void *arg)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
-    device_service(s.info.device);
+    uint32_t due = services_due;
+    services_due = 0;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (due & 1u << d) {
+            device_service(d, s.info[d].device);
+        }
+    }
     xSemaphoreGive(s.info_lock);
     xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
-    withdraw();
-    announce();
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (due & 1u << d) {
+            withdraw(d);
+            announce(d);
+        }
+    }
     xSemaphoreGiveRecursive(mdns_lock);
 }
 
 /* The services wait until the deck was there or gone for a second: a deck that comes and goes fast made them
- * go offline and online several times, and the Elgato App then never resolved the device again. */
-static void on_device(const db_device_info_t *info)
+ * go offline and online several times, and the Elgato App then never resolved the device again. Only the
+ * deck that changed: the others' hosts must not see their dock go. */
+static void on_device(int deck, const db_device_info_t *info)
 {
+    info = info && info->dock ? info : NULL;
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     if (info) {
-        s.attached = *info;
+        attached[deck] = *info;
     }
-    s.info.device = info ? &s.attached : NULL;
+    s.info[deck].device = info ? &attached[deck] : NULL;
+    services_due |= 1u << deck;
     xSemaphoreGive(s.info_lock);
-    tell_hosts();
+    tell_hosts(deck);
     esp_timer_stop(services_timer);
     esp_timer_start_once(services_timer, 1000000);
 }
 
-size_t db_dock_hosts(db_dock_host_t *out, size_t max)
+size_t db_dock_hosts(int deck, db_dock_host_t *out, size_t max)
 {
     size_t n = 0;
-    for (int i = 0; i < DB_DOCK_HOSTS && n < max; i++) {
-        const conn_t *c = &s.docks[i];
-        if (c->sock >= 0) {
+    for (int d = deck < 0 ? 0 : deck; d < (deck < 0 ? DB_MAX_DECKS : deck + 1); d++) {
+        for (int i = 0; i < DB_DOCK_HOSTS && n < max; i++) {
+            const conn_t *c = conn(d, false, i);
+            if (!c->tx || c->sock < 0) { /* no tx: before db_dock_start, when sock is a zero, not a socket */
+                continue;
+            }
             int source = -1;
             for (int k = 0; k < DB_DOCK_HOSTS; k++) {
-                source =
-                    s.devices[k].sock >= 0 && s.devices[k].ip == c->ip ? source_of(&s.devices[k]) : source;
+                const conn_t *dev = conn(d, true, k);
+                source = dev->sock >= 0 && dev->ip == c->ip ? source_of(dev) : source;
             }
-            out[n] = (db_dock_host_t){.kind = c->kind, .source = source};
+            out[n] = (db_dock_host_t){.kind = c->kind, .deck = d, .source = source};
             struct in_addr a = {.s_addr = c->ip};
             inet_ntoa_r(a, out[n].ip, sizeof(out[n].ip));
             n++;
@@ -1101,46 +1179,48 @@ size_t db_dock_hosts(db_dock_host_t *out, size_t max)
 
 /* Only with a deck: the Elgato App rejects a dock without one and then ignores it, also once a deck is back,
  * until the app starts again. A dock that appears with its deck is new to it. */
-static void announce(void)
+static void announce(int deck)
 {
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
-    bool deck = s.info.device != NULL;
+    const db_cora_dock_t *info = &s.info[deck];
+    bool present = info->device != NULL;
     xSemaphoreGive(s.info_lock);
     xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
-    if (!deck || dock_instance[0]) {
+    char *instance = dock_instance[deck];
+    if (!present || instance[0]) {
         xSemaphoreGiveRecursive(mdns_lock);
         return;
     }
-    snprintf(dock_instance, sizeof(dock_instance), "Stream Deck Network Dock %02X%02X%02X", s.info.mac[3],
-             s.info.mac[4], s.info.mac[5]);
+    snprintf(instance, sizeof(dock_instance[deck]), "Stream Deck Network Dock %02X%02X%02X", info->mac[3],
+             info->mac[4], info->mac[5]);
     char id[18];
-    snprintf(id, sizeof(id), "%02X:%02X:%02X:%02X:%02X:%02X", s.info.mac[0], s.info.mac[1], s.info.mac[2],
-             s.info.mac[3], s.info.mac[4], s.info.mac[5]);
+    snprintf(id, sizeof(id), "%02X:%02X:%02X:%02X:%02X:%02X", info->mac[0], info->mac[1], info->mac[2],
+             info->mac[3], info->mac[4], info->mac[5]);
     mdns_txt_item_t txt[] = {
         {"dt", "215"},
         {"mf", "Elgato"},
         {"md", "Stream Deck Network Dock 20GBW9901"},
         {"pv", "1.0"},
         {"id", id},
-        {"sn", s.info.serial},
+        {"sn", info->serial},
         {"fw", DB_CORA_FIRMWARE},
         {"hwrev", "0200"},
     };
     esp_err_t err =
-        mdns_service_add(dock_instance, "_elg", "_tcp", DB_CORA_DOCK_PORT, txt, sizeof(txt) / sizeof(txt[0]));
+        mdns_service_add(instance, "_elg", "_tcp", port_of(deck, false), txt, sizeof(txt) / sizeof(txt[0]));
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "mDNS announcement failed: %s", esp_err_to_name(err));
-        dock_instance[0] = '\0'; /* the next re-announce tries again */
+        instance[0] = '\0'; /* the next re-announce tries again */
     }
     xSemaphoreGiveRecursive(mdns_lock);
 }
 
-static void withdraw(void)
+static void withdraw(int deck)
 {
     xSemaphoreTakeRecursive(mdns_lock, portMAX_DELAY);
-    if (dock_instance[0]) {
-        mdns_service_remove_for_host(dock_instance, "_elg", "_tcp", NULL);
-        dock_instance[0] = '\0';
+    if (dock_instance[deck][0]) {
+        mdns_service_remove_for_host(dock_instance[deck], "_elg", "_tcp", NULL);
+        dock_instance[deck][0] = '\0';
     }
     xSemaphoreGiveRecursive(mdns_lock);
 }
@@ -1150,9 +1230,8 @@ static void withdraw(void)
 static void close_hosts(void)
 {
     mdns_service_remove_all();
-    for (int i = 0; i < 2 * DB_DOCK_HOSTS; i++) {
-        conn_t *c = i < DB_DOCK_HOSTS ? &s.docks[i] : &s.devices[i - DB_DOCK_HOSTS];
-        int sock = c->sock;
+    for (int i = 0; i < CONNS; i++) {
+        int sock = conns[i].sock;
         if (sock >= 0) {
             struct linger now = {.l_onoff = 1, .l_linger = 0};
             setsockopt(sock, SOL_SOCKET, SO_LINGER, &now, sizeof(now));
@@ -1172,30 +1251,49 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
     }
     esp_register_shutdown_handler(close_hosts);
     s.info_lock = xSemaphoreCreateMutex();
-    esp_read_mac(s.info.mac, ESP_MAC_BASE);
-    snprintf(s.info.serial, sizeof(s.info.serial), "DB%02X%02X%02X%02X%02X%02X", s.info.mac[0], s.info.mac[1],
-             s.info.mac[2], s.info.mac[3], s.info.mac[4], s.info.mac[5]);
-    for (int i = 0; i < DB_DOCK_HOSTS; i++) {
-        s.docks[i] = (conn_t){.connection_no = 1, .sock = -1, .tx = xSemaphoreCreateMutex()};
-        s.devices[i] =
-            (conn_t){.device_port = true, .connection_no = 2, .sock = -1, .tx = xSemaphoreCreateMutex()};
+    if (!s.info_lock) {
+        return ESP_ERR_NO_MEM;
+    }
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        /* the first deck's dock keeps the bridge's MAC and serial; the others get local ones of their own, or
+         * the Elgato App would take them for one dock */
+        db_cora_dock_t *info = &s.info[d];
+        info->device_port = port_of(d, true);
+        esp_read_mac(info->mac, ESP_MAC_BASE);
+        if (d) {
+            info->mac[0] |= 0x02;
+            info->mac[5] = (uint8_t)(info->mac[5] + d);
+        }
+        snprintf(info->serial, sizeof(info->serial), "D%c%02X%02X%02X%02X%02X%02X", d ? '1' + d : 'B',
+                 info->mac[0], info->mac[1], info->mac[2], info->mac[3], info->mac[4], info->mac[5]);
+        for (int i = 0; i < DB_DOCK_HOSTS; i++) {
+            *conn(d, false, i) =
+                (conn_t){.deck = d, .host = i, .connection_no = 1, .sock = -1, .tx = xSemaphoreCreateMutex()};
+            *conn(d, true, i) = (conn_t){.deck = d,
+                                         .host = i,
+                                         .device_port = true,
+                                         .connection_no = 2,
+                                         .sock = -1,
+                                         .tx = xSemaphoreCreateMutex()};
+        }
     }
     esp_timer_create_args_t timer = {.callback = sync_services, .name = "dock_mdns"};
     esp_timer_create(&timer, &services_timer);
-    db_device_info_t now;
-    if (db_deck_info(&now)) {
-        s.attached = now;
-        s.info.device = &s.attached;
-        device_service(&now);
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (db_deck_info(d, &attached[d]) && attached[d].dock) {
+            s.info[d].device = &attached[d];
+            device_service(d, &attached[d]);
+        }
     }
     db_deck_listener_t l = {.device_changed = on_device, .raw_input = on_raw_input, .external = true};
     db_deck_add_listener(&l);
-    if (xTaskCreatePinnedToCore(listen_task, "dock_port", 3072, NULL, 6, NULL, 0) != pdPASS ||
-        xTaskCreatePinnedToCore(listen_task, "dock_dev_port", 3072, (void *)1, 7, NULL, 0) != pdPASS ||
+    if (xTaskCreatePinnedToCore(listen_task, "dock_port", 3072, NULL, 7, NULL, 0) != pdPASS ||
         xTaskCreatePinnedToCore(keepalive_task, "dock_ka", 3072, NULL, 5, NULL, 0) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    announce();
-    ESP_LOGI(TAG, "Network Dock emulation on ports %d and %d", DB_CORA_DOCK_PORT, DB_CORA_DEVICE_PORT);
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        announce(d);
+    }
+    ESP_LOGI(TAG, "Network Dock emulation from port %d, two per deck", DB_CORA_DOCK_PORT);
     return ESP_OK;
 }

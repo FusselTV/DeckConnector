@@ -42,8 +42,14 @@ export function decksOf(st: Status): Deck[] {
   }))
 }
 
+/** Decks are plugged in and none of them is an Elgato deck. */
+export const noDock = (st: Status) => {
+  const d = decksOf(st)
+  return d.length > 0 && d.every((x) => x.dock === false)
+}
+
 export const deckName = (d: Deck, i: number, n: number, t: T) =>
-  n > 1 ? `${t('deck.n', { n: i + 1 })} · …${d.serial.slice(-4)}` : d.model
+  n > 1 ? `${t('deck.n', { n: (d.slot ?? i) + 1 })} · …${d.serial.slice(-4)}` : d.model
 
 export const sigWord = (r: number): TKey => (r >= -60 ? 'sig.good' : r >= -72 ? 'sig.ok' : 'sig.weak')
 

@@ -62,6 +62,8 @@ void db_link_set_enabled(bool enabled);
 /* Take server URLs the config changed: those links connect again to the new address. */
 void db_link_reload(void);
 
+/* The deck the servers draw on: their protocol knows one, the first attached; slot 0 while none is. */
+int db_link_deck(void);
 /* Inputs for the active server dropped from a full send queue. */
 uint32_t db_link_inputs_dropped(void);
 bool db_link_connected(int index);

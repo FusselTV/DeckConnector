@@ -11,10 +11,17 @@ export function Row(p: {
   status?: ReactNode
   group?: string
   open?: boolean
+  onToggle?: (open: boolean) => void
   children: ReactNode
 }) {
   return (
-    <details className="xrow" id={p.id} name={p.group} open={p.open}>
+    <details
+      className="xrow"
+      id={p.id}
+      name={p.group}
+      open={p.open}
+      onToggle={p.onToggle && ((e) => p.onToggle?.(e.currentTarget.open))}
+    >
       <summary>
         <SIcon icon={p.icon} tone={p.tone ?? 'acc'} />
         <b>{p.title}</b>

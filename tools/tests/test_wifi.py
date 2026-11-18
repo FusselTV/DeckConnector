@@ -28,6 +28,25 @@ def test_a_bad_join_request_is_refused(body):
 
 
 @pytest.mark.sim
+def test_the_backup_network_is_a_secret_and_needs_no_restart():
+    was = json.loads(api("GET", "/api/backup?secrets=1")[1])
+    try:
+        code, body = api(
+            "PUT", "/api/config", json.dumps({"wifi2_ssid": "Ersatz", "wifi2_pass": "backup-pass-1"}).encode()
+        )
+        assert code == 200 and json.loads(body)["restart"] is False, body
+        cfg = json.loads(api("GET", "/api/config")[1])
+        assert cfg["wifi2_ssid"] == "Ersatz" and cfg["wifi2_pass_set"] and "wifi2_pass" not in cfg
+        assert api("PUT", "/api/config", json.dumps({"wifi2_ssid": "Ersatz 2"}).encode())[0] == 200
+        assert "wifi2_pass" not in json.loads(api("GET", "/api/backup")[1])
+        full = json.loads(api("GET", "/api/backup?secrets=1")[1])
+        assert full["wifi2_ssid"] == "Ersatz 2" and full["wifi2_pass"] == "backup-pass-1", "the password stays"
+    finally:
+        back = {"wifi2_ssid": was.get("wifi2_ssid", ""), "wifi2_pass": was.get("wifi2_pass", "")}
+        assert api("PUT", "/api/config", json.dumps(back).encode())[0] == 200
+
+
+@pytest.mark.sim
 def test_a_bad_bssid_lock_is_refused():
     assert api("PUT", "/api/config", json.dumps({"wifi_bssid": "zz:00:00:00:00:00"}).encode())[0] == 400
 

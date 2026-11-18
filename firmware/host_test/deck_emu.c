@@ -43,8 +43,10 @@ static const char gen2_fw[] = "1.00.000";
 static const char sixkey_serial[] = "BL31K1A05678";
 static const char sixkey_fw[] = "3.00.000";
 
-static struct {
+typedef struct {
+    db_hid_io_t io; /* first: the io callbacks find their deck by it */
     const deck_model_t *m;
+    char serial[sizeof(gen2_serial)];
     char violations[MAX_VIOLATIONS][200];
     size_t nviol;
     uint8_t reports[MAX_REPORTS][OUT_LEN];
@@ -63,17 +65,20 @@ static struct {
         size_t len;
         size_t first_report;
     } x;
-} emu;
+} emu_t;
+
+static emu_t decks[DECK_EMU_DECKS];
+static emu_t *emu = decks; /* the deck the deck_emu_* calls are about */
 
 __attribute__((format(printf, 1, 2))) static void violation(const char *fmt, ...)
 {
-    if (emu.nviol < MAX_VIOLATIONS) {
+    if (emu->nviol < MAX_VIOLATIONS) {
         va_list ap;
         va_start(ap, fmt);
-        vsnprintf(emu.violations[emu.nviol], sizeof(emu.violations[0]), fmt, ap);
+        vsnprintf(emu->violations[emu->nviol], sizeof(emu->violations[0]), fmt, ap);
         va_end(ap);
     }
-    emu.nviol++;
+    emu->nviol++;
 }
 
 const deck_model_t *deck_model(uint16_t pid)
@@ -88,12 +93,12 @@ const deck_model_t *deck_model(uint16_t pid)
 
 static bool sixkey(void)
 {
-    return emu.m->family == DECK_SIXKEY;
+    return emu->m->family == DECK_SIXKEY;
 }
 
 static unsigned input_keys(void)
 {
-    return emu.m->cols * emu.m->rows + emu.m->sensors;
+    return emu->m->cols * emu->m->rows + emu->m->sensors;
 }
 
 static uint16_t be16(const uint8_t *p)
@@ -103,7 +108,7 @@ static uint16_t be16(const uint8_t *p)
 
 static void rotated(uint16_t w, uint16_t h, uint16_t *ow, uint16_t *oh)
 {
-    bool swap = emu.m->rotate % 180 == 90;
+    bool swap = emu->m->rotate % 180 == 90;
     *ow = swap ? h : w;
     *oh = swap ? w : h;
 }
@@ -158,7 +163,7 @@ static void check_jpeg(const char *w, deck_image_t *im, uint16_t ew, uint16_t eh
             uint16_t ih = be16(d + p + 5), iw = be16(d + p + 7);
             if (iw != ew || ih != eh) {
                 violation("%s: JPEG is %ux%u, the deck expects %ux%u after rotating %u", w, iw, ih, ew, eh,
-                          emu.m->rotate);
+                          emu->m->rotate);
             }
             return;
         }
@@ -205,17 +210,17 @@ static void check_bmp(const char *w, deck_image_t *im, uint16_t ew, uint16_t eh)
 static void finish(void)
 {
     char w[80];
-    what(w, sizeof(w), emu.x.cmd, emu.x.key, emu.x.win);
-    deck_image_t im = {.cmd = emu.x.cmd,
-                       .key = emu.x.key,
-                       .win = emu.x.win,
-                       .data = emu.x.data,
-                       .len = emu.x.len,
-                       .first_report = emu.x.first_report,
-                       .report_count = emu.nreports - emu.x.first_report};
-    const deck_model_t *m = emu.m;
+    what(w, sizeof(w), emu->x.cmd, emu->x.key, emu->x.win);
+    deck_image_t im = {.cmd = emu->x.cmd,
+                       .key = emu->x.key,
+                       .win = emu->x.win,
+                       .data = emu->x.data,
+                       .len = emu->x.len,
+                       .first_report = emu->x.first_report,
+                       .report_count = emu->nreports - emu->x.first_report};
+    const deck_model_t *m = emu->m;
     uint16_t ew, eh;
-    switch (emu.x.cmd) {
+    switch (emu->x.cmd) {
     case 0x08:
         rotated(m->lcd_w, m->lcd_h, &ew, &eh);
         break;
@@ -223,7 +228,7 @@ static void finish(void)
         rotated(m->win_w, m->win_h, &ew, &eh);
         break;
     case 0x0c:
-        rotated(emu.x.win.w, emu.x.win.h, &ew, &eh);
+        rotated(emu->x.win.w, emu->x.win.h, &ew, &eh);
         break;
     default:
         rotated(m->key_px, m->key_px, &ew, &eh);
@@ -234,10 +239,10 @@ static void finish(void)
     } else {
         check_jpeg(w, &im, ew, eh);
     }
-    emu.x.active = false;
-    emu.x.data = NULL;
-    if (emu.nimages < MAX_IMAGES) {
-        emu.images[emu.nimages++] = im;
+    emu->x.active = false;
+    emu->x.data = NULL;
+    if (emu->nimages < MAX_IMAGES) {
+        emu->images[emu->nimages++] = im;
     } else {
         violation("more than %d images without a clear", MAX_IMAGES);
         free(im.data);
@@ -250,37 +255,37 @@ static void feed(uint8_t cmd, uint8_t key, db_rect_t win, uint16_t chunk, bool l
     char w[80];
     what(w, sizeof(w), cmd, key, win);
     if (chunk == 0) {
-        if (emu.x.active) {
+        if (emu->x.active) {
             violation("%s: starts while the previous image still waits for its last chunk (next %u)", w,
-                      emu.x.next);
+                      emu->x.next);
         }
-        free(emu.x.data);
-        emu.x.active = true;
-        emu.x.cmd = cmd;
-        emu.x.key = key;
-        emu.x.win = win;
-        emu.x.next = 0;
-        emu.x.data = NULL;
-        emu.x.len = 0;
-        emu.x.first_report = emu.nreports - 1;
-    } else if (!emu.x.active) {
+        free(emu->x.data);
+        emu->x.active = true;
+        emu->x.cmd = cmd;
+        emu->x.key = key;
+        emu->x.win = win;
+        emu->x.next = 0;
+        emu->x.data = NULL;
+        emu->x.len = 0;
+        emu->x.first_report = emu->nreports - 1;
+    } else if (!emu->x.active) {
         violation("%s: chunk %u arrives without a chunk 0", w, chunk);
         return;
     }
-    if (cmd != emu.x.cmd || key != emu.x.key || !db_rect_eq(win, emu.x.win)) {
+    if (cmd != emu->x.cmd || key != emu->x.key || !db_rect_eq(win, emu->x.win)) {
         violation("%s: chunk %u changes command, key or rect in the middle of a transfer", w, chunk);
     }
-    if (chunk != emu.x.next) {
-        violation("%s: chunk index %u, expected %u", w, chunk, emu.x.next);
+    if (chunk != emu->x.next) {
+        violation("%s: chunk index %u, expected %u", w, chunk, emu->x.next);
     }
-    emu.x.next = (uint16_t)(chunk + 1);
-    uint8_t *grown = realloc(emu.x.data, emu.x.len + len);
+    emu->x.next = (uint16_t)(chunk + 1);
+    uint8_t *grown = realloc(emu->x.data, emu->x.len + len);
     if (!grown) {
         abort();
     }
-    emu.x.data = grown;
-    memcpy(emu.x.data + emu.x.len, data, len);
-    emu.x.len += len;
+    emu->x.data = grown;
+    memcpy(emu->x.data + emu->x.len, data, len);
+    emu->x.len += len;
     if (last) {
         finish();
     }
@@ -288,7 +293,7 @@ static void feed(uint8_t cmd, uint8_t key, db_rect_t win, uint16_t chunk, bool l
 
 static void gen2_output(const uint8_t *r)
 {
-    const deck_model_t *m = emu.m;
+    const deck_model_t *m = emu->m;
     uint8_t cmd = r[1];
     if (m->family == DECK_PEDAL) {
         violation("output report 02 %02x: the Pedal has no display", cmd);
@@ -376,19 +381,20 @@ static void sixkey_output(const uint8_t *r)
     feed(0x01, (uint8_t)(k - 1), (db_rect_t){0}, chunk, done != 0, r + 16, OUT_LEN - 16);
 }
 
-static db_err_t emu_write(const uint8_t *report, size_t len)
+static db_err_t emu_write(const db_hid_io_t *io, const uint8_t *report, size_t len)
 {
-    if (!emu.m) {
+    emu = (emu_t *)io; /* a driver talks to the deck its io belongs to */
+    if (!emu->m) {
         return DB_ERR_IO;
     }
     if (len != OUT_LEN) {
         violation("output report of %zu bytes, expected %d", len, OUT_LEN);
     }
-    if (emu.nreports == MAX_REPORTS) {
+    if (emu->nreports == MAX_REPORTS) {
         violation("more than %d output reports without a clear", MAX_REPORTS);
         return DB_OK;
     }
-    uint8_t *r = emu.reports[emu.nreports++];
+    uint8_t *r = emu->reports[emu->nreports++];
     memset(r, 0, OUT_LEN);
     memcpy(r, report, len < OUT_LEN ? len : OUT_LEN);
     if (r[0] != 0x02) {
@@ -403,14 +409,15 @@ static db_err_t emu_write(const uint8_t *report, size_t len)
     return DB_OK;
 }
 
-static db_err_t emu_flush(void)
+static db_err_t emu_flush(const db_hid_io_t *io)
 {
+    emu = (emu_t *)io;
     return DB_OK;
 }
 
 static bool gen2_get(uint8_t *a)
 {
-    const deck_model_t *m = emu.m;
+    const deck_model_t *m = emu->m;
     switch (a[0]) {
     case 0x08:
         a[1] = m->rows;
@@ -430,8 +437,8 @@ static bool gen2_get(uint8_t *a)
         memcpy(a + 6, gen2_fw, 8);
         return true;
     case 0x06:
-        a[1] = sizeof(gen2_serial) - 1;
-        memcpy(a + 2, gen2_serial, sizeof(gen2_serial) - 1);
+        a[1] = (uint8_t)strlen(emu->serial);
+        memcpy(a + 2, emu->serial, strlen(emu->serial));
         return true;
     case 0x0a:
         a[1] = 4;
@@ -450,7 +457,7 @@ static bool sixkey_get(uint8_t *a)
         memcpy(a + 5, sixkey_fw, sizeof(sixkey_fw) - 1);
         return true;
     case 0x03:
-        memcpy(a + 5, sixkey_serial, sizeof(sixkey_serial) - 1);
+        memcpy(a + 5, emu->serial, strlen(emu->serial));
         return true;
     case 0xa3:
         a[1] = 4;
@@ -460,15 +467,16 @@ static bool sixkey_get(uint8_t *a)
     }
 }
 
-static db_err_t emu_get_feature(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t emu_get_feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
-    if (!emu.m || len == 0) {
+    emu = (emu_t *)io;
+    if (!emu->m || len == 0) {
         violation("GET_FEATURE with an empty buffer");
         return DB_ERR_IO;
     }
     uint8_t a[FEATURE_LEN] = {buf[0]};
     if (!(sixkey() ? sixkey_get(a) : gen2_get(a))) {
-        violation("GET_FEATURE 0x%02x: not a report the %s answers", buf[0], emu.m->name);
+        violation("GET_FEATURE 0x%02x: not a report the %s answers", buf[0], emu->m->name);
         return DB_ERR_IO;
     }
     size_t n = len < FEATURE_LEN ? len : FEATURE_LEN;
@@ -480,7 +488,7 @@ static db_err_t emu_get_feature(uint8_t *buf, size_t len, size_t *out_len)
 /* Returns the payload length after the two id bytes, or -1 for a setter the deck does not know. */
 static int gen2_set(const uint8_t *b)
 {
-    const deck_model_t *m = emu.m;
+    const deck_model_t *m = emu->m;
     bool pedal = m->family == DECK_PEDAL;
     if (b[0] != 0x03) {
         return -1;
@@ -492,7 +500,7 @@ static int gen2_set(const uint8_t *b)
         if (b[2] > 100) {
             violation("brightness %u, expected 0..100", b[2]);
         }
-        emu.brightness = b[2];
+        emu->brightness = b[2];
         return 1;
     case 0x0d:
         return 4;
@@ -522,7 +530,7 @@ static int sixkey_set(const uint8_t *b)
         if (b[5] > 100) {
             violation("brightness %u, expected 0..100", b[5]);
         }
-        emu.brightness = b[5];
+        emu->brightness = b[5];
         return 4;
     }
     if (b[0] == 0x0b && b[1] == 0x63) {
@@ -537,9 +545,10 @@ static int sixkey_set(const uint8_t *b)
     return -1;
 }
 
-static db_err_t emu_set_feature(const uint8_t *buf, size_t len)
+static db_err_t emu_set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
-    if (!emu.m || len < 2) {
+    emu = (emu_t *)io;
+    if (!emu->m || len < 2) {
         violation("SET_FEATURE of %zu bytes", len);
         return DB_ERR_IO;
     }
@@ -550,7 +559,7 @@ static db_err_t emu_set_feature(const uint8_t *buf, size_t len)
     memcpy(b, buf, len < FEATURE_LEN ? len : FEATURE_LEN);
     int plen = sixkey() ? sixkey_set(b) : gen2_set(b);
     if (plen < 0) {
-        violation("SET_FEATURE %02x %02x: not a setter the %s knows", b[0], b[1], emu.m->name);
+        violation("SET_FEATURE %02x %02x: not a setter the %s knows", b[0], b[1], emu->m->name);
         return DB_ERR_IO;
     }
     for (size_t i = 2 + (size_t)plen; i < FEATURE_LEN; i++) {
@@ -570,74 +579,86 @@ static const db_hid_io_t io = {.write = emu_write,
 
 void deck_emu_clear(void)
 {
-    for (size_t i = 0; i < emu.nimages; i++) {
-        free(emu.images[i].data);
+    for (size_t i = 0; i < emu->nimages; i++) {
+        free(emu->images[i].data);
     }
-    free(emu.x.data);
-    emu.x.data = NULL;
-    emu.x.active = false;
-    emu.nimages = 0;
-    emu.nreports = 0;
-    emu.nviol = 0;
-    emu.brightness = -1;
+    free(emu->x.data);
+    emu->x.data = NULL;
+    emu->x.active = false;
+    emu->nimages = 0;
+    emu->nreports = 0;
+    emu->nviol = 0;
+    emu->brightness = -1;
+}
+
+void deck_emu_select(int deck)
+{
+    emu = &decks[deck];
 }
 
 bool deck_emu_start(uint16_t pid)
 {
     deck_emu_clear();
-    memset(emu.keys, 0, sizeof(emu.keys));
-    memset(emu.enc_down, 0, sizeof(emu.enc_down));
-    emu.m = deck_model(pid);
-    return emu.m != NULL;
+    memset(emu->keys, 0, sizeof(emu->keys));
+    memset(emu->enc_down, 0, sizeof(emu->enc_down));
+    emu->m = deck_model(pid);
+    emu->io = io;
+    if (!emu->m) {
+        return false;
+    }
+    /* each deck its own serial: deck 0 keeps the base one */
+    snprintf(emu->serial, sizeof(emu->serial), "%s", sixkey() ? sixkey_serial : gen2_serial);
+    emu->serial[strlen(emu->serial) - 1] = (char)(emu->serial[strlen(emu->serial) - 1] + (emu - decks));
+    return true;
 }
 
 const db_hid_io_t *deck_emu_io(void)
 {
-    return &io;
+    return &emu->io;
 }
 
 void deck_emu_check_idle(void)
 {
-    if (emu.x.active) {
+    if (emu->x.active) {
         char w[80];
-        what(w, sizeof(w), emu.x.cmd, emu.x.key, emu.x.win);
-        violation("%s: transfer never sent its last chunk (stopped before chunk %u)", w, emu.x.next);
+        what(w, sizeof(w), emu->x.cmd, emu->x.key, emu->x.win);
+        violation("%s: transfer never sent its last chunk (stopped before chunk %u)", w, emu->x.next);
     }
 }
 
 size_t deck_emu_violation_count(void)
 {
-    return emu.nviol;
+    return emu->nviol;
 }
 
 const char *deck_emu_violation(size_t i)
 {
-    return i < MAX_VIOLATIONS ? emu.violations[i] : "(more violations not stored)";
+    return i < MAX_VIOLATIONS ? emu->violations[i] : "(more violations not stored)";
 }
 
 size_t deck_emu_image_count(void)
 {
-    return emu.nimages;
+    return emu->nimages;
 }
 
 const deck_image_t *deck_emu_image(size_t i)
 {
-    return &emu.images[i];
+    return &emu->images[i];
 }
 
 const uint8_t *deck_emu_report(size_t i)
 {
-    return emu.reports[i];
+    return emu->reports[i];
 }
 
 int deck_emu_brightness(void)
 {
-    return emu.brightness;
+    return emu->brightness;
 }
 
 const char *deck_emu_serial(void)
 {
-    return sixkey() ? sixkey_serial : gen2_serial;
+    return emu->serial;
 }
 
 const char *deck_emu_firmware(void)
@@ -663,41 +684,41 @@ size_t deck_emu_key(uint8_t key, bool pressed, uint8_t *out, size_t cap)
     if (key >= n) {
         return 0;
     }
-    emu.keys[key] = pressed;
+    emu->keys[key] = pressed;
     if (sixkey()) {
         if (cap < SIXKEY_INPUT_LEN) {
             return 0;
         }
         memset(out, 0, SIXKEY_INPUT_LEN);
         out[0] = 0x01;
-        memcpy(out + 1, emu.keys, n);
+        memcpy(out + 1, emu->keys, n);
         return SIXKEY_INPUT_LEN;
     }
     size_t len = gen2_input(0x00, (uint16_t)n, out, cap);
     if (len) {
-        memcpy(out + 4, emu.keys, n);
+        memcpy(out + 4, emu->keys, n);
     }
     return len;
 }
 
 size_t deck_emu_encoder_press(uint8_t enc, bool pressed, uint8_t *out, size_t cap)
 {
-    uint8_t n = emu.m->encoders;
+    uint8_t n = emu->m->encoders;
     if (enc >= n) {
         return 0;
     }
-    emu.enc_down[enc] = pressed;
+    emu->enc_down[enc] = pressed;
     size_t len = gen2_input(0x03, (uint16_t)(n + 1), out, cap);
     if (len) {
         out[4] = 0x00;
-        memcpy(out + 5, emu.enc_down, n);
+        memcpy(out + 5, emu->enc_down, n);
     }
     return len;
 }
 
 size_t deck_emu_encoder_turn(uint8_t enc, int8_t ticks, uint8_t *out, size_t cap)
 {
-    uint8_t n = emu.m->encoders;
+    uint8_t n = emu->m->encoders;
     if (enc >= n) {
         return 0;
     }
@@ -712,10 +733,10 @@ size_t deck_emu_encoder_turn(uint8_t enc, int8_t ticks, uint8_t *out, size_t cap
 size_t deck_emu_touch(uint8_t kind, uint16_t x, uint16_t y, uint16_t x2, uint16_t y2, uint8_t *out,
                       size_t cap)
 {
-    if (!emu.m->touch || kind < 1 || kind > 3) {
+    if (!emu->m->touch || kind < 1 || kind > 3) {
         return 0;
     }
-    uint16_t plen = kind == 3 ? 0x0e : kind == 1 ? emu.m->tap_len : 0x0a;
+    uint16_t plen = kind == 3 ? 0x0e : kind == 1 ? emu->m->tap_len : 0x0a;
     size_t len = gen2_input(0x02, plen, out, cap);
     if (len) {
         out[4] = kind;

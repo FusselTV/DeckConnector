@@ -85,7 +85,10 @@ test('login mode lets the deck accept the browser', async ({ demo: page }) => {
 test('Wi-Fi scan lists example networks', async ({ demo: page }) => {
   await page.goto('?lang=en')
   await openTab(page, en, 'network')
-  await page.locator('summary').filter({ hasText: en['net.wlan'] }).click()
+  await page
+    .locator('summary')
+    .filter({ hasText: new RegExp(`^${en['net.wlan']}`) })
+    .click()
   await expect(page.getByText('Studio Guest').first()).toBeVisible({ timeout: 8000 })
 })
 
@@ -101,9 +104,12 @@ test('an update installs with progress and restarts into the new version', async
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
   await expect(page.getByText('v1.0.1').first()).toBeVisible({ timeout: 30_000 })
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')), {
-      timeout: 30_000,
-    })
+    .poll(
+      () => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')).catch(() => false),
+      {
+        timeout: 30_000,
+      },
+    )
     .toBe(true)
   await expect(page.locator('#ntc-upd-new'), 'the offer goes with the old version').toHaveCount(0)
   await expect(page.locator('#fw-file')).toHaveCount(1)
