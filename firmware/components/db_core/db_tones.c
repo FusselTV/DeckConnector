@@ -30,6 +30,11 @@ const char *db_sound_name(db_sound_t sound)
     return sound < DB_SOUND_COUNT ? sounds[sound].name : NULL;
 }
 
+int db_tones_pitch(db_sound_t sound)
+{
+    return sound < DB_SOUND_COUNT ? sounds[sound].notes[0].hz : 0;
+}
+
 size_t db_tones_render(db_sound_t sound, int volume, int rate, int16_t *out, size_t max)
 {
     if (sound >= DB_SOUND_COUNT || volume <= 0 || rate <= 0) {
@@ -71,5 +76,6 @@ float db_tones_level(const int16_t *s, size_t n, size_t stride, int hz, int rate
 
 bool db_tones_heard(float tone, float other, float silent, float amp_off)
 {
-    return tone > 10 * other && tone > 10 * silent && tone > 10 * amp_off;
+    return other > 0 && silent > 0 && amp_off > 0 && tone > 10 * other && tone > 10 * silent &&
+           tone > 10 * amp_off;
 }

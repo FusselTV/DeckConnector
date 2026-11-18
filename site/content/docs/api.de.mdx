@@ -109,7 +109,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `DELETE /api/menu` | Schließt Deck-Menü, Passwort, Rücksetzfrage und Login-Anfrage | control |
 | `POST /api/deck/reconnect` | Schaltet den USB-Port aus und wieder an. `?off_s=N` (1 bis 600) lässt ihn N Sekunden aus | control |
 | `POST /api/deck/stall` | Stoppt die Bildausgabe wie bei einem hängenden Deck, für Tests | full |
-| `POST /api/sound/selftest` | Spielt `find` und nimmt es mit dem Mikrofon der Platine auf, dann noch einmal mit Lautstärke 0 und mit ausgeschaltetem Verstärker. `heard` ist true, wenn der Ton jeweils 10-mal stärker ist. `volume` (60) und `gain` (24 dB) sind optional. Dauert etwa 7 Sekunden, für Tests | full |
+| `POST /api/sound/selftest` | Spielt `find` und nimmt es mit dem Mikrofon der Platine auf, für Tests. Drei Gegenproben: eine andere Tonhöhe (1500 Hz) in derselben Aufnahme, `find` mit Lautstärke 0 und `find` mit ausgeschaltetem Verstärker. `heard` ist true, wenn der Ton mehr als 10-mal stärker ist als jede davon. Optional: `volume` 1 bis 100 (60), `gain` 0 bis 42 dB (24). Dauert etwa 6 Sekunden. 503 mit dem Grund, wenn ein Durchlauf scheitert | full |
 
 ### Quellen und Kopplung
 

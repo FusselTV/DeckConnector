@@ -1333,34 +1333,44 @@ esp_err_t post_sound(httpd_req_t *req)
 }
 
 /* POST /api/sound/selftest {"volume": 60, "gain": 24}: Find through the speaker and back in through the
- * board's microphone, see db_audio_check. */
+ * board's microphone, see db_audio_check. Runs outside the handler lock: the audio task orders it. */
 esp_err_t post_sound_selftest(httpd_req_t *req)
 {
     char body[64];
-    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    int len = read_body(req, body, sizeof(body));
+    cJSON *root = len > 0 ? cJSON_Parse(body) : NULL;
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, "volume");
     const cJSON *g = cJSON_GetObjectItemCaseSensitive(root, "gain");
     int volume = cJSON_IsNumber(v) ? v->valueint : 60;
     int gain = cJSON_IsNumber(g) ? g->valueint : 24;
+    bool ok = len >= 0 && (len == 0 || cJSON_IsObject(root)) && (!v || cJSON_IsNumber(v)) &&
+              (!g || cJSON_IsNumber(g)) && volume >= 1 && volume <= 100 && gain >= 0 && gain <= 42;
     cJSON_Delete(root);
-    if (volume < 1 || volume > 100 || gain < 0 || gain > 42) {
-        return send_error(req, "400 Bad Request", "volume: 1 to 100; gain: 0 to 42 dB");
+    if (!ok) {
+        return send_error(req, "400 Bad Request", "a JSON object; volume: 1 to 100; gain: 0 to 42 dB");
     }
     db_audio_check_t c;
     esp_err_t err = db_audio_check(volume, gain, &c);
-    if (err == ESP_ERR_NOT_SUPPORTED) {
+    switch (err) {
+    case ESP_OK:
+        break;
+    case ESP_ERR_NOT_SUPPORTED:
         return send_error(req, "409 Conflict", "this board has no speaker");
-    }
-    if (err != ESP_OK) {
-        return send_error(req, "503 Service Unavailable", err == ESP_ERR_TIMEOUT ? "busy" : "no codec");
+    case ESP_ERR_TIMEOUT:
+        return send_error(req, "503 Service Unavailable", "busy");
+    case ESP_ERR_NO_MEM:
+        return send_error(req, "503 Service Unavailable", "no memory");
+    case ESP_ERR_INVALID_STATE:
+        return send_error(req, "503 Service Unavailable", "the codec does not answer");
+    default:
+        return send_error(req, "503 Service Unavailable", "the codec failed during the test");
     }
     char out[384];
     snprintf(out, sizeof(out),
-             "{\"heard\":%s,\"hz\":%d,\"other_hz\":%d,\"volume\":%d,\"gain\":%d,\"mic\":{\"tone\":%.0f,"
-             "\"other\":%.0f,\"silent\":%.0f,\"amp_off\":%.0f},\"dac\":{\"tone\":%.0f,\"silent\":%.0f,"
-             "\"amp_off\":%.0f}}",
-             c.heard ? "true" : "false", DB_AUDIO_CHECK_HZ, DB_AUDIO_CHECK_OTHER_HZ, volume, gain, c.mic[0],
-             c.other, c.mic[1], c.mic[2], c.dac[0], c.dac[1], c.dac[2]);
+             "{\"heard\":%s,\"hz\":%d,\"volume\":%d,\"gain\":%d,\"mic\":{\"tone\":%.0f,\"other\":%.0f,"
+             "\"silent\":%.0f,\"amp_off\":%.0f},\"dac\":{\"tone\":%.0f,\"silent\":%.0f,\"amp_off\":%.0f}}",
+             c.heard ? "true" : "false", db_tones_pitch(DB_SOUND_FIND), volume, gain, c.mic[0], c.other,
+             c.mic[1], c.mic[2], c.dac[0], c.dac[1], c.dac[2]);
     return send_json(req, out);
 }
 

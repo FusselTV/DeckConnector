@@ -20,8 +20,12 @@ size_t db_tones_render(db_sound_t sound, int volume, int rate, int16_t *out, siz
 /* The strength of `hz` in every `stride`th of `n` samples (Goertzel), as mean power per sample. */
 float db_tones_level(const int16_t *s, size_t n, size_t stride, int hz, int rate);
 
+/* The pitch of the sound's first note in Hz. */
+int db_tones_pitch(db_sound_t sound);
+
 /* The speaker self-test passes: the tone stands 10x over another pitch, over the same play at volume 0 and
- * with the amplifier off. */
+ * with the amplifier off. A control of exactly 0 was never recorded: a real microphone always hears a little.
+ */
 bool db_tones_heard(float tone, float other, float silent, float amp_off);
 
 /* The name an API uses for a sound ("ready", "find", ...), NULL for an unknown index. */

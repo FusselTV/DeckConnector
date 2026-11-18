@@ -109,7 +109,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `DELETE /api/menu` | Close the deck menu, the password, the reset question and a login request | control |
 | `POST /api/deck/reconnect` | Turn the USB port off and on. `?off_s=N` (1 to 600) keeps it off for N seconds | control |
 | `POST /api/deck/stall` | Stop the image output as a hung deck would, for tests | full |
-| `POST /api/sound/selftest` | Play `find` and record it with the board's microphone, then again at volume 0 and with the amplifier off. `heard` is true when the tone stands out 10 times over each. `volume` (60) and `gain` (24 dB) are optional. Takes about 7 seconds, for tests | full |
+| `POST /api/sound/selftest` | Play `find` and record it with the board's microphone, for tests. Three controls: another pitch (1500 Hz) in the same recording, `find` at volume 0, and `find` with the amplifier off. `heard` is true when the tone is more than 10 times each of them. Optional: `volume` 1 to 100 (60), `gain` 0 to 42 dB (24). Takes about 6 seconds. 503 with the reason when a run fails | full |
 
 ### Sources and pairing
 

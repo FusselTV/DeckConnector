@@ -15,19 +15,27 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 #define RATE    16000
 #define LONGEST (RATE * 3)  /* samples; Find is the longest sound */
 #define TAIL    (RATE / 10) /* silence after each sound: close cuts what the I2S DMA still holds, 90 ms */
 
+#define OTHER_HZ 1500
+
 static const char *TAG = "audio";
+
+typedef struct {
+    db_audio_check_t *c;
+    SemaphoreHandle_t done;
+    esp_err_t err;
+} job_t;
 
 typedef struct {
     db_sound_t sound;
     int volume;
-    db_audio_check_t *check; /* the self-test instead of a sound */
-    TaskHandle_t waiter;
+    job_t *job; /* the self-test instead of a sound */
 } play_t;
 
 static QueueHandle_t queue;
@@ -46,6 +54,8 @@ static esp_err_t codec_new(void)
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
     };
+    gpio_config_t pa = {.pin_bit_mask = 1ULL << b->speaker.pa_gpio, .mode = GPIO_MODE_OUTPUT};
+    ESP_RETURN_ON_ERROR(gpio_config(&pa), TAG, "PA");
     ESP_RETURN_ON_ERROR(i2c_new_master_bus(&bc, &bus), TAG, "I2C");
     i2s_chan_handle_t tx, rx;
     i2s_chan_config_t cc = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
@@ -68,7 +78,7 @@ static esp_err_t codec_new(void)
         .ctrl_if = audio_codec_new_i2c_ctrl(&cc2),
         .gpio_if = audio_codec_new_gpio(),
         .codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH,
-        .pa_pin = (int16_t)b->speaker.pa_gpio,
+        .pa_pin = -1, /* ours: the self-test keeps it off through a whole run */
         .use_mclk = true,
         .hw_gain = {.pa_voltage = 5.0, .codec_dac_voltage = 3.3},
     };
@@ -79,46 +89,56 @@ static esp_err_t codec_new(void)
     return dev ? ESP_OK : ESP_FAIL;
 }
 
+static void amp(bool on)
+{
+    gpio_set_level(db_board()->speaker.pa_gpio, on);
+}
+
 /* Find with the board's microphone listening: the codec's ADC sends the mic left and its own DAC right. */
-static void listen(const int16_t *pcm, size_t n, int volume, bool amp, db_audio_check_t *c, int k)
+static esp_err_t listen(const int16_t *pcm, size_t n, int volume, bool amp_on, db_audio_check_t *c, int k)
 {
     size_t frames = n + RATE / 5;
     int16_t *lr = heap_caps_calloc(frames * 2, sizeof(int16_t), MALLOC_CAP_SPIRAM);
+    if (!lr) {
+        return ESP_ERR_NO_MEM;
+    }
     esp_codec_dev_sample_info_t fs = {.sample_rate = RATE, .channel = 2, .bits_per_sample = 16};
-    if (!lr || esp_codec_dev_open(dev, &fs) != ESP_CODEC_DEV_OK) {
+    if (esp_codec_dev_open(dev, &fs) != ESP_CODEC_DEV_OK) {
         free(lr);
-        return;
+        return ESP_FAIL;
     }
     esp_codec_dev_set_out_vol(dev, 85);
-    esp_codec_dev_set_in_gain(dev, (float)c->gain);
-    if (!amp) {
-        gpio_set_level(db_board()->speaker.pa_gpio, 0);
-    }
+    bool ok = esp_codec_dev_set_in_gain(dev, (float)c->gain) == ESP_CODEC_DEV_OK;
+    amp(amp_on);
     static int16_t out[2 * 256];
-    for (size_t at = 0; at < frames; at += 256) {
+    for (size_t at = 0; at < frames && ok; at += 256) {
         size_t len = frames - at < 256 ? frames - at : 256;
         for (size_t i = 0; i < len; i++) {
             out[2 * i] = out[2 * i + 1] = at + i < n && volume ? pcm[at + i] : 0;
         }
-        esp_codec_dev_write(dev, out, (int)(len * 4));
-        esp_codec_dev_read(dev, lr + 2 * at, (int)(len * 4));
+        ok = esp_codec_dev_write(dev, out, (int)(len * 4)) == ESP_CODEC_DEV_OK &&
+             esp_codec_dev_read(dev, lr + 2 * at, (int)(len * 4)) == ESP_CODEC_DEV_OK;
     }
+    amp(false);
     esp_codec_dev_close(dev);
-    c->mic[k] = db_tones_level(lr, frames * 2, 2, DB_AUDIO_CHECK_HZ, RATE);
-    c->dac[k] = db_tones_level(lr + 1, frames * 2 - 1, 2, DB_AUDIO_CHECK_HZ, RATE);
+    int hz = db_tones_pitch(DB_SOUND_FIND);
+    c->mic[k] = db_tones_level(lr, frames * 2, 2, hz, RATE);
+    c->dac[k] = db_tones_level(lr + 1, frames * 2 - 1, 2, hz, RATE);
     if (k == 0) {
-        c->other = db_tones_level(lr, frames * 2, 2, DB_AUDIO_CHECK_OTHER_HZ, RATE);
+        c->other = db_tones_level(lr, frames * 2, 2, OTHER_HZ, RATE);
     }
     free(lr);
+    return ok ? ESP_OK : ESP_FAIL;
 }
 
-static void check(int16_t *pcm, int volume, db_audio_check_t *c)
+static esp_err_t check(int16_t *pcm, int volume, db_audio_check_t *c)
 {
     size_t n = db_tones_render(DB_SOUND_FIND, volume, RATE, pcm, LONGEST);
-    listen(pcm, n, volume, true, c, 0);
-    listen(pcm, n, 0, true, c, 1);
-    listen(pcm, n, volume, false, c, 2);
-    c->heard = db_tones_heard(c->mic[0], c->other, c->mic[1], c->mic[2]);
+    esp_err_t err = listen(pcm, n, volume, true, c, 0);
+    err = err ? err : listen(pcm, n, 0, true, c, 1);
+    err = err ? err : listen(pcm, n, volume, false, c, 2);
+    c->heard = !err && db_tones_heard(c->mic[0], c->other, c->mic[1], c->mic[2]);
+    return err;
 }
 
 static bool ready(void)
@@ -138,7 +158,9 @@ static void play(int16_t *pcm, size_t n)
     /* opened per sound: in between the amplifier is off and does not hiss */
     if (esp_codec_dev_open(dev, &fs) == ESP_CODEC_DEV_OK) {
         esp_codec_dev_set_out_vol(dev, 85); /* the samples carry the volume setting */
+        amp(true);
         esp_codec_dev_write(dev, pcm, (int)(n * sizeof(int16_t)));
+        amp(false);
         esp_codec_dev_close(dev);
     }
 }
@@ -152,12 +174,16 @@ static void audio_task(void *arg)
     esp_log_level_set("ES8311", ESP_LOG_WARN); /* else a line per sound in the log */
     play_t p;
     while (xQueueReceive(queue, &p, portMAX_DELAY) == pdTRUE) {
-        size_t n = pcm && !p.check ? db_tones_render(p.sound, p.volume, RATE, pcm, LONGEST) : 0;
-        if (pcm && (n || p.check) && ready()) {
-            p.check ? check(pcm, p.volume, p.check) : play(pcm, n);
+        if (p.job) {
+            p.job->err = !pcm       ? ESP_ERR_NO_MEM
+                         : !ready() ? ESP_ERR_INVALID_STATE
+                                    : check(pcm, p.volume, p.job->c);
+            xSemaphoreGive(p.job->done);
+            continue;
         }
-        if (p.waiter) {
-            xTaskNotifyGive(p.waiter);
+        size_t n = pcm ? db_tones_render(p.sound, p.volume, RATE, pcm, LONGEST) : 0;
+        if (n && ready()) {
+            play(pcm, n);
         }
     }
 }
@@ -189,12 +215,18 @@ esp_err_t db_audio_check(int volume, int gain, db_audio_check_t *out)
         return ESP_ERR_NOT_SUPPORTED;
     }
     *out = (db_audio_check_t){.gain = gain};
-    play_t p = {DB_SOUND_FIND, volume, out, xTaskGetCurrentTaskHandle()};
+    job_t job = {.c = out, .done = xSemaphoreCreateBinary()};
+    play_t p = {.sound = DB_SOUND_FIND, .volume = volume, .job = &job};
+    if (!job.done) {
+        return ESP_ERR_NO_MEM;
+    }
     if (xQueueSend(queue, &p, 0) != pdTRUE) {
+        vSemaphoreDelete(job.done);
         return ESP_ERR_TIMEOUT;
     }
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    return dev ? ESP_OK : ESP_FAIL;
+    xSemaphoreTake(job.done, portMAX_DELAY);
+    vSemaphoreDelete(job.done);
+    return job.err;
 }
 
 void db_audio_play(db_sound_t sound)

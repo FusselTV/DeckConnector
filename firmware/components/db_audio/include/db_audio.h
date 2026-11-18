@@ -14,12 +14,11 @@ void db_audio_play(db_sound_t sound);
  * speaker. */
 esp_err_t db_audio_play_at(db_sound_t sound, int volume);
 
-#define DB_AUDIO_CHECK_HZ       2093 /* Find's pitch */
-#define DB_AUDIO_CHECK_OTHER_HZ 1500
-
 /* The self-test: Find at `volume` heard by the board's microphone at `gain` dB, then the same at volume 0 and
  * with the amplifier off. mic and dac (the codec's copy of what it plays) hold the level at Find's pitch for
- * each. Blocks for about 7 s. */
+ * each, other the mic at 1500 Hz in the first. Blocks for about 6 s. ESP_ERR_NO_MEM, ESP_ERR_INVALID_STATE
+ * when the codec does not answer, ESP_FAIL when it fails during a run, ESP_ERR_TIMEOUT while sounds are
+ * queued. */
 typedef struct {
     int gain;
     float mic[3], dac[3], other;

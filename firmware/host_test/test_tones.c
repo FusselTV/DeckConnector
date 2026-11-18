@@ -36,6 +36,7 @@ static void test_each_sound_has_its_pitch_and_length(void)
 {
     static int16_t buf[RATE * 4];
     const int first[] = {1047, 1319, 1568, 2093};
+    TEST_ASSERT_EQUAL_INT(2093, db_tones_pitch(DB_SOUND_FIND));
     for (int s = 0; s < DB_SOUND_COUNT; s++) {
         size_t n = db_tones_render((db_sound_t)s, 100, RATE, buf, sizeof(buf) / sizeof(buf[0]));
         TEST_ASSERT_TRUE_MESSAGE(n > RATE / 20 && n < RATE * 3, db_sound_name((db_sound_t)s));
@@ -68,10 +69,11 @@ static void test_level_finds_the_pitch_in_one_channel(void)
         lr[2 * i] = mono[i];
         lr[2 * i + 1] = (int16_t)(i % 7 * 100);
     }
-    float tone = db_tones_level(lr, 2 * n, 2, 2093, RATE);
+    int hz = db_tones_pitch(DB_SOUND_FIND);
+    float tone = db_tones_level(lr, 2 * n, 2, hz, RATE);
     TEST_ASSERT_TRUE(tone > 1000 * db_tones_level(lr, 2 * n, 2, 1500, RATE));
-    TEST_ASSERT_TRUE(tone > 1000 * db_tones_level(lr + 1, 2 * n - 1, 2, 2093, RATE));
-    TEST_ASSERT_EQUAL_FLOAT(0, db_tones_level(lr, 0, 2, 2093, RATE));
+    TEST_ASSERT_TRUE(tone > 1000 * db_tones_level(lr + 1, 2 * n - 1, 2, hz, RATE));
+    TEST_ASSERT_EQUAL_FLOAT(0, db_tones_level(lr, 0, 2, hz, RATE));
 }
 
 static void test_heard_needs_every_control_quiet(void)
@@ -81,6 +83,9 @@ static void test_heard_needs_every_control_quiet(void)
     TEST_ASSERT_FALSE(db_tones_heard(1000, 50, 200, 50));
     TEST_ASSERT_FALSE(db_tones_heard(1000, 50, 50, 200));
     TEST_ASSERT_FALSE(db_tones_heard(0, 0, 0, 0));
+    TEST_ASSERT_FALSE(db_tones_heard(1000, 0, 50, 50));
+    TEST_ASSERT_FALSE(db_tones_heard(1000, 50, 0, 50));
+    TEST_ASSERT_FALSE(db_tones_heard(1000, 50, 50, 0));
 }
 
 int main(void)
