@@ -275,9 +275,9 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
 | `decks[].writer` | Wer auf diesem Deck zeichnet, Werte wie bei `writer` |
 | `decks[].hub` | Das Deck hängt an einem USB-Hub |
-| `speaker` | Die Platine hat einen Lautsprecher, siehe [Hardware](/de/docs/hardware#platine) |
-| `temp_c` | Die Chiptemperatur in °C |
-| `https_ca` | Der Kurzcode der CA der Platine, siehe [HTTPS](/de/docs/security#https). `https_custom` ist true mit eigenem Zertifikat |
+| `speaker` | Die Platine hat einen Lautsprecher-Ausgang, siehe [Hardware](/de/docs/hardware#platine) |
+| `temp_c` | Die Chiptemperatur in °C. Fehlt bis zur ersten Messung |
+| `https_ca` | Der Kurzcode der CA der Platine, siehe [HTTPS](/de/docs/security#https). Leer mit eigenem Zertifikat, dann ist `https_custom` true |
 
 Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
 

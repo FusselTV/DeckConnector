@@ -16,7 +16,7 @@ The board announces itself over mDNS on one network at a time. That is the LAN, 
 - 2.4 GHz only. A hidden network is not in the list, but you can type its name.
 - The board tests a new network first and keeps it only when it gets an address there. Otherwise the old one comes back.
 - **Access points (BSSID)** locks the board to one access point. By default it takes the strongest and roams.
-- **Backup Wi-Fi** is a second network. The board joins it when the first one gives no link for 10 s. There it looks for the first one every 2 minutes, less often while the first one keeps failing, and goes back once its signal is good. On the backup the board always takes its address over DHCP.
+- **Backup Wi-Fi** is a second network. The board joins it when the first one gives no link for 10 s. There it looks for the first one every 2 minutes. When the first one keeps failing, it looks less often. It goes back once the signal is good. On the backup the board always takes its address over DHCP.
 
 ## Fixed address
 
@@ -32,7 +32,7 @@ The board's mDNS name is `<name>.local`, for example `deckconnector-a1b2c3.local
 |---|---|
 | `_deckconnector-api._tcp` | Web UI and API |
 | `_elg._tcp` | The Network Dock, only while a deck is plugged in |
-| `_companion-satellite._tcp` | Lists the board under **Surfaces › Discover** in Companion |
+| `_companion-satellite._tcp`, `_comp-sat-app._tcp` | Lists the board under **Surfaces › Discover** in Companion |
 
 ## Ports
 

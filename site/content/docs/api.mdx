@@ -275,9 +275,9 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
 | `decks[].writer` | Who draws on that deck, values as `writer` |
 | `decks[].hub` | The deck is behind a USB hub |
-| `speaker` | The board has a speaker, see [Hardware](/docs/hardware#board) |
-| `temp_c` | The chip temperature in °C |
-| `https_ca` | The short code of the board's CA, see [HTTPS](/docs/security#https). `https_custom` is true with your own certificate |
+| `speaker` | The board has a speaker output, see [Hardware](/docs/hardware#board) |
+| `temp_c` | The chip temperature in °C. Missing until the first reading |
+| `https_ca` | The short code of the board's CA, see [HTTPS](/docs/security#https). Empty with your own certificate, then `https_custom` is true |
 
 The status also has `boot_ms`, `memory` and `https_fingerprint`.
 
