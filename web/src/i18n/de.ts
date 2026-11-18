@@ -518,10 +518,13 @@ export const de: Dict = {
   'deck.max': 'Decks gleichzeitig',
   'deck.max_h':
     'Alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports. Ein kleineres Limit gilt für Decks, die danach eingesteckt werden.',
-  'deck.off': 'Bildschirm aus nach',
+  'deck.off': 'Bildschirmschoner nach',
   'deck.off_h':
-    'Ohne Eingabe gehen alle Decks dunkel. Die erste Taste, Drehung oder Berührung weckt sie und löst sonst nichts aus.',
+    'Ohne Eingabe werden alle Decks gedimmt oder dunkel. Ein Druck auf ein dunkles Deck weckt es nur. Auf einem gedimmten Deck wirkt der Druck wie immer.',
   'deck.never': 'Nie',
+  'deck.dim': 'Helligkeit danach',
+  'deck.dim_off': 'Aus',
+  'deck.dim_to': '{pct} %',
   'deck.dark': 'Bildschirm aus. Die erste Eingabe weckt die Decks.',
   'is.decks_n': '{n} Decks',
   'is.compdock': 'Companion „{name}“ nutzt den Dock-Weg',

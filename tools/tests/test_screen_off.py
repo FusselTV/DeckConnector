@@ -1,9 +1,11 @@
-"""screen_off_s: the decks go dark after that long without input, and the press that wakes them reaches no host."""
+"""screen_off_s: the decks dim or go dark after that long without input. A press on a dark deck only wakes it; on a
+dimmed one it works."""
 
 import asyncio
 import contextlib
 import json
 import time
+from collections.abc import Callable
 
 import pytest
 from conftest import api, jpeg, put_config, status, strip_color
@@ -43,7 +45,69 @@ def test_screen_off_s_is_checked():
     for bad in (-1, 1, 9, 86401, "60"):
         code, reply = api("PUT", "/api/config", json.dumps({"screen_off_s": bad}).encode())
         assert code == 400 and "screen_off_s" in json.loads(reply)["error"], bad
+    for bad in (-10, 5, 15, 100, 30.5, "30"):
+        code, reply = api("PUT", "/api/config", json.dumps({"screen_dim": bad}).encode())
+        assert code == 400 and "screen_dim" in json.loads(reply)["error"], bad
     assert api("POST", "/api/screen", b'{"on": 1}')[0] == 400
+
+
+def input_since() -> Callable[[], list]:
+    log = json.loads(api("GET", "/api/input/log")[1])
+    last = log[-1]["seq"] if log else 0
+    return lambda: [(e["kind"], e["index"]) for e in json.loads(api("GET", f"/api/input/log?since={last}")[1])]
+
+
+@pytest.mark.sim
+def test_dimmed_after_the_idle_time_and_a_press_works():
+    put_config({"screen_off_s": 10, "screen_dim": 30, "brightness": 80})
+    screen(True)
+    try:
+        start = time.monotonic()
+        while status()["decks"][0]["brightness"] != 30:
+            assert time.monotonic() - start < 13, "the decks did not dim"
+            time.sleep(0.2)
+        assert not status()["screen_off"], "dimmed is not off: the screen switch stays on"
+        seen = input_since()
+        press(2, real="192.0.2.1")
+        assert seen() == [("key_down", 2), ("key_up", 2)], "the press on a dimmed deck was swallowed"
+        assert status()["decks"][0]["brightness"] == 80
+    finally:
+        put_config({"screen_off_s": 0, "screen_dim": 0})
+        screen(True)
+
+
+@pytest.mark.sim
+def test_one_press_turns_the_switched_off_screen_on():
+    put_config({"brightness": 70})
+    screen(False)
+    try:
+        st = status()
+        assert st["screen_off"] and st["decks"][0]["brightness"] == 0
+        seen = input_since()
+        press(1, real="192.0.2.1")
+        st = status()
+        assert not st["screen_off"] and st["decks"][0]["brightness"] == 70
+        assert seen() == [], "the press that turned the screen on did something"
+    finally:
+        screen(True)
+
+
+@pytest.mark.sim
+def test_one_press_lights_a_deck_at_brightness_0():
+    if status()["decks"][0]["writer"] != "ui":
+        pytest.skip("a host draws: its press is not swallowed (tools/simdeck/test_wake.py covers that)")
+    before = status()["brightness"]
+    put_config({"brightness": 0})
+    try:
+        assert status()["decks"][0]["brightness"] == 0
+        seen = input_since()
+        press(1, real="192.0.2.1")
+        assert status()["decks"][0]["brightness"] == 50, "a press left the deck black"
+        assert seen() == [], "a press on the black deck did something"
+        press(1, real="192.0.2.1")
+        assert seen() == [("key_down", 1), ("key_up", 1)]
+    finally:
+        put_config({"brightness": before})
 
 
 @pytest.mark.sim

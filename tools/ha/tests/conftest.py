@@ -25,6 +25,7 @@ STATUS = {
     "brightness": 80,
     "volume": 30,
     "screen_off_s": 600,
+    "screen_dim": 0,
     "max_decks": 2,
     "speaker": True,
     "decks_over_limit": 0,
