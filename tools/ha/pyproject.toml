@@ -2,7 +2,7 @@
 name = "deckconnector-ha-tests"
 version = "0"
 requires-python = ">=3.14"
-dependencies = ["pytest-homeassistant-custom-component", "PyTurboJPEG"]
+dependencies = ["pytest-homeassistant-custom-component", "PyTurboJPEG", "pytest-cov", "mypy"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -22,3 +22,8 @@ combine-as-imports = true
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/conftest.py" = ["ASYNC109"]  # mirrors aiohttp's receive(timeout)
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true

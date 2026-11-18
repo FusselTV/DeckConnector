@@ -1,0 +1,105 @@
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: No custom actions.
+  appropriate-polling:
+    status: done
+    comment: >-
+      The board pushes its state over a WebSocket. A status poll every 60 seconds
+      only fills the signal and temperature, which the push leaves out.
+  brands:
+    status: done
+    comment: brand/ ships the icon and logos, served by Home Assistant 2026.3 and newer.
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency:
+    status: exempt
+    comment: No external dependency; the API client ships with the integration.
+  docs-actions:
+    status: exempt
+    comment: No custom actions.
+  docs-conditions:
+    status: exempt
+    comment: No device conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers: done
+  entity-event-setup:
+    status: done
+    comment: Event and camera entities subscribe in async_added_to_hass and unsubscribe through async_on_remove.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry:
+    status: done
+    comment: The board's MAC address is the unique ID.
+
+  # Silver
+  action-exceptions:
+    status: done
+    comment: Every command maps board errors onto a translated HomeAssistantError.
+  config-entry-unloading: done
+  docs-configuration-parameters:
+    status: exempt
+    comment: No options flow.
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: done
+    comment: Entities go unavailable while the WebSocket is down, deck entities also while the deck is unplugged.
+  integration-owner: done
+  log-when-unavailable:
+    status: done
+    comment: The coordinator logs once when the WebSocket drops and once when it is back.
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage: done
+
+  # Gold
+  devices:
+    status: done
+    comment: One device for the board, one per deck linked with via_device.
+  diagnostics: done
+  discovery: done
+  discovery-update-info: done
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: done
+    comment: A deck plugged in later gets its device and entities at once.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: done
+    comment: >-
+      Signal, network name, last restart, deck reconnect, PIN lock (its device
+      triggers would turn into HomeKit buttons) and the firmware update (it makes
+      the board ask GitHub every 6 hours) start disabled.
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  reconfiguration-flow: done
+  repair-issues:
+    status: done
+    comment: HTTPS only on the board, and decks left dark by the deck limit.
+  stale-devices:
+    status: done
+    comment: >-
+      An unplugged deck may come back, so its device stays. Once it is gone from
+      the board it can be deleted by hand; attached decks and the board cannot.
+
+  # Platinum
+  async-dependency: done
+  inject-websession: done
+  strict-typing:
+    status: done
+    comment: py.typed ships and mypy --strict runs in CI.

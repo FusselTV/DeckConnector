@@ -15,14 +15,8 @@ from .const import DOMAIN
 from .coordinator import DeckConnectorConfigEntry, DeckCoordinator
 
 
-class BoardEntity(CoordinatorEntity[DeckCoordinator]):
+class DeckConnectorEntity(CoordinatorEntity[DeckCoordinator]):
     _attr_has_entity_name = True
-
-    def __init__(self, coordinator: DeckCoordinator, key: str) -> None:
-        super().__init__(coordinator)
-        self._attr_translation_key = key
-        self._attr_unique_id = f"{coordinator.board_id}_{key}"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, coordinator.board_id)})
 
     @property
     def available(self) -> bool:
@@ -39,9 +33,23 @@ class BoardEntity(CoordinatorEntity[DeckCoordinator]):
             ) from err
 
 
-class DeckEntity(CoordinatorEntity[DeckCoordinator]):
-    _attr_has_entity_name = True
+class BoardEntity(DeckConnectorEntity):
+    def __init__(self, coordinator: DeckCoordinator, key: str) -> None:
+        super().__init__(coordinator)
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{coordinator.board_id}_{key}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, coordinator.board_id)})
 
+
+def maker(model: str) -> str:
+    if model.startswith("Stream Deck"):
+        return "Elgato"
+    if model.startswith("Stream Dock"):
+        return "Mirabox"
+    return model.split()[0]
+
+
+class DeckEntity(DeckConnectorEntity):
     def __init__(self, coordinator: DeckCoordinator, deck: dict[str, Any], key: str) -> None:
         super().__init__(coordinator)
         self.serial: str = deck["serial"]
@@ -51,7 +59,7 @@ class DeckEntity(CoordinatorEntity[DeckCoordinator]):
             identifiers={(DOMAIN, self.serial)},
             via_device_id=coordinator.board_device_id,
             name=deck["model"],
-            manufacturer="Elgato",
+            manufacturer=maker(deck["model"]),
             model=deck["model"],
             serial_number=self.serial,
             sw_version=deck.get("firmware"),
@@ -63,7 +71,7 @@ class DeckEntity(CoordinatorEntity[DeckCoordinator]):
 
     @property
     def available(self) -> bool:
-        return super().available and self.coordinator.connected and self.deck is not None
+        return super().available and self.deck is not None
 
 
 def add_per_deck(

@@ -2,7 +2,7 @@ import asyncio
 import copy
 import json
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import aiohttp
 import pytest
@@ -23,8 +23,13 @@ STATUS = {
     "controller": "companion",
     "screen_off": False,
     "brightness": 80,
+    "volume": 30,
+    "screen_off_s": 600,
+    "max_decks": 2,
+    "speaker": True,
+    "decks_over_limit": 0,
     "boot": {"reason": "power", "at": 1794012139},
-    "network": {"wlan": {"rssi": -48}},
+    "network": {"lan": {"cable": True, "dead": False}, "wlan": {"rssi": -48, "ssid": "studio", "backup": False}},
     "temp_c": 41,
     "sources": [],
 }
@@ -32,7 +37,12 @@ STATUS = {
 
 def status(*decks: dict[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(
-        {**STATUS, "decks": [{**d, "slot": i, "number": i + 1, "brightness": 80} for i, d in enumerate(decks)]}
+        {
+            **STATUS,
+            "decks": [
+                {**d, "slot": i, "number": i + 1, "brightness": 80, "locked": False} for i, d in enumerate(decks)
+            ],
+        }
     )
 
 
@@ -77,3 +87,13 @@ def socket():
     fake = FakeSocket()
     with patch.object(Api, "websocket", return_value=fake):
         yield fake
+
+
+@pytest.fixture
+def entity_registry_enabled_by_default():
+    with patch(
+        "homeassistant.helpers.entity.Entity.entity_registry_enabled_default",
+        new_callable=PropertyMock,
+        return_value=True,
+    ):
+        yield

@@ -9,11 +9,12 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import Api, AuthError, DeckConnectorError
-from .const import DOMAIN, SIGNAL_INPUT, SIGNAL_SCREEN
+from .api import Api, AuthError, DeckConnectorError, HttpsOnlyError
+from .const import DOCS, DOMAIN, ISSUE_DECKS_OVER_LIMIT, ISSUE_HTTPS_ONLY, SIGNAL_INPUT, SIGNAL_SCREEN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,12 +39,13 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=POLL)
         self.api = api
         self.connected = False
+        self.lost = False
         self.board_device_id = ""
         self.ota: dict[str, Any] = {}
 
     @property
     def board_id(self) -> str:
-        return self.data["id"]
+        return str(self.data["id"])
 
     @property
     def decks(self) -> list[dict[str, Any]]:
@@ -52,25 +54,56 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def deck(self, serial: str) -> dict[str, Any] | None:
         return next((d for d in self.decks if d["serial"] == serial), None)
 
+    def _issue(self, key: str, active: bool, **placeholders: str) -> None:
+        issue_id = f"{key}_{self.config_entry.entry_id}"
+        if not active:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR if key == ISSUE_HTTPS_ONLY else ir.IssueSeverity.WARNING,
+            translation_key=key,
+            translation_placeholders={"name": self.config_entry.title, **placeholders},
+            learn_more_url=f"{DOCS}home-assistant/#troubleshooting",
+        )
+
     async def _async_update_data(self) -> dict[str, Any]:
         try:
             status = await self.api.status()
         except AuthError as err:
-            raise ConfigEntryAuthFailed from err
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="auth_failed") from err
+        except HttpsOnlyError as err:
+            self._issue(ISSUE_HTTPS_ONLY, True)
+            raise UpdateFailed(translation_domain=DOMAIN, translation_key="https_only") from err
         except DeckConnectorError as err:
             if self.connected and self.data:
                 _LOGGER.debug("poll of %s failed, the websocket is up: %s", self.api.host, err)
                 return self.data
-            raise UpdateFailed(str(err)) from err
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="cannot_connect",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        self._issue(ISSUE_HTTPS_ONLY, False)
         return merge(self.data or {}, status)
+
+    @callback
+    def check_decks(self) -> None:
+        over = int(self.data.get("decks_over_limit") or 0)
+        self._issue(ISSUE_DECKS_OVER_LIMIT, over > 0, count=str(over), max=str(self.data.get("max_decks", "")))
 
     def start(self) -> None:
         self.config_entry.async_create_background_task(self.hass, self._listen(), f"{DOMAIN} websocket")
 
     @callback
-    def _set_connected(self, connected: bool) -> None:
-        if connected != self.connected:
-            self.connected = connected
+    def _disconnected(self) -> None:
+        if self.connected:
+            _LOGGER.info("lost the connection to %s", self.api.host)
+            self.connected = False
+            self.lost = True
             self.async_update_listeners()
 
     async def _listen(self) -> None:
@@ -87,7 +120,7 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self._handle(msg.json())
             except aiohttp.WSServerHandshakeError as err:
                 if err.status == 401:
-                    self._set_connected(False)
+                    self._disconnected()
                     self.config_entry.async_start_reauth(self.hass)
                     return
                 _LOGGER.debug("websocket refused: %s", err)
@@ -95,7 +128,7 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.debug("websocket lost: %s", err)
             except Exception:
                 _LOGGER.exception("unexpected message from %s", self.api.host)
-            self._set_connected(False)
+            self._disconnected()
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, BACKOFF_MAX_S)
 
@@ -106,6 +139,9 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self.connected:
                 for deck in msg.get("decks") or []:
                     async_dispatcher_send(self.hass, SIGNAL_SCREEN.format(deck["serial"]))
+                if self.lost:
+                    _LOGGER.info("connected to %s again", self.api.host)
+                    self.lost = False
             self.connected = True
             self.async_set_updated_data(merge(self.data, msg))
         elif kind == "input" and not msg.get("simulated"):

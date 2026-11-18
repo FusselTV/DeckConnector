@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Mapping
 from typing import Any
 
-from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_TOKEN
 from homeassistant.helpers import instance_id
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -77,6 +77,32 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
         self.host = entry_data[CONF_HOST]
         self.name = self._get_reauth_entry().title
         return await self.async_step_auth()
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        entry = self._get_reconfigure_entry()
+        self.name = entry.title
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self.host = host_of(user_input[CONF_HOST])
+            self.token = entry.data[CONF_TOKEN]
+            try:
+                await Api(async_get_clientsession(self.hass), self.host, self.token).status()
+            except AuthError:
+                return await self.async_step_auth()
+            except HttpsOnlyError:
+                errors["base"] = "https_only"
+            except DeckConnectorError:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_finish()
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema({vol.Required(CONF_HOST): str}), user_input or {CONF_HOST: entry.data[CONF_HOST]}
+            ),
+            errors=errors,
+            description_placeholders={"name": self.name},
+        )
 
     async def async_step_auth(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
@@ -161,9 +187,10 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="cannot_connect")
         await self.async_set_unique_id(status["id"], raise_on_progress=False)
         data = {CONF_HOST: self.host, CONF_TOKEN: self.token}
-        if self.source == SOURCE_REAUTH:
+        if self.source in (SOURCE_REAUTH, SOURCE_RECONFIGURE):
             self._abort_if_unique_id_mismatch()
-            return self.async_update_reload_and_abort(self._get_reauth_entry(), data_updates=data)
+            entry = self._get_reauth_entry() if self.source == SOURCE_REAUTH else self._get_reconfigure_entry()
+            return self.async_update_reload_and_abort(entry, data_updates=data)
         self._abort_if_unique_id_configured(updates=data)
         return self.async_create_entry(title=status["name"], data=data)
 

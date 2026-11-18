@@ -23,6 +23,15 @@
         "data": {
           "password": "Password"
         }
+      },
+      "reconfigure": {
+        "description": "New address of {name}. Home Assistant keeps its API key, or asks for access again if the board does not know it.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP address or host name, for example 192.168.1.50 or deckconnector-a1b2c3.local"
+        }
       }
     },
     "progress": {
@@ -41,13 +50,31 @@
       "already_configured": "This board is already set up.",
       "cannot_connect": "Cannot reach the board.",
       "reauth_successful": "Access renewed.",
-      "unique_id_mismatch": "This is another board."
+      "unique_id_mismatch": "This is another board.",
+      "reconfigure_successful": "Address changed."
     }
   },
   "entity": {
+    "binary_sensor": {
+      "ethernet": {
+        "name": "Ethernet"
+      },
+      "backup_wifi": {
+        "name": "Backup Wi-Fi"
+      },
+      "pin_lock": {
+        "name": "PIN lock"
+      }
+    },
     "button": {
       "restart": {
         "name": "Restart"
+      },
+      "find": {
+        "name": "Find"
+      },
+      "reconnect": {
+        "name": "Reconnect"
       }
     },
     "camera": {
@@ -169,6 +196,12 @@
     "number": {
       "brightness": {
         "name": "Brightness"
+      },
+      "screen_off_after": {
+        "name": "Screen off after"
+      },
+      "volume": {
+        "name": "Volume"
       }
     },
     "select": {
@@ -199,6 +232,9 @@
       },
       "last_restart": {
         "name": "Last restart"
+      },
+      "wifi_network": {
+        "name": "Wi-Fi network"
       }
     },
     "switch": {
@@ -218,6 +254,15 @@
     },
     "no_update": {
       "message": "There is no newer firmware."
+    },
+    "cannot_connect": {
+      "message": "Cannot reach the board: {error}"
+    },
+    "auth_failed": {
+      "message": "The board no longer accepts the API key of Home Assistant."
+    },
+    "https_only": {
+      "message": "The board allows HTTPS only."
     }
   },
   "device_automation": {
@@ -274,6 +319,24 @@
       "dial_5": "Dial 5",
       "dial_6": "Dial 6",
       "touch_strip": "Touch strip"
+    }
+  },
+  "issues": {
+    "https_only": {
+      "title": "{name} allows HTTPS only",
+      "description": "Home Assistant talks to the board over HTTP. Turn off **HTTPS only** under **Access** on the web page of {name}. The integration connects again by itself."
+    },
+    "decks_over_limit": {
+      "title": "{count} deck(s) on {name} stay dark",
+      "description": "{name} drives {max} deck(s) at once. Raise the limit under **Deck** on its web page, or unplug a deck. Decks share the power of the board's USB port, so use a hub with its own power supply for more decks."
+    }
+  },
+  "system_health": {
+    "info": {
+      "boards": "Boards",
+      "connected": "Connected",
+      "decks": "Decks",
+      "firmware": "Firmware"
     }
   }
 }

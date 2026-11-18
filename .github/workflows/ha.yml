@@ -1,0 +1,64 @@
+name: home-assistant
+on:
+  push:
+    branches: [main]
+    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, .github/workflows/ha.yml]
+  pull_request:
+    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, .github/workflows/ha.yml]
+  schedule:
+    - cron: '0 4 * * 1' # hassfest and HACS change their checks without this repo changing
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ha-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  hassfest:
+    runs-on: [self-hosted, deckconnector]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    # HACS reads hacs.json and the manifest from raw.githubusercontent.com without a token, which 404s while the
+    # repository is private.
+    if: ${{ !github.event.repository.private }}
+    runs-on: [self-hosted, deckconnector]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hacs/action@main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          category: integration
+
+  test:
+    runs-on: [self-hosted, deckconnector]
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - working-directory: tools/ha
+        run: |
+          uvx ruff@0.17.4 check --config pyproject.toml ../../custom_components . && uvx ruff@0.17.4 format --config pyproject.toml --check ../../custom_components .
+          uv run --locked mypy ../../custom_components/deckconnector
+          uv run --locked pytest --cov=custom_components.deckconnector --cov-report=term-missing --cov-fail-under=95

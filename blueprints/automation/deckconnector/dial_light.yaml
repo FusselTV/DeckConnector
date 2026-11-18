@@ -1,0 +1,74 @@
+blueprint:
+  name: Dial dims a light
+  description: >-
+    Turn a dial of a Stream Deck on a DeckConnector board to dim a light. Turn it
+    right for brighter, left for darker. Press the dial to switch the light on or off.
+  domain: automation
+  source_url: https://github.com/FusselTV/DeckConnector/blob/main/blueprints/automation/deckconnector/dial_light.yaml
+  homeassistant:
+    min_version: "2026.10.0"
+  input:
+    controls:
+      name: Deck
+      description: The Controls entity of the deck.
+      selector:
+        entity:
+          filter:
+            - integration: deckconnector
+              domain: event
+    dial:
+      name: Dial
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 6
+          mode: box
+    light:
+      name: Light
+      selector:
+        target:
+          entity:
+            - domain: light
+    step:
+      name: Step per click
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 25
+          unit_of_measurement: "%"
+
+mode: queued
+max: 20
+
+variables:
+  dial: !input dial
+  step: !input step
+  event: "{{ trigger.to_state.attributes.event_type }}"
+  ticks: "{{ trigger.to_state.attributes.ticks | default(1) }}"
+
+triggers:
+  - trigger: state
+    entity_id: !input controls
+    not_from: unavailable
+    not_to: [unavailable, unknown]
+
+actions:
+  - choose:
+      - conditions: "{{ event == 'dial_' ~ dial ~ '_right' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input light
+            data:
+              brightness_step_pct: "{{ step * ticks }}"
+      - conditions: "{{ event == 'dial_' ~ dial ~ '_left' }}"
+        sequence:
+          - action: light.turn_on
+            target: !input light
+            data:
+              brightness_step_pct: "{{ -step * ticks }}"
+      - conditions: "{{ event == 'dial_' ~ dial ~ '_press' }}"
+        sequence:
+          - action: light.toggle
+            target: !input light
