@@ -38,7 +38,13 @@ async def test_the_live_stream_sends_each_new_picture_twice(hass, entry, aioclie
     with patch("custom_components.deckconnector.camera.async_get_still_stream") as stream:
         await cam.handle_async_mjpeg_stream(MagicMock())
     frame = stream.call_args.args[1]
-    assert [await frame() for _ in range(3)] == [b"\xff\xd8one", b"\xff\xd8one\0", b"\xff\xd8one"]
+    sent = [await frame() for _ in range(3)]
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(JPG, content=b"\xff\xd8two")
+    await socket.queue.put({"t": "screen", "deck": "A1"})
+    await hass.async_block_till_done()
+    sent += [await frame() for _ in range(2)]
+    assert sent == [b"\xff\xd8one", b"\xff\xd8one\0", b"\xff\xd8one\0", b"\xff\xd8two", b"\xff\xd8two\0"]
 
 
 async def test_every_input_kind_becomes_an_event(hass, entry, aioclient_mock, socket):

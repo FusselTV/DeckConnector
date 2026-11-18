@@ -49,20 +49,16 @@ class ScreenCamera(DeckEntity, Camera):
         return self._jpg
 
     async def handle_async_mjpeg_stream(self, request: web.Request) -> web.StreamResponse:
-        last: bytes | None = None
-        echo = False
+        seen: bytes | None = None
 
         # Chrome shows an MJPEG frame only when the next one arrives, and HA sends a frame only when the bytes change.
-        # A copy with a byte after the JPEG end marker follows each new picture, so the picture shows at once.
+        # A copy with a byte after the JPEG end marker follows each new picture, so it shows within one interval.
         async def frame() -> bytes | None:
-            nonlocal last, echo
+            nonlocal seen
             jpg = await self.async_camera_image()
-            if jpg is not None and jpg != last:
-                last, echo = jpg, True
+            if jpg is None or jpg != seen:
+                seen = jpg
                 return jpg
-            if echo and jpg is not None:
-                echo = False
-                return jpg + b"\0"
-            return jpg
+            return jpg + b"\0"
 
         return await async_get_still_stream(request, frame, self.content_type, self.frame_interval)
