@@ -17,7 +17,20 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a key, a dial, a folder, then the Elgato App takes over">
+  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a key, a dial, a folder, the Elgato App takes over, then the brightness">
+</p>
+
+- Companion connects over Satellite or as a Network Dock. The Elgato App sees a Network Dock.
+- Several programs connect at once. You pick the one that draws.
+- Several decks on one connector.
+- Wi-Fi with a backup network, Ethernet, and power over PoE.
+- Home Assistant gets every key press, sets the brightness and turns the screen off.
+- Apple Home and Google Home with the Matter firmware.
+- A web UI with the live deck, where you can also press keys.
+- Log in with a passkey, or confirm the login on the deck.
+
+<p align="center">
+  <img src="site/public/docs/ha-live-en.gif" width="860" alt="Home Assistant: a key press shows up in the deck picture and as an event, the brightness dims the picture, the screen goes off and on">
 </p>
 
 ## Get started

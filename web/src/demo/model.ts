@@ -40,8 +40,9 @@ export interface Faces {
   lights: boolean[]
   light: number[]
   brb: boolean
+  wall: boolean
+  focus: boolean
   play: boolean
-  track: number
   appVol: number[]
   appMute: boolean[]
   presses: number[]
@@ -49,7 +50,7 @@ export interface Faces {
 }
 
 export interface Demo {
-  v: 8
+  v: 9
   bootAt: number
   /** A restart: answers stop at downFrom (1 s after it was asked, like the firmware) until downUntil. */
   downFrom: number
@@ -148,7 +149,7 @@ export const PASS = 'studio-demo'
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
-    v: 8,
+    v: 9,
     bootAt: now - (setup ? 40_000 : 3 * 3600_000 + 17 * 60_000),
     downFrom: 0,
     downUntil: 0,
@@ -242,8 +243,9 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       lights: [true, true, false],
       light: [65, 40, 4800, 55],
       brb: false,
+      wall: true,
+      focus: false,
       play: true,
-      track: 0,
       appVol: [60, 35, 50, 75],
       appMute: [false, false, false, false],
       presses: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -735,13 +737,20 @@ function studioKey(f: Faces, k: number) {
   }
   if (k <= 2) f.lights[k] = !f.lights[k]
   if (k === 3) f.brb = !f.brb
+  if (k === 4) f.wall = !f.wall
+  if (k === 5) {
+    f.lights = f.lights.map(() => false)
+    f.wall = false
+  }
   if (k === 7) f.page = 0
 }
 
 function appKey(f: Faces, k: number) {
   if (k === 0) f.play = !f.play
-  if (k === 1) f.track = (f.track + 1) % TRACKS.length
   if (k === 2) f.lights[0] = !f.lights[0]
+  if (k === 3) f.appMute[3] = !f.appMute[3]
+  if (k === 5) f.focus = !f.focus
+  if (k === 6) f.lights[1] = !f.lights[1]
 }
 
 function lanOctets(s: Demo) {
@@ -856,8 +865,6 @@ export function closeMenu(s: Demo, now: number) {
   if (s.loginReq?.state === 'pending') s.loginReq.state = 'denied'
 }
 
-export const TRACKS = ['Opening Theme', 'Lo-Fi Break', 'Outro Groove']
-
 // What the deck shows: one face per key and one for the strip. deck.ts paints them; equal faces share a picture.
 export interface KeyFace {
   t: string
@@ -867,11 +874,31 @@ export interface KeyFace {
   on?: boolean
   bar?: number
   /** The website's key look (site/remotion/hw.tsx Face): this icon over t. */
-  site?: 'cam' | 'slides' | 'pause' | 'mic' | 'title' | 'rec' | 'clock' | 'next'
+  site?: SiteIcon
   /** Colour of the rec dot. */
   dot?: string
-  icon?: 'light' | 'next' | 'back' | 'play' | 'pause' | 'skip' | 'clock' | 'brb' | 'dot'
+  /** t is the time, drawn large. */
+  clock?: true
 }
+export type SiteIcon =
+  | 'cam'
+  | 'slides'
+  | 'pause'
+  | 'mic'
+  | 'mic-off'
+  | 'title'
+  | 'rec'
+  | 'next'
+  | 'back'
+  | 'light'
+  | 'coffee'
+  | 'palette'
+  | 'power'
+  | 'play'
+  | 'skip'
+  | 'camera'
+  | 'moon'
+  | 'sun'
 export interface StripZone {
   t: string
   v: number
@@ -886,6 +913,8 @@ const pad = (n: number) => String(n).padStart(2, '0')
 
 const AMBER = '#ffb020'
 const TILE = '#2b2d31'
+const VIOLET = '#9b7bff'
+const INK = '#1a1200'
 
 function faceEn(s: Demo, now: number): Face {
   const f = s.faces
@@ -904,9 +933,9 @@ function faceEn(s: Demo, now: number): Face {
             site: i < 2 ? 'cam' : 'slides',
             bg: f.scene === i ? '#ff4b3e' : TILE,
           })),
-          { t: 'Pause', site: 'pause', bg: f.pause ? '#9b7bff' : TILE, fg: f.pause ? '#140d26' : undefined },
+          { t: 'Pause', site: 'pause', bg: f.pause ? VIOLET : TILE, fg: f.pause ? '#140d26' : undefined },
           f.mic ? { t: 'ON', site: 'mic', bg: '#30c060' } : { t: 'OFF', site: 'mic', bg: TILE, fg: '#ff7a70' },
-          { t: 'Title', site: 'title', bg: f.title ? AMBER : TILE, fg: f.title ? '#1a1200' : undefined },
+          { t: 'Title', site: 'title', bg: f.title ? AMBER : TILE, fg: f.title ? INK : undefined },
           { t: 'REC', site: 'rec', bg: TILE, dot: f.rec ? '#ff4b3e' : '#5a2420' },
           { t: 'Lights', site: 'next', bg: TILE },
         ],
@@ -922,26 +951,14 @@ function faceEn(s: Demo, now: number): Face {
       }
     return {
       keys: [
-        ...['Front', 'Fill', 'Rim'].map((t, i): KeyFace => ({
-          t,
-          sub: f.lights[i] ? 'on' : 'off',
-          bg: f.lights[i] ? '#4a3a0c' : '#1b1e22',
-          fg: f.lights[i] ? '#ffcf5a' : '#8a9097',
-          icon: 'light',
-          on: f.lights[i],
-        })),
-        {
-          t: 'BRB',
-          sub: f.brb ? 'showing' : 'Scene',
-          bg: f.brb ? '#ffb020' : '#1d2a3a',
-          fg: f.brb ? '#0f1113' : '#cfe3ff',
-          icon: 'brb',
-          on: f.brb,
-        },
-        { t: clock, sub: 'Clock', bg: '#101418', icon: 'clock' },
-        { t: '', bg: '#0f1113' },
-        { t: '', bg: '#0f1113' },
-        { t: 'Show', bg: '#262b31', icon: 'back' },
+        ...['Front', 'Fill', 'Rim'].map((t, i): KeyFace =>
+          f.lights[i] ? { t, site: 'light', bg: AMBER, fg: INK } : { t, site: 'light', bg: TILE },
+        ),
+        { t: 'BRB', site: 'coffee', bg: f.brb ? VIOLET : TILE, fg: f.brb ? '#140d26' : undefined },
+        { t: 'Wall', site: 'palette', bg: f.wall ? '#2f7dff' : TILE },
+        { t: 'All off', site: 'power', bg: TILE, fg: '#ff7a70' },
+        { t: clock, sub: 'Clock', bg: TILE, clock: true },
+        { t: 'Show', site: 'back', bg: TILE },
       ],
       strip: {
         zones: [
@@ -974,27 +991,16 @@ function faceEn(s: Demo, now: number): Face {
   if (w.startsWith('dock'))
     return {
       keys: [
-        {
-          t: f.play ? 'Pause' : 'Play',
-          sub: TRACKS[f.track],
-          bg: '#1a1f3a',
-          fg: '#b9c4ff',
-          icon: f.play ? 'pause' : 'play',
-        },
-        { t: 'Next', sub: 'Music', bg: '#1a1f3a', fg: '#b9c4ff', icon: 'skip' },
-        {
-          t: 'Key Light',
-          sub: f.lights[0] ? 'on' : 'off',
-          bg: f.lights[0] ? '#4a3a0c' : '#1b1e22',
-          fg: f.lights[0] ? '#ffcf5a' : '#8a9097',
-          icon: 'light',
-          on: f.lights[0],
-        },
-        { t: clock, sub: 'Clock', bg: '#101418', icon: 'clock' },
-        { t: '', bg: '#0f1113' },
-        { t: '', bg: '#0f1113' },
-        { t: '', bg: '#0f1113' },
-        { t: '', bg: '#0f1113' },
+        f.play ? { t: 'Pause', site: 'pause', bg: '#8c9cff', fg: '#0d1030' } : { t: 'Play', site: 'play', bg: TILE },
+        { t: 'Next', site: 'skip', bg: TILE },
+        f.lights[0] ? { t: 'Light', site: 'light', bg: AMBER, fg: INK } : { t: 'Light', site: 'light', bg: TILE },
+        f.appMute[3]
+          ? { t: 'Muted', site: 'mic-off', bg: TILE, fg: '#ff7a70' }
+          : { t: 'Mic', site: 'mic', bg: '#30c060' },
+        { t: 'Shot', site: 'camera', bg: TILE },
+        { t: 'Focus', site: 'moon', bg: f.focus ? VIOLET : TILE, fg: f.focus ? '#140d26' : undefined },
+        f.lights[1] ? { t: 'Desk', site: 'sun', bg: AMBER, fg: INK } : { t: 'Desk', site: 'sun', bg: TILE },
+        { t: clock, sub: 'Clock', bg: TILE, clock: true },
       ],
       strip: {
         zones: ['System', 'Music', 'Browser', 'Mic'].map((t, i) => ({
@@ -1024,7 +1030,6 @@ export const view = { lang: 'en' as 'en' | 'de' }
 
 const DE: Record<string, string> = {
   Clock: 'Uhr',
-  Scene: 'Szene',
   Mic: 'Mikro',
   Music: 'Musik',
   Master: 'Summe',
@@ -1039,10 +1044,15 @@ const DE: Record<string, string> = {
   Lights: 'Licht',
   Fill: 'Fülllicht',
   Colour: 'Farbe',
-  on: 'an',
   off: 'aus',
-  showing: 'läuft',
   Next: 'Weiter',
+  Wall: 'Wand',
+  'All off': 'Alle aus',
+  Light: 'Licht',
+  Muted: 'Stumm',
+  Shot: 'Foto',
+  Focus: 'Fokus',
+  Desk: 'Tisch',
 }
 
 const de = (x: string) => DE[x] ?? x.replace(/^Key (\d+)$/, 'Taste $1').replace(/^Dial (\d+)$/, 'Regler $1')
