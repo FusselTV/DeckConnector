@@ -8,6 +8,7 @@
 #include "db_config.h"
 #include "db_improv.h"
 #include "db_json.h"
+#include "db_log.h"
 #include "db_net.h"
 #include "db_web.h"
 #include "esp_app_desc.h"
@@ -69,13 +70,28 @@ static void port_write(const uint8_t *b, size_t n)
     }
 }
 #else
+static void log_line(const char *line, size_t len)
+{
+    char out[2 * 192]; /* every \n becomes \r\n, as on stdout */
+    size_t n = 0;
+    for (size_t i = 0; i < len && n < sizeof(out) - 1; i++) {
+        if (line[i] == '\n') {
+            out[n++] = '\r';
+        }
+        out[n++] = line[i];
+    }
+    uart_write_bytes(UART, out, n);
+}
+
 /* Through the driver, also for stdout: a packet goes out in one uart_write_bytes() call, which log lines
- * written by other tasks cannot split. Plain stdout would also turn each 0x0a byte into CR LF. */
+ * written by other tasks cannot split. Plain stdout would also turn each 0x0a byte into CR LF. A log line
+ * takes 6 ms on the wire: the TX buffer keeps the task that logs from waiting for it. */
 static esp_err_t port_open(void)
 {
-    esp_err_t err = uart_driver_install(UART, 512, 0, 0, NULL, 0);
+    esp_err_t err = uart_driver_install(UART, 512, 4096, 0, NULL, 0);
     if (err == ESP_OK) {
         uart_vfs_dev_use_driver(UART);
+        db_log_set_sink(log_line);
     }
     return err;
 }
