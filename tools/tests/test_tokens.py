@@ -68,6 +68,7 @@ def test_a_removed_token_is_refused(token):
 
 def test_a_token_ends_only_itself(token):
     code, body = api("POST", "/api/tokens", json.dumps({"name": "pytest-other"}).encode())
+    assert code == 200, body
     other = json.loads(body)["token"]
     try:
         assert api("DELETE", "/api/token")[0] == 400  # the password names no token
