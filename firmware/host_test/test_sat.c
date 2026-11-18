@@ -389,7 +389,8 @@ static void test_add_device_asks_to_draw_the_lock_itself(void)
     line[n - 1] = '\0';
     db_sat_parse(line, &m);
     TEST_ASSERT_EQUAL_STRING("FULL", db_sat_get(&m, "PINCODE_LOCK"));
-    TEST_ASSERT_EQUAL_size_t(0, db_sat_add_device(line, 40, "streamdeck", "A1", "Stream Deck +", "e30=", true, true));
+    TEST_ASSERT_EQUAL_size_t(
+        0, db_sat_add_device(line, 40, "streamdeck", "A1", "Stream Deck +", "e30=", true, true));
 }
 
 static bool locked_state(db_sat_lock_t *l, const char *text)
