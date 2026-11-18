@@ -215,8 +215,8 @@ bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours)
     if (!key && !enc) {
         return ours;
     }
-    uint64_t bit = key ? 1ull << (ev->index & 63) : 0;
-    uint8_t ebit = (uint8_t)(enc ? 1u << (ev->index & 7) : 0);
+    uint64_t bit = key ? 1ULL << (ev->index & 63) : 0;
+    uint8_t ebit = (uint8_t)(enc ? 1U << (ev->index & 7) : 0);
     if (ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN) {
         h->keys = ours ? h->keys | bit : h->keys & ~bit;
         h->encoders = (uint8_t)(ours ? h->encoders | ebit : h->encoders & ~ebit);
