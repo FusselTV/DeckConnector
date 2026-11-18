@@ -53,6 +53,7 @@ typedef struct {
     bool full;         /* the next picture goes out whole: someone else drew meanwhile */
     ui_screen_t shown; /* what is on the deck, to send only what changed */
     ui_menu_t menu;
+    db_sat_held_t pad_kept;
     int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
     int before;    /* the deck's brightness when the menu opened; -1: none */
     bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
@@ -1070,6 +1071,11 @@ static void on_input(int deck, const db_input_t *ev)
     }
 }
 
+static bool keeps(int deck, const db_input_t *ev)
+{
+    return db_sat_pad_keeps(&decks[deck].pad_kept, ev, locked(deck, NULL));
+}
+
 static void on_device(int deck, const db_device_info_t *info)
 {
     ui_deck_t *u = &decks[deck];
@@ -1274,7 +1280,7 @@ esp_err_t db_ui_start(void)
         xTaskCreate(upgrade_task, "sat_upgrade", 8192, NULL, 2, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
+    db_deck_listener_t l = {.input = on_input, .device_changed = on_device, .keeps = keeps};
     db_deck_add_listener(&l);
     const esp_timer_create_args_t targs = {.callback = tick, .name = "ui_tick"};
     esp_timer_handle_t timer;

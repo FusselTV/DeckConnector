@@ -382,6 +382,29 @@ static void test_a_release_goes_only_after_its_press(void)
     TEST_ASSERT_FALSE(pass(&h, DB_INPUT_TOUCH_TAP, 0, false));
 }
 
+static bool keeps(db_sat_held_t *h, db_input_kind_t kind, uint8_t index, bool locked)
+{
+    db_input_t ev = {.kind = kind, .index = index};
+    return db_sat_pad_keeps(h, &ev, locked);
+}
+
+static void test_the_pin_pad_keeps_its_presses_to_itself(void)
+{
+    db_sat_held_t h = {0};
+    TEST_ASSERT_TRUE(keeps(&h, DB_INPUT_KEY_DOWN, 1, true));
+    TEST_ASSERT_TRUE(keeps(&h, DB_INPUT_KEY_UP, 1, false)); /* the last digit, released after the unlock */
+    TEST_ASSERT_FALSE(keeps(&h, DB_INPUT_KEY_UP, 1, false));
+    TEST_ASSERT_FALSE(keeps(&h, DB_INPUT_KEY_DOWN, 2, false)); /* held when the lock came */
+    TEST_ASSERT_FALSE(keeps(&h, DB_INPUT_KEY_UP, 2, true));
+    TEST_ASSERT_TRUE(keeps(&h, DB_INPUT_ENCODER_DOWN, 3, true));
+    TEST_ASSERT_FALSE(keeps(&h, DB_INPUT_KEY_UP, 3, false)); /* key 3 is not encoder 3 */
+    TEST_ASSERT_TRUE(keeps(&h, DB_INPUT_ENCODER_UP, 3, false));
+    TEST_ASSERT_TRUE(keeps(&h, DB_INPUT_ENCODER_TURN, 0, true));
+    TEST_ASSERT_TRUE(keeps(&h, DB_INPUT_TOUCH_TAP, 0, true));
+    TEST_ASSERT_FALSE(keeps(&h, DB_INPUT_ENCODER_TURN, 0, false));
+    TEST_ASSERT_FALSE(keeps(&h, DB_INPUT_TOUCH_SWIPE, 0, false));
+}
+
 static void test_host_of_every_satellite_address_form(void)
 {
     const char *cases[][2] = {
@@ -413,5 +436,6 @@ int main(void)
     RUN_TEST(test_lock_counts_digits_and_tells_a_wrong_pin);
     RUN_TEST(test_only_answered_digits_count_for_a_wrong_pin);
     RUN_TEST(test_a_release_goes_only_after_its_press);
+    RUN_TEST(test_the_pin_pad_keeps_its_presses_to_itself);
     return UNITY_END();
 }

@@ -208,24 +208,35 @@ bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m)
     return was && l->locked && l->count == 0;
 }
 
-bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours)
+/* Notes a press when `on`, else forgets it. A release: whether its press was noted. Anything else: `on`. */
+static bool held(db_sat_held_t *h, const db_input_t *ev, bool on)
 {
     bool key = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP;
     bool enc = ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP;
     if (!key && !enc) {
-        return ours;
+        return on;
     }
     uint64_t bit = key ? 1ULL << (ev->index & 63) : 0;
     uint8_t ebit = (uint8_t)(enc ? 1U << (ev->index & 7) : 0);
     if (ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN) {
-        h->keys = ours ? h->keys | bit : h->keys & ~bit;
-        h->encoders = (uint8_t)(ours ? h->encoders | ebit : h->encoders & ~ebit);
-        return ours;
+        h->keys = on ? h->keys | bit : h->keys & ~bit;
+        h->encoders = (uint8_t)(on ? h->encoders | ebit : h->encoders & ~ebit);
+        return on;
     }
     bool pressed = (h->keys & bit) || (h->encoders & ebit);
     h->keys &= ~bit;
     h->encoders &= (uint8_t)~ebit;
-    return pressed && ours;
+    return pressed;
+}
+
+bool db_sat_pad_keeps(db_sat_held_t *kept, const db_input_t *ev, bool locked)
+{
+    return held(kept, ev, locked);
+}
+
+bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours)
+{
+    return held(h, ev, ours) && ours;
 }
 
 void db_sat_addr_host(const char *addr, char *host, size_t cap)

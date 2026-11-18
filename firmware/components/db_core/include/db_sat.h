@@ -77,6 +77,10 @@ typedef struct {
     uint8_t encoders;
 } db_sat_held_t;
 
+/* Whether the PIN pad of a locked deck keeps `ev` from everyone else: all input while locked, and the release
+ * of a press it kept. A press made before the lock gets its release out. */
+bool db_sat_pad_keeps(db_sat_held_t *kept, const db_input_t *ev, bool locked);
+
 /* Whether `ev` goes to Companion. `ours`: Companion draws on the deck and the press is real. */
 bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours);
 
