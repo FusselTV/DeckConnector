@@ -68,6 +68,18 @@ async def test_every_input_kind_becomes_an_event(hass, entry, aioclient_mock, so
     assert hass.states.get("event.stream_deck_controls").attributes["event_type"] == "touch_swipe_right"
 
 
+async def test_knobs_without_a_strip_and_a_deck_without_a_display(hass, entry, aioclient_mock, socket):
+    n4 = {"model": "Stream Dock N4", "serial": "N4", "firmware": "", "keys": 14, "encoders": 5, "writer": "ui"}
+    pedal = {"model": "Stream Deck Pedal", "serial": "P1", "firmware": "1.0", "keys": 3, "encoders": 0, "writer": "ui"}
+    await setup(hass, entry, aioclient_mock, socket, {**n4, "touch": False, "width": 816}, {**pedal, "width": 0})
+    types = hass.states.get("event.stream_dock_n4_controls").attributes["event_types"]
+    assert len(types) == 14 * 2 + 5 * 4
+    assert not [t for t in types if t.startswith("touch")]
+    assert hass.states.get("camera.stream_dock_n4_screen")
+    assert hass.states.get("event.stream_deck_pedal_controls")
+    assert not hass.states.get("camera.stream_deck_pedal_screen")
+
+
 @pytest.mark.parametrize(
     ("writer", "sources", "host"),
     [

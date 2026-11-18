@@ -18,7 +18,7 @@ PARALLEL_UPDATES = 0
 async def async_setup_entry(
     hass: HomeAssistant, entry: DeckConnectorConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
-    add_per_deck(entry, async_add_entities, lambda c, d: [ScreenCamera(c, d)])
+    add_per_deck(entry, async_add_entities, lambda c, d: [ScreenCamera(c, d)] if d.get("width", 1) else [])
 
 
 class ScreenCamera(DeckEntity, Camera):
