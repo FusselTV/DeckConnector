@@ -28,6 +28,7 @@
 #define CYCLE_FLOOR_US 10000000LL /* between two root port cycles of the recovery: they take every deck */
 /* kept for plugs: a cycle takes every deck, then they and the hub come again */
 #define PLUG_ROOM (2 * USB_PORT_DEVS + 1)
+#define DECK_CORE (portNUM_PROCESSORS - 1) /* the USB core: 1 on the P4, 0 in the simulator */
 
 static const char *TAG = "deck";
 
@@ -350,6 +351,10 @@ static void notify_device(int deck, const db_device_info_t *info)
 static bool start_replug(uint8_t address, uint32_t off_ms);
 
 #define STUCK_RESTARTED 0x57a11ed0
+#if CONFIG_IDF_TARGET_LINUX
+#undef RTC_NOINIT_ATTR
+#define RTC_NOINIT_ATTR
+#endif
 static RTC_NOINIT_ATTR uint32_t stuck_restarted; /* kept over a restart, not over a power cut */
 
 /* Every root port cycle takes all decks: two of them are CYCLE_FLOOR_US apart, whatever asked for them.
@@ -560,7 +565,7 @@ static void handle_attach(uint8_t address)
     deck_t *k = &decks[deck];
     usb_port_string(port, false, dev.info.product, sizeof(dev.info.product));
     if (!k->writer_task && xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, (void *)(intptr_t)deck,
-                                                   8, &k->writer_task, 1) != pdPASS) {
+                                                   8, &k->writer_task, DECK_CORE) != pdPASS) {
         ESP_LOGE(TAG, "no writer task for deck %d", deck + 1);
         usb_port_close(port);
         return;
@@ -873,7 +878,7 @@ esp_err_t db_deck_start(bool full_speed, int max_decks)
             return ESP_ERR_NO_MEM;
         }
     }
-    if (xTaskCreatePinnedToCore(event_task, "deck_events", 6144, NULL, 7, NULL, 1) != pdPASS) {
+    if (xTaskCreatePinnedToCore(event_task, "deck_events", 6144, NULL, 7, NULL, DECK_CORE) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     usb_port_cb_t cb = {

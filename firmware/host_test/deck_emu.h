@@ -39,6 +39,10 @@ typedef struct {
     size_t report_count;
 } deck_image_t;
 
+/* Set: each finished image goes here and is freed after, no report is kept and each violation is printed. For
+ * decks that run for hours (firmware/simdeck). */
+extern void (*deck_emu_sink)(int deck, const deck_image_t *im);
+
 extern const deck_model_t deck_models[];
 extern const size_t deck_model_count;
 const deck_model_t *deck_model(uint16_t pid);

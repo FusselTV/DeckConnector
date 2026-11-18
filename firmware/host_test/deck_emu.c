@@ -69,14 +69,19 @@ typedef struct {
 
 static emu_t decks[DECK_EMU_DECKS];
 static emu_t *emu = decks; /* the deck the deck_emu_* calls are about */
+void (*deck_emu_sink)(int deck, const deck_image_t *im);
 
 __attribute__((format(printf, 1, 2))) static void violation(const char *fmt, ...)
 {
-    if (emu->nviol < MAX_VIOLATIONS) {
+    if (emu->nviol < MAX_VIOLATIONS || deck_emu_sink) {
+        char *v = emu->violations[emu->nviol % MAX_VIOLATIONS];
         va_list ap;
         va_start(ap, fmt);
-        vsnprintf(emu->violations[emu->nviol], sizeof(emu->violations[0]), fmt, ap);
+        vsnprintf(v, sizeof(emu->violations[0]), fmt, ap);
         va_end(ap);
+        if (deck_emu_sink) {
+            fprintf(stderr, "deck_emu %s: %s\n", emu->serial, v);
+        }
     }
     emu->nviol++;
 }
@@ -241,7 +246,10 @@ static void finish(void)
     }
     emu->x.active = false;
     emu->x.data = NULL;
-    if (emu->nimages < MAX_IMAGES) {
+    if (deck_emu_sink) {
+        deck_emu_sink((int)(emu - decks), &im);
+        free(im.data);
+    } else if (emu->nimages < MAX_IMAGES) {
         emu->images[emu->nimages++] = im;
     } else {
         violation("more than %d images without a clear", MAX_IMAGES);
@@ -389,6 +397,9 @@ static db_err_t emu_write(const db_hid_io_t *io, const uint8_t *report, size_t l
     }
     if (len != OUT_LEN) {
         violation("output report of %zu bytes, expected %d", len, OUT_LEN);
+    }
+    if (deck_emu_sink) {
+        emu->nreports = 0;
     }
     if (emu->nreports == MAX_REPORTS) {
         violation("more than %d output reports without a clear", MAX_REPORTS);
