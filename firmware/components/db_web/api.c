@@ -278,7 +278,14 @@ int api_input(int deck, const char *body, char *reply, size_t cap)
     }
     db_input_t ev;
     db_input_t then = {.kind = 0};
-    const char *err = root ? read_input(root, &dev, &ev, &then) : "invalid JSON";
+    const cJSON *digit = cJSON_GetObjectItemCaseSensitive(root, "pin");
+    bool has_pin = digit != NULL;
+    int pin =
+        has_pin && cJSON_IsNumber(digit) && digit->valuedouble == digit->valueint ? digit->valueint : -1;
+    const char *err = !root                             ? "invalid JSON"
+                      : has_pin && (pin < 0 || pin > 9) ? "pin: a digit 0 to 9"
+                      : has_pin                         ? NULL
+                                                        : read_input(root, &dev, &ev, &then);
     /* true: a person at the web UI. A tool names the host that may get it, and the deck task checks per press
      */
     const cJSON *r = cJSON_GetObjectItemCaseSensitive(root, "real");
@@ -290,6 +297,16 @@ int api_input(int deck, const char *body, char *reply, size_t cap)
     cJSON_Delete(root);
     if (err) {
         return fail(reply, cap, 400, err);
+    }
+    if (has_pin) {
+        if (!real) {
+            return fail(reply, cap, 400, "pin needs real");
+        }
+        if (!db_ui_locked(deck) || !db_satellite_pincode(deck, pin, real, only_ip)) {
+            return fail(reply, cap, 409, "the deck is not locked, or real names another host");
+        }
+        snprintf(reply, cap, "{\"ok\":true}");
+        return 200;
     }
     /* a press is down and up or nothing: a lone down would leave the key held */
     if (then.kind && db_deck_input_space() < 2) {
@@ -1581,6 +1598,13 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_arr_open(j, "touch");
     for (uint8_t t = 0; t < dev->touch_count; t++) {
         write_rect(j, dev->touch[t].rect);
+    }
+    db_json_arr_close(j);
+    db_json_arr_open(j, "strips"); /* the Neo's info bar takes pictures but no touch */
+    for (uint8_t t = 0; t < d->target_count; t++) {
+        if (d->targets[t].kind == DB_TARGET_STRIP) {
+            write_rect(j, d->targets[t].rect);
+        }
     }
     db_json_arr_close(j);
     db_json_int(j, "encoders", dev->encoder_count);

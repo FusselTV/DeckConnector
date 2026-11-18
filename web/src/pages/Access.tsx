@@ -20,6 +20,7 @@ import { api, ApiError, caUrl, certUrl } from '../api/client'
 import type { Passkey, Right, TlsInfo, Token } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart } from '../app/connection'
+import { decksOf, hasScreen } from '../app/derive'
 import { loginReasonAtom, toast } from '../app/state'
 import { getState, useStore } from '../app/store'
 import { errText, useUi } from '../app/ui'
@@ -349,6 +350,7 @@ export function Access() {
   const { t, act, ask, go } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
+  const decks = decksOf(st)
   const [pw, setPw] = useState('')
   const [cors, setCors] = useState<string | null>(null)
   const [proxy, setProxy] = useState<string | null>(null)
@@ -441,7 +443,7 @@ export function Access() {
               />
             </Field>
           </div>
-          {cfg && (
+          {cfg && (!decks.length || decks.some(hasScreen)) && (
             <Switch
               id="qr-login"
               on={cfg.qr_login}

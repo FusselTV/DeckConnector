@@ -572,6 +572,7 @@ static void handle_attach(uint8_t address)
         return;
     }
     unpark_one(address);
+    count_parked();
     deck_t *k = &decks[deck];
     usb_port_string(port, false, dev.info.product, sizeof(dev.info.product));
     if (!k->writer_task && xTaskCreatePinnedToCore(writer_task, "deck_writer", 4096, (void *)(intptr_t)deck,

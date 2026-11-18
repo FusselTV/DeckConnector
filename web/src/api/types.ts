@@ -24,6 +24,10 @@ export interface DeckInfo {
   number?: number
   /** In `decks`: what the deck shows now, 0 while the screen is off. */
   brightness?: number
+  /** In `decks`: Companion locked the deck with its PIN. `pin_count` digits are typed so far. */
+  locked?: boolean
+  pin_count?: number
+  pin_wrong?: boolean
 }
 
 export interface Source {
@@ -241,6 +245,8 @@ export interface Screen {
   height?: number
   keys: Rect[]
   touch: Rect[]
+  /** Display strips without touch, as the Neo's info bar. */
+  strips?: Rect[]
   encoders?: number
   menu_chord?: { on: 'encoders' | 'keys' | 'off'; first: number; last: number; hold_ms: number }
   images: (Rect & { url: string })[]
@@ -250,6 +256,7 @@ export type InputBody =
   | { key: number; action?: 'press' | 'down' | 'up' }
   | { encoder: number; action?: 'press' | 'down' | 'up' | 'turn'; ticks?: number }
   | { touch: 'tap' | 'long' | 'swipe'; x: number; y: number; x2?: number; y2?: number }
+  | { pin: number }
 
 export interface Slot {
   slot: number

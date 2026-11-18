@@ -1118,6 +1118,44 @@
     background: var(--well);
     color: var(--fg-2);
   }
+  .pinpad {
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    padding: 12px;
+    border: 1px solid var(--line-2);
+    border-radius: 12px;
+    background: var(--well);
+  }
+  .pinpad p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    text-align: center;
+  }
+  .pinpad .dots {
+    min-width: 6ch;
+    letter-spacing: 0.2em;
+  }
+  .pinpad.wrong .dots {
+    color: var(--bad);
+  }
+  .pinkeys {
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    gap: 8px;
+  }
+  .pinkeys .btn {
+    justify-content: center;
+    font-size: 18px;
+    font-variant-numeric: tabular-nums;
+  }
+  .pinkeys .btn:last-child {
+    grid-column: 2;
+  }
   .nodeck > div {
     display: flex;
     flex-direction: column;

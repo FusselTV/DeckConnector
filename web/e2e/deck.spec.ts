@@ -145,3 +145,32 @@ test('wheel events on a focused dial add up by distance into one turn per frame'
   await page.waitForTimeout(200)
   expect(sent).toEqual([{ encoder: 0, action: 'turn', ticks: 3, real: true }])
 })
+
+test('a locked deck takes the PIN from the page, digits in order', async ({ app: page }) => {
+  const sent: unknown[] = []
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().includes('/api/input')) sent.push(r.postDataJSON())
+  })
+  await page.routeWebSocket('**/api/ws', () => {}) // its state would replace the stubbed deck
+  await page.route('**/api/status', async (r) => {
+    const res = await r.fetch()
+    const j = (await res.json()) as { decks: Record<string, unknown>[] }
+    Object.assign(j.decks[0], { locked: true, pin_count: 2 })
+    await r.fulfill({ response: res, json: j })
+  })
+  await page.reload()
+  const toggle = page.locator('.deckToggle')
+  await page.locator('#card-deck').waitFor()
+  if ((await toggle.isVisible()) && (await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  const pad = page.getByRole('group', { name: 'Companion locked this deck. Enter the PIN.' })
+  await expect(pad.getByRole('status')).toHaveText('••')
+  await pad.getByRole('button', { name: '4', exact: true }).click()
+  await pad.getByRole('button', { name: '0', exact: true }).click()
+  await expect
+    .poll(() => sent)
+    .toEqual([
+      { pin: 4, real: true },
+      { pin: 0, real: true },
+    ])
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})

@@ -264,6 +264,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
         height: HEIGHT,
         keys: KEYS,
         touch: [STRIP],
+        strips: [STRIP],
         encoders: 4,
         menu_chord: {
           on: s.cfg.menu_chord === 'auto' ? 'encoders' : s.cfg.menu_chord,

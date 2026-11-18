@@ -3,7 +3,7 @@ import { Fragment, memo, useEffect, useRef, useState, type CSSProperties, type P
 import type { InputBody, InputEvent, Rect, Screen } from '../api/types'
 import { useUi } from '../app/ui'
 import { cx, useLatest } from '../lib/util'
-import { MODELS, type ModelKey } from './models'
+import { MODELS, stripKeyInput, type ModelKey } from './models'
 
 type Hit = 'web' | 'deck'
 const mm = (o: { x: number; y: number; w: number; h: number }): CSSProperties => ({
@@ -313,7 +313,15 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
   }
 
   const zones = M.strip?.z ?? 0
+  const zk = !!M.strip?.keys
   const touch = p.screen?.touch[0]
+  const [z0, zn] = [p.screen?.keys[nk], p.screen?.keys[nk + zones - 1]]
+  const stripRect = zk && z0 && zn ? { ...z0, w: zn.x + zn.w - z0.x } : touch
+  const zoneSend = (z: number, dir: number) => {
+    if (blocked()) return
+    flash(`z${z}`, 'web')
+    send(stripKeyInput(M, z, dir))
+  }
   // Without the strip's place in the picture there is no point to send that the firmware would take.
   const stripPt = (fx: number): [number, number] =>
     touch ? [Math.round(touch.x + fx * touch.w), Math.round(touch.y + touch.h / 2)] : [0, 0]
@@ -324,9 +332,10 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     const dx = e.clientX - s.x
     const dy = e.clientY - s.y
     if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) return
-    if (!touch || blocked()) return
     const fx = (s.x - s.r.left) / s.r.width
     const z = Math.max(0, Math.min(zones - 1, Math.floor(fx * zones)))
+    if (zk) return zoneSend(z, Math.abs(dx) > 20 ? Math.sign(dx) : 0)
+    if (!touch || blocked()) return
     flash(`z${z}`, 'web')
     const [x, y] = stripPt(fx)
     if (Math.abs(dx) > 20) {
@@ -347,6 +356,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
     }
     if (L || R || e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
+      if (zk) return zoneSend(zone, L ? -1 : R ? 1 : 0)
       if (!touch || blocked()) return
       flash(`z${zone}`, 'web')
       const [x, y] = stripPt(mid)
@@ -419,7 +429,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
               ref={stripRef}
               role="button"
               tabIndex={0}
-              aria-disabled={armed && touch ? undefined : true}
+              aria-disabled={armed && (zk || touch) ? undefined : true}
               aria-describedby="kb-hint"
               className="fstrip"
               style={{ ...mm(M.strip), gridTemplateColumns: `repeat(${zones},1fr)` }}
@@ -447,7 +457,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
                 setHint(null)
               }}
             >
-              {p.screen && <Pixels screen={p.screen} rect={touch} />}
+              {p.screen && <Pixels screen={p.screen} rect={stripRect} />}
               {Array.from({ length: zones }, (_, i) => (
                 <div key={i} className={cx('z', hits[`z${i}`] && 'hit', kf && zone === i && 'kz')} />
               ))}
@@ -455,7 +465,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
           )}
           {M.info && (
             <div className="finfo" style={mm(M.info)}>
-              {p.screen && <Pixels screen={p.screen} rect={p.screen.touch[0]} />}
+              {p.screen && <Pixels screen={p.screen} rect={p.screen.strips?.[0] ?? p.screen.touch[0]} />}
             </div>
           )}
           {M.tp?.map((b, i) => (

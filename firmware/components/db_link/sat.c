@@ -978,17 +978,18 @@ bool db_satellite_locked(int deck, db_sat_pin_t *out)
     return pin.locked && db_satellite_connected(deck);
 }
 
-void db_satellite_pincode(int deck, int digit)
+bool db_satellite_pincode(int deck, int digit, bool real, uint32_t only_ip)
 {
     sat_dev_t *v = &s.devs[deck];
     db_sat_pin_t pin;
-    if (!db_satellite_locked(deck, &pin) || !db_deck_input_real_for(s.peer)) {
-        return;
+    if (!db_satellite_locked(deck, &pin) || !real || (only_ip && only_ip != s.peer)) {
+        return false;
     }
     portENTER_CRITICAL(&pin_mux);
     v->pin.pending = (uint8_t)(v->pin.pending < 255 ? v->pin.pending + 1 : 255);
     portEXIT_CRITICAL(&pin_mux);
     send_line("PINCODE-KEY DEVICEID=\"%s\" KEY=%d\n", v->serial, digit);
+    return true;
 }
 
 uint32_t db_satellite_peer(void)

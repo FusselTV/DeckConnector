@@ -27,4 +27,12 @@ describe('chordSentence', () => {
     expect(chordSentence(t, 'auto', MODELS.plus, '2')).toBe('chord.s_dials {"a":1,"b":4,"s":"2"}')
     expect(chordSentence(t, 'off', MODELS.plus, '2')).toBe('chord.s_off {}')
   })
+
+  it('names the last dial of the deck, not dial 4', () => {
+    expect(chordSentence(t, 'auto', MODELS.plusxl, '2')).toBe('chord.s_dials {"a":1,"b":6,"s":"2"}')
+  })
+
+  it('falls back to keys on a deck without dials, as the firmware does', () => {
+    expect(chordSentence(t, 'encoders', MODELS.mk2, '2')).toBe('chord.s_keys {"a":1,"b":15,"s":"2"}')
+  })
 })

@@ -25,7 +25,7 @@ import { api } from '../api/client'
 import type { IpConf } from '../api/types'
 import { putConfig, useActions } from '../app/actions'
 import { refreshConfig, refreshStatus } from '../app/connection'
-import { decksOf, hostLabel, noDock, reachList } from '../app/derive'
+import { decksOf, hasScreen, hostLabel, noDock, reachList } from '../app/derive'
 import { configErrAtom, langAtom, loginReasonAtom, wifiScanAtom } from '../app/state'
 import { RestartOverlay } from '../app/Shell'
 import { getState, useStore } from '../app/store'
@@ -163,6 +163,11 @@ export function Wizard() {
   const pwE = passwordError(pw)
   const where = reachList(st, !!cfg?.https_only, name || (cfg?.name ?? ''))
   const hold = (cfg?.menu_hold_ms ?? 2000) / 1000
+  const d0 = decks.find(hasScreen)
+  const screen = !decks.length || !!d0
+  const chord = cfg?.menu_chord ?? 'auto'
+  const menuHow = d0 && screen ? chordSentence(t, chord, MODELS[d0.kind], fmt.dec(hold), d0) : ''
+  const menuOnDeck = !!menuHow && menuHow !== t('chord.s_off')
 
   const found = useFound(step === 'src' && src === 'comp')
   // While the app path waits, the status shows a pairing request as soon as the app asks.
@@ -328,7 +333,7 @@ export function Wizard() {
       </h2>
       {body}
       {/* on the setup Wi-Fi the deck shows its own page, not a setup step */}
-      {!(onAp && step === 'net') && (
+      {screen && !(onAp && step === 'net') && (
         <p className="deckline">
           <LayoutGrid size={15} className="ic" aria-hidden />
           <span>
@@ -367,14 +372,14 @@ export function Wizard() {
             onChange={(e) => setName(e.target.value.trim())}
           />
         </Field>
-        {!rerun && (
+        {!rerun && menuOnDeck && (
           <Notice
             n={{
               id: 'webfree',
               icon: LayoutGrid,
               lvl: 'info',
               title: t('wiz.webfree_t'),
-              text: t('wiz.webfree', { a: 1, b: decks[0]?.encoders ?? 4 }),
+              text: `${t('wiz.webfree')} ${menuHow}`,
             }}
           />
         )}
@@ -792,11 +797,7 @@ export function Wizard() {
         {where.slice(0, 2).map((u) => (
           <CopyField key={u} value={u} link />
         ))}
-        {decks[0] && (
-          <p className="muted">
-            {chordSentence(t, cfg?.menu_chord ?? 'auto', MODELS[decks[0].kind], fmt.dec(hold), decks[0])}
-          </p>
-        )}
+        {menuHow && <p className="muted">{menuHow}</p>}
         <p className="small muted">{t('wiz.https_hint')}</p>
         <p className="small muted">
           {t('wiz.ha_hint')}{' '}

@@ -1,6 +1,8 @@
+import type { InputBody } from '../api/types'
+
 // Fronts in real millimetres; --mm (px per mm) comes from the container width.
 // Stream Deck +: measured on a real deck and Elgato renders. + XL: SimDeck.
-// MK.2, XL, Mini, Neo, Pedal: retail outer sizes, grids and native key sizes estimated.
+// MK.2, XL, Mini, Neo, Pedal, N4: retail outer sizes, grids and native key sizes estimated.
 interface Box {
   x: number
   y: number
@@ -22,7 +24,8 @@ export interface Model {
   px: number
   py: number
   win?: Box
-  strip?: Box & { z: number }
+  /** `keys`: each zone is a key after the grid, and a swipe turns the encoder after the dials (Stream Dock N4). */
+  strip?: Box & { z: number; keys?: boolean }
   tray?: Box & { r: number }
   dials?: { n: number; cy: number; d: number; x: number; w: number }
   info?: Box
@@ -30,7 +33,7 @@ export interface Model {
   mark: { y: number }
 }
 
-export type ModelKey = 'plus' | 'plusxl' | 'mk2' | 'xl' | 'mini' | 'neo' | 'pedal'
+export type ModelKey = 'plus' | 'plusxl' | 'mk2' | 'xl' | 'mini' | 'neo' | 'pedal' | 'n4'
 export const MODELS: Record<ModelKey, Model> = {
   plus: {
     name: 'Stream Deck +',
@@ -156,7 +159,29 @@ export const MODELS: Record<ModelKey, Model> = {
     py: 70,
     mark: { y: 126 },
   },
+  n4: {
+    name: 'Stream Dock N4',
+    W: 140,
+    H: 104,
+    R: 8,
+    cols: 5,
+    rows: 2,
+    k: 17,
+    kr: 2.1,
+    li: 0.4,
+    x0: 16.5,
+    y0: 11.5,
+    px: 22.5,
+    py: 21,
+    strip: { x: 18, y: 54, w: 104, h: 18, z: 4, keys: true },
+    dials: { n: 4, cy: 88, d: 14, x: 18, w: 104 },
+    mark: { y: 5 },
+  },
 }
+
+/** What a zone of a strip of keys sends: its key, or for a swipe a turn of the encoder after the dials. */
+export const stripKeyInput = (M: Model, z: number, dir: number): InputBody =>
+  dir ? { encoder: M.dials?.n ?? 0, action: 'turn', ticks: dir } : { key: M.cols * M.rows + z }
 
 export function modelOf(name = '', keys?: number): ModelKey {
   const n = name.toLowerCase()
@@ -165,6 +190,7 @@ export function modelOf(name = '', keys?: number): ModelKey {
   if (n.includes('neo')) return 'neo'
   if (n.includes('pedal')) return 'pedal'
   if (n.includes('mini')) return 'mini'
+  if (/\bn4\b|akp05/.test(n)) return 'n4'
   if (n.includes('xl')) return 'xl'
   if (/n3|akp03|cn002/.test(n)) return 'mini'
   if (keys === 6) return 'mini'

@@ -16,7 +16,8 @@ from conftest import DISPLAY, ELGATO, MODELS, dismiss_prompt, drawn_since, shot
 from PIL import Image
 
 from dbtools import protocol as p
-from dbtools.server import Server
+from dbtools.safety import real_input_target
+from dbtools.server import Server, local_ip
 
 CHECK = Path(__file__).resolve().parents[1] / "companion-check/check.mjs"
 
@@ -92,8 +93,8 @@ class FakeCompanion(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-    def __init__(self, port: int):
-        super().__init__(("127.0.0.1", port), Fake)
+    def __init__(self, port: int, host: str = "127.0.0.1"):
+        super().__init__((host, port), Fake)
         self.lines, self.devices, self.wfile = [], [], None
         threading.Thread(target=self.serve_forever, daemon=True).start()
 
@@ -147,6 +148,37 @@ def test_satellite_adds_the_deck_and_takes_its_presses_and_pin(start, companion,
     if model == "plus":
         digits = 8  # 9 and 0 are on encoders 3 and 4
     assert len(set(pins)) == digits, pins
+
+
+def test_the_web_page_takes_the_pin_for_a_deck_without_a_pad(start):
+    companion = FakeCompanion(18994, local_ip())  # on this machine's address, the only one real input may reach
+    try:
+        _pin_from_the_web(start("pedal"), companion)
+    finally:
+        companion.shutdown()
+        companion.server_close()
+
+
+def _pin_from_the_web(sim, companion) -> None:
+    host, port = companion.server_address
+    sim.config(satellite=f"{host}:{port}", controller="companion", host="satellite", setup_done=True)
+    assert sim.wait(lambda: companion.devices and sim.status()["decks"][0]["writer"] == "satellite", 15), sim.log()
+    real = real_input_target(sim.status())
+    assert sim.api("POST", "/api/input", {"pin": 4, "real": real})[0] == 409, "a digit went out unlocked"
+    companion.send(f'LOCKED-STATE DEVICEID="{companion.devices[0]}" LOCKED=1 CHARACTER_COUNT=0 ROTATION=0')
+    assert sim.wait(lambda: sim.status()["decks"][0]["locked"], 5)
+    assert sim.api("POST", "/api/input", {"pin": 4})[0] == 400
+    assert sim.api("POST", "/api/input", {"pin": -2, "real": real})[0] == 400
+    assert sim.api("POST", "/api/input", {"pin": 4, "real": "192.0.2.1"})[0] == 409
+    assert sim.api("POST", "/api/input", {"pin": 10, "real": real})[0] == 400
+    assert sim.api("POST", "/api/input", {"pin": 4, "real": real})[0] == 200
+
+    def pins():
+        return [x.rsplit("KEY=", 1)[1] for x in companion.lines if x.startswith("PINCODE-KEY")]
+
+    assert sim.wait(lambda: pins() == ["4"], 3), pins()
+    companion.send(f'LOCKED-STATE DEVICEID="{companion.devices[0]}" LOCKED=1 CHARACTER_COUNT=1 ROTATION=0')
+    assert sim.wait(lambda: sim.status()["decks"][0]["pin_count"] == 1, 3)
 
 
 def test_a_mix_of_decks_comes_up_in_satellite_each_with_its_layout(start, companion):

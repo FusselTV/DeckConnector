@@ -42,6 +42,9 @@ export function decksOf(st: Status): Deck[] {
   }))
 }
 
+/** False for a deck without a display, the Pedal. Unknown counts as one. */
+export const hasScreen = (d: DeckInfo) => d.width !== 0
+
 /** Decks are plugged in and none of them is an Elgato deck. */
 export const noDock = (st: Status) => {
   const d = decksOf(st)
