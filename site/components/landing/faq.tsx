@@ -14,7 +14,10 @@ function setOpen(d: HTMLDetailsElement, open: boolean) {
   }
   d.dataset.closing = ''
   const ms = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320
-  timers.set(d, window.setTimeout(() => ((d.open = false), delete d.dataset.closing), ms))
+  timers.set(
+    d,
+    window.setTimeout(() => ((d.open = false), delete d.dataset.closing), ms),
+  )
 }
 
 function toggle(e: MouseEvent<HTMLElement>) {

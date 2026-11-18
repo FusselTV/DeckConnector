@@ -45,7 +45,14 @@ export default {
       date: new Date(),
     })
     try {
-      await send({ host: 'smtp.mail.me.com', user: env.SMTP_USER, pass: env.SMTP_PASS, from: FROM, to: env.CONTACT_TO, mail })
+      await send({
+        host: 'smtp.mail.me.com',
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASS,
+        from: FROM,
+        to: env.CONTACT_TO,
+        mail,
+      })
     } catch (e) {
       console.error('send failed', e)
       return json({ error: 'send' }, 502)

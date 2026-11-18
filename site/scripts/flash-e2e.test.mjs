@@ -15,7 +15,15 @@ const skip = !existsSync(join(OUT, 'flash/index.html')) || !existsSync(join(FW, 
 const factory = readFileSync(join(FW, 'deckconnector-factory.bin'))
 const app = readFileSync(join(FW, 'deckconnector.bin'))
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain' }
+const TYPES = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain',
+}
 let server
 let base
 let browser
@@ -92,14 +100,19 @@ function fakeSerial() {
   }
   const port = new FakePort()
   window.__boardData = (s) => port.push(unb64(s))
-  Object.defineProperty(Navigator.prototype, 'serial', { configurable: true, get: () => ({ requestPort: async () => port, getPorts: async () => [port] }) })
+  Object.defineProperty(Navigator.prototype, 'serial', {
+    configurable: true,
+    get: () => ({ requestPort: async () => port, getPorts: async () => [port] }),
+  })
 }
 
 /** A page whose serial port is `board`. */
 async function open(t, { board, width = 1280, lang = '', ctx = {} } = {}) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, ...ctx })
   t.after(async () => {
-    if (process.env.DEBUG_FLASH) for (const p of context.pages()) console.log(await p.locator('main').innerText(), await p.locator('pre').textContent())
+    if (process.env.DEBUG_FLASH)
+      for (const p of context.pages())
+        console.log(await p.locator('main').innerText(), await p.locator('pre').textContent())
     board?.stop()
     await context.close()
   })
@@ -158,7 +171,9 @@ async function shot(page, name) {
 }
 
 async function fix(page, id, lang = '') {
-  const href = await page.getByRole('link', { name: lang ? 'So behebst du das' : 'How to fix this' }).getAttribute('href')
+  const href = await page
+    .getByRole('link', { name: lang ? 'So behebst du das' : 'How to fix this' })
+    .getAttribute('href')
   assert.equal(href, `${lang}/docs/flash-troubleshooting/#${id}`)
 }
 
@@ -198,7 +213,10 @@ for (const width of widths)
       assert.ok(await page.getByText('Hold the BOOT button on the board.').isVisible())
       assert.ok(await page.getByText('Press and release RST.').isVisible())
       await fix(page, 'no-answer')
-      assert.equal(await page.getByRole('link', { name: 'USB driver' }).getAttribute('href'), '/docs/flash-troubleshooting/#driver')
+      assert.equal(
+        await page.getByRole('link', { name: 'USB driver' }).getAttribute('href'),
+        '/docs/flash-troubleshooting/#driver',
+      )
       await shot(page, 'no-answer')
     })
 
@@ -220,7 +238,12 @@ for (const width of widths)
     })
 
     test('full install on a blank board, then setup over Improv', async (t) => {
-      const board = new Board({ slow: SHOTS ? 120 : 0, eraseMs: SHOTS ? 2500 : 300, bootMs: SHOTS ? 4000 : 0, simPort: 18390 + (width % 7) })
+      const board = new Board({
+        slow: SHOTS ? 120 : 0,
+        eraseMs: SHOTS ? 2500 : 300,
+        bootMs: SHOTS ? 4000 : 0,
+        simPort: 18390 + (width % 7),
+      })
       const page = await open(t, { board, width })
       await page.getByRole('button', { name: 'Connect', exact: true }).click()
       await page.getByText('Choose how to install').waitFor()
@@ -245,7 +268,10 @@ for (const width of widths)
       }
       await page.getByText('Set up Wi-Fi').waitFor({ timeout: 120000 })
       assert.equal((await board.config()).lang, 'en', 'the deck speaks the language of the flasher')
-      assert.equal(board.md5(0, factory.length), (await import('node:crypto')).createHash('md5').update(factory).digest('hex'))
+      assert.equal(
+        board.md5(0, factory.length),
+        (await import('node:crypto')).createHash('md5').update(factory).digest('hex'),
+      )
 
       await page.getByLabel('Join a Wi-Fi network').check()
       await page.getByRole('radio', { name: /Zuhause/ }).waitFor()
@@ -283,7 +309,10 @@ for (const width of widths)
       await shot(page, 'install-update-de')
       await page.getByRole('button', { name: /installieren$/ }).click()
       await page.getByText('Mit einem WLAN verbinden').waitFor({ timeout: 60000 })
-      assert.equal(board.md5(0x20000, app.length), (await import('node:crypto')).createHash('md5').update(app).digest('hex'))
+      assert.equal(
+        board.md5(0x20000, app.length),
+        (await import('node:crypto')).createHash('md5').update(app).digest('hex'),
+      )
       await shot(page, 'setup-online-de')
       await page.getByRole('button', { name: 'Später in der Weboberfläche' }).click()
       await page.getByText('Dein Connector ist bereit').waitFor()
@@ -291,7 +320,12 @@ for (const width of widths)
     })
 
     test('settings closed', async (t) => {
-      const board = new Board({ contents: 'deckconnector', setupDone: true, improvOpenS: 0, simPort: 18370 + (width % 7) })
+      const board = new Board({
+        contents: 'deckconnector',
+        setupDone: true,
+        improvOpenS: 0,
+        simPort: 18370 + (width % 7),
+      })
       const page = await open(t, { board, width })
       await page.getByRole('button', { name: 'Connect', exact: true }).click()
       await page.getByRole('button', { name: /^Install v/ }).click()

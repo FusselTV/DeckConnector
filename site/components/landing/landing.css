@@ -35,7 +35,6 @@
   }
 }
 
-
 /* The frame each player opens on, so a stage never shows an empty box while its code loads. */
 .poster {
   background: var(--p-dark) center / cover no-repeat;

@@ -22,7 +22,21 @@ const GRAIN = `url("data:image/svg+xml,${encodeURIComponent(
  * A dark studio: the world is drawn in its own units and the camera frames it.
  * Behind it sits soft out-of-focus light, in front a vignette and grain, then captions.
  */
-export function Scene({ w, h, cam, dim = 0, over, children }: { w: number; h: number; cam: Cam; dim?: number; over?: ReactNode; children: ReactNode }) {
+export function Scene({
+  w,
+  h,
+  cam,
+  dim = 0,
+  over,
+  children,
+}: {
+  w: number
+  h: number
+  cam: Cam
+  dim?: number
+  over?: ReactNode
+  children: ReactNode
+}) {
   const f = useCurrentFrame()
   const { durationInFrames: d } = useVideoConfig()
   const light = useLight()
@@ -33,7 +47,14 @@ export function Scene({ w, h, cam, dim = 0, over, children }: { w: number; h: nu
   const bx = (-cam.x * 0.04) % 400
   const by = (-cam.y * 0.04) % 400
   return (
-    <AbsoluteFill style={{ background: light ? 'radial-gradient(120% 90% at 50% 40%, #fbfbfa 0%, #eceeef 55%, #dcdfe2 100%)' : 'radial-gradient(120% 90% at 50% 40%, #16191d 0%, #0c0e10 55%, #060708 100%)', overflow: 'hidden' }}>
+    <AbsoluteFill
+      style={{
+        background: light
+          ? 'radial-gradient(120% 90% at 50% 40%, #fbfbfa 0%, #eceeef 55%, #dcdfe2 100%)'
+          : 'radial-gradient(120% 90% at 50% 40%, #16191d 0%, #0c0e10 55%, #060708 100%)',
+        overflow: 'hidden',
+      }}
+    >
       <AbsoluteFill
         style={{
           transform: `translate(${bx}px, ${by}px) scale(1.1)`,
@@ -47,7 +68,12 @@ export function Scene({ w, h, cam, dim = 0, over, children }: { w: number; h: nu
       />
       <AbsoluteFill style={{ perspective: w * 1.4 }}>
         <AbsoluteFill style={{ transform: `rotateX(${cam.rx ?? 0}deg) rotateY(${cam.ry ?? 0}deg)` }}>
-          <svg viewBox={`${-w * 0.1} ${-h * 0.1} ${w * 1.2} ${h * 1.2}`} width={w * 1.2} height={h * 1.2} style={{ position: 'absolute', left: -w * 0.1, top: -h * 0.1 }}>
+          <svg
+            viewBox={`${-w * 0.1} ${-h * 0.1} ${w * 1.2} ${h * 1.2}`}
+            width={w * 1.2}
+            height={h * 1.2}
+            style={{ position: 'absolute', left: -w * 0.1, top: -h * 0.1 }}
+          >
             <defs>
               {[AMBER, GREEN, RED, '#ffffff', '#9b7bff', '#5aa9ff', '#2bb3a6', '#000000'].map((c) => (
                 <Glow key={c} c={c} />
@@ -57,7 +83,11 @@ export function Scene({ w, h, cam, dim = 0, over, children }: { w: number; h: nu
           </svg>
         </AbsoluteFill>
       </AbsoluteFill>
-      <AbsoluteFill style={{ background: `radial-gradient(75% 75% at 50% 46%, rgba(0,0,0,0) 55%, rgba(0,0,0,${light ? 0.1 : 0.62}) 100%)` }} />
+      <AbsoluteFill
+        style={{
+          background: `radial-gradient(75% 75% at 50% 46%, rgba(0,0,0,0) 55%, rgba(0,0,0,${light ? 0.1 : 0.62}) 100%)`,
+        }}
+      />
       {!light && <AbsoluteFill style={{ backgroundImage: GRAIN, opacity: 0.07 }} />}
       {dim > 0 && <AbsoluteFill style={{ background: '#050607', opacity: dim }} />}
       {over}
@@ -66,21 +96,103 @@ export function Scene({ w, h, cam, dim = 0, over, children }: { w: number; h: nu
 }
 
 /** The one caption style: top left, a status dot, a mono headline, an optional big number and a line under it. */
-export function Caption({ f, from, to, text, big, sub, dot = AMBER, size = 52 }: { f: number; from: number; to: number; text: string; big?: string; sub?: string; dot?: string; size?: number }) {
+export function Caption({
+  f,
+  from,
+  to,
+  text,
+  big,
+  sub,
+  dot = AMBER,
+  size = 52,
+}: {
+  f: number
+  from: number
+  to: number
+  text: string
+  big?: string
+  sub?: string
+  dot?: string
+  size?: number
+}) {
   const light = useLight()
   const o = Math.min(ramp(f, from, from + 8), 1 - ramp(f, to - 8, to))
   if (o <= 0) return null
   const pad = size * 1.15
   return (
     <>
-      <AbsoluteFill style={{ background: light ? `radial-gradient(${size * 16}px ${size * 9}px at 0 0, rgba(251,251,250,0.85), rgba(251,251,250,0) 100%)` : `radial-gradient(${size * 16}px ${size * 9}px at 0 0, rgba(5,6,7,0.78), rgba(5,6,7,0) 100%)`, opacity: o }} />
-      <div style={{ position: 'absolute', left: pad, top: pad * 0.85, opacity: o, transform: `translateY(${(1 - ramp(f, from, from + 12)) * -16}px)`, fontFamily: SANS, color: light ? '#15181c' : INK, textShadow: light ? 'none' : '0 2px 18px rgba(0,0,0,0.85)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: size * 0.4, fontSize: size, fontWeight: 650, letterSpacing: -size * 0.025, lineHeight: 1.1 }}>
-          <span style={{ flex: 'none', width: size * 0.36, height: size * 0.36, borderRadius: '50%', background: dot, boxShadow: `0 0 ${size * 0.5}px ${dot}` }} />
+      <AbsoluteFill
+        style={{
+          background: light
+            ? `radial-gradient(${size * 16}px ${size * 9}px at 0 0, rgba(251,251,250,0.85), rgba(251,251,250,0) 100%)`
+            : `radial-gradient(${size * 16}px ${size * 9}px at 0 0, rgba(5,6,7,0.78), rgba(5,6,7,0) 100%)`,
+          opacity: o,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          left: pad,
+          top: pad * 0.85,
+          opacity: o,
+          transform: `translateY(${(1 - ramp(f, from, from + 12)) * -16}px)`,
+          fontFamily: SANS,
+          color: light ? '#15181c' : INK,
+          textShadow: light ? 'none' : '0 2px 18px rgba(0,0,0,0.85)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: size * 0.4,
+            fontSize: size,
+            fontWeight: 650,
+            letterSpacing: -size * 0.025,
+            lineHeight: 1.1,
+          }}
+        >
+          <span
+            style={{
+              flex: 'none',
+              width: size * 0.36,
+              height: size * 0.36,
+              borderRadius: '50%',
+              background: dot,
+              boxShadow: `0 0 ${size * 0.5}px ${dot}`,
+            }}
+          />
           {text}
         </div>
-        {big && <div style={{ marginLeft: size * 0.76, fontSize: size * 1.9, fontWeight: 650, letterSpacing: -size * 0.06, fontFamily: SANS, color: dot, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{big}</div>}
-        {sub && <div style={{ marginLeft: size * 0.76, marginTop: size * 0.15, fontSize: size * 0.62, fontWeight: 500, color: light ? '#4a5058' : '#c4c9cf' }}>{sub}</div>}
+        {big && (
+          <div
+            style={{
+              marginLeft: size * 0.76,
+              fontSize: size * 1.9,
+              fontWeight: 650,
+              letterSpacing: -size * 0.06,
+              fontFamily: SANS,
+              color: dot,
+              lineHeight: 1.05,
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {big}
+          </div>
+        )}
+        {sub && (
+          <div
+            style={{
+              marginLeft: size * 0.76,
+              marginTop: size * 0.15,
+              fontSize: size * 0.62,
+              fontWeight: 500,
+              color: light ? '#4a5058' : '#c4c9cf',
+            }}
+          >
+            {sub}
+          </div>
+        )}
       </div>
     </>
   )

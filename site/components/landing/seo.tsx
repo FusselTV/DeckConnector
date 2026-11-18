@@ -69,7 +69,12 @@ export function CompareLd({ lang }: { lang: Lang }) {
           },
           {
             '@type': 'BreadcrumbList',
-            itemListElement: [url(lang, '/'), url(lang, '/compare/')].map((item, i) => ({ '@type': 'ListItem', position: i + 1, name: c.crumbs[i], item })),
+            itemListElement: [url(lang, '/'), url(lang, '/compare/')].map((item, i) => ({
+              '@type': 'ListItem',
+              position: i + 1,
+              name: c.crumbs[i],
+              item,
+            })),
           },
           faqLd(c.faq.items),
         ],

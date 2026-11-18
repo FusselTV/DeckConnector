@@ -106,4 +106,5 @@ const de: typeof en = {
 
 export const TEXT = { en, de }
 export type Text = typeof en
-export const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k] ?? ''))
+export const fill = (s: string, v: Record<string, string | number>) =>
+  s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k] ?? ''))

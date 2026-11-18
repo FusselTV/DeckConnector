@@ -4,7 +4,8 @@ import { pageMeta } from '~/lib/meta'
 
 export const metadata = pageMeta('de', '/flash/', {
   title: 'Firmware im Browser installieren',
-  description: 'DeckConnector-Firmware in Chrome oder Edge auf eine ESP32-P4-Platine spielen, dann WLAN, Passwort und Namen über USB einstellen.',
+  description:
+    'DeckConnector-Firmware in Chrome oder Edge auf eine ESP32-P4-Platine spielen, dann WLAN, Passwort und Namen über USB einstellen.',
 })
 
 export default function Page() {

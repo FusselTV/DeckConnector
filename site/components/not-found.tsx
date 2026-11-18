@@ -1,8 +1,20 @@
 import { prefix, type Lang } from '~/lib/i18n'
 
 const t = {
-  en: { title: 'Page not found', text: 'This page does not exist, or it moved.', home: 'Home', docs: 'Docs', other: ['de', 'Deutsch'] },
-  de: { title: 'Seite nicht gefunden', text: 'Diese Seite gibt es nicht oder nicht mehr.', home: 'Startseite', docs: 'Anleitung', other: ['en', 'English'] },
+  en: {
+    title: 'Page not found',
+    text: 'This page does not exist, or it moved.',
+    home: 'Home',
+    docs: 'Docs',
+    other: ['de', 'Deutsch'],
+  },
+  de: {
+    title: 'Seite nicht gefunden',
+    text: 'Diese Seite gibt es nicht oder nicht mehr.',
+    home: 'Startseite',
+    docs: 'Anleitung',
+    other: ['en', 'English'],
+  },
 } as const
 
 export const notFoundTitle = (lang: Lang) => `${t[lang].title} | DeckConnector`

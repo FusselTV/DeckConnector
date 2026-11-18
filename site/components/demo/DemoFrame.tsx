@@ -14,10 +14,14 @@ export function DemoFrame({ lang, title }: { lang: Lang; title: string }) {
     const q = new URLSearchParams(location.search)
     q.delete('lang')
     if (q.size || location.hash)
-      ref.current?.setAttribute('src', `${src}${q.size ? '&' : ''}${q.toString().replace(/=(?=&|$)/g, '')}${location.hash}`)
+      ref.current?.setAttribute(
+        'src',
+        `${src}${q.size ? '&' : ''}${q.toString().replace(/=(?=&|$)/g, '')}${location.hash}`,
+      )
     const onMessage = (e: MessageEvent<unknown>) => {
       const l = (e.data as { demoLang?: unknown } | null)?.demoLang
-      if (e.origin === location.origin && (l === 'en' || l === 'de') && l !== lang) router.push(`${prefix(l)}/demo/${location.search}`)
+      if (e.origin === location.origin && (l === 'en' || l === 'de') && l !== lang)
+        router.push(`${prefix(l)}/demo/${location.search}`)
     }
     addEventListener('message', onMessage)
     return () => removeEventListener('message', onMessage)

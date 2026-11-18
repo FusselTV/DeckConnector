@@ -27,13 +27,33 @@ function Signal({ rssi }: { rssi: number }) {
   return (
     <svg viewBox="0 0 16 12" className="h-3 w-4 shrink-0" role="img" aria-label={`${rssi} dBm`}>
       {[0, 1, 2, 3].map((i) => (
-        <rect key={i} x={i * 4} y={9 - i * 3} width="3" height={3 + i * 3} rx="0.5" fill={i < bars ? 'var(--fg-2)' : 'var(--line-2)'} />
+        <rect
+          key={i}
+          x={i * 4}
+          y={9 - i * 3}
+          width="3"
+          height={3 + i * 3}
+          rx="0.5"
+          fill={i < bars ? 'var(--fg-2)' : 'var(--line-2)'}
+        />
       ))}
     </svg>
   )
 }
 
-export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; version: string; lang?: string; onDone: (r: Result) => void }) {
+export function Setup({
+  c,
+  im,
+  version,
+  lang,
+  onDone,
+}: {
+  c: Copy
+  im: Improv
+  version: string
+  lang?: string
+  onDone: (r: Result) => void
+}) {
   const [phase, setPhase] = useState<'boot' | 'noboot' | 'form' | 'busy'>('boot')
   const [msg, setMsg] = useState('')
   const [board, setBoard] = useState<{ name: string; version: string; urls: string[]; lan: boolean } | null>(null)
@@ -81,7 +101,13 @@ export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; v
     const st = await im.state()
     const net = await im.network().catch(() => null)
     const urls = net?.urls.length ? net.urls : st.url ? [st.url] : []
-    return { name: info.name, version: info.version, urls, lan: net ? net.lan : st.state === PROVISIONED, online: st.state === PROVISIONED }
+    return {
+      name: info.name,
+      version: info.version,
+      urls,
+      lan: net ? net.lan : st.state === PROVISIONED,
+      online: st.state === PROVISIONED,
+    }
   }
 
   const boot = async () => {
@@ -222,12 +248,21 @@ export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; v
                     <span className="text-sm font-medium" id="wl-l">
                       {c.network}
                     </span>
-                    <button type="button" onClick={() => void scan()} disabled={scanning} className="inline-flex items-center gap-1.5 text-sm text-fg-2 hover:text-fg disabled:opacity-60 [&_svg]:size-3.5">
+                    <button
+                      type="button"
+                      onClick={() => void scan()}
+                      disabled={scanning}
+                      className="inline-flex items-center gap-1.5 text-sm text-fg-2 hover:text-fg disabled:opacity-60 [&_svg]:size-3.5"
+                    >
                       <RefreshCw className={scanning ? 'animate-spin' : ''} aria-hidden />
                       {scanning ? c.scanning : c.scan}
                     </button>
                   </div>
-                  <div role="radiogroup" aria-labelledby="wl-l" className="max-h-60 overflow-auto rounded-lg border border-line-2 bg-well">
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="wl-l"
+                    className="max-h-60 overflow-auto rounded-lg border border-line-2 bg-well"
+                  >
                     {aps === null && scanning && (
                       <p className="flex items-center gap-2 p-3 text-sm text-fg-3">
                         <Spinner /> {c.scanning}
@@ -235,26 +270,57 @@ export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; v
                     )}
                     {aps?.length === 0 && !scanning && <p className="p-3 text-sm text-fg-3">{c.scanNone}</p>}
                     {aps?.map((a) => (
-                      <label key={a.ssid} className="flex cursor-pointer items-center gap-3 border-b border-line px-3 py-2.5 last:border-0 hover:bg-panel-2 has-checked:bg-amber-soft">
-                        <input type="radio" name="ssid" checked={!other && ssid === a.ssid} onChange={() => (setOther(false), setSsid(a.ssid))} className="size-4 accent-(--amber)" />
+                      <label
+                        key={a.ssid}
+                        className="flex cursor-pointer items-center gap-3 border-b border-line px-3 py-2.5 last:border-0 hover:bg-panel-2 has-checked:bg-amber-soft"
+                      >
+                        <input
+                          type="radio"
+                          name="ssid"
+                          checked={!other && ssid === a.ssid}
+                          onChange={() => (setOther(false), setSsid(a.ssid))}
+                          className="size-4 accent-(--amber)"
+                        />
                         <span className="min-w-0 flex-1 truncate">{a.ssid}</span>
-                        {a.secured ? <Lock className="size-3.5 text-fg-3" aria-hidden /> : <span className="text-xs text-fg-3">{c.openNet}</span>}
+                        {a.secured ? (
+                          <Lock className="size-3.5 text-fg-3" aria-hidden />
+                        ) : (
+                          <span className="text-xs text-fg-3">{c.openNet}</span>
+                        )}
                         <Signal rssi={a.rssi} />
                       </label>
                     ))}
                     <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-panel-2 has-checked:bg-amber-soft">
-                      <input type="radio" name="ssid" checked={other} onChange={() => (setOther(true), setSsid(''))} className="size-4 accent-(--amber)" />
+                      <input
+                        type="radio"
+                        name="ssid"
+                        checked={other}
+                        onChange={() => (setOther(true), setSsid(''))}
+                        className="size-4 accent-(--amber)"
+                      />
                       <span className="text-fg-2">{c.other}</span>
                     </label>
                   </div>
                 </div>
                 {other && (
                   <Field id="f-ssid" label={c.ssid} err={tried && wifiE === c.wifiPick ? wifiE : null}>
-                    <input id="f-ssid" className={input} value={ssid} maxLength={32} onChange={(e) => setSsid(e.target.value)} autoComplete="off" spellCheck={false} {...inv(wifiE === c.wifiPick ? wifiE : null)} />
+                    <input
+                      id="f-ssid"
+                      className={input}
+                      value={ssid}
+                      maxLength={32}
+                      onChange={(e) => setSsid(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                      {...inv(wifiE === c.wifiPick ? wifiE : null)}
+                    />
                   </Field>
                 )}
                 {!other && tried && wifiE === c.wifiPick && <p className="text-sm text-bad-fg">{wifiE}</p>}
-                <Field id="f-wpass" label={c.wifiPass} err={
+                <Field
+                  id="f-wpass"
+                  label={c.wifiPass}
+                  err={
                     (tried && wifiE !== c.wifiPick ? wifiE : null) ??
                     (wifiErr && (
                       <>
@@ -262,7 +328,8 @@ export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; v
                         {wifiErr.fix && <Fix c={c} id={wifiErr.fix} />}
                       </>
                     ))
-                  }>
+                  }
+                >
                   <Secret
                     c={c}
                     id="f-wpass"
@@ -290,7 +357,11 @@ export function Setup({ c, im, version, lang, onDone }: { c: Copy; im: Improv; v
           {busy ? msg : c.save}
         </Btn>
         {!busy && (
-          <button type="button" onClick={() => onDone({ urls: board?.urls ?? [], name: board?.name ?? '', later: true })} className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg">
+          <button
+            type="button"
+            onClick={() => onDone({ urls: board?.urls ?? [], name: board?.name ?? '', later: true })}
+            className="text-sm text-fg-2 underline decoration-line-2 underline-offset-4 hover:text-fg"
+          >
             {c.later}
           </button>
         )}

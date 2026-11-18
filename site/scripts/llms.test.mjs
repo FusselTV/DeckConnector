@@ -4,7 +4,9 @@ import test from 'node:test'
 import { site } from '../site.config.ts'
 
 const out = new URL('../out/', import.meta.url)
-const md = readdirSync(new URL('md/', out), { recursive: true }).filter((f) => f.endsWith('.md')).map((f) => `md/${f}`)
+const md = readdirSync(new URL('md/', out), { recursive: true })
+  .filter((f) => f.endsWith('.md'))
+  .map((f) => `md/${f}`)
 const files = ['llms.txt', 'llms-full.txt', ...md]
 
 test('every docs page has a Markdown copy in both languages', () => {
@@ -28,6 +30,12 @@ for (const f of files) {
 }
 
 test('buttons keep their links in Markdown', () => {
-  for (const [f, label] of [['md/docs/home-assistant.md', 'Install with HACS'], ['md/de/docs/home-assistant.md', 'Mit HACS installieren']])
-    assert.match(readFileSync(new URL(f, out), 'utf8'), new RegExp(`- \\[${label}\\]\\(https://my\\.home-assistant\\.io/redirect/hacs_repository/`))
+  for (const [f, label] of [
+    ['md/docs/home-assistant.md', 'Install with HACS'],
+    ['md/de/docs/home-assistant.md', 'Mit HACS installieren'],
+  ])
+    assert.match(
+      readFileSync(new URL(f, out), 'utf8'),
+      new RegExp(`- \\[${label}\\]\\(https://my\\.home-assistant\\.io/redirect/hacs_repository/`),
+    )
 })

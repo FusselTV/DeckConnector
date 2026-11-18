@@ -11,8 +11,18 @@ const { chromium } = await import(new URL('../../web/node_modules/playwright/ind
 
 const queries = {
   en: {
-    'wifi password': ['/docs/network#wi-fi', '/docs/first-setup#over-the-setup-wi-fi', '/docs/first-setup#in-the-browser', '/docs/security#setup-wi-fi'],
-    16622: ['/docs/network#ports', '/docs/companion#satellite', '/docs/troubleshooting#companion-does-not-connect', '/docs/companion#address-forms'],
+    'wifi password': [
+      '/docs/network#wi-fi',
+      '/docs/first-setup#over-the-setup-wi-fi',
+      '/docs/first-setup#in-the-browser',
+      '/docs/security#setup-wi-fi',
+    ],
+    16622: [
+      '/docs/network#ports',
+      '/docs/companion#satellite',
+      '/docs/troubleshooting#companion-does-not-connect',
+      '/docs/companion#address-forms',
+    ],
     'companion satellite': ['/docs/companion#satellite', '/docs/companion'],
     'compnion satelite': ['/docs/companion#satellite', '/docs/companion'],
     'flash fails': ['/docs/flashing', '/docs/flash-troubleshooting'],
@@ -24,7 +34,12 @@ const queries = {
     'elgato app does not find deck': ['/docs/troubleshooting#the-elgato-app-does-not-find-the-deck'],
     websocket: ['/docs/api#websocket'],
     'mdns name': ['/docs/network#names'],
-    'Authorization: Bearer': ['/docs/security#api-keys', '/docs/api#login', '/docs/home-assistant#api-key', '/docs/own-server#connection'],
+    'Authorization: Bearer': [
+      '/docs/security#api-keys',
+      '/docs/api#login',
+      '/docs/home-assistant#api-key',
+      '/docs/own-server#connection',
+    ],
     'hidden network': ['/docs/network#wi-fi'],
     port: ['/docs/network#ports'],
     ports: ['/docs/network#ports'],
@@ -34,7 +49,12 @@ const queries = {
   },
   de: {
     'passwort vergessen': ['/de/docs/security#passwort-vergessen'],
-    'wlan passwort': ['/de/docs/network#wlan', '/de/docs/first-setup#über-das-setup-wlan', '/de/docs/first-setup#im-browser', '/de/docs/security#setup-wlan'],
+    'wlan passwort': [
+      '/de/docs/network#wlan',
+      '/de/docs/first-setup#über-das-setup-wlan',
+      '/de/docs/first-setup#im-browser',
+      '/de/docs/security#setup-wlan',
+    ],
     'feste ip': ['/de/docs/network#feste-adresse'],
     'api schlüssel': ['/de/docs/security#api-schlüssel', '/de/docs/home-assistant#api-schlüssel'],
     werkseinstellungen: ['/de/docs/first-setup#werkszustand', '/de/docs/security#passwort-vergessen'],
@@ -43,7 +63,12 @@ const queries = {
     zertifikat: ['/de/docs/security#https'],
     absturzbericht: ['/de/docs/troubleshooting#logs-und-absturzberichte'],
     satelite: ['/de/docs/companion#satellite', '/de/docs/companion'],
-    16622: ['/de/docs/network#ports', '/de/docs/companion#satellite', '/de/docs/troubleshooting#companion-verbindet-sich-nicht', '/de/docs/companion#adressformen'],
+    16622: [
+      '/de/docs/network#ports',
+      '/de/docs/companion#satellite',
+      '/de/docs/troubleshooting#companion-verbindet-sich-nicht',
+      '/de/docs/companion#adressformen',
+    ],
     'ota update': ['/de/docs/updates'],
     port: ['/de/docs/network#ports'],
     wlan: ['/de/docs/network#wlan', '/de/docs/first-setup#über-das-setup-wlan'],
@@ -51,7 +76,15 @@ const queries = {
   },
 }
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain' }
+const TYPES = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.txt': 'text/plain',
+}
 let server
 let base
 let browser
@@ -87,13 +120,17 @@ async function land(lang, q) {
   }
   await input.fill(q)
   let last = ''
-  for (let same = 0; same < 3; ) {
+  for (let same = 0; same < 3;) {
     await page.waitForTimeout(150)
-    const now = await page.locator('[role=option]').evaluateAll((os) => os.map((o) => `${o.getAttribute('aria-selected')}${o.textContent}`).join('|'))
+    const now = await page
+      .locator('[role=option]')
+      .evaluateAll((os) => os.map((o) => `${o.getAttribute('aria-selected')}${o.textContent}`).join('|'))
     same = now && now === last ? same + 1 : 0
     last = now
   }
-  const long = await page.locator('[role=option]').evaluateAll((os) => os.map((o) => o.textContent.trim()).filter((t) => t.length > 140))
+  const long = await page
+    .locator('[role=option]')
+    .evaluateAll((os) => os.map((o) => o.textContent.trim()).filter((t) => t.length > 140))
   assert.deepEqual(long, [], `"${q}" shows long results`)
   const from = page.url()
   await page.keyboard.press('Enter')

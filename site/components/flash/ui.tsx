@@ -27,8 +27,13 @@ export function Btn({
   )
 }
 
-export function LinkBtn({ kind = 'pri', children, ...p }: { kind?: 'pri' | 'ghost' } & React.AnchorHTMLAttributes<HTMLAnchorElement>) {
-  const k = kind === 'pri' ? 'bg-amber text-amber-ink hover:brightness-110' : 'border border-line-2 text-fg hover:bg-panel-2'
+export function LinkBtn({
+  kind = 'pri',
+  children,
+  ...p
+}: { kind?: 'pri' | 'ghost' } & React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const k =
+    kind === 'pri' ? 'bg-amber text-amber-ink hover:brightness-110' : 'border border-line-2 text-fg hover:bg-panel-2'
   return (
     <a className={`${btnBase} ${k}`} {...p}>
       {children}
@@ -36,7 +41,15 @@ export function LinkBtn({ kind = 'pri', children, ...p }: { kind?: 'pri' | 'ghos
   )
 }
 
-export function Note({ lvl, title, children }: { lvl: 'info' | 'warn' | 'bad' | 'ok'; title?: ReactNode; children?: ReactNode }) {
+export function Note({
+  lvl,
+  title,
+  children,
+}: {
+  lvl: 'info' | 'warn' | 'bad' | 'ok'
+  title?: ReactNode
+  children?: ReactNode
+}) {
   const s = {
     info: ['border-line-2 bg-panel-2', 'text-fg-2', Info],
     warn: ['border-amber/50 bg-amber-soft', 'text-amber-fg', TriangleAlert],
@@ -57,14 +70,22 @@ export function Note({ lvl, title, children }: { lvl: 'info' | 'warn' | 'bad' | 
 
 export function Fix({ c, id }: { c: Copy; id: string }) {
   return (
-    <a href={`${c.fixUrl}#${id}`} className="mt-1 block w-fit font-medium text-fg underline decoration-line-2 underline-offset-4 hover:decoration-current">
+    <a
+      href={`${c.fixUrl}#${id}`}
+      className="mt-1 block w-fit font-medium text-fg underline decoration-line-2 underline-offset-4 hover:decoration-current"
+    >
       {c.fix}
     </a>
   )
 }
 
 export function Spinner({ className = '' }: { className?: string }) {
-  return <span aria-hidden className={`inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent ${className}`} />
+  return (
+    <span
+      aria-hidden
+      className={`inline-block size-4 animate-spin rounded-full border-2 border-current border-t-transparent ${className}`}
+    />
+  )
 }
 
 export function Stepper({ c, at, failed }: { c: Copy; at: number; failed?: boolean }) {
@@ -80,24 +101,46 @@ export function Stepper({ c, at, failed }: { c: Copy; at: number; failed?: boole
             next: 'border-line-2 bg-panel text-fg-3',
           }[state]
           return (
-            <li key={label} className="relative flex flex-1 flex-col items-center gap-2" aria-current={i === at ? 'step' : undefined}>
-              {i > 0 && <span aria-hidden className={`absolute top-4 right-1/2 -z-0 h-0.5 w-full ${i <= at ? 'bg-ok' : 'bg-line'}`} />}
-              <span className={`relative z-10 flex size-8 items-center justify-center rounded-full border-2 font-mono text-sm font-semibold transition-colors ${dot}`}>
+            <li
+              key={label}
+              className="relative flex flex-1 flex-col items-center gap-2"
+              aria-current={i === at ? 'step' : undefined}
+            >
+              {i > 0 && (
+                <span
+                  aria-hidden
+                  className={`absolute top-4 right-1/2 -z-0 h-0.5 w-full ${i <= at ? 'bg-ok' : 'bg-line'}`}
+                />
+              )}
+              <span
+                className={`relative z-10 flex size-8 items-center justify-center rounded-full border-2 font-mono text-sm font-semibold transition-colors ${dot}`}
+              >
                 {state === 'done' ? <Check className="size-4" strokeWidth={3} aria-hidden /> : i + 1}
               </span>
-              <span className={`text-center text-xs font-medium max-sm:hidden ${i === at ? 'text-fg' : 'text-fg-3'}`}>{label}</span>
+              <span className={`text-center text-xs font-medium max-sm:hidden ${i === at ? 'text-fg' : 'text-fg-3'}`}>
+                {label}
+              </span>
             </li>
           )
         })}
       </ol>
       <p className="mt-3 text-center text-sm font-medium sm:hidden">
-        <span className="text-fg-3">{fill(c.step, { n: Math.min(at + 1, c.steps.length), all: c.steps.length })}</span> · {c.steps[Math.min(at, c.steps.length - 1)]}
+        <span className="text-fg-3">{fill(c.step, { n: Math.min(at + 1, c.steps.length), all: c.steps.length })}</span>{' '}
+        · {c.steps[Math.min(at, c.steps.length - 1)]}
       </p>
     </nav>
   )
 }
 
-export function Bar({ value, tone = 'amber', label }: { value: number | null; tone?: 'amber' | 'ok' | 'bad'; label: string }) {
+export function Bar({
+  value,
+  tone = 'amber',
+  label,
+}: {
+  value: number | null
+  tone?: 'amber' | 'ok' | 'bad'
+  label: string
+}) {
   const color = { amber: 'bg-amber', ok: 'bg-ok', bad: 'bg-bad' }[tone]
   return (
     <div
@@ -109,16 +152,33 @@ export function Bar({ value, tone = 'amber', label }: { value: number | null; to
       className="relative h-2 overflow-hidden rounded-full bg-well"
     >
       {value === null ? (
-        <span className={`absolute inset-y-0 w-1/3 animate-[flash-indet_1.4s_ease-in-out_infinite] rounded-full motion-reduce:animate-none ${color}`} />
+        <span
+          className={`absolute inset-y-0 w-1/3 animate-[flash-indet_1.4s_ease-in-out_infinite] rounded-full motion-reduce:animate-none ${color}`}
+        />
       ) : (
-        <span className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-300 ${color}`} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />
+        <span
+          className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-300 ${color}`}
+          style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }}
+        />
       )}
       <style>{'@keyframes flash-indet{0%{left:-35%}100%{left:100%}}'}</style>
     </div>
   )
 }
 
-export function Field({ id, label, hint, err, children }: { id: string; label: ReactNode; hint?: ReactNode; err?: ReactNode; children: ReactNode }) {
+export function Field({
+  id,
+  label,
+  hint,
+  err,
+  children,
+}: {
+  id: string
+  label: ReactNode
+  hint?: ReactNode
+  err?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm font-medium">
@@ -147,7 +207,13 @@ export function Secret({ c, ...p }: { c: Copy } & React.InputHTMLAttributes<HTML
   const [show, setShow] = useState(false)
   return (
     <div className="relative">
-      <input {...p} type={show ? 'text' : 'password'} className={`${input} pe-11 font-mono`} autoComplete="new-password" spellCheck={false} />
+      <input
+        {...p}
+        type={show ? 'text' : 'password'}
+        className={`${input} pe-11 font-mono`}
+        autoComplete="new-password"
+        spellCheck={false}
+      />
       <button
         type="button"
         onClick={() => setShow(!show)}
@@ -175,7 +241,10 @@ export function LogPanel({ c, lines }: { c: Copy; lines: string[] }) {
         <span className={`${mono} rounded bg-panel-2 px-1.5 text-fg-3`}>{lines.length}</span>
         <span className="ms-auto text-xs text-fg-3 max-sm:hidden">{c.logNote}</span>
       </summary>
-      <pre ref={box} className={`${mono} max-h-72 overflow-auto border-t border-line bg-lcd p-4 leading-relaxed text-lcd-fg/85`}>
+      <pre
+        ref={box}
+        className={`${mono} max-h-72 overflow-auto border-t border-line bg-lcd p-4 leading-relaxed text-lcd-fg/85`}
+      >
         {lines.length ? lines.join('\n') : c.logEmpty}
       </pre>
     </details>
@@ -199,7 +268,12 @@ export function BoardArt({ focus, className = '' }: { focus: 'usb' | 'buttons' |
   const usb = focus === 'usb'
   const btn = focus === 'buttons'
   return (
-    <svg viewBox="0 0 360 256" className={className} role="img" aria-label="ESP32-P4 PoE board: USB-C port, BOOT and RST buttons">
+    <svg
+      viewBox="0 0 360 256"
+      className={className}
+      role="img"
+      aria-label="ESP32-P4 PoE board: USB-C port, BOOT and RST buttons"
+    >
       <defs>
         {[AMBER, GREEN, RED].map((c) => (
           <Glow key={c} c={c} />
@@ -232,7 +306,13 @@ export function BoardArt({ focus, className = '' }: { focus: 'usb' | 'buttons' |
           <rect x={x - 6} y={y - 6} width={12} height={12} rx={2} fill="#c9ced4" stroke="#6c737b" />
           <circle cx={x} cy={y} r={3.5} fill="#2a2f35" />
           <path d={`M${x} ${y + 8} V${y + 64}`} stroke="var(--edge)" strokeWidth={1} />
-          <text x={name === 'BOOT' ? x - 3 : x + 3} y={y + 76} textAnchor={name === 'BOOT' ? 'end' : 'start'} className={label} fill={btn ? 'var(--focus)' : 'var(--fg-3)'}>
+          <text
+            x={name === 'BOOT' ? x - 3 : x + 3}
+            y={y + 76}
+            textAnchor={name === 'BOOT' ? 'end' : 'start'}
+            className={label}
+            fill={btn ? 'var(--focus)' : 'var(--fg-3)'}
+          >
             {name}
           </text>
         </g>
@@ -241,10 +321,21 @@ export function BoardArt({ focus, className = '' }: { focus: 'usb' | 'buttons' |
   )
 }
 
-export function Toggle({ id, label, hint, ...p }: { id: string; label: string; hint?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+export function Toggle({
+  id,
+  label,
+  hint,
+  ...p
+}: { id: string; label: string; hint?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className="flex items-start gap-3">
-      <input type="checkbox" id={id} aria-describedby={hint ? `${id}-h` : undefined} className="mt-1 size-4 shrink-0 accent-(--amber)" {...p} />
+      <input
+        type="checkbox"
+        id={id}
+        aria-describedby={hint ? `${id}-h` : undefined}
+        className="mt-1 size-4 shrink-0 accent-(--amber)"
+        {...p}
+      />
       <div>
         <label htmlFor={id} className="block cursor-pointer font-medium">
           {label}
@@ -261,4 +352,7 @@ export function Toggle({ id, label, hint, ...p }: { id: string; label: string; h
 
 export const kib = (n: number) => (n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`)
 
-export const duration = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')} min` : `${Math.max(1, Math.round(s))} s`)
+export const duration = (s: number) =>
+  s >= 60
+    ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')} min`
+    : `${Math.max(1, Math.round(s))} s`

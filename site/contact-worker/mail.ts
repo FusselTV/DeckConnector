@@ -40,7 +40,15 @@ const words = (s: string) => {
 }
 
 /** A plain text mail as RFC 5322 text. Every header value comes from check() or from us. */
-export function mime(m: { from: string; to: string; replyTo: string; name: string; message: string; id: string; date: Date }) {
+export function mime(m: {
+  from: string
+  to: string
+  replyTo: string
+  name: string
+  message: string
+  id: string
+  date: Date
+}) {
   const who = m.name ? `${m.name} <${m.replyTo}>` : m.replyTo
   const body = b64(`${m.message}\n\n--\n${who}\n`.replace(/\r?\n/g, '\r\n')).replace(/.{76}/g, '$&\r\n')
   return [

@@ -13,7 +13,10 @@ const t = { en: { start: 'Home' }, de: { start: 'Startseite' } }
 
 export function Docs({ lang, tree, children }: { lang: Lang; tree: PageTree.Root; children: ReactNode }) {
   const home = (
-    <a href={`${prefix(lang)}/`} className="me-auto flex items-center gap-2 rounded-lg p-2 text-sm text-fd-muted-foreground transition-colors hover:bg-fd-accent/50 hover:text-fd-accent-foreground">
+    <a
+      href={`${prefix(lang)}/`}
+      className="me-auto flex items-center gap-2 rounded-lg p-2 text-sm text-fd-muted-foreground transition-colors hover:bg-fd-accent/50 hover:text-fd-accent-foreground"
+    >
       <ArrowLeft className="size-4" aria-hidden />
       {t[lang].start}
     </a>
@@ -23,7 +26,8 @@ export function Docs({ lang, tree, children }: { lang: Lang; tree: PageTree.Root
     const footer = document.querySelector('body > footer')
     if (!footer) return
     const root = document.documentElement.style
-    const set = () => root.setProperty('--footer-in', `${Math.max(0, innerHeight - footer.getBoundingClientRect().top)}px`)
+    const set = () =>
+      root.setProperty('--footer-in', `${Math.max(0, innerHeight - footer.getBoundingClientRect().top)}px`)
     set()
     addEventListener('scroll', set, { passive: true })
     addEventListener('resize', set)
@@ -34,7 +38,17 @@ export function Docs({ lang, tree, children }: { lang: Lang; tree: PageTree.Root
     }
   }, [])
   return (
-    <DocsLayout tree={tree} nav={{ children: home }} slots={{ header: () => <DocsMenu />, navTitle: () => null, languageSelect: false, themeSwitch: false, searchTrigger: false }}>
+    <DocsLayout
+      tree={tree}
+      nav={{ children: home }}
+      slots={{
+        header: () => <DocsMenu />,
+        navTitle: () => null,
+        languageSelect: false,
+        themeSwitch: false,
+        searchTrigger: false,
+      }}
+    >
       {children}
     </DocsLayout>
   )
@@ -42,7 +56,11 @@ export function Docs({ lang, tree, children }: { lang: Lang; tree: PageTree.Root
 
 // DocsLayout owns the sidebar state, so its trigger renders inside it and portals into the site header.
 function DocsMenu() {
-  const target = useSyncExternalStore(noop, () => document.getElementById('docs-menu'), () => null)
+  const target = useSyncExternalStore(
+    noop,
+    () => document.getElementById('docs-menu'),
+    () => null,
+  )
   if (!target) return null
   return createPortal(
     <SidebarTrigger className={icon}>

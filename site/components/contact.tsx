@@ -58,7 +58,17 @@ const t = {
 
 const link = 'font-medium text-fg underline decoration-line-2 underline-offset-4 hover:decoration-current'
 
-export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: string; issues: string; privacy: string }) {
+export function Contact({
+  lang,
+  email,
+  issues,
+  privacy,
+}: {
+  lang: Lang
+  email: string
+  issues: string
+  privacy: string
+}) {
   const c = t[lang]
   const opened = useRef(0)
   const form = useRef<HTMLFormElement>(null)
@@ -128,7 +138,15 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
               </h2>
               <p className="mt-2 text-fg-2">{c.thanks}</p>
               <div className="mt-8">
-                <Btn kind="ghost" onClick={() => ((again.current = true), setV({ name: '', email: '', message: '' }), setTried(false), setState('idle'))}>
+                <Btn
+                  kind="ghost"
+                  onClick={() => (
+                    (again.current = true),
+                    setV({ name: '', email: '', message: '' }),
+                    setTried(false),
+                    setState('idle')
+                  )}
+                >
                   {c.again}
                 </Btn>
               </div>
@@ -149,7 +167,14 @@ export function Contact({ lang, email, issues, privacy }: { lang: Lang; email: s
                     </>
                   }
                 >
-                  <input id="c-name" className={input} value={v.name} maxLength={MAX.name} autoComplete="name" onChange={(e) => setV({ ...v, name: e.target.value })} />
+                  <input
+                    id="c-name"
+                    className={input}
+                    value={v.name}
+                    maxLength={MAX.name}
+                    autoComplete="name"
+                    onChange={(e) => setV({ ...v, name: e.target.value })}
+                  />
                 </Field>
                 <Field id="c-email" label={c.email} err={tried && err.email}>
                   <input

@@ -5,5 +5,8 @@ declare module 'cloudflare:sockets' {
     startTls(): Socket
     close(): Promise<void>
   }
-  export function connect(address: { hostname: string; port: number }, options?: { secureTransport?: 'off' | 'on' | 'starttls' }): Socket
+  export function connect(
+    address: { hostname: string; port: number },
+    options?: { secureTransport?: 'off' | 'on' | 'starttls' },
+  ): Socket
 }

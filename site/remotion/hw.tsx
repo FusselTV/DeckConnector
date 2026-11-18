@@ -42,28 +42,74 @@ export function rounded(pts: readonly Pt[], r = 40): Pt[] {
     const q: Pt = [b[0] + ((c[0] - b[0]) / l2) * k, b[1] + ((c[1] - b[1]) / l2) * k]
     for (let j = 0; j <= 6; j++) {
       const u = j / 6
-      out.push([(1 - u) ** 2 * p[0] + 2 * u * (1 - u) * b[0] + u * u * q[0], (1 - u) ** 2 * p[1] + 2 * u * (1 - u) * b[1] + u * u * q[1]])
+      out.push([
+        (1 - u) ** 2 * p[0] + 2 * u * (1 - u) * b[0] + u * u * q[0],
+        (1 - u) ** 2 * p[1] + 2 * u * (1 - u) * b[1] + u * u * q[1],
+      ])
     }
   })
   return out
 }
 const path = (pts: readonly Pt[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('')
 
-export function Cable({ pts, w = 12, color = '#23272d', glow = 0, glowColor = AMBER, dash, opacity = 1 }: { pts: readonly Pt[]; w?: number; color?: string; glow?: number; glowColor?: string; dash?: string; opacity?: number }) {
+export function Cable({
+  pts,
+  w = 12,
+  color = '#23272d',
+  glow = 0,
+  glowColor = AMBER,
+  dash,
+  opacity = 1,
+}: {
+  pts: readonly Pt[]
+  w?: number
+  color?: string
+  glow?: number
+  glowColor?: string
+  dash?: string
+  opacity?: number
+}) {
   const d = path(pts)
   return (
     <g opacity={opacity} fill="none" strokeLinecap="round" strokeLinejoin="round">
-      <path d={d} stroke="#000" strokeOpacity={0.5} strokeWidth={w * 1.6} transform={`translate(0 ${w * 0.5})`} strokeDasharray={dash} />
+      <path
+        d={d}
+        stroke="#000"
+        strokeOpacity={0.5}
+        strokeWidth={w * 1.6}
+        transform={`translate(0 ${w * 0.5})`}
+        strokeDasharray={dash}
+      />
       <path d={d} stroke={color} strokeWidth={w} strokeDasharray={dash} />
-      {glow > 0 && <path d={d} stroke={glowColor} strokeOpacity={glow * 0.55} strokeWidth={w * 0.5} strokeDasharray={dash} />}
-      <path d={d} stroke="#fff" strokeOpacity={0.13} strokeWidth={w * 0.22} transform={`translate(0 ${-w * 0.22})`} strokeDasharray={dash} />
+      {glow > 0 && (
+        <path d={d} stroke={glowColor} strokeOpacity={glow * 0.55} strokeWidth={w * 0.5} strokeDasharray={dash} />
+      )}
+      <path
+        d={d}
+        stroke="#fff"
+        strokeOpacity={0.13}
+        strokeWidth={w * 0.22}
+        transform={`translate(0 ${-w * 0.22})`}
+        strokeDasharray={dash}
+      />
     </g>
   )
 }
 
-
 /** A burst of data: a hot head and a tail that fades behind it along the path. t runs 0..1 (plus len to clear). */
-export function Trail({ pts, t, len = 0.22, color = AMBER, w = 12 }: { pts: readonly Pt[]; t: number; len?: number; color?: string; w?: number }) {
+export function Trail({
+  pts,
+  t,
+  len = 0.22,
+  color = AMBER,
+  w = 12,
+}: {
+  pts: readonly Pt[]
+  t: number
+  len?: number
+  color?: string
+  w?: number
+}) {
   if (t <= 0 || t - len >= 1) return null
   const n = 14
   const segs: ReactNode[] = []
@@ -74,7 +120,19 @@ export function Trail({ pts, t, len = 0.22, color = AMBER, w = 12 }: { pts: read
     const p = along(pts, a)
     const q = along(pts, b)
     const k = (i + 1) / n
-    segs.push(<line key={i} x1={p[0]} y1={p[1]} x2={q[0]} y2={q[1]} stroke={color} strokeWidth={w * (0.25 + 0.75 * k)} strokeOpacity={k * k} strokeLinecap="round" />)
+    segs.push(
+      <line
+        key={i}
+        x1={p[0]}
+        y1={p[1]}
+        x2={q[0]}
+        y2={q[1]}
+        stroke={color}
+        strokeWidth={w * (0.25 + 0.75 * k)}
+        strokeOpacity={k * k}
+        strokeLinecap="round"
+      />,
+    )
   }
   const h = along(pts, t)
   return (
@@ -91,14 +149,54 @@ export function Trail({ pts, t, len = 0.22, color = AMBER, w = 12 }: { pts: read
 }
 
 /** A spot of light on the desk under a device. */
-export function Pool({ x, y, rx, ry, c = '#ffffff', o = 0.06 }: { x: number; y: number; rx: number; ry: number; c?: string; o?: number }) {
+export function Pool({
+  x,
+  y,
+  rx,
+  ry,
+  c = '#ffffff',
+  o = 0.06,
+}: {
+  x: number
+  y: number
+  rx: number
+  ry: number
+  c?: string
+  o?: number
+}) {
   return <ellipse cx={x} cy={y} rx={rx} ry={ry} fill={`url(#${glowId(c)})`} opacity={o} />
 }
 
-export function Label({ x, y, children, sub, anchor = 'middle', size = 34, o = 1 }: { x: number; y: number; children: ReactNode; sub?: ReactNode; anchor?: 'start' | 'middle' | 'end'; size?: number; o?: number }) {
+export function Label({
+  x,
+  y,
+  children,
+  sub,
+  anchor = 'middle',
+  size = 34,
+  o = 1,
+}: {
+  x: number
+  y: number
+  children: ReactNode
+  sub?: ReactNode
+  anchor?: 'start' | 'middle' | 'end'
+  size?: number
+  o?: number
+}) {
   const ink = useInk()
   return (
-    <text x={x} y={y} textAnchor={anchor} fontFamily={SANS} fontSize={size} fontWeight={600} fill={ink} letterSpacing={-size * 0.02} opacity={o}>
+    <text
+      x={x}
+      y={y}
+      textAnchor={anchor}
+      fontFamily={SANS}
+      fontSize={size}
+      fontWeight={600}
+      fill={ink}
+      letterSpacing={-size * 0.02}
+      opacity={o}
+    >
       {children}
       {sub && (
         <tspan x={x} dy={size * 1.2} fontSize={size * 0.72} fontWeight={500} fill="#8b929a">
@@ -109,7 +207,14 @@ export function Label({ x, y, children, sub, anchor = 'middle', size = 34, o = 1
   )
 }
 
-export type Glyph = ComponentType<{ x?: number; y?: number; width?: number; height?: number; color?: string; strokeWidth?: number }>
+export type Glyph = ComponentType<{
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  color?: string
+  strokeWidth?: number
+}>
 /** One key picture on the 120 x 120 pixels a Stream Deck + key has: an icon over one bold word, coloured when on. */
 export type Key = { icon?: Glyph; word?: string; bg?: string; fg?: string; glow?: string; art?: ReactNode }
 export const TILE = '#2b2d31'
@@ -121,9 +226,23 @@ export function Face({ k }: { k: Key }) {
     <>
       <rect width={120} height={120} fill={k.bg ?? TILE} />
       {k.art}
-      {k.icon && (word ? <k.icon x={38} y={16} width={44} height={44} color={fg} strokeWidth={2.4} /> : <k.icon x={32} y={32} width={56} height={56} color={fg} strokeWidth={2.2} />)}
+      {k.icon &&
+        (word ? (
+          <k.icon x={38} y={16} width={44} height={44} color={fg} strokeWidth={2.4} />
+        ) : (
+          <k.icon x={32} y={32} width={56} height={56} color={fg} strokeWidth={2.2} />
+        ))}
       {word && (
-        <text x={60} y={k.icon ? 98 : 72} textAnchor="middle" fontFamily={SANS} fontSize={28} fontWeight={800} fill={fg} letterSpacing={-0.5}>
+        <text
+          x={60}
+          y={k.icon ? 98 : 72}
+          textAnchor="middle"
+          fontFamily={SANS}
+          fontSize={28}
+          fontWeight={800}
+          fill={fg}
+          letterSpacing={-0.5}
+        >
           {word}
         </text>
       )}
@@ -194,7 +313,24 @@ export type DeckProps = {
   children?: ReactNode
 }
 
-export function Deck({ x, y, s, keys, under = [], strip, lit = [], flash = [], down = [], ring = [], dial = [], dialRing = [], stripLit = 1, edge = '#fff', sheen = 0, children }: DeckProps) {
+export function Deck({
+  x,
+  y,
+  s,
+  keys,
+  under = [],
+  strip,
+  lit = [],
+  flash = [],
+  down = [],
+  ring = [],
+  dial = [],
+  dialRing = [],
+  stripLit = 1,
+  edge = '#fff',
+  sheen = 0,
+  children,
+}: DeckProps) {
   const id = useId().replace(/:/g, '')
   const fi = SD.li
   const L = (i: number) => (keys[i] ? (lit[i] ?? 1) : 0)
@@ -247,13 +383,32 @@ export function Deck({ x, y, s, keys, under = [], strip, lit = [], flash = [], d
       <rect x={-1.2} y={1.4} width={SD.W + 2.4} height={SD.H} rx={SD.R + 1} fill="#050506" />
       <rect width={SD.W} height={SD.H} rx={SD.R} fill={`url(#${id}b)`} />
       <rect width={SD.W} height={SD.H} rx={SD.R} fill={`url(#${id}r)`} />
-      <rect x={0.25} y={0.25} width={SD.W - 0.5} height={SD.H - 0.5} rx={SD.R} fill="none" stroke="#fff" strokeOpacity={0.12} strokeWidth={0.5} />
+      <rect
+        x={0.25}
+        y={0.25}
+        width={SD.W - 0.5}
+        height={SD.H - 0.5}
+        rx={SD.R}
+        fill="none"
+        stroke="#fff"
+        strokeOpacity={0.12}
+        strokeWidth={0.5}
+      />
       {keys.map((k, i) => {
         const g = L(i) * (0.55 + 0.45 * (flash[i] ?? 0))
         if (!k || g < 0.02) return null
         const b = keyBox(i)
         const c = b.s / 2
-        return <circle key={i} cx={b.x + c} cy={b.y + c} r={b.s * (1.05 + 0.25 * (flash[i] ?? 0))} fill={`url(#${glowId(k.glow ?? k.bg ?? TILE)})`} opacity={g * 0.75} />
+        return (
+          <circle
+            key={i}
+            cx={b.x + c}
+            cy={b.y + c}
+            r={b.s * (1.05 + 0.25 * (flash[i] ?? 0))}
+            fill={`url(#${glowId(k.glow ?? k.bg ?? TILE)})`}
+            opacity={g * 0.75}
+          />
+        )
       })}
       {keys.map((k, i) => {
         const b = keyBox(i)
@@ -263,7 +418,10 @@ export function Deck({ x, y, s, keys, under = [], strip, lit = [], flash = [], d
         const on = L(i)
         const fl = k ? (flash[i] ?? 0) : 0
         return (
-          <g key={i} transform={`translate(${b.x + c} ${b.y + c + d * 0.5}) scale(${1 - d * 0.05}) translate(${-c} ${-c})`}>
+          <g
+            key={i}
+            transform={`translate(${b.x + c} ${b.y + c + d * 0.5}) scale(${1 - d * 0.05}) translate(${-c} ${-c})`}
+          >
             <rect x={-0.6} y={-0.6} width={b.s + 1.2} height={b.s + 1.2} rx={SD.kr + 0.5} fill="#050607" />
             <rect width={b.s} height={b.s} rx={SD.kr} fill="#020303" />
             <svg x={fi} y={fi} width={b.s - 2 * fi} height={b.s - 2 * fi} viewBox="0 0 120 120">
@@ -285,19 +443,56 @@ export function Deck({ x, y, s, keys, under = [], strip, lit = [], flash = [], d
               </g>
             </svg>
             <rect width={b.s} height={b.s} rx={SD.kr} fill={`url(#${id}g)`} />
-            {r > 0 && <rect x={-1.3} y={-1.3} width={b.s + 2.6} height={b.s + 2.6} rx={SD.kr + 1.3} fill="none" stroke={AMBER} strokeWidth={1} opacity={r} />}
+            {r > 0 && (
+              <rect
+                x={-1.3}
+                y={-1.3}
+                width={b.s + 2.6}
+                height={b.s + 2.6}
+                rx={SD.kr + 1.3}
+                fill="none"
+                stroke={AMBER}
+                strokeWidth={1}
+                opacity={r}
+              />
+            )}
           </g>
         )
       })}
       <rect {...SD.win} rx={0.8} fill="#050607" />
-      {stripLit > 0.02 && <rect x={SD.strip.x - 6} y={SD.strip.y - 5} width={SD.strip.w + 12} height={SD.strip.h + 10} rx={6} fill={`url(#${glowId(AMBER)})`} opacity={stripLit * 0.22} />}
-      <svg x={SD.strip.x} y={SD.strip.y} width={SD.strip.w} height={SD.strip.h} viewBox="0 0 800 100" preserveAspectRatio="none">
+      {stripLit > 0.02 && (
+        <rect
+          x={SD.strip.x - 6}
+          y={SD.strip.y - 5}
+          width={SD.strip.w + 12}
+          height={SD.strip.h + 10}
+          rx={6}
+          fill={`url(#${glowId(AMBER)})`}
+          opacity={stripLit * 0.22}
+        />
+      )}
+      <svg
+        x={SD.strip.x}
+        y={SD.strip.y}
+        width={SD.strip.w}
+        height={SD.strip.h}
+        viewBox="0 0 800 100"
+        preserveAspectRatio="none"
+      >
         <rect width={800} height={100} fill="#020303" />
         <g opacity={stripLit}>{strip}</g>
       </svg>
       <rect {...SD.strip} rx={0.8} fill={`url(#${id}g)`} opacity={0.7} />
       <rect x={SD.tray.x} y={SD.tray.y} width={SD.tray.w} height={SD.tray.h} rx={SD.tray.r} fill={`url(#${id}t)`} />
-      <rect x={SD.tray.x} y={SD.tray.y + SD.tray.h - 0.6} width={SD.tray.w} height={0.6} rx={0.3} fill="#fff" opacity={0.06} />
+      <rect
+        x={SD.tray.x}
+        y={SD.tray.y + SD.tray.h - 0.6}
+        width={SD.tray.w}
+        height={0.6}
+        rx={0.3}
+        fill="#fff"
+        opacity={0.06}
+      />
       {[0, 1, 2, 3].map((i) => {
         const cx = dialX(i)
         const r = SD.dials.d / 2
@@ -314,7 +509,15 @@ export function Deck({ x, y, s, keys, under = [], strip, lit = [], flash = [], d
             </g>
             <circle r={r * 0.7} fill={`url(#${id}c)`} />
             <circle r={r * 0.7} fill="none" stroke="#fff" strokeOpacity={0.1} strokeWidth={0.25} />
-            <rect x={-0.35} y={-r * 0.64} width={0.7} height={r * 0.28} rx={0.35} fill="#b8bdc4" transform={`rotate(${rot})`} />
+            <rect
+              x={-0.35}
+              y={-r * 0.64}
+              width={0.7}
+              height={r * 0.28}
+              rx={0.35}
+              fill="#b8bdc4"
+              transform={`rotate(${rot})`}
+            />
             {g > 0 && <circle r={r + 1.2} fill="none" stroke={AMBER} strokeWidth={0.9} opacity={g} />}
           </g>
         )
@@ -325,7 +528,19 @@ export function Deck({ x, y, s, keys, under = [], strip, lit = [], flash = [], d
 }
 
 /** A touch strip zone in its 200 x 100 slot: icon, level, bar. */
-export function Zone({ i, icon: I, value, accent = AMBER, active = 0 }: { i: number; icon: Glyph; value: number; accent?: string; active?: number }) {
+export function Zone({
+  i,
+  icon: I,
+  value,
+  accent = AMBER,
+  active = 0,
+}: {
+  i: number
+  icon: Glyph
+  value: number
+  accent?: string
+  active?: number
+}) {
   return (
     <g transform={`translate(${i * 200} 0)`}>
       <rect x={4} y={4} width={192} height={92} rx={8} fill="#0d0f12" />
@@ -343,13 +558,13 @@ export function Zone({ i, icon: I, value, accent = AMBER, active = 0 }: { i: num
   )
 }
 
-
 export const ZONE_ICONS = [Volume2, Mic, Music, Speaker] as const
 
 /** The show page Companion draws: cameras, slides, pause, mic, light, rec, clock. */
 export function showKeys(t: Text, f: number, live: 0 | 1 | 2): Key[] {
   const blink = Math.floor(f / 15) % 2 === 0
-  const cam = (n: number): Key => (live === n ? { icon: Video, word: `CAM ${n + 1}`, bg: RED } : { icon: Video, word: `CAM ${n + 1}` })
+  const cam = (n: number): Key =>
+    live === n ? { icon: Video, word: `CAM ${n + 1}`, bg: RED } : { icon: Video, word: `CAM ${n + 1}` }
   return [
     cam(0),
     cam(1),
@@ -398,8 +613,23 @@ export function Switch({ f = 0, x, y, w, h }: { f?: number } & Box) {
         const [cx, cy] = switchPort({ x, y, w, h }, i)
         return (
           <g key={i}>
-            <rect x={cx - PORT.w / 2} y={cy - PORT.h / 2} width={PORT.w} height={PORT.h} rx={3} fill="#0b0d0f" stroke="#3b4148" />
-            <rect x={cx - PORT.w / 2 + 2} y={cy - PORT.h / 2 - 9} width={8} height={4} rx={1} fill={i < 2 && Math.floor(f / 4 + i) % 3 ? GREEN : '#2a3a30'} />
+            <rect
+              x={cx - PORT.w / 2}
+              y={cy - PORT.h / 2}
+              width={PORT.w}
+              height={PORT.h}
+              rx={3}
+              fill="#0b0d0f"
+              stroke="#3b4148"
+            />
+            <rect
+              x={cx - PORT.w / 2 + 2}
+              y={cy - PORT.h / 2 - 9}
+              width={8}
+              height={4}
+              rx={1}
+              fill={i < 2 && Math.floor(f / 4 + i) % 3 ? GREEN : '#2a3a30'}
+            />
           </g>
         )
       })}
@@ -422,25 +652,65 @@ export function arc(a: Pt, b: Pt, lift: number): Pt[] {
   const c: Pt = [(a[0] + b[0]) / 2, Math.min(a[1], b[1]) - lift]
   return Array.from({ length: 17 }, (_, i) => {
     const u = i / 16
-    return [(1 - u) ** 2 * a[0] + 2 * u * (1 - u) * c[0] + u * u * b[0], (1 - u) ** 2 * a[1] + 2 * u * (1 - u) * c[1] + u * u * b[1]]
+    return [
+      (1 - u) ** 2 * a[0] + 2 * u * (1 - u) * c[0] + u * u * b[0],
+      (1 - u) ** 2 * a[1] + 2 * u * (1 - u) * c[1] + u * u * b[1],
+    ]
   })
 }
 
 /** Radio between two antennas: a dotted line that drifts toward b. */
 export function Air({ pts, f, on = 1, w = 11 }: { pts: readonly Pt[]; f: number; on?: number; w?: number }) {
   if (on <= 0.01) return null
-  return <path d={path(pts)} fill="none" stroke={AMBER} strokeWidth={w} strokeLinecap="round" strokeDasharray={`1 ${w * 2.2}`} strokeDashoffset={-f * 2} opacity={0.35 + 0.5 * on} />
+  return (
+    <path
+      d={path(pts)}
+      fill="none"
+      stroke={AMBER}
+      strokeWidth={w}
+      strokeLinecap="round"
+      strokeDasharray={`1 ${w * 2.2}`}
+      strokeDashoffset={-f * 2}
+      opacity={0.35 + 0.5 * on}
+    />
+  )
 }
 
 /** Rings that leave an antenna tip and fade, rotated by deg (0 = up). */
-export function Waves({ x, y, f, on = 1, size = 40, deg = 0, c = GREEN, period = 36 }: { x: number; y: number; f: number; on?: number; size?: number; deg?: number; c?: string; period?: number }) {
+export function Waves({
+  x,
+  y,
+  f,
+  on = 1,
+  size = 40,
+  deg = 0,
+  c = GREEN,
+  period = 36,
+}: {
+  x: number
+  y: number
+  f: number
+  on?: number
+  size?: number
+  deg?: number
+  c?: string
+  period?: number
+}) {
   if (on <= 0.01) return null
   return (
-    <g transform={`translate(${x} ${y}) rotate(${deg})`} fill="none" stroke={c} strokeWidth={size * 0.12} strokeLinecap="round">
+    <g
+      transform={`translate(${x} ${y}) rotate(${deg})`}
+      fill="none"
+      stroke={c}
+      strokeWidth={size * 0.12}
+      strokeLinecap="round"
+    >
       {[0, 1, 2].map((i) => {
         const k = (f / period + i / 3) % 1
         const r = size * (0.5 + 1.5 * k)
-        return <path key={i} d={`M${-r * 0.7} ${-r * 0.7} A${r} ${r} 0 0 1 ${r * 0.7} ${-r * 0.7}`} opacity={on * (1 - k)} />
+        return (
+          <path key={i} d={`M${-r * 0.7} ${-r * 0.7} A${r} ${r} 0 0 1 ${r * 0.7} ${-r * 0.7}`} opacity={on * (1 - k)} />
+        )
       })}
     </g>
   )
@@ -451,19 +721,43 @@ export function Router({ f = 0, x, y, w, h, live = 1 }: { f?: number; live?: num
   return (
     <g>
       <Shadow x={x + w / 2} y={y + h + 6} rx={w * 0.62} ry={18} />
-      {live > 0 && <circle cx={x + w / 2} cy={y + h / 2} r={w * 0.8} fill={`url(#${glowId(GREEN)})`} opacity={live * 0.25} />}
+      {live > 0 && (
+        <circle cx={x + w / 2} cy={y + h / 2} r={w * 0.8} fill={`url(#${glowId(GREEN)})`} opacity={live * 0.25} />
+      )}
       {[x + 40, x + w - 40].map((ax) => (
         <rect key={ax} x={ax - 6} y={y - 46} width={12} height={52} rx={6} fill="#2d3238" />
       ))}
-      <rect x={x} y={y} width={w} height={h} rx={14} fill="#1b1e22" stroke={live > 0.5 ? GREEN : '#2d3238'} strokeOpacity={0.7} strokeWidth={2.5} />
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        rx={14}
+        fill="#1b1e22"
+        stroke={live > 0.5 ? GREEN : '#2d3238'}
+        strokeOpacity={0.7}
+        strokeWidth={2.5}
+      />
       <rect x={x} y={y} width={w} height={14} rx={7} fill="#fff" opacity={0.05} />
-      <g transform={`translate(${x + 34} ${y + h / 2 + 16})`} fill="none" stroke={live > 0.5 ? GREEN : '#5a6470'} strokeWidth={5} strokeLinecap="round">
+      <g
+        transform={`translate(${x + 34} ${y + h / 2 + 16})`}
+        fill="none"
+        stroke={live > 0.5 ? GREEN : '#5a6470'}
+        strokeWidth={5}
+        strokeLinecap="round"
+      >
         <path d="M-14 -12 a20 20 0 0 1 28 0" />
         <path d="M-24 -22 a34 34 0 0 1 48 0" />
         <circle cx={0} cy={-2} r={3} fill={live > 0.5 ? GREEN : '#5a6470'} />
       </g>
       {Array.from({ length: 4 }, (_, i) => (
-        <circle key={i} cx={x + w - 34 - i * 26} cy={y + h / 2 + 4} r={6} fill={live > 0.5 && Math.floor(f / 3 + i) % 3 ? GREEN : '#3b4148'} />
+        <circle
+          key={i}
+          cx={x + w - 34 - i * 26}
+          cy={y + h / 2 + 4}
+          r={6}
+          fill={live > 0.5 && Math.floor(f / 3 + i) % 3 ? GREEN : '#3b4148'}
+        />
       ))}
     </g>
   )

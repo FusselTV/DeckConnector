@@ -16,7 +16,11 @@ const titles = {
 
 export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
   const p = legalPath[page]
-  return { title: titles[page][lang], robots: { index: false }, alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } } }
+  return {
+    title: titles[page][lang],
+    robots: { index: false },
+    alternates: { canonical: p[lang], languages: { en: p.en, de: p.de, 'x-default': p.en } },
+  }
 }
 
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
@@ -30,7 +34,11 @@ function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPa
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{titles[page][lang]}</h1>
       {lang === 'en' && (
         <p>
-          This is a translation. Only the <a href={legalPath[page].de} hrefLang="de">German version</a> is legally binding.
+          This is a translation. Only the{' '}
+          <a href={legalPath[page].de} hrefLang="de">
+            German version
+          </a>{' '}
+          is legally binding.
         </p>
       )}
       {children}
@@ -86,103 +94,141 @@ export function Privacy({ lang }: { lang: Lang }) {
       <Address lang="de" />
 
       <h2>Hosting bei Cloudflare</h2>
-      <p>Diese Website liegt bei Cloudflare Pages. Anbieter ist Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA.</p>
       <p>
-        Wenn du eine Seite aufrufst, verarbeitet Cloudflare deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und die Kennung deines Browsers. Das ist nötig, um die Seite auszuliefern und
-        vor Angriffen zu schützen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist eine sichere und schnelle Website. Ich werte diese Daten nicht aus.
+        Diese Website liegt bei Cloudflare Pages. Anbieter ist Cloudflare, Inc., 101 Townsend St, San Francisco, CA
+        94107, USA.
       </p>
       <p>
-        Cloudflare verarbeitet die Daten in meinem Auftrag (Art. 28 DSGVO), auf Grundlage des <a href={DPA}>Data Processing Addendum</a> von Cloudflare. Dabei können Daten in die USA gehen.
-        Cloudflare ist nach dem EU-US Data Privacy Framework zertifiziert (Art. 45 DSGVO). Zusätzlich gelten die Standardvertragsklauseln der EU-Kommission aus dem Data Processing Addendum
-        (Art. 46 Abs. 2 lit. c DSGVO). Wie lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
+        Wenn du eine Seite aufrufst, verarbeitet Cloudflare deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und
+        die Kennung deines Browsers. Das ist nötig, um die Seite auszuliefern und vor Angriffen zu schützen.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist eine sichere und schnelle
+        Website. Ich werte diese Daten nicht aus.
+      </p>
+      <p>
+        Cloudflare verarbeitet die Daten in meinem Auftrag (Art. 28 DSGVO), auf Grundlage des{' '}
+        <a href={DPA}>Data Processing Addendum</a> von Cloudflare. Dabei können Daten in die USA gehen. Cloudflare ist
+        nach dem EU-US Data Privacy Framework zertifiziert (Art. 45 DSGVO). Zusätzlich gelten die
+        Standardvertragsklauseln der EU-Kommission aus dem Data Processing Addendum (Art. 46 Abs. 2 lit. c DSGVO). Wie
+        lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
       </p>
 
       <h2>Schutz vor Bots und Cookies</h2>
       <p>
-        Cloudflare prüft mit „Bot Fight Mode“, ob eine Anfrage von einem Menschen oder einem Programm kommt. Dazu fügt Cloudflare ein kleines Skript in die Seiten ein, das von dieser Website
-        geladen wird (Pfad <code>/cdn-cgi/challenge-platform/</code>) und in deinem Browser Merkmale prüft. Verdächtigen Anfragen zeigt Cloudflare eine Prüfseite oder lehnt sie ab.
+        Cloudflare prüft mit „Bot Fight Mode“, ob eine Anfrage von einem Menschen oder einem Programm kommt. Dazu fügt
+        Cloudflare ein kleines Skript in die Seiten ein, das von dieser Website geladen wird (Pfad{' '}
+        <code>/cdn-cgi/challenge-platform/</code>) und in deinem Browser Merkmale prüft. Verdächtigen Anfragen zeigt
+        Cloudflare eine Prüfseite oder lehnt sie ab.
       </p>
       <p>Dabei setzt Cloudflare diese Cookies für deckconnector.com:</p>
       <ul>
         <li>
-          <code>__cf_bm</code>: Daten zur Bewertung, ob ein Bot anfragt, verschlüsselt. Läuft nach 30 Minuten ohne Aktivität ab.
+          <code>__cf_bm</code>: Daten zur Bewertung, ob ein Bot anfragt, verschlüsselt. Läuft nach 30 Minuten ohne
+          Aktivität ab.
         </li>
         <li>
-          <code>cf_clearance</code>: das Ergebnis der Prüfung, damit sie nicht bei jeder Seite neu läuft. Läuft nach 30 Minuten ab.
+          <code>cf_clearance</code>: das Ergebnis der Prüfung, damit sie nicht bei jeder Seite neu läuft. Läuft nach 30
+          Minuten ab.
         </li>
       </ul>
       <p>
-        Laut Cloudflare enthalten die Cookies keine Kennung, die dich über Websites oder Sitzungen hinweg verfolgt, und sind für den Schutz unbedingt nötig. Details stehen in der{' '}
-        <a href={CF_COOKIES}>Cookie-Liste von Cloudflare</a>. Andere Cookies setzt diese Website nicht. Rechtsgrundlage und Auftragsverarbeitung sind wie im Abschnitt „Hosting bei Cloudflare“.
+        Laut Cloudflare enthalten die Cookies keine Kennung, die dich über Websites oder Sitzungen hinweg verfolgt, und
+        sind für den Schutz unbedingt nötig. Details stehen in der <a href={CF_COOKIES}>Cookie-Liste von Cloudflare</a>.
+        Andere Cookies setzt diese Website nicht. Rechtsgrundlage und Auftragsverarbeitung sind wie im Abschnitt
+        „Hosting bei Cloudflare“.
       </p>
 
       <h2>Schutz von E-Mail-Adressen</h2>
       <p>
-        Cloudflare ersetzt E-Mail-Adressen in den Seiten durch eine kodierte Form, damit Programme sie nicht einsammeln können. Das Skript <code>email-decode.min.js</code>, geladen von
-        dieser Website, macht sie in deinem Browser wieder lesbar.
+        Cloudflare ersetzt E-Mail-Adressen in den Seiten durch eine kodierte Form, damit Programme sie nicht einsammeln
+        können. Das Skript <code>email-decode.min.js</code>, geladen von dieser Website, macht sie in deinem Browser
+        wieder lesbar.
       </p>
 
       <h2>Besucherstatistik mit Cloudflare Web Analytics</h2>
       <p>
-        Ich zähle Seitenaufrufe mit Cloudflare Web Analytics. Dafür lädt jede Seite das Skript <code>beacon.min.js</code> von <code>static.cloudflareinsights.com</code>, einem Server von
-        Cloudflare. Es schickt Messwerte an diese Website (<code>/cdn-cgi/rum</code>). Cloudflare wertet dabei aus: die aufgerufene Seite (ohne den Teil nach „?“), die Seite, von der du kommst
-        (Referrer), dein Land, Browser, Betriebssystem und Gerätetyp, und wie schnell die Seite lädt.
+        Ich zähle Seitenaufrufe mit Cloudflare Web Analytics. Dafür lädt jede Seite das Skript{' '}
+        <code>beacon.min.js</code> von <code>static.cloudflareinsights.com</code>, einem Server von Cloudflare. Es
+        schickt Messwerte an diese Website (<code>/cdn-cgi/rum</code>). Cloudflare wertet dabei aus: die aufgerufene
+        Seite (ohne den Teil nach „?“), die Seite, von der du kommst (Referrer), dein Land, Browser, Betriebssystem und
+        Gerätetyp, und wie schnell die Seite lädt.
       </p>
       <p>
-        Laut Cloudflare nutzt Web Analytics keine Cookies und keinen Speicher in deinem Browser, und Cloudflare erkennt dich nicht über deine IP-Adresse oder deinen Browser wieder. Ich sehe nur
-        zusammengefasste Zahlen, keine einzelnen Besucher. Cloudflare hält die vollständigen Messwerte 7 Tage und zeigt die Zahlen 6 Monate lang an. Mehr dazu in der{' '}
-        <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>. Cloudflare handelt auch hier in meinem Auftrag, auf Grundlage des Data Processing Addendum.
+        Laut Cloudflare nutzt Web Analytics keine Cookies und keinen Speicher in deinem Browser, und Cloudflare erkennt
+        dich nicht über deine IP-Adresse oder deinen Browser wieder. Ich sehe nur zusammengefasste Zahlen, keine
+        einzelnen Besucher. Cloudflare hält die vollständigen Messwerte 7 Tage und zeigt die Zahlen 6 Monate lang an.
+        Mehr dazu in der <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>. Cloudflare handelt auch hier in meinem
+        Auftrag, auf Grundlage des Data Processing Addendum.
       </p>
 
       <h2>Kontaktformular und E-Mail</h2>
       <p>
-        Wenn du mir über das <a href={legalPath.contact.de}>Kontaktformular</a> oder per E-Mail schreibst, verarbeite ich deine E-Mail-Adresse, deine Nachricht und, wenn du ihn angibst, deinen
-        Namen. Ich nutze sie nur, um dir zu antworten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, wenn es um einen Vertrag oder seine Anbahnung geht, sonst Art. 6 Abs. 1 lit. f DSGVO. Mein
-        berechtigtes Interesse ist, deine Anfrage zu beantworten.
+        Wenn du mir über das <a href={legalPath.contact.de}>Kontaktformular</a> oder per E-Mail schreibst, verarbeite
+        ich deine E-Mail-Adresse, deine Nachricht und, wenn du ihn angibst, deinen Namen. Ich nutze sie nur, um dir zu
+        antworten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO, wenn es um einen Vertrag oder seine Anbahnung geht,
+        sonst Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, deine Anfrage zu beantworten.
       </p>
       <p>
-        Das Formular schickt deine Angaben an Cloudflare Workers. Von dort gehen sie als E-Mail an mein Postfach. Dabei verarbeitet Cloudflare auch die Verbindungsdaten aus dem Abschnitt
-        „Hosting bei Cloudflare“. Cloudflare handelt in meinem Auftrag, auf Grundlage desselben Data Processing Addendum. Mein Postfach liegt bei iCloud Mail von Apple (Apple Distribution
-        International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Dort landen auch E-Mails an die Adresse oben.
+        Das Formular schickt deine Angaben an Cloudflare Workers. Von dort gehen sie als E-Mail an mein Postfach. Dabei
+        verarbeitet Cloudflare auch die Verbindungsdaten aus dem Abschnitt „Hosting bei Cloudflare“. Cloudflare handelt
+        in meinem Auftrag, auf Grundlage desselben Data Processing Addendum. Mein Postfach liegt bei iCloud Mail von
+        Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Dort landen
+        auch E-Mails an die Adresse oben.
       </p>
       <p>
-        Für jede Anfrage an das Formular schreibt Cloudflare einen Eintrag in die Workers Logs: Zeitpunkt, Adresse und Methode der Anfrage, die Header mit deiner IP-Adresse, Daten von
-        Cloudflare zur Verbindung wie dein Land, und ob die Anfrage geklappt hat. Mein Code für das Formular schreibt nichts, was du eingibst, in die Logs, nur die Fehlermeldung des Mailservers,
-        wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden. Cloudflare löscht sie nach {owner.logDays} Tagen.
+        Für jede Anfrage an das Formular schreibt Cloudflare einen Eintrag in die Workers Logs: Zeitpunkt, Adresse und
+        Methode der Anfrage, die Header mit deiner IP-Adresse, Daten von Cloudflare zur Verbindung wie dein Land, und ob
+        die Anfrage geklappt hat. Mein Code für das Formular schreibt nichts, was du eingibst, in die Logs, nur die
+        Fehlermeldung des Mailservers, wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden. Cloudflare
+        löscht sie nach {owner.logDays} Tagen.
       </p>
-      <p>Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger aufzubewahren.</p>
+      <p>
+        Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger
+        aufzubewahren.
+      </p>
 
       <h2>Speicher in deinem Browser</h2>
-      <p>Einige Einstellungen speichert die Website im lokalen Speicher deines Browsers (localStorage), sobald du sie änderst:</p>
+      <p>
+        Einige Einstellungen speichert die Website im lokalen Speicher deines Browsers (localStorage), sobald du sie
+        änderst:
+      </p>
       <ul>
         <li>
           <code>theme</code>: helles oder dunkles Design
         </li>
         <li>
-          Schlüssel, die mit <code>dc.</code> beginnen: Einstellungen in der Demo, zum Beispiel Sprache, Design und geschlossene Hinweise
+          Schlüssel, die mit <code>dc.</code> beginnen: Einstellungen in der Demo, zum Beispiel Sprache, Design und
+          geschlossene Hinweise
         </li>
       </ul>
       <p>
-        Wenn du die Demo öffnest, hält sie ihren Zustand im Sitzungsspeicher (sessionStorage, Schlüssel mit <code>dc.</code>). Er endet, wenn du den Tab schließt oder auf „Zurücksetzen“ tippst.
+        Wenn du die Demo öffnest, hält sie ihren Zustand im Sitzungsspeicher (sessionStorage, Schlüssel mit{' '}
+        <code>dc.</code>). Er endet, wenn du den Tab schließt oder auf „Zurücksetzen“ tippst.
       </p>
       <p>
-        Diese Daten bleiben in deinem Browser und werden nicht übertragen. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG, denn das Speichern ist für die Funktion nötig, die du ausdrücklich nutzt. Du
-        kannst die Daten in den Einstellungen deines Browsers löschen.
+        Diese Daten bleiben in deinem Browser und werden nicht übertragen. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG,
+        denn das Speichern ist für die Funktion nötig, die du ausdrücklich nutzt. Du kannst die Daten in den
+        Einstellungen deines Browsers löschen.
       </p>
 
       <h2>Deine Rechte</h2>
       <p>
-        Du hast das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18) und Datenübertragbarkeit (Art. 20). Schreib mir dazu an
-        die E-Mail-Adresse oben.
+        Du hast das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der
+        Verarbeitung (Art. 18) und Datenübertragbarkeit (Art. 20). Schreib mir dazu an die E-Mail-Adresse oben.
       </p>
       <p>
-        <strong>Widerspruch:</strong> Soweit die Verarbeitung auf Art. 6 Abs. 1 lit. f DSGVO beruht, kannst du ihr jederzeit aus Gründen widersprechen, die sich aus deiner besonderen Situation
-        ergeben (Art. 21 DSGVO).
+        <strong>Widerspruch:</strong> Soweit die Verarbeitung auf Art. 6 Abs. 1 lit. f DSGVO beruht, kannst du ihr
+        jederzeit aus Gründen widersprechen, die sich aus deiner besonderen Situation ergeben (Art. 21 DSGVO).
       </p>
-      <p>Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO). Für mich zuständig ist {authority}.</p>
+      <p>
+        Du kannst dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO). Für mich zuständig ist{' '}
+        {authority}.
+      </p>
 
       <h2>Pflicht zur Angabe von Daten</h2>
-      <p>Du musst keine Daten angeben. Ohne die Verbindungsdaten kann Cloudflare die Website aber nicht ausliefern, und ohne E-Mail-Adresse kann ich dir nicht antworten.</p>
+      <p>
+        Du musst keine Daten angeben. Ohne die Verbindungsdaten kann Cloudflare die Website aber nicht ausliefern, und
+        ohne E-Mail-Adresse kann ich dir nicht antworten.
+      </p>
     </Page>
   ) : (
     <Page lang="en" page="privacy">
@@ -190,68 +236,87 @@ export function Privacy({ lang }: { lang: Lang }) {
       <Address lang="en" />
 
       <h2>Hosting by Cloudflare</h2>
-      <p>This website is hosted on Cloudflare Pages. The provider is Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA.</p>
       <p>
-        When you open a page, Cloudflare processes your IP address, the time, the address of the page and your browser&apos;s user agent. Cloudflare needs this to deliver the page and to protect it
-        from attacks. The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not analyse this data.
+        This website is hosted on Cloudflare Pages. The provider is Cloudflare, Inc., 101 Townsend St, San Francisco, CA
+        94107, USA.
       </p>
       <p>
-        Cloudflare processes the data on my behalf (Art. 28 GDPR) under Cloudflare&apos;s <a href={DPA}>Data Processing Addendum</a>. Data can go to the USA. Cloudflare is certified under the
-        EU-US Data Privacy Framework (Art. 45 GDPR). The EU Standard Contractual Clauses in the Data Processing Addendum also apply (Art. 46(2)(c) GDPR). <a href={CF_PRIVACY}>Cloudflare&apos;s privacy
-        policy</a> says how long it keeps the data.
+        When you open a page, Cloudflare processes your IP address, the time, the address of the page and your
+        browser&apos;s user agent. Cloudflare needs this to deliver the page and to protect it from attacks. The legal
+        basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not analyse this data.
+      </p>
+      <p>
+        Cloudflare processes the data on my behalf (Art. 28 GDPR) under Cloudflare&apos;s{' '}
+        <a href={DPA}>Data Processing Addendum</a>. Data can go to the USA. Cloudflare is certified under the EU-US Data
+        Privacy Framework (Art. 45 GDPR). The EU Standard Contractual Clauses in the Data Processing Addendum also apply
+        (Art. 46(2)(c) GDPR). <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a> says how long it keeps the data.
       </p>
 
       <h2>Bot protection and cookies</h2>
       <p>
-        Cloudflare uses &quot;Bot Fight Mode&quot; to check whether a request comes from a person or a program. For this, Cloudflare adds a small script to the pages. It loads from this website
-        (path <code>/cdn-cgi/challenge-platform/</code>) and checks signals in your browser. Cloudflare shows suspicious requests a check page or refuses them.
+        Cloudflare uses &quot;Bot Fight Mode&quot; to check whether a request comes from a person or a program. For
+        this, Cloudflare adds a small script to the pages. It loads from this website (path{' '}
+        <code>/cdn-cgi/challenge-platform/</code>) and checks signals in your browser. Cloudflare shows suspicious
+        requests a check page or refuses them.
       </p>
       <p>Cloudflare sets these cookies for deckconnector.com:</p>
       <ul>
         <li>
-          <code>__cf_bm</code> holds encrypted data for deciding whether a bot is asking. It expires after 30 minutes without activity.
+          <code>__cf_bm</code> holds encrypted data for deciding whether a bot is asking. It expires after 30 minutes
+          without activity.
         </li>
         <li>
-          <code>cf_clearance</code> holds the result of the check, so it does not run again on every page. It expires after 30 minutes.
+          <code>cf_clearance</code> holds the result of the check, so it does not run again on every page. It expires
+          after 30 minutes.
         </li>
       </ul>
       <p>
-        Cloudflare says these cookies hold no identifier that follows you across websites or sessions, and that they are strictly necessary for the protection. Details are in{' '}
-        <a href={CF_COOKIES}>Cloudflare&apos;s cookie list</a>. This website sets no other cookies. The legal basis and the processing on my behalf are as in the section on hosting.
+        Cloudflare says these cookies hold no identifier that follows you across websites or sessions, and that they are
+        strictly necessary for the protection. Details are in <a href={CF_COOKIES}>Cloudflare&apos;s cookie list</a>.
+        This website sets no other cookies. The legal basis and the processing on my behalf are as in the section on
+        hosting.
       </p>
 
       <h2>Protection of email addresses</h2>
       <p>
-        Cloudflare replaces email addresses in the pages with an encoded form, so programs cannot collect them. The script <code>email-decode.min.js</code>, loaded from this website, makes them
-        readable again in your browser.
+        Cloudflare replaces email addresses in the pages with an encoded form, so programs cannot collect them. The
+        script <code>email-decode.min.js</code>, loaded from this website, makes them readable again in your browser.
       </p>
 
       <h2>Visitor statistics with Cloudflare Web Analytics</h2>
       <p>
-        I count page views with Cloudflare Web Analytics. For this, every page loads the script <code>beacon.min.js</code> from <code>static.cloudflareinsights.com</code>, a Cloudflare server. It
-        sends measurements to this website (<code>/cdn-cgi/rum</code>). Cloudflare records the page you open (without the part after &quot;?&quot;), the page you came from (referrer), your
-        country, browser, operating system and device type, and how fast the page loads.
+        I count page views with Cloudflare Web Analytics. For this, every page loads the script{' '}
+        <code>beacon.min.js</code> from <code>static.cloudflareinsights.com</code>, a Cloudflare server. It sends
+        measurements to this website (<code>/cdn-cgi/rum</code>). Cloudflare records the page you open (without the part
+        after &quot;?&quot;), the page you came from (referrer), your country, browser, operating system and device
+        type, and how fast the page loads.
       </p>
       <p>
-        Cloudflare says Web Analytics uses no cookies and no storage in your browser, and does not recognise you by your IP address or browser. I only see totals, not single visitors. Cloudflare
-        keeps the full measurements for 7 days and shows the totals for 6 months. See <a href={CF_ANALYTICS}>Cloudflare&apos;s documentation</a>. Cloudflare acts on my behalf here too, under the Data
-        Processing Addendum.
+        Cloudflare says Web Analytics uses no cookies and no storage in your browser, and does not recognise you by your
+        IP address or browser. I only see totals, not single visitors. Cloudflare keeps the full measurements for 7 days
+        and shows the totals for 6 months. See <a href={CF_ANALYTICS}>Cloudflare&apos;s documentation</a>. Cloudflare
+        acts on my behalf here too, under the Data Processing Addendum.
       </p>
 
       <h2>Contact form and email</h2>
       <p>
-        When you write to me with the <a href={legalPath.contact.en}>contact form</a> or by email, I process your email address, your message and your name if you give it. I use them only to
-        answer you. The legal basis is Art. 6(1)(b) GDPR when it is about a contract or the steps before one, else Art. 6(1)(f) GDPR. My legitimate interest is to answer your question.
+        When you write to me with the <a href={legalPath.contact.en}>contact form</a> or by email, I process your email
+        address, your message and your name if you give it. I use them only to answer you. The legal basis is Art.
+        6(1)(b) GDPR when it is about a contract or the steps before one, else Art. 6(1)(f) GDPR. My legitimate interest
+        is to answer your question.
       </p>
       <p>
-        The form sends your details to Cloudflare Workers. From there they go as an email to my mailbox. Cloudflare also processes the connection data from the section on hosting. Cloudflare acts
-        on my behalf under the same Data Processing Addendum. My mailbox is at iCloud Mail by Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Ireland).
-        Emails to the address above end up there too.
+        The form sends your details to Cloudflare Workers. From there they go as an email to my mailbox. Cloudflare also
+        processes the connection data from the section on hosting. Cloudflare acts on my behalf under the same Data
+        Processing Addendum. My mailbox is at iCloud Mail by Apple (Apple Distribution International Ltd., Hollyhill
+        Industrial Estate, Hollyhill, Cork, Ireland). Emails to the address above end up there too.
       </p>
       <p>
-        For each request to the form, Cloudflare writes an entry to its Workers Logs. It holds the time, the address and method of the request, the headers with your IP address, data from
-        Cloudflare about the connection such as your country, and whether the request worked. My code behind the form writes nothing you typed into the logs, only the mail server&apos;s error
-        message when sending fails. I use the logs to find faults. Cloudflare deletes them after {owner.logDays} days.
+        For each request to the form, Cloudflare writes an entry to its Workers Logs. It holds the time, the address and
+        method of the request, the headers with your IP address, data from Cloudflare about the connection such as your
+        country, and whether the request worked. My code behind the form writes nothing you typed into the logs, only
+        the mail server&apos;s error message when sending fails. I use the logs to find faults. Cloudflare deletes them
+        after {owner.logDays} days.
       </p>
       <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
 
@@ -262,28 +327,37 @@ export function Privacy({ lang }: { lang: Lang }) {
           <code>theme</code> is the light or dark design.
         </li>
         <li>
-          Keys that start with <code>dc.</code> are settings in the demo, for example language, design and closed notices.
+          Keys that start with <code>dc.</code> are settings in the demo, for example language, design and closed
+          notices.
         </li>
       </ul>
       <p>
-        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with <code>dc.</code>). It ends when you close the tab or tap Reset.
+        When you open the demo, it keeps its state in session storage (sessionStorage, keys that start with{' '}
+        <code>dc.</code>). It ends when you close the tab or tap Reset.
       </p>
       <p>
-        This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because storing it is needed for a function you asked for. You can delete it in your
-        browser&apos;s settings.
+        This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because
+        storing it is needed for a function you asked for. You can delete it in your browser&apos;s settings.
       </p>
 
       <h2>Your rights</h2>
       <p>
-        You have the right of access (Art. 15 GDPR), correction (Art. 16), deletion (Art. 17), restriction of processing (Art. 18) and data portability (Art. 20). Write to the email address above.
+        You have the right of access (Art. 15 GDPR), correction (Art. 16), deletion (Art. 17), restriction of processing
+        (Art. 18) and data portability (Art. 20). Write to the email address above.
       </p>
       <p>
-        <strong>Right to object.</strong> Where the processing is based on Art. 6(1)(f) GDPR, you can object to it at any time, for reasons that come from your particular situation (Art. 21 GDPR).
+        <strong>Right to object.</strong> Where the processing is based on Art. 6(1)(f) GDPR, you can object to it at
+        any time, for reasons that come from your particular situation (Art. 21 GDPR).
       </p>
-      <p>You can complain to a data protection authority (Art. 77 GDPR). The authority responsible for me is {authority}.</p>
+      <p>
+        You can complain to a data protection authority (Art. 77 GDPR). The authority responsible for me is {authority}.
+      </p>
 
       <h2>No duty to give data</h2>
-      <p>You do not have to give any data. Without the connection data, Cloudflare cannot deliver the website, and without an email address I cannot answer you.</p>
+      <p>
+        You do not have to give any data. Without the connection data, Cloudflare cannot deliver the website, and
+        without an email address I cannot answer you.
+      </p>
     </Page>
   )
 }
