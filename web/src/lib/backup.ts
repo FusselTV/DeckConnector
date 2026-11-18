@@ -32,6 +32,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'satellite_pin',
   'https_only',
   'cors_origins',
+  'trusted_proxy',
   'menu_chord',
   'menu_hold_ms',
   'lang',

@@ -291,6 +291,15 @@ static void test_no_page_cuts_a_text(void)
             ui_menu_screen(&m, &md, &l, &sc);
             snprintf(name, sizeof(name), "%s_password_%d", decks[d].name, v);
             check_page(&dev, &sc, name);
+            strcpy(md.ca_fp, "1A2B 3C4D 5E6F 7A8B");
+            ui_menu_screen(&m, &md, &l, &sc);
+            snprintf(name, sizeof(name), "%s_ca_%d", decks[d].name, v);
+            check_page(&dev, &sc, name);
+            for (int t = 0; md.web_pass[0] && t < UI_MAX_KEYS;
+                 t++) { /* a download must not show the password */
+                TEST_ASSERT_NULL(strstr(sc.tiles[t].value, md.web_pass));
+            }
+            md.ca_fp[0] = '\0';
             md.show_pass = false;
             md.reset_ask = true;
             for (int again = 0; again < 2; again++) {

@@ -35,7 +35,7 @@ typedef struct {
     uint32_t max_us;
     uint64_t total_us;
 } route_t;
-#define WEB_ROUTES_MAX 61
+#define WEB_ROUTES_MAX 69
 extern httpd_uri_t web_uris[WEB_ROUTES_MAX];
 extern route_t web_routes[WEB_ROUTES_MAX];
 extern size_t web_route_count;
@@ -62,16 +62,29 @@ esp_err_t get_metrics(httpd_req_t *req);
 esp_err_t get_profile(httpd_req_t *req);
 /* Restart in a second, so the reply still goes out. */
 void restart_soon(void);
-/* The HTTPS certificate and key as PEM, made and kept on the first start; its SHA-256 fingerprint. */
-bool web_cert(const char *name, char **cert, char **key, char fingerprint[96]);
+/* The HTTPS certificate and key as PEM: an uploaded pair, or the own one from the device CA, which is made on
+ * the first start. Its SHA-256 fingerprint goes to `fingerprint`, also when web_cert_tick() makes a new one.
+ */
+bool web_cert(char **cert, char **key, char fingerprint[96]);
+/* Every few seconds: a new own certificate in the background when the board's names or addresses changed or
+ * it runs out soon. */
+void web_cert_tick(void);
+#if !CONFIG_IDF_TARGET_LINUX
+#include "mbedtls/ssl.h"
+/* The TLS handshake takes the current certificate from here. */
+int web_cert_select(mbedtls_ssl_context *ssl);
+#endif
 /* An uploaded certificate (PEM, its chain may follow) and key: they parse and belong together. Fills `info`
  * with {ok, subject, issuer, not_after, sha256} when cap > 0. */
 bool web_cert_check(const char *cert, const char *key, char *info, size_t cap);
 /* Keep an uploaded pair for the next start, or drop it (cert NULL) and go back to the own certificate. */
 esp_err_t web_cert_store(const char *cert, const char *key);
 bool web_cert_custom(void);
+/* The start of the device CA's SHA-256 as the deck shows it on download, "" with an own certificate. */
+const char *web_cert_ca_short(void);
 bool web_cert_custom_unread(void);
 esp_err_t get_cert(httpd_req_t *req);
+esp_err_t get_ca(httpd_req_t *req);
 esp_err_t put_tls(httpd_req_t *req);
 esp_err_t delete_tls(httpd_req_t *req);
 bool web_tls(httpd_req_t *req);

@@ -66,6 +66,8 @@ typedef struct {
     uint32_t screen_off_s;   /* the decks go dark after this long without input, 10 to 86400; 0: never */
     char wifi2_ssid[33];     /* joined when wifi_ssid gives no link; empty: none */
     char wifi2_pass[65];
+    char trusted_proxy[16]; /* a reverse proxy's IPv4 address: its X-Forwarded-For names the client; empty:
+                               none */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

@@ -55,6 +55,8 @@ void db_ui_close_menu(void);
 bool db_ui_menu_open(void);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
+/* The same page shows the device CA's short fingerprint for 30 s instead, when someone downloads the CA. */
+void db_ui_show_ca(const char *fingerprint);
 /* The deck asks for 60 s whether to reset every setting; only taps on the deck itself answer. Seconds left,
  * -1 when no deck is connected. */
 /** Factory reset, the deck's and the web page's: settings, API keys, pairings, the crash report (its stacks

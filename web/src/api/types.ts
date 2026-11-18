@@ -122,6 +122,8 @@ export interface Status {
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
+  /** The device CA's short fingerprint, also shown on the deck when the CA is downloaded. */
+  https_ca?: string
   boot?: { reason?: string; at?: number | null }
 }
 
@@ -157,6 +159,8 @@ export interface Config {
   qr_login: boolean
   ntp_server: string
   cors_origins: string
+  /** A reverse proxy's IPv4 address: behind it, its X-Forwarded-For names the client. Empty: none. */
+  trusted_proxy: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
   /** What the deck's own screens speak. */
@@ -264,6 +268,13 @@ export interface Token {
   right?: Right
   created?: string
   last_used?: string
+}
+
+export interface Passkey {
+  id: number
+  name: string
+  /** The host name it was made on: it works only there. */
+  rp: string
 }
 
 export interface Found {

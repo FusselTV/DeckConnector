@@ -111,6 +111,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.screen_off_s = old.screen_off_s;
     memcpy(live.wifi2_ssid, old.wifi2_ssid, sizeof(old.wifi2_ssid));
     memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
+    memcpy(live.trusted_proxy, old.trusted_proxy, sizeof(old.trusted_proxy));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (!restart &&
         (strcmp(cfg.wifi2_ssid, old.wifi2_ssid) != 0 || strcmp(cfg.wifi2_pass, old.wifi2_pass) != 0)) {
