@@ -522,9 +522,9 @@ export const de: Dict = {
   'deck.off_h':
     'Ohne Eingabe werden alle Decks gedimmt oder dunkel. Ein Druck auf ein dunkles Deck weckt es nur. Auf einem gedimmten Deck wirkt der Druck wie immer.',
   'deck.never': 'Nie',
-  'deck.dim': 'Danach',
-  'deck.dim_off': 'Bildschirm aus',
-  'deck.dim_to': 'Dimmen auf {pct} %',
+  'deck.dim': 'Helligkeit danach',
+  'deck.dim_off': 'Aus',
+  'deck.dim_to': '{pct} %',
   'deck.dark': 'Bildschirm aus. Die erste Eingabe weckt die Decks.',
   'is.decks_n': '{n} Decks',
   'is.compdock': 'Companion „{name}“ nutzt den Dock-Weg',
