@@ -34,6 +34,7 @@ static int listener_count;
 static pthread_mutex_t wake_lock = PTHREAD_MUTEX_INITIALIZER;
 static db_wake_t wake;
 static int lit[DB_MAX_DECKS];
+static int wake_pct = DB_WAKE_PCT;
 
 void db_deck_add_listener(const db_deck_listener_t *l)
 {
@@ -174,7 +175,11 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
     }
     bool woke;
     pthread_mutex_lock(&wake_lock);
-    bool swallowed = db_wake_input(&wake, deck, in, esp_timer_get_time(), &woke);
+    bool zero = lit[deck] == 0; /* the UI always draws here */
+    bool swallowed = db_wake_input(&wake, deck, zero, in, esp_timer_get_time(), &woke);
+    if (zero) {
+        lit[deck] = wake_pct;
+    }
     pthread_mutex_unlock(&wake_lock);
     input_real = real;
     input_only_ip = only_ip;
@@ -218,30 +223,36 @@ int db_deck_brightness(int deck)
     return lit[deck];
 }
 
+int db_deck_shown(int deck)
+{
+    return db_wake_shown(wake.cap, lit[deck]);
+}
+
 void db_deck_screen_off(bool off)
 {
     pthread_mutex_lock(&wake_lock);
-    db_wake_set(&wake, off, esp_timer_get_time());
+    db_wake_set(&wake, off ? 0 : -1, esp_timer_get_time());
     pthread_mutex_unlock(&wake_lock);
 }
 
-void db_deck_screen_tick(int off_s, bool covered)
+void db_deck_screen_tick(int off_s, int dim, int brightness, bool covered)
 {
-    bool off;
+    int cap;
     int64_t now = esp_timer_get_time();
     decks(); /* the wake state starts there */
     pthread_mutex_lock(&wake_lock);
+    wake_pct = brightness > 0 ? brightness : DB_WAKE_PCT;
     if (covered) {
-        db_wake_set(&wake, false, now);
-    } else if (db_wake_due(&wake, off_s, false, now, &off)) {
-        db_wake_set(&wake, off, now);
+        db_wake_set(&wake, -1, now);
+    } else if (db_wake_due(&wake, off_s, dim, false, now, &cap)) {
+        db_wake_set(&wake, cap, now);
     }
     pthread_mutex_unlock(&wake_lock);
 }
 
 bool db_deck_screen_is_off(void)
 {
-    return wake.dark;
+    return wake.cap == 0;
 }
 
 size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)

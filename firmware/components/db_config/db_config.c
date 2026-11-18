@@ -17,7 +17,7 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 4 /* 2: setup_done, 3: four servers and host, 4: volume */
+#define CONFIG_VERSION 5 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim */
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -61,6 +61,11 @@ static bool known_chord(const char *chord)
 bool db_config_screen_off_ok(long s)
 {
     return s == 0 || (s >= 10 && s <= 86400);
+}
+
+bool db_config_screen_dim_ok(long pct)
+{
+    return pct >= 0 && pct <= 90 && pct % 10 == 0;
 }
 
 void db_config_board_id(char out[13])
@@ -125,6 +130,9 @@ esp_err_t db_config_load(void)
             }
             if (current.version < 4 || current.volume > 100) {
                 current.volume = 0; /* older blobs end in padding where volume now sits */
+            }
+            if (current.version < 5 || !db_config_screen_dim_ok(current.screen_dim)) {
+                current.screen_dim = 0;
             }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
@@ -334,6 +342,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
     db_json_int(&j, "max_decks", cfg->max_decks);
     db_json_int(&j, "screen_off_s", (int)cfg->screen_off_s);
+    db_json_int(&j, "screen_dim", cfg->screen_dim);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -627,6 +636,15 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->screen_off_s = (uint32_t)off->valueint;
+    }
+    const cJSON *dim = cJSON_GetObjectItemCaseSensitive(root, "screen_dim");
+    if (dim) {
+        if (!cJSON_IsNumber(dim) || !db_config_screen_dim_ok(dim->valueint) ||
+            dim->valuedouble != dim->valueint) {
+            snprintf(err, err_cap, "screen_dim: 0 or 10 to 90 in steps of 10 expected");
+            return false;
+        }
+        cfg->screen_dim = (uint8_t)dim->valueint;
     }
     return true;
 }

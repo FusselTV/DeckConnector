@@ -200,6 +200,9 @@
       "screen_off_after": {
         "name": "Bildschirm aus nach"
       },
+      "screen_dim": {
+        "name": "Bildschirmschoner-Helligkeit"
+      },
       "volume": {
         "name": "Lautstärke"
       }

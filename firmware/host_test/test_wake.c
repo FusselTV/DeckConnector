@@ -19,12 +19,19 @@ static bool in(int deck, db_input_kind_t kind, int index)
 {
     bool woke;
     db_input_t ev = {.kind = kind, .index = (uint8_t)index};
-    return !db_wake_input(&w, deck, &ev, now, &woke);
+    return !db_wake_input(&w, deck, false, &ev, now, &woke);
+}
+
+/* The same on a deck whose own brightness on the box is 0. */
+static bool in_black(int deck, db_input_kind_t kind, int index, bool *woke)
+{
+    db_input_t ev = {.kind = kind, .index = (uint8_t)index};
+    return !db_wake_input(&w, deck, true, &ev, now, woke);
 }
 
 static void go_dark(void)
 {
-    TEST_ASSERT_TRUE(db_wake_set(&w, true, now));
+    TEST_ASSERT_TRUE(db_wake_set(&w, 0, now));
 }
 
 static void test_input_goes_through_while_lit(void)
@@ -39,7 +46,7 @@ static void test_the_wake_press_and_its_release_are_swallowed(void)
 {
     go_dark();
     TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 3));
-    TEST_ASSERT_FALSE(w.dark);
+    TEST_ASSERT_EQUAL(-1, w.cap);
     TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_UP, 3));
     TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_DOWN, 3));
     TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_UP, 3));
@@ -89,35 +96,35 @@ static void test_a_release_held_from_before_goes_through(void)
     in(0, DB_INPUT_KEY_DOWN, 5);
     go_dark();
     TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_UP, 5));
-    TEST_ASSERT_FALSE(w.dark);
+    TEST_ASSERT_EQUAL(-1, w.cap);
 }
 
 static void test_dark_after_the_idle_time(void)
 {
-    bool dark;
-    TEST_ASSERT_FALSE(db_wake_due(&w, 10, false, now + 9999999, &dark));
-    TEST_ASSERT_TRUE(db_wake_due(&w, 10, false, now + 10000000, &dark));
-    TEST_ASSERT_TRUE(dark);
-    TEST_ASSERT_FALSE(db_wake_due(&w, 0, false, now + 86400000000LL, &dark));
+    int cap;
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 0, false, now + 9999999, &cap));
+    TEST_ASSERT_TRUE(db_wake_due(&w, 10, 0, false, now + 10000000, &cap));
+    TEST_ASSERT_EQUAL(0, cap);
+    TEST_ASSERT_FALSE(db_wake_due(&w, 0, 0, false, now + 86400000000LL, &cap));
 }
 
 static void test_a_held_control_keeps_it_lit(void)
 {
-    bool dark;
+    int cap;
     in(2, DB_INPUT_ENCODER_DOWN, 0);
-    TEST_ASSERT_FALSE(db_wake_due(&w, 10, false, now + 60000000, &dark));
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 0, false, now + 60000000, &cap));
     in(2, DB_INPUT_ENCODER_UP, 0);
-    TEST_ASSERT_TRUE(db_wake_due(&w, 10, false, now + 10000000, &dark));
+    TEST_ASSERT_TRUE(db_wake_due(&w, 10, 0, false, now + 10000000, &cap));
 }
 
 static void test_a_question_on_the_deck_wakes_it(void)
 {
-    bool dark;
+    int cap;
     go_dark();
-    TEST_ASSERT_FALSE(db_wake_due(&w, 10, false, now, &dark));
-    TEST_ASSERT_TRUE(db_wake_due(&w, 10, true, now, &dark));
-    TEST_ASSERT_FALSE(dark);
-    TEST_ASSERT_TRUE(db_wake_set(&w, false, now));
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 0, false, now, &cap));
+    TEST_ASSERT_TRUE(db_wake_due(&w, 10, 0, true, now, &cap));
+    TEST_ASSERT_EQUAL(-1, cap);
+    TEST_ASSERT_TRUE(db_wake_set(&w, -1, now));
     TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_DOWN, 0)); /* it answers the question */
 }
 
@@ -125,17 +132,17 @@ static void test_waking_starts_the_idle_time_again(void)
 {
     go_dark();
     now += 3600000000LL;
-    db_wake_set(&w, false, now);
-    bool dark;
-    TEST_ASSERT_FALSE(db_wake_due(&w, 10, false, now + 1000000, &dark));
+    db_wake_set(&w, -1, now);
+    int cap;
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 0, false, now + 1000000, &cap));
     now += 3600000000LL;
-    TEST_ASSERT_FALSE(db_wake_set(&w, false, now)); /* lit already: only the idle time starts again */
-    TEST_ASSERT_FALSE(db_wake_due(&w, 10, false, now + 1000000, &dark));
+    TEST_ASSERT_FALSE(db_wake_set(&w, -1, now)); /* lit already: only the idle time starts again */
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 0, false, now + 1000000, &cap));
 }
 
 static void test_an_unplugged_deck_leaves_nothing_held(void)
 {
-    bool dark;
+    int cap;
     go_dark();
     TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 3)); /* the wake press, unplugged before its release */
     db_wake_forget(&w, 0);
@@ -143,7 +150,51 @@ static void test_an_unplugged_deck_leaves_nothing_held(void)
     TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_UP, 5));
     TEST_ASSERT_TRUE(in(1, DB_INPUT_KEY_DOWN, 0)); /* held on another deck when it went */
     db_wake_forget(&w, 1);
-    TEST_ASSERT_TRUE(db_wake_due(&w, 10, false, now + 10000000, &dark));
+    TEST_ASSERT_TRUE(db_wake_due(&w, 10, 0, false, now + 10000000, &cap));
+}
+
+static void test_dimmed_after_the_idle_time_and_a_press_works_and_lights(void)
+{
+    int cap;
+    TEST_ASSERT_TRUE(db_wake_due(&w, 10, 30, false, now + 10000000, &cap));
+    TEST_ASSERT_EQUAL(30, cap);
+    db_wake_set(&w, cap, now);
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 30, false, now + 20000000, &cap)); /* stays dimmed */
+    bool woke;
+    db_input_t ev = {.kind = DB_INPUT_KEY_DOWN, .index = 4};
+    TEST_ASSERT_FALSE(db_wake_input(&w, 0, false, &ev, now, &woke)); /* it can be read: the press works */
+    TEST_ASSERT_TRUE(woke);
+    TEST_ASSERT_EQUAL(-1, w.cap);
+    TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_UP, 4));
+}
+
+static void test_a_deck_at_brightness_0_swallows_its_waking_gesture(void)
+{
+    bool woke;
+    TEST_ASSERT_FALSE(in_black(1, DB_INPUT_KEY_DOWN, 2, &woke));
+    TEST_ASSERT_FALSE(woke); /* the screen saver had nothing to do with it */
+    TEST_ASSERT_FALSE(in(1, DB_INPUT_KEY_UP, 2));
+    TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_DOWN, 2)); /* another deck is not touched */
+    TEST_ASSERT_TRUE(in(1, DB_INPUT_KEY_DOWN, 2)); /* lit by now */
+}
+
+static void test_the_switch_turned_off_wins_over_a_dim(void)
+{
+    int cap;
+    db_wake_set(&w, 0, now);
+    TEST_ASSERT_FALSE(db_wake_due(&w, 10, 30, false, now + 60000000, &cap));
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 0));
+    TEST_ASSERT_EQUAL(-1, w.cap);
+}
+
+static void test_shown_brightness(void)
+{
+    TEST_ASSERT_EQUAL(80, db_wake_shown(-1, 80));
+    TEST_ASSERT_EQUAL(30, db_wake_shown(30, 80));
+    TEST_ASSERT_EQUAL(10, db_wake_shown(30, 10)); /* a host's lower level stays */
+    TEST_ASSERT_EQUAL(0, db_wake_shown(0, 80));
+    TEST_ASSERT_EQUAL(30, db_wake_shown(30, -1));
+    TEST_ASSERT_EQUAL(-1, db_wake_shown(-1, -1));
 }
 
 int main(void)
@@ -161,5 +212,9 @@ int main(void)
     RUN_TEST(test_a_question_on_the_deck_wakes_it);
     RUN_TEST(test_waking_starts_the_idle_time_again);
     RUN_TEST(test_an_unplugged_deck_leaves_nothing_held);
+    RUN_TEST(test_dimmed_after_the_idle_time_and_a_press_works_and_lights);
+    RUN_TEST(test_a_deck_at_brightness_0_swallows_its_waking_gesture);
+    RUN_TEST(test_the_switch_turned_off_wins_over_a_dim);
+    RUN_TEST(test_shown_brightness);
     return UNITY_END();
 }

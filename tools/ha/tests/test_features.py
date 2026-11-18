@@ -36,6 +36,18 @@ async def test_board_settings_show_and_go_to_the_board(hass, entry, aioclient_mo
     assert [c[2] for c in aioclient_mock.mock_calls[-2:]] == [{"screen_off_s": 0}, {"volume": 55}]
 
 
+async def test_the_screen_saver_dims_to_a_level_in_tens(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    entity = f"number.{BOARD}_screen_saver_brightness"
+    assert hass.states.get(entity).state == "0"
+    assert hass.states.get(entity).attributes["step"] == 10
+    aioclient_mock.put(f"http://{HOST}/api/config", json={"ok": True})
+    await hass.services.async_call("number", "set_value", {"entity_id": entity, "value": 30}, blocking=True)
+    assert aioclient_mock.mock_calls[-1][2] == {"screen_dim": 30}
+    await push(hass, socket, screen_dim=30)
+    assert hass.states.get(entity).state == "30"
+
+
 async def test_buttons_reach_their_routes(hass, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     aioclient_mock.post(f"http://{HOST}/api/sound", json={"ok": True})

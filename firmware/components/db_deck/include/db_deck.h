@@ -36,6 +36,8 @@ typedef struct {
     bool external;
     /* True: only this listener gets `ev`, no host, web socket or input log (the PIN pad of a locked deck). */
     bool (*keeps)(int deck, const db_input_t *ev);
+    /* An input on a deck at brightness 0 lit it. */
+    void (*lit_up)(int deck);
 } db_deck_listener_t;
 
 typedef void (*db_deck_ack_cb_t)(db_ack_result_t result, uint8_t display, uint32_t seq, uint64_t t_recv,
@@ -95,14 +97,18 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
 esp_err_t db_deck_set_brightness(int deck, uint8_t pct);
 /* The brightness the deck has when lit, from whoever set it last; -1 before anyone did. */
 int db_deck_brightness(int deck);
+/* What it shows now, under the screen saver. */
+int db_deck_shown(int deck);
 
-/* Screen saver, for all decks at once: dark is brightness 0 while images are still drawn, and a brightness
- * set meanwhile is applied on waking. The first input on a dark deck wakes them and reaches no listener, nor
- * does the rest of that gesture (see db_wake.h). */
+/* Screen saver, for all decks at once: off is brightness 0 and dimmed at most `dim` percent while images are
+ * still drawn; a brightness set meanwhile is applied on waking. The first input on an off deck wakes them and
+ * reaches no listener, nor does the rest of that gesture (see db_wake.h); on a dimmed one it works. An input
+ * on a deck whose own brightness is 0 lights it to the `brightness` setting (DB_WAKE_PCT when that is 0). */
 void db_deck_screen_off(bool off);
 bool db_deck_screen_is_off(void);
-/* A few times a second: dark after `off_s` seconds without input (0: never); lit while `covered`. */
-void db_deck_screen_tick(int off_s, bool covered);
+/* A few times a second: dimmed to `dim` (0: off) after `off_s` seconds without input (0: never); lit while
+ * `covered`. */
+void db_deck_screen_tick(int off_s, int dim, int brightness, bool covered);
 
 size_t db_deck_input_space(void);
 /* Handle `in` as if the device had sent it. External listeners get it only when `real`; with `only_ip` set,

@@ -67,6 +67,17 @@ test('drafts from two tabs save in one request with only the changed fields', as
   expect(await sim('GET', '/api/config')).toMatchObject({ brightness: 55, menu_hold_ms: 3000 })
 })
 
+test('the screen saver can dim instead of turning the screen off', async ({ app: page }) => {
+  await sim('PUT', '/api/config', { screen_off_s: 0, screen_dim: 0 })
+  await openTab(page, 'Deck')
+  await expect(page.locator('#screen-dim')).toHaveCount(0)
+  await page.locator('#screen-off').getByRole('radio', { name: '5 min', exact: true }).click()
+  await page.locator('#screen-dim').getByRole('radio', { name: 'Dim to 30 %' }).click()
+  await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ screen_off_s: 300, screen_dim: 30 })
+  await sim('PUT', '/api/config', { screen_off_s: 0, screen_dim: 0 })
+})
+
 test('closing the Companion dialog while it tests the address saves nothing', async ({ app: page }) => {
   const puts: unknown[] = []
   page.on('request', (r) => r.method() === 'PUT' && r.url().endsWith('/api/config') && puts.push(r.postDataJSON()))
