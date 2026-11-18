@@ -66,6 +66,20 @@ def test_a_removed_token_is_refused(token):
     assert call("GET", "/api/status", token)[0] == 401
 
 
+def test_a_token_ends_only_itself(token):
+    code, body = api("POST", "/api/tokens", json.dumps({"name": "pytest-other"}).encode())
+    assert code == 200, body
+    other = json.loads(body)["token"]
+    try:
+        assert api("DELETE", "/api/token")[0] == 400  # the password names no token
+        assert call("DELETE", "/api/token", token)[0] == 200
+        assert call("GET", "/api/status", token)[0] == 401
+        assert call("DELETE", "/api/token", token)[0] == 401
+        assert call("GET", "/api/status", other)[0] == 200
+    finally:
+        api("DELETE", "/api/tokens/pytest-other")
+
+
 async def test_a_token_on_the_web_socket_may_not_change_settings(token):
     async with connect(f"ws://{HOST}/api/ws", additional_headers={"Authorization": f"Bearer {token}"}) as ws:
         assert json.loads(await ws.recv())["t"] == "state"

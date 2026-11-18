@@ -138,6 +138,7 @@ async def test_the_https_repair_ends_with_a_failed_entry(hass, entry, aioclient_
     if how == "disable":
         await hass.config_entries.async_set_disabled_by(entry.entry_id, ConfigEntryDisabler.USER)
     else:
+        aioclient_mock.delete(f"http://{HOST}/api/token", status=403, text="HTTPS only")
         await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     assert ir.async_get(hass).async_get_issue("deckconnector", issue_id) is None
@@ -265,6 +266,7 @@ async def test_https_only_while_running(hass, entry, aioclient_mock, socket):
     issue_id = f"https_only_{entry.entry_id}"
     assert ir.async_get(hass).async_get_issue("deckconnector", issue_id)
     assert hass.states.get(f"number.{BOARD}_brightness").state == "80"
+    aioclient_mock.delete(f"http://{HOST}/api/token", status=403, text="HTTPS only")
     assert await hass.config_entries.async_remove(entry.entry_id)
     assert ir.async_get(hass).async_get_issue("deckconnector", issue_id) is None
 

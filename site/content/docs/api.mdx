@@ -164,6 +164,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `GET /api/tokens` | The API keys, `name` and `right` | admin |
 | `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Shows the key once. `name` has 1 to 23 letters, digits, `-` or `_` | admin |
 | `DELETE /api/tokens/<name>` | Ends that key at once | admin |
+| `DELETE /api/token` | The key in the request ends itself. Home Assistant does this when you remove the integration | control |
 | `GET /api/passkeys` | The passkeys, with `id`, `name` and `rp`, the name each one works at | admin |
 | `POST /api/passkeys` | The reply of `navigator.credentials.create()`, with `name`, `id`, `clientDataJSON`, `authenticatorData`, `publicKey` (SPKI) and `publicKeyAlgorithm` (`-7`), binary parts in base64url. ES256 with user verification only, up to 8 | admin |
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 to 23 bytes | admin |

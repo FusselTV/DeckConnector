@@ -3,7 +3,7 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "description": "Enter the address of the board.",
+        "description": "Enter the address of the connector.",
         "data": {
           "host": "Host"
         },
@@ -25,7 +25,7 @@
         }
       },
       "reconfigure": {
-        "description": "New address of {name}. Home Assistant keeps its API key, or asks for access again if the board does not know it.",
+        "description": "New address of {name}. Home Assistant keeps its API key, or asks for access again if the connector does not know it.",
         "data": {
           "host": "Host"
         },
@@ -38,19 +38,19 @@
       "pair": "Confirm the request on the deck of {name}."
     },
     "error": {
-      "cannot_connect": "Cannot reach the board.",
+      "cannot_connect": "Cannot reach the connector.",
       "invalid_auth": "Wrong password.",
       "no_deck": "No deck is attached. Enter the web password instead.",
       "not_accepted": "The deck did not accept the request. Enter the web password instead.",
-      "https_only": "The board allows HTTPS only. Turn off 'HTTPS only' on its web page, then try again.",
-      "too_many_keys": "The board has 8 API keys already. Delete one under Access › API keys on its web page, then try again.",
+      "https_only": "The connector allows HTTPS only. Turn off 'HTTPS only' on its web page, then try again.",
+      "too_many_keys": "The connector has 8 API keys already. Delete one under Access › API keys on its web page, then try again.",
       "not_deckconnector": "Something answers at this address, but it is not a DeckConnector."
     },
     "abort": {
-      "already_configured": "This board is already set up.",
-      "cannot_connect": "Cannot reach the board.",
+      "already_configured": "This connector is already set up.",
+      "cannot_connect": "Cannot reach the connector.",
       "reauth_successful": "Access renewed.",
-      "unique_id_mismatch": "This is another board.",
+      "unique_id_mismatch": "This is another connector.",
       "reconfigure_successful": "Address changed."
     }
   },
@@ -216,12 +216,12 @@
     },
     "sensor": {
       "host": {
-        "name": "Host",
+        "name": "Source",
         "state": {
           "companion": "Companion",
           "app": "Elgato app",
           "server": "Own server",
-          "board": "Board"
+          "board": "Connector"
         }
       },
       "temperature": {
@@ -256,13 +256,13 @@
       "message": "There is no newer firmware."
     },
     "cannot_connect": {
-      "message": "Cannot reach the board: {error}"
+      "message": "Cannot reach the connector: {error}"
     },
     "auth_failed": {
-      "message": "The board no longer accepts the API key of Home Assistant."
+      "message": "The connector no longer accepts the API key of Home Assistant."
     },
     "https_only": {
-      "message": "The board allows HTTPS only."
+      "message": "The connector allows HTTPS only."
     }
   },
   "device_automation": {
@@ -324,16 +324,16 @@
   "issues": {
     "https_only": {
       "title": "{name} allows HTTPS only",
-      "description": "Home Assistant talks to the board over HTTP. Turn off **HTTPS only** under **Access** on the web page of {name}. The integration connects again by itself."
+      "description": "Home Assistant talks to the connector over HTTP. Turn off **HTTPS only** under **Access** on the web page of {name}. The integration connects again by itself."
     },
     "decks_over_limit": {
       "title": "{count} deck(s) on {name} stay dark",
-      "description": "{name} drives {max} deck(s) at once. Raise the limit under **Deck** on its web page, or unplug a deck. Decks share the power of the board's USB port, so use a hub with its own power supply for more decks."
+      "description": "{name} drives {max} deck(s) at once. Raise the limit under **Deck** on its web page, or unplug a deck. Decks share the power of the connector's USB port, so use a hub with its own power supply for more decks."
     }
   },
   "system_health": {
     "info": {
-      "boards": "Boards",
+      "boards": "Connectors",
       "connected": "Connected",
       "decks": "Decks",
       "firmware": "Firmware"

@@ -164,6 +164,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `GET /api/tokens` | Die API-Schlüssel, `name` und `right` | admin |
 | `POST /api/tokens` | `{"name": "home-assistant", "right": "control"}`. Zeigt den Schlüssel einmal. `name` hat 1 bis 23 Buchstaben, Ziffern, `-` oder `_` | admin |
 | `DELETE /api/tokens/<name>` | Beendet diesen Schlüssel sofort | admin |
+| `DELETE /api/token` | Der Schlüssel der Anfrage beendet sich selbst. Home Assistant macht das, wenn du die Integration entfernst | control |
 | `GET /api/passkeys` | Die Passkeys, mit `id`, `name` und `rp`, dem Namen, unter dem jeder gilt | admin |
 | `POST /api/passkeys` | Die Antwort von `navigator.credentials.create()`, mit `name`, `id`, `clientDataJSON`, `authenticatorData`, `publicKey` (SPKI) und `publicKeyAlgorithm` (`-7`), binäre Teile in base64url. Nur ES256 mit Nutzerprüfung, höchstens 8 | admin |
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 bis 23 Bytes | admin |

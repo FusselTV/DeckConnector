@@ -68,6 +68,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['GET', '/api/backup', 'admin'],
   ['POST', '/api/tokens', 'admin'],
   ['DELETE', '/api/tokens/*', 'admin'],
+  ['DELETE', '/api/token', 'control'],
   ['GET', '/api/passkeys', 'admin'],
   ['POST', '/api/passkeys', 'admin'],
   ['PUT', '/api/passkeys/*', 'admin'],
@@ -490,6 +491,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     restartSoon(s, now)
     return ok()
   }
+  // the demo's visitor is logged in with the password, never with a token
+  if (route === 'DELETE /api/token') return fail(400, 'only a token can end itself')
   if (method === 'DELETE' && path.startsWith('/api/tokens/')) {
     const n = decodeURIComponent(path.slice(12))
     if (!s.tokens.some((t) => t.name === n)) return fail(404, 'no such token')

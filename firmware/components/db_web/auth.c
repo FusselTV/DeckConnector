@@ -1390,12 +1390,8 @@ esp_err_t auth_tokens_add(httpd_req_t *req)
     return send_json(req, reply);
 }
 
-esp_err_t auth_tokens_remove(httpd_req_t *req)
+static esp_err_t remove_token(httpd_req_t *req, const char *name)
 {
-    if (tokens_refused(req)) {
-        return ESP_OK;
-    }
-    const char *name = req->uri + strlen("/api/tokens/");
     bool found = false;
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
@@ -1414,4 +1410,25 @@ esp_err_t auth_tokens_remove(httpd_req_t *req)
                           "not saved: the token works again after a restart");
     }
     return send_json(req, "{\"ok\":true}");
+}
+
+esp_err_t auth_tokens_remove(httpd_req_t *req)
+{
+    return tokens_refused(req) ? ESP_OK : remove_token(req, req->uri + strlen("/api/tokens/"));
+}
+
+esp_err_t auth_token_remove_self(httpd_req_t *req)
+{
+    if (tokens_refused(req)) {
+        return ESP_OK;
+    }
+    int i = auth_by_token(req) ? token_index(req) : -1;
+    if (i < 0) {
+        return send_error(req, "400 Bad Request", "only a token can end itself");
+    }
+    char name[sizeof(tokens[i].name)];
+    portENTER_CRITICAL(&mux);
+    memcpy(name, tokens[i].name, sizeof(name));
+    portEXIT_CRITICAL(&mux);
+    return remove_token(req, name);
 }
