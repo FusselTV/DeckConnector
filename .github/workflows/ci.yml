@@ -127,7 +127,8 @@ jobs:
         with:
           enable-cache: ${{ github.ref_type != 'tag' }} # zig for the demo's deck screens
       - run: cd web && npm ci && npx playwright install chromium && npm run build:demo
-      - run: cd web && DC_NO_SIM=1 npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
+      # both runners share one machine, so each takes its own port (gh-runner-1 5192, gh-runner-2 5193)
+      - run: cd web && DC_DEMO_PORT=$((5191 + ${RUNNER_NAME##*-})) DC_NO_SIM=1 npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
