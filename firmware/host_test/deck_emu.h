@@ -5,8 +5,8 @@
 /*
  * A virtual Stream Deck behind a db_hid_io_t, built only from Elgato's HID pages.
  * It answers feature reports like the real deck, checks every report a driver sends and records each
- * protocol violation. Up to DECK_EMU_DECKS decks run at once, each behind its own io; the deck_emu_* calls are
- * about the current one, which a driver call through an io makes its deck.
+ * protocol violation. Up to DECK_EMU_DECKS decks run at once, each behind its own io; the deck_emu_* calls
+ * are about the current one, which a driver call through an io makes its deck.
  */
 
 #define DECK_EMU_DECKS 4
@@ -38,6 +38,10 @@ typedef struct {
     size_t first_report; /* index for deck_emu_report() */
     size_t report_count;
 } deck_image_t;
+
+/* Set: each finished image goes here and is freed after, no report is kept and each violation is printed. For
+ * decks that run for hours (firmware/simdeck). */
+extern void (*deck_emu_sink)(int deck, const deck_image_t *im);
 
 extern const deck_model_t deck_models[];
 extern const size_t deck_model_count;

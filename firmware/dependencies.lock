@@ -142,6 +142,6 @@ direct_dependencies:
 - espressif/mdns
 - espressif/qrcode
 - espressif/usb
-manifest_hash: d2d1bf65857f818141ff889423c883e3cfcd9fd7b55e523d5567cd3bf15bc33d
+manifest_hash: 9432c43c1cb3214be13ae0e5964e334aaa9aabca361b3ced6ab03ec9648195fd
 target: esp32p4
 version: 3.0.0

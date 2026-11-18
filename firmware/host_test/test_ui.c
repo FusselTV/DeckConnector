@@ -49,12 +49,19 @@ static const struct {
     const char *name;
 } decks[] = {{0x0084, "plus"}, {0x0080, "mk2"}, {0x008f, "xl"}, {0x009a, "neo"}, {0x0063, "mini"}};
 
+#define N4 0x6602, 0x1001
+
+static db_device_info_t open_vid(uint16_t vid, uint16_t pid)
+{
+    db_dev_t dev = {.io = &io, .driver = db_driver_find(vid, pid)};
+    TEST_ASSERT_NOT_NULL(dev.driver);
+    TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, vid, pid));
+    return dev.info;
+}
+
 static db_device_info_t open_deck(uint16_t pid)
 {
-    db_dev_t dev = {.io = &io, .driver = db_driver_find(0x0fd9, pid)};
-    TEST_ASSERT_NOT_NULL(dev.driver);
-    TEST_ASSERT_EQUAL_INT(DB_OK, dev.driver->open(&dev, 0x0fd9, pid));
-    return dev.info;
+    return open_vid(0x0fd9, pid);
 }
 
 static ui_model_t base_model(void)
@@ -378,6 +385,15 @@ static void test_neo_keeps_brightness_and_password(void)
     m.page = PAGE_MAIN;
     ui_menu_screen(&m, &md, &l, &sc);
     TEST_ASSERT_EQUAL_STRING(md.web_pass, sc.tiles[6].value);
+    dev = open_vid(N4); /* two rows too: its knobs have no strip to say what they do */
+    l = ui_layout_of(&dev);
+    m.page = PAGE_HOME;
+    md.brightness = 90;
+    press(&m, &md, &l, 7, &act);
+    TEST_ASSERT_EQUAL_INT(UI_DO_BRIGHTNESS, act.what);
+    m.page = PAGE_MAIN;
+    ui_menu_screen(&m, &md, &l, &sc);
+    TEST_ASSERT_EQUAL_STRING(md.web_pass, sc.tiles[7].value);
 }
 
 static void test_flows_on_the_plus(void)
@@ -863,16 +879,18 @@ static void test_pin_pad_on_every_deck(void)
         uint16_t pid;
         const char *name;
         uint8_t keys[10]; /* the key of each digit, 0 to 9; 255: not on a key */
+        uint16_t vid;     /* 0: Elgato */
     } pads[] = {
-        {0x0084, "plus", {255, 0, 1, 2, 3, 4, 5, 6, 7, 255}},
-        {0x00c6, "plusxl", {31, 3, 4, 5, 12, 13, 14, 21, 22, 23}},
-        {0x0080, "mk2", {9, 1, 2, 3, 6, 7, 8, 11, 12, 13}},
-        {0x008f, "xl", {27, 2, 3, 4, 10, 11, 12, 18, 19, 20}},
-        {0x009a, "neo", {9, 0, 1, 2, 3, 4, 5, 6, 7, 8}},
-        {0x0063, "mini", {4, 0, 1, 2, 3, 4, 0, 1, 2, 3}},
+        {0x0084, "plus", {255, 0, 1, 2, 3, 4, 5, 6, 7, 255}, 0},
+        {0x00c6, "plusxl", {31, 3, 4, 5, 12, 13, 14, 21, 22, 23}, 0},
+        {0x0080, "mk2", {9, 1, 2, 3, 6, 7, 8, 11, 12, 13}, 0},
+        {0x008f, "xl", {27, 2, 3, 4, 10, 11, 12, 18, 19, 20}, 0},
+        {0x009a, "neo", {9, 0, 1, 2, 3, 4, 5, 6, 7, 8}, 0},
+        {0x0063, "mini", {4, 0, 1, 2, 3, 4, 0, 1, 2, 3}, 0},
+        {0x1001, "n4", {9, 0, 1, 2, 3, 4, 5, 6, 7, 8}, 0x6602},
     };
     for (size_t d = 0; d < sizeof(pads) / sizeof(pads[0]); d++) {
-        db_device_info_t dev = open_deck(pads[d].pid);
+        db_device_info_t dev = open_vid(pads[d].vid ? pads[d].vid : 0x0fd9, pads[d].pid);
         ui_layout_t l = ui_layout_of(&dev);
         for (int v = 0; v < 8; v++) {
             ui_model_t md = base_model();
@@ -973,6 +991,17 @@ static void test_pin_pad_turns_with_the_deck(void)
     dev = open_deck(0x0084); /* the + stays upright */
     l = ui_layout_of(&dev);
     TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 0));
+    dev = open_vid(N4); /* on its side no pad fits its 5 x 2: upright; turned over it follows */
+    l = ui_layout_of(&dev);
+    for (size_t t = 0; t < 2; t++) {
+        md.pin.rotation = turns[t];
+        for (int k = 0; k < 10; k++) {
+            TEST_ASSERT_EQUAL_INT((k + 1) % 10, pin_key(&m, &md, &l, (uint8_t)k));
+        }
+    }
+    md.pin.rotation = 180;
+    TEST_ASSERT_EQUAL_INT(0, pin_key(&m, &md, &l, 0));
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 9));
     TEST_ASSERT_EQUAL_INT(0, cut_pages);
 }
 

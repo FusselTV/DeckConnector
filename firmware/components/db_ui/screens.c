@@ -229,10 +229,10 @@ static void brightness(page_t *p, int row)
     button(put(p, at(p, row, 1), K_BRIGHTER), ICON_BRIGHTNESS, L("Heller", "Brighter"), v);
 }
 
-/* Two rows, no strip and no encoders (Stream Deck Neo): no room for a row of brightness keys. */
+/* Two rows and no strip (Stream Deck Neo, Stream Dock N4): no room for a row of brightness keys. */
 static bool cramped(const page_t *p)
 {
-    return !p->l->strip && !p->l->encoders && p->l->rows < 3;
+    return !p->l->strip && p->l->rows < 3;
 }
 
 /* One key that steps the brightness up by 20 % and starts over at 20 % after 100 %. */
@@ -887,6 +887,10 @@ static void pad(page_t *p)
             put(p, 9, K_DIGIT0);
             pin_segment(p, &p->sc->bar, 1, NULL, "9", "0");
         }
+    } else if (l->rows == 2 && l->cols == 5) { /* Stream Dock N4: 1 to 5 over 6 to 0 */
+        for (int d = 1; d <= 10; d++) {
+            digit_key(p, d - 1, d % 10);
+        }
     } else if (l->rows * l->cols == 6) { /* two pages, the last key switches */
         int first = p->m->pin_page ? 6 : 1;
         for (int i = 0; i < 5; i++) {
@@ -904,11 +908,13 @@ static void lock_page(page_t *p)
 {
     const ui_layout_t *l = p->l;
     int turn = p->md->pin.rotation;
-    if (!turn || l->strip || l->bar || l->cols * l->rows > UI_MAX_KEYS) {
+    bool side = turn == 90 || turn == -90;
+    /* the N4's 2 x 5 turned on its side is a 5 x 2 no pad fits: its digits stay upright */
+    if (!turn || l->strip || l->bar || l->cols * l->rows > UI_MAX_KEYS ||
+        (side && l->rows == 2 && l->cols == 5)) {
         pad(p);
         return;
     }
-    bool side = turn == 90 || turn == -90;
     ui_layout_t v = *l;
     v.cols = side ? l->rows : l->cols;
     v.rows = side ? l->cols : l->rows;

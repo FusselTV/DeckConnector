@@ -43,6 +43,7 @@ static void write_device_fields(db_json_t *j, const db_device_info_t *dev)
     db_json_int(j, "encoders", dev->encoder_count);
     db_json_int(j, "width", dev->displays[0].width);
     db_json_int(j, "height", dev->displays[0].height);
+    db_json_bool(j, "touch", dev->touch_count > 0);
     if (dev->tap_keys || dev->tap_encoders) { /* the web page's menu_chord rule knows only Elgato decks */
         static const char *const chords[] = {"auto", "keys", "encoders"};
         db_json_obj_open(j, "chords");

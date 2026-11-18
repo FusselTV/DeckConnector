@@ -6,26 +6,124 @@
 #include "db_image.h"
 #include "db_screen.h"
 
-#include "driver/jpeg_decode.h"
-#include "driver/jpeg_encode.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
-/* The ESP32-P4 has a hardware JPEG encoder. Other chips would plug a software encoder in here. */
+static SemaphoreHandle_t lock; /* the UI and the Satellite client encode, the web server makes snapshots */
+
+#if CONFIG_IDF_TARGET_LINUX
+#include <setjmp.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <jpeglib.h>
+
+uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h)
+{
+    return heap_caps_malloc(w * h * 3, MALLOC_CAP_SPIRAM);
+}
+
+static esp_err_t encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
+                        size_t *out_len)
+{
+    if (!w || !h) {
+        return ESP_ERR_INVALID_SIZE; /* libjpeg would end the process */
+    }
+    struct jpeg_compress_struct c;
+    struct jpeg_error_mgr err;
+    unsigned char *buf = NULL;
+    unsigned long n = 0;
+    c.err = jpeg_std_error(&err);
+    jpeg_create_compress(&c);
+    jpeg_mem_dest(&c, &buf, &n);
+    c.image_width = w;
+    c.image_height = h;
+    c.input_components = 3;
+    c.in_color_space = JCS_EXT_BGR;
+    jpeg_set_defaults(&c);
+    jpeg_set_quality(&c, quality, TRUE);
+    if (w % 16 || h % 16) { /* as the P4's encoder does */
+        c.comp_info[0].h_samp_factor = c.comp_info[0].v_samp_factor = 1;
+    }
+    jpeg_start_compress(&c, TRUE);
+    while (c.next_scanline < h) {
+        JSAMPROW row = (JSAMPROW)(rgb + (size_t)c.next_scanline * w * 3);
+        jpeg_write_scanlines(&c, &row, 1);
+    }
+    jpeg_finish_compress(&c);
+    jpeg_destroy_compress(&c);
+    *out = heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
+    if (*out) {
+        memcpy(*out, buf, n);
+        *out_len = n;
+    }
+    free(buf);
+    return *out ? ESP_OK : ESP_ERR_NO_MEM;
+}
+
+typedef struct {
+    struct jpeg_error_mgr mgr;
+    jmp_buf back;
+} jerr_t;
+
+static void jpeg_failed(j_common_ptr c)
+{
+    longjmp(((jerr_t *)c->err)->back, 1); /* libjpeg's own handler ends the process */
+}
+
+static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t dw, uint16_t dh, uint16_t x,
+                        uint16_t y)
+{
+    struct jpeg_decompress_struct d;
+    jerr_t err;
+    uint8_t *volatile px = NULL;
+    d.err = jpeg_std_error(&err.mgr);
+    err.mgr.error_exit = jpeg_failed;
+    jpeg_create_decompress(&d);
+    if (setjmp(err.back)) {
+        jpeg_destroy_decompress(&d);
+        free(px);
+        return ESP_ERR_INVALID_ARG;
+    }
+    jpeg_mem_src(&d, jpg, len);
+    jpeg_read_header(&d, TRUE);
+    if (d.progressive_mode || d.arith_code) { /* the P4's decoder takes baseline only */
+        jpeg_destroy_decompress(&d);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    d.out_color_space = JCS_EXT_BGR;
+    jpeg_start_decompress(&d);
+    size_t stride = (size_t)d.output_width * 3;
+    px = malloc(stride * d.output_height);
+    while (px && d.output_scanline < d.output_height) {
+        JSAMPROW row = px + d.output_scanline * stride;
+        jpeg_read_scanlines(&d, &row, 1);
+    }
+    esp_err_t e = !px                    ? ESP_ERR_NO_MEM
+                  : err.mgr.num_warnings ? ESP_ERR_INVALID_ARG /* cut short: libjpeg fills it in grey */
+                  : x >= dw || y >= dh ||
+                          db_screen_blit(dst, dw, dh, x, y, px, stride, (uint16_t)d.output_width,
+                                         (uint16_t)d.output_height) != DB_OK
+                      ? ESP_ERR_INVALID_SIZE
+                      : ESP_OK;
+    if (px) {
+        jpeg_finish_decompress(&d);
+    }
+    jpeg_destroy_decompress(&d);
+    free(px);
+    return e;
+}
+#else
+#include "driver/jpeg_decode.h"
+#include "driver/jpeg_encode.h"
+
+/* The ESP32-P4 has a hardware JPEG encoder. */
 
 static const char *TAG = "jpeg";
 static jpeg_encoder_handle_t encoder;
 static jpeg_decoder_handle_t decoder;
-static SemaphoreHandle_t lock; /* the UI and the Satellite client encode, the web server makes snapshots */
-
-void jpeg_port_init(void)
-{
-    if (!lock) {
-        lock = xSemaphoreCreateMutex();
-    }
-}
 
 uint8_t *jpeg_port_alloc_rgb(size_t w, size_t h)
 {
@@ -79,15 +177,6 @@ static esp_err_t encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t qual
     return ESP_OK;
 }
 
-esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
-                           size_t *out_len)
-{
-    xSemaphoreTake(lock, portMAX_DELAY);
-    esp_err_t err = encode(rgb, w, h, quality, out, out_len);
-    xSemaphoreGive(lock);
-    return err;
-}
-
 /* The decoder writes whole blocks: 16 px for subsampled directions, 8 otherwise. */
 static uint32_t padded(uint32_t v, bool sub)
 {
@@ -132,6 +221,24 @@ static esp_err_t decode(const uint8_t *jpg, size_t len, uint8_t *dst, uint16_t d
     }
     heap_caps_free(in);
     heap_caps_free(out);
+    return err;
+}
+
+#endif
+
+void jpeg_port_init(void)
+{
+    if (!lock) {
+        lock = xSemaphoreCreateMutex();
+    }
+}
+
+esp_err_t jpeg_port_encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t quality, uint8_t **out,
+                           size_t *out_len)
+{
+    xSemaphoreTake(lock, portMAX_DELAY);
+    esp_err_t err = encode(rgb, w, h, quality, out, out_len);
+    xSemaphoreGive(lock);
     return err;
 }
 

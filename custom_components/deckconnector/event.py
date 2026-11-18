@@ -17,7 +17,7 @@ PARALLEL_UPDATES = 0
 def event_types(deck: dict[str, Any]) -> list[str]:
     types = [f"key_{n}_{a}" for n in range(1, deck["keys"] + 1) for a in ("press", "release")]
     types += [f"dial_{n}_{a}" for n in range(1, deck["encoders"] + 1) for a in ("press", "release", "left", "right")]
-    if deck["encoders"]:
+    if deck.get("touch", deck["encoders"] > 0):  # firmware before "touch": every deck with dials had a strip
         types += ["touch_tap", "touch_long_press", "touch_swipe_left", "touch_swipe_right"]
     return types
 
