@@ -91,6 +91,7 @@ jobs:
           OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
           OWNER_AUTHORITY_NAME: ${{ secrets.OWNER_AUTHORITY_NAME }}
           OWNER_AUTHORITY_URL: ${{ secrets.OWNER_AUTHORITY_URL }}
+          OWNER_LOG_DAYS: ${{ secrets.OWNER_LOG_DAYS }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: site

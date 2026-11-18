@@ -11,5 +11,7 @@ export const owner = {
   email: env.OWNER_EMAIL || 'TODO',
   // Data protection authority of the owner's Land, e.g. BayLDA in Bavaria.
   authority: { name: env.OWNER_AUTHORITY_NAME || 'TODO', url: env.OWNER_AUTHORITY_URL || 'TODO' },
+  // Days Cloudflare keeps the contact worker's Workers Logs on the owner's plan.
+  logDays: env.OWNER_LOG_DAYS || 'TODO',
 }
 if (process.env.LEGAL_STRICT === '1' && JSON.stringify(owner).includes('TODO')) throw new Error('site.config.ts: owner still has TODO placeholders')
