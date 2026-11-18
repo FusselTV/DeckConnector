@@ -279,7 +279,8 @@ int api_input(int deck, const char *body, char *reply, size_t cap)
     db_input_t then = {.kind = 0};
     const cJSON *digit = cJSON_GetObjectItemCaseSensitive(root, "pin");
     bool has_pin = digit != NULL;
-    int pin = has_pin && cJSON_IsNumber(digit) && digit->valuedouble == digit->valueint ? digit->valueint : -1;
+    int pin =
+        has_pin && cJSON_IsNumber(digit) && digit->valuedouble == digit->valueint ? digit->valueint : -1;
     const char *err = !root                             ? "invalid JSON"
                       : has_pin && (pin < 0 || pin > 9) ? "pin: a digit 0 to 9"
                       : has_pin                         ? NULL
