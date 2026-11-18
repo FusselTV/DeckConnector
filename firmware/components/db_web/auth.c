@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "db_client.h"
 #include "db_config.h"
 #include "db_json.h"
 #include "db_net.h"
@@ -150,6 +151,31 @@ static uint32_t peer_ip(httpd_req_t *req)
     return sock_ip(req, false);
 }
 
+static bool from_proxy(httpd_req_t *req, uint32_t *proxy)
+{
+    const char *tp = db_config()->trusted_proxy;
+    return tp[0] && db_ipv4(tp, strlen(tp), proxy) && peer_ip(req) == *proxy;
+}
+
+/* Whom lockouts, challenges and the deck's login question are about: behind the trusted proxy the client it
+ * names in X-Forwarded-For, else the peer. */
+static uint32_t client_ip(httpd_req_t *req)
+{
+    uint32_t proxy;
+    char xff[256];
+    if (!from_proxy(req, &proxy) || httpd_req_get_hdr_value_len(req, "X-Forwarded-For") >= sizeof(xff) ||
+        httpd_req_get_hdr_value_str(req, "X-Forwarded-For", xff, sizeof(xff)) != ESP_OK) {
+        return peer_ip(req);
+    }
+    return db_client_ip(peer_ip(req), proxy, xff);
+}
+
+static void ip_str(uint32_t ip, char out[16])
+{
+    const uint8_t *b = (const uint8_t *)&ip;
+    snprintf(out, 16, "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
+}
+
 bool auth_via_ap(httpd_req_t *req)
 {
     db_net_status_t n;
@@ -181,7 +207,7 @@ static int trier(uint32_t ip)
 /* Seconds this client must still wait, 0 when it may try. */
 static int locked_s(httpd_req_t *req)
 {
-    uint32_t ip = peer_ip(req);
+    uint32_t ip = client_ip(req);
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     int64_t until = triers[trier(ip)].locked_until;
@@ -196,7 +222,7 @@ static int locked_s(httpd_req_t *req)
  * passwords count towards ALL_TRIES: a 256-bit token cannot be guessed. */
 static void count_try(httpd_req_t *req, bool ok, bool password)
 {
-    uint32_t ip = peer_ip(req);
+    uint32_t ip = client_ip(req);
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     if (password && !ok && now - all_since >= 60000000) {
@@ -217,7 +243,9 @@ static void count_try(httpd_req_t *req, bool ok, bool password)
     }
     portEXIT_CRITICAL(&mux);
     if (!ok) {
-        ESP_LOGW(TAG, "wrong web password (%d in a row)", failures);
+        char who[16];
+        ip_str(ip, who);
+        ESP_LOGW(TAG, "wrong web password from %s (%d in a row)", who, failures);
     }
 }
 
@@ -530,7 +558,7 @@ esp_err_t auth_login_request(httpd_req_t *req)
     if (soon) {
         return send_error(req, "429 Too Many Requests", "one login request per 3 s");
     }
-    if (!db_ui_ask_login(peer_ip(req), who, ASK_S)) {
+    if (!db_ui_ask_login(client_ip(req), who, ASK_S)) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
     uint8_t raw[ASK_ID / 2];
@@ -647,6 +675,10 @@ esp_err_t auth_claim_close(void)
 bool auth_host_is_local(httpd_req_t *req)
 {
     char host[72];
+    uint32_t proxy;
+    if (from_proxy(req, &proxy)) { /* the proxy is on the LAN, its clients need not be */
+        return false;
+    }
     if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) {
         return false;
     }
@@ -689,8 +721,9 @@ esp_err_t auth_setup_claim(httpd_req_t *req)
     if (auth_claim_close() != ESP_OK) {
         return send_error(req, "500 Internal Server Error", "saving failed");
     }
-    struct in_addr ip = {.s_addr = peer_ip(req)};
-    ESP_LOGW(TAG, "setup taken over without the password by %s", inet_ntoa(ip));
+    char who[16];
+    ip_str(client_ip(req), who);
+    ESP_LOGW(TAG, "setup taken over without the password by %s", who);
     set_cookie(req, true);
     return send_json(req, "{\"ok\":true}");
 }
@@ -882,7 +915,7 @@ esp_err_t auth_passkey_challenge(httpd_req_t *req)
     cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
     bool login = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "login"));
     cJSON_Delete(root);
-    uint32_t ip = peer_ip(req);
+    uint32_t ip = client_ip(req);
     if (asks_too_often(ip)) {
         return send_error(req, "429 Too Many Requests", "30 challenges per 10 s");
     }
@@ -985,7 +1018,7 @@ static int client_ok(httpd_req_t *req, const webauthn_t *w, bool login, const ch
     const cJSON *o = cJSON_GetObjectItemCaseSensitive(c, "origin");
     uint8_t raw[33];
     int ok = !cJSON_IsString(ch) || db_b64url(ch->valuestring, raw, sizeof(raw)) != 32 ||
-                     !take_challenge(raw, peer_ip(req), login)
+                     !take_challenge(raw, client_ip(req), login)
                  ? -1
                  : cJSON_IsString(type) &&
                        strcmp(type->valuestring, login ? "webauthn.get" : "webauthn.create") == 0 &&
@@ -1064,7 +1097,9 @@ esp_err_t auth_passkey_login(httpd_req_t *req)
         passkeys[i].count = a.count;
         save_passkey(i); /* not saved: a copied passkey could log in once more, nothing else */
     }
-    ESP_LOGI(TAG, "login with passkey \"%s\"", passkeys[i].name);
+    char who[16];
+    ip_str(client_ip(req), who);
+    ESP_LOGI(TAG, "login with passkey \"%s\" from %s", passkeys[i].name, who);
     auth_session_cookie(req);
     return send_json(req, "{\"ok\":true}");
 }

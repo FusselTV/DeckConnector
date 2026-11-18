@@ -60,6 +60,14 @@ A passkey logs you in with your fingerprint, face or device PIN. Add one under *
 - A passkey works only at the name it was made on. After a rename, add it again.
 - Up to 8 passkeys, ES256 only. The password keeps working. A factory reset deletes all passkeys.
 
+## Behind a reverse proxy
+
+A proxy such as Caddy can serve the board under its own name. Then every request comes from the proxy's address. Enter that address under **Access › HTTPS › Reverse proxy**. The board then takes the client from the last entry of `X-Forwarded-For`. It uses it for the lockout, for passkeys and for the login question on the deck.
+
+- The board reads the header only from that one address. From anyone else it ignores it.
+- The proxy must keep the `Host` header and add the client to `X-Forwarded-For`. Caddy does both by default.
+- Through the proxy, the first-browser setup and Companion's Discover do not work.
+
 ## Setup Wi-Fi
 
 A browser on the setup Wi-Fi needs no web password. Only the deck shows the Wi-Fi password, so you must be at the deck to join. Only phones on the setup Wi-Fi get the sign-in page and the board's own DNS answers. The LAN never does.

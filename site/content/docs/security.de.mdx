@@ -60,6 +60,14 @@ Mit einem Passkey meldest du dich per Fingerabdruck, Gesicht oder Geräte-PIN an
 - Ein Passkey gilt nur unter dem Namen, unter dem er angelegt wurde. Nach einer Umbenennung legst du ihn neu an.
 - Höchstens 8 Passkeys, nur ES256. Das Passwort gilt weiter. Ein Zurücksetzen auf Werkszustand löscht alle Passkeys.
 
+## Hinter einem Reverse Proxy
+
+Ein Proxy wie Caddy kann die Platine unter seinem eigenen Namen ausliefern. Dann kommt jede Anfrage von der Adresse des Proxys. Trage diese Adresse unter **Zugang › HTTPS › Reverse Proxy** ein. Die Platine nimmt den Client dann aus dem letzten Eintrag von `X-Forwarded-For`. Sie nutzt ihn für die Sperre, für Passkeys und für die Anmeldefrage auf dem Deck.
+
+- Die Platine liest den Header nur von dieser einen Adresse. Von allen anderen ignoriert sie ihn.
+- Der Proxy muss den `Host`-Header behalten und den Client an `X-Forwarded-For` anhängen. Caddy macht beides von selbst.
+- Durch den Proxy gehen die Einrichtung im ersten Browser und Companions Discover nicht.
+
 ## Setup-WLAN
 
 Ein Browser im Setup-WLAN braucht kein Web-Passwort. Das WLAN-Passwort zeigt nur das Deck, zum Verbinden musst du also am Deck sein. Nur Handys im Setup-WLAN bekommen die Anmeldeseite und die DNS-Antworten der Platine, Geräte im LAN nie.

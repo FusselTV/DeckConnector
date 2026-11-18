@@ -109,6 +109,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.menu_hold_ms = old.menu_hold_ms;
     live.max_decks = old.max_decks;
     live.screen_off_s = old.screen_off_s;
+    memcpy(live.trusted_proxy, old.trusted_proxy, sizeof(old.trusted_proxy));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
     if (cfg.screen_off_s != old.screen_off_s) {
         db_deck_screen_off(false);

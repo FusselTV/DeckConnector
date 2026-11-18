@@ -19,6 +19,7 @@ const cfg: Config = {
   satellite_pin: '',
   https_only: false,
   cors_origins: '',
+  trusted_proxy: '',
   menu_chord: 'auto',
   menu_hold_ms: 2000,
   lang: 'de',

@@ -32,13 +32,13 @@ def sha(b: bytes) -> bytes:
     return hashlib.sha256(b).digest()
 
 
-def call(method: str, path: str, body: dict | None = None, host: str = "", admin: bool = False):
+def call(method: str, path: str, body: dict | None = None, host: str = "", admin: bool = False, headers=None):
     """By IP, with the Host header a browser on the page's name would send."""
     req = urllib.request.Request(
         f"{SCHEME}://{HOST.split(':')[0] if SCHEME == 'https' else HOST}{path}",
         data=json.dumps(body).encode() if body is not None else None,
         method=method,
-        headers={"X-DeckConnector": "1", "Host": host or ORIGIN.split("://")[1]},
+        headers={"X-DeckConnector": "1", "Host": host or ORIGIN.split("://")[1]} | (headers or {}),
     )
     if admin:
         req.add_header("Authorization", "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode())
@@ -49,9 +49,9 @@ def call(method: str, path: str, body: dict | None = None, host: str = "", admin
         return e.code, json.loads(e.read() or b"null"), e.headers
 
 
-def challenge(login: bool) -> bytes:
+def challenge(login: bool, headers=None) -> bytes:
     for _ in range(12):  # 30 per 10 s and address
-        code, body, _ = call("POST", "/api/passkeys/challenge", {"login": login})
+        code, body, _ = call("POST", "/api/passkeys/challenge", {"login": login}, headers=headers)
         if code != 429:
             break
         time.sleep(1)
@@ -94,7 +94,7 @@ class Authenticator:
         code, reply, _ = call("POST", "/api/passkeys", body, admin=True)
         return code, reply
 
-    def login(self, step: bool = True, key=None, **over) -> tuple[int, dict, object]:
+    def login(self, step: bool = True, key=None, headers=None, **over) -> tuple[int, dict, object]:
         """`over` replaces parts of the reply: type, challenge, origin, rp, flags, count."""
         self.count += step
         c = over.get("challenge") or challenge(True)
@@ -109,7 +109,7 @@ class Authenticator:
             "authenticatorData": b64u(ad),
             "signature": b64u(sig),
         }
-        return call("POST", "/api/login/passkey", body)
+        return call("POST", "/api/login/passkey", body, headers=headers)
 
 
 def passkeys() -> list[dict]:

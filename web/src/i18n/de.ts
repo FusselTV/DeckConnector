@@ -800,4 +800,7 @@ export const de: Dict = {
   'cert.ca_fp': 'Das Deck zeigt diesen Code, wenn du die CA herunterlädst. Vertraue ihr nur, wenn beide gleich sind:',
   'cert.t_ip': 'Das gilt für {name}. Per IP-Adresse warnt der Browser weiter.',
   'net.name_ca': 'Ein neuer Name bekommt eine neue CA. Vertraue ihr auf jedem Gerät neu.',
+  'access.proxy': 'Reverse Proxy',
+  'access.proxy_h':
+    'Die Adresse eines Proxys wie Caddy vor dem Connector. Sein X-Forwarded-For nennt dann den Client. Leer: keiner.',
 }

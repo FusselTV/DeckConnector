@@ -32,7 +32,7 @@ import { Row } from '../components/Row'
 import { useDraft } from '../components/SaveBar'
 import { addPasskey, passkeysHere } from '../lib/passkey'
 import { deviceLabel } from '../lib/util'
-import { corsError, passwordError, tokenNameError } from '../lib/validate'
+import { corsError, isIP, passwordError, tokenNameError } from '../lib/validate'
 
 const RIGHT_ICON = { control: Gamepad2, full: ShieldCheck }
 
@@ -351,6 +351,7 @@ export function Access() {
   const cfg = useStore((s) => s.config)
   const [pw, setPw] = useState('')
   const [cors, setCors] = useState<string | null>(null)
+  const [proxy, setProxy] = useState<string | null>(null)
   const [tokens, setTokens] = useState<Token[] | null>(null)
   const [tokErr, setTokErr] = useState(false)
   const [tm, setTm] = useState(false)
@@ -370,23 +371,32 @@ export function Access() {
   const corsE = corsError(corsV)
   const restart = !!pw
   const corsDirty = cors !== null && cors !== cfg?.cors_origins
+  const proxyV = proxy ?? cfg?.trusted_proxy ?? ''
+  const proxyE = proxyV && !isIP(proxyV) ? 'net.bad_ip' : null
+  const proxyDirty = proxy !== null && proxy !== cfg?.trusted_proxy
   useDraft('access', {
-    dirty: restart || corsDirty,
+    dirty: restart || corsDirty || proxyDirty,
     restart,
     reset: () => {
       setPw('')
       setCors(null)
+      setProxy(null)
     },
     check: () => {
-      if (!pwE && !corsE) return true
+      if (!pwE && !corsE && !proxyE) return true
       go('access')
-      setTimeout(() => document.getElementById(pwE ? 'npw' : 'cors')?.focus(), 80)
+      setTimeout(() => document.getElementById(pwE ? 'npw' : corsE ? 'cors' : 'proxy')?.focus(), 80)
       return false
     },
     confirm: { title: t('cf.pw'), body: t('cf.pw_b') },
-    patch: { ...(corsDirty ? { cors_origins: corsV } : {}), ...(restart ? { admin_pass: pw } : {}) },
+    patch: {
+      ...(corsDirty ? { cors_origins: corsV } : {}),
+      ...(proxyDirty ? { trusted_proxy: proxyV } : {}),
+      ...(restart ? { admin_pass: pw } : {}),
+    },
     saved: () => {
       setCors(null)
+      setProxy(null)
       if (!restart) return
       setPw('')
       loginReasonAtom.set('pw')
@@ -504,6 +514,17 @@ export function Access() {
               {t('cert.ca_fp')} <span className="mono">{st.https_ca}</span>
             </p>
           )}
+          <Field id="proxy" label={t('access.proxy')} hint={t('access.proxy_h')} err={proxyE ? t(proxyE) : null}>
+            <input
+              {...describedBy('proxy', proxyE, true)}
+              className="in mono"
+              value={proxyV}
+              disabled={!cfg}
+              placeholder="192.168.1.15"
+              onChange={(e) => setProxy(e.target.value.trim())}
+              spellCheck={false}
+            />
+          </Field>
           {!st.https_custom && (
             <Row id="trust-fold" icon={ShieldCheck} title={t('cert.trust')}>
               <p className="small muted">{t('cert.t_ip', { name: `${st.name ?? 'deckconnector'}.local` })}</p>

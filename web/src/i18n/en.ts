@@ -780,4 +780,7 @@ export const en = {
   'cert.ca_fp': 'The deck shows this code when you download the CA. Trust it only if both match:',
   'cert.t_ip': 'This works for {name}. By IP address the browser still warns.',
   'net.name_ca': 'A new name gets a new CA. Trust it again on each device.',
+  'access.proxy': 'Reverse proxy',
+  'access.proxy_h':
+    'The address of a proxy like Caddy in front of the connector. Its X-Forwarded-For then names the client. Empty: none.',
 }

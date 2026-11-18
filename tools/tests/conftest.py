@@ -180,6 +180,7 @@ KEPT = (
     "setup_done",
     "ntp_server",
     "screen_off_s",
+    "trusted_proxy",
 )
 
 

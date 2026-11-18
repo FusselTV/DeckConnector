@@ -150,6 +150,8 @@ export interface Config {
   qr_login: boolean
   ntp_server: string
   cors_origins: string
+  /** A reverse proxy's IPv4 address: behind it, its X-Forwarded-For names the client. Empty: none. */
+  trusted_proxy: string
   menu_chord: 'auto' | 'keys' | 'encoders' | 'off'
   menu_hold_ms: number
   /** What the deck's own screens speak. */
