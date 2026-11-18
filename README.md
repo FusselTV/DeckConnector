@@ -25,7 +25,7 @@
 - Several decks on one connector.
 - Ethernet with PoE, and Wi-Fi with a backup network.
 - Home Assistant gets every key press, sets the brightness and turns the screen off.
-- Apple Home and Google Home with the Matter firmware.
+- Matter firmware, tested with Home Assistant. Apple Home and Google Home are not tested yet.
 - The web UI shows the live deck, and you can press its keys.
 - Log in with a passkey, or confirm the login on the deck.
 
