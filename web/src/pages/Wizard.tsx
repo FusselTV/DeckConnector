@@ -50,7 +50,7 @@ import {
   wsUrlError,
 } from '../lib/validate'
 import { companionError, findCompanion, worst } from '../lib/companion'
-import { chordSentence } from './DeckTab'
+import { chordSentence } from '../deck/chord'
 import { EMPTY, joinText, joinWifi, NetBlock } from './Network'
 import { useFound } from './Sources'
 
@@ -791,7 +791,9 @@ export function Wizard() {
           <CopyField key={u} value={u} link />
         ))}
         {decks[0] && (
-          <p className="muted">{chordSentence(t, cfg?.menu_chord ?? 'auto', MODELS[decks[0].kind], fmt.dec(hold))}</p>
+          <p className="muted">
+            {chordSentence(t, cfg?.menu_chord ?? 'auto', MODELS[decks[0].kind], fmt.dec(hold), decks[0])}
+          </p>
         )}
         <p className="small muted">{t('wiz.https_hint')}</p>
       </>,
