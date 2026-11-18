@@ -1,6 +1,6 @@
-# On Linux (firmware/sim) there is no HTTPS server and no chip: no cert.c and metrics.c, no TLS, no mDNS.
+# On Linux (firmware/sim) there is no HTTPS server and no chip: no metrics.c, no TLS, no mDNS.
 if(${IDF_TARGET} STREQUAL "linux")
-    idf_component_register(SRCS http.c api.c auth.c events.c INCLUDE_DIRS include
+    idf_component_register(SRCS http.c api.c auth.c events.c cert.c INCLUDE_DIRS include
                            REQUIRES esp_common
                            PRIV_REQUIRES nvs_flash db_config db_core db_deck db_dock db_ui db_link db_log db_net db_ota esp_app_format esp_http_server esp_timer mbedtls)
 else()

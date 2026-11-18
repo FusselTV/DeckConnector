@@ -451,11 +451,12 @@ size_t db_net_companions(db_net_found_t *out, size_t max)
 static const char *sim_join = "";
 
 /* DB_SIM_VIA_AP=1: the setup AP is on and has the loopback address, so every request counts as over the AP.
- */
+ * DB_SIM_LAN_IP: the LAN address the status and the certificate name. */
 void db_net_status(db_net_status_t *out)
 {
     *out = (db_net_status_t){.lan_link = true, .lan_up = true, .join_state = sim_join};
-    strcpy(out->lan_ip, "127.0.0.1");
+    strlcpy(out->lan_ip, getenv("DB_SIM_LAN_IP") ? getenv("DB_SIM_LAN_IP") : "127.0.0.1",
+            sizeof(out->lan_ip));
     if (getenv("DB_SIM_VIA_AP")) {
         out->ap_active = true;
         strcpy(out->ap_ip, "127.0.0.1");

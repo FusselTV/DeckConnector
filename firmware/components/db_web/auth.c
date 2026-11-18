@@ -9,8 +9,10 @@
 #include "db_config.h"
 #include "db_json.h"
 #include "db_net.h"
+#include "db_passkey.h"
 #include "db_ui.h"
 #include "esp_attr.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_system.h"
@@ -19,6 +21,7 @@
 #include "freertos/semphr.h"
 #include "mbedtls/base64.h"
 #include "mbedtls/platform_util.h"
+#include "mbedtls/psa_util.h"
 #include "nvs.h"
 #include "psa/crypto.h"
 #include "web.h"
@@ -722,6 +725,377 @@ esp_err_t auth_logout(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+#define PASSKEYS     8
+#define CHALLENGES   4
+#define CHALLENGE_US (120 * 1000000LL)
+#define WEBAUTHN_MAX 3072
+
+typedef struct {
+    uint8_t id[128];
+    uint8_t id_len;
+    bool uv; /* made with user verification: every login needs it too */
+    uint8_t xy[64];
+    char rp[64];
+    char name[24];
+    uint32_t count;
+} passkey_t;
+static passkey_t passkeys[PASSKEYS]; /* in NVS "auth" like the tokens */
+
+static struct {
+    uint8_t c[32];
+    int64_t until;
+    uint32_t ip;
+    bool login;
+} challenges[CHALLENGES]; /* under mux */
+
+static esp_err_t save_passkeys(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open("auth", NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(h, "passkeys", passkeys, sizeof(passkeys));
+        err = err == ESP_OK ? nvs_commit(h) : err;
+        nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "passkeys not saved: %s", esp_err_to_name(err));
+    }
+    return err;
+}
+
+static void load_passkeys(void)
+{
+    nvs_handle_t h;
+    size_t len = sizeof(passkeys);
+    esp_err_t err = nvs_open("auth", NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        err = nvs_get_blob(h, "passkeys", passkeys, &len);
+        nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        memset(passkeys, 0, sizeof(passkeys));
+    }
+}
+
+/* A passkey belongs to the name the page was opened by. Browsers allow one only over HTTPS without warnings,
+ * and never for an address. */
+static bool passkey_host(httpd_req_t *req, char rp[64], char origin[80])
+{
+    char host[72];
+    if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK || host[0] == '[') {
+        return false;
+    }
+    snprintf(origin, 80, "%s://%s", web_tls(req) ? "https" : "http", host);
+    host[strcspn(host, ":")] = '\0';
+    size_t n = strlen(host);
+    strlcpy(rp, host, 64);
+#if CONFIG_IDF_TARGET_LINUX
+    bool secure =
+        web_tls(req) || strcmp(host, "localhost") == 0; /* the simulator: browsers trust localhost */
+#else
+    bool secure = web_tls(req);
+#endif
+    return secure && n && n < 64 && strspn(host, "0123456789.") != n;
+}
+
+static bool passkey_refused(httpd_req_t *req, char rp[64], char origin[80])
+{
+    if (!auth_marked(req)) {
+        send_error(req, "403 Forbidden", "X-DeckConnector header missing");
+        return true;
+    }
+    if (!passkey_host(req, rp, origin)) {
+        send_error(req, "403 Forbidden", "passkeys need HTTPS and a name, not an address");
+        return true;
+    }
+    return false;
+}
+
+/* POST {"login": true|false}: a challenge for one passkey login or registration from this address. */
+esp_err_t auth_passkey_challenge(httpd_req_t *req)
+{
+    char rp[64], origin[80], body[32];
+    if (passkey_refused(req, rp, origin)) {
+        return ESP_OK;
+    }
+    cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+    bool login = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "login"));
+    cJSON_Delete(root);
+    uint8_t c[32];
+    esp_fill_random(c, sizeof(c));
+    uint32_t ip = peer_ip(req);
+    int64_t now = esp_timer_get_time();
+    portENTER_CRITICAL(&mux);
+    int slot = 0;
+    for (int i = 0; i < CHALLENGES; i++) { /* one per address and kind, else the oldest makes room */
+        if (challenges[i].ip == ip && challenges[i].login == login) {
+            slot = i;
+            break;
+        }
+        slot = challenges[i].until < challenges[slot].until ? i : slot;
+    }
+    memcpy(challenges[slot].c, c, sizeof(c));
+    challenges[slot].until = now + CHALLENGE_US;
+    challenges[slot].ip = ip;
+    challenges[slot].login = login;
+    portEXIT_CRITICAL(&mux);
+    char reply[96];
+    snprintf(reply, sizeof(reply), "{\"challenge\":\"");
+    db_hex(reply + strlen(reply), c, sizeof(c));
+    strlcat(reply, "\"}", sizeof(reply));
+    return send_json(req, reply);
+}
+
+/* Used up by any answer that names it, right or wrong. */
+static bool take_challenge(const uint8_t c[32], uint32_t ip, bool login)
+{
+    int64_t now = esp_timer_get_time();
+    bool ok = false;
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; i < CHALLENGES; i++) {
+        if (challenges[i].until && memcmp(challenges[i].c, c, 32) == 0) {
+            ok = challenges[i].ip == ip && challenges[i].login == login && now < challenges[i].until;
+            memset(&challenges[i], 0, sizeof(challenges[i]));
+        }
+    }
+    portEXIT_CRITICAL(&mux);
+    return ok;
+}
+
+typedef struct {
+    uint8_t id[128], client[1024], ad[512], sig[80], spki[96];
+    int id_len, client_len, ad_len, sig_len, spki_len;
+    char name[24];
+    double alg;
+} webauthn_t;
+
+static int field(const cJSON *root, const char *key, uint8_t *out, size_t cap)
+{
+    const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, key);
+    return cJSON_IsString(v) ? db_b64url(v->valuestring, out, cap) : -1;
+}
+
+/* The reply of navigator.credentials, each binary part base64url. */
+static bool read_webauthn(httpd_req_t *req, webauthn_t *w)
+{
+    char *body = heap_caps_malloc(WEBAUTHN_MAX, MALLOC_CAP_SPIRAM);
+    cJSON *root = body && read_body(req, body, WEBAUTHN_MAX) >= 0 ? cJSON_Parse(body) : NULL;
+    heap_caps_free(body);
+    w->id_len = field(root, "id", w->id, sizeof(w->id));
+    w->client_len = field(root, "clientDataJSON", w->client, sizeof(w->client));
+    w->ad_len = field(root, "authenticatorData", w->ad, sizeof(w->ad));
+    w->sig_len = field(root, "signature", w->sig, sizeof(w->sig));
+    w->spki_len = field(root, "publicKey", w->spki, sizeof(w->spki));
+    const cJSON *alg = cJSON_GetObjectItemCaseSensitive(root, "publicKeyAlgorithm");
+    w->alg = cJSON_IsNumber(alg) ? alg->valuedouble : 0;
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, "name");
+    w->name[0] = '\0';
+    if (cJSON_IsString(name) && strlen(name->valuestring) < sizeof(w->name)) {
+        strlcpy(w->name, name->valuestring, sizeof(w->name));
+    }
+    cJSON_Delete(root);
+    return root && w->id_len > 0 && w->client_len > 0 && w->ad_len > 0;
+}
+
+/* clientDataJSON as the authenticator signed it: the kind, a challenge of ours, the page's origin. */
+static bool client_ok(httpd_req_t *req, const webauthn_t *w, bool login, const char *origin)
+{
+    cJSON *c = cJSON_ParseWithLength((const char *)w->client, (size_t)w->client_len);
+    const cJSON *type = cJSON_GetObjectItemCaseSensitive(c, "type");
+    const cJSON *ch = cJSON_GetObjectItemCaseSensitive(c, "challenge");
+    const cJSON *o = cJSON_GetObjectItemCaseSensitive(c, "origin");
+    uint8_t raw[33];
+    bool ok = cJSON_IsString(ch) && db_b64url(ch->valuestring, raw, sizeof(raw)) == 32 &&
+              take_challenge(raw, peer_ip(req), login) && cJSON_IsString(type) &&
+              strcmp(type->valuestring, login ? "webauthn.get" : "webauthn.create") == 0 &&
+              cJSON_IsString(o) && strcmp(o->valuestring, origin) == 0 &&
+              !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(c, "crossOrigin"));
+    cJSON_Delete(c);
+    return ok;
+}
+
+static bool rp_ok(const db_authdata_t *a, const char *rp)
+{
+    uint8_t h[32];
+    sha256(rp, h);
+    return memcmp(a->rp_hash, h, 32) == 0 && (a->flags & DB_AD_UP);
+}
+
+/* ES256 over authenticatorData || SHA-256(clientDataJSON). */
+static bool signed_by(const passkey_t *pk, const webauthn_t *w)
+{
+    uint8_t msg[sizeof(w->ad) + 32], point[65] = {0x04}, sig[64];
+    size_t n, sig_n;
+    memcpy(point + 1, pk->xy, 64);
+    memcpy(msg, w->ad, (size_t)w->ad_len);
+    psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&attr, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&attr, 256);
+    psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_VERIFY_MESSAGE);
+    psa_set_key_algorithm(&attr, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+    psa_key_id_t key;
+    if (w->sig_len <= 0 || psa_crypto_init() != PSA_SUCCESS ||
+        psa_hash_compute(PSA_ALG_SHA_256, w->client, (size_t)w->client_len, msg + w->ad_len, 32, &n) !=
+            PSA_SUCCESS ||
+        mbedtls_ecdsa_der_to_raw(256, w->sig, (size_t)w->sig_len, sig, sizeof(sig), &sig_n) != 0 ||
+        psa_import_key(&attr, point, sizeof(point), &key) != PSA_SUCCESS) {
+        return false;
+    }
+    psa_status_t st =
+        psa_verify_message(key, PSA_ALG_ECDSA(PSA_ALG_SHA_256), msg, (size_t)w->ad_len + 32, sig, sig_n);
+    psa_destroy_key(key);
+    return st == PSA_SUCCESS;
+}
+
+static int passkey_by_id(const webauthn_t *w, const char *rp)
+{
+    for (int i = 0; i < PASSKEYS; i++) {
+        if (passkeys[i].id_len && passkeys[i].id_len == w->id_len &&
+            memcmp(passkeys[i].id, w->id, (size_t)w->id_len) == 0 && strcmp(passkeys[i].rp, rp) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+esp_err_t auth_passkey_login(httpd_req_t *req)
+{
+    char rp[64], origin[80];
+    if (passkey_refused(req, rp, origin) || locked(req)) {
+        return ESP_OK;
+    }
+    webauthn_t *w = heap_caps_malloc(sizeof(*w), MALLOC_CAP_SPIRAM);
+    db_authdata_t a = {0};
+    bool ok = w && read_webauthn(req, w) && client_ok(req, w, true, origin) &&
+              db_authdata(w->ad, (size_t)w->ad_len, &a) && rp_ok(&a, rp);
+    int i = ok ? passkey_by_id(w, rp) : -1;
+    ok = i >= 0 && (!passkeys[i].uv || (a.flags & DB_AD_UV)) && db_count_ok(passkeys[i].count, a.count) &&
+         signed_by(&passkeys[i], w);
+    heap_caps_free(w);
+    count_try(req, ok, true);
+    if (!ok) {
+        return send_error(req, "403 Forbidden", "passkey not accepted");
+    }
+    if (a.count) {
+        passkeys[i].count = a.count;
+        save_passkeys(); /* not saved: a copied passkey could log in once more, nothing else */
+    }
+    ESP_LOGI(TAG, "login with passkey \"%s\"", passkeys[i].name);
+    auth_session_cookie(req);
+    return send_json(req, "{\"ok\":true}");
+}
+
+static bool name_ok(const char *name)
+{
+    for (const unsigned char *c = (const unsigned char *)name; *c; c++) {
+        if (*c < 0x20 || *c == 0x7f) {
+            return false;
+        }
+    }
+    return name[0];
+}
+
+/* POST: a new passkey from navigator.credentials.create(), with its public key as SPKI. */
+esp_err_t auth_passkey_add(httpd_req_t *req)
+{
+    char rp[64], origin[80];
+    if (passkey_refused(req, rp, origin)) {
+        return ESP_OK;
+    }
+    webauthn_t *w = heap_caps_malloc(sizeof(*w), MALLOC_CAP_SPIRAM);
+    passkey_t pk = {0};
+    db_authdata_t a = {0};
+    bool read = w && read_webauthn(req, w);
+    const char *bad = !read               ? "a WebAuthn registration expected"
+                      : !name_ok(w->name) ? "name: 1 to 23 bytes"
+                      : w->alg != -7 || w->spki_len < 0 || !db_spki_p256(w->spki, (size_t)w->spki_len, pk.xy)
+                          ? "only ES256 (P-256) passkeys, with the public key from the browser"
+                      : !client_ok(req, w, false, origin) || !db_authdata(w->ad, (size_t)w->ad_len, &a) ||
+                              !rp_ok(&a, rp) || !a.cred || a.cred_len != (size_t)w->id_len ||
+                              a.cred_len > sizeof(pk.id) || memcmp(a.cred, w->id, a.cred_len) != 0
+                          ? "passkey not accepted"
+                          : NULL;
+    if (!bad) {
+        memcpy(pk.id, w->id, a.cred_len);
+        pk.id_len = (uint8_t)a.cred_len;
+        pk.uv = a.flags & DB_AD_UV;
+        pk.count = a.count;
+        strlcpy(pk.rp, rp, sizeof(pk.rp));
+        strlcpy(pk.name, w->name, sizeof(pk.name));
+    }
+    heap_caps_free(w);
+    if (bad) {
+        return send_error(req, "400 Bad Request", bad);
+    }
+    int slot = -1;
+    for (int i = 0; i < PASSKEYS && slot < 0; i++) {
+        slot = passkeys[i].id_len ? -1 : i;
+    }
+    if (slot < 0) {
+        return send_error(req, "409 Conflict", "8 passkeys already, remove one first");
+    }
+    passkeys[slot] = pk;
+    if (save_passkeys() != ESP_OK) {
+        memset(&passkeys[slot], 0, sizeof(passkeys[slot]));
+        return send_error(req, "500 Internal Server Error", "not saved");
+    }
+    char reply[24];
+    snprintf(reply, sizeof(reply), "{\"id\":%d}", slot);
+    return send_json(req, reply);
+}
+
+esp_err_t auth_passkeys_list(httpd_req_t *req)
+{
+    char buf[PASSKEYS * 150 + 16];
+    db_json_t j;
+    db_json_begin(&j, buf, sizeof(buf));
+    db_json_arr_open(&j, NULL);
+    for (int i = 0; i < PASSKEYS; i++) {
+        if (passkeys[i].id_len) {
+            db_json_obj_open(&j, NULL);
+            db_json_int(&j, "id", i);
+            db_json_str(&j, "name", passkeys[i].name);
+            db_json_str(&j, "rp", passkeys[i].rp);
+            db_json_obj_close(&j);
+        }
+    }
+    db_json_arr_close(&j);
+    db_json_end(&j);
+    return send_json(req, buf);
+}
+
+/* PUT {"name"} renames, DELETE removes /api/passkeys/<id>. */
+esp_err_t auth_passkey_edit(httpd_req_t *req)
+{
+    const char *s = strncmp(req->uri, "/api/passkeys/", 14) == 0 ? req->uri + 14 : "";
+    int i = s[0] >= '0' && s[0] < '0' + PASSKEYS && !s[1] ? s[0] - '0' : -1;
+    if (i < 0 || !passkeys[i].id_len) {
+        return send_error(req, "404 Not Found", "no such passkey");
+    }
+    passkey_t before = passkeys[i];
+    if (req->method == HTTP_DELETE) {
+        memset(&passkeys[i], 0, sizeof(passkeys[i]));
+    } else {
+        char body[96];
+        cJSON *root = read_body(req, body, sizeof(body)) < 0 ? NULL : cJSON_Parse(body);
+        const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, "name");
+        bool ok = cJSON_IsString(name) && strlen(name->valuestring) < sizeof(before.name) &&
+                  name_ok(name->valuestring);
+        if (ok) {
+            strlcpy(passkeys[i].name, name->valuestring, sizeof(passkeys[i].name));
+        }
+        cJSON_Delete(root);
+        if (!ok) {
+            return send_error(req, "400 Bad Request", "name: 1 to 23 bytes");
+        }
+    }
+    if (save_passkeys() != ESP_OK) {
+        passkeys[i] = before;
+        return send_error(req, "500 Internal Server Error", "not saved");
+    }
+    return send_json(req, "{\"ok\":true}");
+}
+
 static esp_err_t save_tokens(void)
 {
     nvs_handle_t h;
@@ -799,6 +1173,7 @@ void auth_start(void)
         memset(tokens, 0, sizeof(tokens));
         tokens_unread = true;
     }
+    load_passkeys();
 }
 
 static bool tokens_refused(httpd_req_t *req)

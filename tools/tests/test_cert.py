@@ -1,17 +1,20 @@
-"""The HTTPS certificate can be downloaded, and an own certificate is checked before it is used."""
+"""The board's own certificate comes from its device CA and passes what browsers and Apple check; an own certificate
+is checked before it is used."""
 
+import base64
 import datetime
 import hashlib
 import json
+import urllib.request
+from ipaddress import ip_address
 
 import pytest
-from conftest import TARGET, api, status
+from conftest import PASSWORD, TARGET, WORKER, api, start_sim, status
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.x509.oid import NameOID
-
-pytestmark = pytest.mark.skipif(TARGET == "sim", reason="the simulator has no HTTPS")
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+from cryptography.x509.verification import PolicyBuilder, Store
 
 
 def pair(cn: str) -> tuple[str, str]:
@@ -32,6 +35,40 @@ def pair(cn: str) -> tuple[str, str]:
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     )
     return cert.public_bytes(serialization.Encoding.PEM).decode(), pem_key.decode()
+
+
+def fetch(host: str, path: str) -> bytes:
+    auth = base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
+    req = urllib.request.Request(f"http://{host}{path}", headers={"Authorization": f"Basic {auth}"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return r.read()
+
+
+def check_chain(host: str, ips: list[str]) -> None:
+    ca = x509.load_der_x509_certificate(fetch(host, "/api/ca"))
+    leaf = x509.load_pem_x509_certificate(fetch(host, "/api/cert"))
+    name = json.loads(fetch(host, "/api/status"))["name"] + ".local"
+    assert ca.extensions.get_extension_for_class(x509.BasicConstraints).value.ca
+    assert ca.extensions.get_extension_for_class(x509.NameConstraints).critical
+    assert ExtendedKeyUsageOID.SERVER_AUTH in leaf.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
+    assert leaf.not_valid_after_utc - leaf.not_valid_before_utc <= datetime.timedelta(days=825)  # Apple's limit
+    san = leaf.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert sorted(san.get_values_for_type(x509.DNSName)) == sorted([name, "localhost"])
+    assert [str(i) for i in san.get_values_for_type(x509.IPAddress)] == ips
+    for who in [x509.DNSName(name), x509.DNSName("localhost"), *(x509.IPAddress(ip_address(i)) for i in ips)]:
+        PolicyBuilder().store(Store([ca])).build_server_verifier(who).verify(leaf, [])
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="the simulator's LAN address")
+def test_the_device_ca_issues_a_certificate_browsers_and_apple_accept():
+    port = 28280 + WORKER
+    sim = start_sim(port, DB_SIM_PASSWORD=PASSWORD, DB_SIM_LAN_IP="192.168.77.5")
+    try:
+        check_chain(f"127.0.0.1:{port}", ["192.168.77.5"])
+    finally:
+        sim.kill()
+        sim.wait()
 
 
 def test_the_downloaded_certificate_matches_the_fingerprint():
