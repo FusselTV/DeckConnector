@@ -16,6 +16,11 @@ jobs:
       actions: read # ci.yml's sizes job asks for it, used on pull requests only
       pull-requests: read # ci.yml asks for it, used on pull requests only
 
+  ha:
+    uses: ./.github/workflows/ha.yml
+    permissions:
+      contents: read
+
   sign:
     needs: ci
     runs-on: [self-hosted, deckconnector]
@@ -87,7 +92,7 @@ jobs:
           if-no-files-found: ignore
 
   publish:
-    needs: sign
+    needs: [sign, ha]
     runs-on: [self-hosted, deckconnector]
     timeout-minutes: 10
     permissions:

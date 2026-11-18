@@ -14,7 +14,7 @@ The DeckConnector integration brings the board and every deck on it into [Home A
 
 ## Install
 
-Open **Marketplace** in the sidebar, choose **Add from link** and paste this address. Before Home Assistant 2026.11, add it in HACS under **Custom repositories** as an **Integration**.
+Open **Settings › Marketplace**, choose **Add from link** and paste this address. Before Home Assistant 2026.11, add it in HACS under **Custom repositories** as an **Integration**.
 
 ```text
 https://github.com/FusselTV/DeckConnector
@@ -40,7 +40,7 @@ These start disabled. Turn them on under the device if you need them:
 
 - **Wi-Fi signal**, **Wi-Fi network** and **Last restart** of the board.
 - **Firmware** update. With it on, the board asks GitHub for new releases every 6 hours.
-- **PIN lock** of a deck. It turns on when Companion locks the deck with its PIN. Its two triggers also show up as buttons in a HomeKit bridge.
+- **PIN lock** of a deck. It shows **Locked** while Companion locks the deck with its PIN. Its two triggers also show up as buttons in a HomeKit bridge.
 - **Reconnect** of a deck. It turns the USB port off and on, for a deck that hangs.
 
 **Volume** and **Find** exist only on a board with a speaker. **Screen off after** is in minutes, 0 means never.

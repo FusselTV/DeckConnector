@@ -2,6 +2,7 @@ import logging
 from unittest.mock import patch
 
 from homeassistant.components.diagnostics import REDACTED
+from homeassistant.config_entries import ConfigEntryDisabler
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.helpers import device_registry as dr, entity_registry as er, issue_registry as ir
 from homeassistant.setup import async_setup_component
@@ -122,6 +123,22 @@ async def test_https_only_raises_a_repair_until_the_board_answers(hass, entry, a
     aioclient_mock.get(f"http://{HOST}/api/status", json=status(PLUS))
     aioclient_mock.get(CHECK, json={"latest": None})
     assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue("deckconnector", issue_id) is None
+
+
+@pytest.mark.parametrize("how", ["disable", "remove"])
+async def test_the_https_repair_ends_with_a_failed_entry(hass, entry, aioclient_mock, socket, how):
+    assert await async_setup_component(hass, "deckconnector", {})
+    aioclient_mock.get(f"http://{HOST}/api/status", status=403, text="HTTPS only")
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    issue_id = f"https_only_{entry.entry_id}"
+    assert ir.async_get(hass).async_get_issue("deckconnector", issue_id)
+    if how == "disable":
+        await hass.config_entries.async_set_disabled_by(entry.entry_id, ConfigEntryDisabler.USER)
+    else:
+        await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     assert ir.async_get(hass).async_get_issue("deckconnector", issue_id) is None
 

@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant.config_entries import SIGNAL_CONFIG_ENTRY_CHANGED, ConfigEntry, ConfigEntryChange
 from homeassistant.const import CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, issue_registry as ir
+from homeassistant.helpers import config_validation as cv, device_registry as dr, issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.typing import ConfigType
 
 from .api import Api
 from .const import DOMAIN, ISSUE_DECKS_OVER_LIMIT, ISSUE_HTTPS_ONLY
 from .coordinator import DeckConnectorConfigEntry, DeckCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
@@ -24,6 +29,22 @@ PLATFORMS = [
     Platform.SWITCH,
     Platform.UPDATE,
 ]
+
+
+@callback
+def clear_issues(hass: HomeAssistant, entry_id: str) -> None:
+    for issue in (ISSUE_HTTPS_ONLY, ISSUE_DECKS_OVER_LIMIT):
+        ir.async_delete_issue(hass, DOMAIN, f"{issue}_{entry_id}")
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    @callback
+    def changed(change: ConfigEntryChange, entry: ConfigEntry) -> None:
+        if entry.domain == DOMAIN and entry.disabled_by:
+            clear_issues(hass, entry.entry_id)
+
+    async_dispatcher_connect(hass, SIGNAL_CONFIG_ENTRY_CHANGED, changed)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> bool:
@@ -69,9 +90,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> bool:
-    for issue in (ISSUE_HTTPS_ONLY, ISSUE_DECKS_OVER_LIMIT):
-        ir.async_delete_issue(hass, DOMAIN, f"{issue}_{entry.entry_id}")
+    clear_issues(hass, entry.entry_id)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> None:
+    clear_issues(hass, entry.entry_id)
 
 
 async def async_remove_config_entry_device(
