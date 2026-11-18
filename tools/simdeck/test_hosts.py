@@ -144,7 +144,7 @@ def test_satellite_adds_the_deck_and_takes_its_presses_and_pin(start, companion,
     time.sleep(0.5)
     pins = [x.rsplit("KEY=", 1)[1] for x in companion.lines if x.startswith("PINCODE-KEY")]
     digits = 5 if deck["keys"] == 6 else 10  # six keys: two pages of five
-    if model in ("plus",):
+    if model == "plus":
         digits = 8  # 9 and 0 are on encoders 3 and 4
     assert len(set(pins)) == digits, pins
 
