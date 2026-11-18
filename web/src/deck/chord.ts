@@ -16,11 +16,10 @@ export function chordHl(o: Chord, M: Model, d?: Deck): Hl {
       : c.on === 'keys'
         ? { keys: [0, c.last], dials: [] }
         : { keys: [], dials: [0, c.last] }
-  const nk = M.cols * M.rows
+  if (o === 'off') return { keys: [], dials: [] }
+  // as the firmware's ui_menu_chord: the first and last dial, else the first and last key
   const dials = M.dials?.n ?? 0
-  const enc = { keys: [], dials: [0, Math.min(3, dials - 1)] }
-  const key = { keys: [0, nk - 1], dials: [] }
-  return o === 'encoders' ? enc : o === 'keys' ? key : o === 'auto' ? (dials ? enc : key) : { keys: [], dials: [] }
+  return o !== 'keys' && dials > 1 ? { keys: [], dials: [0, dials - 1] } : { keys: [0, M.cols * M.rows - 1], dials: [] }
 }
 export function chordSentence(t: T, o: Chord, M: Model, holdS: string, d?: Deck) {
   const hl = chordHl(o, M, d)

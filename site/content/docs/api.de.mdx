@@ -261,7 +261,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
 | `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder die aktive Quelle nicht verbunden ist |
 | `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck mit seinem `slot` (0 für Deck 1) und seiner `number` (1 für Deck 1) |
-| `decks[].locked` | Companion zeichnet über Satellite auf dem Deck und hat es mit seiner PIN gesperrt. Das Deck zeigt das Zahlenfeld |
+| `decks[].locked` | Companion zeichnet über Satellite auf dem Deck und hat es mit seiner PIN gesperrt. Das Deck zeigt das Zahlenfeld. `pin_count` ist die Zahl der getippten Ziffern, `pin_wrong` ist nach einer falschen PIN kurz true |
 | `decks_over_limit` | Decks, die stecken, aber wegen `max_decks` dunkel bleiben |
 | `sources` | Jedes Programm. `chosen` markiert das, das zeichnet, wenn kein Menü darüber liegt. Server und Satellite haben dazu `error`, `since_s` und `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
@@ -291,7 +291,7 @@ Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
 ```
 
-Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
+`strips` listet Leisten mit Bild, aber ohne Touch, etwa die Infoleiste des Stream Deck Neo. Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
 
 ## Eingaben
 
@@ -307,6 +307,8 @@ Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. E
 ```
 
 `action` ist `press` (Standard), `down`, `up` oder `turn` für Drehregler. Positive Rastungen drehen nach rechts.
+
+`{"pin": 3}` tippt eine Ziffer von Companions PIN auf einem gesperrten Deck, auch auf einem Deck, das kein Zahlenfeld zeigen kann. Das braucht `"real"` und gibt 409, wenn das Deck nicht gesperrt ist.
 
 <Callout type="warn" title="Echte Eingaben">
 Companion, die Elgato-App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme des Connectors und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.

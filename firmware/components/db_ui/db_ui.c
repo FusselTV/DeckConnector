@@ -813,7 +813,7 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
         db_ui_show_password();
         break;
     case UI_DO_PIN:
-        db_satellite_pincode(deck, act->value);
+        db_satellite_pincode(deck, act->value, db_deck_input_real_for(db_satellite_peer()), 0);
         break;
     default:
         break;

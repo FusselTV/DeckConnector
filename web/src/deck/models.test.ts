@@ -13,6 +13,9 @@ describe('modelOf', () => {
     expect(modelOf('Stream Deck 6 Module', 6)).toBe('mini')
     expect(modelOf('Stream Deck MK.2')).toBe('mk2')
     expect(modelOf('Stream Deck', 32)).toBe('xl')
+    expect(modelOf('Stream Dock N4', 14)).toBe('n4')
+    expect(modelOf('Stream Dock N4 Pro', 14)).toBe('n4')
+    expect(modelOf('Ajazz AKP05E', 14)).toBe('n4')
   })
   it('keeps every key on the front', () => {
     for (const [k, m] of Object.entries(MODELS)) {

@@ -6,6 +6,7 @@ import {
   EthernetPort,
   Hand,
   LayoutGrid,
+  Lock,
   MousePointer2,
   Plug,
   Plus,
@@ -28,7 +29,18 @@ import { api, ApiError, pressReal, READONLY } from '../api/client'
 import type { InputBody, InputEvent, Rect, Screen, Source } from '../api/types'
 import { pendingAtom, useActions } from '../app/actions'
 import { retryNow } from '../app/connection'
-import { decksOf, deckName, hk, hostLabel, hostName, KIND_ICON, sigWord, stateKey, viaKey } from '../app/derive'
+import {
+  decksOf,
+  deckName,
+  hk,
+  hostLabel,
+  hostName,
+  KIND_ICON,
+  sigWord,
+  stateKey,
+  viaKey,
+  type Deck,
+} from '../app/derive'
 import { useIssues } from '../app/issues'
 import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, tabAtom, toast, type Tab } from '../app/state'
 import { getState, subscribe, useStore } from '../app/store'
@@ -487,9 +499,33 @@ const LiveDeck = memo(function LiveDeck() {
         onLocked={onLocked}
         send={send}
       />
+      {deck.locked && <PinPad deck={deck} serial={serial} />}
     </>
   )
 })
+
+// Phone order, 0 under 8. No delete: Companion clears a wrong entry once it is as long as the PIN.
+function PinPad({ deck, serial }: { deck: Deck; serial?: string }) {
+  const { t, act } = useUi()
+  return (
+    <div className={cx('pinpad', deck.pin_wrong && 'wrong')} role="group" aria-label={t('pin.title')}>
+      <p>
+        <Lock size={16} className="ic" aria-hidden />
+        <span>{t('pin.title')}</span>
+        <b className="dots" role="status">
+          {deck.pin_wrong ? t('pin.wrong') : '•'.repeat(deck.pin_count ?? 0)}
+        </b>
+      </p>
+      <div className="pinkeys">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((n) => (
+          <button key={n} type="button" className="btn" onClick={() => void act(() => pressReal({ pin: n }, serial))}>
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 function DeckCard() {
   const { t } = useUi()

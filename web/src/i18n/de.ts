@@ -523,6 +523,8 @@ export const de: Dict = {
     'Ohne Eingabe gehen alle Decks dunkel. Die erste Taste, Drehung oder Berührung weckt sie und löst sonst nichts aus.',
   'deck.never': 'Nie',
   'deck.dark': 'Bildschirm aus. Die erste Eingabe weckt die Decks.',
+  'pin.title': 'Companion hat dieses Deck gesperrt. Gib die PIN ein.',
+  'pin.wrong': 'Falsche PIN',
   'is.decks_n': '{n} Decks',
   'is.compdock': 'Companion „{name}“ nutzt den Dock-Weg',
   'is.compdock_h': 'Satellite ist stabiler und hat alle Tasten und Drehregler.',
@@ -608,7 +610,7 @@ export const de: Dict = {
   'cert.reset': 'Eingebautes nutzen',
   'chord.d_auto': 'Drehregler, wenn das Deck welche hat, sonst Tasten.',
   'chord.d_keys': 'Die erste und die letzte Taste.',
-  'chord.d_encoders': 'Der erste und der vierte Drehregler.',
+  'chord.d_encoders': 'Der erste und der letzte Drehregler.',
   'chord.d_off': 'Am Deck geht das Menü nicht auf.',
   'chord.s_dials':
     'So öffnest du das Menü am Deck: Halte Drehregler {a} und {b} gleichzeitig {s} Sekunden lang gedrückt.',
@@ -659,8 +661,7 @@ export const de: Dict = {
   'wiz.d_pair': '„Computer koppeln?“, bis du hier entscheidest',
   'wiz.d_step': '„Einrichtung {n}/{all}“',
   'wiz.webfree_t': 'Es geht auch ohne Browser',
-  'wiz.webfree':
-    'Netz und Quelle gehen auch am Deck. Halte Drehregler {a} und {b} gedrückt, dann öffnet sich das Menü.',
+  'wiz.webfree': 'Netz und Quelle gehen auch am Deck.',
   'wiz.done_q_none': 'Einrichtung fertig',
   'wiz.done_look': 'Schau aufs Deck. Es zeigt jetzt die Tasten von {prog}.',
   'wiz.no_src': 'Noch keine Quelle verbunden',

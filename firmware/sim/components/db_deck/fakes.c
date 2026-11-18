@@ -426,6 +426,11 @@ void db_satellite_moved(void)
 {
 }
 
+bool db_satellite_pincode(int deck, int digit, bool real, uint32_t only_ip)
+{
+    return false;
+}
+
 const char *db_satellite_probe(const char *addr, const char *pin_hex, char *version, size_t cap)
 {
     return "the simulator reaches no Companion";
