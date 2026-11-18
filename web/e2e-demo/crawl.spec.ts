@@ -164,6 +164,14 @@ async function crawl(page: Page, dict: Dict, tab: Tab, shot: string): Promise<Ro
         await el.click()
         if ((await open()) !== was) effects.push(was ? 'folds' : 'opens')
         if (was) await el.click()
+      } else if (
+        tag === 'A' &&
+        (await el.evaluate(
+          (e) => !(e as HTMLAnchorElement).target && (e as HTMLAnchorElement).origin !== location.origin,
+        ))
+      ) {
+        // a same-tab link to another host would only show whether that host resolves in time
+        effects.push(`links to ${await el.evaluate((e) => (e as HTMLAnchorElement).host)}`)
       } else await el.click({ timeout: 2000 })
     } catch {
       effects.push('not clickable')

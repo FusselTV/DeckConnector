@@ -191,6 +191,11 @@ static esp_err_t page(httpd_req_t *req)
     }
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+    httpd_resp_set_hdr(
+        req, "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "base-uri 'self'; form-action 'self'");
     return own ? httpd_resp_send(req, (const char *)web.gz, web.len)
                : httpd_resp_send(req, index_gz_start, index_gz_end - index_gz_start);
 }

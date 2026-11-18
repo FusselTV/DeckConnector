@@ -41,6 +41,17 @@ The board's mDNS name is `<name>.local`, for example `deckconnector-a1b2c3.local
 
 ## Clock
 
-The board sets its clock over NTP. It uses the server that DHCP names, then `pool.ntp.org`. `ntp_server` in the [settings](/docs/api#settings) sets your own.
+The board sets its clock over NTP. It uses the server that DHCP names, then `pool.ntp.org`. Set your own under **Network** in the web UI.
+
+## Internet
+
+The board talks to the internet only in these cases. Each one shows the IP address of your network to that server.
+
+- **Time.** `pool.ntp.org`, only when your router names no time server and you set none.
+- **Update check.** GitHub, only when you click **Check** under **Firmware**.
+- **Update by URL.** The address you give, and GitHub for a release.
+- **Your servers.** The Companion, Satellite and own servers you set.
+
+It sends no usage data and no crash reports.
 
 <Next links={[['Multiple hosts', '/docs/hosts/']]} />
