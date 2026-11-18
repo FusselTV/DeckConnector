@@ -24,7 +24,7 @@ https://github.com/FusselTV/DeckConnector
 
 Home Assistant findet die Platine von selbst und bietet sie unter **Einstellungen › Geräte & Dienste** an. Sonst fügst du dort **DeckConnector** hinzu und gibst die Adresse ein.
 
-Dann wählst du den Weg hinein. **Am Deck bestätigen** fragt am Deck, du tippst zum Annehmen. **Web-Passwort eingeben** geht auch ohne Deck. Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf der Platine an.
+Wähl **Am Deck bestätigen** oder, ohne Deck, **Web-Passwort eingeben**. Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf der Platine an.
 
 <img src="/docs/ha-flow-menu.webp" alt="Weg hinein wählen" width="480" />
 
@@ -44,13 +44,9 @@ conditions:
     state: key_3_press
 ```
 
-Drücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
+Tastendrücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
 
 Der Host zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
-
-## Grenzen
-
-- Die Platine muss einfaches HTTP beantworten. Mit **Nur HTTPS** verbindet sich die Integration nicht.
 
 ## Entfernen
 

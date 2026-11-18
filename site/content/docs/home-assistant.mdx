@@ -24,7 +24,7 @@ https://github.com/FusselTV/DeckConnector
 
 Home Assistant finds the board by itself and offers it under **Settings › Devices & services**. Otherwise add **DeckConnector** there and enter its address.
 
-Then pick a way in. **Confirm on the deck** asks on the deck, and you tap to accept. **Enter the web password** works without a deck. Home Assistant then makes its own [API key](/docs/security#api-keys) on the board.
+Pick **Confirm on the deck**, or **Enter the web password** if no deck is attached. Home Assistant then makes its own [API key](/docs/security#api-keys) on the board.
 
 <img src="/docs/ha-flow-menu.webp" alt="Pick a way in" width="480" />
 
@@ -47,10 +47,6 @@ conditions:
 Presses from the web page or a script never reach Home Assistant. Home Assistant never presses anything on the deck.
 
 The host draws the keys. A key that Companion or the Elgato app also uses runs both actions.
-
-## Limits
-
-- The board must answer plain HTTP. With **HTTPS only** on, the integration cannot connect.
 
 ## Remove
 
