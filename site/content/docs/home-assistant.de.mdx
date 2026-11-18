@@ -1,14 +1,14 @@
 ---
 title: Home Assistant
-description: Die DeckConnector-Integration für Home Assistant. Tastendrücke als Ereignisse, Helligkeit, Bildschirm, Host und Updates.
+description: Die DeckConnector-Integration für Home Assistant. Tastendrücke als Auslöser, Helligkeit, Bildschirm aus, Host, Deck-Bild und Updates.
 ---
 
-Die DeckConnector-Integration holt die Platine und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen und jede Drehung kommt sofort als Ereignis an. Helligkeit, Bildschirm aus, Wahl des Hosts und Updates steuerst du aus Home Assistant.
+Die DeckConnector-Integration holt die Platine und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen, jede Drehung und jede Berührung kommt sofort an und kann eine Automation starten. Du stellst die Helligkeit ein, schaltest die Bildschirme aus, wählst den Host und siehst, was jedes Deck zeigt.
 
 <table>
   <tr>
-    <td><img src="/docs/ha-board.webp" alt="Die Platine in Home Assistant" width="320" /></td>
-    <td><img src="/docs/ha-deck.webp" alt="Ein Deck in Home Assistant" width="320" /></td>
+    <td width="50%" valign="top"><Shot src="ha-board-de" alt="Die Platine in Home Assistant: Bildschirm, Finden, Helligkeit, Bildschirm aus nach, Lautstärke, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={392} height={874} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Host, PIN-Sperre, Ereignis Bedienung und Neu verbinden" width={392} height={530} /><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Host und Bedienung" width={532} height={622} /></td>
   </tr>
 </table>
 
@@ -16,28 +16,50 @@ Die Update-Entität **Firmware** ist zuerst aus. Schaltest du sie ein, fragt die
 
 ## Installieren
 
-Öffne in HACS **Benutzerdefinierte Repositories**, füge dieses Repository als **Integration** hinzu, lade **DeckConnector** herunter und starte Home Assistant neu.
+Öffne **Marketplace** in der Seitenleiste, wähl **Über Link hinzufügen** und füge diese Adresse ein. Vor Home Assistant 2026.11 fügst du sie in HACS unter **Benutzerdefinierte Repositories** als **Integration** hinzu.
 
 ```text
 https://github.com/FusselTV/DeckConnector
 ```
 
+Lade **DeckConnector** herunter und starte Home Assistant neu.
+
 ## Einrichten
 
-Home Assistant findet die Platine von selbst und bietet sie unter **Einstellungen › Geräte & Dienste** an. Sonst fügst du dort **DeckConnector** hinzu und gibst die Adresse ein.
+Home Assistant findet die Platine von selbst und bietet sie unter **Einstellungen › Geräte & Dienste** an. Sonst fügst du dort **DeckConnector** hinzu und gibst die Adresse der Platine ein.
 
 Wähl **Am Deck bestätigen** oder, ohne Deck, **Web-Passwort eingeben**. Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf der Platine an.
 
-<img src="/docs/ha-flow-menu.webp" alt="Weg hinein wählen" width="480" />
+<Shot src="ha-flow-de" alt="Wählen, wie Home Assistant Zugriff bekommt: am Deck bestätigen oder Web-Passwort eingeben" width={580} height={264} />
+
+**Neu konfigurieren** an der Integration ändert die Adresse der Platine und behält den Schlüssel.
+
+## Was du bekommst
+
+Die Platine ist ein Gerät, jedes Deck ein Gerät dahinter. Ein Deck, das du später ansteckst, erscheint sofort.
+
+Diese sind zuerst deaktiviert. Schalte sie am Gerät ein, wenn du sie brauchst:
+
+- **WLAN-Signal**, **WLAN-Netz** und **Letzter Neustart** der Platine.
+- Das Update **Firmware**. Damit fragt die Platine alle 6 Stunden bei GitHub nach neuen Versionen.
+- **PIN-Sperre** eines Decks. Sie schaltet ein, wenn Companion das Deck mit seiner PIN sperrt. Ihre zwei Auslöser erscheinen auch als Tasten in einer HomeKit Bridge.
+- **Neu verbinden** eines Decks. Es schaltet den USB-Anschluss aus und wieder ein, für ein Deck, das hängt.
+
+**Lautstärke** und **Finden** gibt es nur bei einer Platine mit Lautsprecher. **Bildschirm aus nach** ist in Minuten, 0 heißt nie.
+
+Die Platine schickt jede Änderung sofort. Signal und Temperatur kommen einmal pro Minute.
 
 ## Automationen
 
-Jedes Deck hat ein Ereignis **Bedienung**. Löse darauf aus und prüfe den Ereignistyp in einer Bedingung, zum Beispiel **Taste 3 gedrückt** oder **Drehregler 1 nach rechts gedreht**. Eine Drehung bringt auch `ticks` mit, eine Berührung `x` und `y`.
+Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht** oder **Touchleiste nach links gewischt**.
+
+Jedes Deck hat außerdem eine Ereignis-Entität **Bedienung** für YAML und Templates. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Drehung bringt `ticks` mit, eine Berührung `x` und `y`.
 
 ```yaml
 triggers:
   - trigger: state
     entity_id: event.stream_deck_bedienung
+    not_from: unavailable
     not_to: [unavailable, unknown]
 conditions:
   - condition: state
@@ -46,16 +68,35 @@ conditions:
     state: key_3_press
 ```
 
-Tastendrücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
-
 Der Host zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
+
+### Blueprint
+
+[![Öffne deine Home-Assistant-Instanz und zeige den Dialog zum Importieren des Blueprints.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
+
+**Drehregler dimmt ein Licht.** Nach rechts heller, nach links dunkler. Ein Druck auf den Drehregler schaltet das Licht ein oder aus.
 
 ## Apple Home
 
 Die [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) zeigt ein Deck in der Home-App als Reihe von Tasten. Öffne die Optionen der HomeKit Bridge im Bridge-Modus und wähl das Deck unter **Geräte (Trigger)**. Jeder Tastendruck, jeder Druck und jede Drehung eines Drehreglers und jede Berührung ist eine Taste.
 
+## Gut zu wissen
+
+- Home Assistant spricht mit der Platine über HTTP auf Port 80.
+- Tastendrücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
+- Nach einem Firmware-Update lädt sich die Integration selbst neu, neue Entitäten erscheinen dann.
+- Der Logger heißt `custom_components.deckconnector`.
+
+## Fehlersuche
+
+Probleme, die Home Assistant erkennt, stehen unter **Einstellungen › Reparaturen**: eine Platine, die nur HTTPS erlaubt, und Decks, die wegen der Deck-Grenze dunkel bleiben.
+
+Sind alle Entitäten nicht verfügbar, erreicht Home Assistant die Platine nicht. Öffne die Adresse der Platine im Browser. Hat sich die Adresse geändert, nimm **Neu konfigurieren**.
+
+Für einen Fehlerbericht nimm **Diagnosedaten herunterladen** am Gerät der Platine. Schlüssel, Adressen und Seriennummern fehlen darin.
+
 ## Entfernen
 
-Lösche die Integration in Home Assistant. Entferne danach ihren Schlüssel `home-assistant-xxxxxxxx` unter **Zugang › API-Schlüssel** auf der Platine.
+Lösche die Integration unter **Einstellungen › Geräte & Dienste**. Entferne danach ihren Schlüssel `home-assistant-xxxxxxxx` unter **Zugang › API-Schlüssel** auf der Platine.
 
 <Next lang="de" links={[['API', '/de/docs/api/'], ['Zugang und Sicherheit', '/de/docs/security/']]} />

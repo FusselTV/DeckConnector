@@ -1,14 +1,14 @@
 ---
 title: Home Assistant
-description: The DeckConnector integration for Home Assistant. Presses as events, brightness, screen, host and updates.
+description: The DeckConnector integration for Home Assistant. Key presses as triggers, brightness, screen off, host, deck picture and updates.
 ---
 
-The DeckConnector integration brings the board and every deck on it into [Home Assistant](https://www.home-assistant.io/). Each press, release and dial turn arrives at once as an event. You set the brightness, turn the screens off, pick the host and install updates from Home Assistant.
+The DeckConnector integration brings the board and every deck on it into [Home Assistant](https://www.home-assistant.io/). Each press, release, dial turn and touch arrives at once and can start an automation. You set the brightness, turn the screens off, pick the host and see what each deck shows.
 
 <table>
   <tr>
-    <td><img src="/docs/ha-board.webp" alt="The board in Home Assistant" width="320" /></td>
-    <td><img src="/docs/ha-deck.webp" alt="A deck in Home Assistant" width="320" /></td>
+    <td width="50%" valign="top"><Shot src="ha-board" alt="The board in Home Assistant: brightness, find, screen, controller, restart, screen off after, volume, backup Wi-Fi, Ethernet and temperature" width={392} height={874} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck" alt="A deck in Home Assistant: host, PIN lock, screen picture, controls event and reconnect" width={392} height={530} /><Shot src="ha-dashboard" alt="A dashboard with the deck picture, brightness, screen, host and controls" width={532} height={622} /></td>
   </tr>
 </table>
 
@@ -16,28 +16,50 @@ The **Firmware** update entity is off at first. Turn it on, and the board asks G
 
 ## Install
 
-In HACS, open **Custom repositories**, add this repository as an **Integration**, then download **DeckConnector** and restart Home Assistant.
+Open **Marketplace** in the sidebar, choose **Add from link** and paste this address. Before Home Assistant 2026.11, add it in HACS under **Custom repositories** as an **Integration**.
 
 ```text
 https://github.com/FusselTV/DeckConnector
 ```
 
+Download **DeckConnector**, then restart Home Assistant.
+
 ## Set up
 
-Home Assistant finds the board by itself and offers it under **Settings › Devices & services**. Otherwise add **DeckConnector** there and enter its address.
+Home Assistant finds the board by itself and offers it under **Settings › Devices & services**. If it does not, add **DeckConnector** there and enter the board's address.
 
 Pick **Confirm on the deck**, or **Enter the web password** if no deck is attached. Home Assistant then makes its own [API key](/docs/security#api-keys) on the board.
 
-<img src="/docs/ha-flow-menu.webp" alt="Pick a way in" width="480" />
+<Shot src="ha-flow" alt="Pick how Home Assistant gets access: confirm on the deck or enter the web password" width={580} height={264} />
+
+**Reconfigure** on the integration changes the board's address and keeps the key.
+
+## What you get
+
+The board is one device, and each deck is a device behind it. A deck you plug in later appears at once.
+
+These start disabled. Turn them on under the device if you need them:
+
+- **Wi-Fi signal**, **Wi-Fi network** and **Last restart** of the board.
+- **Firmware** update. With it on, the board asks GitHub for new releases every 6 hours.
+- **PIN lock** of a deck. It turns on when Companion locks the deck with its PIN. Its two triggers also show up as buttons in a HomeKit bridge.
+- **Reconnect** of a deck. It turns the USB port off and on, for a deck that hangs.
+
+**Volume** and **Find** exist only on a board with a speaker. **Screen off after** is in minutes, 0 means never.
+
+The board pushes every change at once. Signal and temperature update once a minute.
 
 ## Automations
 
-Every deck has one **Controls** event. Trigger on it, then check the event type in a condition, for example **Key 3 pressed** or **Dial 1 turned right**. A dial turn also carries `ticks`, a touch carries `x` and `y`.
+In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right** or **Touch strip swiped left**.
+
+Every deck also has one **Controls** event entity for YAML and templates. Its `event_type` says what happened, for example `key_3_press`. A dial turn carries `ticks`, a touch carries `x` and `y`.
 
 ```yaml
 triggers:
   - trigger: state
     entity_id: event.stream_deck_controls
+    not_from: unavailable
     not_to: [unavailable, unknown]
 conditions:
   - condition: state
@@ -46,16 +68,35 @@ conditions:
     state: key_3_press
 ```
 
-Presses from the web page or a script never reach Home Assistant. Home Assistant never presses anything on the deck.
-
 The host draws the keys. A key that Companion or the Elgato app also uses runs both actions.
+
+### Blueprint
+
+[![Open your Home Assistant instance and show the blueprint import dialog.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
+
+**Dial dims a light.** Turn a dial right for brighter, left for darker. Press it to switch the light on or off.
 
 ## Apple Home
 
 The [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) shows a deck as a set of buttons in the Home app. Open the options of the HomeKit Bridge in bridge mode and pick the deck under **Devices (Triggers)**. Each key press, dial press, dial turn and touch is one button.
 
+## Good to know
+
+- Home Assistant talks to the board over plain HTTP on port 80.
+- Presses from the web page or a script never reach Home Assistant. Home Assistant never presses anything on the deck.
+- After a firmware update the integration loads again by itself, so new entities appear.
+- The logger is `custom_components.deckconnector`.
+
+## Troubleshooting
+
+Problems that Home Assistant can see show up under **Settings › Repairs**: a board that allows HTTPS only, and decks that stay dark because of the deck limit.
+
+If all entities are unavailable, Home Assistant cannot reach the board. Open the board's address in a browser. If the address changed, use **Reconfigure**.
+
+For a bug report, use **Download diagnostics** on the board's device. It leaves out the key, addresses and serial numbers.
+
 ## Remove
 
-Delete the integration in Home Assistant. Then remove its key `home-assistant-xxxxxxxx` under **Access › API keys** on the board.
+Delete the integration under **Settings › Devices & services**. Then remove its key `home-assistant-xxxxxxxx` under **Access › API keys** on the board.
 
 <Next links={[['API', '/docs/api/'], ['Access and security', '/docs/security/']]} />

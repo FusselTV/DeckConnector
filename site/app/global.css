@@ -367,3 +367,11 @@ body:has(main#main > iframe) footer {
     text-decoration: none;
   }
 }
+
+.shot-light,
+:root.light .shot-dark {
+  display: none;
+}
+:root.light .shot-light {
+  display: block;
+}

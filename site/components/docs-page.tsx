@@ -8,7 +8,7 @@ import { DocsBody, DocsDescription, DocsPage, DocsTitle, MarkdownCopyButton, Vie
 import { BenchBars } from '~/components/docs/bench'
 import { JsonLd } from '~/components/landing/ui'
 import * as diagrams from '~/components/docs/diagrams'
-import { Next } from '~/components/docs/figure'
+import { Next, Shot } from '~/components/docs/figure'
 import { mdPath } from '~/lib/llm'
 import { prefix, type Lang } from '~/lib/i18n'
 import { pageMeta } from '~/lib/meta'
@@ -53,6 +53,7 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
             ...diagrams,
             BenchBars,
             Next,
+            Shot,
             // a file such as THIRD_PARTY_LICENSES.txt is no page, and Next's prefetch of it 404s
             a: (p: ComponentProps<'a'>) => (/\.\w+$/.test(p.href ?? '') ? <a {...p}>{p.children}</a> : <Link {...p} />),
           }}
