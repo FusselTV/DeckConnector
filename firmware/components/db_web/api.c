@@ -577,8 +577,10 @@ esp_err_t post_input(httpd_req_t *req)
 
 esp_err_t post_menu(httpd_req_t *req)
 {
-    if (db_ui_open_menu(web_deck) != ESP_OK) {
-        return send_error(req, "409 Conflict", "no deck connected");
+    esp_err_t err = db_ui_open_menu(web_deck);
+    if (err != ESP_OK) {
+        return send_error(req, "409 Conflict",
+                          err == ESP_ERR_NOT_ALLOWED ? "Companion locked this deck" : "no deck connected");
     }
     return send_json(req, "{\"ok\":true}");
 }

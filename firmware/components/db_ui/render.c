@@ -229,6 +229,28 @@ static void draw_qr(ui_canvas_t *c, const ui_qr_t *qr, db_rect_t r)
     }
 }
 
+static int dots_w(int n, int d)
+{
+    return n * (d + d / 2) - d / 2;
+}
+
+/* `n` dots of `d` px, as many as fit in `room`, centred on `x` or starting at it. */
+static void draw_dots(ui_canvas_t *c, int x, int cy, int room, int n, int d, uint32_t color, bool left)
+{
+    int step = d + d / 2;
+    n = dots_w(n, d) > room ? (room + d / 2) / step : n;
+    x = left ? x : x - dots_w(n, d) / 2;
+    for (int i = 0; i < n; i++, x += step) {
+        ui_round(c, (db_rect_t){(uint16_t)x, (uint16_t)(cy - d / 2), (uint16_t)d, (uint16_t)d}, d / 2, color);
+    }
+}
+
+/* Its baseline, so a digit of the large font sits in the middle of `r`. */
+static int digit_y(db_rect_t r)
+{
+    return r.y + r.h / 2 + 14;
+}
+
 static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_qr_t *qr)
 {
     if (t->kind == TILE_QR && qr->size) {
@@ -240,6 +262,16 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_
         return;
     }
     const style_t *st = r.h >= 110 ? &large : (r.h >= 90 ? &medium : &small);
+    if (t->kind == TILE_DIGIT) {
+        if (t->active) {
+            ui_round_over(c, r, st->radius, t->color, C_SCREEN);
+            ui_round(c, inset(r, st->frame), st->radius - st->frame, mix(t->color, C_BUTTON, 0.22f));
+        } else {
+            ui_round_over(c, r, st->radius, C_BUTTON, C_SCREEN);
+        }
+        ui_text(c, &ui_font_large, r, digit_y(r), C_TEXT, t->label);
+        return;
+    }
     int pad = r.h >= 90 ? 6 : 4;
     db_rect_t text = {(uint16_t)(r.x + pad), r.y, (uint16_t)(r.w - 2 * pad), r.h};
     if (t->kind == TILE_CARD) {
@@ -261,7 +293,10 @@ static void draw_tile(ui_canvas_t *c, const ui_tile_t *t, db_rect_t r, const ui_
         }
         db_rect_t lab = {(uint16_t)(r.x + label_x), r.y, (uint16_t)(r.w - label_x - right), r.h};
         ui_text_fit(c, st->sub_fonts, st->sub_n, lab, r.y + st->card_label_y, C_DIM, t->label, UI_LEFT);
-        if (!value_lines(c, st, text, r.y + st->value_y, t->value)) {
+        if (t->dots) {
+            draw_dots(c, r.x + r.w / 2, r.y + st->value_y - 7, text.w, t->dots, r.h >= 90 ? 14 : 10, C_TEXT,
+                      false);
+        } else if (!value_lines(c, st, text, r.y + st->value_y, t->value)) {
             ui_text_fit(c, st->sub_fonts, st->sub_n, text, r.y + st->card_sub_y, C_DIM, t->sub, UI_CENTER);
         }
     } else {
@@ -290,7 +325,11 @@ static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     /* the same 3 px around every side, so no rounded corner runs into the edge of the strip */
     db_rect_t box = inset(r, 3);
     ui_fill(c, r, C_SCREEN);
-    ui_round(c, box, 10, C_LCD);
+    ui_round(c, box, 10, g->digit && g->icon_color ? mix(g->icon_color, C_LCD, 0.3f) : C_LCD);
+    if (g->digit) {
+        ui_text(c, &ui_font_large, box, digit_y(r), C_TEXT, g->value);
+        return;
+    }
     bool wide = g->span > 1;
     int x = 12;
     if (g->icon) {
@@ -305,8 +344,13 @@ static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     /* a one-part key with an icon and no bar (Schließen) never in the largest size: "Close" would be twice
      * its German word */
     int top = !wide && g->icon && g->bar < 0;
-    ui_text_fit(c, title_fonts + top, 4 - top, wide || g->icon ? col : full, r.y + (wide ? 64 : 66), C_TEXT,
-                g->value, UI_LEFT);
+    if (g->dots) {
+        db_rect_t at = wide || g->icon ? col : full;
+        draw_dots(c, at.x, r.y + 54, at.w, g->dots, 16, C_TEXT, true);
+    } else {
+        ui_text_fit(c, title_fonts + top, 4 - top, wide || g->icon ? col : full, r.y + (wide ? 64 : 66),
+                    C_TEXT, g->value, UI_LEFT);
+    }
     if (g->bar >= 0) {
         db_rect_t track = {(uint16_t)(box.x + 12), (uint16_t)(r.y + 82), (uint16_t)(box.w - 24), 8};
         ui_round(c, track, 4, C_TRACK);
@@ -319,6 +363,55 @@ static void draw_segment(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
     }
 }
 
+/* The Neo's info bar. */
+static void draw_bar(ui_canvas_t *c, const ui_segment_t *g, db_rect_t r)
+{
+    ui_fill(c, r, C_SCREEN);
+    if (!g->span) {
+        return;
+    }
+    int y = r.y + r.h / 2 + 10;
+    db_rect_t edge = {(uint16_t)(r.x + 10), r.y, 40, r.h};
+    ui_text_at(c, &ui_font_title, edge, y, C_TEXT, g->label, UI_LEFT);
+    edge.x = (uint16_t)(r.x + r.w - 10 - ui_text_width(&ui_font_title, g->sub));
+    ui_text_at(c, &ui_font_title, edge, y, C_TEXT, g->sub, UI_LEFT);
+    int d = 12;
+    int room = r.w - 2 * 50 - 30;
+    int content = g->dots ? dots_w(g->dots, d) : ui_text_width(&ui_font_label, g->value);
+    content = content > room ? room : content;
+    int x = r.x + (r.w - 30 - content) / 2;
+    ui_text_at(c, &ui_font_icon_small, (db_rect_t){(uint16_t)x, r.y, 26, r.h}, y - 1, g->icon_color, g->icon,
+               UI_LEFT);
+    db_rect_t mid = {(uint16_t)(x + 30), r.y, (uint16_t)room, r.h};
+    if (g->dots) {
+        draw_dots(c, mid.x + content / 2, r.y + r.h / 2, room, g->dots, d, C_TEXT, false);
+    } else {
+        ui_text_at(c, &ui_font_label, mid, y - 3, C_TEXT, g->value, UI_LEFT);
+    }
+}
+
+/* A square key drawn upright, turned for a deck Companion rotates: 90 means the deck itself is turned
+ * clockwise, so the picture turns the other way. */
+static void turn_key(ui_canvas_t *c, db_rect_t r, int turn)
+{
+    int n = r.w;
+    uint8_t *was = malloc((size_t)n * n * 3);
+    if (!was) {
+        return;
+    }
+    for (int y = 0; y < n; y++) {
+        memcpy(was + (size_t)y * n * 3, c->px + ((size_t)(r.y + y) * c->w + r.x) * 3, (size_t)n * 3);
+    }
+    for (int y = 0; y < n; y++) {
+        for (int x = 0; x < n; x++) {
+            int sx = turn == 90 ? n - 1 - y : (turn == -90 ? y : n - 1 - x);
+            int sy = turn == 90 ? x : (turn == -90 ? n - 1 - x : n - 1 - y);
+            memcpy(c->px + ((size_t)(r.y + y) * c->w + r.x + x) * 3, was + ((size_t)sy * n + sx) * 3, 3);
+        }
+    }
+    free(was);
+}
+
 ui_layout_t ui_layout_of(const db_device_info_t *info)
 {
     ui_layout_t l = {.encoders = info->encoder_count, .strip = false};
@@ -329,6 +422,7 @@ ui_layout_t ui_layout_of(const db_device_info_t *info)
         const db_target_t *t = &d->targets[i];
         l.strip |=
             t->kind == DB_TARGET_STRIP && info->encoder_count; /* the Neo's info bar is no menu strip */
+        l.bar |= t->kind == DB_TARGET_STRIP && !info->encoder_count;
         if (t->kind == DB_TARGET_KEY && (!seen || t->rect.y == first_y)) {
             first_y = t->rect.y;
             l.key_px = t->rect.h;
@@ -349,9 +443,17 @@ int ui_render(ui_canvas_t *c, const db_device_info_t *dev, const ui_screen_t *sc
     for (uint8_t i = 0; i < d->target_count && n < max; i++) {
         const db_target_t *t = &d->targets[i];
         strip = t->kind == DB_TARGET_STRIP && dev->encoder_count ? t : strip;
+        if (t->kind == DB_TARGET_STRIP && !dev->encoder_count &&
+            (!shown || memcmp(&sc->bar, &shown->bar, sizeof(sc->bar)) != 0)) {
+            draw_bar(c, &sc->bar, t->rect);
+            dirty[n++] = t->rect;
+        }
         if (t->kind == DB_TARGET_KEY && t->index < UI_MAX_KEYS &&
             (!shown || memcmp(&sc->tiles[t->index], &shown->tiles[t->index], sizeof(ui_tile_t)) != 0)) {
             draw_tile(c, &sc->tiles[t->index], t->rect, &sc->qr);
+            if (sc->tiles[t->index].turn && t->rect.w == t->rect.h) {
+                turn_key(c, t->rect, sc->tiles[t->index].turn);
+            }
             dirty[n++] = t->rect;
         }
     }
