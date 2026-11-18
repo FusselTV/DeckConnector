@@ -5,3 +5,4 @@
 /* Every built-in driver; db_driver.c lists them. */
 extern const db_driver_t db_driver_elgato_gen1;
 extern const db_driver_t db_driver_elgato_gen2;
+extern const db_driver_t db_driver_mirabox;

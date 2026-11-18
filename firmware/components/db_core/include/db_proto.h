@@ -27,6 +27,7 @@ typedef enum {
     DB_ACK_REJECTED_ROLE = 3,
     DB_ACK_NO_DEVICE = 4,
     DB_ACK_BUSY = 5,
+    DB_ACK_TOO_BIG = 6,
 } db_ack_result_t;
 
 typedef struct {

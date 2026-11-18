@@ -46,6 +46,7 @@ ICONS = {
     "refresh-cw": "DHCP",
     "pin": "FIXED",
     "languages": "LANG",
+    "lock": "LOCK",
 }
 ICON_FONTS = [("icon", 50), ("icon_mid", 34), ("icon_small", 22)]
 HERE = Path(__file__).resolve().parents[2] / "firmware/components/db_ui"

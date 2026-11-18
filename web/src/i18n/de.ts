@@ -21,6 +21,7 @@ export const de: Dict = {
   'hdr.logout': 'Abmelden',
   'prog.companion': 'Companion',
   'prog.app': 'Elgato App',
+  'src.app_elgato': 'Die Elgato App kann nur Elgato-Decks nutzen.',
   'prog.server': 'Eigener Server',
   'prog.unknown': 'Unbekannt',
   'via.satellite': 'Satellite',
@@ -568,6 +569,14 @@ export const de: Dict = {
   'wifi.open': 'offen',
   'wifi.none': 'Kein Netz gefunden.',
   'wifi.hidden': 'Verborgenes Netz…',
+  'wifi2.title': 'Zweites WLAN (Ersatz)',
+  'wifi2.help':
+    'Der Connector nimmt es, wenn das erste WLAN ausfällt, und geht zurück, sobald das erste wieder da ist.',
+  'wifi2.remove': 'Ersatz-WLAN entfernen',
+  'wifi2.in_use': 'Ersatz',
+  'wifi2.remove_t': 'Ersatz-WLAN entfernen?',
+  'wifi2.remove_b':
+    'Der Connector ist gerade im Ersatz-WLAN und wechselt dann ins WLAN {s}. Ist es nicht in Reichweite, erreichst du ihn nur noch über das Kabel.',
   'src.table': 'Eingerichtete Quellen',
   'src.empty': 'Noch keine Quelle eingerichtet.',
   'src.add': 'Quelle hinzufügen',

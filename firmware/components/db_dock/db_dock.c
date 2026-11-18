@@ -1141,6 +1141,7 @@ static void sync_services(void *arg)
  * deck that changed: the others' hosts must not see their dock go. */
 static void on_device(int deck, const db_device_info_t *info)
 {
+    info = info && info->dock ? info : NULL;
     xSemaphoreTake(s.info_lock, portMAX_DELAY);
     if (info) {
         attached[deck] = *info;
@@ -1279,7 +1280,7 @@ esp_err_t db_dock_start(void (*hosts_changed)(void))
     esp_timer_create_args_t timer = {.callback = sync_services, .name = "dock_mdns"};
     esp_timer_create(&timer, &services_timer);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        if (db_deck_info(d, &attached[d])) {
+        if (db_deck_info(d, &attached[d]) && attached[d].dock) {
             s.info[d].device = &attached[d];
             device_service(d, &attached[d]);
         }
