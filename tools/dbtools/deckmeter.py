@@ -25,7 +25,6 @@ import os
 import re
 import signal
 import socket
-import socketserver
 import struct
 import subprocess
 import sys
@@ -40,6 +39,7 @@ from PIL import Image, ImageDraw
 from dbtools.benchlock import bench_lock
 from dbtools.load import password
 from dbtools.safety import PRODUCTION, host_addr, real_input_target, require_input_gate
+from dbtools.satfake import FakeSatellite
 from dbtools.server import Server, local_ip
 from dbtools.site import BENCH_DIR, CAMERA, CAMERA_REGIONS, HOST, SERIAL, UNIFI, need
 
@@ -487,38 +487,9 @@ def learn_classes(r: Run, draw, regions) -> dict:
     return cents
 
 
-def rgb_bitmap(c: int, w: int, h: int) -> str:
-    return base64.b64encode(bytes(COLORS[c]) * w * h).decode()
-
-
-class FakeSatellite(socketserver.ThreadingTCPServer):
-    """Companion's Satellite API, enough for the bridge to connect and take pictures (as test_satellite_fake)."""
-
-    allow_reuse_address = True
-    daemon_threads = True
-
-    def __init__(self, port: int):
-        srv = self
-        srv.device, srv.conn = None, None
-
-        class Handler(socketserver.StreamRequestHandler):
-            def handle(self):
-                srv.conn = self.connection
-                self.wfile.write(b"BEGIN CompanionVersion=fake ApiVersion=1.16.0\n")
-                self.wfile.write(b"CAPS BITMAP_FORMATS=rgb ROTARY_AMOUNT=1\n")
-                for raw in self.rfile:
-                    line = raw.decode().strip()
-                    if line.startswith("ADD-DEVICE"):
-                        srv.device = line.split('DEVICEID="', 1)[1].split('"', 1)[0]
-                        self.wfile.write(f'ADD-DEVICE OK DEVICEID="{srv.device}"\n'.encode())
-                    elif line.startswith("PING"):
-                        self.wfile.write(b"PONG\n")
-
-        super().__init__(("0.0.0.0", port), Handler)
-        threading.Thread(target=self.serve_forever, daemon=True).start()
-
-    def key(self, control: str, c: int, w: int, h: int) -> str:
-        return f'KEY-STATE DEVICEID="{self.device}" CONTROLID="{control}" BITMAP="{rgb_bitmap(c, w, h)}"\n'
+def key_line(device: str | None, control: str, c: int, w: int, h: int) -> str:
+    bitmap = base64.b64encode(bytes(COLORS[c]) * w * h).decode()
+    return f'KEY-STATE DEVICEID="{device}" CONTROLID="{control}" BITMAP="{bitmap}"\n'
 
 
 class Loop:
@@ -640,8 +611,8 @@ def m_image(r: Run) -> dict:
                 if a.kind == "key"
                 else ([(f"{i // 4}/{i % 4}", 120, 120) for i in range(8)] + [(f"2/{i}", 200, 100) for i in range(4)])
             )
-            pics = {c: "".join(fake.key(k, c, w, h) for k, w, h in controls).encode() for c in (0, 1, 2)}
-            draw = lambda s: fake.conn.sendall(pics[s["c"]])  # noqa: E731
+            pics = {c: "".join(key_line(fake.device, k, c, w, h) for k, w, h in controls).encode() for c in (0, 1, 2)}
+            draw = lambda s: fake.sendall(pics[s["c"]])  # noqa: E731
             cents = learn_classes(r, draw, regions)
             sends = burst(rates, a.secs, draw)
             return {"source": "satellite fake", "kind": a.kind, "rates": analyse(r, sends, regions, cents)}
@@ -657,7 +628,8 @@ def m_image(r: Run) -> dict:
             else:
                 rect, pics = (0, 0, 800, 480), {c: jpeg(c) for c in (0, 1, 2)}
             cents = learn_classes(r, lambda s: loop.run(bridge.send_image(rect, pics[s["c"]])), regions)
-            acks, futs = {}, []
+            acks: dict[int, float] = {}
+            futs = []
 
             def draw(s):
                 fut = loop.run(bridge.post_image(rect, pics[s["c"]]))
@@ -770,7 +742,7 @@ def iptables(op: str, ips: list):
 
 
 def m_blip(r: Run) -> dict:
-    out = {}
+    out: dict[str, object] = {}
     with r.mode(r.a.mode):
         ips = [r.a.target]
         if r.bridge and (wlan := r.bridge.status()["network"]["wlan"].get("ip")):

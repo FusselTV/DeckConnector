@@ -4,16 +4,16 @@ server on this machine stands in for Companion, so the bridge is never pointed a
 
 import json
 import random
-import threading
 import time
 import urllib.error
 import urllib.request
 
 import pytest
 from conftest import HOST, api, get_config, put_config, status
-from test_satellite_fake import PORT, Fake, Server, drawing, wait
+from test_satellite_fake import PORT, drawing, wait
 from zeroconf import ServiceBrowser, Zeroconf
 
+from dbtools.satfake import FakeSatellite
 from dbtools.server import local_ip
 
 KEYS = ("satellite", "satellite_auto", "satellite_pin", "controller", "host")
@@ -36,9 +36,7 @@ def setup_request(body: dict, kind: str = "application/json", host: str = HOST) 
 
 @pytest.fixture
 def fake():
-    srv = Server(("0.0.0.0", PORT), Fake)
-    srv.lines, srv.device, srv.conn = [], None, None
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    srv = FakeSatellite(PORT)
     cfg = get_config()
     try:
         yield srv
@@ -102,7 +100,7 @@ def test_setup_asks_on_the_deck_once_set_up(fake):
     assert setup_request({"host": "192.0.2.2", "port": 16622})[0] == 409, "a second Companion replaced the question"
     assert get_config()["satellite"] == f"{local_ip()}:{PORT}", "taken without a tap on the deck"
     assert any(f"{ip}:16622 asks for the deck" in e["text"] for e in json.loads(api("GET", "/api/events")[1]))
-    assert wait(lambda: drawing(), 75), "the deck stayed covered after the question ran out"
+    assert wait(drawing, 75), "the deck stayed covered after the question ran out"
     print(f"\ncovered for {time.time() - start - 4.2:.0f} s")
     code = setup_request({"host": ip, "port": 16623})[0]
     assert code == 409, "an unanswered Companion could cover the deck again at once, on another port too"

@@ -19,13 +19,6 @@ PAUSE_S = 0.4
 WATCH_S = 2.5
 
 
-def post(c: Client, path: str, body: dict) -> None:
-    if not c.conn:
-        c.get("/api/status")  # opens the keep-alive connection
-    c.conn.request("POST", path, body=json.dumps(body), headers={"Authorization": c.auth, "X-DeckConnector": "1"})
-    c.conn.getresponse().read()
-
-
 def keys(c: Client) -> tuple:
     sc = json.loads(c.get("/api/screen")[2])
     rects = {(k["x"], k["y"], k["w"], k["h"]) for k in sc["keys"]}
@@ -36,7 +29,7 @@ def run(c: Client, encoder: int, turns: int, gap_ms: int, ticks: int, target: st
     """Milliseconds from the last turn to the last key change of the switch."""
     time.sleep(1.2)  # let the page before settle
     for _ in range(turns):
-        post(c, "/api/input", {"encoder": encoder, "action": "turn", "ticks": ticks, "real": target})
+        c.send("POST", "/api/input", {"encoder": encoder, "action": "turn", "ticks": ticks, "real": target})
         time.sleep(gap_ms / 1000)
     last_turn = time.time() - gap_ms / 1000
     seen, changes = keys(c), []

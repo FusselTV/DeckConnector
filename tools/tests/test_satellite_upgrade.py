@@ -7,14 +7,14 @@ import re
 import socket
 import struct
 import subprocess
-import threading
 import time
 
 import pytest
 from conftest import HOST, api, get_config, put_config, status
 from test_input_gate import CHECK
-from test_satellite_fake import Fake, Server, wait
+from test_satellite_fake import wait
 
+from dbtools.satfake import FakeSatellite, Handler
 from dbtools.server import local_ip
 
 KEYS = ("satellite", "satellite_auto", "satellite_pin", "controller", "host")
@@ -67,7 +67,7 @@ def me():
         )
 
 
-class Counting(Fake):
+class Counting(Handler):
     def handle(self):
         self.server.conns += 1
         super().handle()
@@ -75,9 +75,8 @@ class Counting(Fake):
 
 @pytest.fixture
 def fake():
-    srv = Server(("0.0.0.0", 16622), Counting)
-    srv.lines, srv.device, srv.conn, srv.conns = [], None, None, 0
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    srv = FakeSatellite(16622, Counting)
+    srv.conns = 0
     yield srv
     srv.shutdown()
     srv.server_close()

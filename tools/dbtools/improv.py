@@ -40,7 +40,7 @@ class Reader:
 
     def feed(self, chunk: bytes) -> list[tuple[int, bytes]]:
         self.buf += chunk
-        packets = []
+        packets: list[tuple[int, bytes]] = []
         while True:
             at = self.buf.find(HEADER)
             if at < 0:

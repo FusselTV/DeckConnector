@@ -73,6 +73,7 @@ def frames(fps: float):
         "-",
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    assert proc.stdout
     while True:
         raw = proc.stdout.read(800 * 480 * 3)
         if len(raw) < 800 * 480 * 3:
