@@ -9,16 +9,18 @@
  * `db_dev_t.state`.
  */
 
-typedef struct {
+/* Every call gets the io it was made on: one per attached device. */
+typedef struct db_hid_io db_hid_io_t;
+struct db_hid_io {
     /* Queue one output report. May return before the transfer finished. */
-    db_err_t (*write)(const uint8_t *report, size_t len);
+    db_err_t (*write)(const db_hid_io_t *io, const uint8_t *report, size_t len);
     /* Wait until every queued output report finished. */
-    db_err_t (*flush)(void);
+    db_err_t (*flush)(const db_hid_io_t *io);
     /* `buf[0]` must hold the report id on entry. */
-    db_err_t (*get_feature)(uint8_t *buf, size_t len, size_t *out_len);
-    db_err_t (*set_feature)(const uint8_t *buf, size_t len);
+    db_err_t (*get_feature)(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len);
+    db_err_t (*set_feature)(const db_hid_io_t *io, const uint8_t *buf, size_t len);
     size_t out_report_size;
-} db_hid_io_t;
+};
 
 typedef struct db_driver db_driver_t;
 

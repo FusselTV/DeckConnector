@@ -12,27 +12,31 @@
 /* Every page in every state on every deck: nothing may be cut, and the pictures land in build/ui for review.
  */
 
-static db_err_t no_write(const uint8_t *r, size_t len)
+static db_err_t no_write(const db_hid_io_t *io, const uint8_t *r, size_t len)
 {
+    (void)io;
     (void)r;
     (void)len;
     return DB_OK;
 }
 
-static db_err_t no_flush(void)
+static db_err_t no_flush(const db_hid_io_t *io)
 {
+    (void)io;
     return DB_OK;
 }
 
-static db_err_t feature(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
+    (void)io;
     memset(buf + 1, 0, len - 1);
     *out_len = len;
     return DB_OK;
 }
 
-static db_err_t set_feature(const uint8_t *buf, size_t len)
+static db_err_t set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
+    (void)io;
     (void)buf;
     (void)len;
     return DB_OK;

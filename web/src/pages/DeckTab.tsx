@@ -67,6 +67,7 @@ export function DeckTab() {
     chord: cfg?.menu_chord ?? 'auto',
     hold: (cfg?.menu_hold_ms ?? 2000) / 1000,
     usb: cfg?.usb_speed ?? 'auto',
+    max: String(cfg?.max_decks) as '1' | '2' | '3' | '4',
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
@@ -92,6 +93,7 @@ export function DeckTab() {
       ...(changed('chord') ? { menu_chord: v.chord } : {}),
       ...(changed('hold') ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
       ...(changed('usb') ? { usb_speed: v.usb } : {}),
+      ...(changed('max') ? { max_decks: Number(v.max) } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
@@ -175,6 +177,21 @@ export function DeckTab() {
           />
           {multi && <span className="hint">{t('deck.settings_for')}</span>}
         </fieldset>
+        {(multi || !!st.decks_over_limit) && (
+          <fieldset className="gate field" disabled={!cfg}>
+            <span className="flabel">
+              {t('deck.max')}
+              <Help label={t('deck.max')} text={t('deck.max_h')} />
+            </span>
+            <Seg
+              id="max-decks"
+              label={t('deck.max')}
+              value={v.max}
+              onChange={(max) => set({ max })}
+              options={(['1', '2', '3', '4'] as const).map((n) => [n, n] as const)}
+            />
+          </fieldset>
+        )}
       </Card>
       <fieldset className="gate" disabled={!cfg}>
         <Card id="card-dmenu" icon={SquareMenu} title={t('deck.menu')}>

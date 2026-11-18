@@ -189,7 +189,7 @@ static void read_feature_string(db_dev_t *dev, uint8_t id, size_t skip, char *ou
     uint8_t buf[FEATURE_LEN] = {id};
     size_t n = 0;
     out[0] = '\0';
-    if (dev->io->get_feature(buf, sizeof(buf), &n) != DB_OK || n < 2) {
+    if (dev->io->get_feature(dev->io, buf, sizeof(buf), &n) != DB_OK || n < 2) {
         return;
     }
     size_t end = (size_t)buf[1] + 2;
@@ -250,7 +250,7 @@ static void read_unit_info(db_dev_t *dev, const model_t *m)
     uint8_t buf[FEATURE_LEN] = {0x08};
     size_t n = 0;
     uint8_t *u = dev->info.unit_info;
-    if (dev->io->get_feature(buf, sizeof(buf), &n) == DB_OK && n >= 21 && buf[0] == 0x08) {
+    if (dev->io->get_feature(dev->io, buf, sizeof(buf), &n) == DB_OK && n >= 21 && buf[0] == 0x08) {
         u[0] = buf[1];
         u[1] = buf[2];
         memcpy(u + 3, buf + 3, 13);
@@ -331,14 +331,14 @@ static db_err_t write_image(db_dev_t *dev, const db_target_t *t, db_rect_t rect,
         memset(rep, 0, sizeof(rep));
         write_header(rep, t, rect, m->strip, off + n >= len, part, (uint16_t)n);
         memcpy(rep + hdr, data + off, n);
-        db_err_t err = dev->io->write(rep, sizeof(rep));
+        db_err_t err = dev->io->write(dev->io, rep, sizeof(rep));
         if (err != DB_OK) {
             return err;
         }
         off += n;
         part++;
     }
-    return dev->io->flush();
+    return dev->io->flush(dev->io);
 }
 
 static bool parse_output(const db_dev_t *dev, const uint8_t *r, size_t len, db_chunk_t *out)
@@ -547,7 +547,7 @@ static db_err_t set_brightness(db_dev_t *dev, uint8_t pct)
         return DB_OK; /* the Pedal has nothing to light; the Elgato dock sends it no display reports either */
     }
     uint8_t buf[FEATURE_LEN] = {0x03, 0x08, pct > 100 ? 100 : pct};
-    return dev->io->set_feature(buf, sizeof(buf));
+    return dev->io->set_feature(dev->io, buf, sizeof(buf));
 }
 
 const db_driver_t db_driver_elgato_gen2 = {

@@ -9,9 +9,11 @@
 
 /*
  * The on-device UI. It decides who may draw on the device: the menu and updates win, then the dock client or
- * the active server. Whenever nobody else draws, it shows what is missing (network, server, client).
+ * the active server. Whenever nobody else draws, it shows what is missing (network, server, client), on every
+ * deck. Questions and the password show on every deck too.
  *
- * Menu: hold the two controls db_ui_menu_chord() names for `menu_hold_ms`, or call db_ui_open_menu().
+ * Menu: hold the two controls db_ui_menu_chord() names for `menu_hold_ms` on a deck, or call
+ * db_ui_open_menu(). It opens on that deck only.
  */
 
 esp_err_t db_ui_start(void);
@@ -22,12 +24,13 @@ void db_ui_hosts_changed(void);
 /* pct < 0 ends the update screen. */
 void db_ui_set_update(int pct, bool wlan_chip);
 void db_ui_set_c6_version(const char *version);
-/* The source that draws once no menu or update covers it: the configured host, else the first of its kind. */
-db_source_t db_ui_chosen_source(void);
+/* The source that draws on `deck` once no menu or update covers it: the configured host, else the first of
+ * its kind. */
+db_source_t db_ui_chosen_source(int deck);
 /* Draw again and pick the writer again, e.g. after the controller changed. */
 void db_ui_refresh(void);
 /* What the deck shows as one JPEG, upright; the caller frees it with heap_caps_free. */
-esp_err_t db_ui_snapshot(uint8_t **jpeg, size_t *len);
+esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len);
 /* The two controls that open the menu (config `menu_chord`): index 0 and *last of the encoders or the keys.
  * False when there are none. */
 bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last);
@@ -40,8 +43,8 @@ bool db_ui_login_shown(void);
 bool db_ui_password_shown(void);
 /* The web wizard's step (PUT /api/setup), shown on the deck during setup. */
 void db_ui_setup_step(int step);
-/* ESP_ERR_INVALID_STATE when no deck is connected. */
-esp_err_t db_ui_open_menu(void);
+/* On `deck`, closing it on any other. ESP_ERR_INVALID_STATE when that deck is not connected. */
+esp_err_t db_ui_open_menu(int deck);
 /* Back to the home page, like the menu's close key; also hides the password page, cancels the reset question
  * and denies a login request. The deck goes back to who draws. */
 void db_ui_close_menu(void);

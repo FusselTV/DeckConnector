@@ -5,8 +5,11 @@
 /*
  * A virtual Stream Deck behind a db_hid_io_t, built only from Elgato's HID pages.
  * It answers feature reports like the real deck, checks every report a driver sends and records each
- * protocol violation. The io callbacks carry no context, so there is one current deck at a time.
+ * protocol violation. Up to DECK_EMU_DECKS decks run at once, each behind its own io; the deck_emu_* calls are
+ * about the current one, which a driver call through an io makes its deck.
  */
+
+#define DECK_EMU_DECKS 4
 
 typedef enum { DECK_CLASSIC, DECK_XL, DECK_NEO, DECK_PLUS, DECK_SIXKEY, DECK_PEDAL } deck_family_t;
 
@@ -40,6 +43,9 @@ extern const deck_model_t deck_models[];
 extern const size_t deck_model_count;
 const deck_model_t *deck_model(uint16_t pid);
 
+/* The deck the other calls are about, 0 at first. */
+void deck_emu_select(int deck);
+/* The current deck becomes a fresh `pid`. */
 bool deck_emu_start(uint16_t pid);
 const db_hid_io_t *deck_emu_io(void);
 /* Forget violations, images, reports and brightness. Key and encoder states stay. */

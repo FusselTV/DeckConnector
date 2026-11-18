@@ -28,7 +28,9 @@ Mit PoE laufen Platine und Deck über ein Kabel. Stecken PoE und USB-C, läuft d
 
 Ein Server bekommt für ein ungetestetes Modell `"tested": false` in der `device`-Nachricht.
 
-Hinter einem USB-Hub steuert die Platine mehr als ein Deck. Das gewählte Programm steuert alle, jedes als eigene Surface oder eigenes Gerät. Ein Hub erzwingt oft Full Speed, dann kommen Bilder langsamer.
+Hinter einem USB-Hub steuert die Platine bis zu vier Decks. Standard sind zwei, denn alle Decks an einem Hub ohne eigenes Netzteil teilen sich die 2 A des USB-Ports der Platine. Das Limit stellst du in der Weboberfläche unter Deck ein. Decks über dem Limit bleiben dunkel. Ein kleineres Limit gilt für Decks, die du danach einsteckst.
+
+Ein Deck allein ist immer Deck 1. Bei mehreren Decks behält jedes seine Nummer, auch wenn du es neu einsteckst. Companion und die Elgato-App sehen jedes Deck als eigene Surface oder eigenes Gerät. Ein [eigener Server](/de/docs/own-server) zeichnet nur auf dem Deck mit der kleinsten Nummer. Das Menü öffnet sich auf dem Deck, an dem du die Tasten hältst. Ein Hub erzwingt oft Full Speed, dann kommen Bilder langsamer.
 
 Messwerte stehen unter [Messwerte](/de/docs/speed).
 

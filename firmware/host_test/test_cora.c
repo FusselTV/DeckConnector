@@ -20,7 +20,8 @@ static void assert_prefix(const char *hex, const uint8_t *got)
     TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, n);
 }
 
-static db_cora_dock_t dock = {.serial = "AB00A00000AAAA", .mac = {0x80, 0x7b, 0x1e, 0x00, 0x00, 0x01}};
+static db_cora_dock_t dock = {
+    .serial = "AB00A00000AAAA", .mac = {0x80, 0x7b, 0x1e, 0x00, 0x00, 0x01}, .device_port = 5344};
 
 void setUp(void)
 {
@@ -85,6 +86,9 @@ static void test_attached_device_info(void)
                   "00000000454c30304b314130303030310000000000000000000000000000000000000000",
                   out); /* a Stream Deck +, up to the port */
     TEST_ASSERT_EQUAL_UINT16(5344, db_get_u16(out + 126));
+    dock.device_port = 5346; /* the second deck's device */
+    db_cora_dock_report(0x1c, &dock, out);
+    TEST_ASSERT_EQUAL_UINT16(5346, db_get_u16(out + 126));
 }
 
 static void test_model_names_match_the_dock(void)

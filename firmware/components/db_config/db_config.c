@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "db_device.h"
 #include "db_json.h"
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -66,6 +67,7 @@ static void defaults(db_config_t *c)
                        .menu_chord = "auto",
                        .menu_hold_ms = 2000,
                        .lang = "de",
+                       .max_decks = 2,
                        .usb_speed = "auto",
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
@@ -127,6 +129,9 @@ esp_err_t db_config_load(void)
             }
             if (memcmp(current.lang, "en", sizeof(current.lang)) != 0) { /* padding of an older blob */
                 strcpy(current.lang, fresh.lang);
+            }
+            if (current.max_decks < 1 || current.max_decks > DB_MAX_DECKS) {
+                current.max_decks = fresh.max_decks;
             }
             uint8_t mac[6];
             if (!db_config_bssid(current.wifi_bssid, mac)) {
@@ -295,6 +300,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "qr_login", !cfg->qr_login_off);
     db_json_bool(&j, "satellite_auto", !cfg->satellite_auto_off);
     db_json_int(&j, "menu_hold_ms", cfg->menu_hold_ms);
+    db_json_int(&j, "max_decks", cfg->max_decks);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -563,6 +569,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
             return false;
         }
         cfg->menu_hold_ms = (uint16_t)hold->valueint;
+    }
+    const cJSON *max = cJSON_GetObjectItemCaseSensitive(root, "max_decks");
+    if (max) {
+        if (!cJSON_IsNumber(max) || max->valueint < 1 || max->valueint > DB_MAX_DECKS) {
+            snprintf(err, err_cap, "max_decks: 1 to %d expected", DB_MAX_DECKS);
+            return false;
+        }
+        cfg->max_decks = (uint8_t)max->valueint;
     }
     return true;
 }

@@ -10,7 +10,8 @@
  */
 int api_config(const char *body, char *reply, size_t cap);
 int api_config_token(const char *body, char *reply, size_t cap);
-int api_input(const char *body, char *reply, size_t cap);
+/* `deck` -1: the one the body names in "deck" (a serial), else the first. */
+int api_input(int deck, const char *body, char *reply, size_t cap);
 
 /* The HTTP handlers of the API; http.c routes to them. */
 extern size_t (*api_status_json)(char *buf, size_t cap);
@@ -50,7 +51,7 @@ esp_err_t post_reboot(httpd_req_t *req);
 esp_err_t delete_ap(httpd_req_t *req);
 esp_err_t post_reset(httpd_req_t *req);
 esp_err_t get_log(httpd_req_t *req);
-size_t api_screen_json(char *buf, size_t cap);
+size_t api_screen_json(int deck, char *buf, size_t cap);
 esp_err_t get_screen(httpd_req_t *req);
 esp_err_t get_screen_image(httpd_req_t *req);
 esp_err_t get_screen_jpg(httpd_req_t *req);

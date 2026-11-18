@@ -42,7 +42,7 @@ static void write_device_fields(db_json_t *j, const db_device_info_t *dev)
     db_json_int(j, "height", dev->displays[0].height);
 }
 
-/* `decks` lists every attached deck (one for now; `?deck=<serial>` picks one); `device` is the first. */
+/* `decks` lists every attached deck by slot (`?deck=<serial>` picks one); `device` is the first. */
 static void write_device(db_json_t *j)
 {
     /* too big for the callers' stacks, and not static: the web server, the web socket and the links call this
@@ -52,18 +52,23 @@ static void write_device(db_json_t *j)
         ESP_LOGE(TAG, "no memory for the device info");
         return; /* no "device" at all: null means no deck */
     }
-    bool present = db_deck_info(dev);
+    int first = db_deck_first();
     db_json_arr_open(j, "decks");
-    if (present) {
-        db_json_obj_open(j, NULL);
-        db_json_int(j, "number", 1);
-        write_device_fields(j, dev);
-        db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
-        db_json_bool(j, "hub", db_deck_behind_hub());
-        db_json_obj_close(j);
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (db_deck_info(d, dev)) {
+            db_json_obj_open(j, NULL);
+            db_json_int(j, "slot", d);
+            db_json_int(j, "number", d + 1); /* as before slots: read by scripts */
+            write_device_fields(j, dev);
+            db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
+            db_json_bool(j, "hub", db_deck_behind_hub(d));
+            db_json_str(j, "writer", db_deck_source_name(db_deck_writer(d)));
+            db_json_obj_close(j);
+        }
     }
     db_json_arr_close(j);
-    if (present) {
+    db_json_int(j, "decks_over_limit", db_deck_over_limit());
+    if (first >= 0 && db_deck_info(first, dev)) {
         db_json_obj_open(j, "device");
         write_device_fields(j, dev);
         db_json_obj_close(j);
@@ -103,7 +108,7 @@ static void write_network(db_json_t *j, bool live)
 }
 
 static void write_source(db_json_t *j, const char *kind, const char *host, uint32_t ip, bool connected,
-                         int source, const db_health_t *health)
+                         int deck, int source, const db_health_t *health)
 {
     char name[40] = "";
     if (ip) {
@@ -123,8 +128,9 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
                                                                 live state every second */
         db_json_str(j, "iface", connected ? (health->over_wlan ? "wlan" : "lan") : "");
     }
-    db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source());
-    db_json_bool(j, "drawing", connected && source >= 0 && (db_source_t)source == db_deck_writer());
+    db_json_int(j, "deck", deck); /* the slot whose writer it is */
+    db_json_bool(j, "chosen", source >= 0 && (db_source_t)source == db_ui_chosen_source(deck));
+    db_json_bool(j, "drawing", connected && source >= 0 && (db_source_t)source == db_deck_writer(deck));
     db_json_obj_close(j);
 }
 
@@ -135,21 +141,21 @@ static void write_sources(db_json_t *j, bool live)
     for (int i = 0; i < DB_MAX_SERVERS; i++) {
         if (db_link_url(i)[0]) {
             db_health_t h = db_link_health(i);
-            write_source(j, "server", db_link_url(i), 0, db_link_connected(i),
+            write_source(j, "server", db_link_url(i), 0, db_link_connected(i), db_link_deck(),
                          db_link_connected(i) ? DB_SOURCE_LINK0 + i : -1, &h);
         }
     }
     if (db_satellite_address()[0]) {
         db_health_t h = db_satellite_health();
-        write_source(j, "companion", db_satellite_address(), db_satellite_peer(), db_satellite_connected(),
-                     DB_SOURCE_SAT, &h);
+        write_source(j, "companion", db_satellite_address(), db_satellite_peer(), db_satellite_connected(-1),
+                     db_link_deck(), DB_SOURCE_SAT, &h);
     }
-    db_dock_host_t hosts[DB_DOCK_HOSTS];
-    size_t n = db_dock_hosts(hosts, DB_DOCK_HOSTS);
+    db_dock_host_t hosts[DB_DOCK_HOSTS * DB_MAX_DECKS];
+    size_t n = db_dock_hosts(-1, hosts, DB_DOCK_HOSTS * DB_MAX_DECKS);
     for (size_t i = 0; i < n; i++) {
         const char *kind = hosts[i].kind == DB_CTRL_SERVER ? "unknown" : db_controller_name(hosts[i].kind);
-        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].source,
-                     NULL);
+        write_source(j, kind, hosts[i].ip, inet_addr(hosts[i].ip), hosts[i].source >= 0, hosts[i].deck,
+                     hosts[i].source, NULL);
     }
     db_json_arr_close(j);
     char ip[16];
@@ -268,7 +274,8 @@ static void write_status(db_json_t *j, bool live)
     db_json_bool(j, "rerun", db_config()->setup_done && db_web_setup_step());
     db_json_obj_close(j);
     db_json_str(j, "controller", db_controller_name(db_config()->controller));
-    db_json_str(j, "writer", db_deck_source_name(db_deck_writer()));
+    int first = db_deck_first();
+    db_json_str(j, "writer", db_deck_source_name(first >= 0 ? db_deck_writer(first) : DB_SOURCE_UI));
     db_json_bool(j, "menu_open", db_ui_menu_open());
     write_device(j);
     write_network(j, live);
@@ -413,6 +420,7 @@ static void apply_controller(void)
         ESP_LOGI(TAG, "controller: %s %s", db_controller_name(c), db_config()->host);
         db_link_set_enabled(c == DB_CTRL_SERVER);
     }
+    db_deck_set_max(db_config()->max_decks);
     db_ui_refresh(); /* also for setup_done and qr_login, which change what the deck shows */
 }
 
@@ -509,7 +517,7 @@ void app_main(void)
 
     started("deck screen", db_ui_start());
     db_net_on_change(on_net);
-    started("deck", db_deck_start(strcmp(db_config()->usb_speed, "full") == 0));
+    started("deck", db_deck_start(strcmp(db_config()->usb_speed, "full") == 0, db_config()->max_decks));
     started("network", db_net_start());
     db_ui_set_c6_version(db_ota_c6_version());
     db_ota_set_progress_cb(on_ota_progress);

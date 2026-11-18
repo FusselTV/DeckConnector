@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "db_config.h"
+#include "db_deck.h"
 #include "db_json.h"
 #include "db_serial.h"
 #include "db_ui.h"
@@ -38,11 +39,17 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_null(&j, "at");
     db_json_obj_close(&j);
     db_json_arr_open(&j, "decks");
-    db_json_obj_open(&j, NULL);
-    db_json_str(&j, "model", "Stream Deck +");
-    db_json_str(&j, "serial", "SIM0001");
-    db_json_obj_close(&j);
+    db_device_info_t dev;
+    for (int d = 0; db_deck_info(d, &dev); d++) {
+        db_json_obj_open(&j, NULL);
+        db_json_int(&j, "slot", d);
+        db_json_int(&j, "number", d + 1);
+        db_json_str(&j, "model", dev.model);
+        db_json_str(&j, "serial", dev.serial);
+        db_json_obj_close(&j);
+    }
     db_json_arr_close(&j);
+    db_json_int(&j, "decks_over_limit", db_deck_over_limit());
     db_json_arr_open(&j, "sources");
     db_json_arr_close(&j);
     db_json_obj_close(&j);

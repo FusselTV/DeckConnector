@@ -14,27 +14,31 @@ size_t tinfl_decompress_mem_to_mem(void *out, size_t out_len, const void *src, s
     return uncompress(out, &n, src, src_len) == Z_OK ? (size_t)n : (size_t)-1;
 }
 
-static db_err_t no_write(const uint8_t *r, size_t len)
+static db_err_t no_write(const db_hid_io_t *io, const uint8_t *r, size_t len)
 {
+    (void)io;
     (void)r;
     (void)len;
     return DB_OK;
 }
 
-static db_err_t no_flush(void)
+static db_err_t no_flush(const db_hid_io_t *io)
 {
+    (void)io;
     return DB_OK;
 }
 
-static db_err_t feature(uint8_t *buf, size_t len, size_t *out_len)
+static db_err_t feature(const db_hid_io_t *io, uint8_t *buf, size_t len, size_t *out_len)
 {
+    (void)io;
     memset(buf, 0, len);
     *out_len = len;
     return DB_OK;
 }
 
-static db_err_t set_feature(const uint8_t *buf, size_t len)
+static db_err_t set_feature(const db_hid_io_t *io, const uint8_t *buf, size_t len)
 {
+    (void)io;
     (void)buf;
     (void)len;
     return DB_OK;

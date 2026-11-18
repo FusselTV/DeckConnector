@@ -62,6 +62,7 @@ typedef struct {
     bool satellite_auto_off; /* JSON satellite_auto: false; a person removed the address or said no on the
                                 deck, so no offer and no move from the dock path to Satellite */
     char lang[3];            /* what the deck's own screens speak: "de" or "en" */
+    uint8_t max_decks;       /* decks driven at once, 1 to DB_MAX_DECKS: they share the 2 A of the USB port */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

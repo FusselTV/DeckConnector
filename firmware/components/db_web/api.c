@@ -107,9 +107,10 @@ static int config_edit(const char *body, char *reply, size_t cap)
     memcpy(live.menu_chord, old.menu_chord, sizeof(old.menu_chord));
     memcpy(live.lang, old.lang, sizeof(old.lang));
     live.menu_hold_ms = old.menu_hold_ms;
+    live.max_decks = old.max_decks;
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
-    if (cfg.brightness != old.brightness) {
-        db_deck_set_brightness(cfg.brightness);
+    for (int d = 0; cfg.brightness != old.brightness && d < DB_MAX_DECKS; d++) {
+        db_deck_set_brightness(d, cfg.brightness);
     }
     if (!restart) {
         snprintf(reply, cap, "{\"ok\":true,\"restart\":false}");
@@ -244,12 +245,22 @@ static const char *read_input(const cJSON *root, const db_device_info_t *dev, db
     return NULL;
 }
 
-int api_input(const char *body, char *reply, size_t cap)
+int api_input(int deck, const char *body, char *reply, size_t cap)
 {
-    if (!db_deck_info(&dev)) {
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *serial = cJSON_GetObjectItemCaseSensitive(root, "deck");
+    if (cJSON_IsString(serial)) {
+        deck = db_deck_find(serial->valuestring);
+        if (deck < 0) {
+            cJSON_Delete(root);
+            return fail(reply, cap, 404, "no such deck");
+        }
+    }
+    deck = deck < 0 ? db_deck_first() : deck;
+    if (deck < 0 || !db_deck_info(deck, &dev)) {
+        cJSON_Delete(root);
         return fail(reply, cap, 409, "no deck attached");
     }
-    cJSON *root = cJSON_Parse(body);
     db_input_t ev;
     db_input_t then = {.kind = 0};
     const char *err = root ? read_input(root, &dev, &ev, &then) : "invalid JSON";
@@ -269,9 +280,10 @@ int api_input(const char *body, char *reply, size_t cap)
     if (then.kind && db_deck_input_space() < 2) {
         return fail(reply, cap, 503, "input queue full");
     }
-    esp_err_t sent = db_deck_simulate(&ev, real, only_ip);
+    esp_err_t sent = db_deck_simulate(deck, &ev, real, only_ip);
     if (sent == ESP_OK && then.kind) { /* the down is in: the up must follow, or the key stays held */
-        for (int i = 0; (sent = db_deck_simulate(&then, real, only_ip)) == ESP_ERR_TIMEOUT && i < 20; i++) {
+        for (int i = 0; (sent = db_deck_simulate(deck, &then, real, only_ip)) == ESP_ERR_TIMEOUT && i < 20;
+             i++) {
         }
     }
     if (sent == ESP_ERR_INVALID_STATE) {
@@ -517,6 +529,8 @@ esp_err_t post_companion_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
+int web_deck;
+
 /* `?deck=<serial>` picks a deck; without it the first. A deck that is not attached gets a 404. While the deck
  * shows a login code or a password, its pictures would hand a token a password session. */
 bool web_deck_refused(httpd_req_t *req)
@@ -527,25 +541,33 @@ bool web_deck_refused(httpd_req_t *req)
     }
     char query[64];
     char want[32];
+    int first = db_deck_first();
+    web_deck = first >= 0 ? first : 0; /* none attached: the routes answer for slot 0, which has none */
     if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
         httpd_query_key_value(query, "deck", want, sizeof(want)) != ESP_OK) {
         return false;
     }
-    if (db_deck_info(&dev) && strcmp(dev.serial, want) == 0) {
+    web_deck = db_deck_find(want);
+    if (web_deck >= 0) {
         return false;
     }
     send_error(req, "404 Not Found", "no such deck");
     return true;
 }
 
+static int input_here(const char *body, char *reply, size_t cap)
+{
+    return api_input(web_deck, body, reply, cap);
+}
+
 esp_err_t post_input(httpd_req_t *req)
 {
-    return body_api(req, api_input);
+    return body_api(req, input_here);
 }
 
 esp_err_t post_menu(httpd_req_t *req)
 {
-    if (db_ui_open_menu() != ESP_OK) {
+    if (db_ui_open_menu(web_deck) != ESP_OK) {
         return send_error(req, "409 Conflict", "no deck connected");
     }
     return send_json(req, "{\"ok\":true}");
@@ -632,7 +654,7 @@ esp_err_t post_deck_reconnect(httpd_req_t *req)
 
 esp_err_t post_deck_stall(httpd_req_t *req)
 {
-    if (db_deck_stall() != ESP_OK) {
+    if (db_deck_stall(web_deck) != ESP_OK) {
         return send_error(req, "409 Conflict", "no deck");
     }
     return send_json(req, "{\"ok\":true}");
@@ -1174,7 +1196,7 @@ esp_err_t get_input_log(httpd_req_t *req)
                         httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK
                     ? (uint32_t)strtoul(v, NULL, 10)
                     : 0;
-    return send_built(req, INPUT_LOG * 150 + 16,
+    return send_built(req, INPUT_LOG * 180 + 16,
                       input_log_json); /* runs under the handler lock: log_since stays put */
 }
 
@@ -1385,11 +1407,11 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_obj_close(j);
 }
 
-static size_t screen_json_with(char *buf, size_t cap, db_shot_t *shots, db_device_info_t *info)
+static size_t screen_json_with(int deck, char *buf, size_t cap, db_shot_t *shots, db_device_info_t *info)
 {
     db_source_t writer;
-    size_t n = db_deck_shots(&writer, shots, DB_SCREEN_MAX);
-    bool present = db_deck_info(info);
+    size_t n = db_deck_shots(deck, &writer, shots, DB_SCREEN_MAX);
+    bool present = db_deck_info(deck, info);
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
@@ -1414,15 +1436,15 @@ static size_t screen_json_with(char *buf, size_t cap, db_shot_t *shots, db_devic
 static size_t screen_json(char *buf, size_t cap)
 {
     static db_shot_t shots[DB_SCREEN_MAX];
-    return screen_json_with(buf, cap, shots, &dev);
+    return screen_json_with(web_deck, buf, cap, shots, &dev);
 }
 
 /* For the event task, which runs outside the handler lock: buffers of its own. */
-size_t api_screen_json(char *buf, size_t cap)
+size_t api_screen_json(int deck, char *buf, size_t cap)
 {
     static db_shot_t shots[DB_SCREEN_MAX];
     static db_device_info_t info;
-    return screen_json_with(buf, cap, shots, &info);
+    return screen_json_with(deck, buf, cap, shots, &info);
 }
 
 /* The menu and the setup pages draw the web password: their picture is for the password, not an API key. The
@@ -1453,7 +1475,10 @@ esp_err_t get_screen_image(httpd_req_t *req)
     unsigned long id = strtoul(req->uri + strlen("/api/screen/"), NULL, 10);
     uint8_t *data = NULL;
     size_t len = 0;
-    esp_err_t found = db_deck_shot_upright((uint32_t)id, &data, &len);
+    esp_err_t found = ESP_ERR_NOT_FOUND; /* ids are unique over all decks: the URL needs no deck */
+    for (int d = 0; d < DB_MAX_DECKS && found == ESP_ERR_NOT_FOUND; d++) {
+        found = db_deck_shot_upright(d, (uint32_t)id, &data, &len);
+    }
     if (found == ESP_ERR_NO_MEM) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
@@ -1478,7 +1503,7 @@ esp_err_t get_screen_jpg(httpd_req_t *req)
     }
     uint8_t *jpeg = NULL;
     size_t len = 0;
-    esp_err_t err = db_ui_snapshot(&jpeg, &len);
+    esp_err_t err = db_ui_snapshot(web_deck, &jpeg, &len);
     if (err == ESP_ERR_INVALID_STATE) {
         return send_error(req, "409 Conflict", "no deck attached");
     }

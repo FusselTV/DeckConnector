@@ -14,7 +14,9 @@ export interface DeckInfo {
   usb_speed?: 'high' | 'full'
   hub?: boolean
   surface?: number
-  /** In `decks`, from 1. */
+  /** In `decks`: 0 to 3, kept per deck over replugs. It fixes the deck's Network Dock port and Satellite order. */
+  slot?: number
+  /** In `decks`: slot + 1. */
   number?: number
 }
 
@@ -97,6 +99,8 @@ export interface Status {
   via_ap?: boolean
   device?: DeckInfo | null
   decks?: DeckInfo[]
+  /** Decks plugged in but left dark by `max_decks`. */
+  decks_over_limit?: number
   network?: Network
   sources?: Source[]
   pairing?: Pairing
@@ -145,6 +149,7 @@ export interface Config {
   /** What the deck's own screens speak. */
   lang: 'de' | 'en'
   usb_speed: 'auto' | 'full'
+  max_decks: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean
@@ -300,13 +305,15 @@ export interface InputLogEntry {
   index?: number
   value?: number
   writer?: string
+  /** The deck's serial. */
+  deck?: string
 }
 
 export interface InputEvent {
   at: number
   origin: 'deck' | 'web' | 'api'
   client?: string
-  deck?: number
+  deck?: string
   kind: string
   key?: number
   delta?: number

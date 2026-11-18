@@ -119,6 +119,7 @@ def test_setup_asks_on_the_deck_once_set_up(fake):
         ({"host": "192.0.2.1", "port": 70000}, "application/json", HOST, 400),
         ({"port": 16622}, "application/json", HOST, 400),
     ],
+    ids=["no-preflight", "rebinding", "bad-host", "host-with-port", "bad-port", "no-host"],  # HOST differs per worker
 )
 def test_setup_refuses_what_companion_does_not_send(body, kind, host, code):
     before = get_config()["satellite"]

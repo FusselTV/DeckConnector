@@ -2,6 +2,7 @@
 
 #include "db_types.h"
 
+#define DB_MAX_DECKS    4 /* behind one hub */
 #define DB_MAX_DISPLAYS 2
 #define DB_MAX_TARGETS  40
 #define DB_MAX_TOUCH    2
@@ -86,3 +87,24 @@ typedef struct {
 const db_target_t *db_device_find_target(const db_device_info_t *info, uint8_t display, db_rect_t rect);
 /* Keys with a picture, numbered first. The rest of key_count (Neo sensors, Pedal) only give input. */
 uint8_t db_device_image_keys(const db_device_info_t *info);
+
+/* A deck's name in the slot list: its serial, or "port <hub ports>" for one without. */
+typedef char db_slot_owner_t[32];
+
+/* The slot below `limit` for deck `id`: its own one when free. Else, alone, the lowest free one, so a
+ * replaced single deck keeps the dock port; with others there, the lowest free one no other deck owns, else
+ * the lowest free one. -1 when none is free. The slot belongs to `id` in `owners` (all `n`) from then on. */
+int db_slot_take(db_slot_owner_t *owners, const bool *taken, int n, int limit, const char *id);
+/* True when every free slot below `limit` belongs to another deck than `id`, and one is free. */
+bool db_slot_others(const db_slot_owner_t *owners, const bool *taken, int limit, const char *id);
+
+/* What to do about a deck whose output hangs. A root port cycle takes every deck: with `others` plugged in, a
+ * deck that hangs again right after one waits 10 min for the next, doubling up to an hour; alone 10 s up to 5
+ * min, also after a longer wait with others. A hang again within a minute leaves one restart after 10 min
+ * uptime, armed again by an hour without a hang. Times in us. */
+typedef enum { DB_STUCK_WAIT, DB_STUCK_CYCLE, DB_STUCK_RESTART } db_stuck_t;
+typedef struct {
+    int64_t last; /* the deck's last cycle, 0: none */
+    int64_t backoff;
+} db_stuck_state_t;
+db_stuck_t db_stuck_next(db_stuck_state_t *st, int64_t now, bool may_cycle, bool others, bool *restarted);

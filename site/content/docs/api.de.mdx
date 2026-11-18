@@ -195,13 +195,14 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `lang` | Die Sprache der eigenen Deck-Seiten: `de` oder `en` |
 | `menu_hold_ms` | 500 bis 10000 |
 | `usb_speed` | `auto` oder `full` |
+| `max_decks` | 1 bis 4 Decks gleichzeitig, Standard 2 |
 | `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -232,7 +233,8 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 |---|---|
 | `id` | Die MAC-Adresse. Bleibt, wenn sich der Name ändert |
 | `writer` | Wer gerade zeichnet: `ui`, `server1` bis `server4`, `dock1` bis `dock4` oder `satellite`. `ui`, solange das Menü offen ist, ein Update läuft oder das gewählte Programm nicht verbunden ist |
-| `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck |
+| `device` | Das erste Deck, `null` ohne Deck. `decks` listet jedes Deck mit seinem `slot` (0 für Deck 1) und seiner `number` (1 für Deck 1) |
+| `decks_over_limit` | Decks, die stecken, aber wegen `max_decks` dunkel bleiben |
 | `sources` | Jedes Programm. `chosen` markiert das, das zeichnet, wenn kein Menü darüber liegt. Server und Satellite haben dazu `error`, `since_s` und `iface` |
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
 | `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
@@ -297,13 +299,13 @@ Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, di
 | `t` | Wann |
 |---|---|
 | `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal und Zähler |
-| `screen` | Das Bild hat sich geändert |
-| `input` | Jemand hat das Deck benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
+| `screen` | Das Bild des Decks in `deck` (seine Seriennummer) hat sich geändert |
+| `input` | Jemand hat das Deck in `deck` benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
 | `ota` | Update-Fortschritt mit `target`, `state`, `pct` und `error` |
 | `ping` | Alle 5 s. Kommt 12 s lang gar nichts, neu verbinden |
 | `log` | Neuer Log-Text, erst nach `{"t": "log"}`. Braucht das Passwort oder einen `full`-Schlüssel |
 
-Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/input` mit einer `id`.
+Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/input` mit einer `id`. Eine Eingabe geht an das erste Deck oder an das, dessen Seriennummer in `deck` steht. `GET /api/input/log` nennt das Deck genauso.
 
 ```json
 {"t": "set", "id": 1, "brightness": 40}
