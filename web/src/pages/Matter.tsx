@@ -15,8 +15,8 @@ function Qr({ bits, label }: { bits: string; label: string }) {
   const { n, d } = qrPath(bits)
   if (!n) return null
   return (
-    <svg className="mtqr" viewBox={`-2 -2 ${n + 4} ${n + 4}`} role="img" aria-label={label} shapeRendering="crispEdges">
-      <rect x={-2} y={-2} width={n + 4} height={n + 4} fill="#fff" />
+    <svg className="mtqr" viewBox={`-4 -4 ${n + 8} ${n + 8}`} role="img" aria-label={label} shapeRendering="crispEdges">
+      <rect x={-4} y={-4} width={n + 8} height={n + 8} fill="#fff" />
       <path d={d} fill="#000" />
     </svg>
   )
@@ -62,9 +62,9 @@ export function MatterCard() {
         <>
           <p className="small muted" id="matter-state">
             {m.controllers ? t('mt.paired', { n: m.controllers }) : t('mt.unpaired')}
-            {m.pairing && m.controllers > 0 && ` ${t('mt.open')}`}
+            {m.pairing && ` ${t('mt.open')}`}
           </p>
-          {codes && (m.pairing || !m.controllers) && (
+          {codes && m.pairing && (
             <div className="mtcode">
               <Qr bits={codes.qr_bits} label={codes.qr} />
               <div className="field">
@@ -74,12 +74,12 @@ export function MatterCard() {
             </div>
           )}
           <div className="row wrap acts">
-            {m.controllers > 0 && !m.pairing && (
+            {!m.pairing && (
               <Btn icon={Plus} onClick={() => act(() => api.setMatter({ pair: true }).then(refreshStatus))}>
-                {t('mt.pair')}
+                {t(m.controllers ? 'mt.pair' : 'mt.pair_first')}
               </Btn>
             )}
-            {(m.pairing || !m.controllers) && (
+            {m.pairing && (
               <Btn
                 icon={Monitor}
                 onClick={() => act(() => api.setMatter({ show: true }).then(() => toast(t('mt.shown'))))}
