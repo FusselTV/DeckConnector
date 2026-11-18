@@ -219,7 +219,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 {"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
- "menu_open": false, "screen_off": false,
+ "menu_open": false, "screen_off": false, "brightness": 80,
  "device": {"model": "Stream Deck +", "serial": "EL00K1A00001", "firmware": "2.0.3.7", "keys": 8, "encoders": 4,
             "width": 800, "height": 480},
  "network": {"lan": {"cable": true, "dead": false, "ip": "192.168.1.50"},
@@ -243,6 +243,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
 | `menu_open` | Menü, Passwort, Rücksetzfrage oder Login-Anfrage liegen über dem Deck |
 | `screen_off` | Alle Decks sind nach `screen_off_s` ohne Eingabe dunkel. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0 |
+| `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
 | `network.wlan.backup` | Die Platine ist im Ersatz-WLAN, `ssid` nennt es |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |

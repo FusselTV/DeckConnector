@@ -62,6 +62,13 @@ bool db_config_screen_off_ok(long s)
     return s == 0 || (s >= 10 && s <= 86400);
 }
 
+void db_config_board_id(char out[13])
+{
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_BASE);
+    snprintf(out, 13, "%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 static void defaults(db_config_t *c)
 {
     uint8_t mac[6];
