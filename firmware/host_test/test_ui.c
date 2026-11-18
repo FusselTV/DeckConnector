@@ -879,7 +879,7 @@ static void test_pin_pad_on_every_deck(void)
         uint16_t pid;
         const char *name;
         uint8_t keys[10]; /* the key of each digit, 0 to 9; 255: not on a key */
-        uint16_t vid; /* 0: Elgato */
+        uint16_t vid;     /* 0: Elgato */
     } pads[] = {
         {0x0084, "plus", {255, 0, 1, 2, 3, 4, 5, 6, 7, 255}, 0},
         {0x00c6, "plusxl", {31, 3, 4, 5, 12, 13, 14, 21, 22, 23}, 0},
@@ -991,6 +991,17 @@ static void test_pin_pad_turns_with_the_deck(void)
     dev = open_deck(0x0084); /* the + stays upright */
     l = ui_layout_of(&dev);
     TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 0));
+    dev = open_vid(N4); /* on its side no pad fits its 5 x 2: upright; turned over it follows */
+    l = ui_layout_of(&dev);
+    for (size_t t = 0; t < 2; t++) {
+        md.pin.rotation = turns[t];
+        for (int k = 0; k < 10; k++) {
+            TEST_ASSERT_EQUAL_INT((k + 1) % 10, pin_key(&m, &md, &l, (uint8_t)k));
+        }
+    }
+    md.pin.rotation = 180;
+    TEST_ASSERT_EQUAL_INT(0, pin_key(&m, &md, &l, 0));
+    TEST_ASSERT_EQUAL_INT(1, pin_key(&m, &md, &l, 9));
     TEST_ASSERT_EQUAL_INT(0, cut_pages);
 }
 

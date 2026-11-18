@@ -908,11 +908,13 @@ static void lock_page(page_t *p)
 {
     const ui_layout_t *l = p->l;
     int turn = p->md->pin.rotation;
-    if (!turn || l->strip || l->bar || l->cols * l->rows > UI_MAX_KEYS) {
+    bool side = turn == 90 || turn == -90;
+    /* the N4's 2 x 5 turned on its side is a 5 x 2 no pad fits: its digits stay upright */
+    if (!turn || l->strip || l->bar || l->cols * l->rows > UI_MAX_KEYS ||
+        (side && l->rows == 2 && l->cols == 5)) {
         pad(p);
         return;
     }
-    bool side = turn == 90 || turn == -90;
     ui_layout_t v = *l;
     v.cols = side ? l->rows : l->cols;
     v.rows = side ? l->cols : l->rows;
