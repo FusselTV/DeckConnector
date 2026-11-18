@@ -211,6 +211,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `server_pins` | SHA-256 je Server, an derselben Stelle wie in `servers` |
 | `satellite` | Die Adresse von Companion als `host`, `host:port` oder `ws://`- bzw. `wss://`-URL. Leer schaltet es ab |
 | `satellite_pin` | SHA-256 für ein Companion hinter `wss://` |
+| `token` | Geht als `Authorization: Bearer` an die Server in `servers`, nie an einen per mDNS gefundenen. Bis zu 47 Zeichen, leer für keinen. `GET` zeigt nur `token_set` |
 | `satellite_auto` | Companion von selbst vom Dock auf Satellite umstellen |
 | `https_only` | Plain HTTP abschalten |
 | `cors_origins` | Origins mit Komma getrennt, die die API mit einem Schlüssel aufrufen dürfen |
@@ -272,6 +273,11 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und die Platine speichert nichts. D
 | `matter` | Nur in der Matter-Firmware: `on`, `running`, `controllers` (gekoppelte Apps) und `pairing` (offen für eine neue App) |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
+| `decks[].writer` | Wer auf diesem Deck zeichnet, Werte wie bei `writer` |
+| `decks[].hub` | Das Deck hängt an einem USB-Hub |
+| `speaker` | Die Platine hat einen Lautsprecher, siehe [Hardware](/de/docs/hardware#platine) |
+| `temp_c` | Die Chiptemperatur in °C |
+| `https_ca` | Der Kurzcode der CA der Platine, siehe [HTTPS](/de/docs/security#https). `https_custom` ist true mit eigenem Zertifikat |
 
 Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
 

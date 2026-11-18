@@ -10,6 +10,7 @@ Dein Server rendert die Bilder. Die Platine zeigt sie an und schickt jeden Druck
 - Die Platine ist der Client. Sie öffnet bis zu vier URLs aus **Quellen** mit dem Subprotokoll `deckconnector.v1`.
 - Ist die Liste leer, findet sie Server, die `_deckconnector._tcp` per mDNS anmelden, und öffnet `ws://<adresse>:<port>/deckbridge`.
 - `wss://` braucht ein Zertifikat einer öffentlichen CA für diesen Host oder den SHA-256-Pin dieses Servers.
+- Damit dein Server prüfen kann, wer sich verbindet, setz `token` in den [Einstellungen](/de/docs/api#einstellungen). Die Platine schickt ihn als `Authorization: Bearer` an die Server, die du eingetragen hast.
 - Der erste verbundene Server ist **aktiv**, die anderen stehen auf **Standby**. Nur der aktive zeichnet und bekommt Eingaben.
 - Fällt er weg, wird der nächste aktiv, bekommt eine `role`-Nachricht und muss alle Bereiche neu zeichnen. Bis dahin zeigt das Deck, was dieser Server zuletzt gezeichnet hat. Das kann alt sein.
 - Der aktive Server bekommt `role` auch, wenn das Menü oder ein Update über sein Bild gezeichnet hat.

@@ -5,7 +5,7 @@ All user docs are there too. This page is for working on the code.
 
 | Folder | What it is |
 |---|---|
-| `firmware/` | the ESP-IDF project, with host tests in `firmware/host_test` and a Linux build of the web code in `firmware/sim` |
+| `firmware/` | the ESP-IDF project, with host tests in `firmware/host_test`, a Linux build of the web code in `firmware/sim` and the Matter image in `firmware/matter` |
 | `web/` | the web UI, built into the firmware ([web/README.md](../web/README.md)) |
 | `site/` | deckconnector.com with the docs, the demo and the flasher ([site/README.md](../site/README.md)) |
 | `tools/` | Python tools: a reference server, signing, flashing, the end to end tests |
@@ -24,6 +24,11 @@ All user docs are there too. This page is for working on the code.
 | `db_ui` | status screens, menu and font on the deck |
 | `db_ota` | signed updates and rollback, the `.dbfw` header is in `db_ota.c` |
 | `db_web` | web UI, JSON API, captive DNS |
+| `db_audio` | the speaker: sounds and the self-test |
+| `db_log` | the log ring kept over a restart, boot time marks |
+| `db_serial` | Improv over USB serial, for the flasher |
+
+`idf.py -C firmware/matter build` builds the Matter image from the same components.
 
 `db_core` compiles on a PC, and its tests run with AddressSanitizer. A new model of a known deck family is one table
 row in its driver. A new vendor is one driver file and one line in `db_driver.c`.

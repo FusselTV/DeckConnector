@@ -211,6 +211,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `server_pins` | SHA-256 per server, same position as in `servers` |
 | `satellite` | Companion's address: `host`, `host:port` or a `ws://` or `wss://` URL. Empty turns it off |
 | `satellite_pin` | SHA-256 for a `wss://` Companion |
+| `token` | Sent as `Authorization: Bearer` to the servers in `servers`, never to one found over mDNS. Up to 47 characters, empty for none. `GET` shows only `token_set` |
 | `satellite_auto` | Move Companion from the dock to Satellite by itself |
 | `https_only` | Turn plain HTTP off |
 | `cors_origins` | Comma separated origins that may call the API with a key |
@@ -272,6 +273,11 @@ A refused value gets 400 with the reason, and the board saves nothing. The reply
 | `matter` | Only in the Matter firmware: `on`, `running`, `controllers` (paired apps) and `pairing` (open for a new app) |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
+| `decks[].writer` | Who draws on that deck, values as `writer` |
+| `decks[].hub` | The deck is behind a USB hub |
+| `speaker` | The board has a speaker, see [Hardware](/docs/hardware#board) |
+| `temp_c` | The chip temperature in °C |
+| `https_ca` | The short code of the board's CA, see [HTTPS](/docs/security#https). `https_custom` is true with your own certificate |
 
 The status also has `boot_ms`, `memory` and `https_fingerprint`.
 
