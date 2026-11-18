@@ -166,6 +166,7 @@ export function modelOf(name = '', keys?: number): ModelKey {
   if (n.includes('pedal')) return 'pedal'
   if (n.includes('mini')) return 'mini'
   if (n.includes('xl')) return 'xl'
+  if (/n3|akp03|cn002/.test(n)) return 'mini'
   if (keys === 6) return 'mini'
   if (keys === 32) return 'xl'
   return 'mk2'

@@ -35,9 +35,12 @@ def host_addr(host: str) -> str:
 
 
 def real_input_target(status: dict) -> str:
-    """The address of the drawing host, if "real" presses may go to it: only a host on this test machine."""
+    """The address of the drawing host, if "real" presses may go to it: only a host on this test machine. A deck
+    locked by Companion shows its own PIN pad, and its digits go to that Companion."""
     require_input_gate(status)
-    drawing = [s for s in status["sources"] if s.get("drawing")]
+    locked = any(d.get("locked") for d in status.get("decks", []))
+    pad = [s for s in status["sources"] if locked and s.get("via") == "satellite" and s.get("chosen")]
+    drawing = pad or [s for s in status["sources"] if s.get("drawing")]
     if len(drawing) != 1:
         raise UnsafeBridge(f"no single drawing host: {drawing}")
     host = drawing[0]["host"]

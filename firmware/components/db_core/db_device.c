@@ -29,6 +29,17 @@ uint8_t db_device_image_keys(const db_device_info_t *info)
     return n;
 }
 
+void db_deck_identity(db_slot_owner_t serial, const char *path, const db_slot_owner_t *others, int n)
+{
+    bool own = serial[0] != '\0' && strcmp(serial, "355499441494") != 0; /* AKP153 and 293S clones */
+    for (int i = 0; own && i < n; i++) {
+        own = strcmp(serial, others[i]) != 0;
+    }
+    if (!own) {
+        snprintf(serial, sizeof(db_slot_owner_t), "port-%s", path[0] ? path : "root");
+    }
+}
+
 bool db_slot_others(const db_slot_owner_t *owners, const bool *taken, int limit, const char *id)
 {
     bool others = false;

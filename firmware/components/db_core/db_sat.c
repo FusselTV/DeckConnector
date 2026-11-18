@@ -65,8 +65,31 @@ const char *db_sat_get(const db_sat_msg_t *m, const char *key)
     return NULL;
 }
 
+static size_t placed(const db_device_info_t *dev, db_sat_control_t *out, size_t max)
+{
+    const db_display_t *d = &dev->displays[0];
+    size_t n = 0;
+    for (uint8_t i = 0; i < dev->place_count && n < max; i++) {
+        const db_place_t *p = &dev->places[i];
+        db_sat_control_t *c = &out[n++];
+        *c = (db_sat_control_t){.kind = p->encoder ? DB_SAT_ENCODER : DB_SAT_KEY,
+                                .row = p->row,
+                                .col = p->col,
+                                .index = p->index};
+        for (uint8_t t = 0; t < d->target_count && !p->encoder; t++) {
+            c->rect = d->targets[t].kind == DB_TARGET_KEY && d->targets[t].index == p->index
+                          ? d->targets[t].rect
+                          : c->rect;
+        }
+    }
+    return n;
+}
+
 size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_t max)
 {
+    if (dev->place_count) {
+        return placed(dev, out, max);
+    }
     const db_display_t *d = &dev->displays[0];
     uint8_t cols = 0;
     int first_y = -1;
@@ -133,14 +156,25 @@ static void bitmap_preset(db_json_t *j, const char *name, db_rect_t r)
     db_json_obj_close(j);
 }
 
+/* A key of another size than the first one gets a preset named after its size. */
+static bool odd_size(const db_sat_control_t *c, db_rect_t key, char *name)
+{
+    if (c->kind != DB_SAT_KEY || !c->rect.w || (c->rect.w == key.w && c->rect.h == key.h)) {
+        return false;
+    }
+    snprintf(name, 12, "%ux%u", c->rect.w, c->rect.h);
+    return true;
+}
+
 size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t cap)
 {
     db_rect_t key = {0};
     db_rect_t lcd = {0};
     for (size_t i = 0; i < n; i++) {
-        key = c[i].kind == DB_SAT_KEY && c[i].rect.w ? c[i].rect : key;
+        key = c[i].kind == DB_SAT_KEY && c[i].rect.w && !key.w ? c[i].rect : key;
         lcd = c[i].kind == DB_SAT_LCD ? c[i].rect : lcd;
     }
+    char name[12];
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_obj_open(&j, NULL);
@@ -150,6 +184,15 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     } else {
         db_json_obj_open(&j, "default"); /* nothing to draw on the Pedal */
         db_json_obj_close(&j);
+    }
+    for (size_t i = 0; i < n; i++) {
+        bool first = odd_size(&c[i], key, name);
+        for (size_t k = 0; k < i && first; k++) {
+            first = c[k].kind != DB_SAT_KEY || c[k].rect.w != c[i].rect.w || c[k].rect.h != c[i].rect.h;
+        }
+        if (first) {
+            bitmap_preset(&j, name, c[i].rect);
+        }
     }
     if (lcd.w) {
         bitmap_preset(&j, "lcd", lcd);
@@ -166,6 +209,8 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
         db_json_int(&j, "column", c[i].col);
         if (c[i].kind == DB_SAT_LCD) {
             db_json_str(&j, "stylePreset", "lcd");
+        } else if (odd_size(&c[i], key, name)) {
+            db_json_str(&j, "stylePreset", name);
         } else if (c[i].kind == DB_SAT_ENCODER || (key.w && !c[i].rect.w)) {
             db_json_str(&j, "stylePreset", "none");
         }
@@ -174,6 +219,69 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     db_json_obj_close(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);
+}
+
+size_t db_sat_add_device(char *buf, size_t cap, const char *surface, const char *serial, const char *model,
+                         const char *manifest_b64, bool png, bool swipe)
+{
+    /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock. Without
+     * CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
+    int n = snprintf(buf, cap,
+                     "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"%s:%s\" PRODUCT_NAME=\"%s\" "
+                     "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s PINCODE_LOCK=FULL%s\n",
+                     serial, surface, serial, model, manifest_b64, png ? "png" : "rgb",
+                     swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
+    return n > 0 && (size_t)n < cap ? (size_t)n : 0;
+}
+
+bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m)
+{
+    if (strcmp(m->cmd, "PINCODE-KEY") == 0) { /* OK comes after the LOCKED-STATE that counted the digit */
+        l->pending = (uint8_t)(l->pending ? l->pending - 1 : 0);
+        return false;
+    }
+    const char *locked = db_sat_get(m, "LOCKED");
+    const char *count = db_sat_get(m, "CHARACTER_COUNT");
+    const char *rotation = db_sat_get(m, "ROTATION");
+    bool was = l->locked && l->count > 0;
+    l->locked = locked && (strcmp(locked, "1") == 0 || strcmp(locked, "true") == 0);
+    unsigned long n = count && l->locked ? strtoul(count, NULL, 10) : 0;
+    l->count = (uint8_t)(n > 255 ? 255 : n);
+    long r = rotation ? strtol(rotation, NULL, 10) : 0;
+    l->rotation = (int16_t)(r == 90 || r == -90 || r == 180 ? r : 0);
+    l->pending = l->locked ? l->pending : 0;
+    return was && l->locked && l->count == 0;
+}
+
+/* Notes a press when `on`, else forgets it. A release: whether its press was noted. Anything else: `on`. */
+static bool held(db_sat_held_t *h, const db_input_t *ev, bool on)
+{
+    bool key = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP;
+    bool enc = ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP;
+    if (!key && !enc) {
+        return on;
+    }
+    uint64_t bit = key ? 1ULL << (ev->index & 63) : 0;
+    uint8_t ebit = (uint8_t)(enc ? 1U << (ev->index & 7) : 0);
+    if (ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN) {
+        h->keys = on ? h->keys | bit : h->keys & ~bit;
+        h->encoders = (uint8_t)(on ? h->encoders | ebit : h->encoders & ~ebit);
+        return on;
+    }
+    bool pressed = (h->keys & bit) || (h->encoders & ebit);
+    h->keys &= ~bit;
+    h->encoders &= (uint8_t)~ebit;
+    return pressed;
+}
+
+bool db_sat_pad_keeps(db_sat_held_t *kept, const db_input_t *ev, bool locked)
+{
+    return held(kept, ev, locked);
+}
+
+bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours)
+{
+    return held(h, ev, ours) && ours;
 }
 
 void db_sat_addr_host(const char *addr, char *host, size_t cap)

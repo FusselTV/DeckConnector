@@ -35,9 +35,12 @@ export function WifiPicker(p: {
   value: WifiChoice
   onChange: (v: WifiChoice) => void
   current?: string
+  /** A network whose password the device already has: no password field for it. */
+  saved?: string
   curBssid?: string
   err?: string | null
   expert?: boolean
+  noBand?: boolean
 }) {
   const { t } = useUi()
   const [q, setQ] = useState('')
@@ -109,10 +112,12 @@ export function WifiPicker(p: {
           <RefreshCw size={16} className={scan === null ? 'spin' : ''} aria-hidden />
         </button>
       </div>
-      <p className="small muted row" style={{ gap: 6 }}>
-        <Info size={14} aria-hidden />
-        {t('wifi.band')}
-      </p>
+      {!p.noBand && (
+        <p className="small muted row" style={{ gap: 6 }}>
+          <Info size={14} aria-hidden />
+          {t('wifi.band')}
+        </p>
+      )}
       {p.err && !hidden && !groups.some((g) => g.ssid === ssid && g.ssid !== p.current && !g.open) && (
         <span className="err" id={`${p.id}-err`} role="alert">
           {p.err}
@@ -201,7 +206,7 @@ export function WifiPicker(p: {
                   ))}
                 </ul>
               )}
-              {sel && !cur && !g.open && (
+              {sel && !cur && g.ssid !== p.saved && !g.open && (
                 <div className="wjoin">
                   <Field id={`${p.id}-pass`} label={t('net.pass')} err={p.err}>
                     <PwInput

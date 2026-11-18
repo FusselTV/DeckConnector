@@ -110,7 +110,13 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.menu_hold_ms = old.menu_hold_ms;
     live.max_decks = old.max_decks;
     live.screen_off_s = old.screen_off_s;
+    memcpy(live.wifi2_ssid, old.wifi2_ssid, sizeof(old.wifi2_ssid));
+    memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
+    if (!restart &&
+        (strcmp(cfg.wifi2_ssid, old.wifi2_ssid) != 0 || strcmp(cfg.wifi2_pass, old.wifi2_pass) != 0)) {
+        db_net_wifi_backup_changed();
+    }
     if (cfg.screen_off_s != old.screen_off_s) {
         db_deck_screen_off(false);
     }
@@ -572,8 +578,10 @@ esp_err_t post_input(httpd_req_t *req)
 
 esp_err_t post_menu(httpd_req_t *req)
 {
-    if (db_ui_open_menu(web_deck) != ESP_OK) {
-        return send_error(req, "409 Conflict", "no deck connected");
+    esp_err_t err = db_ui_open_menu(web_deck);
+    if (err != ESP_OK) {
+        return send_error(req, "409 Conflict",
+                          err == ESP_ERR_NOT_ALLOWED ? "Companion locked this deck" : "no deck connected");
     }
     return send_json(req, "{\"ok\":true}");
 }
@@ -1500,7 +1508,7 @@ static void write_geometry(db_json_t *j, const db_device_info_t *dev)
     db_json_int(j, "encoders", dev->encoder_count);
     int last;
     bool on_encoders;
-    bool any = db_ui_menu_chord(dev->encoder_count, db_device_image_keys(dev), &on_encoders, &last);
+    bool any = db_ui_menu_chord(dev, NULL, &on_encoders, &last);
     db_json_obj_open(j, "menu_chord");
     db_json_str(j, "on", !any ? "off" : on_encoders ? "encoders" : "keys");
     if (any) {

@@ -263,6 +263,7 @@ export function Choice(p: {
   hint?: string
   onPick: () => void
   first?: boolean
+  disabled?: boolean
 }) {
   const I = p.on ? CircleCheck : p.icon
   return (
@@ -272,6 +273,7 @@ export function Choice(p: {
       className="choice"
       aria-checked={p.on}
       tabIndex={p.on || p.first ? 0 : -1}
+      disabled={p.disabled}
       onClick={p.onPick}
     >
       <I size={22} className="ic" aria-hidden />

@@ -27,6 +27,7 @@ static RTC_NOINIT_ATTR uint32_t magic;
 static char *prev;
 static size_t prev_len;
 static vprintf_like_t serial;
+static void (*sink)(const char *line, size_t len);
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 static db_event_t *events; /* PSRAM ring, made in db_log_start() */
 static uint32_t n_events;
@@ -182,8 +183,17 @@ static int capture(const char *fmt, va_list args)
             ring[total++ % RING_SIZE] = line[i];
         }
         portEXIT_CRITICAL(&mux);
+        if (sink && (size_t)n < sizeof(line)) {
+            sink(line, len);
+            return n;
+        }
     }
     return serial(fmt, args);
+}
+
+void db_log_set_sink(void (*write)(const char *line, size_t len))
+{
+    sink = write;
 }
 
 void db_log_start(void)

@@ -25,3 +25,4 @@
 #define ICON_DHCP       "\xee\x80\x95"
 #define ICON_FIXED      "\xee\x80\x96"
 #define ICON_LANG       "\xee\x80\x97"
+#define ICON_LOCK       "\xee\x80\x98"

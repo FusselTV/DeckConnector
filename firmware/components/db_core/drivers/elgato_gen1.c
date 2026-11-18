@@ -64,6 +64,8 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
                                .model = name,
                                .vid = ELGATO_VID,
                                .pid = pid,
+                               .dock = true,
+                               .surface = "streamdeck",
                                .key_count = KEYS,
                                .display_count = 1};
     /* Each key image is transposed, so pixel x,y of the upload is row x, column y of the picture. That is a

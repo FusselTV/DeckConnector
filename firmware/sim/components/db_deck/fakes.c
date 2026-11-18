@@ -1,6 +1,7 @@
-/* Stand-ins for everything the API layer calls on the chip: Stream Deck + decks that are always attached
- * (DB_SIM_DECKS of them, 1 by default, serials SIM0001 and up; the ones over max_decks stay dark), no dock
- * hosts, no updates. Simulated input goes to the listeners, so the web socket reports it like on the device.
+/* Stand-ins for everything the API layer calls on the chip: Stream Deck + decks (DB_SIM_USB picks another) that
+ * are always attached (DB_SIM_DECKS of them, 1 by default, serials SIM0001 and up; the ones over max_decks stay
+ * dark), no dock hosts, no updates. Simulated input goes to the listeners, so the web socket reports it like on
+ * the device.
  */
 #include <pthread.h>
 #include <stdio.h>
@@ -11,6 +12,7 @@
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_dock.h"
+#include "db_driver.h"
 #include "db_link.h"
 #include "db_log.h"
 #include "db_net.h"
@@ -94,22 +96,56 @@ int db_deck_find(const char *serial)
     return -1;
 }
 
+static db_err_t sim_write(const db_hid_io_t *io, const uint8_t *report, size_t len)
+{
+    (void)io;
+    (void)report;
+    (void)len;
+    return DB_OK;
+}
+
+static db_err_t sim_flush(const db_hid_io_t *io)
+{
+    (void)io;
+    return DB_OK;
+}
+
+/* DB_SIM_USB=vid:pid (hex) plugs in that deck as its driver describes it */
+static bool sim_usb(db_device_info_t *out)
+{
+    static const db_hid_io_t io = {.write = sim_write, .flush = sim_flush};
+    unsigned vid = 0;
+    unsigned pid = 0;
+    const char *e = getenv("DB_SIM_USB");
+    db_dev_t dev = {.io = &io};
+    if (!e || sscanf(e, "%x:%x", &vid, &pid) != 2 || !(dev.driver = db_driver_find(vid, pid)) ||
+        dev.driver->open(&dev, vid, pid) != DB_OK) {
+        return false;
+    }
+    *out = dev.info;
+    return true;
+}
+
 bool db_deck_info(int deck, db_device_info_t *out)
 {
     if (deck >= decks()) {
         return false;
     }
-    *out = (db_device_info_t){.vendor = "Elgato",
-                              .model = "Stream Deck +",
-                              .vid = 0x0fd9,
-                              .pid = 0x0084,
-                              .key_count = 8,
-                              .encoder_count = 4,
-                              .display_count = 1};
+    if (!sim_usb(out)) {
+        *out = (db_device_info_t){.vendor = "Elgato",
+                                  .model = "Stream Deck +",
+                                  .vid = 0x0fd9,
+                                  .pid = 0x0084,
+                                  .dock = true,
+                                  .surface = "streamdeck",
+                                  .key_count = 8,
+                                  .encoder_count = 4,
+                                  .display_count = 1};
+        out->displays[0].width = 800;
+        out->displays[0].height = 480;
+    }
     snprintf(out->serial, sizeof(out->serial), "SIM%04d", deck + 1);
     strcpy(out->firmware, "sim");
-    out->displays[0].width = 800;
-    out->displays[0].height = 480;
     return true;
 }
 
@@ -147,8 +183,12 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
     pthread_mutex_unlock(&wake_lock);
     input_real = real;
     input_only_ip = only_ip;
+    int keeper = -1;
+    for (int i = 0; i < listener_count && !swallowed && keeper < 0; i++) {
+        keeper = listeners[i].keeps && listeners[i].keeps(deck, in) ? i : -1;
+    }
     for (int i = 0; i < listener_count && !swallowed; i++) {
-        if (listeners[i].input && (real || !listeners[i].external)) {
+        if (listeners[i].input && (real || !listeners[i].external) && (keeper < 0 || keeper == i)) {
             listeners[i].input(deck, in);
         }
     }
@@ -250,10 +290,11 @@ esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len)
     return ESP_OK;
 }
 
-bool db_ui_menu_chord(int encoders, int keys, bool *on_encoders, int *last)
+bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_encoders, int *last)
 {
+    (void)chord;
     *on_encoders = false;
-    *last = keys - 1;
+    *last = db_device_image_keys(dev) - 1;
     return *last >= 1;
 }
 
@@ -485,6 +526,10 @@ esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid
     }
     sim_join = strcmp(ssid, "Zuhause") == 0 ? "ok" : "failed"; /* no radio: a known name joins at once */
     return ESP_OK;
+}
+
+void db_net_wifi_backup_changed(void)
+{
 }
 
 /* metrics.c reads task and image statistics the host does not have: same keys, no samples, no image. */
