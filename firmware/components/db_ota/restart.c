@@ -9,13 +9,13 @@
 #define SYNC_BUSY                                                                                            \
     (CACHE_INVALIDATE_ENA | CACHE_CLEAN_ENA | CACHE_WRITEBACK_ENA | CACHE_WRITEBACK_INVALIDATE_ENA)
 
-void __real_esp_restart_noos(void);
+void __real_esp_restart_noos(void); /* NOLINT: named by the linker's --wrap */
 
 /* esp-idf #19171, open in 6.0.2: esp_restart_noos() resets the other core before it stalls it. Caught in a
  * cache sync, the engine stays busy and the Cache_WriteBack_All() after it faults on CACHE_SYNC_MAP_REG, so
  * the restart ends as a crash. Stall that core and let the engine finish first; IDF's restart then goes on.
  */
-void IRAM_ATTR __wrap_esp_restart_noos(void)
+void IRAM_ATTR __wrap_esp_restart_noos(void) /* NOLINT: named by the linker's --wrap */
 {
     rv_utils_intr_global_disable();
 #if !CONFIG_ESP_SYSTEM_SINGLE_CORE_MODE

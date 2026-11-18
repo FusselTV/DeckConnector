@@ -1005,7 +1005,7 @@ static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
         shown.page = PAGE_RESET;
     } else if (md->login_ip[0]) {
         shown.page = PAGE_LOGIN_REQ;
-    } else if (md->offer_asked) {
+    } else if (md->offer_asked) { /* NOLINT(bugprone-branch-clone): the order is the priority */
         shown.page = PAGE_OFFER;
     } else if (md->show_pass) {
         shown.page = PAGE_PASSWORD;
@@ -1327,7 +1327,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
     case K_FIELD1:
     case K_FIELD2:
     case K_FIELD3:
-        m->field = what - K_FIELD0;
+        m->field = (int)what - K_FIELD0;
         return true;
     case K_DHCP:
         m->lan_dhcp = !m->lan_dhcp;
@@ -1354,7 +1354,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return true;
     default:
         if (what >= K_SRC0 && (int)what < K_SRC0 + md->source_count) {
-            int i = what - K_SRC0;
+            int i = (int)what - K_SRC0;
             /* a stray tap while the chosen host is away must not switch */
             if (shown.page == PAGE_HOME && !md->sources[i].chosen && !confirmed(m, ev->index, md->now_us)) {
                 return true;

@@ -843,7 +843,7 @@ static bool submit_rect(int deck, db_rect_t r)
     const ui_deck_t *u = &decks[deck];
     const uint8_t *src = u->canvas.px;
     if (r.w != u->canvas.w || r.h != u->canvas.h) {
-        if ((size_t)r.w * r.h > area_px) {
+        if (!area || (size_t)r.w * r.h > area_px) {
             heap_caps_free(area);
             area = jpeg_port_alloc_rgb(r.w, r.h);
             area_px = area ? (size_t)r.w * r.h : 0;
@@ -1102,12 +1102,10 @@ static void on_input(int deck, const db_input_t *ev)
     bool redraw = ui_menu_input(&u->menu, &md, &l, ev, &act);
     xSemaphoreGive(s.lock);
     carry_out(deck, &act, &md);
-    if (redraw || act.what != UI_DO_NOTHING) {
-        /* the UI task switches the writer, once this event has reached every listener: a release that closes
-         * the menu must not go on to the host that draws next */
-        if (s.task) {
-            xTaskNotifyGive(s.task);
-        }
+    /* the UI task switches the writer, once this event has reached every listener: a release that closes the
+     * menu must not go on to the host that draws next */
+    if ((redraw || act.what != UI_DO_NOTHING) && s.task) {
+        xTaskNotifyGive(s.task);
     }
 }
 

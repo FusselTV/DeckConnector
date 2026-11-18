@@ -1,6 +1,8 @@
+#include <math.h>
 #include <stdlib.h>
 
 #include "db_json.h"
+#include "db_web.h"
 #include "driver/temperature_sensor.h"
 #include "esp_heap_caps.h"
 #include "esp_image_format.h"
@@ -130,7 +132,7 @@ static void sample_metrics(void *arg)
     uint8_t psram = used_pct(MALLOC_CAP_SPIRAM);
     float c = 0;
     /* a failed read keeps the last value: a 0 would draw a drop to 0 °C */
-    uint8_t temp = tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)(c + 0.5f)
+    uint8_t temp = tsens && temperature_sensor_get_celsius(tsens, &c) == ESP_OK && c > 0 ? (uint8_t)lroundf(c)
                                                                                          : temp_now;
     taskENTER_CRITICAL(&metrics.mux);
     temp_now = temp;

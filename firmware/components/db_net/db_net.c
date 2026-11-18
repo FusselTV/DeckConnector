@@ -72,7 +72,7 @@ static struct {
     esp_timer_handle_t no_address;
 } s;
 
-ESP_EVENT_DEFINE_BASE(DB_NET_EVENT);
+ESP_EVENT_DEFINE_BASE(DB_NET_EVENT); /* NOLINT(misc-use-internal-linkage): esp_event finds it by address */
 
 /* A LAN can keep its link and drop every frame. With WLAN up, the dead LAN is not worth using. */
 static bool lan_usable(void)
@@ -529,6 +529,7 @@ static void dns_task(void *arg)
             close(sock);
         }
         vTaskDelete(NULL);
+        return;
     }
     uint8_t pkt[512];
     for (;;) {
@@ -691,6 +692,7 @@ int db_net_syn_from(uint32_t local_ip, uint16_t local_port, uint32_t ip, uint16_
         close(sock);
         return -1;
     }
+    /* NOLINTNEXTLINE(bugprone-unused-return-value): non-blocking, the SYN is all it is for */
     connect(sock, (struct sockaddr *)&peer, sizeof(peer));
     return sock;
 }

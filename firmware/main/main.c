@@ -554,7 +554,7 @@ static bool healthy(void)
     return db_net_online() && db_web_alive();
 }
 
-void app_main(void)
+void app_main(void) /* NOLINT(misc-use-internal-linkage): ESP-IDF calls it */
 {
 #ifdef DB_TEST_CRASH
     abort();

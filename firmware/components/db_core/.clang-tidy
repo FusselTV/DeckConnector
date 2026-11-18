@@ -1,0 +1,20 @@
+InheritParentConfig: true
+Checks: >
+  bugprone-assignment-in-selection-statement,
+  bugprone-implicit-widening-of-multiplication-result,
+  bugprone-unchecked-string-to-number-conversion,
+  cert-err34-c,
+  cert-exp45-c,
+  clang-analyzer-optin.core.EnumCastOutOfRange,
+  clang-analyzer-security.ArrayBound,
+  clang-analyzer-security.insecureAPI.strcpy,
+  misc-unused-parameters,
+  performance-no-int-to-ptr,
+  readability-function-size,
+  readability-isolate-declaration,
+  readability-uppercase-literal-suffix
+CheckOptions:
+  - key: readability-function-size.LineThreshold
+    value: 80
+  - key: readability-function-size.NestingThreshold
+    value: 4

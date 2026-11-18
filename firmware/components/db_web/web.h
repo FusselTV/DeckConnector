@@ -65,7 +65,7 @@ void restart_soon(void);
 /* The HTTPS certificate and key as PEM: an uploaded pair, or the own one from the device CA, which is made on
  * the first start. Its SHA-256 fingerprint goes to `fingerprint`, also when web_cert_tick() makes a new one.
  */
-bool web_cert(char **cert, char **key, char fingerprint[96]);
+bool web_cert(char **cert, char **key, char fp[96]);
 /* Every few seconds: a new own certificate in the background when the board's names or addresses changed or
  * it runs out soon. */
 void web_cert_tick(void);

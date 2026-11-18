@@ -149,7 +149,7 @@ esp_err_t db_config_load(void)
             if (current.max_decks < 1 || current.max_decks > DB_MAX_DECKS) {
                 current.max_decks = fresh.max_decks;
             }
-            if (!db_config_screen_off_ok(current.screen_off_s)) {
+            if (!db_config_screen_off_ok((long)current.screen_off_s)) {
                 current.screen_off_s = fresh.screen_off_s;
             }
             uint8_t mac[6];

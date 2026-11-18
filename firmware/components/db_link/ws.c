@@ -112,6 +112,10 @@ int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout
         return -ENXIO; /* the name: not the network, which says EHOSTUNREACH */
     }
     int s = socket(AF_INET, SOCK_STREAM, 0);
+    if (s < 0) {
+        freeaddrinfo(res);
+        return -errno;
+    }
     struct timeval tv = {.tv_sec = timeout_ms / 1000, .tv_usec = (timeout_ms % 1000) * 1000};
     setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));

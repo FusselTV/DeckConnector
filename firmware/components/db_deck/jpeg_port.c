@@ -46,7 +46,7 @@ static esp_err_t encode(const uint8_t *rgb, uint16_t w, uint16_t h, uint8_t qual
     static uint8_t *buf;
     static size_t cap;
     size_t worst = (size_t)w * h * 3 / 2 + 4096;
-    if (worst > cap) {
+    if (!buf || worst > cap) {
         heap_caps_free(buf);
         jpeg_encode_memory_alloc_cfg_t mem = {.buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER};
         buf = jpeg_alloc_encoder_mem(worst, &mem, &cap);

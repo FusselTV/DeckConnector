@@ -742,7 +742,7 @@ esp_err_t delete_denied(httpd_req_t *req)
 esp_err_t post_deck_reconnect(httpd_req_t *req)
 {
     char query[128];
-    char off[8];
+    char off[8] = "";
     uint32_t off_ms = 500;
     esp_err_t got = httpd_req_get_url_query_str(req, query, sizeof(query));
     if (got == ESP_OK) {

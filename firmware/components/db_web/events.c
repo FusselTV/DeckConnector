@@ -138,7 +138,7 @@ static void drain(void *arg)
     struct outbox *o = arg;
     __atomic_store_n(&o->asked_ms, 0, __ATOMIC_RELAXED); /* before the queue: a job added now asks again */
     job_t *job;
-    while (xQueueReceive(o->jobs, &job, 0) == pdTRUE) {
+    while (xQueueReceive(o->jobs, (void *)&job, 0) == pdTRUE) {
         send_job(job);
     }
 }
@@ -184,7 +184,7 @@ static bool queue_job(httpd_handle_t server, int fd, const char *json, audience_
     job->fd = fd;
     job->to = to;
     memcpy(job->json, json, len);
-    bool queued = xQueueSend(o->jobs, &job, 0) == pdTRUE;
+    bool queued = xQueueSend(o->jobs, (const void *)&job, 0) == pdTRUE;
     if (!queued) {
         free(job);
     }
@@ -389,6 +389,7 @@ static void poll_task(void *arg)
             size_t m = 0;
             if (scr) {
                 memcpy(scr, json, (size_t)k);
+                /* NOLINTNEXTLINE(bugprone-not-null-terminated-result): the JSON goes on */
                 memcpy(scr + k, ",\"screen\":", 10);
                 m = e.screen_json(d, scr + k + 10, SCREEN_MAX);
             }
@@ -539,7 +540,7 @@ esp_err_t events_open(httpd_req_t *req)
         }
     }
     if (slot < 0) { /* full: a client that vanished without closing must not lock out the next one */
-        slot = e.evict++ % CLIENTS;
+        slot = (int)(e.evict++ % CLIENTS);
         ESP_LOGW(TAG, "%d listeners already, dropping one", CLIENTS);
         httpd_sess_trigger_close(e.servers[slot], e.fds[slot]);
     }
