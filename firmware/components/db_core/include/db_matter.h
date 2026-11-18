@@ -28,36 +28,26 @@ uint16_t db_matter_node_ep(db_matter_slot_t *slot, int index, const char *serial
 /* The switch a key or dial press or release goes to, 0 for any other input. */
 uint16_t db_matter_input_ep(uint16_t node_ep, const db_input_t *in);
 
-/* Generic Switch with momentary, release, long press and multi-press (max 2) */
-#define DB_SW_LONG_US  600000
-#define DB_SW_MULTI_US 350000
-#define DB_SW_MAX      2
+/* Generic Switch with momentary, release and long press; no multi-press, which would hold every press back */
+#define DB_SW_LONG_US 600000
 
 typedef enum {
+    DB_SW_NONE,
     DB_SW_INITIAL_PRESS,
     DB_SW_LONG_PRESS,
     DB_SW_SHORT_RELEASE,
     DB_SW_LONG_RELEASE,
-    DB_SW_MULTI_ONGOING,
-    DB_SW_MULTI_COMPLETE,
 } db_sw_event_t;
-
-typedef struct {
-    db_sw_event_t event;
-    uint8_t count; /* presses, for the multi-press events */
-} db_sw_out_t;
 
 typedef struct {
     bool down;
     bool long_sent;
-    uint8_t count;
-    int64_t at; /* the last press or release */
+    int64_t at; /* the press */
 } db_sw_t;
 
-/* The events of a press or release; returns how many (up to 2). */
-int db_sw_input(db_sw_t *sw, bool down, int64_t now, db_sw_out_t out[2]);
-/* The event that time brings (a long press, the end of a multi-press); returns 0 or 1. */
-int db_sw_tick(db_sw_t *sw, int64_t now, db_sw_out_t *out);
+db_sw_event_t db_sw_input(db_sw_t *sw, bool down, int64_t now);
+/* The long press, once the switch was held long enough. */
+db_sw_event_t db_sw_tick(db_sw_t *sw, int64_t now);
 /* When db_sw_tick next has something to do, 0: never. */
 int64_t db_sw_due(const db_sw_t *sw);
 
@@ -72,9 +62,9 @@ typedef struct {
 } db_sw_deck_t;
 
 /* `chord`: the inputs (keys, then dials) of the menu chord, -1 when there is none. */
-int db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool covered, const int chord[2], int64_t now,
-                     db_sw_out_t out[2]);
-int db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now, db_sw_out_t *out);
+db_sw_event_t db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool covered, const int chord[2],
+                               int64_t now);
+db_sw_event_t db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now);
 
 /* The glue in firmware/matter/db_matter */
 void db_matter_start(void);

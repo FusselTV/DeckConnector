@@ -84,25 +84,17 @@ static void test_turns_touches_and_extra_keys_go_nowhere(void)
 
 static db_sw_t sw;
 static int64_t now;
-static db_sw_out_t out[8];
-static int n;
+static db_sw_event_t e;
 
 static void press(bool down)
 {
-    n = db_sw_input(&sw, down, now, out);
+    e = db_sw_input(&sw, down, now);
 }
 
 static void wait_us(int64_t us)
 {
     now += us;
-    n = db_sw_tick(&sw, now, out);
-}
-
-static void expect(db_sw_event_t e, int count)
-{
-    TEST_ASSERT_GREATER_THAN(0, n);
-    TEST_ASSERT_EQUAL(e, out[n - 1].event);
-    TEST_ASSERT_EQUAL(count, out[n - 1].count);
+    e = db_sw_tick(&sw, now);
 }
 
 static void sw_reset(void)
@@ -111,108 +103,59 @@ static void sw_reset(void)
     now = 1000000;
 }
 
-static void test_single_press(void)
+static void test_a_short_press_is_told_at_once(void)
 {
     sw_reset();
     press(true);
-    TEST_ASSERT_EQUAL(1, n);
-    expect(DB_SW_INITIAL_PRESS, 0);
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, e);
     now += 100000;
     press(false);
-    TEST_ASSERT_EQUAL(1, n);
-    expect(DB_SW_SHORT_RELEASE, 0);
-    wait_us(DB_SW_MULTI_US - 1);
-    TEST_ASSERT_EQUAL(0, n);
-    wait_us(1);
-    expect(DB_SW_MULTI_COMPLETE, 1);
-    TEST_ASSERT_EQUAL(0, db_sw_due(&sw));
+    TEST_ASSERT_EQUAL(DB_SW_SHORT_RELEASE, e);
+    TEST_ASSERT_EQUAL(0, db_sw_due(&sw)); /* nothing waits for a second press */
+    press(true);
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, e); /* a quick second press is a press of its own */
 }
 
-static void test_double_press_completes_at_once(void)
-{
-    sw_reset();
-    press(true);
-    now += 50000;
-    press(false);
-    now += 100000;
-    press(true);
-    TEST_ASSERT_EQUAL(2, n);
-    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, out[0].event);
-    expect(DB_SW_MULTI_ONGOING, 2);
-    now += 50000;
-    press(false);
-    TEST_ASSERT_EQUAL(2, n);
-    TEST_ASSERT_EQUAL(DB_SW_SHORT_RELEASE, out[0].event);
-    expect(DB_SW_MULTI_COMPLETE, 2);
-    TEST_ASSERT_EQUAL(0, db_sw_due(&sw));
-}
-
-static void test_long_press_has_no_multi_press(void)
+static void test_long_press_once_then_long_release(void)
 {
     sw_reset();
     press(true);
     wait_us(DB_SW_LONG_US - 1);
-    TEST_ASSERT_EQUAL(0, n);
+    TEST_ASSERT_EQUAL(DB_SW_NONE, e);
     wait_us(1);
-    expect(DB_SW_LONG_PRESS, 0);
+    TEST_ASSERT_EQUAL(DB_SW_LONG_PRESS, e);
     wait_us(DB_SW_LONG_US);
-    TEST_ASSERT_EQUAL(0, n); /* once */
+    TEST_ASSERT_EQUAL(DB_SW_NONE, e);
     press(false);
-    expect(DB_SW_LONG_RELEASE, 0);
-    wait_us(DB_SW_MULTI_US * 2);
-    TEST_ASSERT_EQUAL(0, n);
-}
-
-static void test_a_held_second_press_is_no_long_press(void)
-{
-    sw_reset();
-    press(true);
-    press(false);
-    now += 100000;
-    press(true);
-    wait_us(DB_SW_LONG_US * 2);
-    TEST_ASSERT_EQUAL(0, n);
-    press(false);
-    expect(DB_SW_MULTI_COMPLETE, 2);
-}
-
-static void test_a_press_after_the_window_starts_over(void)
-{
-    sw_reset();
-    press(true);
-    press(false);
-    wait_us(DB_SW_MULTI_US);
-    expect(DB_SW_MULTI_COMPLETE, 1);
-    press(true);
-    TEST_ASSERT_EQUAL(1, n);
-    expect(DB_SW_INITIAL_PRESS, 0);
+    TEST_ASSERT_EQUAL(DB_SW_LONG_RELEASE, e);
+    TEST_ASSERT_EQUAL(0, db_sw_due(&sw));
 }
 
 static void test_a_repeated_state_is_ignored(void)
 {
     sw_reset();
     press(false);
-    TEST_ASSERT_EQUAL(0, n);
+    TEST_ASSERT_EQUAL(DB_SW_NONE, e);
     press(true);
     press(true);
-    TEST_ASSERT_EQUAL(0, n);
+    TEST_ASSERT_EQUAL(DB_SW_NONE, e);
 }
 
 static db_sw_deck_t deck;
 static const int chord[2] = {DB_MATTER_KEYS, DB_MATTER_KEYS + 3}; /* dials 1 and 4 */
 static const int no_chord[2] = {-1, -1};
 
-static int deck_in(int input, bool down, bool covered)
+static db_sw_event_t deck_in(int input, bool down, bool covered)
 {
-    return n = db_sw_deck_input(&deck, input, down, covered, chord, now, out);
+    return e = db_sw_deck_input(&deck, input, down, covered, chord, now);
 }
 
 static void test_a_press_on_the_bridges_own_page_goes_nowhere(void)
 {
     deck = (db_sw_deck_t){0};
     now = 1000000;
-    TEST_ASSERT_EQUAL(0, deck_in(4, true, true));
-    TEST_ASSERT_EQUAL(0, deck_in(4, false, false)); /* the menu closed meanwhile: nothing to end */
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(4, true, true));
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(4, false, false)); /* the menu closed meanwhile: nothing to end */
     TEST_ASSERT_EQUAL(0, db_sw_due(&deck.sw[4]));
 }
 
@@ -220,31 +163,25 @@ static void test_a_release_counts_while_covered(void)
 {
     deck = (db_sw_deck_t){0};
     now = 1000000;
-    deck_in(4, true, false);
-    expect(DB_SW_INITIAL_PRESS, 0);
-    deck_in(4, false, true); /* the release that opened the menu */
-    expect(DB_SW_SHORT_RELEASE, 0);
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, deck_in(4, true, false));
+    TEST_ASSERT_EQUAL(DB_SW_SHORT_RELEASE, deck_in(4, false, true)); /* the release that opened the menu */
 }
 
 static void test_the_menu_chord_mutes_both_controls(void)
 {
     deck = (db_sw_deck_t){0};
     now = 1000000;
-    deck_in(chord[0], true, false);
-    expect(DB_SW_INITIAL_PRESS, 0);
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, deck_in(chord[0], true, false));
     now += 100000;
-    TEST_ASSERT_EQUAL(0, deck_in(chord[1], true, false));
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[1], true, false));
     for (int i = 0; i < 2; i++) {
         now += DB_SW_LONG_US;
-        TEST_ASSERT_EQUAL(0, db_sw_deck_tick(&deck, chord[i], now, out));
+        TEST_ASSERT_EQUAL(DB_SW_NONE, db_sw_deck_tick(&deck, chord[i], now));
         TEST_ASSERT_EQUAL(0, db_sw_due(&deck.sw[chord[i]]));
     }
-    TEST_ASSERT_EQUAL(0, deck_in(chord[1], false, true));
-    TEST_ASSERT_EQUAL(0, deck_in(chord[0], false, true));
-    now += DB_SW_MULTI_US;
-    TEST_ASSERT_EQUAL(0, db_sw_deck_tick(&deck, chord[0], now, out));
-    deck_in(chord[0], true, false); /* let go: it works again */
-    expect(DB_SW_INITIAL_PRESS, 0);
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[1], false, true));
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[0], false, true));
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, deck_in(chord[0], true, false)); /* let go: it works again */
 }
 
 static void test_two_other_controls_together_both_count(void)
@@ -252,9 +189,8 @@ static void test_two_other_controls_together_both_count(void)
     deck = (db_sw_deck_t){0};
     now = 1000000;
     deck_in(0, true, false);
-    deck_in(1, true, false);
-    expect(DB_SW_INITIAL_PRESS, 0);
-    TEST_ASSERT_EQUAL(1, db_sw_deck_input(&deck, chord[1], true, false, no_chord, now, out));
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, deck_in(1, true, false));
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, db_sw_deck_input(&deck, chord[1], true, false, no_chord, now));
 }
 
 int main(void)
@@ -265,11 +201,8 @@ int main(void)
     RUN_TEST(test_blocks_never_overlap_and_stay_valid);
     RUN_TEST(test_keys_and_dials_map_inside_the_block);
     RUN_TEST(test_turns_touches_and_extra_keys_go_nowhere);
-    RUN_TEST(test_single_press);
-    RUN_TEST(test_double_press_completes_at_once);
-    RUN_TEST(test_long_press_has_no_multi_press);
-    RUN_TEST(test_a_held_second_press_is_no_long_press);
-    RUN_TEST(test_a_press_after_the_window_starts_over);
+    RUN_TEST(test_a_short_press_is_told_at_once);
+    RUN_TEST(test_long_press_once_then_long_release);
     RUN_TEST(test_a_repeated_state_is_ignored);
     RUN_TEST(test_a_press_on_the_bridges_own_page_goes_nowhere);
     RUN_TEST(test_a_release_counts_while_covered);

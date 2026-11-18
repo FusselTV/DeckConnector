@@ -203,9 +203,7 @@ static endpoint_t *child(uint16_t id, endpoint_t *parent)
     endpoint::generic_switch::config_t cfg;
     namespace f = cluster::switch_cluster::feature;
     cfg.switch_cluster.feature_flags = f::momentary_switch::get_id() | f::momentary_switch_release::get_id() |
-                                       f::momentary_switch_long_press::get_id() |
-                                       f::momentary_switch_multi_press::get_id();
-    cfg.switch_cluster.features.momentary_switch_multi_press.multi_press_max = DB_SW_MAX;
+                                       f::momentary_switch_long_press::get_id();
     /* add() leaves out the descriptor, without which a controller sees no endpoint */
     cluster::descriptor::create(ep, &cfg.descriptor, CLUSTER_FLAG_SERVER);
     endpoint::generic_switch::add(ep, &cfg);
@@ -313,31 +311,26 @@ static void deck_changed(int slot)
     }
 }
 
-static void emit(uint16_t ep, const db_sw_out_t *o)
+static void emit(uint16_t ep, db_sw_event_t e)
 {
-    esp_matter_attr_val_t pos = esp_matter_uint8(
-        o->event == DB_SW_INITIAL_PRESS || o->event == DB_SW_LONG_PRESS || o->event == DB_SW_MULTI_ONGOING);
-    switch (o->event) {
-    case DB_SW_INITIAL_PRESS:
+    esp_matter_attr_val_t pos = esp_matter_uint8(e == DB_SW_INITIAL_PRESS || e == DB_SW_LONG_PRESS);
+    if (e != DB_SW_LONG_PRESS) {
         attribute::update(ep, Switch::Id, Switch::Attributes::CurrentPosition::Id, &pos);
+    }
+    switch (e) {
+    case DB_SW_INITIAL_PRESS:
         cluster::switch_cluster::event::send_initial_press(ep, 1);
         break;
     case DB_SW_LONG_PRESS:
         cluster::switch_cluster::event::send_long_press(ep, 1);
         break;
     case DB_SW_SHORT_RELEASE:
-        attribute::update(ep, Switch::Id, Switch::Attributes::CurrentPosition::Id, &pos);
         cluster::switch_cluster::event::send_short_release(ep, 1);
         break;
     case DB_SW_LONG_RELEASE:
-        attribute::update(ep, Switch::Id, Switch::Attributes::CurrentPosition::Id, &pos);
         cluster::switch_cluster::event::send_long_release(ep, 1);
         break;
-    case DB_SW_MULTI_ONGOING:
-        cluster::switch_cluster::event::send_multi_press_ongoing(ep, 1, o->count);
-        break;
-    case DB_SW_MULTI_COMPLETE:
-        cluster::switch_cluster::event::send_multi_press_complete(ep, 1, o->count);
+    case DB_SW_NONE:
         break;
     }
 }
@@ -363,10 +356,10 @@ static int64_t tick(void)
     int64_t now = esp_timer_get_time();
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         for (int i = 0; i < DB_MATTER_INPUTS; i++) {
-            db_sw_out_t o;
-            if (db_sw_deck_tick(&s.sw[d], i, now, &o)) {
+            db_sw_event_t e = db_sw_deck_tick(&s.sw[d], i, now);
+            if (e != DB_SW_NONE) {
                 lock::ScopedChipStackLock lock(portMAX_DELAY);
-                emit((uint16_t)(node_ep(d) + 1 + i), &o);
+                emit((uint16_t)(node_ep(d) + 1 + i), e);
             }
             int64_t due = db_sw_due(&s.sw[d].sw[i]);
             if (due && (!next || due < next)) {
@@ -400,12 +393,11 @@ static void task(void *arg)
             if (m.input < 0) {
                 deck_changed(m.slot);
             } else if (s.live[m.slot]) {
-                db_sw_out_t out[2];
-                int n = db_sw_deck_input(&s.sw[m.slot], m.input, m.down, m.covered, chord(m.slot),
-                                         esp_timer_get_time(), out);
-                lock::ScopedChipStackLock lock(portMAX_DELAY);
-                for (int e = 0; e < n; e++) {
-                    emit((uint16_t)(node_ep(m.slot) + 1 + m.input), &out[e]);
+                db_sw_event_t e = db_sw_deck_input(&s.sw[m.slot], m.input, m.down, m.covered, chord(m.slot),
+                                                   esp_timer_get_time());
+                if (e != DB_SW_NONE) {
+                    lock::ScopedChipStackLock lock(portMAX_DELAY);
+                    emit((uint16_t)(node_ep(m.slot) + 1 + m.input), e);
                 }
             }
         }
