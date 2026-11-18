@@ -22,6 +22,8 @@ TO_REDACT = {
     "lock",
     "mac",
     "serial",
+    "name",
+    "request_name",
     "request",
     "https_fingerprint",
     "https_ca",
@@ -30,15 +32,32 @@ TO_REDACT = {
 }
 
 
+def _secrets(data: Any) -> set[str]:
+    if isinstance(data, dict):
+        return {v for k, v in data.items() if k in TO_REDACT and isinstance(v, str) and len(v) > 2}.union(
+            *(_secrets(v) for v in data.values())
+        )
+    if isinstance(data, list):
+        return set().union(*(_secrets(v) for v in data))
+    return set()
+
+
+def _mask(text: str, secrets: set[str]) -> str:
+    for secret in sorted(secrets, key=len, reverse=True):
+        text = text.replace(secret, REDACTED)
+    return IPV4.sub(REDACTED, text)
+
+
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> dict[str, Any]:
     coordinator = entry.runtime_data
+    secrets = _secrets(coordinator.data)
     try:
         events: Any = [
-            {**e, "text": IPV4.sub(REDACTED, str(e.get("text", "")))}
+            {**e, "text": _mask(str(e.get("text", "")), secrets)}
             for e in await coordinator.api.request("GET", "/api/events")
         ]
     except DeckConnectorError as err:
-        events = f"not read: {err}"
+        events = f"not read: {_mask(str(err), secrets)}"
     return async_redact_data(
         {
             "entry": dict(entry.data),

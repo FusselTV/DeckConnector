@@ -32,12 +32,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     firmware = coordinator.data.get("firmware")
+    reloading = False
 
     @callback
     def board_device() -> None:
+        nonlocal reloading
         data = coordinator.data
+        if reloading:
+            return
         if data.get("firmware") and data["firmware"] != firmware:
             _LOGGER.info("%s runs firmware %s now, loading it again", entry.title, data["firmware"])
+            reloading = True
             hass.config_entries.async_schedule_reload(entry.entry_id)
             return
         coordinator.board_device_id = (
@@ -64,12 +69,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> bool:
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-
-async def async_remove_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> None:
     for issue in (ISSUE_HTTPS_ONLY, ISSUE_DECKS_OVER_LIMIT):
         ir.async_delete_issue(hass, DOMAIN, f"{issue}_{entry.entry_id}")
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_remove_config_entry_device(

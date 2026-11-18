@@ -28,18 +28,23 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
-    # HACS reads hacs.json and the manifest from raw.githubusercontent.com without a token, which 404s while the
-    # repository is private.
-    if: ${{ !github.event.repository.private }}
     runs-on: [self-hosted, deckconnector]
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # HACS reads hacs.json and the manifest from raw.githubusercontent.com without a token, which 404s while the
+      # repository is private. A scheduled run has no github.event.repository, so ask the API.
+      - id: repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "private=$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" >> "$GITHUB_OUTPUT"
+      - if: steps.repo.outputs.private == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: hacs/action@main
+      - if: steps.repo.outputs.private == 'false'
+        uses: hacs/action@main
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:

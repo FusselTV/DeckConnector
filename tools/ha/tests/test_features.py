@@ -108,7 +108,7 @@ async def test_decks_over_the_limit_raise_a_repair(hass, entry, aioclient_mock, 
     await push(hass, socket, decks_over_limit=0)
     assert issues.async_get_issue("deckconnector", issue_id) is None
     await push(hass, socket, decks_over_limit=2)
-    assert await hass.config_entries.async_remove(entry.entry_id)
+    assert await hass.config_entries.async_unload(entry.entry_id)
     assert issues.async_get_issue("deckconnector", issue_id) is None
 
 
@@ -137,6 +137,7 @@ async def test_a_new_firmware_reloads_the_entry(hass, entry, aioclient_mock, soc
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     with patch.object(hass.config_entries, "async_schedule_reload") as reload:
         await push(hass, socket, firmware="v1.1.0")
+        await push(hass, socket, firmware="v1.1.0")
     reload.assert_called_once_with(entry.entry_id)
 
 
@@ -154,7 +155,8 @@ async def test_the_connection_is_logged_once_lost_and_once_back(hass, entry, aio
 
 async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
-    aioclient_mock.get(f"http://{HOST}/api/events", json=[{"kind": "dock", "text": "192.168.1.15 paired"}])
+    events = [{"kind": "dock", "text": "192.168.1.15 paired"}, {"kind": "net", "text": "WLAN studio is back"}]
+    aioclient_mock.get(f"http://{HOST}/api/events", json=events)
     network = {"lan": {"ip": "192.168.1.50"}, "wlan": {"ssid": "studio", "bssid": "aa:bb", "lock": "aa:bb"}}
     source = {"kind": "app", "host": "192.168.1.20", "name": "studio-pc", "deck": 0}
     await push(hass, socket, network=network, sources=[source], pairing={"hosts": [{"ip": "x", "mac": "y"}]})
@@ -166,7 +168,8 @@ async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, 
     assert st["network"]["lan"]["ip"] == REDACTED
     assert {st["network"]["wlan"][k] for k in ("ssid", "bssid", "lock")} == {REDACTED}
     assert st["sources"][0]["host"] == REDACTED and st["pairing"]["hosts"][0] == {"ip": REDACTED, "mac": REDACTED}
-    assert diag["events"] == [{"kind": "dock", "text": f"{REDACTED} paired"}] and diag["connected"] is True
+    assert [e["text"] for e in diag["events"]] == [f"{REDACTED} paired", f"WLAN {REDACTED} is back"]
+    assert st["sources"][0]["name"] == REDACTED and diag["connected"] is True
 
 
 async def test_system_health(hass, entry, aioclient_mock, socket):
