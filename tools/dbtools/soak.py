@@ -108,8 +108,9 @@ async def main_async(a) -> None:
     failures: list[str] = []
     async with contextlib.AsyncExitStack() as undo:  # runs every step back, also when one of them fails
         undo.push_async_callback(server.stop)
-        undo.callback(c.send, "POST", "/api/dock", {"pairing": 0})
-        undo.callback(c.send, "PUT", "/api/config", {**settings_to_restore(cfg), "servers": cfg["servers"]})
+        restore = {**settings_to_restore(cfg), "servers": cfg["servers"]}
+        undo.callback(lambda: c.send("POST", "/api/dock", {"pairing": 0}))  # c: the client of the last round
+        undo.callback(lambda: c.send("PUT", "/api/config", restore))
         await server.start()
         c.send("PUT", "/api/config", {"controller": "server", "host": server.url, "servers": [server.url]})
         c.send("POST", "/api/dock", {"pairing": int(a.minutes * 60) + 60})  # its dock churn comes from a new host

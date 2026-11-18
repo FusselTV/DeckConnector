@@ -10,6 +10,7 @@ class Handler(socketserver.StreamRequestHandler):
 
     def handle(self) -> None:
         srv = self.server
+        srv.conns += 1
         srv.conn = self.connection
         self.wfile.write(b"BEGIN CompanionVersion=fake ApiVersion=1.16.0\nCAPS BITMAP_FORMATS=rgb ROTARY_AMOUNT=1\n")
         for raw in self.rfile:
@@ -32,8 +33,9 @@ class FakeSatellite(socketserver.ThreadingTCPServer):
     allow_reuse_address = True  # read while binding: set on the instance it comes too late
     daemon_threads = True
 
-    def __init__(self, port: int, handler: type[Handler] = Handler):
-        super().__init__(("0.0.0.0", port), handler)
+    def __init__(self, port: int):
+        super().__init__(("0.0.0.0", port), Handler)
+        self.conns = 0
         self.lines: list[str] = []
         self.device: str | None = None
         self.conn: socket.socket | None = None

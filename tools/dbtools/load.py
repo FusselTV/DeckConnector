@@ -68,8 +68,8 @@ class Client:
             headers["X-DeckConnector"] = "1"
         data = json.dumps(body) if body is not None else None
         t = time.perf_counter()
-        tries = 2 if method == "GET" else 1  # a connection the bridge closed in between; a press is never sent twice
-        for attempt in range(1, tries + 1):
+        for attempt in (1, 2):
+            reused = self.conn is not None
             conn = self.conn = self.conn or http.client.HTTPConnection(self.host, timeout=10)
             try:
                 conn.request(method, path, data, headers)
@@ -80,7 +80,11 @@ class Client:
                 failed(type(e).__name__)
                 conn.close()
                 self.conn = None
-                if attempt == tries:
+                # a keep-alive connection the bridge closed in between never delivered the request, so even a press
+                # gets one fresh try
+                stale = (http.client.RemoteDisconnected, ConnectionResetError, BrokenPipeError)
+                closed = reused and isinstance(e, stale)
+                if attempt == 2 or not (method == "GET" or closed):
                     return 0, (time.perf_counter() - t) * 1000, b""
         raise AssertionError
 

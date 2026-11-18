@@ -14,7 +14,7 @@ from conftest import HOST, api, get_config, put_config, status
 from test_input_gate import CHECK
 from test_satellite_fake import wait
 
-from dbtools.satfake import FakeSatellite, Handler
+from dbtools.satfake import FakeSatellite
 from dbtools.server import local_ip
 
 KEYS = ("satellite", "satellite_auto", "satellite_pin", "controller", "host")
@@ -67,16 +67,9 @@ def me():
         )
 
 
-class Counting(Handler):
-    def handle(self):
-        self.server.conns += 1
-        super().handle()
-
-
 @pytest.fixture
 def fake():
-    srv = FakeSatellite(16622, Counting)
-    srv.conns = 0
+    srv = FakeSatellite(16622)
     yield srv
     srv.shutdown()
     srv.server_close()
