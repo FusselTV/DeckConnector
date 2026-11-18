@@ -33,8 +33,9 @@
 #define CUSTOM_MAX 6144
 #define NVS_SPARE  4096
 #define DAY        86400
-#define LEAF_DAYS  800 /* Apple refuses a server certificate valid longer than 825 days, also a trusted one  \
-                        */
+#define LEAF_DAYS                                                                                            \
+    800 /* Apple refuses a server certificate valid longer than 825 days, also a trusted one                 \
+         */
 #define SANS 6
 
 static const char *TAG = "cert";
@@ -266,7 +267,8 @@ static bool load_ca(nvs_handle_t h, bool *fresh)
              nvs_commit(h) == ESP_OK;
         mbedtls_pk_free(&pk);
         *fresh = true;
-        ESP_LOGI(TAG, "new device CA: %s", ok ? "ok" : "failed");
+        ESP_LOGI(TAG, "new device CA, %u B stack left: %s", (unsigned)uxTaskGetStackHighWaterMark(NULL),
+                 ok ? "ok" : "failed");
     } else if (!ok) {
         ESP_LOGE(TAG, "device CA unreadable (%s), no HTTPS until the next start", esp_err_to_name(err));
     }
@@ -305,7 +307,8 @@ static bool renew(const char *want)
     heap_caps_free(ca_pem);
     mbedtls_pk_free(&ca_key);
     mbedtls_pk_free(&key);
-    ESP_LOGI(TAG, "new certificate for %s in %lu ms: %s", want, (unsigned long)(esp_log_timestamp() - t),
+    ESP_LOGI(TAG, "new certificate for %s in %lu ms, %u B stack left: %s", want,
+             (unsigned long)(esp_log_timestamp() - t), (unsigned)uxTaskGetStackHighWaterMark(NULL),
              ok ? "ok" : "failed");
     if (!ok) {
         drop(p);

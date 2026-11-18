@@ -503,6 +503,14 @@ static void start_tls(void)
     watch(tls_server);
     httpd_register_err_handler(tls_server, HTTPD_404_NOT_FOUND, not_found);
     httpd_register_err_handler(tls_server, HTTPD_405_METHOD_NOT_ALLOWED, wrong_method);
+    ESP_LOGI(TAG, "HTTPS on port 443, %u B stack left", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+}
+
+/* Making the device CA and a certificate overflowed the 6 KB main task. */
+static void tls_task(void *arg)
+{
+    start_tls();
+    vTaskDelete(NULL);
 }
 #endif
 
@@ -672,12 +680,14 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     char *cert, *key; /* no HTTPS, but the certificates for GET /api/cert and /api/ca */
     web_cert(&cert, &key, fingerprint);
 #else
-    start_tls();
+    if (xTaskCreate(tls_task, "tls_start", 10240, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "no task for HTTPS");
+    }
 #endif
     metrics_start();
 #if !CONFIG_IDF_TARGET_LINUX
     announce_api();
 #endif
-    ESP_LOGI(TAG, "web UI on port 80%s", tls_server ? " and 443" : "");
+    ESP_LOGI(TAG, "web UI on port 80");
     return ESP_OK;
 }
