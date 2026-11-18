@@ -73,3 +73,4 @@ def test_the_screen_goes_dark_and_a_press_wakes_it(start, model):
     sim.tap(0, 0)
     assert sim.wait(lambda: bright.read_text() not in ("0", "-1"), 3), "a press did not wake it"
     assert not sim.status()["menu_open"], "the waking press reached the UI"
+

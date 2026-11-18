@@ -37,8 +37,11 @@ MODELS = {
 
 
 class SimDeck:
-    def __init__(self, models: list[str], port: int, work: Path, password: str = "simdeck-pass", **env: str):
-        self.models, self.port, self.work, self.password, self.env = models, port, work, password, env
+    def __init__(
+        self, models: list[str], port: int, work: Path, password: str = "simdeck-pass", limit: bool = True, **env: str
+    ):
+        """`limit`: raise max_decks (2 by default) to the number of models once the simulator is up."""
+        self.models, self.port, self.work, self.password, self.limit, self.env = models, port, work, password, limit, env
         self.decks = work / "decks"
         self.proc: subprocess.Popen | None = None
 
@@ -67,7 +70,7 @@ class SimDeck:
         while time.monotonic() < end:
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{self.port}/", timeout=1)
-                if len(self.models) > 2:  # 2 by default; the waiting decks come at once
+                if self.limit and len(self.models) > 2:  # 2 by default; the waiting decks come at once
                     self.config(max_decks=len(self.models))
                     assert self.wait(lambda: len(self.status()["decks"]) == len(self.models)), self.log()
                 return self

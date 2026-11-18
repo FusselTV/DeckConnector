@@ -27,9 +27,9 @@ def pytest_collection_modifyitems(config, items):
 def start(request):
     sims = []
 
-    def start(*models: str, **env: str) -> SimDeck:
+    def start(*models: str, limit: bool = True, **env: str) -> SimDeck:
         name = request.node.name.replace("[", "-").rstrip("]")
-        sim = SimDeck(list(models), next(_ports), WORK / name, **env).start()
+        sim = SimDeck(list(models), next(_ports), WORK / name, limit=limit, **env).start()
         sims.append(sim)
         return sim
 
