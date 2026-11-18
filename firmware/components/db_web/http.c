@@ -627,6 +627,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/backup", .method = HTTP_GET, .handler = get_backup}, WEB_ADMIN},
         {{.uri = "/api/tokens", .method = HTTP_POST, .handler = auth_tokens_add}, WEB_ADMIN},
         {{.uri = "/api/tokens/*", .method = HTTP_DELETE, .handler = auth_tokens_remove}, WEB_ADMIN},
+        {{.uri = "/api/token", .method = HTTP_DELETE, .handler = auth_token_remove_self}, WEB_CONTROL},
         {{.uri = "/api/passkeys", .method = HTTP_GET, .handler = auth_passkeys_list}, WEB_ADMIN},
         {{.uri = "/api/passkeys", .method = HTTP_POST, .handler = auth_passkey_add}, WEB_ADMIN},
         {{.uri = "/api/passkeys/*", .method = HTTP_PUT, .handler = auth_passkey_edit}, WEB_ADMIN},

@@ -65,7 +65,7 @@ async def test_the_host_sensor(hass, entry, aioclient_mock, socket, writer, sour
     await setup(hass, entry, aioclient_mock, socket, deck)
     await socket.queue.put({"t": "state", **status(deck), "sources": sources})
     await hass.async_block_till_done()
-    assert hass.states.get("sensor.stream_deck_host").state == host
+    assert hass.states.get("sensor.stream_deck_source").state == host
 
 
 async def test_controller_and_screen_go_to_the_board(hass, entry, aioclient_mock, socket):

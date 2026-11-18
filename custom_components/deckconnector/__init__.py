@@ -10,7 +10,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
 
-from .api import Api
+from .api import Api, AuthError, DeckConnectorError
 from .const import DOMAIN, ISSUE_DECKS_OVER_LIMIT, ISSUE_HTTPS_ONLY
 from .coordinator import DeckConnectorConfigEntry, DeckCoordinator
 
@@ -96,6 +96,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntr
 
 async def async_remove_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> None:
     clear_issues(hass, entry.entry_id)
+    api = Api(async_get_clientsession(hass), entry.data[CONF_HOST], entry.data[CONF_TOKEN])
+    try:
+        await api.request("DELETE", "/api/token")
+    except AuthError:
+        pass  # the key no longer works, so it is gone already
+    except DeckConnectorError as err:
+        _LOGGER.warning("%s keeps the API key of Home Assistant (%s), delete it under Access", entry.title, err)
 
 
 async def async_remove_config_entry_device(

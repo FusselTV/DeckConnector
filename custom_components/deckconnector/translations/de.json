@@ -3,7 +3,7 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "description": "Gib die Adresse der Platine ein.",
+        "description": "Gib die Adresse des Connectors ein.",
         "data": {
           "host": "Host"
         },
@@ -25,7 +25,7 @@
         }
       },
       "reconfigure": {
-        "description": "Neue Adresse von {name}. Home Assistant behält seinen API-Schlüssel oder fragt neu nach Zugriff, wenn die Platine ihn nicht kennt.",
+        "description": "Neue Adresse von {name}. Home Assistant behält seinen API-Schlüssel oder fragt neu nach Zugriff, wenn der Connector ihn nicht kennt.",
         "data": {
           "host": "Host"
         },
@@ -38,19 +38,19 @@
       "pair": "Bestätige die Anfrage am Deck von {name}."
     },
     "error": {
-      "cannot_connect": "Die Platine ist nicht erreichbar.",
+      "cannot_connect": "Der Connector ist nicht erreichbar.",
       "invalid_auth": "Falsches Passwort.",
       "no_deck": "Kein Deck angeschlossen. Gib stattdessen das Web-Passwort ein.",
       "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein.",
-      "https_only": "Die Platine erlaubt nur HTTPS. Schalte „Nur HTTPS“ auf ihrer Weboberfläche aus und versuche es noch einmal.",
-      "too_many_keys": "Die Platine hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Schlüssel auf ihrer Weboberfläche und versuche es noch einmal.",
-      "not_deckconnector": "Unter dieser Adresse antwortet etwas, aber keine DeckConnector-Platine."
+      "https_only": "Der Connector erlaubt nur HTTPS. Schalte „Nur HTTPS“ auf seiner Weboberfläche aus und versuche es noch einmal.",
+      "too_many_keys": "Der Connector hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Schlüssel auf seiner Weboberfläche und versuche es noch einmal.",
+      "not_deckconnector": "Unter dieser Adresse antwortet etwas, aber kein DeckConnector."
     },
     "abort": {
-      "already_configured": "Diese Platine ist schon eingerichtet.",
-      "cannot_connect": "Die Platine ist nicht erreichbar.",
+      "already_configured": "Dieser Connector ist schon eingerichtet.",
+      "cannot_connect": "Der Connector ist nicht erreichbar.",
       "reauth_successful": "Zugriff erneuert.",
-      "unique_id_mismatch": "Das ist eine andere Platine.",
+      "unique_id_mismatch": "Das ist ein anderer Connector.",
       "reconfigure_successful": "Adresse geändert."
     }
   },
@@ -216,12 +216,12 @@
     },
     "sensor": {
       "host": {
-        "name": "Host",
+        "name": "Quelle",
         "state": {
           "companion": "Companion",
           "app": "Elgato-App",
           "server": "Eigener Server",
-          "board": "Platine"
+          "board": "Connector"
         }
       },
       "temperature": {
@@ -256,13 +256,13 @@
       "message": "Es gibt keine neuere Firmware."
     },
     "cannot_connect": {
-      "message": "Die Platine ist nicht erreichbar: {error}"
+      "message": "Der Connector ist nicht erreichbar: {error}"
     },
     "auth_failed": {
-      "message": "Die Platine nimmt den API-Schlüssel von Home Assistant nicht mehr an."
+      "message": "Der Connector nimmt den API-Schlüssel von Home Assistant nicht mehr an."
     },
     "https_only": {
-      "message": "Die Platine erlaubt nur HTTPS."
+      "message": "Der Connector erlaubt nur HTTPS."
     }
   },
   "device_automation": {
@@ -324,16 +324,16 @@
   "issues": {
     "https_only": {
       "title": "{name} erlaubt nur HTTPS",
-      "description": "Home Assistant spricht über HTTP mit der Platine. Schalte **Nur HTTPS** unter **Zugang** auf der Weboberfläche von {name} aus. Die Integration verbindet sich dann von selbst wieder."
+      "description": "Home Assistant spricht über HTTP mit dem Connector. Schalte **Nur HTTPS** unter **Zugang** auf der Weboberfläche von {name} aus. Die Integration verbindet sich dann von selbst wieder."
     },
     "decks_over_limit": {
       "title": "{count} Deck(s) an {name} bleiben dunkel",
-      "description": "{name} betreibt {max} Deck(s) gleichzeitig. Erhöhe die Grenze unter **Deck** auf der Weboberfläche oder stecke ein Deck ab. Die Decks teilen sich den Strom des USB-Anschlusses der Platine, nimm für mehr Decks einen Hub mit eigenem Netzteil."
+      "description": "{name} betreibt {max} Deck(s) gleichzeitig. Erhöhe die Grenze unter **Deck** auf der Weboberfläche oder stecke ein Deck ab. Die Decks teilen sich den Strom des USB-Anschlusses des Connectors, nimm für mehr Decks einen Hub mit eigenem Netzteil."
     }
   },
   "system_health": {
     "info": {
-      "boards": "Platinen",
+      "boards": "Connectors",
       "connected": "Verbunden",
       "decks": "Decks",
       "firmware": "Firmware"

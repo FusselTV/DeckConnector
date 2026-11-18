@@ -38,6 +38,8 @@ void auth_end_sessions(void);
 esp_err_t auth_tokens_list(httpd_req_t *req);
 esp_err_t auth_tokens_add(httpd_req_t *req);
 esp_err_t auth_tokens_remove(httpd_req_t *req);
+/* DELETE /api/token: the token of the request ends itself, as an integration does when it is removed. */
+esp_err_t auth_token_remove_self(httpd_req_t *req);
 
 esp_err_t auth_login(httpd_req_t *req);
 /* GET /?t=<token>: the one-time login the deck shows as a QR code, then a redirect to / */

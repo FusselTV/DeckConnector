@@ -54,8 +54,8 @@ async def test_decks_are_devices_behind_the_board(hass, entry, aioclient_mock, s
     xl_events = hass.states.get("event.stream_deck_xl_controls")
     assert len(plus.attributes["event_types"]) == 8 * 2 + 4 * 4 + 4
     assert len(xl_events.attributes["event_types"]) == 32 * 2
-    assert hass.states.get("sensor.stream_deck_host").state == "companion"
-    assert hass.states.get("sensor.stream_deck_xl_host").state == "board"
+    assert hass.states.get("sensor.stream_deck_source").state == "companion"
+    assert hass.states.get("sensor.stream_deck_xl_source").state == "board"
     assert hass.states.get("number.deckconnector_a1b2c3_brightness").state == "80"
     assert hass.states.get("switch.deckconnector_a1b2c3_screen").state == "on"
     assert hass.states.get("select.deckconnector_a1b2c3_controller").state == "companion"
@@ -204,3 +204,18 @@ async def test_a_refused_command_is_a_translated_error(hass, entry, aioclient_mo
         )
     assert err.value.translation_key == "command_failed"
     assert err.value.translation_placeholders == {"name": STATUS["name"], "error": "busy"}
+
+
+async def test_removing_the_entry_ends_its_key_on_the_board(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.delete(f"http://{HOST}/api/token", json={"ok": True})
+    assert await hass.config_entries.async_remove(entry.entry_id)
+    sent = [(m, str(u), h) for m, u, _, h in aioclient_mock.mock_calls if m == "DELETE"]
+    assert sent == [("DELETE", f"http://{HOST}/api/token", {"Authorization": f"Bearer {TOKEN}"})]
+
+
+async def test_a_reload_keeps_the_key(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert not [c for c in aioclient_mock.mock_calls if c[0] == "DELETE"]
