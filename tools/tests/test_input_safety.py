@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from dbtools.safety import NOBODY, UnsafeBridge, real_input_target
+from dbtools.server import local_ip
 
 pytestmark = pytest.mark.sim
 
@@ -64,7 +65,21 @@ def test_tools_never_send_real_true():
 
 
 @pytest.mark.parametrize("host", ["companion.local:16622", "ws://studio.lan:8765/x", "192.168.1.15"])
-def test_only_this_machine_by_address_is_a_real_target(host):
-    status = {"simulated_input": "local", "sources": [{"drawing": True, "host": host, "kind": "companion"}]}
+@pytest.mark.parametrize("locked", [False, True])
+def test_only_this_machine_by_address_is_a_real_target(host, locked):
+    source = {"drawing": not locked, "chosen": True, "host": host, "kind": "companion", "via": "satellite"}
+    status = {"simulated_input": "local", "sources": [source], "decks": [{"locked": locked}]}
+    with pytest.raises(UnsafeBridge):
+        real_input_target(status)
+
+
+def test_a_locked_satellite_on_this_machine_takes_the_pin():
+    source = {"drawing": False, "chosen": True, "host": f"{local_ip()}:16622", "kind": "companion", "via": "satellite"}
+    status = {"simulated_input": "local", "sources": [source], "decks": [{"locked": False}]}
+    with pytest.raises(UnsafeBridge):
+        real_input_target(status)
+    status["decks"][0]["locked"] = True
+    assert real_input_target(status) == local_ip()
+    source["chosen"] = False  # a dock host draws: the lock is not this Satellite's to answer
     with pytest.raises(UnsafeBridge):
         real_input_target(status)

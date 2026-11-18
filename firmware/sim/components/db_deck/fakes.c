@@ -183,8 +183,12 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
     pthread_mutex_unlock(&wake_lock);
     input_real = real;
     input_only_ip = only_ip;
+    int keeper = -1;
+    for (int i = 0; i < listener_count && !swallowed && keeper < 0; i++) {
+        keeper = listeners[i].keeps && listeners[i].keeps(deck, in) ? i : -1;
+    }
     for (int i = 0; i < listener_count && !swallowed; i++) {
-        if (listeners[i].input && (real || !listeners[i].external)) {
+        if (listeners[i].input && (real || !listeners[i].external) && (keeper < 0 || keeper == i)) {
             listeners[i].input(deck, in);
         }
     }
@@ -522,6 +526,10 @@ esp_err_t db_net_wifi_join(const char *ssid, const char *pass, const char *bssid
     }
     sim_join = strcmp(ssid, "Zuhause") == 0 ? "ok" : "failed"; /* no radio: a known name joins at once */
     return ESP_OK;
+}
+
+void db_net_wifi_backup_changed(void)
+{
 }
 
 /* metrics.c reads task and image statistics the host does not have: same keys, no samples, no image. */

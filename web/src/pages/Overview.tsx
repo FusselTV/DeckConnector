@@ -112,8 +112,10 @@ function Meter() {
       el: 'row-wlan',
       to: 'network',
       icon: Wifi,
-      tone: wlan?.ip ? ((wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
-      v: wlan?.ip ? `${wlan.ssid ?? ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}` : t('arm.off'),
+      tone: wlan?.ip ? (wlan.backup || (wlan.rssi ?? 0) < -72 ? 'warn' : 'ok') : '',
+      v: wlan?.ip
+        ? `${wlan.ssid ?? ''}${wlan.backup ? ' · ' + t('wifi2.in_use') : ''}${wlan.rssi ? ' · ' + t(sigWord(wlan.rssi)) : ''}`
+        : t('arm.off'),
     },
     {
       k: 'tab.deck',

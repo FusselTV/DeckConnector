@@ -693,6 +693,7 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     db_input_t out[EVENTS_PER_RPT];
     size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
     bool swallowed[EVENTS_PER_RPT];
+    int keeper[EVENTS_PER_RPT];
     bool any = false;
     bool woke = false;
     int64_t now = esp_timer_get_time();
@@ -707,6 +708,13 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     if (woke) {
         light_all(false);
     }
+    for (size_t e = 0; e < n; e++) {
+        keeper[e] = -1;
+        for (int i = 0; i < s.listener_count && !swallowed[e] && keeper[e] < 0; i++) {
+            keeper[e] = s.listeners[i].keeps && s.listeners[i].keeps(deck, &out[e]) ? i : -1;
+        }
+        any |= keeper[e] >= 0;
+    }
     for (int i = 0; i < s.listener_count && !any; i++) {
         if (s.listeners[i].raw_input && (ev->real || !s.listeners[i].external)) {
             s.listeners[i].raw_input(deck, raw, ev->len);
@@ -714,7 +722,8 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     }
     for (size_t e = 0; e < n; e++) {
         for (int i = 0; i < s.listener_count && !swallowed[e]; i++) {
-            if (s.listeners[i].input && (ev->real || !s.listeners[i].external)) {
+            if (s.listeners[i].input && (ev->real || !s.listeners[i].external) &&
+                (keeper[e] < 0 || keeper[e] == i)) {
                 s.listeners[i].input(deck, &out[e]);
             }
         }

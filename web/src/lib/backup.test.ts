@@ -26,6 +26,8 @@ const cfg: Config = {
   max_decks: 2,
   screen_off_s: 0,
   wifi_bssid: '',
+  wifi2_ssid: '',
+  wifi2_pass_set: false,
   qr_login: true,
   ntp_server: 'pool.ntp.org',
   dock_paired_only: false,
@@ -71,5 +73,10 @@ describe('planRestore', () => {
     ])
     expect(JSON.stringify(p.rows)).not.toMatch(/hunter22|wlan-secret/)
     expect(p.restart).toBe(true)
+  })
+  it('the backup Wi-Fi goes back with its password and needs no restart', () => {
+    const p = planRestore(cfg, { ...cfg, wifi2_ssid: 'Ersatz', wifi2_pass: 'backup-secret' })
+    expect(p.patch).toEqual({ wifi2_ssid: 'Ersatz', wifi2_pass: 'backup-secret' })
+    expect(p.restart).toBe(false)
   })
 })

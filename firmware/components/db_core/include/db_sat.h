@@ -49,6 +49,41 @@ typedef struct {
  * same buttons show. The image keys come first, then the strip in one part per encoder, then keys without a
  * picture (on the Neo, in the strip's row around it), then the encoders. */
 size_t db_sat_controls(const db_device_info_t *dev, db_sat_control_t *out, size_t max);
+/* The ADD-DEVICE line with its newline, or 0 when it does not fit in `cap`. */
+size_t db_sat_add_device(char *buf, size_t cap, const char *surface, const char *serial, const char *model,
+                         const char *manifest_b64, bool png, bool swipe);
+
+typedef struct {
+    bool locked;
+    uint8_t count;    /* PIN digits Companion counted */
+    uint8_t pending;  /* PINCODE-KEYs sent and not answered yet */
+    int16_t rotation; /* 0, 90, -90 or 180, as Companion turns the surface */
+} db_sat_lock_t;
+
+/* The lock as the deck shows it. */
+typedef struct {
+    uint8_t count;    /* digits typed */
+    bool wrong;       /* the last entry was wrong, for a moment */
+    int16_t rotation; /* as Companion turns the surface: 0, 90, -90 or 180 */
+} db_sat_pin_t;
+
+/* A LOCKED-STATE or the answer to a PINCODE-KEY into `l`. True when Companion cleared digits it had counted
+ * while still locked: a wrong PIN. */
+bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m);
+
+/* The keys and encoders whose press went to Companion, so a release goes only after its press. */
+typedef struct {
+    uint64_t keys;
+    uint8_t encoders;
+} db_sat_held_t;
+
+/* Whether the PIN pad of a locked deck keeps `ev` from everyone else: all input while locked, and the release
+ * of a press it kept. A press made before the lock gets its release out. */
+bool db_sat_pad_keeps(db_sat_held_t *kept, const db_input_t *ev, bool locked);
+
+/* Whether `ev` goes to Companion. `ours`: Companion draws on the deck and the press is real. */
+bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours);
+
 /* The LAYOUT_MANIFEST JSON. Returns its length, 0 when it does not fit. */
 size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t cap);
 /* The control of a CONTROLID "row/column", or NULL. */

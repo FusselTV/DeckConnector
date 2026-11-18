@@ -45,7 +45,11 @@ openssl x509 -noout -fingerprint -sha256 -in cert.pem
 
 ### Layout
 
-Companion sees two rows of keys, the touch strip as four 200 × 100 zones, then the four dials, the same as its own Stream Deck plugin. A tap presses the zone. A swipe up or down turns that zone like a dial. A sideways swipe changes the page once you turn on **Horizontal Swipe Changes Page** in the surface settings.
+Companion sees two rows of keys, the touch strip as four 200 × 100 zones, then the four dials, the same as its own Stream Deck plugin. A tap presses the zone. A swipe up or down turns that zone like a dial. A sideways swipe changes the page once you turn on **Horizontal Swipe Changes Page** in the surface settings. On a Stream Deck Neo, Companion also gets the two touch points and the info bar between them.
+
+### PIN lock
+
+When Companion locks the deck, the deck shows a number pad. Type the PIN on it. While the deck is locked, its keys only enter the PIN and the menu does not open. A Stream Deck Pedal has no screen and stays locked until Companion unlocks it.
 
 ## Network Dock
 
@@ -60,6 +64,5 @@ The board then sees only the proxy's address and cannot end the dock connection.
 ## Limits
 
 - One Companion over Satellite at a time. For more programs see [Multiple hosts](/docs/hosts).
-- On a Stream Deck Neo only the eight keys.
 
 <Next links={[['Multiple hosts', '/docs/hosts/'], ['Troubleshooting', '/docs/troubleshooting/#companion-does-not-connect']]} />

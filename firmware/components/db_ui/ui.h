@@ -11,11 +11,18 @@
 
 #include "canvas.h"
 #include "db_device.h"
+#include "db_sat.h"
 
 #define UI_MAX_KEYS 36
 #define UI_SEGMENTS 4
 
-typedef enum { TILE_NONE, TILE_CARD, TILE_BUTTON, TILE_QR } ui_tile_kind_t; /* TILE_QR: ui_screen_t.qr */
+typedef enum {
+    TILE_NONE,
+    TILE_CARD,
+    TILE_BUTTON,
+    TILE_QR,
+    TILE_DIGIT
+} ui_tile_kind_t; /* TILE_QR: ui_screen_t.qr */
 typedef enum { BADGE_NONE, BADGE_OPEN, BADGE_CLOSE } ui_badge_t;
 
 /* A card only shows something; a button does something. */
@@ -29,6 +36,8 @@ typedef struct {
     bool active;
     bool dim; /* a button that does nothing right now */
     ui_badge_t badge;
+    uint8_t dots; /* cards: this many dots instead of the value */
+    int16_t turn; /* drawn upright, then turned for a deck Companion rotates by 90, -90 or 180 degrees */
 } ui_tile_t;
 
 /* One quarter of the touch strip, over its encoder. `span` > 1 joins the next ones into one wide segment. */
@@ -39,7 +48,9 @@ typedef struct {
     char label[32];
     char value[48];
     char sub[112];
-    int bar; /* 0 to 100, < 0 for none */
+    int bar;      /* 0 to 100, < 0 for none */
+    uint8_t dots; /* this many dots instead of the value */
+    bool digit;   /* only the value, large and centred */
 } ui_segment_t;
 
 #define UI_QR_MAX 41 /* version 6: a WLAN name of 32 characters and a password of 63 still fit */
@@ -53,7 +64,9 @@ typedef struct {
 typedef struct {
     ui_tile_t tiles[UI_MAX_KEYS];
     ui_segment_t seg[UI_SEGMENTS];
-    ui_qr_t qr; /* one per screen; its tile carries what it encodes as value, so a change redraws it */
+    ui_qr_t qr;       /* one per screen; its tile carries what it encodes as value, so a change redraws it */
+    ui_segment_t bar; /* the Neo's info bar: label at the left edge, sub at the right, icon and value or dots
+                       * between; span 0: dark */
 } ui_screen_t;
 
 typedef struct {
@@ -61,6 +74,7 @@ typedef struct {
     uint8_t rows;
     uint8_t encoders;
     bool strip;
+    bool bar; /* an info bar without encoders (Neo) */
     uint16_t key_px;
     uint64_t tap_keys; /* db_device_info_t's: controls that cannot be held */
     uint8_t tap_encoders;
@@ -132,6 +146,8 @@ typedef struct {
     char login_mac[18]; /* empty when it is not in the ARP table */
     char login_name[40];
     uint32_t login_seq; /* which request the page shows, so an answer cannot reach a newer one */
+    bool locked;        /* Companion locked the deck with its PIN */
+    db_sat_pin_t pin;   /* when locked */
 } ui_model_t;
 
 typedef enum {
@@ -152,6 +168,7 @@ typedef enum {
     UI_DO_LOGIN,         /* value: 1 lets the asking browser in */
     UI_DO_LANG,          /* the other language */
     UI_DO_SHOW_PASSWORD, /* the web address and password, for whoever stands at the deck */
+    UI_DO_PIN,           /* value: one digit of Companion's PIN */
 } ui_do_t;
 
 typedef struct {
@@ -174,6 +191,7 @@ typedef enum {
     PAGE_PASSWORD, /* over every page, below a request, PAGE_RESET and PAGE_LOGIN_REQ */
     PAGE_RESET,
     PAGE_LOGIN_REQ, /* over every page, below a request and PAGE_RESET */
+    PAGE_LOCK,      /* Companion's PIN pad, over every page below the password */
 } ui_page_t;
 
 typedef struct {
@@ -189,6 +207,7 @@ typedef struct {
     ui_page_t pick_back; /* PAGE_SOURCES, PAGE_LAN and the setup WLAN go back here */
     uint64_t keys_down;  /* pressed on this page */
     uint8_t encoders_down;
+    uint8_t pin_page; /* the Mini's PIN pad: 0 shows 1 to 5, 1 shows 6 to 0 */
 } ui_menu_t;
 
 ui_layout_t ui_layout_of(const db_device_info_t *info);
@@ -202,6 +221,9 @@ int ui_after_menu(int lit, int before, bool turned, int saved);
 bool ui_menu_open(const ui_menu_t *m);
 void ui_menu_open_main(ui_menu_t *m, int64_t now);
 void ui_menu_close(ui_menu_t *m, int64_t now);
+/* As the deck's lock changes: a lock closes the menu, its end starts the Mini's pad on its first page again.
+ */
+void ui_menu_lock(ui_menu_t *m, bool locked, int64_t now);
 /* The menu controls for `chord` (auto, keys, encoders, off; anything else counts as auto): index 0 and *last
  * of the encoders or keys, the last one that can be held. False for off or when no two can be held. */
 bool ui_menu_chord(const char *chord, const ui_layout_t *l, bool *on_encoders, int *last);

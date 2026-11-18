@@ -221,6 +221,69 @@ size_t db_sat_manifest(const db_sat_control_t *c, size_t n, char *buf, size_t ca
     return db_json_end(&j);
 }
 
+size_t db_sat_add_device(char *buf, size_t cap, const char *surface, const char *serial, const char *model,
+                         const char *manifest_b64, bool png, bool swipe)
+{
+    /* the plugin's surface id: Companion keeps the deck's settings, as if it hung on USB or a dock. Without
+     * CAN_CHANGE_PAGE Companion drops every CHANGE-PAGE without an error */
+    int n = snprintf(buf, cap,
+                     "ADD-DEVICE DEVICEID=\"%s\" SERIAL=\"%s:%s\" PRODUCT_NAME=\"%s\" "
+                     "LAYOUT_MANIFEST=\"%s\" BITMAP_FORMAT=%s PINCODE_LOCK=FULL%s\n",
+                     serial, surface, serial, model, manifest_b64, png ? "png" : "rgb",
+                     swipe ? " CAN_CHANGE_PAGE=\"Horizontal Swipe Changes Page\"" : "");
+    return n > 0 && (size_t)n < cap ? (size_t)n : 0;
+}
+
+bool db_sat_lock_update(db_sat_lock_t *l, const db_sat_msg_t *m)
+{
+    if (strcmp(m->cmd, "PINCODE-KEY") == 0) { /* OK comes after the LOCKED-STATE that counted the digit */
+        l->pending = (uint8_t)(l->pending ? l->pending - 1 : 0);
+        return false;
+    }
+    const char *locked = db_sat_get(m, "LOCKED");
+    const char *count = db_sat_get(m, "CHARACTER_COUNT");
+    const char *rotation = db_sat_get(m, "ROTATION");
+    bool was = l->locked && l->count > 0;
+    l->locked = locked && (strcmp(locked, "1") == 0 || strcmp(locked, "true") == 0);
+    unsigned long n = count && l->locked ? strtoul(count, NULL, 10) : 0;
+    l->count = (uint8_t)(n > 255 ? 255 : n);
+    long r = rotation ? strtol(rotation, NULL, 10) : 0;
+    l->rotation = (int16_t)(r == 90 || r == -90 || r == 180 ? r : 0);
+    l->pending = l->locked ? l->pending : 0;
+    return was && l->locked && l->count == 0;
+}
+
+/* Notes a press when `on`, else forgets it. A release: whether its press was noted. Anything else: `on`. */
+static bool held(db_sat_held_t *h, const db_input_t *ev, bool on)
+{
+    bool key = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_KEY_UP;
+    bool enc = ev->kind == DB_INPUT_ENCODER_DOWN || ev->kind == DB_INPUT_ENCODER_UP;
+    if (!key && !enc) {
+        return on;
+    }
+    uint64_t bit = key ? 1ULL << (ev->index & 63) : 0;
+    uint8_t ebit = (uint8_t)(enc ? 1U << (ev->index & 7) : 0);
+    if (ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN) {
+        h->keys = on ? h->keys | bit : h->keys & ~bit;
+        h->encoders = (uint8_t)(on ? h->encoders | ebit : h->encoders & ~ebit);
+        return on;
+    }
+    bool pressed = (h->keys & bit) || (h->encoders & ebit);
+    h->keys &= ~bit;
+    h->encoders &= (uint8_t)~ebit;
+    return pressed;
+}
+
+bool db_sat_pad_keeps(db_sat_held_t *kept, const db_input_t *ev, bool locked)
+{
+    return held(kept, ev, locked);
+}
+
+bool db_sat_pass(db_sat_held_t *h, const db_input_t *ev, bool ours)
+{
+    return held(h, ev, ours) && ours;
+}
+
 void db_sat_addr_host(const char *addr, char *host, size_t cap)
 {
     const char *p = strstr(addr, "://");
