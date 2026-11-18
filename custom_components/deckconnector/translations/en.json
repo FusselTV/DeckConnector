@@ -19,7 +19,7 @@
         }
       },
       "password": {
-        "description": "The password of the web page of {name}.",
+        "description": "Web page password of {name}.",
         "data": {
           "password": "Password"
         }
@@ -33,8 +33,9 @@
       "invalid_auth": "Wrong password.",
       "no_deck": "No deck is attached. Enter the web password instead.",
       "not_accepted": "The deck did not accept the request. Enter the web password instead.",
-      "https_only": "The board allows HTTPS only. Turn HTTPS only off in its web page, then try again.",
-      "too_many_keys": "The board has 8 API keys already. Delete one under Access › API keys in its web page, then try again."
+      "https_only": "The board allows HTTPS only. Turn off 'HTTPS only' on its web page, then try again.",
+      "too_many_keys": "The board has 8 API keys already. Delete one under Access › API keys on its web page, then try again.",
+      "not_deckconnector": "Something answers at this address, but it is not a DeckConnector."
     },
     "abort": {
       "already_configured": "This board is already set up.",

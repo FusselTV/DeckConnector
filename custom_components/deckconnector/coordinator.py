@@ -10,7 +10,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import Api, AuthError, DeckConnectorError
@@ -36,7 +35,7 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     config_entry: DeckConnectorConfigEntry
 
     def __init__(self, hass: HomeAssistant, entry: DeckConnectorConfigEntry, api: Api) -> None:
-        super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN)
+        super().__init__(hass, _LOGGER, config_entry=entry, name=DOMAIN, update_interval=POLL)
         self.api = api
         self.connected = False
         self.board_device_id = ""
@@ -66,12 +65,7 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return merge(self.data or {}, status)
 
     def start(self) -> None:
-        entry = self.config_entry
-        entry.async_create_background_task(self.hass, self._listen(), f"{DOMAIN} websocket")
-        entry.async_on_unload(async_track_time_interval(self.hass, self._poll, POLL))
-
-    async def _poll(self, _now: Any) -> None:
-        await self.async_refresh()
+        self.config_entry.async_create_background_task(self.hass, self._listen(), f"{DOMAIN} websocket")
 
     @callback
     def _set_connected(self, connected: bool) -> None:

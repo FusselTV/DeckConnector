@@ -19,7 +19,7 @@
         }
       },
       "password": {
-        "description": "Das Passwort der Weboberfläche von {name}.",
+        "description": "Passwort der Weboberfläche von {name}.",
         "data": {
           "password": "Passwort"
         }
@@ -34,7 +34,8 @@
       "no_deck": "Kein Deck angeschlossen. Gib stattdessen das Web-Passwort ein.",
       "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein.",
       "https_only": "Die Platine erlaubt nur HTTPS. Schalte „Nur HTTPS“ auf ihrer Weboberfläche aus und versuche es noch einmal.",
-      "too_many_keys": "Die Platine hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Schlüssel auf ihrer Weboberfläche und versuche es noch einmal."
+      "too_many_keys": "Die Platine hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Schlüssel auf ihrer Weboberfläche und versuche es noch einmal.",
+      "not_deckconnector": "Unter dieser Adresse antwortet etwas, aber keine DeckConnector-Platine."
     },
     "abort": {
       "already_configured": "Diese Platine ist schon eingerichtet.",

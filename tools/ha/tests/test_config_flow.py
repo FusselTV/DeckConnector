@@ -182,3 +182,10 @@ async def test_a_denied_request_is_taken_back(hass, aioclient_mock):
     result = await pair(hass, result["flow_id"])
     assert result["errors"] == {"base": "not_accepted"}
     assert any(c[0] == "DELETE" and str(c[1]) == request for c in aioclient_mock.mock_calls)
+
+
+async def test_something_else_answers(hass, aioclient_mock):
+    aioclient_mock.get(f"{BASE}/api/status", json={"ok": True})
+    result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": HOST})
+    assert result["errors"] == {"base": "not_deckconnector"}

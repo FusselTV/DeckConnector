@@ -43,9 +43,6 @@ class FakeSocket:
         self.queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self.opened = asyncio.Event()
 
-    def __call__(self) -> FakeSocket:
-        return self
-
     async def __aenter__(self) -> FakeSocket:
         self.opened.set()
         return self
@@ -78,5 +75,5 @@ def entry() -> MockConfigEntry:
 @pytest.fixture
 def socket():
     fake = FakeSocket()
-    with patch.object(Api, "websocket", side_effect=lambda: fake):
+    with patch.object(Api, "websocket", return_value=fake):
         yield fake

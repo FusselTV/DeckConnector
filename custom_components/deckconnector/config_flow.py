@@ -46,6 +46,7 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             self.host = host_of(user_input[CONF_HOST])
+            errors["base"] = "cannot_connect"
             try:
                 await Api(async_get_clientsession(self.hass), self.host, "").status()
             except AuthError:
@@ -53,9 +54,9 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
             except HttpsOnlyError:
                 errors["base"] = "https_only"
             except DeckConnectorError:
-                errors["base"] = "cannot_connect"
+                pass
             else:
-                errors["base"] = "cannot_connect"
+                errors["base"] = "not_deckconnector"
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(vol.Schema({vol.Required(CONF_HOST): str}), user_input),

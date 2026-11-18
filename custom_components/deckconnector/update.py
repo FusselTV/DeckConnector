@@ -35,18 +35,15 @@ class Firmware(BoardEntity, UpdateEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self.async_on_remove(async_track_time_interval(self.hass, self._scheduled_check, CHECK_INTERVAL))
+        self.async_on_remove(async_track_time_interval(self.hass, self._fetch_check, CHECK_INTERVAL))
         self.coordinator.config_entry.async_create_background_task(
-            self.hass, self._scheduled_check(None), f"{DOMAIN} update check"
+            self.hass, self._fetch_check(), f"{DOMAIN} update check"
         )
 
-    async def _scheduled_check(self, _now: Any) -> None:
-        await self._fetch_check()
-        self.async_write_ha_state()
-
-    async def _fetch_check(self) -> None:
+    async def _fetch_check(self, _now: Any = None) -> None:
         with contextlib.suppress(DeckConnectorError):
             self._check = await self.coordinator.api.request("GET", "/api/update/check")
+        self.async_write_ha_state()
 
     @property
     def installed_version(self) -> str | None:
