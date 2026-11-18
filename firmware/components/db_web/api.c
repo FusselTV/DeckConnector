@@ -92,6 +92,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     }
     db_config_t live = cfg;
     live.brightness = old.brightness;
+    live.volume = old.volume;
     live.controller = old.controller;
     live.setup_done = old.setup_done;
     memcpy(live.servers_first, old.servers_first, sizeof(old.servers_first));

@@ -204,7 +204,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet die Platine neu. Die Antwort hat dann `reach` mit den Adressen, unter denen die Platine danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}

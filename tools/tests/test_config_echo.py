@@ -19,6 +19,16 @@ def test_a_change_answers_with_the_stored_settings():
         api("PUT", "/api/config", json.dumps({"menu_hold_ms": before}).encode())
 
 
+@pytest.mark.sim
+def test_volume_works_at_once():
+    before = json.loads(api("GET", "/api/config")[1])["volume"]
+    try:
+        code, body = api("PUT", "/api/config", json.dumps({"volume": 40 if before != 40 else 41}).encode())
+        assert code == 200 and json.loads(body)["restart"] is False, body
+    finally:
+        api("PUT", "/api/config", json.dumps({"volume": before}).encode())
+
+
 @pytest.mark.skipif(TARGET == "sim", reason="the simulator ends on a restart")
 def test_a_restart_names_where_the_page_finds_the_bridge():
     name = json.loads(api("GET", "/api/config")[1])["name"]

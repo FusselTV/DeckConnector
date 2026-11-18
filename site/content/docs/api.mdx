@@ -204,7 +204,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
+`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `menu_chord`, `menu_hold_ms`, `lang`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the board. The reply then has `reach`, the addresses where the board will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
