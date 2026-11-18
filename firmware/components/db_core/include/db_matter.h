@@ -61,6 +61,21 @@ int db_sw_tick(db_sw_t *sw, int64_t now, db_sw_out_t *out);
 /* When db_sw_tick next has something to do, 0: never. */
 int64_t db_sw_due(const db_sw_t *sw);
 
+#define DB_MATTER_INPUTS (DB_MATTER_KEYS + DB_MATTER_DIALS)
+
+/* The switches of one deck. A press while the bridge's own pages take the deck's input (`covered`) goes
+ * nowhere; a release always counts, it ends what a controller saw. Both controls of the menu chord held at
+ * once mute both until they are let go. */
+typedef struct {
+    db_sw_t sw[DB_MATTER_INPUTS];
+    uint64_t muted;
+} db_sw_deck_t;
+
+/* `chord`: the inputs (keys, then dials) of the menu chord, -1 when there is none. */
+int db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool covered, const int chord[2], int64_t now,
+                     db_sw_out_t out[2]);
+int db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now, db_sw_out_t *out);
+
 /* The glue in firmware/matter/db_matter */
 void db_matter_start(void);
 /* "matter" in the status */

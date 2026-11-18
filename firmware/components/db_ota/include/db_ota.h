@@ -83,6 +83,10 @@ void db_ota_web_load(uint16_t api);
  * (heap_caps_malloc). Callers run one at a time with db_ota_web(). */
 esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api);
 esp_err_t db_ota_web_erase(void);
+/* No partition lies on DB_SPARE_OFFSET to DB_SPARE_SIZE (db_ptable.h). */
+bool db_ota_spare_free(void);
+/* Erases it; ESP_ERR_INVALID_STATE when a partition lies there. */
+esp_err_t db_ota_spare_erase(void);
 /* The page in use from the partition; false for the built-in one. */
 bool db_ota_web(db_ota_web_t *out);
 /* Why the page in the partition was not used at start, or ESP_OK. */

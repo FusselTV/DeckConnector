@@ -1325,8 +1325,11 @@ esp_err_t db_ui_factory_reset(void)
     esp_err_t dump = esp_core_dump_image_erase();
     esp_err_t page = db_ota_web_erase();
 #if CONFIG_DB_MATTER
-    db_matter_erase();
+    esp_err_t spare = db_matter_erase();
+#else
+    esp_err_t spare = db_ota_spare_erase();
 #endif
+    err = err == ESP_OK && spare != ESP_ERR_INVALID_STATE ? spare : err;
     err = err == ESP_OK && dump != ESP_ERR_NOT_FOUND ? dump : err;
     return err == ESP_OK && page != ESP_ERR_NOT_FOUND ? page : err;
 }

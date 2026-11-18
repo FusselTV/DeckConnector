@@ -11,8 +11,11 @@
 extern "C" {
 #include "db_config.h"
 #include "db_deck.h"
+#include "db_dock.h"
 #include "db_log.h"
 #include "db_matter.h"
+#include "db_ota.h"
+#include "db_ptable.h"
 #include "db_ui.h"
 }
 #include "esp_log.h"
@@ -35,13 +38,9 @@ static const char *TAG = "matter";
 #define NS    "deckconnector"
 #define ITERS 1000
 
-/* Not in the partition table, which an update does not change: the free flash between phy_init and ota_0. */
-#define PART_OFFSET 0x12000
-#define PART_SIZE   0xE000
-
 typedef struct {
     db_matter_slot_t id;
-    uint8_t keys, dials;
+    uint8_t keys, dials, image_keys;
     char model[24];
 } slot_t;
 
@@ -49,6 +48,7 @@ typedef struct {
     int8_t slot;
     int8_t input; /* keys, then dials; -1: a deck came or went */
     bool down;
+    bool covered;
 } msg_t;
 
 static struct {
@@ -58,9 +58,10 @@ static struct {
     uint8_t verifier[chip::Crypto::kSpake2p_VerifierSerialized_Length];
     slot_t slots[DB_MAX_DECKS];
     bool live[DB_MAX_DECKS]; /* its endpoints exist */
-    db_sw_t sw[DB_MAX_DECKS][DB_MATTER_KEYS + DB_MATTER_DIALS];
+    db_sw_deck_t sw[DB_MAX_DECKS];
     endpoint_t *aggregator;
     QueueHandle_t q;
+    SemaphoreHandle_t start_lock;
     bool loaded, on, started;
     int fabrics;
     bool window;
@@ -109,8 +110,12 @@ static esp_err_t open_part(void)
     const esp_partition_t *p =
         esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, PART);
     if (!p) {
-        esp_err_t err = esp_partition_register_external(
-            NULL, PART_OFFSET, PART_SIZE, PART, ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, &p);
+        if (!db_ota_spare_free()) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        esp_err_t err =
+            esp_partition_register_external(NULL, DB_SPARE_OFFSET, DB_SPARE_SIZE, PART,
+                                            ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, &p);
         if (err != ESP_OK) {
             return err;
         }
@@ -278,7 +283,7 @@ static void deck_changed(int slot)
         if (s.live[slot]) {
             set_reachable(node_ep(slot), false);
         }
-        memset(s.sw[slot], 0, sizeof(s.sw[slot]));
+        s.sw[slot] = (db_sw_deck_t){};
         return;
     }
     slot_t old = s.slots[slot];
@@ -287,6 +292,7 @@ static void deck_changed(int slot)
     slot_t *k = &s.slots[slot];
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
+    k->image_keys = db_device_image_keys(&info);
     strlcpy(k->model, info.model, sizeof(k->model));
     if (moved && s.live[slot]) {
         slot_t now = *k;
@@ -333,18 +339,33 @@ static void emit(uint16_t ep, const db_sw_out_t *o)
     }
 }
 
+static const int *chord(int slot)
+{
+    static int c[2];
+    bool on_dials;
+    int last;
+    const slot_t *k = &s.slots[slot];
+    if (!db_ui_menu_chord(k->dials, k->image_keys, &on_dials, &last)) {
+        c[0] = c[1] = -1;
+    } else {
+        c[0] = on_dials ? DB_MATTER_KEYS : 0;
+        c[1] = c[0] + last;
+    }
+    return c;
+}
+
 static int64_t tick(void)
 {
     int64_t next = 0;
     int64_t now = esp_timer_get_time();
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        for (int i = 0; i < DB_MATTER_KEYS + DB_MATTER_DIALS; i++) {
+        for (int i = 0; i < DB_MATTER_INPUTS; i++) {
             db_sw_out_t o;
-            if (db_sw_tick(&s.sw[d][i], now, &o)) {
+            if (db_sw_deck_tick(&s.sw[d], i, now, &o)) {
                 lock::ScopedChipStackLock lock(portMAX_DELAY);
                 emit((uint16_t)(node_ep(d) + 1 + i), &o);
             }
-            int64_t due = db_sw_due(&s.sw[d][i]);
+            int64_t due = db_sw_due(&s.sw[d].sw[i]);
             if (due && (!next || due < next)) {
                 next = due;
             }
@@ -377,7 +398,8 @@ static void task(void *arg)
                 deck_changed(m.slot);
             } else if (s.live[m.slot]) {
                 db_sw_out_t out[2];
-                int n = db_sw_input(&s.sw[m.slot][m.input], m.down, esp_timer_get_time(), out);
+                int n = db_sw_deck_input(&s.sw[m.slot], m.input, m.down, m.covered, chord(m.slot),
+                                         esp_timer_get_time(), out);
                 lock::ScopedChipStackLock lock(portMAX_DELAY);
                 for (int e = 0; e < n; e++) {
                     emit((uint16_t)(node_ep(m.slot) + 1 + m.input), &out[e]);
@@ -396,16 +418,18 @@ static void on_input(int deck, const db_input_t *ev)
     }
     int at = db_matter_input_ep(0, ev);
     if (at) {
+        char ip[16];
         msg_t m = {.slot = (int8_t)deck,
                    .input = (int8_t)(at - 1),
-                   .down = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN};
-        xQueueSend(s.q, &m, 0);
+                   .down = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN,
+                   .covered = db_ui_menu_open() || db_dock_request(ip)};
+        xQueueSend(s.q, &m, pdMS_TO_TICKS(20)); /* a lost release would leave the switch held */
     }
 }
 
 static void on_device(int deck, const db_device_info_t *info)
 {
-    msg_t m = {.slot = (int8_t)deck, .input = -1, .down = false};
+    msg_t m = {.slot = (int8_t)deck, .input = -1, .down = false, .covered = false};
     xQueueSend(s.q, &m, pdMS_TO_TICKS(1000));
 }
 
@@ -425,13 +449,21 @@ static void on_event(const ChipDeviceEvent *e, intptr_t arg)
     s.window = chip::Server::GetInstance().GetCommissioningWindowManager().IsCommissioningWindowOpen();
 }
 
-/* Matter talks IPv6; the bridge's own interfaces have only IPv4 until asked. */
+/* Matter talks IPv6; the bridge's own interfaces have only IPv4 until asked. Without its own Wi-Fi station,
+ * Matter hears of no new address: its mDNS starts again on each one, or a board on Wi-Fi only is never found.
+ */
 static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
-    esp_netif_create_ip6_linklocal(((ip_event_got_ip_t *)data)->esp_netif);
+    if (id != IP_EVENT_GOT_IP6) {
+        esp_netif_create_ip6_linklocal(((ip_event_got_ip_t *)data)->esp_netif);
+    }
+    if (s.started) {
+        LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(
+            [](intptr_t) { chip::app::DnssdServer::Instance().StartServer(); }));
+    }
 }
 
-void db_matter_start(void)
+static void start(void)
 {
     if (!s.loaded) {
         esp_err_t err = open_part();
@@ -460,13 +492,14 @@ void db_matter_start(void)
     node_t *n = node::create(&cfg, nullptr, nullptr);
     endpoint::aggregator::config_t agg;
     s.aggregator = n ? endpoint::aggregator::create(n, &agg, ENDPOINT_FLAG_NONE, nullptr) : nullptr;
-    s.q = xQueueCreate(32, sizeof(msg_t));
+    s.q = xQueueCreate(64, sizeof(msg_t));
     if (!s.aggregator || !s.q) {
         db_log_event(TAG, "matter", "out of memory");
         return;
     }
     esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip, nullptr);
     esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, on_ip, nullptr);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, on_ip, nullptr);
     for (const char *key : {"ETH_DEF", "WIFI_STA_DEF"}) {
         esp_netif_t *netif = esp_netif_get_handle_from_ifkey(key);
         if (netif && esp_netif_is_netif_up(netif)) {
@@ -558,6 +591,16 @@ int db_matter_show(void)
     return s.started ? db_ui_show_matter(qr, code) : 0;
 }
 
+void db_matter_start(void)
+{
+    if (!s.start_lock) {
+        s.start_lock = xSemaphoreCreateMutex(); /* main calls first, before the web server runs */
+    }
+    xSemaphoreTake(s.start_lock, portMAX_DELAY);
+    start();
+    xSemaphoreGive(s.start_lock);
+}
+
 bool db_matter_open_window(void)
 {
     if (!s.started) {
@@ -576,9 +619,14 @@ bool db_matter_open_window(void)
 esp_err_t db_matter_erase(void)
 {
     if (s.started) {
-        chip::DeviceLayer::PlatformMgr()
-            .LockChipStack(); /* kept: the stack writes nothing more before the restart */
+        /* kept: the stack writes nothing more before the restart */
+        chip::DeviceLayer::PlatformMgr().LockChipStack();
     }
     nvs_flash_deinit_partition(PART);
-    return nvs_flash_erase_partition(PART);
+    esp_err_t err = nvs_flash_erase_partition(PART);
+    if (err != ESP_OK && s.started) {
+        nvs_flash_init_partition(PART);
+        chip::DeviceLayer::PlatformMgr().UnlockChipStack();
+    }
+    return err;
 }

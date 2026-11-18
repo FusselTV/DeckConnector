@@ -3,6 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Flash between phy_init and ota_0 that no partition may use: the Matter image keeps its pairings there. */
+#define DB_SPARE_OFFSET 0x12000
+#define DB_SPARE_SIZE   0xE000
+
 /* Whether partition table `next` may replace `now` (both as written at 0x8000, `len` bytes): every data
  * partition stays where it is with its size, the running app keeps its place, every app slot still fits
  * `image_len`, nothing overlaps or ends past `flash_size`. NULL when it may, else the reason. The MD5 entry

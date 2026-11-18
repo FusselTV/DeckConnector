@@ -117,6 +117,18 @@ static void test_nothing_may_sit_on_the_bootloader_or_the_table(void)
     TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
 }
 
+static void test_nothing_may_sit_on_the_matter_storage(void)
+{
+    row_t rows[ROWS + 1];
+    memcpy(rows, ours, sizeof(ours));
+    rows[ROWS] = (row_t){1, 0x81, 0x1F000, 0x1000, "spare"}; /* its last page */
+    write_table(next, rows, ROWS + 1);
+    TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
+    rows[ROWS] = (row_t){1, 2, 0x12000, 0xE000, "matter"};
+    write_table(next, rows, ROWS + 1);
+    TEST_ASSERT_NOT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -126,5 +138,6 @@ int main(void)
     RUN_TEST(test_app_slots_keep_the_running_one_and_fit_it);
     RUN_TEST(test_overlap_flash_end_and_garbage_are_refused);
     RUN_TEST(test_nothing_may_sit_on_the_bootloader_or_the_table);
+    RUN_TEST(test_nothing_may_sit_on_the_matter_storage);
     return UNITY_END();
 }

@@ -83,3 +83,32 @@ int db_sw_tick(db_sw_t *sw, int64_t now, db_sw_out_t *out)
     *sw = (db_sw_t){0};
     return 1;
 }
+
+int db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool covered, const int chord[2], int64_t now,
+                     db_sw_out_t out[2])
+{
+    uint64_t bit = 1ULL << input;
+    if (d->muted & bit) {
+        if (!down) {
+            d->sw[input] = (db_sw_t){0};
+            d->muted &= ~bit;
+        }
+        return 0;
+    }
+    if (down && covered) {
+        return 0;
+    }
+    int other = input == chord[0] ? chord[1] : input == chord[1] ? chord[0] : -1;
+    if (down && other >= 0 && d->sw[other].down) {
+        d->muted |= bit | 1ULL << other;
+        d->sw[input].down = true;
+        return 0;
+    }
+    return db_sw_input(&d->sw[input], down, now, out);
+}
+
+int db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now, db_sw_out_t *out)
+{
+    int n = db_sw_tick(&d->sw[input], now, out);
+    return d->muted & (1ULL << input) ? 0 : n;
+}

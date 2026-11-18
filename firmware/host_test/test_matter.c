@@ -198,6 +198,65 @@ static void test_a_repeated_state_is_ignored(void)
     TEST_ASSERT_EQUAL(0, n);
 }
 
+static db_sw_deck_t deck;
+static const int chord[2] = {DB_MATTER_KEYS, DB_MATTER_KEYS + 3}; /* dials 1 and 4 */
+static const int no_chord[2] = {-1, -1};
+
+static int deck_in(int input, bool down, bool covered)
+{
+    return n = db_sw_deck_input(&deck, input, down, covered, chord, now, out);
+}
+
+static void test_a_press_on_the_bridges_own_page_goes_nowhere(void)
+{
+    deck = (db_sw_deck_t){0};
+    now = 1000000;
+    TEST_ASSERT_EQUAL(0, deck_in(4, true, true));
+    TEST_ASSERT_EQUAL(0, deck_in(4, false, false)); /* the menu closed meanwhile: nothing to end */
+    TEST_ASSERT_EQUAL(0, db_sw_due(&deck.sw[4]));
+}
+
+static void test_a_release_counts_while_covered(void)
+{
+    deck = (db_sw_deck_t){0};
+    now = 1000000;
+    deck_in(4, true, false);
+    expect(DB_SW_INITIAL_PRESS, 0);
+    deck_in(4, false, true); /* the release that opened the menu */
+    expect(DB_SW_SHORT_RELEASE, 0);
+}
+
+static void test_the_menu_chord_mutes_both_controls(void)
+{
+    deck = (db_sw_deck_t){0};
+    now = 1000000;
+    deck_in(chord[0], true, false);
+    expect(DB_SW_INITIAL_PRESS, 0);
+    now += 100000;
+    TEST_ASSERT_EQUAL(0, deck_in(chord[1], true, false));
+    for (int i = 0; i < 2; i++) {
+        now += DB_SW_LONG_US;
+        TEST_ASSERT_EQUAL(0, db_sw_deck_tick(&deck, chord[i], now, out));
+        TEST_ASSERT_EQUAL(0, db_sw_due(&deck.sw[chord[i]]));
+    }
+    TEST_ASSERT_EQUAL(0, deck_in(chord[1], false, true));
+    TEST_ASSERT_EQUAL(0, deck_in(chord[0], false, true));
+    now += DB_SW_MULTI_US;
+    TEST_ASSERT_EQUAL(0, db_sw_deck_tick(&deck, chord[0], now, out));
+    deck_in(chord[0], true, false); /* let go: it works again */
+    expect(DB_SW_INITIAL_PRESS, 0);
+}
+
+static void test_two_other_controls_together_both_count(void)
+{
+    deck = (db_sw_deck_t){0};
+    now = 1000000;
+    deck_in(0, true, false);
+    deck_in(1, true, false);
+    expect(DB_SW_INITIAL_PRESS, 0);
+    TEST_ASSERT_EQUAL(1, db_sw_deck_input(&deck, chord[1], true, false, no_chord, now, out));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -212,5 +271,9 @@ int main(void)
     RUN_TEST(test_a_held_second_press_is_no_long_press);
     RUN_TEST(test_a_press_after_the_window_starts_over);
     RUN_TEST(test_a_repeated_state_is_ignored);
+    RUN_TEST(test_a_press_on_the_bridges_own_page_goes_nowhere);
+    RUN_TEST(test_a_release_counts_while_covered);
+    RUN_TEST(test_the_menu_chord_mutes_both_controls);
+    RUN_TEST(test_two_other_controls_together_both_count);
     return UNITY_END();
 }
