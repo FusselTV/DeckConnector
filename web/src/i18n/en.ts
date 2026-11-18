@@ -794,4 +794,22 @@ export const en = {
   'access.proxy': 'Reverse proxy',
   'access.proxy_h':
     'The address of a proxy like Caddy in front of the connector. Its X-Forwarded-For then names the client. Empty: none.',
+  'mt.title': 'Matter',
+  'mt.intro':
+    'Keys and dial presses show up as buttons in Apple Home, Google Home, Home Assistant and other Matter apps.',
+  'mt.on': 'On',
+  'mt.paired_one': 'Paired with {n} app.',
+  'mt.paired_other': 'Paired with {n} apps.',
+  'mt.unpaired': 'Not paired yet.',
+  'mt.code': 'Pairing code',
+  'mt.open': 'Pairing is open for 15 minutes. Add a device in your app and scan the code.',
+  'mt.pair_first': 'Start pairing',
+  'mt.pair': 'Pair another app',
+  'mt.show': 'Show on the deck',
+  'mt.shown': 'The code is on the deck.',
+  'mt.reset': 'Reset Matter',
+  'cf.mt_off': 'Turn off Matter?',
+  'cf.mt_off_b': 'The connector restarts. The deck is dark for about 10 s.',
+  'cf.mt_reset': 'Reset Matter?',
+  'cf.mt_reset_b': 'Every app loses the deck. The pairing code changes. The connector restarts.',
 }

@@ -2,6 +2,8 @@
  * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified for DeckConnector: the port is shared in the Matter image (see "deckbridge:" below).
  */
 
 /*
@@ -76,6 +78,9 @@ static esp_err_t pcb_init(void)
     if (!s_pcb_main) {
         return ESP_ERR_NO_MEM;
     }
+#if CONFIG_DB_MATTER
+    ip_set_option(s_pcb_main, SOF_REUSEADDR); /* deckbridge: Matter's own mDNS shares the port */
+#endif
     if (udp_bind(s_pcb_main, IP_ANY_TYPE, MDNS_SERVICE_PORT) != 0) {
         udp_remove(s_pcb_main);
         s_pcb_main = NULL;

@@ -35,7 +35,7 @@ typedef struct {
     uint32_t max_us;
     uint64_t total_us;
 } route_t;
-#define WEB_ROUTES_MAX 71
+#define WEB_ROUTES_MAX 75
 extern httpd_uri_t web_uris[WEB_ROUTES_MAX];
 extern route_t web_routes[WEB_ROUTES_MAX];
 extern size_t web_route_count;

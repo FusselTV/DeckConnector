@@ -11,6 +11,7 @@
 #include "db_json.h"
 #include "db_link.h"
 #include "db_log.h"
+#include "db_matter.h"
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_sat.h"
@@ -248,6 +249,18 @@ static bool make_qr(ui_qr_t *qr, const char *text)
     return esp_qrcode_generate(&cfg, text) == ESP_OK;
 }
 
+_Static_assert(sizeof(((ui_qr_t *)0)->bits) == DB_UI_QR_BYTES, "db_ui_qr copies the whole code");
+
+int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES])
+{
+    static ui_qr_t qr;
+    xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+    int size = make_qr(&qr, text) ? qr.size : 0;
+    memcpy(bits, qr.bits, DB_UI_QR_BYTES);
+    xSemaphoreGive(s.qr_lock);
+    return size;
+}
+
 /* Made again only when the setup WLAN's name or password changed. */
 static void model_qr(ui_model_t *md)
 {
@@ -268,6 +281,12 @@ static int64_t login_made;
 static uint8_t setup_step;
 static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_mux */
 static char ca_fp[20];                                           /* under login_mux */
+#if CONFIG_DB_MATTER
+#define MATTER_US 60000000
+static int64_t matter_until, matter_asked; /* under login_mux */
+static char matter_code[16];
+static ui_qr_t matter_qr; /* under qr_lock */
+#endif
 static struct { /* the login request on the deck, under login_mux */
     int64_t until;
     uint32_t seq;
@@ -296,7 +315,11 @@ static int64_t until(const int64_t *t)
 
 static bool overlay(int64_t now)
 {
-    return now < until(&pass_until) || now < until(&reset_until) || now < until(&ask.until) ||
+    bool matter = false;
+#if CONFIG_DB_MATTER
+    matter = now < until(&matter_until);
+#endif
+    return matter || now < until(&pass_until) || now < until(&reset_until) || now < until(&ask.until) ||
            now < until(&adopt.until);
 }
 
@@ -453,6 +476,15 @@ static void model(int deck, ui_model_t *md)
     portENTER_CRITICAL(&login_mux);
     strcpy(md->ca_fp, ca_fp);
     portEXIT_CRITICAL(&login_mux);
+#if CONFIG_DB_MATTER
+    md->show_matter = md->now_us < until(&matter_until);
+    if (md->show_matter) {
+        xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+        md->matter_qr = matter_qr;
+        xSemaphoreGive(s.qr_lock);
+        snprintf(md->matter_code, sizeof(md->matter_code), "%s", matter_code);
+    }
+#endif
     md->reset_ask = md->now_us < until(&reset_until);
     uint32_t ask_ip = 0;
     portENTER_CRITICAL(&login_mux);
@@ -744,6 +776,9 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
     case UI_DO_HIDE_PASSWORD:
         portENTER_CRITICAL(&login_mux);
         pass_until = 0;
+#if CONFIG_DB_MATTER
+        matter_until = 0;
+#endif
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_CANCEL_RESET:
@@ -1310,6 +1345,24 @@ static bool start_page(int64_t *asked, int64_t *end, int64_t us)
     return fresh;
 }
 
+#if CONFIG_DB_MATTER
+int db_ui_show_matter(const char *qr, const char *code)
+{
+    int n = 0;
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        n += decks[d].present;
+    }
+    xSemaphoreTake(s.qr_lock, portMAX_DELAY);
+    bool made = make_qr(&matter_qr, qr);
+    xSemaphoreGive(s.qr_lock);
+    snprintf(matter_code, sizeof(matter_code), "%s", code);
+    if (n && made && start_page(&matter_asked, &matter_until, MATTER_US)) {
+        changed();
+    }
+    return made ? n : 0;
+}
+#endif
+
 int db_ui_show_password(void)
 {
     int n = 0;
@@ -1341,6 +1394,12 @@ esp_err_t db_ui_factory_reset(void)
     esp_err_t err = db_config_reset();
     esp_err_t dump = esp_core_dump_image_erase();
     esp_err_t page = db_ota_web_erase();
+#if CONFIG_DB_MATTER
+    esp_err_t spare = db_matter_erase();
+#else
+    esp_err_t spare = db_ota_spare_erase();
+#endif
+    err = err == ESP_OK && spare != ESP_ERR_INVALID_STATE ? spare : err;
     err = err == ESP_OK && dump != ESP_ERR_NOT_FOUND ? dump : err;
     return err == ESP_OK && page != ESP_ERR_NOT_FOUND ? page : err;
 }
