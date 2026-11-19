@@ -48,6 +48,8 @@ int db_matter_input(const db_matter_layout_t *l, const db_input_t *in, db_press_
 /* The name of switch `input` as the web UI counts ("Taste 1", "Dial 2 left"); false when it does not exist.
  * Matter allows 16 characters. */
 bool db_matter_label(const db_matter_layout_t *l, int input, const char *lang, char out[17]);
+/* Its place from 1 in the web UI's order: keys, dial presses, turns, zones, swipes; 0: none */
+int db_matter_order(const db_matter_layout_t *l, int input);
 
 /* Generic Switch with momentary, release and long press; no multi-press, which would hold every press back */
 #define DB_SW_LONG_US 600000

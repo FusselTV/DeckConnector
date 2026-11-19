@@ -20,6 +20,7 @@ extern "C" {
 #include "db_ptable.h"
 #include "db_ui.h"
 }
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_partition.h"
@@ -59,7 +60,8 @@ static struct {
     slot_t slots[DB_MAX_DECKS];
     bool live[DB_MAX_DECKS]; /* its endpoints exist */
     uint8_t zones[DB_MAX_DECKS];
-    db_matter_layout_t lay[DB_MAX_DECKS]; /* image_keys and strip: 0 until the deck is seen after the start */
+    uint8_t image_keys[DB_MAX_DECKS];
+    db_matter_layout_t lay[DB_MAX_DECKS]; /* strip_w: 0 until the deck is seen after the start */
     db_sw_deck_t sw[DB_MAX_DECKS];
     endpoint_t *aggregator;
     QueueHandle_t q;
@@ -214,6 +216,7 @@ static void save_slots(void)
         nvs_set_blob(h, "slots", s.slots, sizeof(s.slots));
         /* own key: "slots" keeps its size for older images */
         nvs_set_blob(h, "zones", s.zones, sizeof(s.zones));
+        nvs_set_blob(h, "imgkeys", s.image_keys, sizeof(s.image_keys));
         nvs_commit(h);
         nvs_close(h);
     }
@@ -235,9 +238,15 @@ static esp_err_t load(void)
     if (nvs_get_blob(h, "zones", s.zones, &len) != ESP_OK || len != sizeof(s.zones)) {
         memset(s.zones, 0, sizeof(s.zones));
     }
+    len = sizeof(s.image_keys);
+    if (nvs_get_blob(h, "imgkeys", s.image_keys, &len) != ESP_OK || len != sizeof(s.image_keys)) {
+        memset(s.image_keys, 0, sizeof(s.image_keys));
+    }
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        s.lay[d] =
-            (db_matter_layout_t){.keys = s.slots[d].keys, .dials = s.slots[d].dials, .zones = s.zones[d]};
+        s.lay[d] = (db_matter_layout_t){.keys = s.slots[d].keys,
+                                        .dials = s.slots[d].dials,
+                                        .zones = s.zones[d],
+                                        .image_keys = s.image_keys[d]};
     }
     len = sizeof(s.salt);
     if (nvs_get_u32(h, "pin", &s.pin) != ESP_OK || nvs_get_u16(h, "disc", &s.disc) != ESP_OK ||
@@ -280,8 +289,25 @@ static void payload(char *qr, size_t qr_cap, char *code, size_t code_cap)
     }
 }
 
-static endpoint_t *child(uint16_t id, endpoint_t *parent)
+/* CHIP reads an endpoint's tags once and keeps pointing at the label */
+static char tag_labels[DB_MAX_DECKS][DB_MATTER_INPUTS][17] EXT_RAM_BSS_ATTR;
+
+/* Common Number gives the deck's order but ends at 30 (Matter 1.5); later switches get Switches/Custom */
+static void set_tag(endpoint_t *ep, int slot, int input)
 {
+    int n = db_matter_order(&s.lay[slot], input);
+    char *label = tag_labels[slot][input];
+    db_matter_label(&s.lay[slot], input, db_config()->lang, label);
+    chip::app::DataModel::Provider::SemanticTag tag;
+    tag.namespaceID = n <= 30 ? 0x07 : 0x43;
+    tag.tag = (uint8_t)(n <= 30 ? n : 0x08);
+    tag.label.SetValue(chip::app::DataModel::MakeNullable(chip::CharSpan::fromCharString(label)));
+    endpoint::set_semantic_tags(ep, &tag, 1);
+}
+
+static endpoint_t *child(int slot, int input, endpoint_t *parent)
+{
+    uint16_t id = (uint16_t)(node_ep(slot) + 1 + input);
     endpoint_t *ep = endpoint::resume(node::get(), ENDPOINT_FLAG_DESTROYABLE, id, nullptr);
     if (!ep) {
         return nullptr;
@@ -296,6 +322,7 @@ static endpoint_t *child(uint16_t id, endpoint_t *parent)
     endpoint::generic_switch::add(ep, &cfg);
     cluster::fixed_label::config_t fixed;
     cluster::fixed_label::create(ep, &fixed, CLUSTER_FLAG_SERVER);
+    set_tag(ep, slot, input);
     endpoint::set_parent_endpoint(ep, parent);
     endpoint::enable(ep);
     return ep;
@@ -320,7 +347,7 @@ static void add_switches(int slot)
     endpoint_t *n = endpoint::get(node::get(), base);
     for (int i = 0; n && i < DB_MATTER_INPUTS; i++) {
         if (db_matter_used(&s.lay[slot], i) && !endpoint::get(node::get(), (uint16_t)(base + 1 + i))) {
-            child((uint16_t)(base + 1 + i), n);
+            child(slot, i, n);
         }
     }
 }
@@ -415,12 +442,13 @@ static void deck_changed(int slot)
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
     strlcpy(k->model, info.model, sizeof(k->model));
-    uint8_t old_zones = s.zones[slot];
+    uint8_t old_zones = s.zones[slot], old_image_keys = s.image_keys[slot];
     s.zones[slot] = info.touch_count ? k->dials : 0;
+    s.image_keys[slot] = db_device_image_keys(&info);
     s.lay[slot] = (db_matter_layout_t){.keys = k->keys,
                                        .dials = k->dials,
                                        .zones = s.zones[slot],
-                                       .image_keys = db_device_image_keys(&info),
+                                       .image_keys = s.image_keys[slot],
                                        .strip_w = info.touch[0].rect.w};
     /* a deck without a serial is named by its port (db_deck_identity): another model there is another deck.
      * Not for decks with one: a model renamed in our driver would move their endpoints. */
@@ -432,7 +460,8 @@ static void deck_changed(int slot)
     if (moved && s.live[slot]) {
         drop(slot, old_base);
     }
-    if (memcmp(&old, k, sizeof(old)) != 0 || old_zones != s.zones[slot]) {
+    if (memcmp(&old, k, sizeof(old)) != 0 || old_zones != s.zones[slot] ||
+        old_image_keys != s.image_keys[slot]) {
         save_slots();
     }
     if (!old.id.serial[0]) { /* one deck more: the others' names may gain their number */

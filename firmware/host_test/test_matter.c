@@ -197,6 +197,31 @@ static void test_the_neos_extra_keys_are_touch_points(void)
     TEST_ASSERT_EQUAL_STRING("Touch point 2", label(&neo, 9, "en"));
 }
 
+static void test_switches_count_in_deck_order(void)
+{
+    static const char *want[] = {"Taste 1",        "Taste 8",         "Drehregler 1",    "Drehregler 4",
+                                 "Regler 1 links", "Regler 1 rechts", "Regler 4 rechts", "Touchfeld 1",
+                                 "Touchfeld 4",    "Wischen links",   "Wischen rechts"};
+    static const int at[] = {1, 8, 9, 12, 13, 14, 20, 21, 24, 25, 26};
+    bool seen[27] = {0};
+    for (int i = 0; i < DB_MATTER_INPUTS; i++) {
+        int n = db_matter_order(&plus, i);
+        TEST_ASSERT_EQUAL(db_matter_used(&plus, i), n > 0);
+        if (n) {
+            TEST_ASSERT_TRUE(n <= 26 && !seen[n]);
+            seen[n] = true;
+            for (size_t k = 0; k < sizeof(at) / sizeof(at[0]); k++) {
+                if (at[k] == n) {
+                    TEST_ASSERT_EQUAL_STRING(want[k], label(&plus, i, "de"));
+                }
+            }
+        }
+    }
+    TEST_ASSERT_EQUAL(0, db_matter_order(&plus, -1));
+    TEST_ASSERT_EQUAL(62, db_matter_order(&plus_xl, 61)); /* swipe right, the last of 62 */
+    TEST_ASSERT_EQUAL(10, db_matter_order(&neo, 9));
+}
+
 static db_sw_t sw;
 static int64_t now;
 static db_sw_event_t e;
@@ -391,6 +416,7 @@ int main(void)
     RUN_TEST(test_a_deck_without_strip_or_dials_has_no_extras);
     RUN_TEST(test_switches_are_named_like_the_web_ui);
     RUN_TEST(test_the_neos_extra_keys_are_touch_points);
+    RUN_TEST(test_switches_count_in_deck_order);
     RUN_TEST(test_a_short_press_is_told_at_once);
     RUN_TEST(test_long_press_once_then_long_release);
     RUN_TEST(test_a_repeated_state_is_ignored);
