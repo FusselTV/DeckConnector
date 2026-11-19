@@ -89,7 +89,7 @@ function TokenModal({ tokens, close, done }: { tokens: Token[]; close: () => voi
   return (
     <Modal
       icon={Key}
-      title={t('api.add')}
+      title={t('api.add_t')}
       close={busy ? () => undefined : close}
       foot={
         <>
@@ -452,163 +452,163 @@ export function Access() {
             />
           )}
         </Card>
-        <Card
-          id="card-https"
-          icon={Lock}
-          title={t('access.https')}
-          right={<Help right label={t('access.fp')} text={t('access.fp_h')} />}
-        >
-          <Switch
-            id="https"
-            on={!!cfg?.https_only}
-            onChange={httpsOnly}
-            label={t('access.https_only')}
-            hint={t('access.https_only_h')}
-            disabled={!cfg}
-          />
-          {st.https_fingerprint && (
-            <div className="field">
-              <span className="flabel">{t('access.fp')}</span>
-              <div className="inrow">
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <CopyField id="fp" value={st.https_fingerprint} />
-                </div>
-                <a
-                  className="ibtn"
-                  href={`https://${host}/`}
-                  aria-label={t('access.https_open')}
-                  title={t('access.https_open')}
-                >
-                  <ExternalLink size={16} aria-hidden />
-                </a>
-              </div>
-            </div>
-          )}
-          <div className="field">
-            <span className="flabel">{t('cert.title')}</span>
-            <span className="small">{st.https_custom ? t('cert.applied') : t('cert.own')}</span>
-          </div>
-          <div className="row">
-            {st.https_custom ? (
-              <a className="btn" id="cert-dl" href={certUrl} download={`${st.name ?? 'deckconnector'}.pem`}>
-                <Download size={16} aria-hidden />
-                {t('cert.dl')}
-              </a>
-            ) : (
-              <a className="btn" id="ca-dl" href={caUrl} download={`${st.name ?? 'deckconnector'}-ca.crt`}>
-                <Download size={16} aria-hidden />
-                {t('cert.ca')}
-              </a>
-            )}
-            {st.https_custom ? (
-              <Btn icon={Undo2} onClick={() => void act(async () => (await api.resetTls(), expectRestart()))}>
-                {t('cert.reset')}
-              </Btn>
-            ) : (
-              <Btn id="cert-up" icon={FileBadge} onClick={() => setCm(true)}>
-                {t('cert.upload')}
-              </Btn>
-            )}
-          </div>
-          {st.https_ca && (
-            <p className="small" id="ca-fp">
-              {t('cert.ca_fp')} <span className="mono">{st.https_ca}</span>
-            </p>
-          )}
-          <Field id="proxy" label={t('access.proxy')} hint={t('access.proxy_h')} err={proxyE ? t(proxyE) : null}>
-            <input
-              {...describedBy('proxy', proxyE, true)}
-              className="in mono"
-              value={proxyV}
-              disabled={!cfg}
-              placeholder="192.168.1.15"
-              onChange={(e) => setProxy(e.target.value.trim())}
-              spellCheck={false}
-            />
-          </Field>
-          {!st.https_custom && (
-            <Row id="trust-fold" icon={ShieldCheck} title={t('cert.trust')}>
-              <p className="small muted">{t('cert.t_ip', { name: `${st.name ?? 'deckconnector'}.local` })}</p>
-              <KeyValue
-                rows={[
-                  ['iPhone, iPad', t('cert.t_ios')],
-                  ['macOS', t('cert.t_mac')],
-                  ['Windows', t('cert.t_win')],
-                  ['Android', t('cert.t_android')],
-                  ['Firefox, Linux', t('cert.t_other')],
-                ]}
-              />
-            </Row>
-          )}
-        </Card>
         <Passkeys />
-      </div>
-      <Card
-        id="card-tok"
-        icon={Key}
-        title={t('api.title')}
-        right={
-          <>
-            {!!tokens?.length && addBtn}
-            <Help right label={t('api.title')} text={t('api.h')} />
-          </>
-        }
-      >
-        {tokErr ? (
-          <div className="warnline">
-            <TriangleAlert size={16} aria-hidden />
-            {t('access.tload')}
-            <Btn sm kind="ghost" icon={RefreshCw} onClick={loadTokens}>
-              {t('ban.retry')}
-            </Btn>
-          </div>
-        ) : tokens?.length ? (
-          <div className="list">
-            {tokens.map((x) => {
-              const r = x.right ?? 'control'
-              return (
-                <div key={x.name} className="li">
-                  <SIcon icon={Key} />
-                  <span className="grow mono">{x.name}</span>
-                  <Tag icon={RIGHT_ICON[r]}>{t(r === 'full' ? 'api.r_full' : 'api.r_control')}</Tag>
-                  <IconBtn
-                    icon={Trash2}
-                    label={`${t('btn.delete')}: ${x.name}`}
-                    onClick={() => void delToken(x.name)}
-                  />
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          tokens && (
-            <Empty icon={Key}>
-              <p>{t('api.empty')}</p>
-              {addBtn}
-            </Empty>
-          )
-        )}
-        <Row
-          id="cors-fold"
-          icon={Globe}
-          title={t('access.cors')}
-          status={
-            <span className="mono small ell" title={cfg?.cors_origins}>
-              {cfg?.cors_origins || '–'}
-            </span>
+        <Card
+          id="card-tok"
+          icon={Key}
+          title={t('api.title')}
+          right={
+            <>
+              {!!tokens?.length && addBtn}
+              <Help right label={t('api.title')} text={t('api.h')} />
+            </>
           }
         >
-          <Field id="cors" label={t('access.cors_l')} hint={t('access.cors_h')} err={corsE ? t(corsE) : null}>
-            <input
-              {...describedBy('cors', corsE, true)}
-              className="in mono"
-              value={corsV}
-              disabled={!cfg}
-              onChange={(e) => setCors(e.target.value)}
-              spellCheck={false}
+          {tokErr ? (
+            <div className="warnline">
+              <TriangleAlert size={16} aria-hidden />
+              {t('access.tload')}
+              <Btn sm kind="ghost" icon={RefreshCw} onClick={loadTokens}>
+                {t('ban.retry')}
+              </Btn>
+            </div>
+          ) : tokens?.length ? (
+            <div className="list">
+              {tokens.map((x) => {
+                const r = x.right ?? 'control'
+                return (
+                  <div key={x.name} className="li">
+                    <SIcon icon={Key} />
+                    <span className="grow mono">{x.name}</span>
+                    <Tag icon={RIGHT_ICON[r]}>{t(r === 'full' ? 'api.r_full' : 'api.r_control')}</Tag>
+                    <IconBtn
+                      icon={Trash2}
+                      label={`${t('btn.delete')}: ${x.name}`}
+                      onClick={() => void delToken(x.name)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            tokens && (
+              <Empty icon={Key}>
+                <p>{t('api.empty')}</p>
+                {addBtn}
+              </Empty>
+            )
+          )}
+          <Row
+            id="cors-fold"
+            icon={Globe}
+            title={t('access.cors')}
+            status={
+              <span className="mono small ell" title={cfg?.cors_origins}>
+                {cfg?.cors_origins || '–'}
+              </span>
+            }
+          >
+            <Field id="cors" label={t('access.cors_l')} hint={t('access.cors_h')} err={corsE ? t(corsE) : null}>
+              <input
+                {...describedBy('cors', corsE, true)}
+                className="in mono"
+                value={corsV}
+                disabled={!cfg}
+                onChange={(e) => setCors(e.target.value)}
+                spellCheck={false}
+              />
+            </Field>
+          </Row>
+        </Card>
+      </div>
+      <Card
+        id="card-https"
+        icon={Lock}
+        title={t('access.https')}
+        right={<Help right label={t('access.fp')} text={t('access.fp_h')} />}
+      >
+        <Switch
+          id="https"
+          on={!!cfg?.https_only}
+          onChange={httpsOnly}
+          label={t('access.https_only')}
+          hint={t('access.https_only_h')}
+          disabled={!cfg}
+        />
+        {st.https_fingerprint && (
+          <div className="field">
+            <span className="flabel">{t('access.fp')}</span>
+            <div className="inrow">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <CopyField id="fp" value={st.https_fingerprint} />
+              </div>
+              <a
+                className="ibtn"
+                href={`https://${host}/`}
+                aria-label={t('access.https_open')}
+                title={t('access.https_open')}
+              >
+                <ExternalLink size={16} aria-hidden />
+              </a>
+            </div>
+          </div>
+        )}
+        <div className="field">
+          <span className="flabel">{t('cert.title')}</span>
+          <span className="small">{st.https_custom ? t('cert.applied') : t('cert.own')}</span>
+        </div>
+        <div className="row">
+          {st.https_custom ? (
+            <a className="btn" id="cert-dl" href={certUrl} download={`${st.name ?? 'deckconnector'}.pem`}>
+              <Download size={16} aria-hidden />
+              {t('cert.dl')}
+            </a>
+          ) : (
+            <a className="btn" id="ca-dl" href={caUrl} download={`${st.name ?? 'deckconnector'}-ca.crt`}>
+              <Download size={16} aria-hidden />
+              {t('cert.ca')}
+            </a>
+          )}
+          {st.https_custom ? (
+            <Btn icon={Undo2} onClick={() => void act(async () => (await api.resetTls(), expectRestart()))}>
+              {t('cert.reset')}
+            </Btn>
+          ) : (
+            <Btn id="cert-up" icon={FileBadge} onClick={() => setCm(true)}>
+              {t('cert.upload')}
+            </Btn>
+          )}
+        </div>
+        {st.https_ca && (
+          <p className="small" id="ca-fp">
+            {t('cert.ca_fp')} <span className="mono">{st.https_ca}</span>
+          </p>
+        )}
+        <Field id="proxy" label={t('access.proxy')} hint={t('access.proxy_h')} err={proxyE ? t(proxyE) : null}>
+          <input
+            {...describedBy('proxy', proxyE, true)}
+            className="in mono"
+            value={proxyV}
+            disabled={!cfg}
+            placeholder="192.168.1.15"
+            onChange={(e) => setProxy(e.target.value.trim())}
+            spellCheck={false}
+          />
+        </Field>
+        {!st.https_custom && (
+          <Row id="trust-fold" icon={ShieldCheck} title={t('cert.trust')}>
+            <p className="small muted">{t('cert.t_ip', { name: `${st.name ?? 'deckconnector'}.local` })}</p>
+            <KeyValue
+              rows={[
+                ['iPhone, iPad', t('cert.t_ios')],
+                ['macOS', t('cert.t_mac')],
+                ['Windows', t('cert.t_win')],
+                ['Android', t('cert.t_android')],
+                ['Firefox, Linux', t('cert.t_other')],
+              ]}
             />
-          </Field>
-        </Row>
+          </Row>
+        )}
       </Card>
       {tm && tokens && <TokenModal tokens={tokens} close={() => setTm(false)} done={loadTokens} />}
       {cm && <CertModal close={() => setCm(false)} />}

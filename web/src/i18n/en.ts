@@ -575,6 +575,7 @@ export const en = {
   'src.col_conn': 'Connection',
   'src.col_state': 'State',
   'api.add': 'Add',
+  'api.add_t': 'Add API key',
   'api.empty': 'No API key yet.',
   'api.made': 'API key "{name}"',
   'api.use': 'Send it with each call as',

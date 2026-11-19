@@ -834,7 +834,7 @@ export function Wizard() {
   const overlay = restarting && step !== 'moving'
   return (
     <>
-      <div className="center" inert={overlay}>
+      <div className="center wz" inert={overlay}>
         <div className="panelbox wide" role="region" aria-labelledby="wz-t">
           <div className="row">
             <Logo s={40} />

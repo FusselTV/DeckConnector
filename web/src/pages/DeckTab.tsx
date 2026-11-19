@@ -190,16 +190,16 @@ export function DeckTab() {
         )}
         <fieldset className="gate field" disabled={!cfg}>
           <span className="flabel">
-            {t('deck.off')}
+            <label htmlFor="screen-off">{t('deck.off')}</label>
             <Help label={t('deck.off')} text={t('deck.off_h')} />
           </span>
-          <Seg
-            id="screen-off"
-            label={t('deck.off')}
-            value={v.off}
-            onChange={(off) => set({ off })}
-            options={offs.map((s) => [s, s === '0' ? t('deck.never') : duration(Number(s))] as const)}
-          />
+          <select id="screen-off" className="in short" value={v.off} onChange={(e) => set({ off: e.target.value })}>
+            {offs.map((s) => (
+              <option key={s} value={s}>
+                {s === '0' ? t('deck.never') : duration(Number(s))}
+              </option>
+            ))}
+          </select>
         </fieldset>
         {v.off !== '0' && (
           <fieldset className="gate field" disabled={!cfg}>
