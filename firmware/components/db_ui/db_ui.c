@@ -1004,7 +1004,8 @@ bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_e
 static void open_menu(int deck, int64_t now)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    bool opened = !ui_menu_open(&decks[deck].menu);
+    /* present: a chord tick may race the unplug */
+    bool opened = decks[deck].present && !ui_menu_open(&decks[deck].menu);
     for (int d = 0; opened && d < DB_MAX_DECKS; d++) {
         if (d != deck && ui_menu_open(&decks[d].menu)) {
             ui_menu_close(&decks[d].menu, now);

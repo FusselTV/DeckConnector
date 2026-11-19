@@ -258,3 +258,4 @@ def test_ten_keys_let_go_in_one_report_all_reach_companion(start, companion):
         return sum(x.startswith("KEY-PRESS") and x.endswith(f"PRESSED={pressed}") for x in companion.lines)
 
     assert sim.wait(lambda: count(0) == 10, 3), (count(1), count(0))
+    assert count(1) == 10

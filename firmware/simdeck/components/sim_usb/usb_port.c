@@ -200,8 +200,12 @@ static void act(char *line)
     if (!devs[n].plugged || !devs[n].open || devs[n].elgato != (strcmp(what, "rc") != 0)) {
         len = 0;
     } else if (!strcmp(what, "key")) {
-        for (int i = 0; i < (got > 4 ? a[2] : 1); i++) { /* one report for all of them */
-            len = deck_emu_key((uint8_t)(a[0] + i), a[1], r, sizeof(r));
+        for (int i = 0; i < (got > 4 ? a[2] : 1) && a[0] + i < 256; i++) {
+            size_t one = deck_emu_key((uint8_t)(a[0] + i), a[1], r, sizeof(r));
+            if (!one) {
+                break;
+            }
+            len = one;
         }
     } else if (!strcmp(what, "enc")) {
         len = deck_emu_encoder_press((uint8_t)a[0], a[1], r, sizeof(r));
