@@ -11,6 +11,7 @@ from .api import DeckConnectorError
 from .coordinator import DeckConnectorConfigEntry
 
 IPV4 = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
+MAC = re.compile(r"\b[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}\b")
 TO_REDACT = {
     CONF_TOKEN,
     CONF_HOST,
@@ -45,7 +46,7 @@ def _secrets(data: Any) -> set[str]:
 def _mask(text: str, secrets: set[str]) -> str:
     for secret in sorted(secrets, key=len, reverse=True):
         text = text.replace(secret, REDACTED)
-    return IPV4.sub(REDACTED, text)
+    return MAC.sub(REDACTED, IPV4.sub(REDACTED, text))
 
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: DeckConnectorConfigEntry) -> dict[str, Any]:
@@ -54,13 +55,22 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: DeckCon
     try:
         got = await coordinator.api.request("GET", "/api/events")
         # a page since event codes, a plain list before
+        raw = got.get("events", []) if isinstance(got, dict) else got
+        # WLAN events name networks the status does not show: earlier ones and the backup
+        secrets |= {
+            a
+            for e in raw
+            if e.get("kind") == "wlan"
+            for a in e.get("args", [])
+            if len(a) > 2 and not a.lstrip("-").isdigit()
+        }
         events: Any = [
             {
                 **e,
                 "text": _mask(str(e.get("text", "")), secrets),
                 "args": [_mask(str(a), secrets) for a in e.get("args", [])],
             }
-            for e in (got.get("events", []) if isinstance(got, dict) else got)
+            for e in raw
         ]
     except DeckConnectorError as err:
         events = f"not read: {_mask(str(err), secrets)}"

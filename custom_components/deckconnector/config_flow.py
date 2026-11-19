@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+import contextlib
+import ipaddress
 from typing import Any
+from urllib.parse import urlsplit
 
 from homeassistant.config_entries import SOURCE_REAUTH, SOURCE_RECONFIGURE, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_TOKEN
@@ -66,7 +69,7 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> ConfigFlowResult:
         port = discovery_info.port or 80
         self.host = discovery_info.host if port == 80 else f"{discovery_info.host}:{port}"
-        self.name = discovery_info.name.split(".")[0]
+        self.name = discovery_info.name.removesuffix(f".{discovery_info.type}")
         if board_id := discovery_info.properties.get("id"):
             await self.async_set_unique_id(board_id)
             self._abort_if_unique_id_configured(updates={CONF_HOST: self.host})
@@ -203,4 +206,9 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 def host_of(text: str) -> str:
-    return text.strip().removeprefix("http://").removeprefix("https://").split("/")[0]
+    text = text.strip()
+    with contextlib.suppress(ValueError):
+        return f"[{ipaddress.IPv6Address(text)}]"
+    with contextlib.suppress(ValueError):  # an unclosed [
+        return urlsplit(text if "://" in text else f"//{text}").netloc.rpartition("@")[2]
+    return text
