@@ -1,5 +1,6 @@
 #include "db_matter.h"
 
+#include <stdio.h>
 #include <string.h>
 
 uint16_t db_matter_node_ep(db_matter_slot_t *slot, int index, const char *serial, bool *moved)
@@ -34,6 +35,23 @@ uint16_t db_matter_input_ep(uint16_t node_ep, const db_input_t *in)
         return (uint16_t)(node_ep + 1 + DB_MATTER_KEYS + in->index);
     }
     return 0;
+}
+
+bool db_matter_label(uint16_t node_ep, uint16_t ep, int image_keys, const char *lang, char out[17])
+{
+    int i = ep - node_ep - 1;
+    if (i < 0 || i >= DB_MATTER_INPUTS) {
+        return false;
+    }
+    bool de = strcmp(lang, "de") == 0;
+    if (i >= DB_MATTER_KEYS) {
+        snprintf(out, 17, "%s %d", de ? "Drehregler" : "Dial", (uint8_t)(1 + i - DB_MATTER_KEYS));
+    } else if (image_keys && i >= image_keys) {
+        snprintf(out, 17, "%s %d", de ? "Touch-Punkt" : "Touch point", (uint8_t)(1 + i - image_keys));
+    } else {
+        snprintf(out, 17, "%s %d", de ? "Taste" : "Key", (uint8_t)(1 + i));
+    }
+    return true;
 }
 
 db_sw_event_t db_sw_input(db_sw_t *sw, bool down, int64_t now)
