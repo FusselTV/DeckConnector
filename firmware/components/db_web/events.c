@@ -49,7 +49,7 @@ static struct {
     bool by_token[CLIENTS];          /* an integration: no simulated presses are sent to it */
     bool limited[CLIENTS];           /* a control token: may press, but not change settings or read the log */
     bool log[CLIENTS];               /* asked for the log with {"t":"log"} */
-    char session[CLIENTS][65];       /* the cookie it opened with, checked again per command; empty: none */
+    char login[CLIENTS][AUTH_KEY_LEN]; /* checked again per message; empty: none */
     uint64_t log_pos[CLIENTS];
     char *state; /* the last state sent, to send only changes */
     uint32_t screen[DB_MAX_DECKS];
@@ -123,8 +123,9 @@ static void send_job(job_t *job)
             e.fds[i] = -1; /* gone */
             continue;
         }
-        if (e.session[i][0] && !auth_session_alive(e.session[i])) {
-            httpd_sess_trigger_close(job->server, fd); /* logged out, a new password or the setup over */
+        if (e.login[i][0] && !auth_login_alive(e.login[i])) {
+            httpd_sess_trigger_close(job->server,
+                                     fd); /* logged out, a new password, the setup over, token removed */
             e.fds[i] = -1;
             continue;
         }
@@ -499,20 +500,20 @@ static void command(httpd_handle_t server, int fd, const char *text)
         bool set = t->valuestring[0] == 's';
         bool token = false;
         bool any_token = false;
-        char session[sizeof(e.session[0])] = "";
+        char login[AUTH_KEY_LEN] = "";
         xSemaphoreTake(e.lock, portMAX_DELAY);
         for (int i = 0; i < CLIENTS; i++) {
             if (e.fds[i] == fd && e.servers[i] == server) {
                 token |= e.limited[i];
                 any_token |= e.by_token[i];
-                strcpy(session, e.session[i]);
+                strcpy(login, e.login[i]);
             }
         }
         xSemaphoreGive(e.lock);
         cJSON_DeleteItemFromObjectCaseSensitive(root, "t");
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
-        if (session[0] && !auth_session_alive(session)) {
+        if (login[0] && !auth_login_alive(login)) {
             snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"login required\"}");
             code = 401;
         } else if (set && token) {
@@ -581,9 +582,7 @@ esp_err_t events_open(httpd_req_t *req)
     e.by_token[slot] = auth_by_token(req);
     e.limited[slot] = !auth_full(req);
     e.log[slot] = false;
-    if (!auth_session_of(req, e.session[slot], sizeof(e.session[slot]))) {
-        e.session[slot][0] = '\0';
-    }
+    auth_login_of(req, e.login[slot]);
     char *buf = heap_caps_malloc(STATE_MAX, MALLOC_CAP_SPIRAM);
     if (buf && e.state_json(buf, STATE_MAX)) {
         send_to(req->handle, fd, buf); /* under the lock: the current state comes before any change */

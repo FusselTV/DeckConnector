@@ -433,12 +433,7 @@ void auth_session_cookie(httpd_req_t *req)
     set_cookie(req, false);
 }
 
-bool auth_session_of(httpd_req_t *req, char *out, size_t cap)
-{
-    return httpd_req_get_cookie_val(req, COOKIE(req), out, &cap) == ESP_OK && session_valid(out);
-}
-
-bool auth_session_alive(const char *token)
+static bool session_alive(const char *token)
 {
     int64_t now = esp_timer_get_time();
     bool ok = false;
@@ -447,6 +442,40 @@ bool auth_session_alive(const char *token)
          i++) { /* no last_used update: an open socket alone must not keep a session */
         ok |= sessions[i].token[0] && now - sessions[i].last_used < IDLE_US &&
               !(sessions[i].claimed && db_config()->setup_done) && equal(sessions[i].token, token);
+    }
+    portEXIT_CRITICAL(&mux);
+    return ok;
+}
+
+void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
+{
+    char given[96] = {0};
+    size_t cap = AUTH_KEY_LEN - 1;
+    key[0] = '\0';
+    if (auth_by_token(req) &&
+        httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) == ESP_OK) {
+        uint8_t sha[32];
+        sha256(given + 7, sha);
+        key[0] = 't';
+        db_hex(key + 1, sha, sizeof(sha));
+    } else if (httpd_req_get_cookie_val(req, COOKIE(req), key + 1, &cap) == ESP_OK &&
+               session_valid(key + 1)) {
+        key[0] = 's';
+    }
+    mbedtls_platform_zeroize(given, sizeof(given));
+}
+
+bool auth_login_alive(const char *key)
+{
+    if (key[0] == 's') {
+        return session_alive(key + 1);
+    }
+    bool ok = false;
+    char hex[65];
+    portENTER_CRITICAL(&mux);
+    for (int i = 0; key[0] == 't' && i < API_TOKENS; i++) {
+        db_hex(hex, tokens[i].sha, sizeof(tokens[i].sha));
+        ok |= tokens[i].name[0] && equal(hex, key + 1);
     }
     portEXIT_CRITICAL(&mux);
     return ok;
