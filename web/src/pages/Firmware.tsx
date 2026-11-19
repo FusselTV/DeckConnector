@@ -14,7 +14,6 @@ import {
   RefreshCw,
   RotateCcw,
   Settings,
-  Sparkles,
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
@@ -291,10 +290,16 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
   return (
     <>
       <div className="row acts">
-        {st.state !== 'new' && lead /* the offer below has its own install button */}
-        <Btn id="upd-check" icon={RefreshCw} disabled={st.state === 'checking'} onClick={() => void check()}>
+        <Btn
+          id="upd-check"
+          kind={st.state === 'new' ? undefined : 'pri'}
+          icon={RefreshCw}
+          disabled={st.state === 'checking'}
+          onClick={() => void check()}
+        >
           {t(st.state === 'checking' ? 'upd.checking' : 'upd.check')}
         </Btn>
+        {st.state !== 'new' && lead /* the offer below has its own install button */}
       </div>
       {st.state === 'idle' && <p className="small muted">{t('upd.check_h')}</p>}
       {st.state === 'none' && (
@@ -525,7 +530,7 @@ export function Firmware() {
     })
   }
   const install = (
-    <Btn id="fw-file" kind="pri" icon={Download} disabled={!!ota} onClick={() => setUpd(true)}>
+    <Btn id="fw-file" icon={Download} disabled={!!ota} onClick={() => setUpd(true)}>
       {t('fw.install')}
     </Btn>
   )
@@ -549,6 +554,7 @@ export function Firmware() {
         right={<Help right label={t('fw.install')} text={t('fw.install_h')} />}
       >
         <KeyValue
+          compact
           rows={[
             [t('tab.firmware'), t('fw.running_slot', { v: st.firmware ?? '–', n: running?.slot ?? '–' }), true],
             [t('tgt.c6'), st.wlan_firmware, true],
@@ -666,36 +672,69 @@ export function Firmware() {
           </div>
         </Row>
       </Card>
-      <Card
-        id="card-bak"
-        icon={DatabaseBackup}
-        title={t('fw.backup')}
-        right={<Help right label={t('fw.backup')} text={`${t('fw.backup_h')} ${t('fw.not_in')}`} />}
-      >
-        <div className="row wrap acts">
-          <Btn id="bak-dl" icon={Download} disabled={!cfg} onClick={() => setSave(true)}>
-            {t('fw.save')}
-          </Btn>
-          <Btn id="bak-restore" icon={ArchiveRestore} disabled={!cfg} onClick={() => rsRef.current?.click()}>
-            {t('fw.restore')}
-          </Btn>
-          <Btn
-            icon={Sparkles}
-            onClick={() =>
-              void ask({ title: t('cf.setup'), body: t('cf.setup_b'), ok: t('btn.start') }).then((ok) =>
-                ok ? act(() => api.setup(1).then(refreshStatus)) : undefined,
-              )
-            }
-          >
-            {t('pal.setup')}
-          </Btn>
-          <Btn
-            id="fw-reset"
-            kind="danger"
-            icon={RotateCcw}
-            onClick={() =>
-              void ask({ title: t('login.reset_t'), body: t('cf.reset_b'), ok: t('btn.reset'), danger: true }).then(
-                (ok) =>
+      <div className="stack">
+        <Card
+          id="card-bak"
+          icon={DatabaseBackup}
+          title={t('fw.backup')}
+          right={<Help right label={t('fw.backup')} text={`${t('fw.backup_h')} ${t('fw.not_in')}`} />}
+        >
+          <div className="row wrap acts">
+            <Btn id="bak-dl" icon={Download} disabled={!cfg} onClick={() => setSave(true)}>
+              {t('fw.save')}
+            </Btn>
+            <Btn id="bak-restore" icon={ArchiveRestore} disabled={!cfg} onClick={() => rsRef.current?.click()}>
+              {t('fw.restore')}
+            </Btn>
+          </div>
+          <input
+            ref={rsRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              e.target.value = ''
+              if (f) void restore(f)
+            }}
+          />
+        </Card>
+        <Card id="card-reset" icon={RotateCcw} title={t('btn.reset')}>
+          <div className="li actrow">
+            <div className="grow">
+              <b>{t('fw.rerun')}</b>
+              <br />
+              <span className="small muted">{t('cf.setup_b')}</span>
+            </div>
+            <Btn
+              id="fw-setup"
+              sm
+              onClick={() =>
+                void ask({ title: t('cf.setup'), body: t('cf.setup_b'), ok: t('btn.start') }).then((ok) =>
+                  ok ? act(() => api.setup(1).then(refreshStatus)) : undefined,
+                )
+              }
+            >
+              {t('btn.start')}
+            </Btn>
+          </div>
+          <div className="li actrow">
+            <div className="grow">
+              <b>{t('fw.factory')}</b>
+              <br />
+              <span className="small muted">{t('fw.factory_h')}</span>
+            </div>
+            <Btn
+              id="fw-reset"
+              sm
+              kind="danger"
+              onClick={() =>
+                void ask({
+                  title: t('login.reset_t'),
+                  body: t('cf.reset_b'),
+                  ok: t('btn.reset'),
+                  danger: true,
+                }).then((ok) =>
                   ok
                     ? act(async () => {
                         await api.reset()
@@ -703,24 +742,14 @@ export function Firmware() {
                         expectRestart()
                       })
                     : undefined,
-              )
-            }
-          >
-            {t('btn.reset')}
-          </Btn>
-        </div>
-        <input
-          ref={rsRef}
-          type="file"
-          accept="application/json,.json"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            e.target.value = ''
-            if (f) void restore(f)
-          }}
-        />
-      </Card>
+                )
+              }
+            >
+              {t('btn.reset')}
+            </Btn>
+          </div>
+        </Card>
+      </div>
       {upd && <UpdateModal close={() => setUpd(false)} target={target} />}
       {save && cfg && <SaveModal close={() => setSave(false)} cfg={cfg} />}
     </div>
