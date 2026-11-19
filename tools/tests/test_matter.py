@@ -1,13 +1,16 @@
 """Matter is off on a new board, its switch outlives a restart, and a factory reset turns it off again."""
 
 import json
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import pytest
-from conftest import WORKER, start_sim
+from conftest import HOST, TARGET, WORKER, api, start_sim, status, wait_for_bridge
+from test_discover import ours
 from test_evlog import NEW_TABLE, table, write_at
+from zeroconf import Zeroconf
 
 PORT = 38380 + WORKER
 
@@ -64,3 +67,27 @@ def test_switch_survives_a_restart_and_a_factory_reset_turns_it_off(tmp_path: Pa
     finally:
         sim.kill()
         sim.wait()
+
+
+@pytest.mark.skipif(TARGET == "sim", reason="the simulator has no Matter stack")
+def test_turned_on_without_a_restart_it_can_be_paired():
+    """Both LAN and WLAN up when Matter starts: its mDNS restarts on the new addresses must not run out of sockets."""
+    now = status()
+    if now["matter"]["on"] or not now["network"]["wlan"]["ip"]:
+        pytest.skip("needs a bridge with Matter off and the WLAN joined")
+    try:
+        assert api("POST", "/api/matter", b'{"on": true}')[0] == 200
+        assert api("POST", "/api/matter", b'{"pair": true}')[0] == 200  # a paired board opens no window by itself
+        time.sleep(15)  # past the new addresses and the mDNS restarts after them: an early announcement proves nothing
+        zc = Zeroconf()
+        try:
+            assert ours(zc, "_matterc._udp.local."), f"no _matterc._udp from {HOST}"
+        finally:
+            zc.close()
+    finally:
+        try:
+            assert api("POST", "/api/matter", b'{"on": false}')[0] == 200
+        finally:
+            api("POST", "/api/reboot")
+            time.sleep(5)
+        assert not wait_for_bridge(60)["matter"]["running"], "Matter still on after the restart"
