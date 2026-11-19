@@ -687,12 +687,6 @@ export const de: Dict = {
   'upd.new': 'Firmware {v} ist verfügbar',
   'upd.new_h': 'Installieren lädt die signierte Datei und startet den Connector neu.',
   'upd.notes': 'Was ist neu',
-  'upd.to_matter': 'Zur Matter-Firmware wechseln',
-  'upd.to_matter_b':
-    'Der Connector installiert die Matter-Firmware {v} und startet neu. Die Einstellungen bleiben. Spätere Updates bleiben bei Matter.',
-  'upd.to_std': 'Zur Standard-Firmware wechseln',
-  'upd.to_std_b':
-    'Der Connector installiert die Standard-Firmware {v} und startet neu. Die Einstellungen bleiben. Setz vorher Matter unter Quellen zurück, damit das Deck aus deinen Apps verschwindet.',
   'upd.cf': 'Firmware {v} installieren?',
   'upd.cf_b':
     'Der Connector lädt diese Datei, prüft die Signatur und startet neu. Startet sie nicht sauber, kehrt er zur jetzigen Version zurück.',
@@ -823,6 +817,7 @@ export const de: Dict = {
   'mt.pair': 'Weitere App koppeln',
   'mt.show': 'Auf dem Deck zeigen',
   'mt.shown': 'Der Code ist auf dem Deck.',
+  'mt.failed': 'Matter ist nicht gestartet. Das Log sagt, warum.',
   'mt.reset': 'Matter zurücksetzen',
   'cf.mt_off': 'Matter ausschalten?',
   'cf.mt_off_b': 'Der Connector startet neu. Das Deck ist etwa 10 s dunkel.',

@@ -19,3 +19,7 @@ node_modules/
 CLAUDE.local.md
 bench.json
 .coverage
+
+# fetched and patched by firmware/CMakeLists.txt
+firmware/esp_matter/
+firmware/esp_matter.tmp/

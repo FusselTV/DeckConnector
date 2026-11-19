@@ -126,12 +126,12 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 
 ### Matter
 
-Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen mit 404.
+Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `GET /api/matter`, `{"pair": true}`, `{"show": true}` und `POST /api/matter/press` mit 409.
 
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `GET /api/matter` | `qr` (der Text des QR-Codes), `code` (der Kopplungscode) und `qr_bits` | full |
-| `POST /api/matter` | `{"on": true}` oder `{"on": false}`. Aus gilt nach einem Neustart. `{"pair": true}` öffnet das Koppeln für 15 Minuten. `{"show": true}` zeigt den Code 60 s auf den Decks | full |
+| `POST /api/matter` | `{"on": true}` startet Matter sofort, `{"on": false}` gilt nach einem Neustart. `{"pair": true}` öffnet das Koppeln für 15 Minuten. `{"show": true}` zeigt den Code 60 s auf den Decks | full |
 | `DELETE /api/matter` | Entfernt alle Matter-Apps, macht einen neuen Kopplungscode und startet neu | full |
 | `POST /api/matter/press` | Für Tests: der Body von [`POST /api/input`](#eingaben), nur an Matter. Kein Programm, kein Menü und kein Eingabe-Log sieht ihn | full |
 
@@ -273,7 +273,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
 | `network.wlan.backup` | Der Connector ist im Ersatz-WLAN, `ssid` nennt es |
-| `matter` | Nur in der Matter-Firmware: `on`, `running`, `controllers` (gekoppelte Apps) und `pairing` (offen für eine neue App) |
+| `matter` | `on`, `running`, `controllers` (gekoppelte Apps) und `pairing` (offen für eine neue App) |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
 | `decks[].writer` | Wer auf diesem Deck zeichnet, Werte wie bei `writer` |

@@ -282,13 +282,11 @@ static int64_t login_made;
 static uint8_t setup_step;
 static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_mux */
 static char ca_fp[20];                                           /* under login_mux */
-#if CONFIG_DB_MATTER
 #define MATTER_US 60000000
 static int64_t matter_until, matter_asked; /* under login_mux */
 static char matter_code[16];
 static ui_qr_t matter_qr; /* under qr_lock */
-#endif
-static struct { /* the login request on the deck, under login_mux */
+static struct {           /* the login request on the deck, under login_mux */
     int64_t until;
     uint32_t seq;
     uint32_t ip;
@@ -316,12 +314,8 @@ static int64_t until(const int64_t *t)
 
 static bool overlay(int64_t now)
 {
-    bool matter = false;
-#if CONFIG_DB_MATTER
-    matter = now < until(&matter_until);
-#endif
-    return matter || now < until(&pass_until) || now < until(&reset_until) || now < until(&ask.until) ||
-           now < until(&adopt.until);
+    return now < until(&matter_until) || now < until(&pass_until) || now < until(&reset_until) ||
+           now < until(&ask.until) || now < until(&adopt.until);
 }
 
 /* A code made before setup was done must not outlive it: the model that clears it is only built while the
@@ -477,7 +471,6 @@ static void model(int deck, ui_model_t *md)
     portENTER_CRITICAL(&login_mux);
     strcpy(md->ca_fp, ca_fp);
     portEXIT_CRITICAL(&login_mux);
-#if CONFIG_DB_MATTER
     md->show_matter = md->now_us < until(&matter_until);
     if (md->show_matter) {
         xSemaphoreTake(s.qr_lock, portMAX_DELAY);
@@ -485,7 +478,6 @@ static void model(int deck, ui_model_t *md)
         xSemaphoreGive(s.qr_lock);
         snprintf(md->matter_code, sizeof(md->matter_code), "%s", matter_code);
     }
-#endif
     md->reset_ask = md->now_us < until(&reset_until);
     uint32_t ask_ip = 0;
     portENTER_CRITICAL(&login_mux);
@@ -777,9 +769,7 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
     case UI_DO_HIDE_PASSWORD:
         portENTER_CRITICAL(&login_mux);
         pass_until = 0;
-#if CONFIG_DB_MATTER
         matter_until = 0;
-#endif
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_CANCEL_RESET:
@@ -1362,7 +1352,6 @@ static bool start_page(int64_t *asked, int64_t *end, int64_t us)
     return fresh;
 }
 
-#if CONFIG_DB_MATTER
 int db_ui_show_matter(const char *qr, const char *code)
 {
     int n = 0;
@@ -1378,7 +1367,6 @@ int db_ui_show_matter(const char *qr, const char *code)
     }
     return made ? n : 0;
 }
-#endif
 
 int db_ui_show_password(void)
 {
@@ -1411,11 +1399,7 @@ esp_err_t db_ui_factory_reset(void)
     esp_err_t err = db_config_reset();
     esp_err_t dump = esp_core_dump_image_erase();
     esp_err_t page = db_ota_web_erase();
-#if CONFIG_DB_MATTER
     esp_err_t spare = db_matter_erase();
-#else
-    esp_err_t spare = db_ota_spare_erase();
-#endif
     err = err == ESP_OK && spare != ESP_ERR_INVALID_STATE ? spare : err;
     err = err == ESP_OK && dump != ESP_ERR_NOT_FOUND ? dump : err;
     return err == ESP_OK && page != ESP_ERR_NOT_FOUND ? page : err;

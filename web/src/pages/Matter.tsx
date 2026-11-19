@@ -58,6 +58,7 @@ export function MatterCard() {
       right={<Help right label={t('mt.title')} text={t('mt.intro')} />}
     >
       <Switch id="matter-on" on={m.on} onChange={toggle} label={t('mt.on')} />
+      {m.on && !running && <p className="warnline">{t('mt.failed')}</p>}
       {running && (
         <>
           <p className="small muted" id="matter-state">

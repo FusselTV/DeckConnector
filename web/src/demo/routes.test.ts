@@ -12,13 +12,13 @@ beforeAll(() => deckUiReady)
 
 const ACCESS = { WEB_OPEN: 'open', WEB_CONTROL: 'control', WEB_FULL: 'full', WEB_ADMIN: 'admin' } as const
 
-/** method, path and access of every route; `extra`: behind #ifdef DB_DEBUG_CRASH or #if CONFIG_DB_MATTER, not in the demo's firmware. */
+/** method, path and access of every route; `extra`: behind #ifdef DB_DEBUG_CRASH, not in the demo's firmware. */
 function firmwareRoutes() {
   const table = http.slice(http.indexOf('} list[] = {'), http.indexOf('_Static_assert(sizeof(list)'))
   const out: { method: string; path: string; access: string; extra: boolean }[] = []
   let extra = false
   for (const chunk of table.split(/(?=#if|#endif|\{\{\.uri)/)) {
-    if (chunk.startsWith('#ifdef DB_DEBUG') || chunk.startsWith('#if CONFIG_DB_MATTER')) extra = true
+    if (chunk.startsWith('#ifdef DB_DEBUG')) extra = true
     if (chunk.startsWith('#endif')) extra = false
     const [, path, method, level] =
       /^\{\{\.uri = "([^"]+)",\s*\.method = HTTP_(\w+)[\s\S]*?\},\s*(WEB_\w+)\}/.exec(chunk) ?? []

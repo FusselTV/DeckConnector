@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: no IPv6 in the Matter image (see "deckbridge:" below).
+ * Modified for DeckConnector: no IPv6, Matter answers there (see "deckbridge:" below).
  */
 
 #include <string.h>
@@ -298,11 +298,9 @@ static void handle_system_event_for_preset(void *arg, esp_event_base_t event_bas
                     break;
 #endif
                 case IP_EVENT_GOT_IP6: {
-#if CONFIG_DB_MATTER
-                    /* deckbridge: IPv6 is Matter's own responder's. Ours probed on both interfaces of the same
-                     * network, heard itself and renamed the host and every service, again and again. */
+                    /* deckbridge: IPv6 is Matter's own responder's (only Matter makes IPv6 addresses). Ours probed on
+                     * both interfaces of the same network, heard itself and renamed the host and every service. */
                     break;
-#endif
                     ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
                     mdns_if_t mdns_if = get_if_from_netif(event->esp_netif);
                     if (mdns_if >= MDNS_MAX_INTERFACES) {

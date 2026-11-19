@@ -50,7 +50,7 @@ export interface Faces {
 }
 
 export interface Demo {
-  v: 10
+  v: 11
   bootAt: number
   /** A restart: answers stop at downFrom (1 s after it was asked, like the firmware) until downUntil. */
   downFrom: number
@@ -64,6 +64,8 @@ export interface Demo {
   slots: Slot[]
   pagePartition: string | null
   tls: boolean
+  /** running: on since the last start, like the firmware, where off needs a restart */
+  matter: { on: boolean; running: boolean }
   docks: Dock[]
   pairOpenUntil: number
   request: { ip: string; name: string; at: number } | null
@@ -150,7 +152,7 @@ export const PASS = 'studio-demo'
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
-    v: 10,
+    v: 11,
     bootAt: now - (setup ? 40_000 : 3 * 3600_000 + 17 * 60_000),
     downFrom: 0,
     downUntil: 0,
@@ -222,6 +224,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
     ],
     pagePartition: null,
     tls: false,
+    matter: { on: false, running: false },
     docks: setup
       ? []
       : [{ ip: '192.168.1.31', mac: '02:00:5e:10:00:31', name: 'edit-pc', kind: 'app', connected: true }],
@@ -427,6 +430,7 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   if (s.log.length) s.prev = s.log
   s.log = []
   s.since = {}
+  s.matter.running = s.matter.on
   const nx = s.slots.find((x) => x.next && x.version)
   if (nx?.version) {
     s.slots = s.slots.map((x) => ({
@@ -593,6 +597,7 @@ export function status(s: Demo, now: number): Status {
       ap: { on: false, ssid: '' },
     },
     sources: list,
+    matter: { ...s.matter, controllers: 0, pairing: s.matter.running },
     pairing: {
       only_paired: c.dock_paired_only,
       request: s.request?.ip ?? null,
@@ -1352,6 +1357,7 @@ function factoryReset(s: Demo, now: number) {
     claimed: false,
     requested: true,
     tls: false,
+    matter: f.matter,
     setupStep: 0,
   })
   restartSoon(s, now)

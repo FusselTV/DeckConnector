@@ -6,8 +6,8 @@ set(ENV{IDF_COMPONENT_CHECK_NEW_VERSION} 0)
 set(CCACHE_ENABLE 1)
 set(EXTRA_COMPONENT_DIRS ../components/db_audio ../components/db_board ../components/db_config ../components/db_core
                          ../components/db_deck ../components/db_dock ../components/db_link ../components/db_serial
-                         ../components/db_ui ../components/db_web ../sim/components/db_log ../sim/components/db_net
-                         ../sim/components/db_ota)
+                         ../components/db_ui ../components/db_web ../sim/components/db_log ../sim/components/db_matter
+                         ../sim/components/db_net ../sim/components/db_ota)
 set(COMPONENTS main)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(COMPILE_OPTIONS "-I${CMAKE_CURRENT_LIST_DIR}/components/sim_usb/include" APPEND)

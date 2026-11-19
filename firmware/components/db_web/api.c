@@ -676,14 +676,15 @@ esp_err_t post_screen(httpd_req_t *req)
               : send_error(req, "400 Bad Request", "on: true or false expected");
 }
 
-#if CONFIG_DB_MATTER
 esp_err_t get_matter(httpd_req_t *req)
 {
     char buf[512];
     db_json_t j;
     db_json_begin(&j, buf, sizeof(buf));
     db_json_obj_open(&j, NULL);
-    db_matter_codes(&j);
+    if (!db_matter_codes(&j)) {
+        return send_error(req, "409 Conflict", "Matter is not running");
+    }
     db_json_obj_close(&j);
     db_json_end(&j);
     return send_json(req, buf);
@@ -698,12 +699,14 @@ esp_err_t post_matter(httpd_req_t *req)
     bool pair = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "pair"));
     bool show = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "show"));
     bool ok = cJSON_IsBool(on) || pair || show;
-    if (cJSON_IsBool(on)) {
-        db_matter_set_on(cJSON_IsTrue(on));
-    }
+    esp_err_t err = cJSON_IsBool(on) ? db_matter_set_on(cJSON_IsTrue(on)) : ESP_OK;
     cJSON_Delete(root);
     if (!ok) {
         return send_error(req, "400 Bad Request", "on: true or false, pair: true or show: true expected");
+    }
+    if (err != ESP_OK) {
+        return send_error(req, "500 Internal Server Error",
+                          err == ESP_FAIL ? "Matter did not start, see the log" : esp_err_to_name(err));
     }
     if (pair && !db_matter_open_window()) {
         return send_error(req, "409 Conflict", "Matter is off");
@@ -750,7 +753,6 @@ esp_err_t delete_matter(httpd_req_t *req)
     restart_soon();
     return ESP_OK;
 }
-#endif
 
 /* {"accept": true|false} answers a request, {"pairing": seconds} opens pairing (0 closes it), {"forget":
  * true} drops every paired host, {"forget": "IP"} one. */
@@ -1173,13 +1175,9 @@ esp_err_t put_setup(httpd_req_t *req)
 
 #define FEED_HOST "https://github.com/"
 #define RELEASES  FEED_HOST "FusselTV/DeckConnector/releases.atom"
-#if CONFIG_DB_MATTER
-#define IMAGE "deckconnector-matter"
-#else
-#define IMAGE "deckconnector"
-#endif
-#define FEED_MAX (128 * 1024)
-#define TAG_PATH "/releases/tag/"
+#define IMAGE     "deckconnector"
+#define FEED_MAX  (128 * 1024)
+#define TAG_PATH  "/releases/tag/"
 
 /* The release feed as text, NULL with *why and *code set on failure; the caller frees it with heap_caps_free.
  */

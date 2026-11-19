@@ -26,8 +26,6 @@ with that key.
 
 ## Firmware
 
-`idf.py -C firmware/matter build` builds the Matter image from the same components.
-
 `db_core` compiles on a PC, and its tests run with AddressSanitizer. A new model of a known deck family is one table
 row in its driver. A new vendor is one driver file and one line in `db_driver.c`.
 

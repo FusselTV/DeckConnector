@@ -673,12 +673,6 @@ export const en = {
   'upd.new': 'Firmware {v} is available',
   'upd.new_h': 'Install downloads the signed file and restarts the connector.',
   'upd.notes': 'What is new',
-  'upd.to_matter': 'Switch to the Matter firmware',
-  'upd.to_matter_b':
-    'The connector installs the Matter firmware {v} and restarts. Settings stay. Later updates stay on Matter.',
-  'upd.to_std': 'Switch to the standard firmware',
-  'upd.to_std_b':
-    'The connector installs the standard firmware {v} and restarts. Settings stay. Reset Matter under Sources first, so the deck leaves your apps.',
   'upd.cf': 'Install firmware {v}?',
   'upd.cf_b':
     'The connector downloads this file, checks the signature and restarts. If it does not start cleanly, it goes back to the current version.',
@@ -803,6 +797,7 @@ export const en = {
   'mt.pair': 'Pair another app',
   'mt.show': 'Show on the deck',
   'mt.shown': 'The code is on the deck.',
+  'mt.failed': 'Matter did not start. The log says why.',
   'mt.reset': 'Reset Matter',
   'cf.mt_off': 'Turn off Matter?',
   'cf.mt_off_b': 'The connector restarts. The deck is dark for about 10 s.',

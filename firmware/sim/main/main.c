@@ -9,6 +9,7 @@
 #include "db_deck.h"
 #include "db_json.h"
 #include "db_log.h"
+#include "db_matter.h"
 #include "db_serial.h"
 #include "db_ui.h"
 #include "db_web.h"
@@ -70,6 +71,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_int(&j, "decks_over_limit", db_deck_over_limit());
     db_json_arr_open(&j, "sources");
     db_json_arr_close(&j);
+    db_matter_status(&j);
     db_json_obj_close(&j);
     return db_json_end(&j);
 }
@@ -106,14 +108,15 @@ void app_main(void)
     const char *pw = getenv("DB_SIM_PASSWORD");
     strlcpy(cfg.admin_pass, pw ? pw : "simulator", sizeof(cfg.admin_pass));
     db_config_save(&cfg);
+    db_matter_start();
     db_web_start(status_json, state_json);
     db_serial_start();
     for (;;) { /* the device's UI tick */
         vTaskDelay(pdMS_TO_TICKS(200));
         const db_config_t *c = db_config();
         db_deck_screen_tick((int)c->screen_off_s, c->screen_dim, c->brightness, db_ui_menu_open());
-        /* DB_SIM_PRESS_FILE: once it exists, key 1 of deck 1 is pressed as at the deck and the file removed. An
-         * API press is never real for a token, so the Home Assistant test needs this one. */
+        /* DB_SIM_PRESS_FILE: once it exists, key 1 of deck 1 is pressed as at the deck and the file removed.
+         * An API press is never real for a token, so the Home Assistant test needs this one. */
         const char *press = getenv("DB_SIM_PRESS_FILE");
         if (press && unlink(press) == 0) {
             db_input_t in = {.kind = DB_INPUT_KEY_DOWN};

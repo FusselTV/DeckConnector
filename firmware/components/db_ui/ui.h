@@ -8,9 +8,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#if __has_include("sdkconfig.h")
-#include "sdkconfig.h" /* CONFIG_DB_MATTER changes the model: every file must see it */
-#endif
 
 #include "canvas.h"
 #include "db_device.h"
@@ -152,11 +149,9 @@ typedef struct {
     uint32_t login_seq; /* which request the page shows, so an answer cannot reach a newer one */
     bool locked;        /* Companion locked the deck with its PIN */
     db_sat_pin_t pin;   /* when locked */
-#if CONFIG_DB_MATTER
     bool show_matter;
     char matter_code[16];
     ui_qr_t matter_qr;
-#endif
 } ui_model_t;
 
 typedef enum {
