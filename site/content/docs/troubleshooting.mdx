@@ -51,11 +51,11 @@ Flashing fails? See [Flashing problems](/docs/flash-troubleshooting).
 
 ## An update does not stay
 
-The new firmware did not reach the network within two minutes, or did not stay up for 20 seconds. **Diagnostics › Log › Before the last restart** shows why ([demo](/demo/#diagnose)).
+The new firmware did not reach the network within two minutes, or did not stay up for 20 seconds. **Log** shows why. Turn on **Technical**. The lines below the restart are from the start before ([demo](/demo/#log)).
 
 ## Logs and crash reports
 
-**Diagnostics** has the log, events, inputs and the last crash report. The log of the start before stays until a power cut. A crash report can hold the password, so only the password opens it.
+**Log** has the events, inputs and the raw log in one list. Events stay over restarts and power cuts. The raw log of the start before stays until a power cut. **Diagnostics** has the last crash report. A crash report can hold the password, so only the password opens it.
 
 ```bash
 curl -u admin:PASSWORD http://192.168.1.50/api/log > log.txt

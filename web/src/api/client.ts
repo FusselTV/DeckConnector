@@ -2,7 +2,7 @@ import type {
   Config,
   ConfigPatch,
   Coredump,
-  DeviceEvent,
+  EventPage,
   Found,
   Frontend,
   InputBody,
@@ -172,7 +172,8 @@ export const api = {
     request<{ ok: boolean }>(`/api/passkeys/${id}`, { method: 'PUT', body: { name } }),
   dropPasskey: (id: number) => request<{ ok: boolean }>(`/api/passkeys/${id}`, { method: 'DELETE' }),
   passkeyLogin: (body: Record<string, string>) => request<{ ok: boolean }>('/api/login/passkey', { body, quiet: true }),
-  inputLog: (since = 0) => list(request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : ''))),
+  inputLog: (since = 0, before = 0) =>
+    list(request<InputLogEntry[]>('/api/input/log' + (since ? `?since=${since}` : before ? `?before=${before}` : ''))),
   retrySource: (host: string) => request<{ ok: boolean }>('/api/sources/retry', { body: { host } }),
   probe: (addr: string, pin: string) =>
     request<{ ok: boolean; error?: string; code?: string; version?: string; surfaces?: number }>('/api/sources/probe', {
@@ -187,7 +188,13 @@ export const api = {
   undeny: (ip: string) => request<{ ok: boolean }>('/api/pairing/denied/' + enc(ip), { method: 'DELETE' }),
   setup: (step: number) => request<{ ok: boolean }>('/api/setup', { method: 'PUT', body: { step } }),
   claimSetup: () => request<{ ok: boolean }>('/api/setup/claim', { method: 'POST' }),
-  events: () => list(request<DeviceEvent[]>('/api/events')),
+  events: (q: { before?: number; since?: number; n?: number } = {}) =>
+    request<EventPage>(
+      '/api/events' + (Object.keys(q).length ? '?' + new URLSearchParams(q as Record<string, string>).toString() : ''),
+    ).then((p) => {
+      if (!Array.isArray(p.events)) throw new ApiError(502, '', 'badreply') // a firmware before event codes
+      return p
+    }),
   matter: () => request<MatterCodes>('/api/matter'),
   setMatter: (body: { on: boolean } | { pair: true } | { show: true }) =>
     request<{ ok: boolean }>('/api/matter', { body }),

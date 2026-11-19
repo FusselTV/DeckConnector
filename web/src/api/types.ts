@@ -214,14 +214,29 @@ export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
   }
 
 export interface DeviceEvent {
+  seq: number
   /** Seconds after the start of its boot. */
   since_s: number
   /** 0 this boot, 1 the one before, ... */
-  boot?: number
+  boot: number
   /** Unix time, null before the clock is set. */
   at: number | null
   kind: string
+  /** The page translates it with its args (`ev.<code>`); `text` is the firmware's English. */
+  code: string
+  level: 'info' | 'ok' | 'warn' | 'err'
+  args: string[]
   text: string
+}
+
+/** GET /api/events: newest first. */
+export interface EventPage {
+  events: DeviceEvent[]
+  oldest: number
+  newest: number
+  total: number
+  /** Where events outlive a restart. */
+  store: 'flash' | 'settings' | 'ram'
 }
 
 export interface PutReply {
@@ -399,4 +414,5 @@ export type WsMsg =
   | { t: 'ota'; target: string; state: string; pct: number; error?: string; code?: string }
   | { t: 'ping' }
   | { t: 'log'; text: string }
+  | { t: 'event'; event: DeviceEvent }
   | { t: 'result'; id: number; status: number; reply: unknown }

@@ -6,7 +6,7 @@ The ESP-IDF project for the ESP32-P4. Build, test and flash commands are in
 | Folder | What it is |
 |---|---|
 | `main/` | start-up, and the device part of `/api/status` |
-| `components/db_core` | device model, deck drivers in `drivers/`, image queue, protocol, Cora framing, Satellite lines, layout and PNG, in plain C without ESP-IDF |
+| `components/db_core` | device model, deck drivers in `drivers/`, image queue, protocol, Cora framing, Satellite lines, layout and PNG, the event flash ring, in plain C without ESP-IDF |
 | `components/db_board` | pins and features per board, picked in menuconfig |
 | `components/db_config` | settings in NVS |
 | `components/db_deck` | who may draw, the writer task and input in `db_deck.c`, USB host in `usb_port.c`, JPEG encoder in `jpeg_port.c` |
@@ -17,7 +17,7 @@ The ESP-IDF project for the ESP32-P4. Build, test and flash commands are in
 | `components/db_ota` | signed updates and rollback, the `.dbfw` header in `db_ota.c` |
 | `components/db_web` | routes and server in `http.c`, JSON API in `api.c`, login and tokens in `auth.c`, TLS in `cert.c`, live events in `events.c`, metrics in `metrics.c` |
 | `components/db_audio` | the speaker, its sounds and the self-test |
-| `components/db_log` | the log ring kept over a restart, boot time marks |
+| `components/db_log` | the log ring kept over a restart, boot time marks, the event history in `evlog.c` |
 | `components/db_serial` | Improv over USB serial, for the flasher |
 | `host_test/` | db_core and the deck screens on a PC, with a [deck emulator](host_test/DECK_EMU.md) |
 | `sim/` | db_web, db_config and db_core on Linux, with fakes for the rest |

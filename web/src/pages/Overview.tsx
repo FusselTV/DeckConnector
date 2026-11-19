@@ -42,7 +42,7 @@ import {
   type Deck,
 } from '../app/derive'
 import { useIssues } from '../app/issues'
-import { armAtom, ARM_MS, deckSelAtom, nudgeAtom, tabAtom, toast, type Tab } from '../app/state'
+import { armAtom, ARM_MS, deckSelAtom, logFocusAtom, nudgeAtom, tabAtom, toast, type Tab } from '../app/state'
 import { getState, subscribe, useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
@@ -270,7 +270,7 @@ export function inputText(e: InputEvent, t: T) {
 let sentAt = 0
 
 function LastInput() {
-  const { t, jump } = useUi()
+  const { t, go } = useUi()
   const last = useStore((s) => s.inputs[0])
   if (!last) return null
   const web = last.origin !== 'deck'
@@ -281,7 +281,10 @@ function LastInput() {
       type="button"
       className={cx('hbtn lastin', web && 'web')}
       title={`${t('ov.last')} · ${src} · ${t('in.open')}`}
-      onClick={() => jump('diagnose', 'dia-input')}
+      onClick={() => {
+        logFocusAtom.set({ kinds: ['input'] })
+        go('log')
+      }}
     >
       {web ? <MousePointer2 size={14} className="ic" aria-hidden /> : <Hand size={14} className="ic" aria-hidden />}
       <span className="sr">

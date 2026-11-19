@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import type { Config, DeviceEvent, Source, Status } from '../api/types'
+import type { Config, EventPage, Source, Status } from '../api/types'
 import { boot, face, fresh, input, OTA_MS, putConfig, RESTART_MS, status, tick, view, writer, type Demo } from './model'
 import { deckUiReady } from './deck-ui'
 import { handle, type Paint } from './server'
@@ -92,15 +92,17 @@ describe('demo bridge', () => {
     expect(s.cfg.name).toBe('stage-deck')
   })
 
-  it('keeps the last events through a restart, marked as an earlier boot', () => {
+  it('keeps the events through a restart, marked as an earlier boot, and pages them newest first', () => {
     const s = demo()
-    const before = (call(s, 'GET', '/api/events').body as DeviceEvent[]).length
+    const before = (call(s, 'GET', '/api/events').body as EventPage).events.length
     boot(s, T0 + 5000)
-    const after = call(s, 'GET', '/api/events', undefined, T0 + 5000).body as DeviceEvent[]
-    const earlier = after.filter((e) => e.boot === 1)
-    expect(earlier.length).toBe(Math.min(before, 40))
-    expect(earlier.every((e) => e.since_s >= 0)).toBe(true)
-    expect(after.find((e) => !e.boot && e.kind === 'boot')).toBeTruthy() // and this boot's own start
+    const page = call(s, 'GET', '/api/events', undefined, T0 + 5000).body as EventPage
+    expect(page.events.filter((e) => e.boot === 1).length).toBe(before)
+    expect(page.events.find((e) => e.kind === 'boot')).toMatchObject({ boot: 0, code: 'started', level: 'info' })
+    const seqs = page.events.map((e) => e.seq)
+    expect(seqs).toEqual([...seqs].sort((a, b) => b - a))
+    const older = call(s, 'GET', `/api/events?before=${seqs[0]}&n=1`).body as EventPage
+    expect(older.events.map((e) => e.seq)).toEqual([seqs[1]])
   })
 
   it('refuses a bad name and keeps the old settings', () => {

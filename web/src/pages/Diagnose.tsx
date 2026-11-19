@@ -2,49 +2,26 @@ import {
   Activity,
   Bug,
   Check,
-  Copy,
-  Cpu,
   Download,
-  Eraser,
-  EthernetPort,
   Gauge,
-  Hand,
   HardDrive,
-  History,
-  Key,
-  Link2,
   MemoryStick,
-  MousePointer2,
-  Pause,
-  Play,
-  Power,
-  Radio,
   RefreshCw,
   Route as RouteIcon,
-  ScrollText,
   Timer,
   Trash2,
   TriangleAlert,
-  Wifi,
 } from 'lucide-react'
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, coredumpRawUrl } from '../api/client'
-import type { DeviceEvent, InputEvent, Metrics, Profile, Route } from '../api/types'
-import { followLog } from '../app/connection'
-import { deckName, decksOf } from '../app/derive'
-import { crashAtom, tabAtom, toast } from '../app/state'
+import type { Metrics, Profile, Route } from '../api/types'
+import { crashAtom, tabAtom } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { Btn, Help, IconBtn, Seg } from '../components/controls'
+import { Btn, Help } from '../components/controls'
 import { KeyValue } from '../components/KeyValue'
 import { Row } from '../components/Row'
-import { fold } from '../lib/util'
-import { copyText, cx, download, useLatest } from '../lib/util'
-import { inputText } from './Overview'
-
-const LOG_LINES = 1000
-const NONE: string[] = []
 
 const FLASH = { firmware: 'dia.fl_firmware', settings: 'dia.fl_settings' } as const
 function Spark({ label, data, fmt }: { label: string; data: number[]; fmt: (n: number) => string }) {
@@ -85,144 +62,6 @@ function Spark({ label, data, fmt }: { label: string; data: number[]; fmt: (n: n
     </div>
   )
 }
-
-/** The log in a bounded box; the newest LOG_LINES lines are kept. */
-const LogCard = memo(function LogCard() {
-  const { t } = useUi()
-  const conn = useStore((s) => s.conn)
-  const name = useStore((s) => s.status.name ?? 'deckconnector')
-  // `gone` counts lines dropped from the front, so each line keeps its key while the list scrolls.
-  const [{ lines, gone }, setLog] = useState({ lines: [] as string[], gone: 0 })
-  const [follow, setFollow] = useState(true)
-  const [q, setQ] = useState('')
-  const [which, setWhich] = useState<'cur' | 'prev'>('cur')
-  const [prev, setPrev] = useState<string[] | null | undefined>(undefined)
-  const ref = useRef<HTMLPreElement>(null)
-  const followRef = useLatest(follow)
-  useEffect(() => {
-    let off = false
-    const add = (text: string, replace = false) => {
-      if (!followRef.current) return
-      const el = ref.current
-      const atBottom = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 24
-      const more = text.split('\n').filter(Boolean)
-      setLog((x) => {
-        const all = [...(replace ? [] : x.lines), ...more]
-        const cut = Math.max(0, all.length - LOG_LINES)
-        return { lines: all.slice(cut), gone: x.gone + cut + (replace ? x.lines.length : 0) }
-      })
-      if (atBottom) requestAnimationFrame(() => el && (el.scrollTop = el.scrollHeight))
-    }
-    // The first ws log message carries everything still kept, so GET /api/log is only the fallback.
-    const stop = followLog(add)
-    const tm = setTimeout(() => {
-      if (!off && !ref.current?.textContent)
-        void api.log().then(
-          (x) => !off && add(x),
-          () => undefined,
-        )
-    }, 1500)
-    return () => {
-      off = true
-      clearTimeout(tm)
-      stop()
-    }
-  }, [followRef])
-  const showPrev = (v: 'cur' | 'prev') => {
-    setWhich(v)
-    if (v === 'prev' && prev === undefined)
-      api.log(true).then(
-        (x) => setPrev(x.split('\n').filter(Boolean)),
-        () => setPrev(null),
-      )
-  }
-  const src = which === 'prev' ? (prev ?? NONE) : lines
-  const base = which === 'prev' ? 0 : gone
-  const text = src.join('\n')
-  const shown = useMemo(() => {
-    const all = src.map((l, i) => [base + i, l] as const)
-    const fq = fold(q)
-    return q ? all.filter(([, l]) => fold(l).includes(fq)) : all
-  }, [src, base, q])
-  const live = follow && conn === 'live'
-  return (
-    <Card
-      id="log"
-      live
-      icon={ScrollText}
-      title={t('dia.log')}
-      right={
-        <>
-          <span className={cx('tag', live && 'ok')}>
-            {live ? <Activity size={12} aria-hidden /> : <Pause size={12} aria-hidden />}
-            {t(live ? 'dia.live' : 'dia.paused')}
-          </span>
-          <div className="tbar">
-            <IconBtn
-              id="log-follow"
-              icon={follow ? Pause : Play}
-              label={follow ? t('dia.pause') : t('dia.follow')}
-              onClick={() => setFollow(!follow)}
-            />
-            <IconBtn
-              icon={Copy}
-              label={t('c.copy')}
-              onClick={() => void copyText(text, ref.current).then((ok) => toast(t(ok ? 'c.copied' : 'c.copy_fail')))}
-            />
-            <IconBtn
-              icon={Download}
-              label={t('dia.download')}
-              onClick={() => {
-                download(`${name}.log`, text, 'text/plain')
-                toast(t('c.downloaded', { file: `${name}.log` }))
-              }}
-            />
-            <IconBtn
-              icon={Eraser}
-              label={t('dia.clear')}
-              onClick={() => setLog((x) => ({ lines: [], gone: x.gone + x.lines.length }))}
-            />
-          </div>
-        </>
-      }
-    >
-      <div className="row">
-        <Seg
-          id="logsrc"
-          label={t('dia.log')}
-          value={which}
-          onChange={showPrev}
-          options={[
-            ['cur', t('dia.cur')],
-            ['prev', t('dia.prev')],
-          ]}
-        />
-        <span className="sp" />
-        <input
-          id="logq"
-          className="in sm"
-          type="search"
-          placeholder={t('dia.filter')}
-          aria-label={t('dia.filter')}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </div>
-      {which === 'prev' && prev === null ? (
-        <div className="empty">{t('dia.prev_none')}</div>
-      ) : (
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the log scrolls inside its box and must be reachable by keyboard
-        <pre ref={ref} className="log" tabIndex={0} aria-label={t('dia.log')}>
-          {shown.map(([k, l]) => (
-            <div key={k} className={l[0]}>
-              {l}
-            </div>
-          ))}
-        </pre>
-      )}
-    </Card>
-  )
-})
 
 function Health() {
   const { t, fmt } = useUi()
@@ -292,197 +131,6 @@ function Health() {
   )
 }
 
-const IN_ICON = { deck: Hand, web: MousePointer2, api: Key }
-
-function InputLog() {
-  const { t, fmt } = useUi()
-  const inputs = useStore((s) => s.inputs)
-  const decks = decksOf(useStore((s) => s.status))
-  const nDecks = decks.length
-  const [who, setWho] = useState<'all' | 'deck' | 'web'>('all')
-  const [dk, setDk] = useState('all')
-  const [snap, setSnap] = useState<InputEvent[] | null>(null)
-  const src = snap ?? inputs
-  const rows = useMemo(
-    () =>
-      src.filter(
-        (x) => (who === 'all' || (who === 'deck') === (x.origin === 'deck')) && (dk === 'all' || x.deck === dk),
-      ),
-    [src, who, dk],
-  )
-  const origin = (x: InputEvent) =>
-    x.origin === 'deck' ? t('tab.deck') : x.origin === 'api' ? t('in.o_api', { c: x.client ?? '' }) : t('in.o_web')
-  return (
-    <Row
-      group="dia"
-      id="dia-input"
-      icon={Hand}
-      title={t('in.title')}
-      status={<span className={cx('tag', !snap && 'ok')}>{t(snap ? 'dia.paused' : 'dia.live')}</span>}
-    >
-      <div className="row">
-        <Seg
-          id="in-who"
-          label={t('in.origin')}
-          value={who}
-          onChange={setWho}
-          options={[
-            ['all', t('in.all')],
-            ['deck', t('tab.deck'), Hand],
-            ['web', t('in.web_api'), MousePointer2],
-          ]}
-        />
-        {nDecks > 1 && (
-          <Seg
-            id="in-deck"
-            label={t('deck.pick')}
-            value={dk}
-            onChange={setDk}
-            options={[
-              ['all', t('in.all_decks')],
-              ...decks.map((d, i) => [d.serial, deckName(d, i, nDecks, t)] as const),
-            ]}
-          />
-        )}
-        <span className="sp" />
-        <IconBtn
-          id="in-live"
-          icon={snap ? Play : Pause}
-          label={snap ? t('dia.follow') : t('dia.pause')}
-          onClick={() => setSnap(snap ? null : inputs)}
-        />
-      </div>
-      <div className="tblw">
-        <table className="intbl">
-          <thead>
-            <tr>
-              <th>{t('in.time')}</th>
-              <th>{t('in.origin')}</th>
-              {nDecks > 1 && <th>{t('tab.deck')}</th>}
-              <th>{t('in.kind')}</th>
-              <th>{t('in.src')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length ? (
-              rows.map((x, i) => {
-                const I = IN_ICON[x.origin]
-                return (
-                  <tr key={`${x.at}-${i}`}>
-                    <td className="mono">{fmt.clock(x.at)}</td>
-                    <td>
-                      <span className={`ino ${x.origin}`} title={origin(x)}>
-                        <I size={14} aria-hidden />
-                        <span>{origin(x)}</span>
-                      </span>
-                    </td>
-                    {nDecks > 1 && <td className="mono">{x.deck}</td>}
-                    <td className="mono">{inputText(x, t)}</td>
-                    <td className="small">{x.source ?? ''}</td>
-                  </tr>
-                )
-              })
-            ) : (
-              <tr>
-                <td colSpan={5} className="muted">
-                  {t('in.none')}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <p className="small muted">{t('in.hint')}</p>
-    </Row>
-  )
-}
-
-const EV_ICON: Record<string, typeof Power> = {
-  boot: Power,
-  source: Radio,
-  wlan: Wifi,
-  lan: EthernetPort,
-  pairing: Link2,
-  update: Cpu,
-}
-
-/** GET /api/events: what happened on the device since the start, newest first. */
-function Events() {
-  const { t, fmt } = useUi()
-  const bootAt = useStore((s) => s.bootAt)
-  const visible = tabAtom.use() === 'diagnose'
-  const [list, setList] = useState<DeviceEvent[] | null>(null)
-  useEffect(() => {
-    if (!visible) return
-    let off = false
-    const load = () =>
-      api.events().then(
-        (x) => !off && setList(x),
-        () => undefined,
-      )
-    void load()
-    const id = setInterval(() => !document.hidden && void load(), 10_000)
-    return () => {
-      off = true
-      clearInterval(id)
-    }
-  }, [visible])
-  const rows = [...(list ?? [])].reverse()
-  return (
-    <Row group="dia" id="dia-events" icon={History} title={t('ev.title')}>
-      <div className="tblw">
-        <table className="intbl">
-          <thead>
-            <tr>
-              <th>{t('in.time')}</th>
-              <th>{t('ev.what')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length ? (
-              rows.map((e, i) => {
-                const I = EV_ICON[e.kind] ?? Activity
-                // before the clock was set: after its boot's start, which for an earlier boot is all there is
-                const when = e.at
-                  ? fmt.stamp(e.at * 1000)
-                  : e.boot
-                    ? `+${e.since_s} s`
-                    : fmt.stamp(bootAt + e.since_s * 1000)
-                return (
-                  <Fragment key={`${e.boot ?? 0}-${i}`}>
-                    {!!e.boot && rows[i - 1]?.boot !== e.boot && (
-                      <tr>
-                        <td colSpan={2} className="muted small">
-                          {t('ev.earlier')}
-                        </td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td className="mono">{when}</td>
-                      <td>
-                        <span className="ino ev">
-                          <I size={14} aria-hidden />
-                          <span>{e.text}</span>
-                        </span>
-                      </td>
-                    </tr>
-                  </Fragment>
-                )
-              })
-            ) : (
-              <tr>
-                <td colSpan={2} className="muted">
-                  {t('ev.none')}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </Row>
-  )
-}
-
 function Details() {
   const { t, fmt, act, ask, lang } = useUi()
   const st = useStore((s) => s.status)
@@ -516,8 +164,6 @@ function Details() {
           ]}
         />
       )}
-      <InputLog />
-      <Events />
       <Row
         group="dia"
         id="dia-crash"
@@ -696,7 +342,6 @@ function Details() {
 export function Diagnose() {
   return (
     <div className="cards">
-      <LogCard />
       <Health />
       <Details />
     </div>

@@ -52,9 +52,15 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: DeckCon
     coordinator = entry.runtime_data
     secrets = _secrets(coordinator.data)
     try:
+        got = await coordinator.api.request("GET", "/api/events")
+        # a page since event codes, a plain list before
         events: Any = [
-            {**e, "text": _mask(str(e.get("text", "")), secrets)}
-            for e in await coordinator.api.request("GET", "/api/events")
+            {
+                **e,
+                "text": _mask(str(e.get("text", "")), secrets),
+                "args": [_mask(str(a), secrets) for a in e.get("args", [])],
+            }
+            for e in (got.get("events", []) if isinstance(got, dict) else got)
         ]
     except DeckConnectorError as err:
         events = f"not read: {_mask(str(err), secrets)}"

@@ -43,6 +43,7 @@ static struct {
     size_t (*screen_json)(int deck, char *buf, size_t cap);
     SemaphoreHandle_t lock; /* the client list, and one frame on the wire at a time */
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
+    QueueHandle_t events; /* numbers of new events: a stuck client must not stall the task that logged one */
     int fds[CLIENTS];
     httpd_handle_t servers[CLIENTS]; /* HTTP or HTTPS: each fd belongs to one of them */
     bool by_token[CLIENTS];          /* an integration: no simulated presses are sent to it */
@@ -297,15 +298,18 @@ static void log_input(int deck, const db_input_t *ev)
     }
 }
 
-size_t events_input_log(char *buf, size_t cap, uint32_t since)
+size_t events_input_log(char *buf, size_t cap, uint32_t since, uint32_t before)
 {
     static const char *const origins[] = {"deck", "web", "tool"};
     db_json_t j;
     db_json_begin(&j, buf, cap);
     db_json_arr_open(&j, NULL);
-    uint32_t end = input_seq; /* entries written meanwhile show next time */
-    uint32_t from = end > INPUT_LOG ? end - INPUT_LOG : 0;
-    for (uint32_t n = since > from ? since : from; input_log && n < end; n++) {
+    uint32_t total = input_seq; /* entries written meanwhile show next time */
+    uint32_t end = before && before - 1 < total ? before - 1 : total;
+    uint32_t from = total > INPUT_LOG ? total - INPUT_LOG : 0;
+    uint32_t first = since > from ? since : from;
+    first = end > first && end - first > INPUT_PAGE ? end - INPUT_PAGE : first;
+    for (uint32_t n = first; input_log && n < end; n++) {
         const logged_t *l = &input_log[n % INPUT_LOG];
         db_json_obj_open(&j, NULL);
         db_json_int(&j, "seq", n + 1);
@@ -347,6 +351,30 @@ static void on_input(int deck, const db_input_t *ev)
     xQueueSend(e.inputs, json, 0); /* full: the press is dropped for listeners, never for the deck */
 }
 
+static void on_event(uint32_t seq)
+{
+    if (e.events && anyone()) {
+        xQueueSend(e.events, &seq, 0);
+    }
+}
+
+static void send_event(uint32_t seq, char *buf, size_t cap)
+{
+    db_event_t ev;
+    if (!db_log_event_get(seq, &ev)) {
+        return;
+    }
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    db_json_str(&j, "t", "event");
+    db_log_event_json(&j, "event", &ev);
+    db_json_obj_close(&j);
+    if (db_json_end(&j)) {
+        broadcast(buf);
+    }
+}
+
 /* State and screen changes, checked a few times a second while someone listens. */
 static void poll_task(void *arg)
 {
@@ -362,6 +390,10 @@ static void poll_task(void *arg)
     for (;;) {
         if (xQueueReceive(e.inputs, input, pdMS_TO_TICKS(SCREEN_MS)) == pdTRUE) {
             broadcast_to(input, strstr(input, "\"simulated\":true") ? TO_SESSIONS : TO_ALL);
+        }
+        uint32_t seq;
+        while (scr && xQueueReceive(e.events, &seq, 0) == pdTRUE) {
+            send_event(seq, scr, SCREEN_MAX);
         }
         if (xTaskGetTickCount() - ping >= pdMS_TO_TICKS(PING_MS) && anyone()) {
             ping = xTaskGetTickCount();
@@ -596,6 +628,7 @@ esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap),
     e.screen_json = screen_json;
     e.lock = xSemaphoreCreateMutex();
     e.inputs = xQueueCreate(16, INPUT_MAX);
+    e.events = xQueueCreate(16, sizeof(uint32_t));
     input_log = heap_caps_calloc(INPUT_LOG, sizeof(logged_t), MALLOC_CAP_SPIRAM);
     e.state = heap_caps_calloc(1, STATE_MAX, MALLOC_CAP_SPIRAM);
     e.out[0].jobs = xQueueCreate(OUTBOX, sizeof(job_t *));
@@ -603,11 +636,12 @@ esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap),
     for (int i = 0; i < CLIENTS; i++) {
         e.fds[i] = -1;
     }
-    if (!e.lock || !e.inputs || !e.state || !e.out[0].jobs || !e.out[1].jobs) {
+    if (!e.lock || !e.inputs || !e.events || !e.state || !e.out[0].jobs || !e.out[1].jobs) {
         return ESP_ERR_NO_MEM;
     }
     db_deck_listener_t l = {.input = on_input, .device_changed = on_device};
     db_deck_add_listener(&l);
+    db_log_on_event(on_event);
     static db_device_info_t info; /* decks that came before the listener */
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         if (db_deck_info(d, &info)) {

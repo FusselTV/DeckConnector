@@ -5,7 +5,7 @@ import { ls } from '../lib/util'
 import type { Lang } from '../i18n'
 import { guessLang } from '../i18n'
 
-export const TABS = ['overview', 'sources', 'deck', 'network', 'access', 'firmware', 'diagnose'] as const
+export const TABS = ['overview', 'sources', 'deck', 'network', 'access', 'firmware', 'log', 'diagnose'] as const
 export type Tab = (typeof TABS)[number]
 export const fromHash = (): Tab => {
   const h = location.hash.slice(1) as Tab
@@ -70,3 +70,6 @@ export const crashAtom = atom<Coredump | null>(null)
 export const bootAckAtom = atom<number>(ls.get('dc.bootAck', 0))
 export const crashAckAtom = atom<string>(ls.get('dc.crashAck', ''))
 export const crashKey = (c: Coredump) => `${c.elf_sha256 ?? ''}:${c.pc ?? ''}:${c.size}`
+
+/** What the Log tab shows when another place opens it: these kinds, and the newest entry with one of the codes open. */
+export const logFocusAtom = atom<{ kinds: string[]; codes?: string[] } | null>(null)

@@ -183,10 +183,14 @@ async def test_the_connection_is_logged_once_lost_and_once_back(hass, entry, aio
     assert lines == [f"lost the connection to {HOST}", f"connected to {HOST} again"]
 
 
-async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, aioclient_mock, socket):
+@pytest.mark.parametrize("paged", [True, False])  # firmware since event codes, and before
+async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, aioclient_mock, socket, paged):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
-    events = [{"kind": "dock", "text": "192.168.1.15 paired"}, {"kind": "net", "text": "WLAN studio is back"}]
-    aioclient_mock.get(f"http://{HOST}/api/events", json=events)
+    events = [
+        {"kind": "pairing", "code": "pair_accepted", "args": ["192.168.1.15"], "text": "192.168.1.15 accepted"},
+        {"kind": "wlan", "code": "wlan_back", "args": ["studio", "-50", "x"], "text": "WLAN studio is back"},
+    ]
+    aioclient_mock.get(f"http://{HOST}/api/events", json={"events": events} if paged else events)
     network = {"lan": {"ip": "192.168.1.50"}, "wlan": {"ssid": "studio", "bssid": "aa:bb", "lock": "aa:bb"}}
     source = {"kind": "app", "host": "192.168.1.20", "name": "studio-pc", "deck": 0}
     await push(hass, socket, network=network, sources=[source], pairing={"hosts": [{"ip": "x", "mac": "y"}]})
@@ -198,7 +202,8 @@ async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, 
     assert st["network"]["lan"]["ip"] == REDACTED
     assert {st["network"]["wlan"][k] for k in ("ssid", "bssid", "lock")} == {REDACTED}
     assert st["sources"][0]["host"] == REDACTED and st["pairing"]["hosts"][0] == {"ip": REDACTED, "mac": REDACTED}
-    assert [e["text"] for e in diag["events"]] == [f"{REDACTED} paired", f"WLAN {REDACTED} is back"]
+    assert [e["text"] for e in diag["events"]] == [f"{REDACTED} accepted", f"WLAN {REDACTED} is back"]
+    assert diag["events"][0]["args"] == [REDACTED] and diag["events"][1]["args"][0] == REDACTED
     assert st["sources"][0]["name"] == REDACTED and diag["connected"] is True
 
 

@@ -8,7 +8,7 @@ import time
 import urllib.request
 
 import pytest
-from conftest import HOST, PASSWORD, api
+from conftest import HOST, PASSWORD, api, events
 from websockets.sync.client import connect
 
 
@@ -50,8 +50,9 @@ def test_a_token_gets_no_log():
 
 @pytest.mark.sim
 def test_the_timeline_starts_with_the_boot():
-    events = [e for e in json.loads(api("GET", "/api/events")[1]) if e.get("boot", 0) == 0]  # earlier boots come first
-    assert events[0]["kind"] == "boot" and {"since_s", "at", "kind", "text"} <= events[0].keys()
+    mine = [e for e in events() if e["boot"] == 0]
+    assert mine[0]["kind"] == "boot" and mine[0]["code"] == "started" and mine[0]["level"] == "info"
+    assert {"seq", "since_s", "at", "kind", "code", "level", "args", "text"} <= mine[0].keys()
 
 
 async def test_a_server_that_connects_and_goes_is_on_the_timeline(servers):
@@ -60,12 +61,12 @@ async def test_a_server_that_connects_and_goes_is_on_the_timeline(servers):
     since = json.loads(api("GET", "/api/status")[1])["uptime_s"]
     await bridge.ws.close()  # the bridge connects again by itself
     for _ in range(60):
-        events = json.loads(api("GET", "/api/events")[1])
-        news = [e["text"] for e in events if e["kind"] == "source" and e["since_s"] >= since]
+        evs = events()
+        news = [e["text"] for e in evs if e["kind"] == "source" and e["since_s"] >= since]
         if any(" lost" in t for t in news) and any(" connected" in t for t in news):
             break
         await asyncio.sleep(0.5)
     else:
         raise AssertionError(f"no lost and connected on the timeline: {news}")
-    assert all({"since_s", "at", "kind", "text"} <= e.keys() for e in events)
-    assert len(events) <= 64, "a bounded ring"
+    assert all({"since_s", "at", "kind", "code", "level", "text"} <= e.keys() for e in evs)
+    assert len(evs) <= 200, "one page"

@@ -1,5 +1,5 @@
 import { api, ApiError, onAuthLost, READONLY } from '../api/client'
-import type { Status, WsMsg } from '../api/types'
+import type { DeviceEvent, Status, WsMsg } from '../api/types'
 import { ss } from '../lib/util'
 import { configErrAtom, crashAtom, loginReasonAtom, statusErrAtom } from './state'
 import { dispatch, fromLog, getState } from './store'
@@ -95,8 +95,17 @@ async function loadInputs() {
     if (!list) return
     const fresh = list.filter((e) => e.seq > since)
     if (!fresh.length && since) return
-    dispatch({ type: 'inputs', list: fromLog(fresh, getState().bootAt || Date.now()), replace: !since })
+    const bootAt = getState().bootAt || Date.now()
+    dispatch({ type: 'inputs', list: fromLog(fresh, bootAt), replace: !since })
     inputSeq = fresh.at(-1)?.seq ?? inputSeq
+    // the first answer is the newest page: the older ones of the firmware's ring follow
+    for (let first = list[0]?.seq ?? 0; !since && first > 1;) {
+      const older = await api.inputLog(0, first).catch(() => [])
+      const head = older[0]
+      if (!head) break
+      dispatch({ type: 'inputs', list: fromLog(older, bootAt), older: true })
+      first = head.seq
+    }
   } finally {
     inputBusy = false
     if (inputAgain) {
@@ -150,6 +159,7 @@ function openWs() {
       logFresh = false
     }
     if (m.t === 'input') scheduleInputs()
+    if (m.t === 'event') eventListeners.forEach((f) => f(m.event))
     // The deck menu can change settings, brightness for one: read them once it closes.
     if (m.t === 'state' && m.menu_open === false && getState().status.menu_open) void refreshConfig()
     dispatch({ type: 'ws', msg: m, now: Date.now() })
@@ -180,6 +190,13 @@ export function followLog(fn: (text: string, replace: boolean) => void) {
   logListeners.add(fn)
   if (ws?.readyState === WebSocket.OPEN) askLog(ws)
   return () => void logListeners.delete(fn)
+}
+
+const eventListeners = new Set<(e: DeviceEvent) => void>()
+/** Each new device event as it happens. Returns a stop function. */
+export function onDeviceEvent(fn: (e: DeviceEvent) => void) {
+  eventListeners.add(fn)
+  return () => void eventListeners.delete(fn)
 }
 
 /** Ask the device now, for the "Try now" button. */

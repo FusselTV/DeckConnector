@@ -106,7 +106,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/screen/<id>.jpg` | Ein Bild aus diesem Bild | control |
 | `GET /api/screen.jpg` | Das ganze Bild als ein JPEG | control |
 | `POST /api/input` | Drücken, drehen oder berühren, siehe [Eingaben](#eingaben) | control |
-| `GET /api/input/log` | Die letzten 200 Eingaben. `?since=<seq>` nur für neuere | control |
+| `GET /api/input/log` | Die neuesten 400 der letzten 2000 Eingaben, älteste zuerst. `?since=<seq>` für neuere, `?before=<seq>` für ältere | control |
 | `POST /api/menu` | Deck-Menü öffnen. 409 ohne Deck | control |
 | `DELETE /api/menu` | Schließt Deck-Menü, Passwort, Rücksetzfrage und Login-Anfrage | control |
 | `POST /api/screen` | `{"on": false}` schaltet alle Decks sofort dunkel, `{"on": true}` wieder an. Kein Druck wird verschluckt | full |
@@ -179,7 +179,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `GET /api/log` | Die letzten 16 KB des Logs als Text. `?boot=prev` für den Start davor | full |
-| `GET /api/events` | Die letzten 32 Ereignisse: `since_s`, `at`, `kind`, `text` | control |
+| `GET /api/events` | Ereignisse, neueste zuerst, höchstens 200. `?before=<seq>` für ältere, `?since=<Unix-Zeit>` hört dort auf, `?n=` für weniger. Jedes hat `seq`, `at`, `since_s`, `boot`, `kind`, `code`, `level`, `args` und den englischen `text` | control |
 | `GET /api/metrics` | CPU, RAM und PSRAM alle 5 s für 10 Minuten, dazu die Flash-Belegung | control |
 | `GET /api/profile` | Zeit je Route und CPU je Task seit dem letzten Aufruf | full |
 | `GET /api/coredump` | Der letzte Absturz. `?raw=1` liefert den Dump. 404, wenn es keinen gibt | admin |
@@ -344,6 +344,7 @@ Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, di
 | `ota` | Update-Fortschritt mit `target`, `state`, `pct` und `error` |
 | `ping` | Alle 5 s. Kommt 12 s lang gar nichts, neu verbinden |
 | `log` | Neuer Log-Text, erst nach `{"t": "log"}`. Braucht das Passwort oder einen `full`-Schlüssel |
+| `event` | Ein neues Ereignis in `event`, wie `GET /api/events` es liefert |
 
 Zum Ändern schickst du die Schlüssel von `PUT /api/config` oder `POST /api/input` mit einer `id`. Eine Eingabe geht an das erste Deck oder an das, dessen Seriennummer in `deck` steht. `GET /api/input/log` nennt das Deck genauso.
 

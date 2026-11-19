@@ -3,6 +3,7 @@ import {
   closeMenu,
   dbfw,
   event,
+  eventPage,
   reachable,
   openMenu,
   companion,
@@ -285,7 +286,6 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return ok()
     case 'POST /api/deck/reconnect':
       s.recoveries = (s.recoveries ?? 0) + 1
-      event(s, now, 'deck', 'deck reconnected on request, USB recovery')
       return ok()
     case 'POST /api/screen':
     case 'POST /api/deck/stall':
@@ -305,7 +305,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'GET /api/log':
       return res('log', q.get('boot') === 'prev' ? prevLog(s) : s.log.join('\n') + '\n')
     case 'GET /api/events':
-      return res('events', s.events)
+      return res('events', eventPage(s, q))
     case 'GET /api/coredump':
       return fail(404, 'no coredump')
     case 'DELETE /api/coredump':
@@ -328,7 +328,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       const h = file(body)
       if (h.error) return fail(400, h.error, h.code)
       if (h.target === 'c6') {
-        event(s, now, 'update', `WLAN chip firmware ${h.version} written`)
+        event(s, now, 'update_restart', 'c6')
         return ok()
       }
       if (h.target !== 'p4') return fail(400, 'not for this device', 'ota_wrong_target')
@@ -442,10 +442,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return makeToken(s, str('name'), str('right') === 'full' ? 'full' : 'control')
     case 'GET /api/input/log': {
       const since = Number(q.get('since') ?? 0)
-      return res(
-        'inputLog',
-        s.inputs.filter((e) => e.seq > since),
-      )
+      const before = Number(q.get('before')) || Infinity
+      return res('inputLog', s.inputs.filter((e) => e.seq > since && e.seq < before).slice(-400))
     }
     case 'POST /api/sources/retry': {
       const h = str('host')

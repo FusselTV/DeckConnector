@@ -8,7 +8,7 @@ const deFile: string = '../src/i18n/de.ts'
 export const de = ((await import(deFile)) as { de: Dict }).de
 export { en }
 
-export const TABS = ['overview', 'sources', 'deck', 'network', 'access', 'firmware', 'diagnose'] as const
+export const TABS = ['overview', 'sources', 'deck', 'network', 'access', 'firmware', 'log', 'diagnose'] as const
 export type Tab = (typeof TABS)[number]
 const MOBILE = ['overview', 'sources', 'network']
 
@@ -56,7 +56,7 @@ export async function openTab(page: Page, dict: Dict, tab: Tab) {
       .click()
   else {
     await page.locator('.tabbar').getByRole('button', { name: dict['tab.more'] }).click()
-    await page.getByRole('dialog').getByRole('button', { name }).click()
+    await page.getByRole('dialog').getByRole('button', { name, exact: true }).click()
   }
   await expect(page.locator('#tabpanel > .stack:not([hidden])').first()).toBeVisible()
 }

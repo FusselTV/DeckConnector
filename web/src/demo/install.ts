@@ -183,6 +183,7 @@ window.WebSocket = new Proxy(RealWs, {
 let lastState = ''
 let lastFace = ''
 let lastSeq = s.seq
+let lastEvent = s.events.at(-1)?.seq ?? 0
 const broadcast = (m: WsMsg, logOnly = false) => sockets.forEach((x) => (!logOnly || x.log) && x.push(m))
 
 /** Tells every socket what changed: the state, the deck picture. */
@@ -203,6 +204,8 @@ function after() {
     lastSeq = s.seq
     broadcast({ t: 'input', kind: 'key' })
   }
+  for (const e of s.events) if (e.seq > lastEvent) broadcast({ t: 'event', event: e })
+  lastEvent = s.events.at(-1)?.seq ?? lastEvent
   const f = JSON.stringify(face(s, now))
   if (f !== lastFace) {
     if (lastFace) s.images += 9

@@ -565,8 +565,10 @@ static void handle_attach(uint8_t address)
         driver->set_brightness(&dev, 0); /* lit, it would show its logo and draw current */
         usb_port_close(port);
         if (park(address) && full) {
-            db_log_event(TAG, "deck", "deck at USB address %u left dark: max_decks is %d", address,
-                         s.max_decks);
+            char a[12], m[12];
+            snprintf(a, sizeof(a), "%u", address);
+            snprintf(m, sizeof(m), "%d", s.max_decks);
+            db_log_event(TAG, DB_EV_DECK_PARKED, a, m);
         }
         count_parked();
         return;
@@ -641,7 +643,7 @@ static void handle_detach(int port)
 /* Each writer sets what its host set last under the cap, as the cap is when it gets there. */
 static void light_all(int cap)
 {
-    db_log_event(TAG, "deck", cap == 0 ? "screen off" : cap > 0 ? "screen dimmed" : "screen on");
+    db_log_event(TAG, cap == 0 ? DB_EV_SCREEN_OFF : cap > 0 ? DB_EV_SCREEN_DIMMED : DB_EV_SCREEN_ON);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         if (decks[d].present) {
             __atomic_store_n(&decks[d].brightness, 1, __ATOMIC_RELAXED);

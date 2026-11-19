@@ -18,7 +18,7 @@ static const row_t ours[] = {
     {1, 1, 0x11000, 0x1000, "phy_init"},  {0, 16, 0x20000, 0x400000, "ota_0"},
     {0, 17, 0x420000, 0x400000, "ota_1"}, {1, 3, 0x820000, 0x40000, "coredump"},
     {0, 18, 0x860000, 0x400000, "ota_2"}, {0, 19, 0xc60000, 0x3a0000, "ota_3"},
-    {1, 64, 0x1000000, 0x100000, "www"},
+    {1, 64, 0x1000000, 0x100000, "www"},  {1, 0x41, 0x1100000, 0x80000, "evlog"},
 };
 #define ROWS (sizeof(ours) / sizeof(ours[0]))
 
@@ -72,11 +72,20 @@ static void test_the_same_table_may_be_written(void)
     TEST_ASSERT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
 }
 
+/* the table before evlog, as devices in the field have it: the ptable update writes ours over it */
+static void test_the_table_before_evlog_may_take_evlog(void)
+{
+    write_table(now, ours, ROWS - 1);
+    write_table(next, ours, ROWS);
+    TEST_ASSERT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
+    TEST_ASSERT_NULL(db_ptable_check(now, next, sizeof(now), 0xc60000, IMAGE, FLASH)); /* run from slot 4 */
+}
+
 static void test_a_new_data_partition_in_free_space_is_fine(void)
 {
     row_t rows[ROWS + 1];
     memcpy(rows, ours, sizeof(ours));
-    rows[ROWS] = (row_t){1, 0x81, 0x1100000, 0x100000, "extra"};
+    rows[ROWS] = (row_t){1, 0x81, 0x1180000, 0x100000, "extra"};
     write_table(next, rows, ROWS + 1);
     TEST_ASSERT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
 }
@@ -133,6 +142,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_the_same_table_may_be_written);
+    RUN_TEST(test_the_table_before_evlog_may_take_evlog);
     RUN_TEST(test_a_new_data_partition_in_free_space_is_fine);
     RUN_TEST(test_settings_and_the_page_stay_where_they_are);
     RUN_TEST(test_app_slots_keep_the_running_one_and_fit_it);

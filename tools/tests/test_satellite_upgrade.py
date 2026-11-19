@@ -10,7 +10,7 @@ import subprocess
 import time
 
 import pytest
-from conftest import HOST, api, get_config, put_config, status
+from conftest import HOST, api, events, get_config, put_config, status
 from test_input_gate import CHECK
 from test_satellite_fake import wait
 
@@ -22,8 +22,8 @@ AUTO = {"satellite": "", "satellite_auto": True, "controller": "companion", "hos
 
 
 def logged(text: str, since: float) -> int:
-    """By the bridge's clock: the event list keeps only the last 32, so a count of all of them stops growing."""
-    return sum(text in e["text"] and e["at"] >= int(since) for e in json.loads(api("GET", "/api/events")[1]))
+    """By the bridge's clock: a count of all of them would include the earlier runs'."""
+    return sum(text in e["text"] and (e["at"] or 0) >= int(since) for e in events())
 
 
 def frame(op: int, payload: bytes) -> bytes:

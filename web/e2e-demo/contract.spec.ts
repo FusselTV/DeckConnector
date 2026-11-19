@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { en } from '../src/i18n/en.ts'
 
 // Plain imports would make tsc follow the app's extensionless imports, which this tsconfig refuses.
 const [modelFile, serverFile, uiFile]: string[] = [
@@ -9,9 +10,10 @@ const [modelFile, serverFile, uiFile]: string[] = [
 ]
 await ((await import(uiFile)) as { deckUiReady: Promise<void> }).deckUiReady
 type Demo = { bootAt: number }
-const { boot, fresh } = (await import(modelFile)) as {
+const { boot, fresh, EV } = (await import(modelFile)) as {
   fresh: (now: number) => Demo
   boot: (s: Demo, at: number) => void
+  EV: Record<string, [string, string, string]>
 }
 const { handle } = (await import(serverFile)) as {
   handle: (
@@ -131,4 +133,22 @@ test('the mock answers the main GET routes with the shape the simulator gives', 
   // The simulator has no data there, so only the types (src/demo/server.ts) guard these.
   test.info().annotations.push({ type: 'not compared', description: empty.join(', ') })
   expect(out).toEqual([])
+})
+
+// The page translates events by code: the mock must log the firmware's codes with the same kind, level and text.
+test('the mock knows every firmware event code as the firmware defines it', () => {
+  const src = readFileSync(new URL('components/db_log/evlog.c', fw), 'utf8')
+  const codes = Object.fromEntries(
+    [...src.matchAll(/\[DB_EV_\w+\]\s*=\s*\{\s*"(\w+)",\s*K_(\w+),\s*L_(\w+),\s*((?:"[^"]*"\s*)+)\}/g)].map((m) => [
+      m[1],
+      [m[2]?.toLowerCase(), m[3]?.toLowerCase(), [...m[4].matchAll(/"([^"]*)"/g)].map((x) => x[1]).join('')],
+    ]),
+  )
+  const enumSrc = readFileSync(new URL('components/db_log/include/db_log.h', fw), 'utf8')
+  expect(Object.keys(codes).length, 'a code without its row in the table').toBe(
+    [...enumSrc.matchAll(/^\s+DB_EV_(?!COUNT)\w+,/gm)].length,
+  )
+  expect(EV).toEqual(codes)
+  for (const code of Object.keys(codes).filter((c) => !['text', 'more', 'crashed'].includes(c)))
+    expect(en, `the page has no words for ${code}`).toHaveProperty([`ev.${code}`])
 })

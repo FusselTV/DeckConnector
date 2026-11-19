@@ -1,37 +1,37 @@
-"""The event timeline outlives a restart: the last events come back from flash, marked with the boot they belong to."""
+"""The event timeline outlives a restart: the events come back from flash, marked with the boot they belong to."""
 
 import json
 import random
 import time
 import urllib.request
 
-from conftest import HOST, api, wait_for_bridge
-
-
-def events() -> list[dict]:
-    code, body = api("GET", "/api/events")
-    assert code == 200
-    return json.loads(body)
+from conftest import HOST, api, events, wait_for_bridge
 
 
 def restart() -> None:
-    time.sleep(3)  # the bridge writes new events to flash within 2 s
+    time.sleep(3)  # the bridge stores new events within 2 s
     assert api("POST", "/api/reboot")[0] == 200
     time.sleep(5)
     wait_for_bridge()
 
 
 def test_events_come_back_after_restarts_with_their_boot():
-    now = [e["text"] for e in events() if not e.get("boot")]
+    now = [e["text"] for e in events() if not e["boot"]]
     assert now, "this boot has no events"
     restart()
     first = events()
-    earlier = [e["text"] for e in first if e.get("boot") == 1]
+    earlier = [e["text"] for e in first if e["boot"] == 1]
     assert earlier[-len(now[-10:]) :] == now[-10:], "the last events of the boot before are missing or out of order"
-    assert all(e["since_s"] >= 0 for e in first if e.get("boot")), "an earlier boot's event lost its time since start"
-    assert any(e["kind"] == "boot" and not e.get("boot") for e in first), "the new boot logged no start"
+    assert all(e["since_s"] >= 0 for e in first if e["boot"]), "an earlier boot's event lost its time since start"
+    assert any(e["kind"] == "boot" and not e["boot"] for e in first), "the new boot logged no start"
     restart()
-    assert any(e.get("boot") == 2 for e in events()), "two restarts back is gone"
+    assert any(e["boot"] == 2 for e in events()), "two restarts back is gone"
+
+
+def test_the_events_say_where_they_are_kept():
+    page = json.loads(api("GET", "/api/events?n=1")[1])
+    assert page["store"] in ("flash", "settings"), "flash with the evlog partition, the settings storage without"
+    assert len(page["events"]) == 1 and page["newest"] >= page["oldest"] > 0
 
 
 def test_settings_storage_keeps_room():
@@ -52,12 +52,12 @@ def setup_request(ip: str) -> None:
 
 
 def test_the_last_event_before_a_restart_is_kept():
-    """The bridge writes at most every 30 s: the second event waits in that pause, and the restart writes it."""
+    """The second event may still wait for the keeper (30 s apart without evlog): the restart writes it."""
     ip = f"192.0.2.{random.randint(10, 250)}"
     setup_request(ip)  # written at once
     setup_request(ip)  # written only on the way down
     assert api("POST", "/api/reboot")[0] == 200
     time.sleep(5)
     wait_for_bridge()
-    kept = [e for e in events() if e.get("boot") == 1 and ip in e["text"]]
+    kept = [e for e in events() if e["boot"] == 1 and ip in e["text"]]
     assert len(kept) == 2, f"{len(kept)} of the 2 events before the restart kept"
