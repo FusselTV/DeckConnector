@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError } from '../api/client'
 import { makeT, type Lang, type T, type TKey } from '../i18n'
-import { makeFmt, type Fmt } from '../lib/format'
+import { dateLocale, makeFmt, type Fmt } from '../lib/format'
 import { getState } from './store'
-import { armAtom, ARM_MS, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
+import { armAtom, ARM_MS, clockAtom, fromHash, langAtom, tabAtom, themeAtom, toast, type Tab } from './state'
 import { type Tried, worst } from '../lib/companion'
 
 export interface AskOpts {
@@ -55,7 +55,8 @@ export function UiProvider({ children, onAsk }: { children: ReactNode; onAsk: (o
   const lang = langAtom.use()
   const theme = themeAtom.use()
   const t = useMemo(() => makeT(lang), [lang])
-  const fmt = useMemo(() => makeFmt(lang), [lang])
+  const clock = clockAtom.use()
+  const fmt = useMemo(() => makeFmt(lang, dateLocale(lang, clock)), [lang, clock])
 
   useEffect(() => {
     document.documentElement.lang = lang

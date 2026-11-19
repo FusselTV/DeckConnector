@@ -1,14 +1,35 @@
 import type { Lang } from '../i18n'
+import { H12 } from './clock12'
 
 const HM = { hour: '2-digit', minute: '2-digit' } as const
 
-/** Words in the page's language; date order and the 12 or 24 hour clock from the browser's locale. */
-export function dateLocale(lang: Lang, browser = navigator.language): string {
+export type Clock = 'auto' | 'h23' | 'h12'
+
+/** 12 or 24 h by the country of the browser's time zone, else by the first browser language with a region. */
+export function hourCycle(
+  lang: Lang,
+  zone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+  langs: readonly string[] = navigator.languages,
+): 'h23' | 'h12' {
+  // An English browser is common outside the US, so its language says little about the clock.
+  if (zone.includes('/') && !zone.startsWith('Etc/')) return H12.includes(` ${zone} `) ? 'h12' : 'h23'
   try {
-    const hourCycle = new Intl.DateTimeFormat(browser, { hour: 'numeric' }).resolvedOptions().hourCycle
-    return new Intl.Locale(lang, { region: new Intl.Locale(browser).maximize().region, hourCycle }).toString()
+    const tag = langs.find((l) => new Intl.Locale(l).region) ?? lang
+    return new Intl.DateTimeFormat(tag, { hour: 'numeric' }).resolvedOptions().hourCycle?.startsWith('h1')
+      ? 'h12'
+      : 'h23'
   } catch {
-    return lang
+    return 'h23'
+  }
+}
+
+/** Words in the page's language, date order from the browser's locale. */
+export function dateLocale(lang: Lang, clock: Clock = 'auto', browser = navigator.language): string {
+  const hc = clock === 'auto' ? hourCycle(lang) : clock
+  try {
+    return new Intl.Locale(lang, { region: new Intl.Locale(browser).maximize().region, hourCycle: hc }).toString()
+  } catch {
+    return new Intl.Locale(lang, { hourCycle: hc }).toString()
   }
 }
 

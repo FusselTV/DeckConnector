@@ -503,6 +503,7 @@ export const de: Dict = {
   'acct.light': 'Hell',
   'acct.dark': 'Dunkel',
   'acct.lang': 'Sprache',
+  'acct.clock': 'Uhrzeit',
   'deck.list': 'Angeschlossene Decks',
   'deck.n': 'Deck {n}',
   'deck.pick': 'Deck wählen',

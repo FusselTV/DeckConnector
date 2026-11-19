@@ -4,6 +4,7 @@ import { atom } from '../lib/atom'
 import { ls } from '../lib/util'
 import type { Lang } from '../i18n'
 import { guessLang } from '../i18n'
+import type { Clock } from '../lib/format'
 
 export const TABS = ['overview', 'sources', 'deck', 'network', 'access', 'firmware', 'log', 'diagnose'] as const
 export type Tab = (typeof TABS)[number]
@@ -14,9 +15,12 @@ export const fromHash = (): Tab => {
 
 export const langAtom = atom<Lang>(ls.get<Lang>('dc.lang', guessLang()))
 export const themeAtom = atom<'light' | 'dark' | null>(ls.get<'light' | 'dark' | null>('dc.theme', null))
+const clock = ls.get<Clock>('dc.clock', 'auto')
+export const clockAtom = atom<Clock>(clock === 'h23' || clock === 'h12' ? clock : 'auto')
 // Stored on a change only: the demo must not write storage before the visitor does something.
 langAtom.subscribe(() => ls.set('dc.lang', langAtom.get()))
 themeAtom.subscribe(() => ls.set('dc.theme', themeAtom.get()))
+clockAtom.subscribe(() => ls.set('dc.clock', clockAtom.get()))
 export const tabAtom = atom<Tab>(fromHash())
 
 export interface Toast {
