@@ -446,7 +446,7 @@ export function Access() {
             <Switch
               id="qr-login"
               on={cfg.qr_login}
-              onChange={(v) => void act(() => putConfig({ qr_login: v }))}
+              onChange={(v) => act(() => putConfig({ qr_login: v }))}
               label={t('access.qr')}
               hint={t(cfg.setup_done ? 'access.qr_done' : 'access.qr_h')}
             />
@@ -461,7 +461,7 @@ export function Access() {
           <Switch
             id="https"
             on={!!cfg?.https_only}
-            onChange={(v) => void httpsOnly(v)}
+            onChange={httpsOnly}
             label={t('access.https_only')}
             hint={t('access.https_only_h')}
             disabled={!cfg}

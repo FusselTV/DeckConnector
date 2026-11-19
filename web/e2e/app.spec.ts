@@ -524,7 +524,10 @@ test('a session that ends on a live page keeps the page and its draft behind the
   await page.locator('#hold').fill('3')
   await page.request.post('/api/logout', { headers: { 'X-DeckConnector': '1' } })
   const bar = page.getByRole('region', { name: 'Unsaved changes' })
+  await page.evaluate(() => scrollTo(0, document.body.scrollHeight))
   await bar.getByRole('button', { name: /^Save/ }).click()
+  await expect(page.locator('#lpw-bar')).toBeInViewport()
+  expect((await page.locator('#lpw-bar').boundingBox())?.width).toBeGreaterThan(150)
   await page.locator('#lpw-bar').fill('simulator-pass')
   await page.keyboard.press('Enter')
   await expect(page.locator('#lpw-bar')).toHaveCount(0)
@@ -562,6 +565,33 @@ test('Access saves past a stored CORS list the page cannot read, and opens the f
   await page.locator('#cors-fold summary').click()
   await bar.getByRole('button', { name: /^Save/ }).click()
   await expect(page.locator('#cors')).toBeFocused()
+})
+
+test('each click on a switch flips what it shows, also while a save runs', async ({ app: page }) => {
+  const sent: unknown[] = []
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() === 'PUT') {
+      sent.push(r.request().postDataJSON())
+      await new Promise((f) => setTimeout(f, 400))
+    }
+    await r.fallback()
+  })
+  await openTab(page, 'Access')
+  const sw = page.locator('#qr-login')
+  await expect(sw).toHaveAttribute('aria-checked', 'true')
+  await sw.click()
+  await sw.click()
+  await expect(sw).toHaveAttribute('aria-checked', 'true')
+  await expect.poll(() => sent).toEqual([{ qr_login: false }, { qr_login: true }])
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ qr_login: true })
+})
+
+test('a server URL pasted with spaces still offers the certificate pin', async ({ app: page }) => {
+  await page.getByRole('button', { name: 'Add source' }).first().click()
+  const dlg = page.getByRole('dialog')
+  await dlg.getByRole('radio', { name: 'Custom server' }).click()
+  await dlg.locator('#m-url').fill(' wss://studio.example:9443/deckconnector ')
+  await expect(dlg.locator('#m-spin')).toBeVisible()
 })
 
 test('a stored Wi-Fi can be forgotten after a confirm', async ({ app: page }) => {

@@ -1784,10 +1784,9 @@
   .addr a:hover {
     color: var(--amber-fg);
   }
-  .loginbar {
+  .notice.loginbar {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-wrap: wrap;
   }
   .loginbar .field {
     flex: 1 1 220px;

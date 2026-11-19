@@ -318,6 +318,8 @@ export function LoginBar() {
             value={L.pw}
             onChange={(e) => L.setPw(e.target.value)}
             autoComplete="current-password"
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- brings the bar into view, also scrolled down on a phone
+            autoFocus
           />
           <button type="submit" className="btn pri" disabled={!L.pw || L.lock > 0 || L.busy}>
             {t('login.btn')}

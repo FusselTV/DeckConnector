@@ -126,20 +126,28 @@ export function Field(p: {
 export function Switch(p: {
   id?: string
   on: boolean
-  onChange: (v: boolean) => void
+  /** A returned promise keeps the clicked value shown until the last one settles. */
+  onChange: (v: boolean) => unknown
   label: ReactNode
   hint?: ReactNode
   disabled?: boolean
 }) {
+  const [want, setWant] = useState<boolean | null>(null)
+  const busy = useRef(0)
+  const on = want ?? p.on
   return (
     <button
       type="button"
       id={p.id}
       className="sw"
       role="switch"
-      aria-checked={p.on}
+      aria-checked={on}
       disabled={p.disabled}
-      onClick={() => p.onChange(!p.on)}
+      onClick={() => {
+        setWant(!on)
+        busy.current++
+        void Promise.resolve(p.onChange(!on)).finally(() => --busy.current || setWant(null))
+      }}
     >
       <span className="track" />
       <span className="t">
