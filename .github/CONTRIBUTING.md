@@ -45,6 +45,16 @@ cd firmware/sim && idf.py build
 cd tools && uv run pytest tests --target sim -n auto
 ```
 
+`firmware/simdeck` runs the whole firmware on emulated decks, Matter included. The Matter stack there is a fake,
+so pairing and the real mDNS records of Matter still need a board. The mDNS tests start both simulators in a
+network namespace of their own, so nothing reaches the LAN. They need user namespaces (`unshare -rn true`).
+
+```
+cd firmware/simdeck && idf.py build
+cd tools && uv run pytest simdeck    # every deck model, Matter
+cd tools && uv run pytest simnet     # mDNS
+```
+
 With a board, set its address as `host` in `~/.config/deckbridge/bench.json`. The other keys are in
 `tools/dbtools/site.py`. Tests that need a camera, a switch or a test Companion skip until those are set.
 

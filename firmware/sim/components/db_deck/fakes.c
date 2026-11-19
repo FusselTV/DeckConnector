@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "db_config.h"
 #include "db_deck.h"
@@ -399,40 +398,6 @@ void db_ui_end_login(void)
 int64_t db_ui_page_end(db_ui_page_t page)
 {
     return page == DB_UI_LOGIN ? ask_until : page == DB_UI_RESET ? reset_until : pass_until;
-}
-
-/* IDF's esp_timer has only its header on Linux. Timers never fire: the web watchdog has nothing to watch
- * here. DB_SIM_CLOCK_FILE: the seconds written there move the clock on, so a test reaches a time limit at once. */
-int64_t esp_timer_get_time(void)
-{
-    static int64_t jump, read_at;
-    struct timespec t;
-    clock_gettime(CLOCK_MONOTONIC, &t);
-    int64_t now = (int64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
-    const char *file = getenv("DB_SIM_CLOCK_FILE");
-    if (file && now - read_at > 100000) {
-        read_at = now;
-        long s;
-        FILE *f = fopen(file, "r");
-        if (f) {
-            if (fscanf(f, "%ld", &s) == 1) { /* a file being written may read empty: keep the last jump */
-                jump = (int64_t)s * 1000000;
-            }
-            fclose(f);
-        }
-    }
-    return now + jump;
-}
-
-esp_err_t esp_timer_create(const esp_timer_create_args_t *args, esp_timer_handle_t *out)
-{
-    *out = NULL;
-    return ESP_OK;
-}
-
-esp_err_t esp_timer_start_periodic(esp_timer_handle_t timer, uint64_t period)
-{
-    return ESP_OK;
 }
 
 /* No servers and no Satellite client in the simulator: retries find nothing to wake. */

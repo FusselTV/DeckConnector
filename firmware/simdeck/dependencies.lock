@@ -23,6 +23,7 @@ dependencies:
 direct_dependencies:
 - espressif/cjson
 - espressif/qrcode
-manifest_hash: 7c3cee194994d4b9d12e50b5449b3aa88aed8b9cce43ee8ac29ff0ba8e2e8712
+- idf
+manifest_hash: ea4c0b2a6588d240ec1eb0ca5de4b1a18783f9a77678fd1bdd84d3e4888f0737
 target: linux
 version: 3.0.0

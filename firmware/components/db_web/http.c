@@ -17,16 +17,16 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "esp_app_desc.h"
 #include "events.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "mdns.h"
 #include "sdkconfig.h"
 #include "web.h"
-#if !CONFIG_IDF_TARGET_LINUX /* the simulator has no TLS, no mDNS and no app image */
-#include "esp_app_desc.h"
+#if !CONFIG_IDF_TARGET_LINUX /* the simulator has no TLS */
 #include "esp_https_server.h"
-#include "mdns.h"
 #endif
 
 static const char *TAG = "web";
@@ -433,7 +433,6 @@ static esp_err_t no_delay(httpd_handle_t hd, int fd)
     return ESP_OK;
 }
 
-#if !CONFIG_IDF_TARGET_LINUX
 /* Home Assistant and scripts find the bridge's API by this. */
 static void announce_api(void)
 {
@@ -456,8 +455,6 @@ static void announce_api(void)
         }
     }
 }
-
-#endif
 
 /* Phones probe some URL when they join a WLAN; sending them to the page opens it by itself. */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t code)
@@ -718,9 +715,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
     }
 #endif
     metrics_start();
-#if !CONFIG_IDF_TARGET_LINUX
     announce_api();
-#endif
     ESP_LOGI(TAG, "web UI on port 80");
     return ESP_OK;
 }
