@@ -35,7 +35,7 @@
 - Several decks on one connector.
 - Ethernet with PoE, and Wi-Fi with a backup network.
 - Home Assistant gets every key press and the deck picture. It sets the brightness and the volume, and picks the program that draws.
-- Matter, tested with Home Assistant. Apple Home and Google Home are not tested yet.
+- Matter, tested with Home Assistant. It pairs with Apple Home. The buttons there need a home hub and are not tested yet. Google Home is not tested yet.
 - The web UI shows the live deck, and you can press its keys.
 - Log in with a passkey, or confirm the login on the deck.
 

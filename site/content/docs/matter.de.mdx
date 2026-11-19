@@ -38,6 +38,10 @@ Home Assistant benennt jeden Taster nach seiner Taste, zum Beispiel „Taste (Ta
 
 Nach einem Update oder einer neuen Sprache am Deck öffnest du das Gerät in Home Assistant und nutzt **Gerät erneut abfragen**. Lad danach die Matter-Integration neu, dann siehst du die neuen Namen.
 
+## Apple Home
+
+Apple Home braucht für Matter-Geräte eine Steuerzentrale: einen HomePod, HomePod mini oder ein Apple TV. Ohne sie lässt sich das Deck koppeln, aber die Home-App meldet bei seinen Tasten, dass eine Steuerzentrale fehlt, und sie lösen nichts aus.
+
 ## Google Home
 
 Google Home koppelt nur Testgeräte, die in deinem Projekt in der [Google Home Developer Console](https://console.home.google.com/) eingetragen sind. Trag Vendor-ID `0xFFF1` und Product-ID `0x8000` ein.
