@@ -1,7 +1,7 @@
 #include "db_stream.h"
 
-#define START (16000 * 2 / 2) /* bytes: half a second at 16 kHz */
-#define CHUNK (512 * 2)       /* bytes played at a time, 32 ms */
+#define START ((size_t)16000) /* bytes: half a second at 16 kHz, 2 bytes a sample */
+#define CHUNK ((size_t)1024)  /* bytes played at a time, 512 samples, 32 ms */
 
 static size_t least(size_t a, size_t b)
 {
@@ -13,7 +13,8 @@ bool db_stream_run(const db_stream_io_t *io, int16_t *ring, size_t cap, size_t l
     char *buf = (char *)ring;
     size_t size = cap * 2;
     size_t start = least(START, size / 2);
-    size_t in = 0, out = 0; /* bytes received and played so far */
+    size_t in = 0;  /* bytes received so far */
+    size_t out = 0; /* bytes played so far */
     bool playing = false;
     for (;;) {
         size_t held = in - out;
@@ -34,7 +35,8 @@ bool db_stream_run(const db_stream_io_t *io, int16_t *ring, size_t cap, size_t l
             return true; /* only here once all came: else it waited above */
         }
         playing = true;
-        size_t at = out % size, n = least(least(held, CHUNK), size - at);
+        size_t at = out % size;
+        size_t n = least(least(held, CHUNK), size - at);
         if (!io->play(io->ctx, (int16_t *)(void *)(buf + at), n / 2)) {
             return false;
         }
