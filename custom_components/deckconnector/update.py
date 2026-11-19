@@ -43,7 +43,10 @@ class Firmware(BoardEntity, UpdateEntity):
 
     async def _fetch_check(self, _now: Any = None) -> None:
         with contextlib.suppress(DeckConnectorError):
-            self._check = await self.coordinator.api.request("GET", "/api/update/check")
+            check = await self.coordinator.api.request("GET", "/api/update/check")
+            # rate_limited, unreachable: GitHub may answer next time, so the last answer stays
+            if check.get("latest") or check.get("code") == "no_releases":
+                self._check = check
         self.async_write_ha_state()
 
     @property
@@ -52,7 +55,7 @@ class Firmware(BoardEntity, UpdateEntity):
 
     @property
     def latest_version(self) -> str | None:
-        return self._check.get("latest") or self.installed_version
+        return self._check.get("latest")
 
     @property
     def release_url(self) -> str | None:
