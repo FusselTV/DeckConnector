@@ -329,22 +329,25 @@ test('a notice opens the log on its kind, with the newest matching entry open', 
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
-test('a 12-hour time in the log stays on one line', async ({ app: page }) => {
-  await page.route(
-    (u) => u.pathname === '/api/events',
-    (r) => r.fulfill({ json: { events: FAKE.slice(0, 5), oldest: 1, newest: 250, total: 250, store: 'flash' } }),
-  )
-  await page.reload()
-  await openTab(page, 'Log')
-  const time = page.locator('.lg-row time').first()
-  await expect(time).toHaveText(/\d (AM|PM)$/)
-  const lines = await time.evaluate((el) => {
-    const r = document.createRange()
-    r.selectNodeContents(el)
-    return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size
+test.describe(() => {
+  test.use({ timezoneId: 'America/New_York' })
+  test('a 12-hour time in the log stays on one line', async ({ app: page }) => {
+    await page.route(
+      (u) => u.pathname === '/api/events',
+      (r) => r.fulfill({ json: { events: FAKE.slice(0, 5), oldest: 1, newest: 250, total: 250, store: 'flash' } }),
+    )
+    await page.reload()
+    await openTab(page, 'Log')
+    const time = page.locator('.lg-row time').first()
+    await expect(time).toHaveText(/\d (AM|PM)$/)
+    const lines = await time.evaluate((el) => {
+      const r = document.createRange()
+      r.selectNodeContents(el)
+      return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size
+    })
+    expect(lines).toBe(1)
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
   })
-  expect(lines).toBe(1)
-  await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
 test('a restart shows the addresses the device names in its reply', async ({ app: page }) => {

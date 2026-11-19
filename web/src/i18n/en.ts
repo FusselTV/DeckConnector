@@ -492,6 +492,7 @@ export const en = {
   'acct.light': 'Light',
   'acct.dark': 'Dark',
   'acct.lang': 'Language',
+  'acct.clock': 'Clock',
   'deck.list': 'Connected decks',
   'deck.n': 'Deck {n}',
   'deck.pick': 'Pick deck',

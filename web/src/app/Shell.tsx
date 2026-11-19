@@ -1,5 +1,6 @@
 import {
   Cable,
+  Clock3,
   Cpu,
   Languages,
   LayoutDashboard,
@@ -24,7 +25,7 @@ import { Notice } from '../components/Notice'
 import { SaveBar, useDirtyTabs } from '../components/SaveBar'
 import { Seg } from '../components/controls'
 import { Logo } from '../deck/DeckFront'
-import { mmss } from '../lib/format'
+import { hourCycle, mmss, type Clock } from '../lib/format'
 import { Access } from '../pages/Access'
 import { DeckTab } from '../pages/DeckTab'
 import { Diagnose } from '../pages/Diagnose'
@@ -37,10 +38,11 @@ import { LoginBar } from '../pages/Login'
 import { useActions } from './actions'
 import { clearOta, retryNow } from './connection'
 import { IssuesProvider, useIssues } from './issues'
-import { langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
+import { clockAtom, langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
 import { useStore } from './store'
 import { codeText, useTheme, useUi } from './ui'
 import { Dialog } from '../components/Dialog'
+import type { T } from '../i18n'
 
 const TAB_META: Record<Tab, { icon: LucideIcon; group: 'run' | 'device' | 'care' }> = {
   overview: { icon: LayoutDashboard, group: 'run' },
@@ -149,9 +151,16 @@ function Nav() {
   )
 }
 
+const CLOCKS = ['auto', 'h23', 'h12'] as const
+const clockName = (c: Clock, t: T) => (c === 'auto' ? t('chord.auto') : c === 'h23' ? '24 h' : '12 h')
+
 function SideFoot() {
   const { t, lang } = useUi()
   const eff = useTheme()
+  const clock = clockAtom.use()
+  const auto = hourCycle(lang)
+  // From auto, the first click goes to the clock auto does not show, so every click changes the times.
+  const cycle = ['auto', auto === 'h23' ? 'h12' : 'h23', auto] as const
   const a = useActions()
   const viaAp = useStore((s) => !!s.status.via_ap)
   return (
@@ -173,6 +182,11 @@ function SideFoot() {
         {eff === 'dark' ? <Moon size={18} aria-hidden /> : <Sun size={18} aria-hidden />}
         <span>{t('acct.theme')}</span>
         <em>{t(eff === 'dark' ? 'acct.dark' : 'acct.light')}</em>
+      </button>
+      <button type="button" onClick={() => clockAtom.set(cycle[(cycle.indexOf(clock) + 1) % 3] ?? 'auto')}>
+        <Clock3 size={18} aria-hidden />
+        <span>{t('acct.clock')}</span>
+        <em>{clockName(clock, t)}</em>
       </button>
       {!viaAp && (
         <button type="button" onClick={() => void a.logout()}>
@@ -233,6 +247,7 @@ function MoreSheet({ close }: { close: () => void }) {
   const tab = tabAtom.use()
   const dirty = useDirtyTabs()
   const eff = useTheme()
+  const clock = clockAtom.use()
   const viaAp = useStore((s) => !!s.status.via_ap)
   const pick = (k: Tab) => {
     close()
@@ -313,6 +328,16 @@ function MoreSheet({ close }: { close: () => void }) {
                 ['light', t('acct.light'), Sun],
                 ['dark', t('acct.dark'), Moon],
               ]}
+            />
+          </div>
+          <div className="field">
+            <span className="flabel">{t('acct.clock')}</span>
+            <Seg
+              id="m-clock"
+              label={t('acct.clock')}
+              value={clock}
+              onChange={(v) => clockAtom.set(v)}
+              options={CLOCKS.map((c) => [c, clockName(c, t)] as const)}
             />
           </div>
           {!viaAp && (
