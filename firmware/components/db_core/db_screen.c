@@ -74,7 +74,9 @@ db_err_t db_screen_feed(db_screen_t *s, const db_chunk_t *c)
         s->pending.data = p;
         s->pending.cap = cap;
     }
-    memcpy(s->pending.data + s->pending.len, c->data, c->len);
+    if (c->len) {
+        memcpy(s->pending.data + s->pending.len, c->data, c->len);
+    }
     s->pending.len += c->len;
     s->pending.next_part++;
     if (!c->last) {
