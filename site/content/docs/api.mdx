@@ -195,7 +195,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Key | Values |
@@ -228,6 +228,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
 | `trusted_proxy` | A reverse proxy's IPv4 address, empty for none. See [Behind a reverse proxy](/docs/security/#behind-a-reverse-proxy) |
+| `matter` | `true` starts Matter at once. `false` restarts the connector if Matter runs |
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
@@ -237,7 +238,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-A refused value gets 400 with the reason, and the connector saves nothing. The reply of `GET /api/config` is a backup without passwords. A `PUT` of it restores the settings.
+A refused value gets 400 with the reason, and the connector saves nothing. The reply of `GET /api/config` is a backup without passwords or the token. A `PUT` of it restores the settings. `GET /api/backup?secrets=1` adds `admin_pass`, `wifi_pass`, `wifi2_pass` and `token`. No backup holds API keys, passkeys, paired dock hosts, an uploaded HTTPS certificate or Matter's paired apps. Create, pair or upload them again.
 
 ## Status
 

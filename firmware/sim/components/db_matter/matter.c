@@ -47,6 +47,16 @@ bool db_matter_codes(db_json_t *j)
     return true;
 }
 
+bool db_matter_on(void)
+{
+    return on;
+}
+
+bool db_matter_running(void)
+{
+    return started;
+}
+
 int db_matter_set_on(bool want)
 {
     nvs_handle_t h;

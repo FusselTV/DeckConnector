@@ -2,7 +2,7 @@ import { House, Monitor, Plus, RotateCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { MatterCodes } from '../api/types'
-import { expectRestart, refreshStatus } from '../app/connection'
+import { expectRestart, refreshConfig, refreshStatus } from '../app/connection'
 import { toast } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
@@ -36,7 +36,7 @@ export function MatterCard() {
       return
     await act(async () => {
       await api.setMatter({ on })
-      if (on) await refreshStatus()
+      if (on) await Promise.all([refreshConfig(), refreshStatus()])
       else {
         await api.reboot()
         expectRestart()

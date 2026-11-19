@@ -152,3 +152,27 @@ test('the mock knows every firmware event code as the firmware defines it', () =
   for (const code of Object.keys(codes).filter((c) => !['text', 'more', 'crashed'].includes(c)))
     expect(en, `the page has no words for ${code}`).toHaveProperty([`ev.${code}`])
 })
+
+// The backup is the settings JSON: a field of db_config_t outside it would be lost on a restore.
+test('every field of db_config_t is in the JSON', () => {
+  const h = readFileSync(new URL('components/db_config/include/db_config.h', fw), 'utf8')
+  const struct = h.slice(h.indexOf('/* Saved as one NVS blob'), h.indexOf('} db_config_t;'))
+  const fields = [...struct.matchAll(/^\s+(?:const )?[a-z_0-9]+\s+([a-z_0-9]+)\s*[[;]/gm)].map((m) => m[1])
+  const json: Record<string, string> = {
+    servers_first: 'servers',
+    servers_more: 'servers',
+    qr_login_off: 'qr_login',
+    satellite_auto_off: 'satellite_auto',
+  }
+  const notSettings = ['version', 'input_lock']
+  const src = readFileSync(new URL('components/db_config/db_config.c', fw), 'utf8')
+  expect(fields.length).toBeGreaterThan(30)
+  expect(fields.filter((f) => !notSettings.includes(f) && !src.includes(`"${json[f] ?? f}"`))).toEqual([])
+})
+test('the firmware reads back every key it writes', () => {
+  const src = readFileSync(new URL('components/db_config/db_config.c', fw), 'utf8')
+  const [, write, read] = src.split(/^size_t db_config_to_json|^\/\* Copy a string member/m)
+  const keys = (s = '') => new Set([...s.matchAll(/"([a-z_0-9]+)"/g)].map((m) => m[1]))
+  const taken = keys(read)
+  expect([...keys(write)].filter((k) => !k.endsWith('_set') && k !== 'setup_done' && !taken.has(k))).toEqual([])
+})

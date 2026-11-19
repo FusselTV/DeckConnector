@@ -132,6 +132,7 @@ export function Network() {
   const [joinErr, setJoinErr] = useState<string | null>(null)
   const [err2, setErr2] = useState<string | null>(null)
   const [open2, setOpen2] = useState(false)
+  const [openW, setOpenW] = useState(false)
   const v = { ...base, ...d }
   const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
@@ -259,6 +260,7 @@ export function Network() {
             title={t('net.wlan')}
             status={wlanSt}
             open={!base.wlan.dhcp}
+            onToggle={setOpenW}
           >
             <Switch
               id="wifi-x"
@@ -273,19 +275,22 @@ export function Network() {
             {expert && w?.bssid && (
               <p className="small muted">{t('wifi.joined', { b: w.bssid, c: w.channel ?? '', r: w.rssi ?? '' })}</p>
             )}
-            <WifiPicker
-              id="wifi"
-              expert={expert}
-              value={v.wifi}
-              current={w?.backup ? undefined : w?.ssid}
-              saved={cfg?.wifi_ssid}
-              curBssid={w?.bssid}
-              err={joinErr}
-              onChange={(wifi) => {
-                setJoinErr(null)
-                set({ wifi })
-              }}
-            />
+            {/* a scan holds the device's web server for about 3 s: only for someone who opened the row */}
+            {openW && (
+              <WifiPicker
+                id="wifi"
+                expert={expert}
+                value={v.wifi}
+                current={w?.backup ? undefined : w?.ssid}
+                saved={cfg?.wifi_ssid}
+                curBssid={w?.bssid}
+                err={joinErr}
+                onChange={(wifi) => {
+                  setJoinErr(null)
+                  set({ wifi })
+                }}
+              />
+            )}
             {cfg?.wifi_ssid && (
               <Btn
                 id="wifi-forget"

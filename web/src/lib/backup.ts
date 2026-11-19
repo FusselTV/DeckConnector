@@ -15,7 +15,7 @@ const flat = (o: object, p = ''): Flat =>
   )
 
 // Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device.
-const WRITABLE = new Set<keyof ConfigPatch>([
+export const WRITABLE = new Set<keyof ConfigPatch>([
   'name',
   'controller',
   'host',
@@ -45,6 +45,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'dock_paired_only',
   'qr_login',
   'ntp_server',
+  'matter',
   ...SECRETS,
 ])
 const RESTARTS = new Set(['name', 'lan', 'wlan', 'wifi_ssid', 'wifi_bssid', 'usb_speed', 'ntp_server'])
@@ -93,7 +94,12 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
         : { key, now: fc[key], file: fo[key] },
     )
   // The firmware restarts when a secret differs from the stored one, which the page cannot see.
-  return { patch, rows, restart: top.some((k) => RESTARTS.has(k) || (isSecret(k) && k !== 'wifi2_pass')), errors }
+  return {
+    patch,
+    rows,
+    restart: top.some((k) => RESTARTS.has(k) || (isSecret(k) && k !== 'wifi2_pass')) || patch.matter === false,
+    errors,
+  }
 }
 
 /** GET /api/config holds no secrets, so it is the backup as it is. */

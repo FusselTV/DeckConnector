@@ -463,7 +463,7 @@ export const de: Dict = {
   'slot.why_pending': 'Wartet auf Bestätigung. Startet einmal zum Test.',
   'slot.why_nolevel': 'Unbekannt, kein Boot-Level.',
   'slot.failed': 'Start fehlgeschlagen',
-  'fw.not_in': 'Nie in der Datei: API-Schlüssel, gekoppelte Rechner, Zertifikat.',
+  'fw.not_in': 'Nie in der Datei: API-Schlüssel, Passkeys, gekoppelte Rechner, Zertifikate, Matter-Kopplungen.',
   'fw.restore_err': 'Die Datei hat Fehler',
   'fw.restore_err_b': 'Nichts wurde übernommen:',
   'dia.cause': 'Ursache',
