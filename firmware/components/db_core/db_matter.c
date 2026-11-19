@@ -24,30 +24,89 @@ uint16_t db_matter_ep(uint8_t gen, int slot)
     return (uint16_t)(64 * (1 + gen * DB_MAX_DECKS + slot));
 }
 
-uint16_t db_matter_input_ep(uint16_t node_ep, const db_input_t *in)
+static bool fixed(const db_matter_layout_t *l, int i)
 {
-    bool key = in->kind == DB_INPUT_KEY_DOWN || in->kind == DB_INPUT_KEY_UP;
-    bool dial = in->kind == DB_INPUT_ENCODER_DOWN || in->kind == DB_INPUT_ENCODER_UP;
-    if (key && in->index < DB_MATTER_KEYS) {
-        return (uint16_t)(node_ep + 1 + in->index);
-    }
-    if (dial && in->index < DB_MATTER_DIALS) {
-        return (uint16_t)(node_ep + 1 + DB_MATTER_KEYS + in->index);
-    }
-    return 0;
+    return i < l->keys || (i >= DB_MATTER_KEYS && i < DB_MATTER_KEYS + l->dials);
 }
 
-bool db_matter_label(uint16_t node_ep, uint16_t ep, int image_keys, const char *lang, char out[17])
+/* Which of the turns, zones and swipes switch `i` is, -1: none */
+static int extra_of(const db_matter_layout_t *l, int i)
 {
-    int i = ep - node_ep - 1;
-    if (i < 0 || i >= DB_MATTER_INPUTS) {
+    if (i < 0 || i >= DB_MATTER_INPUTS || fixed(l, i)) {
+        return -1;
+    }
+    int n = 0;
+    for (int j = 0; j < i; j++) {
+        n += !fixed(l, j);
+    }
+    int extras = 2 * l->dials + l->zones + (l->zones ? 2 : 0);
+    return n < extras ? n : -1;
+}
+
+static int extra_at(const db_matter_layout_t *l, int n)
+{
+    for (int i = 0; i < DB_MATTER_INPUTS; i++) {
+        if (extra_of(l, i) == n) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool db_matter_used(const db_matter_layout_t *l, int input)
+{
+    return (input >= 0 && fixed(l, input)) || extra_of(l, input) >= 0;
+}
+
+int db_matter_input(const db_matter_layout_t *l, const db_input_t *in, db_press_t *press)
+{
+    *press = in->kind == DB_INPUT_KEY_UP || in->kind == DB_INPUT_ENCODER_UP ? DB_PRESS_UP : DB_PRESS_DOWN;
+    switch (in->kind) {
+    case DB_INPUT_KEY_DOWN:
+    case DB_INPUT_KEY_UP:
+        return in->index < l->keys ? in->index : -1;
+    case DB_INPUT_ENCODER_DOWN:
+    case DB_INPUT_ENCODER_UP:
+        return in->index < l->dials ? DB_MATTER_KEYS + in->index : -1;
+    case DB_INPUT_ENCODER_TURN:
+        *press = DB_PRESS_SHORT;
+        return in->index < l->dials && in->value ? extra_at(l, 2 * in->index + (in->value > 0)) : -1;
+    case DB_INPUT_TOUCH_TAP:
+    case DB_INPUT_TOUCH_LONG: {
+        *press = in->kind == DB_INPUT_TOUCH_TAP ? DB_PRESS_SHORT : DB_PRESS_LONG;
+        if (!l->zones || !l->strip_w) {
+            return -1;
+        }
+        int zone = in->x < l->strip_x ? 0 : (in->x - l->strip_x) * l->zones / l->strip_w;
+        return extra_at(l, 2 * l->dials + (zone < l->zones ? zone : l->zones - 1));
+    }
+    case DB_INPUT_TOUCH_SWIPE:
+        *press = DB_PRESS_SHORT;
+        return l->zones && in->x2 != in->x ? extra_at(l, 2 * l->dials + l->zones + (in->x2 > in->x)) : -1;
+    }
+    return -1;
+}
+
+bool db_matter_label(const db_matter_layout_t *l, int i, const char *lang, char out[17])
+{
+    if (!db_matter_used(l, i)) {
         return false;
     }
     bool de = strcmp(lang, "de") == 0;
-    if (i >= DB_MATTER_KEYS) {
+    int n = extra_of(l, i);
+    if (n >= 2 * l->dials + l->zones) {
+        bool left = n == 2 * l->dials + l->zones;
+        snprintf(out, 17, "%s",
+                 left ? (de ? "Wischen links" : "Swipe left") : (de ? "Wischen rechts" : "Swipe right"));
+    } else if (n >= 2 * l->dials) {
+        snprintf(out, 17, "%s %d", de ? "Touchfeld" : "Touch zone", (uint8_t)(1 + n - 2 * l->dials));
+    } else if (n >= 0) { /* "Drehregler 1 links" does not fit */
+        snprintf(out, 17, "%s %c %s", de ? "Regler" : "Dial", (char)('1' + n / 2),
+                 n % 2 ? (de ? "rechts" : "right") : (de ? "links" : "left"));
+    } else if (i >= DB_MATTER_KEYS) {
         snprintf(out, 17, "%s %d", de ? "Drehregler" : "Dial", (uint8_t)(1 + i - DB_MATTER_KEYS));
-    } else if (image_keys && i >= image_keys) {
-        snprintf(out, 17, "%s %d", de ? "Touch-Punkt" : "Touch point", (uint8_t)(1 + i - image_keys));
+    } else if (l->image_keys && i >= l->image_keys) {
+        snprintf(out, 17, "%s %d", de ? "Touch-Punkt" : "Touch point", (uint8_t)(1 + i - l->image_keys));
     } else {
         snprintf(out, 17, "%s %d", de ? "Taste" : "Key", (uint8_t)(1 + i));
     }
@@ -121,6 +180,22 @@ db_sw_event_t db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now)
     }
     db_sw_event_t e = db_sw_tick(&d->sw[input], now);
     return d->muted & bit ? DB_SW_NONE : e;
+}
+
+int db_sw_deck_pulse(db_sw_deck_t *d, int input, db_press_t press, bool covered, int64_t now,
+                     db_sw_event_t out[3])
+{
+    if (covered || (d->pulsed[input] && now - d->pulsed[input] < DB_SW_PULSE_US)) {
+        return 0;
+    }
+    d->pulsed[input] = now;
+    int n = 0;
+    out[n++] = DB_SW_INITIAL_PRESS;
+    if (press == DB_PRESS_LONG) {
+        out[n++] = DB_SW_LONG_PRESS;
+    }
+    out[n++] = press == DB_PRESS_LONG ? DB_SW_LONG_RELEASE : DB_SW_SHORT_RELEASE;
+    return n;
 }
 
 void db_sw_deck_gone(db_sw_deck_t *d, int64_t now, db_sw_event_t out[DB_MATTER_INPUTS])

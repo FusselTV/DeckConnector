@@ -21,10 +21,36 @@ static uint16_t node(int slot, const char *serial)
     return db_matter_node_ep(&slots[slot], slot, serial, &moved);
 }
 
-static uint16_t input(uint16_t node_ep, db_input_kind_t kind, int index)
+static const db_matter_layout_t plus = {.keys = 8, .dials = 4, .zones = 4, .strip_x = 0, .strip_w = 800};
+static const db_matter_layout_t plus_xl = {.keys = 36, .dials = 6, .zones = 6, .strip_x = 0, .strip_w = 1200};
+static const db_matter_layout_t neo = {.keys = 10, .image_keys = 8};
+static const db_matter_layout_t biggest = {
+    .keys = DB_MATTER_KEYS, .dials = DB_MATTER_DIALS, .zones = 8, .strip_w = 800};
+
+static db_press_t how;
+
+static int input(const db_matter_layout_t *l, db_input_kind_t kind, int index)
 {
     db_input_t in = {.kind = kind, .index = (uint8_t)index};
-    return db_matter_input_ep(node_ep, &in);
+    return db_matter_input(l, &in, &how);
+}
+
+static int turn(const db_matter_layout_t *l, int dial, int ticks)
+{
+    db_input_t in = {.kind = DB_INPUT_ENCODER_TURN, .index = (uint8_t)dial, .value = (int16_t)ticks};
+    return db_matter_input(l, &in, &how);
+}
+
+static int touch(const db_matter_layout_t *l, db_input_kind_t kind, int x, int x2)
+{
+    db_input_t in = {.kind = kind, .x = (uint16_t)x, .y = 420, .x2 = (uint16_t)x2, .y2 = 420};
+    return db_matter_input(l, &in, &how);
+}
+
+static const char *label(const db_matter_layout_t *l, int i, const char *lang)
+{
+    static char out[17];
+    return db_matter_label(l, i, lang, out) ? out : NULL;
 }
 
 static void test_a_deck_keeps_its_endpoints_over_a_replug(void)
@@ -56,62 +82,119 @@ static void test_blocks_never_overlap_and_stay_valid(void)
             TEST_ASSERT_GREATER_OR_EQUAL(64, ep);
             TEST_ASSERT_FALSE(used[ep / 64]);
             used[ep / 64] = true;
-            TEST_ASSERT_LESS_THAN(0xFFFF, input(ep, DB_INPUT_ENCODER_DOWN, DB_MATTER_DIALS - 1));
+            TEST_ASSERT_LESS_THAN(0xFFFF, ep + DB_MATTER_INPUTS);
         }
     }
 }
 
-static void test_keys_and_dials_map_inside_the_block(void)
+static void test_keys_and_dials_keep_their_switches(void)
 {
-    uint16_t ep = node(2, "XL");
-    TEST_ASSERT_EQUAL(ep + 1, input(ep, DB_INPUT_KEY_DOWN, 0));
-    TEST_ASSERT_EQUAL(ep + 1, input(ep, DB_INPUT_KEY_UP, 0));
-    TEST_ASSERT_EQUAL(ep + 36, input(ep, DB_INPUT_KEY_DOWN, 35));
-    TEST_ASSERT_EQUAL(ep + 49, input(ep, DB_INPUT_ENCODER_DOWN, 0));
-    TEST_ASSERT_EQUAL(ep + 54, input(ep, DB_INPUT_ENCODER_UP, 5));
-    TEST_ASSERT_LESS_THAN(ep + 64, input(ep, DB_INPUT_ENCODER_UP, DB_MATTER_DIALS - 1));
+    TEST_ASSERT_EQUAL(0, input(&plus, DB_INPUT_KEY_DOWN, 0));
+    TEST_ASSERT_EQUAL(DB_PRESS_DOWN, how);
+    TEST_ASSERT_EQUAL(7, input(&plus, DB_INPUT_KEY_UP, 7));
+    TEST_ASSERT_EQUAL(DB_PRESS_UP, how);
+    TEST_ASSERT_EQUAL(48, input(&plus, DB_INPUT_ENCODER_DOWN, 0)); /* endpoint 49 of the block, as before */
+    TEST_ASSERT_EQUAL(51, input(&plus, DB_INPUT_ENCODER_UP, 3));
+    TEST_ASSERT_EQUAL(35, input(&plus_xl, DB_INPUT_KEY_DOWN, 35));
+    TEST_ASSERT_EQUAL(53, input(&plus_xl, DB_INPUT_ENCODER_UP, 5));
+    TEST_ASSERT_EQUAL(-1, input(&plus, DB_INPUT_KEY_DOWN, 8));
+    TEST_ASSERT_EQUAL(-1, input(&plus, DB_INPUT_ENCODER_DOWN, 4));
+}
+
+static void test_turns_and_touches_take_the_free_switches_in_order(void)
+{
+    TEST_ASSERT_EQUAL(8, turn(&plus, 0, -1));
+    TEST_ASSERT_EQUAL(DB_PRESS_SHORT, how);
+    TEST_ASSERT_EQUAL(9, turn(&plus, 0, 3));
+    TEST_ASSERT_EQUAL(15, turn(&plus, 3, 1));
+    TEST_ASSERT_EQUAL(-1, turn(&plus, 0, 0));
+    TEST_ASSERT_EQUAL(-1, turn(&plus, 4, 1));
+    TEST_ASSERT_EQUAL(16, touch(&plus, DB_INPUT_TOUCH_TAP, 0, 0));
+    TEST_ASSERT_EQUAL(DB_PRESS_SHORT, how);
+    TEST_ASSERT_EQUAL(17, touch(&plus, DB_INPUT_TOUCH_TAP, 200, 0)); /* zone 2 starts at 200 */
+    TEST_ASSERT_EQUAL(19, touch(&plus, DB_INPUT_TOUCH_LONG, 799, 0));
+    TEST_ASSERT_EQUAL(DB_PRESS_LONG, how);
+    TEST_ASSERT_EQUAL(19, touch(&plus, DB_INPUT_TOUCH_TAP, 900, 0));
+    TEST_ASSERT_EQUAL(20, touch(&plus, DB_INPUT_TOUCH_SWIPE, 500, 100));
+    TEST_ASSERT_EQUAL(21, touch(&plus, DB_INPUT_TOUCH_SWIPE, 100, 500));
+    TEST_ASSERT_EQUAL(-1, touch(&plus, DB_INPUT_TOUCH_SWIPE, 100, 100));
+    int used = 0;
+    for (int i = 0; i < DB_MATTER_INPUTS; i++) {
+        used += db_matter_used(&plus, i);
+    }
+    TEST_ASSERT_EQUAL(8 + 4 + 8 + 4 + 2, used);
+}
+
+static void test_the_biggest_touch_deck_fits_its_block(void)
+{
+    bool seen[DB_MATTER_INPUTS] = {0};
+    int all[6 * 2 + 6 + 2];
+    int n = 0;
+    for (int d = 0; d < 6; d++) {
+        all[n++] = turn(&plus_xl, d, -1);
+        all[n++] = turn(&plus_xl, d, 1);
+    }
+    for (int z = 0; z < 6; z++) {
+        all[n++] = touch(&plus_xl, DB_INPUT_TOUCH_TAP, z * 200 + 100, 0);
+    }
+    all[n++] = touch(&plus_xl, DB_INPUT_TOUCH_SWIPE, 600, 0);
+    all[n++] = touch(&plus_xl, DB_INPUT_TOUCH_SWIPE, 600, 1100);
+    for (int i = 0; i < n; i++) {
+        TEST_ASSERT_TRUE(all[i] >= 36 && all[i] < DB_MATTER_INPUTS);
+        TEST_ASSERT_FALSE(all[i] >= 48 && all[i] < 54); /* the dials' own */
+        TEST_ASSERT_FALSE(seen[all[i]]);
+        seen[all[i]] = true;
+    }
+    TEST_ASSERT_EQUAL(61, all[n - 1]);
+}
+
+static void test_what_does_not_fit_goes_nowhere(void)
+{
+    TEST_ASSERT_EQUAL(56, turn(&biggest, 0, -1)); /* 7 free switches: the first turns */
+    TEST_ASSERT_EQUAL(62, turn(&biggest, 3, -1));
+    TEST_ASSERT_EQUAL(-1, turn(&biggest, 3, 1));
+    TEST_ASSERT_EQUAL(-1, touch(&biggest, DB_INPUT_TOUCH_TAP, 0, 0));
+    TEST_ASSERT_FALSE(db_matter_used(&biggest, DB_MATTER_INPUTS));
+    TEST_ASSERT_FALSE(db_matter_used(&biggest, -1));
+}
+
+static void test_a_deck_without_strip_or_dials_has_no_extras(void)
+{
+    TEST_ASSERT_EQUAL(-1, touch(&neo, DB_INPUT_TOUCH_TAP, 10, 0));
+    TEST_ASSERT_EQUAL(-1, touch(&neo, DB_INPUT_TOUCH_SWIPE, 10, 100));
+    TEST_ASSERT_EQUAL(-1, turn(&neo, 0, 1));
+    TEST_ASSERT_FALSE(db_matter_used(&neo, 10));
+    db_matter_layout_t knobs = {.keys = 14, .dials = 5}; /* Stream Dock N4: dials, no strip */
+    TEST_ASSERT_EQUAL(14, turn(&knobs, 0, -1));
+    TEST_ASSERT_EQUAL(-1, touch(&knobs, DB_INPUT_TOUCH_TAP, 10, 0));
 }
 
 static void test_switches_are_named_like_the_web_ui(void)
 {
-    uint16_t n = node(0, "AL12");
-    char out[17];
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 0), 0, "de", out));
-    TEST_ASSERT_EQUAL_STRING("Taste 1", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, DB_MATTER_KEYS - 1), 0, "en", out));
-    TEST_ASSERT_EQUAL_STRING("Key 48", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_ENCODER_DOWN, 0), 8, "de", out));
-    TEST_ASSERT_EQUAL_STRING("Drehregler 1", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_ENCODER_DOWN, DB_MATTER_DIALS - 1), 0, "en", out));
-    TEST_ASSERT_EQUAL_STRING("Dial 8", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 0), 0, "fr", out));
-    TEST_ASSERT_EQUAL_STRING("Key 1", out);
-    TEST_ASSERT_FALSE(db_matter_label(n, n, 0, "de", out));
-    TEST_ASSERT_FALSE(db_matter_label(n, (uint16_t)(n + 1 + DB_MATTER_INPUTS), 0, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Taste 1", label(&plus, 0, "de"));
+    TEST_ASSERT_EQUAL_STRING("Key 8", label(&plus, 7, "en"));
+    TEST_ASSERT_EQUAL_STRING("Drehregler 1", label(&plus, 48, "de"));
+    TEST_ASSERT_EQUAL_STRING("Dial 4", label(&plus, 51, "en"));
+    TEST_ASSERT_EQUAL_STRING("Regler 1 links", label(&plus, 8, "de"));
+    TEST_ASSERT_EQUAL_STRING("Dial 4 right", label(&plus, 15, "en"));
+    TEST_ASSERT_EQUAL_STRING("Touchfeld 1", label(&plus, 16, "de"));
+    TEST_ASSERT_EQUAL_STRING("Touch zone 4", label(&plus, 19, "en"));
+    TEST_ASSERT_EQUAL_STRING("Wischen links", label(&plus, 20, "de"));
+    TEST_ASSERT_EQUAL_STRING("Swipe right", label(&plus, 21, "en"));
+    TEST_ASSERT_EQUAL_STRING("Key 1", label(&plus, 0, "fr"));
+    TEST_ASSERT_EQUAL_STRING("Regler 6 rechts", label(&plus_xl, turn(&plus_xl, 5, 1), "de"));
+    TEST_ASSERT_EQUAL_STRING("Wischen rechts", label(&plus_xl, 61, "de"));
+    TEST_ASSERT_NULL(label(&plus, 22, "de"));
+    TEST_ASSERT_NULL(label(&plus, 52, "de"));
+    TEST_ASSERT_NULL(label(&plus, -1, "de"));
+    TEST_ASSERT_NULL(label(&plus, DB_MATTER_INPUTS, "de"));
 }
 
 static void test_the_neos_extra_keys_are_touch_points(void)
 {
-    uint16_t n = node(0, "NEO1");
-    char out[17];
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 7), 8, "de", out));
-    TEST_ASSERT_EQUAL_STRING("Taste 8", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 8), 8, "de", out));
-    TEST_ASSERT_EQUAL_STRING("Touch-Punkt 1", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 9), 8, "en", out));
-    TEST_ASSERT_EQUAL_STRING("Touch point 2", out);
-    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, DB_MATTER_KEYS - 1), 8, "de", out));
-    TEST_ASSERT_EQUAL_STRING("Touch-Punkt 40", out);
-}
-
-static void test_turns_touches_and_extra_keys_go_nowhere(void)
-{
-    uint16_t ep = node(0, "P");
-    TEST_ASSERT_EQUAL(0, input(ep, DB_INPUT_ENCODER_TURN, 0));
-    TEST_ASSERT_EQUAL(0, input(ep, DB_INPUT_TOUCH_TAP, 0));
-    TEST_ASSERT_EQUAL(0, input(ep, DB_INPUT_TOUCH_SWIPE, 0));
-    TEST_ASSERT_EQUAL(0, input(ep, DB_INPUT_KEY_DOWN, DB_MATTER_KEYS));
-    TEST_ASSERT_EQUAL(0, input(ep, DB_INPUT_ENCODER_DOWN, DB_MATTER_DIALS));
+    TEST_ASSERT_EQUAL_STRING("Taste 8", label(&neo, 7, "de"));
+    TEST_ASSERT_EQUAL_STRING("Touch-Punkt 1", label(&neo, 8, "de"));
+    TEST_ASSERT_EQUAL_STRING("Touch point 2", label(&neo, 9, "en"));
 }
 
 static db_sw_t sw;
@@ -261,6 +344,33 @@ static void test_two_other_controls_together_both_count(void)
     TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, db_sw_deck_input(&deck, chord[1], true, false, no_chord, now));
 }
 
+static void test_a_tap_or_detent_is_a_whole_short_press(void)
+{
+    deck = (db_sw_deck_t){0};
+    db_sw_event_t out[3];
+    TEST_ASSERT_EQUAL(2, db_sw_deck_pulse(&deck, 8, DB_PRESS_SHORT, false, 1000000, out));
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, out[0]);
+    TEST_ASSERT_EQUAL(DB_SW_SHORT_RELEASE, out[1]);
+    TEST_ASSERT_EQUAL(3, db_sw_deck_pulse(&deck, 16, DB_PRESS_LONG, false, 1000000, out));
+    TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, out[0]);
+    TEST_ASSERT_EQUAL(DB_SW_LONG_PRESS, out[1]);
+    TEST_ASSERT_EQUAL(DB_SW_LONG_RELEASE, out[2]);
+    TEST_ASSERT_EQUAL(0, db_sw_due(&deck.sw[16])); /* nothing stays held */
+    TEST_ASSERT_EQUAL(0, db_sw_deck_pulse(&deck, 17, DB_PRESS_SHORT, true, 1000000, out));
+}
+
+static void test_a_fast_spin_makes_ten_presses_a_second(void)
+{
+    deck = (db_sw_deck_t){0};
+    db_sw_event_t out[3];
+    int presses = 0;
+    for (int64_t t = 1000000; t < 2000000; t += 10000) { /* 100 detents in a second */
+        presses += db_sw_deck_pulse(&deck, 8, DB_PRESS_SHORT, false, t, out) > 0;
+    }
+    TEST_ASSERT_EQUAL(1000000 / DB_SW_PULSE_US, presses);
+    TEST_ASSERT_EQUAL(2, db_sw_deck_pulse(&deck, 9, DB_PRESS_SHORT, false, 1990000, out)); /* the other way */
+}
+
 static void test_only_the_deck_and_the_debug_route_reach_matter(void)
 {
     TEST_ASSERT_TRUE(db_matter_takes(DB_MATTER_FROM_DECK));
@@ -274,10 +384,13 @@ int main(void)
     RUN_TEST(test_a_deck_keeps_its_endpoints_over_a_replug);
     RUN_TEST(test_another_deck_in_the_slot_gets_new_endpoints);
     RUN_TEST(test_blocks_never_overlap_and_stay_valid);
-    RUN_TEST(test_keys_and_dials_map_inside_the_block);
+    RUN_TEST(test_keys_and_dials_keep_their_switches);
+    RUN_TEST(test_turns_and_touches_take_the_free_switches_in_order);
+    RUN_TEST(test_the_biggest_touch_deck_fits_its_block);
+    RUN_TEST(test_what_does_not_fit_goes_nowhere);
+    RUN_TEST(test_a_deck_without_strip_or_dials_has_no_extras);
     RUN_TEST(test_switches_are_named_like_the_web_ui);
     RUN_TEST(test_the_neos_extra_keys_are_touch_points);
-    RUN_TEST(test_turns_touches_and_extra_keys_go_nowhere);
     RUN_TEST(test_a_short_press_is_told_at_once);
     RUN_TEST(test_long_press_once_then_long_release);
     RUN_TEST(test_a_repeated_state_is_ignored);
@@ -287,6 +400,8 @@ int main(void)
     RUN_TEST(test_a_long_press_cut_by_the_chord_ends_long);
     RUN_TEST(test_an_unplug_releases_what_a_controller_saw_held);
     RUN_TEST(test_two_other_controls_together_both_count);
+    RUN_TEST(test_a_tap_or_detent_is_a_whole_short_press);
+    RUN_TEST(test_a_fast_spin_makes_ten_presses_a_second);
     RUN_TEST(test_only_the_deck_and_the_debug_route_reach_matter);
     return UNITY_END();
 }

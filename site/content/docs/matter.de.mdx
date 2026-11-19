@@ -3,7 +3,7 @@ title: Matter
 description: Die Tasten des Decks in Apple Home, Google Home, Home Assistant und anderen Matter-Apps nutzen.
 ---
 
-Wenn Matter an ist, erscheint jedes Deck als Gerät in deiner Smart-Home-App. Jede Taste und jeder Druck auf einen Drehregler ist dort ein Taster. Ein Druck, das Loslassen und ein langer Druck können je eine Automation starten. Ein Druck kommt sofort an. Companion oder die Elgato-App arbeiten weiter wie vorher.
+Wenn Matter an ist, erscheint jedes Deck als Gerät in deiner Smart-Home-App. Jede Taste, jeder Drehregler und jedes Touchfeld ist dort ein Taster. Jeder Drehregler hat zwei weitere Taster für Drehungen, die Touchleiste zwei für Wischgesten. Ein Druck, das Loslassen und ein langer Druck können je eine Automation starten. Ein Druck kommt sofort an. Companion oder die Elgato-App arbeiten weiter wie vorher.
 
 ## Koppeln
 
@@ -23,14 +23,14 @@ Solange das Deck das Menü oder eine Frage des Connectors zeigt, kommen seine Ta
 | Stream Deck Mini | 6 |
 | Stream Deck, MK.2 | 15 |
 | Stream Deck XL | 32 |
-| Stream Deck + | 8 Tasten, 4 Drehregler |
-| Stream Deck + XL | 36 Tasten, 6 Drehregler |
+| Stream Deck + | 8 Tasten, 4 Drehregler, 8 Drehungen, 4 Touchfelder, 2 Wischgesten |
+| Stream Deck + XL | 36 Tasten, 6 Drehregler, 12 Drehungen, 6 Touchfelder, 2 Wischgesten |
 | Stream Deck Neo | 8 Tasten, 2 Touchpunkte |
 | Stream Deck Pedal | 3 |
 
 Jedes Deck ist ein eigenes Gerät. Es behält seine Taster, wenn du es wieder einsteckst, auch an einem anderen Hub-Anschluss. Ein ausgestecktes Deck zeigt die App als nicht erreichbar. Ein anderes Deck an seiner Stelle ist ein neues Gerät.
 
-Drehen an den Reglern und die Touchleiste kommen nicht bei Matter an. Tastendrücke aus der Weboberfläche oder über die API auch nicht.
+Eine Drehung drückt „Regler 1 links“ oder „Regler 1 rechts“, einmal pro Raste. Schnelles Drehen schickt höchstens 10 Drücke pro Sekunde. Ein Tippen auf die Touchleiste drückt das Feld darunter. Langes Berühren ist ein langer Druck. Tastendrücke aus der Weboberfläche oder über die API kommen nicht bei Matter an.
 
 ## Home Assistant
 
