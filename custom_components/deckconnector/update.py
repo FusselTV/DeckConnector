@@ -63,7 +63,7 @@ class Firmware(BoardEntity, UpdateEntity):
 
     @property
     def in_progress(self) -> bool:
-        return self.coordinator.ota.get("state") in ("download", "verify", "done")
+        return self.coordinator.ota.get("state") in ("download", "verify")
 
     @property
     def update_percentage(self) -> int | None:

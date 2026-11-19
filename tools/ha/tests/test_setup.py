@@ -126,6 +126,10 @@ async def test_update_shows_the_progress_from_the_socket(hass, entry, aioclient_
     await hass.async_block_till_done()
     state = hass.states.get(entity)
     assert state.attributes["in_progress"] is True and state.attributes["update_percentage"] == 42
+    # a slot written with ?boot=0, a web page or a partition table: done, and no restart follows
+    await socket.queue.put({"t": "ota", "target": "p4", "state": "done", "pct": 100})
+    await hass.async_block_till_done()
+    assert hass.states.get(entity).attributes["in_progress"] is False
 
 
 async def test_a_failed_check_keeps_the_last_answer(hass, entry, aioclient_mock, socket):
