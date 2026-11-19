@@ -531,13 +531,12 @@ esp_err_t put_tls(httpd_req_t *req)
     const cJSON *key = cJSON_GetObjectItemCaseSensitive(root, "key");
     bool apply = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "apply"));
     char info[640]; /* names with escapes */
-    bool sized = cJSON_IsString(cert) && cJSON_IsString(key) &&
-                 strlen(cert->valuestring) + strlen(key->valuestring) <= CUSTOM_MAX;
+    bool strings = cJSON_IsString(cert) && cJSON_IsString(key);
+    bool sized = strings && strlen(cert->valuestring) + strlen(key->valuestring) <= CUSTOM_MAX;
     bool ok = sized && web_cert_check(cert->valuestring, key->valuestring, info, sizeof(info));
     esp_err_t stored = ok && apply ? web_cert_store(cert->valuestring, key->valuestring) : ESP_OK;
-    bool parsed = root != NULL;
     cJSON_Delete(root);
-    if (!sized && parsed) {
+    if (strings && !sized) {
         return send_error(req, "413 Payload Too Large", "certificate and key: at most 6144 bytes together");
     }
     if (!ok) {

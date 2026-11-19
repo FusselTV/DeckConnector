@@ -312,6 +312,7 @@ def test_a_backup_with_secrets_restores_them_and_needs_the_password():
     full = json.loads(api("GET", "/api/backup?secrets=1")[1])
     assert "admin_pass" not in plain and {"admin_pass", "wifi_pass", "token"} <= full.keys()
     assert full["admin_pass"] == PASSWORD
+    assert "admin_pass" in json.loads(api("GET", "/api/backup?secrets=1&_=" + "1" * 30)[1]), "a cache buster"
     assert api("PUT", "/api/config", json.dumps(full).encode())[0] == 200, "the backup goes back in as it is"
 
 

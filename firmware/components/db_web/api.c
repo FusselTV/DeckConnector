@@ -181,6 +181,36 @@ int db_web_config(const char *json, char *reply, size_t cap)
     return code;
 }
 
+/* %XX in a query value, in place: esp_http_server leaves it encoded */
+static void url_decode(char *s)
+{
+    char *o = s;
+    for (; *s; s++) {
+        unsigned v;
+        if (*s == '%' && isxdigit((unsigned char)s[1]) && isxdigit((unsigned char)s[2]) &&
+            sscanf(s + 1, "%2x", &v) == 1) {
+            *o++ = (char)v;
+            s += 2;
+        } else {
+            *o++ = *s == '+' ? ' ' : *s;
+        }
+    }
+    *o = '\0';
+}
+
+/* `key` from the query, decoded. ESP_ERR_NOT_FOUND when it is not there, another error when it does not fit.
+ */
+static esp_err_t query_value(httpd_req_t *req, const char *key, char *out, size_t cap)
+{
+    char q[CONFIG_HTTPD_MAX_URI_LEN + 1];
+    esp_err_t err = httpd_req_get_url_query_str(req, q, sizeof(q));
+    err = err == ESP_OK ? httpd_query_key_value(q, key, out, cap) : err;
+    if (err == ESP_OK) {
+        url_decode(out);
+    }
+    return err;
+}
+
 static int json_int(const cJSON *root, const char *key, int fallback)
 {
     const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, key);
@@ -401,13 +431,10 @@ static size_t events_json(char *buf, size_t cap)
 
 esp_err_t get_events(httpd_req_t *req)
 {
-    char q[96], v[16];
-    bool any = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK;
-    ev_query.before =
-        any && httpd_query_key_value(q, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
-    ev_query.since =
-        any && httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK ? strtoll(v, NULL, 10) : 0;
-    ev_query.n = any && httpd_query_key_value(q, "n", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    char v[16];
+    ev_query.before = query_value(req, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    ev_query.since = query_value(req, "since", v, sizeof(v)) == ESP_OK ? strtoll(v, NULL, 10) : 0;
+    ev_query.n = query_value(req, "n", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
     ev_query.n = ev_query.n && ev_query.n < EVENTS_PAGE ? ev_query.n : EVENTS_PAGE;
     return send_built(req, ev_query.n * 400 + 256,
                       events_json); /* under the handler lock: ev_query stays put */
@@ -419,10 +446,8 @@ esp_err_t get_events(httpd_req_t *req)
  * again. */
 esp_err_t get_backup(httpd_req_t *req)
 {
-    char query[32] = "";
     char v[4] = "";
-    bool secrets = httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK &&
-                   httpd_query_key_value(query, "secrets", v, sizeof(v)) == ESP_OK && strcmp(v, "1") == 0;
+    bool secrets = query_value(req, "secrets", v, sizeof(v)) == ESP_OK && strcmp(v, "1") == 0;
     return send_built(req, JSON_MAX * 2, secrets ? backup_json : config_json);
 }
 
@@ -591,15 +616,14 @@ bool web_deck_refused(httpd_req_t *req)
         send_error(req, "403 Forbidden", "the deck shows a login: for the password only");
         return true;
     }
-    char query[64];
-    char want[32];
+    char want[3 * sizeof(dev.serial)]; /* encoded */
     int first = db_deck_first();
     web_deck = first >= 0 ? first : 0; /* none attached: the routes answer for slot 0, which has none */
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK ||
-        httpd_query_key_value(query, "deck", want, sizeof(want)) != ESP_OK) {
+    esp_err_t got = query_value(req, "deck", want, sizeof(want));
+    if (got == ESP_ERR_NOT_FOUND) {
         return false;
     }
-    web_deck = db_deck_find(want);
+    web_deck = got == ESP_OK ? db_deck_find(want) : -1;
     if (web_deck >= 0) {
         return false;
     }
@@ -779,13 +803,9 @@ esp_err_t delete_denied(httpd_req_t *req)
 
 esp_err_t post_deck_reconnect(httpd_req_t *req)
 {
-    char query[128];
     char off[8] = "";
     uint32_t off_ms = 500;
-    esp_err_t got = httpd_req_get_url_query_str(req, query, sizeof(query));
-    if (got == ESP_OK) {
-        got = httpd_query_key_value(query, "off_s", off, sizeof(off));
-    }
+    esp_err_t got = query_value(req, "off_s", off, sizeof(off));
     if (got != ESP_ERR_NOT_FOUND) { /* there, or cut off */
         char *end = off;
         long off_s = got == ESP_OK && off[0] >= '0' && off[0] <= '9' ? strtol(off, &end, 10) : 0;
@@ -851,19 +871,18 @@ esp_err_t post_ota_inspect(httpd_req_t *req)
 /* `?slot=N` writes into that app slot, `?boot=0` keeps the running firmware. */
 esp_err_t post_ota(httpd_req_t *req)
 {
-    char q[32] = "", v[8];
+    char v[8];
     int slot = -1;
     bool boot = true;
-    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
-        if (httpd_query_key_value(q, "slot", v, sizeof(v)) == ESP_OK) {
-            slot = atoi(v) - 1; /* the API counts slots from 1 */
-            if (slot < 0) {     /* an old client's slot 0 must not mean "the next slot" */
-                return send_error(req, "400 Bad Request", "slot: 1 or more");
-            }
+    esp_err_t got = query_value(req, "slot", v, sizeof(v));
+    if (got != ESP_ERR_NOT_FOUND) {
+        slot = got == ESP_OK ? atoi(v) - 1 : -1; /* the API counts slots from 1 */
+        if (slot < 0) {                          /* an old client's slot 0 must not mean "the next slot" */
+            return send_error(req, "400 Bad Request", "slot: 1 or more");
         }
-        if (httpd_query_key_value(q, "boot", v, sizeof(v)) == ESP_OK) {
-            boot = strcmp(v, "0") != 0;
-        }
+    }
+    if (query_value(req, "boot", v, sizeof(v)) == ESP_OK) {
+        boot = strcmp(v, "0") != 0;
     }
     esp_err_t begun = db_ota_begin(req->content_len, slot, boot);
     if (begun == ESP_ERR_INVALID_SIZE) {
@@ -1202,23 +1221,6 @@ static char *fetch(const char *url, const char **why, const char **code)
 #endif
 }
 
-/* %XX in a query value, in place: esp_http_server leaves it encoded */
-static void url_decode(char *s)
-{
-    char *o = s;
-    for (; *s; s++) {
-        unsigned v;
-        if (*s == '%' && isxdigit((unsigned char)s[1]) && isxdigit((unsigned char)s[2]) &&
-            sscanf(s + 1, "%2x", &v) == 1) {
-            *o++ = (char)v;
-            s += 2;
-        } else {
-            *o++ = *s == '+' ? ' ' : *s;
-        }
-    }
-    *o = '\0';
-}
-
 static portMUX_TYPE check_mux = portMUX_INITIALIZER_UNLOCKED;
 static struct { /* the last good answer, under check_mux */
     int64_t at;
@@ -1232,13 +1234,10 @@ static struct { /* the last good answer, under check_mux */
  * under the web lock: GitHub can take seconds. Good answers are kept for a minute. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
-    char q[192] = "", feed[160] = RELEASES;
-    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
-        esp_err_t got = httpd_query_key_value(q, "feed", feed, sizeof(feed));
-        if (got != ESP_OK && got != ESP_ERR_NOT_FOUND) {
-            return send_error(req, "400 Bad Request", "feed: a URL of up to 159 characters");
-        }
-        url_decode(feed);
+    char feed[160] = RELEASES;
+    esp_err_t got = query_value(req, "feed", feed, sizeof(feed));
+    if (got != ESP_OK && got != ESP_ERR_NOT_FOUND) {
+        return send_error(req, "400 Bad Request", "feed: a URL of up to 159 characters");
     }
     char reply[sizeof(cache.reply)];
     int64_t now = esp_timer_get_time();
@@ -1344,10 +1343,9 @@ esp_err_t post_source_probe(httpd_req_t *req)
 /* GET /api/input/log?since=<seq>&before=<seq> */
 esp_err_t get_input_log(httpd_req_t *req)
 {
-    char q[48], v[12];
-    bool any = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK;
-    log_since = any && httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
-    log_before = any && httpd_query_key_value(q, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    char v[12];
+    log_since = query_value(req, "since", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    log_before = query_value(req, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
     return send_built(req, INPUT_PAGE * 180 + 16,
                       input_log_json); /* runs under the handler lock: log_since and log_before stay put */
 }
@@ -1571,9 +1569,8 @@ esp_err_t get_log(httpd_req_t *req)
     if (!buf) {
         return send_error(req, "500 Internal Server Error", "memory");
     }
-    char q[16], v[8];
-    bool prev = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
-                httpd_query_key_value(q, "boot", v, sizeof(v)) == ESP_OK && strcmp(v, "prev") == 0;
+    char v[8];
+    bool prev = query_value(req, "boot", v, sizeof(v)) == ESP_OK && strcmp(v, "prev") == 0;
     size_t n = prev ? db_log_prev(buf, 16 * 1024) : db_log_read(buf, 16 * 1024);
     if (prev && !n) {
         heap_caps_free(buf);

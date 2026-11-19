@@ -144,6 +144,7 @@ def test_a_key_that_does_not_belong_to_the_certificate_is_refused():
     _, other = pair("b")
     assert api("PUT", "/api/tls", json.dumps({"cert": cert, "key": other}).encode())[0] == 400
     assert api("PUT", "/api/tls", b'{"cert":"nope","key":"nope"}')[0] == 400
+    assert api("PUT", "/api/tls", b'{"cert":1,"key":2}')[0] == 400
 
 
 def test_a_certificate_that_would_crowd_out_the_settings_is_refused():

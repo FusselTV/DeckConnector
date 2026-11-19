@@ -27,6 +27,7 @@ def test_deep_json_does_not_crash_the_bridge():
     before = status()["uptime_s"]
     code = post_raw("/api/login", b"[" * 127, {"X-DeckConnector": "1"})
     assert code == 403
+    assert api("PUT", "/api/tls", b"[" * 3000 + b"]" * 3000)[0] == 400  # the largest body that is parsed
     time.sleep(1)
     assert status()["uptime_s"] >= before, "the bridge restarted"
 

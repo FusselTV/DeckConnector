@@ -56,6 +56,9 @@ def test_deck_routes_pick_a_deck_by_serial(host):
     assert call(host, "GET", "/api/screen?deck=SIM0003")[0] == 404  # plugged in, but over the limit
     assert call(host, "POST", "/api/input?deck=SIM0002", {"key": 1})[0] == 200
     assert call(host, "POST", "/api/input", {"key": 1, "deck": "NOPE"})[0] == 404
+    assert call(host, "GET", "/api/screen?deck=SIM%30002")[0] == 200  # as encodeURIComponent sends it
+    assert call(host, "GET", "/api/screen?deck=" + "9" * 40)[0] == 404, "longer than any serial"
+    assert call(host, "GET", "/api/screen?deck=SIM0003&pad=" + "x" * 80)[0] == 404, "a long query keeps its deck"
 
 
 def test_inputs_name_their_deck(host):
