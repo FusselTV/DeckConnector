@@ -23,7 +23,7 @@ jobs:
 
   sign:
     needs: ci
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: release
     permissions:
@@ -57,7 +57,7 @@ jobs:
         run: |
           mkdir -p ~/.config/deckbridge out
           (umask 077 && printf '%s\n' "$OTA_SIGNING_KEY" > ~/.config/deckbridge/ota_key.pem)
-          uv run --no-project --with cryptography python - <<'EOF'
+          uv run --locked --no-dev python - <<'EOF'
           import os, re
           from pathlib import Path
           from cryptography.hazmat.primitives import serialization
@@ -86,7 +86,7 @@ jobs:
 
   publish:
     needs: [sign, ha]
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write # create the release
