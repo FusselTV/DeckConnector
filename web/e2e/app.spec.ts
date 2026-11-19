@@ -222,6 +222,29 @@ test('the live deck is locked until remote control is on', async ({ app: page })
   expect(sent[0]).toMatchObject({ key: 0, real: true })
 })
 
+test('the Wi-Fi list scans only once its row opens, also when a fixed address opens it', async ({ app: page }) => {
+  let scans = 0
+  page.on('request', (r) => r.url().includes('/api/wifi/scan') && scans++)
+  await openTab(page, 'Network')
+  await expect(page.locator('#row-wlan')).toBeVisible()
+  expect(scans).toBe(0)
+  await page.locator('#row-wlan summary').click()
+  await expect.poll(() => scans).toBeGreaterThan(0)
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() !== 'GET') return r.fallback()
+    const res = await r.fetch()
+    const cfg = (await res.json()) as { wlan: object }
+    await r.fulfill({
+      response: res,
+      json: { ...cfg, wlan: { ...cfg.wlan, dhcp: false, ip: '10.0.0.5', mask: '255.255.255.0' } },
+    })
+  })
+  await page.reload()
+  await openTab(page, 'Network')
+  await expect(page.locator('#row-wlan .wlist')).toBeVisible()
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('long lists scroll inside their own box', async ({ app: page }) => {
   await page.route('**/api/wifi/scan', (r) =>
     r.fulfill({
