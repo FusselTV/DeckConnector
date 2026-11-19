@@ -59,9 +59,11 @@ export function DeckTab() {
   const [d, setD] = useState<Partial<typeof base>>({})
   const v = { ...base, ...d }
   const changed = (k: keyof typeof base) => k in d && d[k] !== base[k]
-  const dirty = (Object.keys(base) as (keyof typeof base)[]).some(changed)
-  const restart = changed('usb')
   const holdBad = v.hold < 0.5 || v.hold > 10
+  const dirty = (Object.keys(base) as (keyof typeof base)[]).some(
+    (k) => changed(k) && !(k === 'hold' && holdBad && v.chord === 'off'),
+  )
+  const restart = changed('usb')
   const holdErr = v.chord !== 'off' && holdBad ? t('deck.hold_h') : null
   const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   useDraft('deck', {

@@ -539,12 +539,19 @@ test('a hold time left bad behind "Web only" does not fail the save', async ({ a
   await page.getByRole('radio', { name: /^Web only/ }).click()
   await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
   await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ menu_chord: 'off', menu_hold_ms: 2000 })
+  await page
+    .getByRole('radio', { name: /^Automatic/ })
+    .last()
+    .click()
+  await page.locator('#hold').fill('0.2')
+  await page.getByRole('radio', { name: /^Web only/ }).click()
+  await expect(page.getByRole('region', { name: 'Unsaved changes' })).toHaveCount(0)
 })
 
 test('Access saves past a stored CORS list the page cannot read, and opens the fold on a bad edit', async ({
   app: page,
 }) => {
-  await sim('PUT', '/api/config', { cors_origins: '*', trusted_proxy: '' })
+  await sim('PUT', '/api/config', { cors_origins: '*' })
   await openTab(page, 'Access')
   const bar = page.getByRole('region', { name: 'Unsaved changes' })
   await page.locator('#proxy').fill('10.0.0.7')
@@ -555,7 +562,6 @@ test('Access saves past a stored CORS list the page cannot read, and opens the f
   await page.locator('#cors-fold summary').click()
   await bar.getByRole('button', { name: /^Save/ }).click()
   await expect(page.locator('#cors')).toBeFocused()
-  await sim('PUT', '/api/config', { cors_origins: '', trusted_proxy: '' })
 })
 
 test('a stored Wi-Fi can be forgotten after a confirm', async ({ app: page }) => {

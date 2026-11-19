@@ -146,6 +146,7 @@ function openWs() {
       return
     }
     if (m.t === 'state') {
+      heard = true
       stateGen++
       const { t: _t, ...rest } = m
       lastState = rest
