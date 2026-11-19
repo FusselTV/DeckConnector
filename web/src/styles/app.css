@@ -3564,7 +3564,7 @@
   .lg-row > button,
   .lg-bootdiv > button {
     display: grid;
-    grid-template-columns: 52px 22px 1fr;
+    grid-template-columns: var(--tw, 52px) 22px 1fr;
     gap: 8px;
     align-items: start;
     width: 100%;
@@ -3576,7 +3576,11 @@
     font: inherit;
     cursor: pointer;
   }
+  .lg.h12 {
+    --tw: 62px;
+  }
   .lg-row time {
+    white-space: nowrap;
     font-family: var(--f-mono);
     font-size: 12.5px;
     color: var(--fg-2);
@@ -3661,7 +3665,7 @@
     display: grid;
     grid-template-columns: auto 1fr;
     gap: 2px 12px;
-    margin: 0 12px 0 94px;
+    margin: 0 12px 0 calc(var(--tw, 52px) + 42px);
     padding-bottom: 8px;
     font-size: 12.5px;
     color: var(--fg-2);
@@ -3828,11 +3832,11 @@
       height: calc(100dvh - 250px);
     }
     .lg-row > button {
-      grid-template-columns: 44px 20px 1fr;
+      grid-template-columns: var(--tw, 44px) 20px 1fr;
       padding: 9px 10px;
     }
     .lg-det {
-      margin-left: 82px;
+      margin-left: calc(var(--tw, 44px) + 38px);
     }
     .lg .days {
       gap: 2px;
