@@ -36,6 +36,12 @@ def put(body: dict) -> tuple[int, str]:
         ({"lan": {"dhcp": False, "ip": "10.0.0.255", "mask": "255.255.255.0"}}, "ip"),
         ({"lan": {"dhcp": False, "ip": "10.0.0.5", "mask": "255.255.255.0", "gateway": "10.0.1.1"}}, "gateway"),
         ({"lan": {"dhcp": False, "ip": "10.0.0.5", "mask": "255.255.255.0", "gateway": "10.0.0.5"}}, "gateway"),
+        ({"brightness": 50.5}, "brightness"),
+        ({"volume": 10.5}, "volume"),
+        ({"menu_hold_ms": 1500.5}, "menu_hold_ms"),
+        ({"max_decks": 1.5}, "max_decks"),
+        ({"screen_off_s": 60.5}, "screen_off_s"),
+        ({"screen_dim": 30.5}, "screen_dim"),
     ],
 )
 def test_a_bad_setting_is_refused_with_its_reason(body, word):
