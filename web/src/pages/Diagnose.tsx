@@ -22,6 +22,7 @@ import { Card } from '../components/Card'
 import { Btn, Help } from '../components/controls'
 import { KeyValue } from '../components/KeyValue'
 import { Row } from '../components/Row'
+import { ScrollArea } from '../components/ScrollArea'
 
 const FLASH = { firmware: 'dia.fl_firmware', settings: 'dia.fl_settings' } as const
 function Spark({ label, data, fmt }: { label: string; data: number[]; fmt: (n: number) => string }) {
@@ -132,7 +133,7 @@ function Health() {
 }
 
 function Details() {
-  const { t, fmt, act, ask, lang } = useUi()
+  const { t, fmt, act, ask } = useUi()
   const st = useStore((s) => s.status)
   const [routes, setRoutes] = useState<Route[]>([])
   useEffect(() => void api.routes().then(setRoutes, () => undefined), [])
@@ -159,7 +160,7 @@ function Details() {
           rows={[
             [
               t('dia.boot'),
-              `${t(`boot.${st.boot.reason}` as 'boot.other')}${st.boot.at ? ` · ${new Date(st.boot.at * 1000).toLocaleString(lang)}` : ''}`,
+              `${t(`boot.${st.boot.reason}` as 'boot.other')}${st.boot.at ? ` · ${fmt.dt(st.boot.at * 1000, { dateStyle: 'short', timeStyle: 'medium' })}` : ''}`,
             ],
           ]}
         />
@@ -318,8 +319,16 @@ function Details() {
       )}
       {routes.length > 0 && (
         <Row group="dia" id="dia-routes" icon={RouteIcon} title={t('dia.routes')}>
-          <div className="tblw">
+          <p className="small muted">{t('dia.routes_h')}</p>
+          <ScrollArea className="tblw">
             <table>
+              <thead>
+                <tr>
+                  <th>{t('th.method')}</th>
+                  <th>{t('th.route')}</th>
+                  <th>{t('api.right')}</th>
+                </tr>
+              </thead>
               <tbody>
                 {routes.map((r) => (
                   <tr key={r.method + r.path}>
@@ -332,7 +341,7 @@ function Details() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollArea>
         </Row>
       )}
     </Card>

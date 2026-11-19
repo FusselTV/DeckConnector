@@ -7,6 +7,7 @@ import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { describedBy, Field, Help, Seg, SIcon, Switch } from '../components/controls'
 import { useDraft } from '../components/SaveBar'
+import { Select } from '../components/Select'
 import { chordHl, chordSentence, type Hl } from '../deck/chord'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
 import { cx, roam } from '../lib/util'
@@ -193,13 +194,13 @@ export function DeckTab() {
             <label htmlFor="screen-off">{t('deck.off')}</label>
             <Help label={t('deck.off')} text={t('deck.off_h')} />
           </span>
-          <select id="screen-off" className="in short" value={v.off} onChange={(e) => set({ off: e.target.value })}>
-            {offs.map((s) => (
-              <option key={s} value={s}>
-                {s === '0' ? t('deck.never') : duration(Number(s))}
-              </option>
-            ))}
-          </select>
+          <Select
+            id="screen-off"
+            className="short"
+            value={v.off}
+            onChange={(off) => set({ off })}
+            options={offs.map((s) => [s, s === '0' ? t('deck.never') : duration(Number(s))] as const)}
+          />
         </fieldset>
         {v.off !== '0' && (
           <fieldset className="gate field" disabled={!cfg}>
