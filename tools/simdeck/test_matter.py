@@ -6,6 +6,8 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+from conftest import dismiss_prompt
+
 from dbtools.simdeck import ELF
 
 TABLE = ELF.parent / "partition_table/partition-table.bin"
@@ -76,6 +78,7 @@ def switches(ctl: Controller, node: int) -> dict[int, dict]:
 def matter_on(start, log: Path, *models: str, count: int = 26, **env: str):
     """Matter turned on at run time; `count` switches in all, which come under the stack lock after the nodes."""
     sim = start(*models, DB_SIM_MATTER_LOG=str(log), **env)
+    dismiss_prompt(sim)  # a press while a prompt covers the deck goes to the prompt, not to Matter
     ctl = Controller(log)
     sim.config(matter=True)
     assert sim.wait(lambda: sim.status()["matter"]["running"]), sim.log()
@@ -129,12 +132,13 @@ def test_presses_at_the_deck_reach_the_controller_and_api_presses_do_not(start, 
     assert ctl.wait_events(sim, 2) == [(right, "initial_press"), (right, "short_release")]
 
     assert sim.api("POST", "/api/input", {"key": 3})[0] == 200
-    sim.tap(0, 4)  # a barrier: whatever the API press caused comes before this tap's events
-    assert ctl.wait_events(sim, 2) == [(NODE + 5, "initial_press"), (NODE + 5, "short_release")], (
+    assert not sim.status()["menu_open"]
+    # a barrier: whatever the API press caused would come before these. POST /api/matter/press is the board
+    # checklist's press for Matter alone.
+    assert sim.api("POST", "/api/matter/press", {"key": 7})[0] == 200
+    assert ctl.wait_events(sim, 2) == [(NODE + 8, "initial_press"), (NODE + 8, "short_release")], (
         "a press from the API reached Matter"
     )
-    assert sim.api("POST", "/api/matter/press", {"key": 7})[0] == 200  # for Matter alone, the board checklist's way
-    assert ctl.wait_events(sim, 2) == [(NODE + 8, "initial_press"), (NODE + 8, "short_release")]
 
 
 def test_ids_stay_over_a_restart_and_an_unplugged_deck_turns_unreachable(start, tmp_path):
@@ -166,7 +170,8 @@ def test_another_deck_in_the_slot_gets_new_ids(start, tmp_path):
     sim.stop()
     log.unlink()
     ctl = Controller(log)
-    start("mini", DB_SIM_MATTER_LOG=str(log), DB_SIM_FLASH=str(image))
+    sim.models = ["mini"]
+    sim.start()
     new = NODE + 4 * 64  # gen 2
     assert sim.wait(lambda: len(switches(ctl, new)) == 6), ctl.lines()[-5:]
     eps = ctl.endpoints()

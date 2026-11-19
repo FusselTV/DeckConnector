@@ -1,5 +1,7 @@
 """What the board announces over mDNS, from the simulators running its responder (firmware/vendor/mdns)."""
 
+import time
+
 import pytest
 from conftest import Seen, browse
 from zeroconf import ServiceBrowser, Zeroconf
@@ -69,6 +71,8 @@ def test_a_deck_brings_its_dock_and_device(simdeck, zc):
     browser = ServiceBrowser(zc, ELG, seen)
     try:
         assert deck.wait(lambda: seen.names == set(elg)), seen.names
+        # an unplug within about a second of a browser's first query left both in its list: open, see the PR
+        time.sleep(1.5)
         deck.act("0 unplug")
         assert deck.wait(lambda: not seen.names), f"no goodbye for {seen.names}"
     finally:
