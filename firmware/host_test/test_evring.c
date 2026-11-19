@@ -13,8 +13,20 @@
  * failure. */
 static uint8_t flash[SIZE];
 static uint32_t erases[SECTS];
-static size_t torn_at; /* >0: the next write stops after this many bytes, as at a power cut */
+static size_t torn_at;     /* >0: the next write stops after this many bytes, as at a power cut */
+static int cut_after = -1; /* writes and erases left before the power goes, -1: it stays */
+static bool dead;
+static uint32_t acked[SLOTS]; /* the seq an append that returned 0 left in each slot */
 static uint8_t buf[DB_EVRING_ERASE];
+
+static bool power_cut(void)
+{
+    if (cut_after >= 0 && cut_after-- == 0) {
+        dead = true;
+        return true;
+    }
+    return false;
+}
 
 static int rd(uint32_t off, void *out, size_t len)
 {
@@ -24,12 +36,15 @@ static int rd(uint32_t off, void *out, size_t len)
 
 static int wr(uint32_t off, const void *in, size_t len)
 {
+    if (dead) {
+        return -1;
+    }
     for (size_t i = 0; i < len; i++) {
         if (flash[off + i] != 0xFF) {
             TEST_FAIL_MESSAGE("written over a used byte");
         }
     }
-    size_t n = torn_at ? torn_at : len;
+    size_t n = power_cut() ? (size_t)rand() % len : torn_at ? torn_at : len;
     torn_at = 0;
     for (size_t i = 0; i < n; i++) {
         flash[off + i] &= ((const uint8_t *)in)[i];
@@ -40,6 +55,23 @@ static int wr(uint32_t off, const void *in, size_t len)
 static int er(uint32_t off, size_t len)
 {
     TEST_ASSERT_EQUAL(0, off % DB_EVRING_ERASE);
+    if (dead) {
+        return -1;
+    }
+    if (power_cut()) { /* some bytes are erased already */
+        static uint8_t was[DB_EVRING_ERASE];
+        memcpy(was, flash + off, len);
+        for (size_t i = (size_t)rand() % len; i--;) {
+            flash[off + (size_t)rand() % len] = 0xFF;
+        }
+        for (size_t i = 0; i < len; i += DB_EVREC_SIZE) {
+            if (memcmp(was + i, flash + off + i, DB_EVREC_SIZE)) {
+                acked[(off + i) / DB_EVREC_SIZE] = 0;
+            }
+        }
+        return -1;
+    }
+    memset(&acked[off / DB_EVREC_SIZE], 0, len / DB_EVREC_SIZE * sizeof(acked[0]));
     memset(flash + off, 0xFF, len);
     erases[off / DB_EVRING_ERASE]++;
     return 0;
@@ -53,6 +85,8 @@ void setUp(void)
     memset(flash, 0xFF, sizeof(flash));
     memset(erases, 0, sizeof(erases));
     torn_at = 0;
+    cut_after = -1;
+    dead = false;
     TEST_ASSERT_EQUAL(0, db_evring_open(&r, &F, buf));
 }
 
@@ -186,6 +220,40 @@ static void test_skipped_numbers_stay_empty(void)
     TEST_ASSERT_EQUAL(6 + 2 * DB_EVRING_ERASE / DB_EVREC_SIZE, r.next);
 }
 
+/* 16 sectors, numbers that jump now and then, and the power going at a random write or erase: every record an
+ * append confirmed comes back, and nothing is written over (wr). */
+static void test_power_cuts_lose_only_what_was_not_confirmed(void)
+{
+    const db_evflash_t small = {.read = rd, .write = wr, .erase = er, .size = 16 * DB_EVRING_ERASE};
+    const uint32_t slots = small.size / DB_EVREC_SIZE;
+    memset(acked, 0, sizeof(acked));
+    srand(11);
+    for (int round = 0; round < 1000; round++) {
+        dead = false;
+        cut_after = rand() % 3 ? rand() % 200 : -1;
+        if (db_evring_open(&r, &small, buf) != 0) {
+            TEST_ASSERT_TRUE(dead);
+            continue;
+        }
+        uint32_t newest = 0;
+        for (uint32_t s = 0; s < slots; s++) {
+            db_evrec_t e;
+            if (acked[s]) {
+                TEST_ASSERT_TRUE(db_evring_get(&r, acked[s], &e));
+                newest = acked[s] > newest ? acked[s] : newest;
+            }
+        }
+        TEST_ASSERT_GREATER_THAN(newest, r.next);
+        uint32_t seq = r.next;
+        for (int n = rand() % 200; n-- && !dead; seq++) {
+            seq += rand() % 50 ? 0 : (uint32_t)rand() % (2 * slots);
+            if (put(seq) == 0) {
+                acked[seq % slots] = seq;
+            }
+        }
+    }
+}
+
 static void test_args_that_do_not_fit_are_cut(void)
 {
     db_evrec_t e = {0};
@@ -232,6 +300,7 @@ int main(void)
     RUN_TEST(test_a_power_cut_in_the_last_slot_of_a_sector);
     RUN_TEST(test_old_data_in_a_new_partition_is_ignored);
     RUN_TEST(test_skipped_numbers_stay_empty);
+    RUN_TEST(test_power_cuts_lose_only_what_was_not_confirmed);
     RUN_TEST(test_args_that_do_not_fit_are_cut);
     RUN_TEST(test_wear_in_a_year);
     return UNITY_END();
