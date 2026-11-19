@@ -602,6 +602,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
         {{.uri = "/api/sound", .method = HTTP_POST, .handler = post_sound}, WEB_CONTROL},
+        {{.uri = "/api/sound/stream", .method = HTTP_POST, .handler = post_sound_stream}, WEB_CONTROL},
         {{.uri = "/api/sound/selftest", .method = HTTP_POST, .handler = post_sound_selftest}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},

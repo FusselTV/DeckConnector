@@ -112,6 +112,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `POST /api/screen` | `{"on": false}` schaltet alle Decks sofort dunkel, `{"on": true}` wieder an. Kein Druck wird verschluckt | full |
 | `POST /api/deck/reconnect` | Schaltet den USB-Port aus und wieder an. `?off_s=N` (1 bis 600) lässt ihn N Sekunden aus | control |
 | `POST /api/deck/stall` | Stoppt die Bildausgabe wie bei einem hängenden Deck, für Tests | full |
+| `POST /api/sound/stream` | Der Body ist rohes PCM: 16 kHz, mono, 16 Bit Little Endian, mit `Content-Length`. Spielt es mit der Einstellung `volume` und antwortet `{"ok": true, "stopped": false}`, wenn es gespielt hat. `stopped` ist true, wenn ein Ton, ein neuerer Stream oder `speaker` false es beendet hat. Der Connector puffert 3 Sekunden, also höchstens eine Sekunde im Voraus senden. 409, solange `speaker` false ist | control |
 | `POST /api/sound/selftest` | Spielt `find` und nimmt es mit dem Mikrofon der Platine auf, für Tests. Drei Gegenproben: eine andere Tonhöhe (1500 Hz) in derselben Aufnahme, `find` mit Lautstärke 0 und `find` mit ausgeschaltetem Verstärker. `heard` ist true, wenn der Ton mehr als 10-mal stärker ist als jede davon. Optional: `volume` 1 bis 100 (60), `gain` 0 bis 42 dB (24). Dauert etwa 6 Sekunden. 503 mit dem Grund, wenn ein Durchlauf scheitert | full |
 
 ### Quellen und Kopplung

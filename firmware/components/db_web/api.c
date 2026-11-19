@@ -1516,6 +1516,27 @@ esp_err_t post_sound(httpd_req_t *req)
                          : send_error(req, "503 Service Unavailable", "busy");
 }
 
+/* POST /api/sound/stream, the body 16 kHz mono 16-bit little-endian PCM: see db_audio_stream. */
+esp_err_t post_sound_stream(httpd_req_t *req)
+{
+    const char *status = "409 Conflict", *error = SPEAKER_OFF;
+    if (db_config()->speaker) {
+        esp_err_t err = db_audio_stream(req);
+        if (err == ESP_OK) {
+            return ESP_OK;
+        }
+        if (err != ESP_ERR_NOT_SUPPORTED) {
+            status = "503 Service Unavailable";
+        }
+        error = err == ESP_ERR_NOT_SUPPORTED ? "this board has no speaker"
+                : err == ESP_ERR_NO_MEM      ? "no memory"
+                                             : "busy";
+    }
+    httpd_resp_set_hdr(req, "Connection", "close");
+    send_error(req, status, error);
+    return ESP_FAIL; /* closes the connection: else the server reads the whole body before the next request */
+}
+
 /* POST /api/sound/selftest {"volume": 60, "gain": 24}: Find through the speaker and back in through the
  * board's microphone, see db_audio_check. Runs outside the handler lock: the audio task orders it. */
 esp_err_t post_sound_selftest(httpd_req_t *req)
