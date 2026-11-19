@@ -57,7 +57,10 @@ function load(): Demo {
 }
 
 const s = load()
+let resetting = false
 const save = () => {
+  // a request still in flight while Reset reloads would write the old state back
+  if (resetting) return
   try {
     // A password the visitor typed is never stored: after a reload the demo's own one is back.
     sessionStorage.setItem(KEY, JSON.stringify({ ...s, pass: undefined, join: s.join && { ...s.join, pass: '' } }))
@@ -363,6 +366,7 @@ function badge() {
       : 'Demo: everything runs in the browser, nothing reaches a device'
   }
   btn.onclick = () => {
+    resetting = true
     sessionStorage.removeItem(KEY)
     location.reload()
   }
