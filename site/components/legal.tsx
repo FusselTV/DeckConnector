@@ -25,7 +25,6 @@ export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
 
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
 const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
-const CF_COOKIES = 'https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/'
 const APPLE_PRIVACY = {
   de: 'https://www.apple.com/legal/privacy/de-ww/',
   en: 'https://www.apple.com/legal/privacy/en-ww/',
@@ -116,32 +115,8 @@ export function Privacy({ lang }: { lang: Lang }) {
         lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
       </p>
 
-      <h2>Schutz vor Bots und Cookies</h2>
-      <p>
-        Cloudflare prüft mit „Bot Fight Mode“, ob eine Anfrage von einem Menschen oder einem Programm kommt. Dazu fügt
-        Cloudflare ein kleines Skript in die Seiten ein, das von dieser Website geladen wird (Pfad{' '}
-        <code>/cdn-cgi/challenge-platform/</code>) und in deinem Browser Merkmale prüft. Verdächtigen Anfragen zeigt
-        Cloudflare eine Prüfseite oder lehnt sie ab.
-      </p>
-      <p>Dabei setzt Cloudflare diese Cookies für deckconnector.com:</p>
-      <ul>
-        <li>
-          <code>__cf_bm</code>: Daten zur Bewertung, ob ein Bot anfragt, verschlüsselt. Läuft nach 30 Minuten ohne
-          Aktivität ab.
-        </li>
-        <li>
-          <code>cf_clearance</code>: das Ergebnis der Prüfung, damit sie nicht bei jeder Seite neu läuft. Läuft nach 30
-          Minuten ab.
-        </li>
-      </ul>
-      <p>
-        Laut Cloudflare enthalten die Cookies keine Kennung, die dich über Websites oder Sitzungen hinweg verfolgt, und
-        sind für den Schutz unbedingt nötig. Details stehen in der <a href={CF_COOKIES}>Cookie-Liste von Cloudflare</a>.
-        Andere Cookies setzt diese Website nicht. Das Setzen und Lesen der Cookies und die Prüfung in deinem Browser
-        erlaubt § 25 Abs. 2 Nr. 2 TDDDG, weil sie unbedingt erforderlich sind, damit ich dir die Website, die du
-        aufrufst, sicher bereitstellen kann. Für alles Weitere gelten Rechtsgrundlage und Auftragsverarbeitung wie im
-        Abschnitt „Hosting bei Cloudflare“.
-      </p>
+      <h2>Cookies</h2>
+      <p>Diese Website setzt keine Cookies.</p>
 
       <h2>Schutz von E-Mail-Adressen</h2>
       <p>
@@ -266,31 +241,8 @@ export function Privacy({ lang }: { lang: Lang }) {
         (Art. 46(2)(c) GDPR). <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a> says how long it keeps the data.
       </p>
 
-      <h2>Bot protection and cookies</h2>
-      <p>
-        Cloudflare uses &quot;Bot Fight Mode&quot; to check whether a request comes from a person or a program. For
-        this, Cloudflare adds a small script to the pages. It loads from this website (path{' '}
-        <code>/cdn-cgi/challenge-platform/</code>) and checks signals in your browser. Cloudflare shows suspicious
-        requests a check page or refuses them.
-      </p>
-      <p>Cloudflare sets these cookies for deckconnector.com:</p>
-      <ul>
-        <li>
-          <code>__cf_bm</code> holds encrypted data for deciding whether a bot is asking. It expires after 30 minutes
-          without activity.
-        </li>
-        <li>
-          <code>cf_clearance</code> holds the result of the check, so it does not run again on every page. It expires
-          after 30 minutes.
-        </li>
-      </ul>
-      <p>
-        Cloudflare says these cookies hold no identifier that follows you across websites or sessions, and that they are
-        strictly necessary for the protection. Details are in <a href={CF_COOKIES}>Cloudflare&apos;s cookie list</a>.
-        This website sets no other cookies. Setting and reading the cookies and the check in your browser are allowed
-        under § 25(2) no. 2 TDDDG, because they are strictly necessary so I can safely deliver the website you asked
-        for. For everything else, the legal basis and the processing on my behalf are as in the section on hosting.
-      </p>
+      <h2>Cookies</h2>
+      <p>This website sets no cookies.</p>
 
       <h2>Protection of email addresses</h2>
       <p>
