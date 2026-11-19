@@ -250,6 +250,10 @@ static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
         db_log_event(TAG, DB_EV_LAN_DOWN);
         s.st.lan_link = false;
         s.st.lan_up = false;
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        s.gateway_seen = false; /* the gateway ping goes on: without a link its timeouts are no dead LAN */
+        s.missed = 0;
+        xSemaphoreGive(s.lock);
         set_ip(s.st.lan_ip, NULL);
     }
     changed();
