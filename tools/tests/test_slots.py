@@ -35,7 +35,10 @@ def test_slot_zero_is_refused_not_taken_as_the_next_slot():
     """API 1 clients counted from 0; their slot 0 must not quietly become "the slot after the running one"."""
     assert json.loads(api("GET", "/api/status")[1])["api"] >= 2
     assert api("POST", "/api/ota?slot=0", b"tiny")[0] == 400
-    assert api("POST", "/api/ota?slot=123456789", b"tiny")[0] == 400, "a slot too long to read is no slot either"
+    code, body = api("POST", "/api/ota?slot=123456789", b"tiny")
+    assert code == 400 and b"slot" in body, "a slot too long to read is no slot either"
+    code, body = api("POST", "/api/ota?boot=false", b"tiny")
+    assert code == 400 and b"boot" in body, "only 0 keeps the running firmware: anything else must not mean boot"
 
 
 @pytest.mark.parametrize("region", ["bootloader", "ptable"])

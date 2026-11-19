@@ -881,8 +881,12 @@ esp_err_t post_ota(httpd_req_t *req)
             return send_error(req, "400 Bad Request", "slot: 1 or more");
         }
     }
-    if (query_value(req, "boot", v, sizeof(v)) == ESP_OK) {
-        boot = strcmp(v, "0") != 0;
+    got = query_value(req, "boot", v, sizeof(v));
+    if (got != ESP_ERR_NOT_FOUND) {
+        if (got != ESP_OK || (strcmp(v, "0") != 0 && strcmp(v, "1") != 0)) {
+            return send_error(req, "400 Bad Request", "boot: 0 or 1");
+        }
+        boot = v[0] == '1';
     }
     esp_err_t begun = db_ota_begin(req->content_len, slot, boot);
     if (begun == ESP_ERR_INVALID_SIZE) {

@@ -139,6 +139,7 @@ def test_an_own_certificate_is_checked_without_being_applied(cn):
     assert status()["https_custom"] is False
 
 
+@pytest.mark.sim
 def test_a_key_that_does_not_belong_to_the_certificate_is_refused():
     cert, _ = pair("a")
     _, other = pair("b")
