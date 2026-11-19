@@ -1,8 +1,8 @@
 /*
- * Malformed wire input into every parser a host or Companion reaches: Satellite lines, PNG and BMP pictures,
- * Cora headers, server frames and dock image reports through each driver. Mutated seeds with a fixed seed;
- * ASan and UBSan do the checking. FUZZ_ROUNDS=n runs longer; with -DFUZZING -fsanitize=fuzzer it is a
- * libFuzzer target.
+ * Malformed wire input into the byte parsers hosts and Companion reach: Satellite lines, PNG and BMP
+ * pictures, Cora and server frame headers, DNS answers and dock image reports through each Elgato driver.
+ * Mutated seeds with a fixed seed; ASan and UBSan do the checking. FUZZ_ROUNDS=n runs longer; with -DFUZZING
+ * -fsanitize=fuzzer it is a libFuzzer target.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -180,8 +180,8 @@ static size_t png_seed(uint8_t *out, uint8_t w, uint8_t h, uint8_t type)
 
 int main(void)
 {
-    static uint8_t seeds[16][4096];
-    size_t lens[16];
+    static uint8_t seeds[48][4096];
+    size_t lens[48];
     int k = 0;
 #define SEED(...) lens[k] = add(seeds[k], (uint8_t[]){__VA_ARGS__}, sizeof((uint8_t[]){__VA_ARGS__})), k++
 #define SEED_STR(t, s) seeds[k][0] = (t), lens[k] = 1 + add(seeds[k] + 1, s, strlen(s)), k++
@@ -198,9 +198,22 @@ int main(void)
     SEED(3, 1, 0, 0, 0, 0, 0, 72, 0, 72, 0, 0, 0, 0, 1, 2, 3);
     SEED(3, 0x34, 0x12, 0x12, 0x34, 0x81, 0x80, 0, 1, 0, 1, 0, 0, 0, 0, 1, '4', 0, 0, 12, 0, 1, 0xc0, 12, 0,
          12, 0, 1, 0, 0, 0, 60, 0, 5, 3, 'p', 'c', '1', 0);
-    for (uint8_t m = 0; m < 6; m++) {
-        SEED(4, m, 1, 2, 7, 3, 1, 0x40, 0, 0, 0, 0, 1, 0, 2, 0x0c, 0, 0, 0, 0, 0, 0x20, 0, 0x20, 0, 1, 0, 0,
-             0x40, 0);
+    for (uint8_t m = 0; m < deck_model_count; m++) { /* an image in two pieces: part 0, then the last one */
+        uint8_t *d = seeds[k];
+        size_t n = add(d, (uint8_t[]){4, m}, 2);
+        for (uint8_t part = 0; part < 2; part++) {
+            d[n] = 40;
+            if (deck_models[m].family == DECK_SIXKEY) {
+                add(d + n + 1, (uint8_t[]){2, 1, part, 0, part, 1}, 6);
+            } else {
+                add(d + n + 1, (uint8_t[]){2, 7, 0, part, 32, 0, part, 0}, 8);
+            }
+            n += 41;
+        }
+        lens[k++] = n;
+        if (deck_models[m].family == DECK_PLUS) {
+            SEED(4, m, 40, 2, 0x0c, 0, 0, 0, 0, 8, 0, 8, 0, 1, 0, 0, 16, 0);
+        }
     }
     const char *env = getenv("FUZZ_ROUNDS");
     long rounds = env ? atol(env) : 20000;
