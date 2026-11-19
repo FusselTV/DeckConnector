@@ -336,6 +336,13 @@ def test_a_good_token_is_never_locked_out(token):
     assert api("GET", "/api/status")[0] == 200  # a good password ends the count for the next tests
 
 
+def test_a_stale_token_does_not_lock_out_the_password():
+    for _ in range(8):
+        assert call("GET", "/api/status", "stale")[0] == 401
+    login = {"X-DeckConnector": "1", "Content-Type": "application/json"}
+    assert call("POST", "/api/login", headers=login, body=json.dumps({"password": PASSWORD}).encode())[0] == 200
+
+
 @pytest.mark.sim
 def test_a_backup_with_secrets_restores_them_and_needs_the_password():
     plain = json.loads(api("GET", "/api/backup")[1])
