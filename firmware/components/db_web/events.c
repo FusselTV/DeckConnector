@@ -43,7 +43,7 @@ static struct {
     size_t (*screen_json)(int deck, char *buf, size_t cap);
     SemaphoreHandle_t lock; /* the client list, and one frame on the wire at a time */
     QueueHandle_t inputs;   /* presses go out from our task: a stuck client must not stall the deck */
-    QueueHandle_t events;   /* numbers of new events, for the same reason */
+    QueueHandle_t events; /* numbers of new events: a stuck client must not stall the task that logged one */
     int fds[CLIENTS];
     httpd_handle_t servers[CLIENTS]; /* HTTP or HTTPS: each fd belongs to one of them */
     bool by_token[CLIENTS];          /* an integration: no simulated presses are sent to it */

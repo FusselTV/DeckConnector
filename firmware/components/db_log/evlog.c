@@ -29,7 +29,8 @@ static const char *const kinds[K_COUNT] = {"boot", "update", "source", "companio
 enum { L_INFO, L_OK, L_WARN, L_ERR };
 static const char *const levels[] = {"info", "ok", "warn", "err"};
 
-/* The English text stays for the download, the serial log and old pages. {n} is the n-th arg. */
+/* The English text is for the serial log, the download, Home Assistant and pages without a translation. {n}
+ * is the n-th arg. */
 static const struct {
     const char *id;
     uint8_t kind, level;
@@ -107,7 +108,7 @@ typedef struct {
 } legacy_t;
 
 static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-static db_event_t *ram; /* the newest DB_EVENTS, earlier boots' first on the settings storage */
+static db_event_t *ram; /* the newest DB_EVENTS; without evlog, the earlier boots' from settings come first */
 static uint32_t n_ram;
 static uint32_t next_seq = 1; /* renumbered by db_log_keep_start */
 static uint32_t kept;         /* every event up to this one is stored or was skipped */
@@ -165,17 +166,17 @@ void db_log_event_args(const char *tag, db_ev_t code, const char *const *args)
     }
 }
 
-static int fl_read(void *ctx, uint32_t off, void *buf, size_t len)
+static int fl_read(uint32_t off, void *buf, size_t len)
 {
     return esp_partition_read(part, off, buf, len);
 }
 
-static int fl_write(void *ctx, uint32_t off, const void *buf, size_t len)
+static int fl_write(uint32_t off, const void *buf, size_t len)
 {
     return esp_partition_write(part, off, buf, len);
 }
 
-static int fl_erase(void *ctx, uint32_t off, size_t len)
+static int fl_erase(uint32_t off, size_t len)
 {
     return esp_partition_erase_range(part, off, len);
 }
@@ -185,7 +186,7 @@ static void nvs_key(char prefix, uint32_t seq, char *key)
     snprintf(key, 8, "%c%u", prefix, (unsigned)(seq % DB_EVENTS_KEPT));
 }
 
-/* Under `lock`. `h` is the open "evlog" namespace, unused on flash. */
+/* Under `lock`, or before the keeper starts. `h` is the open "evlog" namespace, unused on flash. */
 static bool store(nvs_handle_t h, db_event_t *e)
 {
     if (on_flash) {
@@ -226,8 +227,8 @@ static size_t load_nvs(nvs_handle_t h, char prefix, db_event_t *out)
         }
         k.text[sizeof(k.text) - 1] = k.kind[sizeof(k.kind) - 1] = '\0';
         uint8_t kind = K_BOOT;
-        for (uint8_t c = 0; c < K_COUNT; c++) {
-            kind = strcmp(k.kind, kinds[c]) == 0 ? c : kind;
+        for (int c = 0; c < K_COUNT; c++) {
+            kind = strcmp(k.kind, kinds[c]) == 0 ? (uint8_t)c : kind;
         }
         /* seq * 2 keeps the order; the text's rest follows as DB_EV_MORE at seq * 2 + 1 */
         db_event_t e = {.seq = k.seq * 2,
@@ -252,7 +253,8 @@ static size_t load_nvs(nvs_handle_t h, char prefix, db_event_t *out)
     return n;
 }
 
-/* This boot's events not stored yet, oldest first, up to the hourly cap; the ones past it stay in RAM. */
+/* Stores this boot's new events, oldest first. Past the hourly cap the rest is skipped for good, RAM only;
+ * errors, updates and starts still count, so a restart's cause is never among them. */
 static void keep_now(void)
 {
     static int64_t hour_at;
@@ -265,6 +267,7 @@ static void keep_now(void)
     }
     nvs_handle_t h = 0;
     bool ready = on_flash || (on_nvs && nvs_open("evlog", NVS_READWRITE, &h) == ESP_OK);
+    int cap = on_flash ? FLASH_PER_HOUR : NVS_PER_HOUR;
     static bool warned;
     while (ready) {
         portENTER_CRITICAL(&mux);
@@ -279,11 +282,12 @@ static void keep_now(void)
         if (!more) {
             break;
         }
-        if (this_hour >= (on_flash ? FLASH_PER_HOUR : NVS_PER_HOUR)) {
-            kept = e.seq; /* not db_log_event: it would wake this task again */
-            if (!warned) {
-                ESP_LOGW("evlog", "more than %d events this hour, the rest stay in RAM",
-                         on_flash ? FLASH_PER_HOUR : NVS_PER_HOUR);
+        const uint8_t c = e.code < DB_EV_COUNT ? e.code : DB_EV_TEXT;
+        if (this_hour >= cap && codes[c].level != L_ERR && codes[c].kind != K_UPDATE &&
+            codes[c].kind != K_BOOT) {
+            kept = e.seq;
+            if (!warned) { /* not db_log_event: it would wake this task again */
+                ESP_LOGW("evlog", "more than %d events this hour, the rest stay in RAM", cap);
             }
             warned = true;
             continue;
@@ -291,7 +295,7 @@ static void keep_now(void)
         if (!store(h, &e)) {
             ESP_LOGW("evlog", "event %u not stored, it stays in RAM", (unsigned)e.seq);
             if (!on_flash) {
-                break; /* the settings storage is full: tried again with the next event */
+                break; /* the settings storage is full: this event is tried again at the next wake-up */
             }
         }
         warned = false;
@@ -318,36 +322,41 @@ static void keep_task(void *arg)
 
 void db_log_keep_start(void)
 {
-    nvs_handle_t h;
     db_event_t *old = heap_caps_malloc(DB_EVENTS_KEPT * 3 * sizeof(*old), MALLOC_CAP_SPIRAM);
     void *buf = heap_caps_malloc(DB_EVRING_ERASE, MALLOC_CAP_SPIRAM);
-    if (!ram || !old || !buf || !(lock = xSemaphoreCreateMutex()) ||
-        nvs_open("evlog", NVS_READWRITE, &h) != ESP_OK) {
+    if (!ram || !old || !buf || !(lock = xSemaphoreCreateMutex())) {
+        ESP_LOGE("evlog", "out of memory, events stay in RAM");
         free(old);
         free(buf);
         return;
     }
-    nvs_get_u32(h, "boot", &boot_no);
-    nvs_set_u32(h, "boot", ++boot_no);
+    nvs_handle_t h = 0;
+    bool nv = nvs_open("evlog", NVS_READWRITE, &h) == ESP_OK; /* the boot count and earlier events */
+    if (nv) {
+        nvs_get_u32(h, "boot", &boot_no);
+        nvs_set_u32(h, "boot", ++boot_no);
+    }
     part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, PARTITION, "evlog");
     db_evflash_t f = {.read = fl_read, .write = fl_write, .erase = fl_erase, .size = part ? part->size : 0};
-    on_flash = part && db_evring_open(&ring, &f, buf) == 0;
+    int err = part ? db_evring_open(&ring, &f, buf) : 0;
     free(buf);
-    on_nvs = !on_flash;
-    if (part && !on_flash) {
-        ESP_LOGE("evlog", "the evlog partition cannot be read, events go to the settings storage");
+    on_flash = part && !err;
+    on_nvs = !on_flash && nv;
+    if (err) {
+        ESP_LOGE("evlog", "evlog partition: %s, events go to the settings storage", esp_err_to_name(err));
     }
-    /* what the settings storage holds moves to flash; what a firmware before event codes left there is
-     * converted. Both get new numbers after the newest stored. */
-    size_t n_legacy = load_nvs(h, 'e', old);
-    size_t n_rec = load_nvs(h, 'r', old + n_legacy);
+    /* with evlog, all the settings storage holds moves there; without it, only what a firmware before event
+     * codes left is converted. Either way they get numbers after the newest stored. */
+    size_t n_legacy = nv ? load_nvs(h, 'e', old) : 0;
+    size_t n_rec = nv ? load_nvs(h, 'r', old + n_legacy) : 0;
     uint32_t base = on_flash ? ring.next : n_rec ? old[n_legacy + n_rec - 1].seq + 1 : 1;
-    size_t n_move = on_flash ? n_legacy + n_rec : n_legacy;
+    size_t n_move = on_flash ? n_legacy + n_rec : on_nvs ? n_legacy : 0;
+    size_t moved = 0;
     for (size_t i = 0; i < n_move; i++) {
         old[i].seq = base++;
-        store(h, &old[i]);
+        moved += store(h, &old[i]);
     }
-    for (uint32_t i = 0; i < DB_EVENTS_KEPT; i++) {
+    for (uint32_t i = 0; n_move && moved == n_move && i < DB_EVENTS_KEPT; i++) {
         char key[8];
         nvs_key('e', i, key);
         nvs_erase_key(h, key);
@@ -356,30 +365,30 @@ void db_log_keep_start(void)
             nvs_erase_key(h, key);
         }
     }
-    nvs_commit(h);
-    nvs_close(h);
+    if (moved < n_move) {
+        ESP_LOGE("evlog", "%u of %u earlier events not moved, kept where they are",
+                 (unsigned)(n_move - moved), (unsigned)n_move);
+    }
+    if (nv) {
+        nvs_commit(h);
+        nvs_close(h);
+    }
     if (on_flash) {
         ESP_LOGI("evlog", "events %u to %u in flash, %u moved from the settings storage",
-                 (unsigned)ring.oldest, (unsigned)ring.newest, (unsigned)n_move);
+                 (unsigned)ring.oldest, (unsigned)ring.newest, (unsigned)moved);
     }
-    /* the settings storage keeps only the last DB_EVENTS_KEPT: those go into RAM in front of this boot's */
+    /* without evlog, pages read only RAM: the last DB_EVENTS_KEPT go in front of this boot's */
     size_t n_all = n_legacy + n_rec;
     qsort(old, n_all, sizeof(*old), by_seq);
-    size_t n_front = on_flash ? 0 : n_all < DB_EVENTS_KEPT ? n_all : DB_EVENTS_KEPT;
-    const db_event_t *front = old + n_all - n_front;
+    size_t n_front = on_nvs ? (n_all < DB_EVENTS_KEPT ? n_all : DB_EVENTS_KEPT) : 0;
     portENTER_CRITICAL(&mux);
+    /* ponytail: assumes fewer than DB_EVENTS - DB_EVENTS_KEPT events before this point (1 to 3 today) */
     uint32_t mine = n_ram < DB_EVENTS - n_front ? n_ram : (uint32_t)(DB_EVENTS - n_front);
-    uint32_t src = n_ram > mine ? n_ram - mine : 0;
-    bool up = n_front < src; /* moved like memmove, also when it overlaps */
-    for (uint32_t k = 0; k < mine; k++) {
-        uint32_t i = up ? k : mine - 1 - k;
-        db_event_t *e = &ram[(i + n_front) % DB_EVENTS];
-        *e = ram[(src + i) % DB_EVENTS];
-        e->seq = base + i;
-        e->boot = (uint16_t)boot_no;
-    }
-    for (size_t i = 0; i < n_front; i++) {
-        ram[i] = front[i];
+    memmove(ram + n_front, ram, mine * sizeof(*ram));
+    memcpy(ram, old + n_all - n_front, n_front * sizeof(*ram));
+    for (uint32_t i = 0; i < mine; i++) {
+        ram[n_front + i].seq = base + i;
+        ram[n_front + i].boot = (uint16_t)boot_no;
     }
     n_ram = (uint32_t)n_front + mine;
     next_seq = base + mine;
@@ -450,9 +459,10 @@ void db_log_event_json(db_json_t *j, const char *key, const db_event_t *e)
     } else {
         db_json_null(j, "at");
     }
-    db_json_int(j, "since_s", e->since_s); /* after the start of its boot */
+    db_json_int(j, "since_s", e->since_s);
     db_json_int(j, "boot", (uint16_t)(boot_no - e->boot));
-    db_json_str(j, "kind", kinds[e->kind < K_COUNT ? e->kind : K_BOOT]);
+    uint8_t kind = code == DB_EV_TEXT ? e->kind : codes[code].kind; /* a legacy text keeps the kind it had */
+    db_json_str(j, "kind", kinds[kind < K_COUNT ? kind : K_BOOT]);
     db_json_str(j, "code", codes[code].id);
     db_json_str(j, "level", levels[codes[code].level]);
     db_json_arr_open(j, "args");

@@ -29,7 +29,7 @@ import { followLog, onDeviceEvent } from '../app/connection'
 import { deckName, decksOf } from '../app/derive'
 import { logFocusAtom, tabAtom, toast } from '../app/state'
 import { useStore } from '../app/store'
-import { useUi } from '../app/ui'
+import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Dialog } from '../components/Dialog'
 import { Btn, IconBtn, Seg } from '../components/controls'
@@ -63,6 +63,7 @@ const ICON: Record<Group, LucideIcon> = {
 }
 const IN_ICON = { deck: Hand, web: MousePointer2, api: KeyRound }
 const DAY = 864e5
+const DM = { day: 'numeric', month: 'numeric' } as const
 const PAGE = 200
 const LINES = 1000
 const RESTART = ['started', 'crashed']
@@ -80,7 +81,7 @@ interface Row {
 }
 
 /** The event in the page's language, from its code and args; the firmware's English when the page has no words. */
-export function eventText(e: DeviceEvent, t: T): string {
+function eventText(e: DeviceEvent, t: T): string {
   const a = e.args.map((x, i) => {
     if (e.code === 'host_connected' || e.code === 'host_left') return i === 0 ? t(`prog.${x}` as TKey) : x
     if (RESTART.includes(e.code)) return t(`boot.${x}` as TKey)
@@ -107,25 +108,30 @@ const startOfDay = (ms: number) => new Date(new Date(ms).toDateString()).getTime
 
 /** Every event the page has loaded, newest first; older pages come on scrolling, new ones over the socket. */
 function useEvents(on: boolean) {
+  const { t } = useUi()
   const [list, setList] = useState<DeviceEvent[]>([])
   const [page, setPage] = useState<EventPage | null>(null)
+  const [error, setError] = useState('')
   const busy = useRef(false)
-  const bootAt = useStore((s) => s.bootAt)
+  // a new start: `boot` of every event changes, and without evlog the numbers start again
+  const boot = useStore((s) => s.status.boot?.at ?? 0)
   const live = useStore((s) => s.conn === 'live')
-  const merge = (add: DeviceEvent[]) =>
-    setList((x) => {
-      const seen = new Set(x.map((e) => e.seq))
-      return [...x, ...add.filter((e) => !seen.has(e.seq))].sort((p, q) => q.seq - p.seq)
-    })
-  const load = async (before?: number) => {
+  // a fresh copy wins: `boot` counts back from the current start
+  const merge = (add: DeviceEvent[], fresh = false) =>
+    setList((x) =>
+      [...new Map([...(fresh ? [] : x), ...add].map((e) => [e.seq, e])).values()].sort((p, q) => q.seq - p.seq),
+    )
+  const load = async (before?: number, fresh = false) => {
     if (busy.current) return null
     busy.current = true
     try {
       const p = await api.events(before ? { before, n: PAGE } : { n: PAGE })
       setPage(p)
-      merge(p.events)
+      setError('')
+      merge(p.events, fresh)
       return p
-    } catch {
+    } catch (e) {
+      setError(errText(e, t))
       return null
     } finally {
       busy.current = false
@@ -136,7 +142,7 @@ function useEvents(on: boolean) {
     if (!on || !live) return
     const run = { off: false }
     void (async () => {
-      let p = await load()
+      let p = await load(undefined, true)
       for (let i = 0; i < 4 && p && !run.off; i++) {
         const last = p.events.at(-1)
         if (!last || last.seq <= p.oldest || (last.at && last.at * 1000 < Date.now() - 7 * DAY)) break
@@ -146,17 +152,24 @@ function useEvents(on: boolean) {
     return () => {
       run.off = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new boot or a reconnect reads again
-  }, [on, live, bootAt])
-  useEffect(() => onDeviceEvent((e) => merge([e])), [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new start or a reconnect reads again
+  }, [on, live, boot])
+  useEffect(
+    () =>
+      onDeviceEvent((e) => {
+        merge([e])
+        if (page && e.seq > page.newest + 1) void load() // some went missing on the way
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `page` is read when an event comes
+    [page],
+  )
   const oldest = list.at(-1)?.seq ?? 0
-  const more = !!page && oldest > page.oldest
   return {
     list,
     page,
-    more,
+    error,
     loadMore: () => {
-      if (more) void load(oldest)
+      if (page && oldest > page.oldest) void load(oldest)
     },
   }
 }
@@ -258,7 +271,7 @@ export function Log() {
     if (on.includes('tech')) {
       const boot = bootAt || now
       addLines(tech.lines, boot - 1000, now + 60_000, boot, 'l')
-      addLines(tech.prev, boot - 30 * DAY, boot, prevAt, 'p')
+      addLines(tech.prev, prevAt ? prevAt - 1000 : boot - 1, boot, prevAt, 'p')
     }
     return out.sort((a, b) => b.t - a.t)
   }, [ev.list, inputs, tech.lines, tech.prev, on, bootAt, now, t])
@@ -289,7 +302,7 @@ export function Log() {
       const last = out.at(-1)
       if (
         last &&
-        !r.ev?.code.match(/^(started|crashed)$/) &&
+        !(r.ev && RESTART.includes(r.ev.code)) &&
         last.g === r.g &&
         last.text === r.text &&
         last.ev?.boot === r.ev?.boot
@@ -349,7 +362,7 @@ export function Log() {
       ? t('log.today')
       : d === today - DAY
         ? t('log.yesterday')
-        : new Date(ms).toLocaleDateString(lang, { weekday: 'long', day: 'numeric', month: 'numeric' })
+        : new Date(ms).toLocaleDateString(lang, { weekday: 'long', ...DM })
   }
   const kindLabel = (g: Group) => t(`log.k_${g}`)
   const toggle = (g: Group) =>
@@ -390,7 +403,7 @@ export function Log() {
         <dd className="mono">{new Date(r.t).toLocaleString(lang, { dateStyle: 'short', timeStyle: 'medium' })}</dd>
         {e && (
           <>
-            <dt>{t('log.d_up')}</dt>
+            <dt>{t('meter.uptime')}</dt>
             <dd>{fmt.up(e.since_s)}</dd>
             <dt>{t('log.d_boot')}</dt>
             <dd>{e.boot ? t('log.d_boot_n', { n: e.boot }) : t('log.d_boot_0')}</dd>
@@ -486,6 +499,7 @@ export function Log() {
   })
 
   const problemsLine = t('log.problems', { n: week.total })
+  const lastAt = ev.list.at(-1)?.at
   return (
     <div className="cards lg">
       <Card
@@ -546,11 +560,7 @@ export function Log() {
                 key={start}
                 type="button"
                 aria-pressed={day === start}
-                aria-label={new Date(start).toLocaleDateString(lang, {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'numeric',
-                })}
+                aria-label={new Date(start).toLocaleDateString(lang, { weekday: 'long', ...DM })}
                 onClick={() => setDay(day === start ? null : start)}
               >
                 <span className="dbar">
@@ -628,7 +638,7 @@ export function Log() {
                 <span className="dayf">
                   <Calendar size={14} aria-hidden />
                   {t('log.only_day', {
-                    day: new Date(day).toLocaleDateString(lang, { weekday: 'short', day: 'numeric', month: 'numeric' }),
+                    day: new Date(day).toLocaleDateString(lang, { weekday: 'short', ...DM }),
                   })}
                   <IconBtn icon={X} label={t('log.day_off')} onClick={() => setDay(null)} />
                 </span>
@@ -662,7 +672,7 @@ export function Log() {
           )}
           {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the list scrolls in its own box and must be reachable by keyboard */}
           <div className="lg-box" ref={box} onScroll={onScroll} tabIndex={0} aria-label={t('tab.log')}>
-            {list.length ? list : <div className="empty">{t(ev.page ? 'log.none' : 'log.loading')}</div>}
+            {list.length ? list : <div className="empty">{ev.error || t(ev.page ? 'log.none' : 'log.loading')}</div>}
           </div>
           <div className="lg-foot">
             <span>
@@ -670,16 +680,11 @@ export function Log() {
                 ? t('log.foot', {
                     n: fmt.num(ev.list.length),
                     total: fmt.num(ev.page.total),
-                    date: ev.list.at(-1)?.at
-                      ? new Date((ev.list.at(-1)?.at ?? 0) * 1000).toLocaleDateString(lang, {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'numeric',
-                        })
-                      : '–',
+                    date: lastAt ? new Date(lastAt * 1000).toLocaleDateString(lang, { weekday: 'short', ...DM }) : '–',
                   })
                 : ''}
             </span>
+            {ev.page && ev.page.store !== 'flash' && <span>{t(`log.store_${ev.page.store}`)}</span>}
           </div>
         </div>
       </section>

@@ -52,7 +52,7 @@ def setup_request(ip: str) -> None:
 
 
 def test_the_last_event_before_a_restart_is_kept():
-    """Without evlog the bridge writes at most every 30 s: the second event waits, and the restart writes it."""
+    """The second event may still wait for the keeper (30 s apart without evlog): the restart writes it."""
     ip = f"192.0.2.{random.randint(10, 250)}"
     setup_request(ip)  # written at once
     setup_request(ip)  # written only on the way down

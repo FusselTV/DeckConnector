@@ -16,13 +16,13 @@ static uint32_t erases[SECTS];
 static size_t torn_at; /* >0: the next write stops after this many bytes, as at a power cut */
 static uint8_t buf[DB_EVRING_ERASE];
 
-static int rd(void *ctx __attribute__((unused)), uint32_t off, void *out, size_t len)
+static int rd(uint32_t off, void *out, size_t len)
 {
     memcpy(out, flash + off, len);
     return 0;
 }
 
-static int wr(void *ctx __attribute__((unused)), uint32_t off, const void *in, size_t len)
+static int wr(uint32_t off, const void *in, size_t len)
 {
     for (size_t i = 0; i < len; i++) {
         if (flash[off + i] != 0xFF) {
@@ -37,7 +37,7 @@ static int wr(void *ctx __attribute__((unused)), uint32_t off, const void *in, s
     return n == len ? 0 : -1;
 }
 
-static int er(void *ctx __attribute__((unused)), uint32_t off, size_t len)
+static int er(uint32_t off, size_t len)
 {
     TEST_ASSERT_EQUAL(0, off % DB_EVRING_ERASE);
     memset(flash + off, 0xFF, len);

@@ -50,20 +50,19 @@ static bool blank(const uint8_t *p, size_t len)
 
 static int erase(db_evring_t *r, uint32_t sector)
 {
-    r->erases++;
-    return r->f.erase(r->f.ctx, sector * DB_EVRING_ERASE, DB_EVRING_ERASE);
+    return r->f.erase(sector * DB_EVRING_ERASE, DB_EVRING_ERASE);
 }
 
 static int erase_if_used(db_evring_t *r, uint32_t sector, uint8_t *buf)
 {
-    int err = r->f.read(r->f.ctx, sector * DB_EVRING_ERASE, buf, DB_EVRING_ERASE);
+    int err = r->f.read(sector * DB_EVRING_ERASE, buf, DB_EVRING_ERASE);
     return err ? err : blank(buf, DB_EVRING_ERASE) ? 0 : erase(r, sector);
 }
 
 static int scan(db_evring_t *r, uint8_t *b)
 {
     for (uint32_t s = 0; s < sectors(r); s++) {
-        int err = r->f.read(r->f.ctx, s * DB_EVRING_ERASE, b, DB_EVRING_ERASE);
+        int err = r->f.read(s * DB_EVRING_ERASE, b, DB_EVRING_ERASE);
         if (err) {
             return err;
         }
@@ -82,7 +81,7 @@ static int scan(db_evring_t *r, uint8_t *b)
 static int skip_used(db_evring_t *r, uint8_t *b)
 {
     uint32_t first = r->next % PER;
-    int err = r->f.read(r->f.ctx, r->sector * DB_EVRING_ERASE, b, DB_EVRING_ERASE);
+    int err = r->f.read(r->sector * DB_EVRING_ERASE, b, DB_EVRING_ERASE);
     for (uint32_t i = PER; !err && i-- > first;) {
         if (blank(b + (size_t)i * DB_EVREC_SIZE, DB_EVREC_SIZE)) {
             continue;
@@ -133,7 +132,7 @@ int db_evring_append(db_evring_t *r, db_evrec_t *rec)
         r->sector = sec;
     }
     rec->check = db_evrec_check(rec);
-    int err = r->f.write(r->f.ctx, rec->seq % slots(r) * DB_EVREC_SIZE, rec, DB_EVREC_SIZE);
+    int err = r->f.write(rec->seq % slots(r) * DB_EVREC_SIZE, rec, DB_EVREC_SIZE);
     r->next = rec->seq + 1; /* also after a failed write: that slot may hold half a record now */
     if (err) {
         return err;
@@ -149,8 +148,8 @@ int db_evring_append(db_evring_t *r, db_evrec_t *rec)
 bool db_evring_get(const db_evring_t *r, uint32_t seq, db_evrec_t *out)
 {
     uint32_t slot = seq % slots(r);
-    return seq && r->f.read(r->f.ctx, slot * DB_EVREC_SIZE, out, sizeof(*out)) == 0 &&
-           valid(out, slot, slots(r)) && out->seq == seq;
+    return seq && r->f.read(slot * DB_EVREC_SIZE, out, sizeof(*out)) == 0 && valid(out, slot, slots(r)) &&
+           out->seq == seq;
 }
 
 void db_evrec_set_args(db_evrec_t *rec, const char *const *args)

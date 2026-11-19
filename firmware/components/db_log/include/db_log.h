@@ -27,6 +27,7 @@ void db_log_set_sink(void (*write)(const char *line, size_t len));
 #define DB_EVENTS      64
 #define DB_EVENTS_KEPT 40
 
+/* Kept in flash by number: new codes go last, before DB_EV_COUNT. */
 typedef enum {
     DB_EV_TEXT, /* from a firmware before event codes: its English text */
     DB_EV_MORE, /* the rest of the text before it */

@@ -368,7 +368,7 @@ static struct {
     int64_t since;
 } ev_query;
 
-/* GET /api/events?before=<seq>&since=<unix>&n=<count>: newest first, from flash, earlier boots included */
+/* GET /api/events?before=<seq>&since=<unix>&n=<count>: newest first, earlier boots included */
 static size_t events_json(char *buf, size_t cap)
 {
     uint32_t oldest, newest;
@@ -1349,7 +1349,7 @@ esp_err_t get_input_log(httpd_req_t *req)
     log_since = any && httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
     log_before = any && httpd_query_key_value(q, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
     return send_built(req, INPUT_PAGE * 180 + 16,
-                      input_log_json); /* runs under the handler lock: log_since stays put */
+                      input_log_json); /* runs under the handler lock: log_since and log_before stay put */
 }
 
 /* A server or Companion's Satellite address: connect now instead of after the wait. Dock hosts connect to us.

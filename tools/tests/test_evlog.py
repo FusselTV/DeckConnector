@@ -1,7 +1,7 @@
 """The event history across restarts and partition tables, on firmware/sim with a flash image that outlives it.
 
-A table without `evlog` keeps today's behaviour: the last 40 events in the settings storage. Once the table has
-`evlog`, the next start moves them into it, and those from a firmware before event codes come along as text.
+A table without `evlog` keeps the behaviour from before it, the last 40 events in the settings storage. Once the
+table has `evlog`, the next start moves them into it, and those from a firmware before event codes come along as text.
 """
 
 import glob
@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from conftest import WORKER, events, start_sim
+from conftest import WORKER, start_sim
 
 pytestmark = pytest.mark.sim
 
@@ -24,6 +24,7 @@ IDF = Path(os.environ.get("IDF_PATH", Path.home() / "esp/esp-idf"))
 OLD_TABLE = "nvs, data, nvs, 0x9000, 0x6000\n"
 NEW_TABLE = (ROOT / "firmware/sim/partitions.csv").read_text()
 PORT = 38180 + WORKER
+AUTH = "Basic YWRtaW46c2ltdWxhdG9yLXBhc3M="  # admin:simulator-pass
 LONG = "WLAN roam Fussel-IoT 7c:10:c9:aa:01:01 -> 7c:10:c9:aa:01:02, channel 11"
 
 
@@ -68,7 +69,7 @@ def boot(flash: Path) -> list[dict]:
     try:
         req = urllib.request.Request(
             f"http://127.0.0.1:{PORT}/api/events",
-            headers={"Authorization": "Basic YWRtaW46c2ltdWxhdG9yLXBhc3M=", "X-DeckConnector": "1"},
+            headers={"Authorization": AUTH, "X-DeckConnector": "1"},
         )
         body = json.loads(urllib.request.urlopen(req, timeout=5).read())
         time.sleep(1)  # the keeper stores this boot's start right after it begins
@@ -112,13 +113,30 @@ def test_an_old_table_keeps_events_in_settings_and_evlog_takes_them_over(tmp_pat
     assert seqs == sorted(seqs, reverse=True) and len(set(seqs)) == len(seqs)
 
 
-def test_pages_go_back_by_number_and_stop_at_a_time():
+def test_pages_go_back_by_number_and_stop_at_a_time(tmp_path):
+    flash = tmp_path / "flash.bin"
+    flash.write_bytes(b"\xff" * 0x90000)
+    write_at(flash, 0x8000, table(NEW_TABLE, tmp_path))
+    write_at(flash, 0x9000, legacy_nvs(tmp_path))
+    sim = start_sim(PORT, DB_SIM_PASSWORD="simulator-pass", DB_SIM_FLASH=str(flash))
+    try:
 
-    newest = events()
-    assert newest[-1]["code"] == "started" and newest[-1]["args"] == ["power"]
-    seq = newest[-1]["seq"]
-    assert events(f"?before={seq}&n=5") == [e for e in newest if e["seq"] < seq][-5:]
-    assert events(f"?since={(newest[-1]['at'] or 0) + 1}") == [], "since ends the page at older events"
+        def get(q: str) -> dict:
+            url = f"http://127.0.0.1:{PORT}/api/events{q}"
+            req = urllib.request.Request(url, headers={"Authorization": AUTH, "X-DeckConnector": "1"})
+            return json.loads(urllib.request.urlopen(req, timeout=5).read())
+
+        everything = get("")
+        seqs = [e["seq"] for e in everything["events"]]
+        assert len(seqs) == 5 and everything["store"] == "flash", "4 moved, the long one in two records, 1 new"
+        assert [e["seq"] for e in get("?n=2")["events"]] == seqs[:2]
+        assert [e["seq"] for e in get(f"?before={seqs[1]}&n=2")["events"]] == seqs[2:4]
+        assert get(f"?before={seqs[-1]}")["events"] == []
+        newest_at = everything["events"][0]["at"]
+        assert [e["seq"] for e in get(f"?since={newest_at}")["events"]] == [seqs[0]], "older events end the page"
+    finally:
+        sim.kill()
+        sim.wait()
 
 
 def test_a_new_event_goes_out_on_the_web_socket():
@@ -126,7 +144,7 @@ def test_a_new_event_goes_out_on_the_web_socket():
 
     sim = start_sim(PORT, DB_SIM_PASSWORD="simulator-pass")
     try:
-        auth = {"Authorization": "Basic YWRtaW46c2ltdWxhdG9yLXBhc3M="}
+        auth = {"Authorization": AUTH}
         with connect(f"ws://127.0.0.1:{PORT}/api/ws", additional_headers=auth) as ws:
             req = urllib.request.Request(
                 f"http://127.0.0.1:{PORT}/api/config",

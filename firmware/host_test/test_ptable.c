@@ -72,7 +72,7 @@ static void test_the_same_table_may_be_written(void)
     TEST_ASSERT_NULL(db_ptable_check(now, next, sizeof(now), 0x20000, IMAGE, FLASH));
 }
 
-/* the table before the event history got its partition: today's devices write ours over it */
+/* the table before evlog, as devices in the field have it: the ptable update writes ours over it */
 static void test_the_table_before_evlog_may_take_evlog(void)
 {
     write_table(now, ours, ROWS - 1);

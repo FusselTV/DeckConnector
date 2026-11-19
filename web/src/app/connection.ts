@@ -82,7 +82,6 @@ export async function refreshConfig() {
 
 // The firmware's input ring is the one list; each ws `input` asks it for what is new. A failed fetch waits for the next.
 let inputSeq = 0
-const INPUT_PAGE = 400 // the firmware's page of GET /api/input/log
 let inputTimer = 0
 let inputBusy = false
 let inputAgain = false
@@ -100,11 +99,12 @@ async function loadInputs() {
     dispatch({ type: 'inputs', list: fromLog(fresh, bootAt), replace: !since })
     inputSeq = fresh.at(-1)?.seq ?? inputSeq
     // the first answer is the newest page: the older ones of the firmware's ring follow
-    for (let first = list[0]?.seq ?? 0, n = list.length; !since && n >= INPUT_PAGE && first > 1; ) {
+    for (let first = list[0]?.seq ?? 0; !since && first > 1;) {
       const older = await api.inputLog(0, first).catch(() => [])
+      const head = older[0]
+      if (!head) break
       dispatch({ type: 'inputs', list: fromLog(older, bootAt), older: true })
-      n = older.length
-      first = older[0]?.seq ?? 0
+      first = head.seq
     }
   } finally {
     inputBusy = false

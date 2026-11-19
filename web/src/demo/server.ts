@@ -443,10 +443,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'GET /api/input/log': {
       const since = Number(q.get('since') ?? 0)
       const before = Number(q.get('before')) || Infinity
-      return res(
-        'inputLog',
-        s.inputs.filter((e) => e.seq > since && e.seq < before).slice(-400),
-      )
+      return res('inputLog', s.inputs.filter((e) => e.seq > since && e.seq < before).slice(-400))
     }
     case 'POST /api/sources/retry': {
       const h = str('host')

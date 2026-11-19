@@ -29,10 +29,9 @@ typedef struct {
 _Static_assert(sizeof(db_evrec_t) == DB_EVREC_SIZE, "a record is one slot");
 
 typedef struct {
-    void *ctx;
-    int (*read)(void *ctx, uint32_t off, void *buf, size_t len);
-    int (*write)(void *ctx, uint32_t off, const void *buf, size_t len);
-    int (*erase)(void *ctx, uint32_t off, size_t len);
+    int (*read)(uint32_t off, void *buf, size_t len);
+    int (*write)(uint32_t off, const void *buf, size_t len);
+    int (*erase)(uint32_t off, size_t len);
     uint32_t size; /* a multiple of DB_EVRING_ERASE, at least two sectors */
 } db_evflash_t;
 
@@ -41,8 +40,7 @@ typedef struct {
     uint32_t next;   /* the lowest seq that may be written */
     uint32_t oldest; /* the lowest seq kept; 0 when empty */
     uint32_t newest; /* 0 when empty */
-    uint32_t sector; /* the sector `next` falls in */
-    uint32_t erases; /* sectors erased since open */
+    uint32_t sector; /* the sector written last, or `next`'s after open; the one after it is erased */
 } db_evring_t;
 
 /* Finds the newest record and gets the next sectors ready. `buf` holds DB_EVRING_ERASE bytes. 0 or the

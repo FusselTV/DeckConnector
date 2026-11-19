@@ -3,6 +3,7 @@ import { expect, login, sim, test } from './fixtures.ts'
 const TABS = ['Overview', 'Sources', 'Deck', 'Network', 'Access', 'Firmware', 'Log', 'Diagnostics']
 
 async function openTab(page: import('@playwright/test').Page, name: string) {
+  await page.locator('.side:visible, .tabbar:visible').first().waitFor() // after a reload the shell comes late
   if (await page.locator('.side').isVisible()) await page.getByRole('tab', { name: new RegExp(`^${name}`) }).click()
   else if (['Overview', 'Sources', 'Network'].includes(name))
     await page
@@ -264,6 +265,32 @@ test('a pairing answer names the host that asked', async ({ app: page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
+test('a notice opens the log on its kind, with the newest matching entry open', async ({ app: page }) => {
+  await page.route('**/api/status', async (r) => {
+    const res = await r.fetch()
+    const j = (await res.json()) as Record<string, unknown>
+    j.pairing = { request: '192.168.1.50', request_name: 'studio-pc', hosts: [], denied: [] }
+    await r.fulfill({ response: res, json: j })
+  })
+  const ask = { ...FAKE[0], seq: 251, kind: 'pairing', code: 'pair_asks', level: 'warn', args: ['192.168.1.50'] }
+  await page.route(
+    (u) => u.pathname === '/api/events',
+    (r) =>
+      r.fulfill({ json: { events: [ask, ...FAKE.slice(0, 20)], oldest: 1, newest: 251, total: 251, store: 'flash' } }),
+  )
+  await page.reload()
+  await openTab(page, 'Log')
+  await page.locator('#lg-q').fill('nothing like this')
+  await openTab(page, 'Overview')
+  await page.locator('#ntc-pair').getByRole('button', { name: 'Show in log' }).click()
+  await expect(page.locator('#lg-q')).toHaveValue('')
+  await expect(
+    page.locator('.lg-row').filter({ hasText: '192.168.1.50 asks to pair' }).getByRole('button'),
+  ).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('.lg-box')).not.toContainText('Companion connected')
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('a restart shows the addresses the device names in its reply', async ({ app: page }) => {
   await page.route('**/api/config', (r) =>
     r.request().method() === 'PUT'
@@ -287,15 +314,16 @@ test('the Log tab shows the device timeline with its restart', async ({ app: pag
 const FAKE = Array.from({ length: 250 }, (_, i) => {
   const seq = 250 - i
   const lan = seq === 240
+  const lost = seq >= 245 && seq <= 247 // the same thing three times: one row
   return {
     seq,
     at: Math.floor(Date.now() / 1000) - i * 60,
     since_s: 9999,
     boot: 0,
     kind: lan ? 'lan' : 'source',
-    code: lan ? 'lan_dead' : seq === 1 ? 'companion_setup' : 'companion_connected',
-    level: lan ? 'warn' : 'ok',
-    args: [`10.0.0.${seq % 250}:16622`, 'LAN'],
+    code: lan ? 'lan_dead' : lost ? 'companion_lost' : seq === 1 ? 'companion_setup' : 'companion_connected',
+    level: lan || lost ? 'warn' : 'ok',
+    args: lost ? ['closed'] : [`10.0.0.${seq % 250}:16622`, 'LAN'],
     text: 'x',
   }
 })
@@ -315,7 +343,8 @@ test('Log: problems, kinds, search and older pages on scrolling', async ({ app: 
   await expect(page.locator('.lg-foot')).toContainText('of 250 entries')
   await expect(box).toContainText('LAN dead')
   await page.getByRole('radio', { name: 'Problems' }).click()
-  await expect(box.locator('.lg-row')).toHaveCount(1)
+  await expect(box.locator('.lg-row')).toHaveCount(2)
+  await expect(box.locator('.lg-row').first()).toContainText('Companion lost: closed×3')
   await page.getByRole('radio', { name: 'All' }).click()
   if (await page.locator('.lg .chips').isVisible()) {
     await page.locator('.chip').filter({ hasText: 'Network' }).click()

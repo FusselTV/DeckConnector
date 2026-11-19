@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
+import { en } from '../src/i18n/en.ts'
 
 // Plain imports would make tsc follow the app's extensionless imports, which this tsconfig refuses.
 const [modelFile, serverFile, uiFile]: string[] = [
@@ -138,11 +139,16 @@ test('the mock answers the main GET routes with the shape the simulator gives', 
 test('the mock knows every firmware event code as the firmware defines it', () => {
   const src = readFileSync(new URL('components/db_log/evlog.c', fw), 'utf8')
   const codes = Object.fromEntries(
-    [...src.matchAll(/\[DB_EV_\w+\] = \{"(\w+)",\s*K_(\w+),\s*L_(\w+),\s*((?:"[^"]*"\s*)+)\}/g)].map((m) => [
+    [...src.matchAll(/\[DB_EV_\w+\]\s*=\s*\{\s*"(\w+)",\s*K_(\w+),\s*L_(\w+),\s*((?:"[^"]*"\s*)+)\}/g)].map((m) => [
       m[1],
       [m[2]?.toLowerCase(), m[3]?.toLowerCase(), [...m[4].matchAll(/"([^"]*)"/g)].map((x) => x[1]).join('')],
     ]),
   )
-  expect(Object.keys(codes).length).toBeGreaterThan(30)
+  const enumSrc = readFileSync(new URL('components/db_log/include/db_log.h', fw), 'utf8')
+  expect(Object.keys(codes).length, 'a code without its row in the table').toBe(
+    [...enumSrc.matchAll(/^\s+DB_EV_(?!COUNT)\w+,/gm)].length,
+  )
   expect(EV).toEqual(codes)
+  for (const code of Object.keys(codes).filter((c) => !['text', 'more', 'crashed'].includes(c)))
+    expect(en, `the page has no words for ${code}`).toHaveProperty([`ev.${code}`])
 })

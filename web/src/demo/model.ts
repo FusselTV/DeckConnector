@@ -323,7 +323,7 @@ const makeEvent = (s: Demo, at: number, boot: number, code: string, args: string
   const [kind, level, en] = EV[code] ?? ['boot', 'info', '{0}']
   return {
     seq: (s.events.at(-1)?.seq ?? 0) + 1,
-    since_s: Math.max(0, Math.floor((at - (boot ? at - 30_000 : s.bootAt)) / 1000)),
+    since_s: boot ? 30 : Math.max(0, Math.floor((at - s.bootAt) / 1000)),
     boot,
     at: Math.floor(at / 1000),
     kind,
@@ -337,17 +337,18 @@ const makeEvent = (s: Demo, at: number, boot: number, code: string, args: string
 /** A bridge that has run for hours has a past: events of this start and the ones before, and log lines. */
 export function history(s: Demo, now: number) {
   const D = 86_400_000
+  const comp = `${s.cfg.satellite || '192.168.1.20'}:16622`
   const before: [number, number, string, string[]][] = [
     [5 * D, 2, 'started', ['power']],
-    [5 * D - 9000, 2, 'companion_connected', [`${s.cfg.satellite || '192.168.1.20'}:16622`, 'LAN']],
+    [5 * D - 9000, 2, 'companion_connected', [comp, 'LAN']],
     [4 * D, 2, 'lan_dead', []],
     [4 * D - 40_000, 2, 'lan_back', []],
     [3 * D, 2, 'pair_asks', ['192.168.1.77']],
     [3 * D - 60_000, 2, 'pair_refused', ['192.168.1.77']],
     [D + 3_600_000, 2, 'companion_lost', ['closed']],
-    [D + 3_590_000, 2, 'companion_connected', [`${s.cfg.satellite || '192.168.1.20'}:16622`, 'LAN']],
+    [D + 3_590_000, 2, 'companion_connected', [comp, 'LAN']],
     [D, 1, 'crashed', ['watchdog']],
-    [D - 9000, 1, 'companion_connected', [`${s.cfg.satellite || '192.168.1.20'}:16622`, 'LAN']],
+    [D - 9000, 1, 'companion_connected', [comp, 'LAN']],
   ]
   for (const [ago, boot, code, args] of before) {
     const at = s.bootAt - ago
@@ -381,7 +382,7 @@ const up = (s: Demo, now: number) => Math.max(0, Math.floor((now - s.bootAt) / 1
 
 /** The flash ring keeps 8064 events at least. */
 export function event(s: Demo, now: number, code: string, ...args: string[]) {
-  s.events = [...s.events, { ...makeEvent(s, now, 0, code, args), since_s: up(s, now) }].slice(-8064)
+  s.events = [...s.events, makeEvent(s, now, 0, code, args)].slice(-8064)
 }
 
 /** GET /api/events?before=&since=&n= as the firmware answers it: newest first. */

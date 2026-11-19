@@ -1162,26 +1162,7 @@
     align-items: center;
     gap: 8px;
   }
-  /* log, health */
-  .log {
-    background: var(--well);
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    padding: 10px 12px;
-    height: 300px;
-    overflow: auto;
-    margin: 0;
-    font-size: 12.5px;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .log .W {
-    color: var(--warn-fg);
-  }
-  .log .E {
-    color: var(--bad-fg);
-  }
+  /* health */
   .sparks {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3222,36 +3203,6 @@
     font-size: 12px;
     color: var(--fg-2);
   }
-  .intbl {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-  .intbl th {
-    text-align: left;
-    font-weight: 600;
-    color: var(--fg-2);
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--line);
-  }
-  .intbl td {
-    padding: 6px 8px;
-    border-bottom: 1px solid var(--line);
-    vertical-align: top;
-  }
-  .ino {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-  }
-  .ino.ev {
-    white-space: normal;
-  }
-  .ino.web .ic,
-  .ino.api .ic {
-    color: var(--amber-fg);
-  }
   .list,
   .srctbl,
   .hosts,
@@ -3374,9 +3325,6 @@
     }
     .notice .nacts {
       grid-column: 2/-1;
-    }
-    .ino:not(.ev) span {
-      display: none;
     }
     .wsub {
       padding-left: 24px;
