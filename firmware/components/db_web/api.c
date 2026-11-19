@@ -1525,12 +1525,9 @@ esp_err_t post_sound_stream(httpd_req_t *req)
         if (err == ESP_OK) {
             return ESP_OK;
         }
-        if (err != ESP_ERR_NOT_SUPPORTED) {
-            status = "503 Service Unavailable";
-        }
-        error = err == ESP_ERR_NOT_SUPPORTED ? "this board has no speaker"
-                : err == ESP_ERR_NO_MEM      ? "no memory"
-                                             : "busy";
+        bool none = err == ESP_ERR_NOT_SUPPORTED;
+        status = none ? status : "503 Service Unavailable";
+        error = none ? "this board has no speaker" : "no memory";
     }
     httpd_resp_set_hdr(req, "Connection", "close");
     send_error(req, status, error);

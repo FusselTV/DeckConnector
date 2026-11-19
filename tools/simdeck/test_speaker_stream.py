@@ -66,3 +66,17 @@ def test_a_client_that_keeps_connections_does_not_reuse_a_streams(start):
     for _ in range(2):
         assert post_stream(sim, b"\0" * 3200, c)[:2] == (200, {"ok": True, "stopped": False})
     c.close()
+
+
+def test_turning_the_speaker_off_ends_the_stream(start):
+    sim = start("plus")
+    sim.config(speaker=True)
+    result = {}
+    t = threading.Thread(target=lambda: result.update(r=post_stream(sim, b"\0" * RATE * 10)))
+    t.start()
+    time.sleep(1)
+    sim.config(speaker=False)
+    t.join()
+    status, body, took = result["r"]
+    assert (status, body) == (200, {"ok": True, "stopped": True})
+    assert took < 3

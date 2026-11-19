@@ -46,7 +46,7 @@ Diese sind zuerst deaktiviert. Schalte sie am Gerät ein, wenn du sie brauchst:
 
 **Lautstärke**, **Finden** und den Mediaplayer **Lautsprecher** gibt es nur, solange **Lautsprecher angeschlossen** in der Weboberfläche an ist. Ändert sich das, kommen und gehen sie von selbst. **Bildschirm aus nach** ist in Minuten, 0 heißt nie. **Bildschirmschoner-Helligkeit** ist die Stufe, auf die die Decks nach dieser Zeit dimmen. 0 schaltet sie aus.
 
-Der **Lautsprecher** spielt Sprachausgabe und Audiodateien aus dem Medienbrowser. Home Assistant wandelt sie mit ffmpeg um, also geht jedes Format, das ffmpeg liest. Der Ton ist mono mit 16 kHz. Home Assistant wandelt das ganze Stück um, bevor es spielt, und hört nach 10 Minuten auf. Webradio geht deshalb nicht. Ein neues Stück oder ein Ton des Connectors beendet das laufende.
+Der **Lautsprecher** spielt Sprachausgabe und Audiodateien aus dem Medienbrowser. Home Assistant wandelt sie mit ffmpeg um, also geht jedes Format, das ffmpeg liest. Der Ton ist mono mit 16 kHz. Home Assistant wandelt das ganze Stück zuerst um und spielt höchstens 10 Minuten davon. Webradio geht deshalb nicht. Ein neues Stück oder ein Ton des Connectors beendet das laufende.
 
 Der Connector schickt jede Änderung sofort. Signal und Temperatur kommen einmal pro Minute.
 

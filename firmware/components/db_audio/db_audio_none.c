@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "db_audio.h"
+#include "db_config.h"
 #include "db_stream.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -30,7 +31,7 @@ esp_err_t db_audio_check(int volume, int gain, db_audio_check_t *out)
 /* Takes as long as the board would to play it. */
 static bool sim_play(void *ctx, int16_t *pcm, size_t n)
 {
-    if (ctx != newest) {
+    if (ctx != newest || !db_config()->speaker) {
         return false;
     }
     vTaskDelay(pdMS_TO_TICKS(n / 16));

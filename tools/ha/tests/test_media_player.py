@@ -1,5 +1,6 @@
 import asyncio
 import math
+import os
 import struct
 import time
 from unittest.mock import patch
@@ -40,7 +41,7 @@ async def test_the_board_gets_a_paced_body_with_its_length(socket_enabled):
     pcm = bytes(range(256)) * 200  # 1.6 s at 16 kHz
     try:
         async with aiohttp.ClientSession() as session:
-            await Api(session, f"127.0.0.1:{port}", TOKEN).play(pcm)
+            assert await Api(session, f"127.0.0.1:{port}", TOKEN).play(pcm)
     finally:
         await runner.cleanup()
     assert got["body"] == pcm
@@ -69,6 +70,13 @@ async def test_ffmpeg_turns_any_file_into_the_boards_format(hass, tmp_path):
         await decode(hass, str(tmp_path / "missing.mp3"))
     assert err.value.translation_key == "cannot_decode"
     assert "missing.mp3" in err.value.translation_placeholders["error"]
+    tone_wav(tmp_path / "empty.wav", seconds=0)
+    with pytest.raises(HomeAssistantError, match="cannot_decode"):
+        await decode(hass, str(tmp_path / "empty.wav"))
+    os.mkfifo(tmp_path / "stalled")  # ffmpeg waits for a writer that never comes, like a stalled server
+    with patch("custom_components.deckconnector.media_player.DECODE_S", 0.5), pytest.raises(HomeAssistantError) as err:
+        await decode(hass, str(tmp_path / "stalled"))
+    assert "a live stream?" in err.value.translation_placeholders["error"]
 
 
 async def test_the_speaker_plays_stops_and_sets_the_volume(hass, entry, aioclient_mock, socket):
@@ -136,7 +144,7 @@ async def test_tts_and_media_source_resolve_before_decoding(hass, entry, aioclie
     resolved = type("Play", (), {"url": "/api/tts_proxy/x.mp3"})()
     with (
         patch("homeassistant.components.media_source.async_resolve_media", return_value=resolved),
-        patch("custom_components.deckconnector.media_player.decode", return_value=b"") as dec,
+        patch("custom_components.deckconnector.media_player.decode", return_value=b"\0\0") as dec,
         patch.object(Api, "play"),
     ):
         await hass.services.async_call(
@@ -152,3 +160,18 @@ async def test_tts_and_media_source_resolve_before_decoding(hass, entry, aioclie
         )
     assert dec.call_args.args[1].endswith("/api/tts_proxy/x.mp3")
     assert dec.call_args.args[1].startswith("http")
+
+
+async def test_a_stream_the_board_ends_early_is_logged(hass, entry, aioclient_mock, socket, caplog):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.post(f"http://{HOST}/api/sound/stream", json={"ok": True, "stopped": True})
+    with patch("custom_components.deckconnector.media_player.decode", return_value=b"\0\0" * 10):
+        await hass.services.async_call(
+            "media_player",
+            "play_media",
+            {"entity_id": PLAYER, "media_content_type": "music", "media_content_id": "http://x/a.mp3"},
+            blocking=True,
+        )
+        await hass.async_block_till_done()
+    assert hass.states.get(PLAYER).state == "idle"
+    assert "ended it early" in caplog.text

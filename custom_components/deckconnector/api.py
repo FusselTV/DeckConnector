@@ -71,8 +71,9 @@ class Api:
     async def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         return (await _call(self.session, method, f"http://{self.host}{path}", json=body, headers=self.headers))[0]
 
-    async def play(self, pcm: bytes) -> None:
-        """Plays 16 kHz mono s16le on the board's speaker; returns when it has played."""
+    async def play(self, pcm: bytes) -> bool:
+        """Plays 16 kHz mono s16le on the board's speaker; returns when it has played, False when something on
+        the board ended it early."""
 
         async def paced() -> AsyncIterator[bytes]:
             # a second ahead of the speaker: the board buffers three, and what it cannot take yet would wait in
@@ -86,7 +87,7 @@ class Api:
 
         # Content-Length set: the board takes no chunked body
         headers = {**self.headers, "Content-Length": str(len(pcm)), "Content-Type": "application/octet-stream"}
-        await _call(
+        body, _ = await _call(
             self.session,
             "POST",
             f"http://{self.host}/api/sound/stream",
@@ -94,6 +95,7 @@ class Api:
             headers=headers,
             timeout=aiohttp.ClientTimeout(total=len(pcm) / PCM_RATE + 30),
         )
+        return not body.get("stopped")
 
     async def status(self) -> dict[str, Any]:
         body = await self.request("GET", "/api/status")

@@ -403,7 +403,9 @@ static esp_err_t timed(httpd_req_t *req)
     }
     int64_t start = esp_timer_get_time();
     char origin[96];
-    cors(req, origin);
+    if (r->handler != post_sound_stream) { /* it answers from the audio task, after this frame is gone */
+        cors(req, origin);
+    }
     bool allowed = (r->level == WEB_OPEN || auth_check(req, r->level)) && !(r->deck && web_deck_refused(req));
     esp_err_t err = allowed ? r->handler(req) : ESP_OK;
     uint32_t us = (uint32_t)(esp_timer_get_time() - start);

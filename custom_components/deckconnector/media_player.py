@@ -27,7 +27,8 @@ from .entity import BoardEntity
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 1
-MAX_S = 600  # the whole clip is decoded before it plays, so an endless stream needs an end
+MAX_S = 600
+DECODE_S = 30  # the whole clip is decoded before it plays: a live stream would take MAX_S
 
 
 async def async_setup_entry(
@@ -40,29 +41,31 @@ async def async_setup_entry(
 async def decode(hass: HomeAssistant, url: str) -> bytes:
     proc = await asyncio.create_subprocess_exec(
         get_ffmpeg_manager(hass).binary,
-        *("-nostdin", "-loglevel", "error", "-i", url, "-t", str(MAX_S)),
+        *("-nostdin", "-loglevel", "error", "-rw_timeout", "10000000", "-i", url, "-t", str(MAX_S)),
         *("-f", "s16le", "-ac", "1", "-ar", "16000", "-"),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        pcm, err = await proc.communicate()
+        async with asyncio.timeout(DECODE_S):
+            pcm, err = await proc.communicate()
+    except TimeoutError:
+        pcm, err = b"", f"no end after {DECODE_S} s, a live stream?".encode()
     finally:
         if proc.returncode is None:
             proc.kill()
             await proc.wait()
-    if proc.returncode:
+    if proc.returncode or not pcm:
         raise HomeAssistantError(
             translation_domain=DOMAIN,
             translation_key="cannot_decode",
-            translation_placeholders={"error": err.decode(errors="replace").strip()[-300:]},
+            translation_placeholders={"error": err.decode(errors="replace").strip()[-300:] or "no audio"},
         )
     return pcm
 
 
 class Speaker(BoardEntity, MediaPlayerEntity):
     _attr_device_class = MediaPlayerDeviceClass.SPEAKER
-    _attr_media_content_type = MediaType.MUSIC
     _attr_supported_features = (
         MediaPlayerEntityFeature.PLAY_MEDIA
         | MediaPlayerEntityFeature.STOP
@@ -88,7 +91,13 @@ class Speaker(BoardEntity, MediaPlayerEntity):
         self, media_content_type: MediaType | str | None = None, media_content_id: str | None = None
     ) -> BrowseMedia:
         return await media_source.async_browse_media(
-            self.hass, media_content_id, content_filter=lambda item: item.media_content_type.startswith("audio/")
+            self.hass,
+            media_content_id,
+            # radio stations never end, see DECODE_S
+            content_filter=lambda item: (
+                item.media_content_type.startswith("audio/")
+                and not item.media_content_id.startswith("media-source://radio_browser")
+            ),
         )
 
     async def async_play_media(self, media_type: MediaType | str, media_id: str, **kwargs: Any) -> None:
@@ -105,7 +114,10 @@ class Speaker(BoardEntity, MediaPlayerEntity):
 
     async def _play(self, pcm: bytes) -> None:
         try:
-            await self.coordinator.api.play(pcm)
+            if not await self.coordinator.api.play(pcm):
+                _LOGGER.warning(
+                    "%s ended it early: a sound, another stream or the speaker setting", self.coordinator.data["name"]
+                )
         except DeckConnectorError as err:
             _LOGGER.warning("%s did not play it: %s", self.coordinator.data["name"], err)
 
