@@ -16,7 +16,7 @@
 #define DB_WAKE_PCT         50 /* a deck woken from brightness 0, when the setting is 0 too */
 
 typedef struct {
-    uint32_t keys, hidden_keys;
+    uint64_t keys, hidden_keys;
     uint8_t encoders, hidden_encoders;
     int turning; /* the encoder whose turn woke them, -1: none */
     int64_t turn_us;

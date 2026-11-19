@@ -24,7 +24,7 @@
 #define MAX_LISTENERS  6
 #define PENDING_BUDGET (4 * 1024 * 1024) /* shared by max_decks */
 #define INPUT_REPORT   65                /* the six-key report */
-#define EVENTS_PER_RPT 8
+#define EVENTS_PER_RPT 40                /* every key of a + XL can change in one report */
 #define CYCLE_FLOOR_US 10000000LL /* between two root port cycles of the recovery: they take every deck */
 /* kept for plugs: a cycle takes every deck, then they and the hub come again */
 #define PLUG_ROOM (2 * USB_PORT_DEVS + 1)
@@ -705,10 +705,10 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     input_real = ev->real;
     input_from_deck = ev->kind == EV_INPUT;
     input_only_ip = ev->only_ip;
-    db_input_t out[EVENTS_PER_RPT];
+    static db_input_t out[EVENTS_PER_RPT]; /* off the stack: only the event task gets here */
     size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
-    bool swallowed[EVENTS_PER_RPT];
-    int keeper[EVENTS_PER_RPT];
+    static bool swallowed[EVENTS_PER_RPT];
+    static int keeper[EVENTS_PER_RPT];
     bool any = false;
     bool woke = false;
     /* A deck at 0 lights up. Set on the box (the UI draws): the press only wakes it. Set by a host: it is the

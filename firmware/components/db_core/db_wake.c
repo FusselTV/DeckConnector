@@ -18,12 +18,12 @@ bool db_wake_input(db_wake_t *w, int deck, bool black, const db_input_t *ev, int
     black |= w->cap == 0;
     w->cap = -1;
     w->last_us = now;
-    if (deck < 0 || deck >= DB_MAX_DECKS || ev->index >= 32) {
+    if (deck < 0 || deck >= DB_MAX_DECKS || ev->index >= 64) {
         return black;
     }
     db_wake_deck_t *d = &w->deck[deck];
     bool busy = black || d->hidden_keys || d->hidden_encoders;
-    uint32_t key = 1U << ev->index;
+    uint64_t key = 1ULL << ev->index;
     uint8_t enc = (uint8_t)(ev->index < 8 ? 1U << ev->index : 0);
     bool swallow = busy;
     switch (ev->kind) {

@@ -1004,7 +1004,8 @@ bool db_ui_menu_chord(const db_device_info_t *dev, const char *chord, bool *on_e
 static void open_menu(int deck, int64_t now)
 {
     xSemaphoreTake(s.lock, portMAX_DELAY);
-    bool opened = !ui_menu_open(&decks[deck].menu);
+    /* present: a chord tick may race the unplug */
+    bool opened = decks[deck].present && !ui_menu_open(&decks[deck].menu);
     for (int d = 0; opened && d < DB_MAX_DECKS; d++) {
         if (d != deck && ui_menu_open(&decks[d].menu)) {
             ui_menu_close(&decks[d].menu, now);
@@ -1130,6 +1131,17 @@ static void on_device(int deck, const db_device_info_t *info)
 {
     ui_deck_t *u = &decks[deck];
     u->present = info != NULL;
+    /* the releases of what was held never come: a stale chord would open the menu on the next deck here */
+    memset(u->key_down, 0, sizeof(u->key_down));
+    memset(u->enc_down, 0, sizeof(u->enc_down));
+    u->chord_since = 0;
+    if (!info) { /* nobody can close a menu on a deck that is gone, and it keeps every deck lit */
+        xSemaphoreTake(s.lock, portMAX_DELAY);
+        if (ui_menu_open(&u->menu)) {
+            ui_menu_close(&u->menu, esp_timer_get_time());
+        }
+        xSemaphoreGive(s.lock);
+    }
     if (db_deck_first() < 0) { /* the question went with the last deck */
         portENTER_CRITICAL(&login_mux);
         adopt.until = 0;

@@ -73,6 +73,16 @@ static void test_another_deck_works_while_the_waking_one_is_held(void)
     TEST_ASSERT_FALSE(in(1, DB_INPUT_KEY_UP, 0));
 }
 
+static void test_the_last_keys_of_the_plus_xl_count_too(void)
+{
+    go_dark();
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 35));
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 4));
+    TEST_ASSERT_EQUAL_INT64(0, db_wake_idle_us(&w, now + 60000000));
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_UP, 35));
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_UP, 4));
+}
+
 static void test_a_tap_or_swipe_alone_wakes(void)
 {
     go_dark();
@@ -204,6 +214,7 @@ int main(void)
     RUN_TEST(test_the_wake_press_and_its_release_are_swallowed);
     RUN_TEST(test_everything_on_that_deck_waits_for_the_release);
     RUN_TEST(test_another_deck_works_while_the_waking_one_is_held);
+    RUN_TEST(test_the_last_keys_of_the_plus_xl_count_too);
     RUN_TEST(test_a_tap_or_swipe_alone_wakes);
     RUN_TEST(test_the_waking_turn_goes_on_until_it_pauses);
     RUN_TEST(test_a_release_held_from_before_goes_through);
