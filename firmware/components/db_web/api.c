@@ -1170,7 +1170,8 @@ esp_err_t put_setup(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-#define RELEASES "https://github.com/FusselTV/DeckConnector/releases.atom"
+#define FEED_HOST "https://github.com/"
+#define RELEASES  FEED_HOST "FusselTV/DeckConnector/releases.atom"
 #if CONFIG_DB_MATTER
 #define IMAGE "deckconnector-matter"
 #else
@@ -1234,14 +1235,14 @@ static struct { /* the last good answer, under check_mux */
 
 /* GET /api/update/check: the newest release in the repository's release feed, a prerelease only while one
  * runs. `url` (the release's .dbfw by the name the release workflow gives it, for POST /api/ota/url) only
- * when it is newer than the running firmware. `?feed=` takes another feed of the same format, for tests. Not
+ * when it is newer than the running firmware. `?feed=` takes another GitHub feed, for tests. Not
  * under the web lock: GitHub can take seconds. Good answers are kept for a minute. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
     char feed[160] = RELEASES;
     esp_err_t got = query_value(req, "feed", feed, sizeof(feed));
-    if (got != ESP_OK && got != ESP_ERR_NOT_FOUND) {
-        return send_error(req, "400 Bad Request", "feed: a URL of up to 159 characters");
+    if ((got != ESP_OK && got != ESP_ERR_NOT_FOUND) || strncmp(feed, FEED_HOST, strlen(FEED_HOST)) != 0) {
+        return send_error(req, "400 Bad Request", "feed: an " FEED_HOST " URL of up to 159 characters");
     }
     char reply[sizeof(cache.reply)];
     int64_t now = esp_timer_get_time();
