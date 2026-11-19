@@ -443,7 +443,7 @@ static uint32_t ip_bits(const char *s)
 }
 
 /* A fixed address that leaves the bridge reachable: a /1 to /30 mask, the address no network or broadcast
- * address, the gateway in the same network and not the address itself. */
+ * address and not in 0/8, 127/8 or 224/3, the gateway in the same network and not the address itself. */
 static const char *fixed_ip_problem(const db_ip_config_t *ip)
 {
     uint32_t addr = ip_bits(ip->ip), mask = ip_bits(ip->mask), gw = ip_bits(ip->gateway);
@@ -452,6 +452,9 @@ static const char *fixed_ip_problem(const db_ip_config_t *ip)
     }
     if (!(addr & ~mask) || (addr & ~mask) == ~mask) {
         return "ip: the network or broadcast address";
+    }
+    if (addr >> 24 == 0 || addr >> 24 == 127 || addr >> 24 >= 224) {
+        return "ip: 0.x, 127.x and 224.x and up cannot be a device address";
     }
     if (ip->gateway[0] && ((gw & mask) != (addr & mask) || gw == addr)) {
         return "gateway: another address in the same network expected";
