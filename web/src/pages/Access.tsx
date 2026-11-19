@@ -347,7 +347,7 @@ function Passkeys() {
 }
 
 export function Access() {
-  const { t, act, ask, go } = useUi()
+  const { t, act, ask, jump } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const decks = decksOf(st)
@@ -385,10 +385,9 @@ export function Access() {
       setProxy(null)
     },
     check: () => {
-      if (!pwE && !corsE && !proxyE) return true
-      go('access')
-      setTimeout(() => document.getElementById(pwE ? 'npw' : corsE ? 'cors' : 'proxy')?.focus(), 80)
-      return false
+      const bad = pwE ? 'npw' : corsDirty && corsE ? 'cors' : proxyDirty && proxyE ? 'proxy' : null
+      if (bad) jump('access', bad)
+      return !bad
     },
     confirm: { title: t('cf.pw'), body: t('cf.pw_b') },
     patch: {
@@ -447,7 +446,7 @@ export function Access() {
             <Switch
               id="qr-login"
               on={cfg.qr_login}
-              onChange={(v) => void act(() => putConfig({ qr_login: v }))}
+              onChange={(v) => act(() => putConfig({ qr_login: v }))}
               label={t('access.qr')}
               hint={t(cfg.setup_done ? 'access.qr_done' : 'access.qr_h')}
             />
@@ -462,7 +461,7 @@ export function Access() {
           <Switch
             id="https"
             on={!!cfg?.https_only}
-            onChange={(v) => void httpsOnly(v)}
+            onChange={httpsOnly}
             label={t('access.https_only')}
             hint={t('access.https_only_h')}
             disabled={!cfg}

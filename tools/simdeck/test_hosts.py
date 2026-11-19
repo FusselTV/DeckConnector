@@ -70,6 +70,21 @@ async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(s
         await srv.stop()
 
 
+async def test_deeply_nested_json_from_a_server_leaves_the_bridge_up(start):
+    srv = await Server(port=18991).start()
+    try:
+        sim = start("mk2")
+        await asyncio.to_thread(dismiss_prompt, sim)
+        url = f"ws://127.0.0.1:{srv.port}/deckbridge"
+        await asyncio.to_thread(sim.config, servers=[url], controller="server", setup_done=True)
+        bridge = await srv.wait_bridge(15)
+        await bridge.ws.send("[" * 2000)
+        await asyncio.sleep(1)
+        assert (await asyncio.to_thread(sim.status))["decks"]
+    finally:
+        await srv.stop()
+
+
 class Fake(socketserver.StreamRequestHandler):
     def handle(self):
         srv = self.server
@@ -241,3 +256,21 @@ def test_a_mirabox_deck_has_no_dock(start):
                              timeout=40)  # fmt: skip
         assert (run.returncode == 0) == works, run.stdout
         assert ("device port did not open" in run.stderr) != works, run.stderr
+
+
+def test_ten_keys_let_go_in_one_report_all_reach_companion(start, companion):
+    sim = start("xl")
+    dismiss_prompt(sim)
+    sim.config(
+        satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True
+    )
+    assert sim.wait(lambda: companion.devices and sim.status()["decks"][0]["writer"] == "satellite", 15), sim.log()
+    for k in range(10):
+        sim.act(f"0 key {k} 1")
+    sim.act("0 key 0 0 10")
+
+    def count(pressed: int) -> int:
+        return sum(x.startswith("KEY-PRESS") and x.endswith(f"PRESSED={pressed}") for x in companion.lines)
+
+    assert sim.wait(lambda: count(0) == 10, 3), (count(1), count(0))
+    assert count(1) == 10

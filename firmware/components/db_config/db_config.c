@@ -1,5 +1,6 @@
 #include "db_config.h"
 
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -106,6 +107,33 @@ static esp_err_t open_claim(void)
     return err;
 }
 
+/* lwip reads a leading zero as octal: "010" would apply .8, "08" no address at all */
+static bool valid_ip(const char *s)
+{
+    uint32_t ip;
+    return s[0] == '\0' || db_ipv4(s, strlen(s), &ip);
+}
+
+/* Older firmware took fields valid_ip refuses, and every later save of this interface would fail. Each one
+ * becomes the address lwip applied ("010": .8), or empty where lwip applied none. */
+static void fix_old_ips(db_ip_config_t *ip)
+{
+    char *fields[] = {ip->ip, ip->mask, ip->gateway, ip->dns};
+    for (size_t i = 0; i < 4; i++) {
+        struct in_addr a = {0};
+        if (memchr(fields[i], 0, sizeof(ip->ip)) && valid_ip(fields[i])) {
+            continue;
+        }
+        if (memchr(fields[i], 0, sizeof(ip->ip)) && inet_aton(fields[i], &a)) {
+            const uint8_t *b = (const uint8_t *)&a.s_addr;
+            snprintf(fields[i], sizeof(ip->ip), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
+        } else {
+            fields[i][0] = '\0';
+        }
+    }
+    ip->dhcp = ip->dhcp || !ip->ip[0] || !ip->mask[0];
+}
+
 esp_err_t db_config_load(void)
 {
     lock = xSemaphoreCreateMutex();
@@ -168,6 +196,8 @@ esp_err_t db_config_load(void)
                 !db_config_ntp_ok(current.ntp_server)) {
                 current.ntp_server[0] = '\0';
             }
+            fix_old_ips(&current.lan);
+            fix_old_ips(&current.wlan);
             uint32_t proxy;
             if (!memchr(current.trusted_proxy, 0, sizeof(current.trusted_proxy)) ||
                 (current.trusted_proxy[0] &&
@@ -389,14 +419,6 @@ bool db_config_bssid(const char *text, uint8_t out[6])
         out[i] = (uint8_t)b[i];
     }
     return true;
-}
-
-static bool valid_ip(const char *s)
-{
-    unsigned a, b, c, d;
-    char end;
-    return s[0] == '\0' ||
-           (sscanf(s, "%3u.%3u.%3u.%3u%c", &a, &b, &c, &d, &end) == 4 && (a | b | c | d) < 256);
 }
 
 bool db_config_wifi_pass_ok(const char *p)

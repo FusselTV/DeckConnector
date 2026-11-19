@@ -313,13 +313,7 @@ function AppForm({ close }: { close: () => void }) {
           }}
         />
       ))}
-      <Switch
-        id="only"
-        on={!!P?.only_paired}
-        onChange={(v) => void a.onlyPaired(v)}
-        label={t('src.only')}
-        hint={t('src.only_h')}
-      />
+      <Switch id="only" on={!!P?.only_paired} onChange={a.onlyPaired} label={t('src.only')} hint={t('src.only_h')} />
       <div className="mfoot inline">
         <span className="sp" />
         <Btn kind="pri" onClick={close}>
@@ -340,8 +334,8 @@ function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () 
   const [err, setErr] = useState<string | null>(null)
   const full = servers.filter(Boolean).length >= 4 && old < 0
   const save = async () => {
-    const dup = servers.some((x, j) => j !== old && x === url.trim())
-    const e = wsUrlError(url.trim()) ?? (dup ? 'src.dup' : url.startsWith('wss://') ? pinError(pin) : null)
+    const dup = servers.some((x, j) => j !== old && x === url)
+    const e = wsUrlError(url) ?? (dup ? 'src.dup' : url.startsWith('wss://') ? pinError(pin) : null)
     if (e) {
       setErr(t(e))
       document.getElementById('m-url')?.focus()
@@ -350,7 +344,7 @@ function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () 
     const s = [...servers]
     const p = [...pins]
     const i = old >= 0 ? old : s.findIndex((x) => !x)
-    s[i] = url.trim()
+    s[i] = url
     p[i] = url.startsWith('wss://') ? normPin(pin) : ''
     const prev = { servers, server_pins: pins }
     const ok = await act(async () => {
@@ -376,7 +370,7 @@ function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () 
               className="in mono"
               placeholder="ws://host:port/deckconnector"
               value={url}
-              onChange={(e) => (setUrl(e.target.value), setErr(null))}
+              onChange={(e) => (setUrl(e.target.value.trim()), setErr(null))}
               spellCheck={false}
             />
           </Field>

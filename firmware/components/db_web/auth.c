@@ -285,16 +285,8 @@ bool auth_by_token(httpd_req_t *req)
     return strncmp(given, "Bearer ", 7) == 0;
 }
 
-/* The index of the request's token, or -1. */
-static int token_index(httpd_req_t *req)
+static int token_by_sha(const uint8_t sha[32])
 {
-    char given[96] = {0};
-    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK) {
-        return -1;
-    }
-    uint8_t sha[32];
-    sha256(given + 7, sha);
-    mbedtls_platform_zeroize(given, sizeof(given));
     int found = -1;
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
@@ -305,6 +297,20 @@ static int token_index(httpd_req_t *req)
         found = d == 0 ? i : found;
     }
     portEXIT_CRITICAL(&mux);
+    return found;
+}
+
+/* The index of the request's token, or -1. */
+static int token_index(httpd_req_t *req)
+{
+    char given[96] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK) {
+        return -1;
+    }
+    uint8_t sha[32];
+    sha256(given + 7, sha);
+    mbedtls_platform_zeroize(given, sizeof(given));
+    int found = token_by_sha(sha);
     if (found < 0) {
         count_try(req, false, false); /* a hit must not reset the count: only the password does */
     }
@@ -433,12 +439,7 @@ void auth_session_cookie(httpd_req_t *req)
     set_cookie(req, false);
 }
 
-bool auth_session_of(httpd_req_t *req, char *out, size_t cap)
-{
-    return httpd_req_get_cookie_val(req, COOKIE(req), out, &cap) == ESP_OK && session_valid(out);
-}
-
-bool auth_session_alive(const char *token)
+static bool session_alive(const char *token)
 {
     int64_t now = esp_timer_get_time();
     bool ok = false;
@@ -450,6 +451,33 @@ bool auth_session_alive(const char *token)
     }
     portEXIT_CRITICAL(&mux);
     return ok;
+}
+
+void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
+{
+    char given[96] = {0};
+    size_t cap = AUTH_KEY_LEN - 1;
+    key[0] = '\0';
+    if (auth_by_token(req) &&
+        httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) == ESP_OK) {
+        uint8_t sha[32];
+        sha256(given + 7, sha);
+        key[0] = 't';
+        db_hex(key + 1, sha, sizeof(sha));
+    } else if (httpd_req_get_cookie_val(req, COOKIE(req), key + 1, &cap) == ESP_OK &&
+               session_valid(key + 1)) {
+        key[0] = 's';
+    }
+    mbedtls_platform_zeroize(given, sizeof(given));
+}
+
+bool auth_login_alive(const char *key)
+{
+    uint8_t sha[32];
+    if (key[0] == 's') {
+        return session_alive(key + 1);
+    }
+    return key[0] == 't' && db_config_pin(key + 1, sha) && token_by_sha(sha) >= 0;
 }
 
 esp_err_t auth_login(httpd_req_t *req)

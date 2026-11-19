@@ -66,6 +66,28 @@ def test_the_menu_chord_opens_the_menu(start, model):
     shot(sim, 0, f"{model}-menu")
 
 
+@pytest.mark.parametrize("model", ["mk2", "plus"])
+def test_a_chord_cut_short_by_an_unplug_opens_no_menu(start, model):
+    sim = start(model)
+    dismiss_prompt(sim)
+    chord(sim, True)
+    time.sleep(0.3)
+    sim.act("0 unplug", "0 plug")
+    time.sleep(2.5)
+    assert not sim.status()["menu_open"]
+
+
+def test_the_menu_closes_when_its_deck_goes(start):
+    sim = start("mk2", "mini")
+    dismiss_prompt(sim)
+    chord(sim, True)
+    time.sleep(2.4)
+    chord(sim, False)
+    assert sim.wait(lambda: sim.status()["menu_open"], 3)
+    sim.act("0 unplug")
+    assert sim.wait(lambda: not sim.status()["menu_open"], 3), "the menu stays open on a deck that is gone"
+
+
 @pytest.mark.parametrize("model", ["mk2", "mini", "neo", "plus", "mirabox-n4"])
 def test_the_screen_goes_dark_and_a_press_wakes_it(start, model):
     sim = start(model)

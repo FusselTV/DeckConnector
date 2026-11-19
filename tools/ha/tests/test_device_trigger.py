@@ -1,11 +1,19 @@
+import json
+from pathlib import Path
+
 from homeassistant.components import automation
 from homeassistant.components.device_automation import DeviceAutomationType, async_get_device_automations
 from homeassistant.components.device_automation.trigger import async_validate_trigger_config
 from homeassistant.helpers import device_registry as dr
 from homeassistant.setup import async_setup_component
+import pytest
 from test_setup import setup
 
 from conftest import PLUS, XL
+from custom_components.deckconnector.device_trigger import trigger_of
+from custom_components.deckconnector.event import event_types
+
+TRANSLATIONS = Path(__file__).parents[3] / "custom_components/deckconnector/translations"
 
 
 def device(hass, entry, ident):
@@ -83,3 +91,13 @@ async def test_an_automation_runs_on_a_press(hass, entry, aioclient_mock, socket
         await socket.queue.put(msg)
     await hass.async_block_till_done()
     assert runs == [{"subtype": "key_3"}, {"ticks": 3}]
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_the_biggest_deck_has_a_name_for_every_control(lang):
+    strings = json.loads((TRANSLATIONS / f"{lang}.json").read_text())
+    names = strings["entity"]["event"]["controls"]["state_attributes"]["event_type"]["state"]
+    subtypes = strings["device_automation"]["trigger_subtype"]
+    types = event_types({"keys": 40, "encoders": 6, "touch": True})  # Mirabox decks report up to 40 keys
+    assert set(types) <= names.keys()
+    assert {trigger_of(t)[1] for t in types if trigger_of(t)} <= subtypes.keys()

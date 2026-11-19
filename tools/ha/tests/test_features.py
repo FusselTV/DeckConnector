@@ -188,7 +188,14 @@ async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, 
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     events = [
         {"kind": "pairing", "code": "pair_accepted", "args": ["192.168.1.15"], "text": "192.168.1.15 accepted"},
+        {"kind": "source", "code": "text", "args": [], "text": "dock 0c:8b:fd:00:11:22 left"},
         {"kind": "wlan", "code": "wlan_back", "args": ["studio", "-50", "x"], "text": "WLAN studio is back"},
+        {
+            "kind": "wlan",
+            "code": "wlan_roam",
+            "args": ["office", "aa:bb:cc:dd:ee:01", "6", "AA:BB:CC:DD:EE:02"],
+            "text": "WLAN roam office AA:BB:CC:DD:EE:02 -> aa:bb:cc:dd:ee:01, channel 6",
+        },
     ]
     aioclient_mock.get(f"http://{HOST}/api/events", json={"events": events} if paged else events)
     network = {"lan": {"ip": "192.168.1.50"}, "wlan": {"ssid": "studio", "bssid": "aa:bb", "lock": "aa:bb"}}
@@ -202,8 +209,15 @@ async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, 
     assert st["network"]["lan"]["ip"] == REDACTED
     assert {st["network"]["wlan"][k] for k in ("ssid", "bssid", "lock")} == {REDACTED}
     assert st["sources"][0]["host"] == REDACTED and st["pairing"]["hosts"][0] == {"ip": REDACTED, "mac": REDACTED}
-    assert [e["text"] for e in diag["events"]] == [f"{REDACTED} accepted", f"WLAN {REDACTED} is back"]
-    assert diag["events"][0]["args"] == [REDACTED] and diag["events"][1]["args"][0] == REDACTED
+    assert [e["text"] for e in diag["events"]] == [
+        f"{REDACTED} accepted",
+        f"dock {REDACTED} left",
+        f"WLAN {REDACTED} is back",
+        f"WLAN roam {REDACTED} {REDACTED} -> {REDACTED}, channel 6",
+    ]
+    assert diag["events"][2]["args"] == [REDACTED, "-50", "x"]
+    assert diag["events"][3]["args"] == [REDACTED, REDACTED, "6", REDACTED]
+    assert diag["events"][0]["args"] == [REDACTED]
     assert st["sources"][0]["name"] == REDACTED and diag["connected"] is True
 
 

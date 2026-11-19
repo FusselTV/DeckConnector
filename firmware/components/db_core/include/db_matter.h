@@ -57,16 +57,19 @@ int64_t db_sw_due(const db_sw_t *sw);
 
 /* The switches of one deck. A press while the bridge's own pages take the deck's input (`covered`) goes
  * nowhere; a release always counts, it ends what a controller saw. Both controls of the menu chord held at
- * once mute both until they are let go. */
+ * once mute both until they are let go; the one pressed first is released for the controller at once. */
 typedef struct {
     db_sw_t sw[DB_MATTER_INPUTS];
     uint64_t muted;
+    uint64_t ending; /* muted after a controller saw the press: db_sw_deck_tick tells the release */
 } db_sw_deck_t;
 
 /* `chord`: the inputs (keys, then dials) of the menu chord, -1 when there is none. */
 db_sw_event_t db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool covered, const int chord[2],
                                int64_t now);
 db_sw_event_t db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now);
+/* The deck is gone: per input the release a controller still waits for, and every switch let go. */
+void db_sw_deck_gone(db_sw_deck_t *d, int64_t now, db_sw_event_t out[DB_MATTER_INPUTS]);
 
 /* Who sent a press: the deck itself, /api/input or /api/ws (even with "real"), or POST /api/matter/press */
 typedef enum { DB_MATTER_FROM_DECK, DB_MATTER_FROM_API, DB_MATTER_FROM_DEBUG } db_matter_from_t;

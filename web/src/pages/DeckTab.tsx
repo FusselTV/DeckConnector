@@ -59,9 +59,12 @@ export function DeckTab() {
   const [d, setD] = useState<Partial<typeof base>>({})
   const v = { ...base, ...d }
   const changed = (k: keyof typeof base) => k in d && d[k] !== base[k]
-  const dirty = (Object.keys(base) as (keyof typeof base)[]).some(changed)
+  const holdBad = v.hold < 0.5 || v.hold > 10
+  const dirty = (Object.keys(base) as (keyof typeof base)[]).some(
+    (k) => changed(k) && !(k === 'hold' && holdBad && v.chord === 'off'),
+  )
   const restart = changed('usb')
-  const holdErr = v.chord !== 'off' && (v.hold < 0.5 || v.hold > 10) ? t('deck.hold_h') : null
+  const holdErr = v.chord !== 'off' && holdBad ? t('deck.hold_h') : null
   const set = (x: Partial<typeof base>) => setD((o) => ({ ...o, ...x }))
   useDraft('deck', {
     dirty,
@@ -77,7 +80,8 @@ export function DeckTab() {
     confirm: { title: t('cf.usb'), body: t('cf.usb_b') },
     patch: {
       ...(changed('chord') ? { menu_chord: v.chord } : {}),
-      ...(changed('hold') ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
+      // hidden while the menu is off: a bad value there must not fail the whole save
+      ...(changed('hold') && !holdBad ? { menu_hold_ms: Math.round(v.hold * 1000) } : {}),
       ...(changed('usb') ? { usb_speed: v.usb } : {}),
       ...(changed('max') ? { max_decks: Number(v.max) } : {}),
       ...(changed('off') ? { screen_off_s: Number(v.off) } : {}),

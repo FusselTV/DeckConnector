@@ -301,13 +301,16 @@ export function Login() {
 }
 
 /** Session ended while the page was open: the status stays visible, changes wait for the password. */
+// In view, not focused: a poll can end the session while the user types elsewhere.
+const intoView = (e: HTMLElement | null) => e?.scrollIntoView({ block: 'center' })
+
 export function LoginBar() {
   const { t } = useUi()
   const L = useLogin()
   const expired = useStore((s) => s.auth === 'expired')
   if (!expired) return null
   return (
-    <form className="notice warn loginbar" onSubmit={(e) => void L.submit(e)}>
+    <form className="notice warn loginbar" ref={intoView} onSubmit={(e) => void L.submit(e)}>
       <b>{t('login.expired_bar')}</b>
       <Field id="lpw-bar" label={t('wiz.s_pw')} err={L.err}>
         <div className="inrow">

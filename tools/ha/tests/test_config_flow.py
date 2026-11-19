@@ -8,6 +8,7 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 import pytest
 
 from conftest import HOST, STATUS, TOKEN
+from custom_components.deckconnector.config_flow import host_of
 
 BASE = f"http://{HOST}"
 DISCOVERY = ZeroconfServiceInfo(
@@ -112,6 +113,12 @@ async def test_no_deck_falls_back_to_the_password(hass, aioclient_mock):
     assert result["step_id"] == "password" and result["errors"] == {"base": "no_deck"}
 
 
+async def test_a_board_name_with_dots_shows_whole(hass):
+    named = replace(DISCOVERY, name=f"Studio 1.2 🎛️.{DISCOVERY.type}")
+    result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_ZEROCONF}, data=named)
+    assert result["description_placeholders"] == {"name": "Studio 1.2 🎛️"}
+
+
 async def test_zeroconf_updates_the_host_of_a_known_board(hass, entry):
     entry.add_to_hass(hass)
     moved = replace(DISCOVERY, ip_address=ip_address("192.0.2.99"))
@@ -137,6 +144,20 @@ async def test_https_in_the_host_is_dropped(hass, aioclient_mock):
     result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(result["flow_id"], {"host": f"https://{HOST}/"})
     assert result["type"] is FlowResultType.MENU
+
+
+@pytest.mark.parametrize(
+    ("typed", "host"),
+    [
+        ("HTTP://192.0.2.10/", "192.0.2.10"),
+        ("192.0.2.10:8080/?x=1", "192.0.2.10:8080"),
+        ("2001:db8::5", "[2001:db8::5]"),
+        ("http://[2001:db8::5]:8080/", "[2001:db8::5]:8080"),
+        ("admin:pw@deck.local", "deck.local"),
+    ],
+)
+def test_the_host_from_what_was_typed(typed, host):
+    assert host_of(typed) == host
 
 
 async def test_https_only_board(hass, aioclient_mock):

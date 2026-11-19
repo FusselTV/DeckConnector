@@ -24,6 +24,19 @@ export function check(f: Form): { problem: Problem } | { name: string; email: st
   return { name, email, message, bot: str(f.website) !== '' }
 }
 
+/** The rate limit's key: an IPv4 address, or the /64 of an IPv6 one, which its host owns whole. */
+export function limitKey(ip: string) {
+  if (!ip.includes(':')) return ip
+  const [head = '', tail] = ip.split('::')
+  const h = head ? head.split(':') : []
+  const t = tail ? tail.split(':') : []
+  const groups = tail === undefined ? h : [...h, ...Array<string>(8 - h.length - t.length).fill('0'), ...t]
+  return groups
+    .slice(0, 4)
+    .map((g) => parseInt(g, 16).toString(16))
+    .join(':')
+}
+
 const b64 = (s: string) => {
   let bin = ''
   for (const b of new TextEncoder().encode(s)) bin += String.fromCharCode(b)
