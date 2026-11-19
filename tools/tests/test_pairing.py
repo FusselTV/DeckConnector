@@ -68,6 +68,9 @@ def test_pairing():
         assert p["request"] is None
         assert [d["ip"] for d in p["denied"]][-1] == me, "listed as refused"
         assert not admitted(), "refused stays out"
+        assert status()["pairing"]["request"] is None, "a refused host is not asked about again for a minute"
+        assert api("DELETE", f"/api/pairing/denied/{me}")[0] == 200
+        assert not admitted()
 
         # the request page's second key accepts, but only for a person at the deck: a simulated press leaves it
         assert status()["pairing"]["request"] == me

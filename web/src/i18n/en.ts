@@ -704,7 +704,7 @@ export const en = {
   'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
   'login.reset': 'DeckConnector was reset. Log in with the password from the deck.',
   'login.claimed':
-    'Another browser went on with the setup. Log in with the password set there. If none was set, use the password from the deck.',
+    'Another browser went on with the setup. Log in with the password it set. If it set none, use the password from the deck.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
   'login.pw': 'Password changed. Log in with the new one.',

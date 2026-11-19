@@ -721,7 +721,7 @@ export const de: Dict = {
     'Der Browser hat die Anmeldung nicht behalten. Erlaube Cookies für diese Adresse und melde dich noch einmal an.',
   'login.reset': 'Der DeckConnector wurde zurückgesetzt. Melde dich mit dem Passwort vom Deck an.',
   'login.claimed':
-    'Ein anderer Browser hat die Einrichtung fortgesetzt. Melde dich mit dem dort gesetzten Passwort an. Wurde keins gesetzt, nimm das Passwort vom Deck.',
+    'Ein anderer Browser hat die Einrichtung fortgesetzt. Melde dich mit dem Passwort an, das er gesetzt hat. Hat er keins gesetzt, nimm das Passwort vom Deck.',
   'login.expired': 'Sitzung abgelaufen. Deine Eingaben bleiben erhalten.',
   'login.logout': 'Du hast dich abgemeldet.',
   'login.pw': 'Passwort geändert. Melde dich mit dem neuen an.',

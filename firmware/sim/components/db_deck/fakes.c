@@ -398,7 +398,7 @@ void db_ui_end_login(void)
 
 int64_t db_ui_page_end(db_ui_page_t page)
 {
-    return page == DB_UI_LOGIN ? ask_until : page == DB_UI_PASSWORD ? pass_until : reset_until;
+    return page == DB_UI_LOGIN ? ask_until : page == DB_UI_RESET ? reset_until : pass_until;
 }
 
 /* IDF's esp_timer has only its header on Linux. Timers never fire: the web watchdog has nothing to watch
@@ -412,15 +412,14 @@ int64_t esp_timer_get_time(void)
     const char *file = getenv("DB_SIM_CLOCK_FILE");
     if (file && now - read_at > 100000) {
         read_at = now;
-        long s = 0;
+        long s;
         FILE *f = fopen(file, "r");
-        if (f && fscanf(f, "%ld", &s) != 1) {
-            s = 0;
-        }
         if (f) {
+            if (fscanf(f, "%ld", &s) == 1) { /* a file being written may read empty: keep the last jump */
+                jump = (int64_t)s * 1000000;
+            }
             fclose(f);
         }
-        jump = (int64_t)s * 1000000;
     }
     return now + jump;
 }

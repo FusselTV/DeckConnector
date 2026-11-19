@@ -52,7 +52,7 @@ static const char *TAG = "auth";
 static RTC_NOINIT_ATTR struct {
     char token[TOKEN_BYTES * 2 + 1];
     int64_t last_used;
-    bool claimed; /* from the first-browser setup: ends with the setup */
+    bool claimed; /* from the setup claim: ends with the setup */
 } sessions[SESSIONS];
 static RTC_NOINIT_ATTR uint8_t kept_sum[32];
 static uint8_t pass_sha[32]; /* of the password this boot started with: the live one already is the new one */
@@ -215,12 +215,25 @@ uint32_t auth_asker(httpd_req_t *req)
 
 #define PAUSE_US (60 * 1000000LL)
 #define PAUSED   8
-static uint32_t raised_by[3]; /* per db_ui_page_t, under mux */
+static struct {
+    uint32_t key;
+    int64_t end;       /* of its own page: the deck menu may show the same page again later */
+} raised[DB_UI_PAGES]; /* under mux */
 static struct {
     uint32_t key;
     db_ui_page_t page;
     int64_t until;
 } paused[PAUSED]; /* under mux */
+
+/* Under mux. The oldest entry makes room. */
+static void hold(uint32_t key, db_ui_page_t page, int64_t end)
+{
+    int k = 0;
+    for (int i = 1; i < PAUSED; i++) {
+        k = paused[i].until < paused[k].until ? i : k;
+    }
+    paused[k] = (typeof(paused[0])){key, page, end + PAUSE_US};
+}
 
 int auth_paused_s(db_ui_page_t page, uint32_t key)
 {
@@ -229,15 +242,11 @@ int auth_paused_s(db_ui_page_t page, uint32_t key)
     bool yes = page == DB_UI_LOGIN && db_ui_login_answer() == 1;
     int64_t until = 0;
     portENTER_CRITICAL(&mux);
-    if (raised_by[page] && now >= end) {
-        if (!yes) { /* the oldest entry makes room */
-            int k = 0;
-            for (int i = 1; i < PAUSED; i++) {
-                k = paused[i].until < paused[k].until ? i : k;
-            }
-            paused[k] = (typeof(paused[0])){raised_by[page], page, end + PAUSE_US};
+    if (raised[page].key && now >= end) {
+        if (!yes) {
+            hold(raised[page].key, page, end < raised[page].end ? end : raised[page].end);
         }
-        raised_by[page] = 0;
+        raised[page].key = 0;
     }
     for (int i = 0; i < PAUSED; i++) {
         until = paused[i].key == key && paused[i].page == page && paused[i].until > until ? paused[i].until
@@ -249,12 +258,18 @@ int auth_paused_s(db_ui_page_t page, uint32_t key)
 
 void auth_raised(db_ui_page_t page, uint32_t key)
 {
+    int64_t now = esp_timer_get_time();
+    int64_t end = db_ui_page_end(page);
     portENTER_CRITICAL(&mux);
-    raised_by[page] = key;
+    if (raised[page].key && raised[page].key != key) { /* its page was taken over without a Yes */
+        hold(raised[page].key, page, now);
+    }
+    raised[page].key = key;
+    raised[page].end = end;
     portEXIT_CRITICAL(&mux);
 }
 
-/* true when the deck turned this client down a moment ago; then it has its 429 with the wait */
+/* true when this client's last page there ended without a Yes in the last minute; then it has its 429 */
 static bool paused_reply(httpd_req_t *req, db_ui_page_t page)
 {
     int wait = auth_paused_s(page, auth_asker(req));
@@ -790,25 +805,35 @@ static int64_t started; /* esp_timer counts from the host's start in the simulat
 
 /* Open only where a first start or a factory reset wrote 0; a device from an older firmware has no key:
  * closed */
+static bool claim_closed; /* this boot, also when NVS could not keep it */
+
 static bool claim_open(void)
 {
     nvs_handle_t h;
     uint8_t used = 1;
-    if (nvs_open("web", NVS_READONLY, &h) == ESP_OK) {
-        nvs_get_u8(h, "claimed", &used);
+    esp_err_t err = nvs_open("web", NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        err = nvs_get_u8(h, "claimed", &used);
         nvs_close(h);
     }
-    return !used;
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE(TAG, "setup claim not read, so closed: %s", esp_err_to_name(err));
+    }
+    return !claim_closed && !used;
 }
 
 esp_err_t auth_claim_close(void)
 {
+    claim_closed = true;
     nvs_handle_t h;
     esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
     if (err == ESP_OK) {
         err = nvs_set_u8(h, "claimed", 1);
         err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "setup claim closed until the next start only: %s", esp_err_to_name(err));
     }
     return err;
 }

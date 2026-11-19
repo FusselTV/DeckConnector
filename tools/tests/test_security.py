@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from conftest import HOST, PASSWORD, TARGET, WORKER, api, start_sim, status
+from conftest import HOST, PASSWORD, TARGET, WORKER, api, deck_page, start_sim, status
 from cryptography.hazmat.primitives import serialization
 
 from dbtools import dbfw
@@ -226,9 +226,10 @@ def test_before_setup_every_browser_gets_in_on_a_local_name_until_a_password_is_
 @pytest.mark.skipif(TARGET != "sim", reason="sets up a fresh simulator")
 def test_the_end_of_setup_ends_the_way_in_without_a_password_for_good(own_sim):
     local = f"127.0.0.1:{own_sim}"
-    code, cookie = claim(own_sim, local)
+    (code, cookie), (_, other) = claim(own_sim, local), claim(own_sim, local)
     assert code == 200
     assert put(own_sim, {"setup_done": True}, cookie.split(";")[0])[0] == 200
+    assert get(f"http://{local}/api/status", other.split(";")[0]) == 401, "the other browser logs in now"
     assert claim(own_sim, local) == (409, '{"ok":false,"error":"set up"}')
     assert put(own_sim, {"setup_done": False})[0] == 200
     assert claim(own_sim, local) == CLAIMED, "setup again with the password does not open it"
@@ -254,8 +255,35 @@ def test_the_way_in_without_a_password_ends_30_min_after_the_start(own_sim):
 
 
 @pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="moves the clock of a simulator of its own")
+@pytest.mark.parametrize("own_sim", [{"DB_SIM_CLOCK_FILE": str(CLOCK)}], indirect=True)
+def test_an_address_held_off_by_the_deck_may_ask_again_after_a_minute(own_sim):
+    def ask() -> tuple[int, dict]:
+        code, reply, _ = deck_page(
+            "POST", "/api/login/request", b'{"who": "pytest"}', f"127.0.0.1:{own_sim}", "127.0.0.41"
+        )
+        return code, reply
+
+    try:
+        code, reply = ask()
+        assert code == 200, reply
+        call = urllib.request.Request(
+            f"http://127.0.0.1:{own_sim}/api/login/request/{reply['id']}",
+            method="DELETE",
+            headers={"X-DeckConnector": "1"},
+        )
+        urllib.request.urlopen(call, timeout=5)
+        assert ask()[0] == 429
+        CLOCK.write_text("61")
+        time.sleep(0.3)
+        assert ask()[0] == 200
+    finally:
+        CLOCK.unlink(missing_ok=True)
+
+
+@pytest.mark.sim
 @pytest.mark.skipif(TARGET != "sim", reason="changes the password of a fresh simulator")
-def test_a_password_set_before_setup_closes_the_first_browser_way(own_sim):
+def test_a_password_set_before_setup_closes_the_way_in_without_a_password(own_sim):
     auth = "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()
     body = json.dumps({"admin_pass": "chosen-in-the-flasher"}).encode()
     req = urllib.request.Request(
@@ -265,8 +293,7 @@ def test_a_password_set_before_setup_closes_the_first_browser_way(own_sim):
         headers={"X-DeckConnector": "1", "Authorization": auth, "Content-Type": "application/json"},
     )
     assert urllib.request.urlopen(req, timeout=5).status == 200
-    # before the restart the new password causes: the answer comes from the stored flag, the password path
-    # never sets the one in memory
+    # before the restart the new password causes
     assert claim(own_sim, f"127.0.0.1:{own_sim}") == CLAIMED
 
 

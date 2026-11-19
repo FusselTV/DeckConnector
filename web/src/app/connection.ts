@@ -254,7 +254,7 @@ async function firstStatus() {
   try {
     return await api.status()
   } catch (e) {
-    // A device nobody has set up lets the first browser straight into the wizard.
+    // A device nobody has set up lets a browser straight into the wizard.
     if (!(e instanceof ApiError && e.status === 401)) throw e
     const refused = await api.claimSetup().then(
       () => null,
@@ -276,7 +276,7 @@ export async function boot() {
       stopSession()
       // A restart ends every session: back to the login page, which says why. Otherwise keep the page.
       if (getState().restarting) {
-        // After a factory reset the first browser gets the wizard without a password: be that browser.
+        // After a factory reset a browser gets the wizard without a password.
         if (loginReasonAtom.get() === 'reset') {
           ss.set('dc.reset', true)
           return location.reload()
@@ -289,9 +289,14 @@ export async function boot() {
         loginReasonAtom.set('cookie')
         dispatch({ type: 'auth', auth: 'login' })
       } else if (getState().status.setup?.active && !getState().status.setup?.rerun) {
-        // Another browser set the password or finished the setup: the wizard has no login bar.
-        loginReasonAtom.set('claimed')
-        dispatch({ type: 'auth', auth: 'login' })
+        // The wizard has no login bar. An unplanned restart keeps the setup open; a set password closes it.
+        api.claimSetup().then(
+          () => location.reload(),
+          () => {
+            loginReasonAtom.set('claimed')
+            dispatch({ type: 'auth', auth: 'login' })
+          },
+        )
       } else dispatch({ type: 'auth', auth: 'expired' })
     } else if (code === 0) lost()
   })

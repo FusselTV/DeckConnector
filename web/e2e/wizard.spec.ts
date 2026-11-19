@@ -1,7 +1,7 @@
 import { expect, login, sim, test } from './fixtures.ts'
 
 test('a device nobody set up opens the wizard without the login page', async ({ page, errors: _errors }) => {
-  // The simulator's one chance may be used up, so the claim is answered here, with a real session behind it.
+  // The shared simulator was set up long ago, so the claim is answered here, with a real session behind it.
   await page.route('**/api/setup/claim', async (r) => {
     await page.request.post('/api/login', {
       headers: { 'X-DeckConnector': '1' },

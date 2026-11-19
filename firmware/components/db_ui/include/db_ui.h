@@ -78,9 +78,9 @@ bool db_ui_ask_login(uint32_t ip, const char *who, int seconds);
  * draws. NULL when it asks, else why not: no deck, another Companion's question is open, or this one was
  * turned down in the last 5 min. Only taps on the deck itself answer. */
 const char *db_ui_ask_companion(const char *addr, int seconds);
-/* The pages a LAN client can put on the deck; the CA's fingerprint shares the password's. */
-typedef enum { DB_UI_LOGIN, DB_UI_PASSWORD, DB_UI_RESET } db_ui_page_t;
-/* When the page last ended or will end: on its own, or earlier when the deck said no or it was taken back. */
+/* The pages a LAN client can put on the deck; the CA's fingerprint is shown on the password's. */
+typedef enum { DB_UI_LOGIN, DB_UI_PASSWORD, DB_UI_RESET, DB_UI_CA, DB_UI_PAGES } db_ui_page_t;
+/* When the page last ended or will end: on its own, or earlier when answered on the deck or taken back. */
 int64_t db_ui_page_end(db_ui_page_t page);
 /* 1 accepted, 0 denied, -1 not answered (yet) for the last question. */
 int db_ui_login_answer(void);

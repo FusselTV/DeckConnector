@@ -7,7 +7,7 @@ import time
 
 from conftest import dismiss_prompt, drawn_since
 
-YES, NO = 1, 2  # on every deck with a second row of keys
+YES, NO = 1, 2
 
 
 def ask(sim, source: str) -> tuple[int, dict]:
@@ -45,6 +45,27 @@ def test_a_no_on_the_deck_holds_off_that_address_and_a_yes_does_not(start):
     assert code == 200, f"another address may still ask: {reply}"
     assert answer(sim, YES, reply["id"]) == "accepted"
     assert ask(sim, "127.0.0.3")[0] == 200, "a Yes holds nobody off"
+
+
+def post(sim, path: str, source: str) -> tuple[int, dict]:
+    c = http.client.HTTPConnection("127.0.0.1", sim.port, timeout=10, source_address=(source, 0))
+    c.request("POST", path, body=b"", headers={"X-DeckConnector": "1"})
+    r = c.getresponse()
+    return r.status, json.loads(r.read())
+
+
+def test_hide_on_the_password_page_and_cancel_on_the_reset_page_hold_off_that_address(start):
+    sim = start("plus")
+    dismiss_prompt(sim)
+    sim.config(setup_done=True)
+    for path, key in (("/api/password/show", 0), ("/api/password/reset", 3)):  # any key hides; Cancel is the 4th
+        assert post(sim, path, "127.0.0.6")[0] == 200
+        assert sim.wait(lambda: sim.status()["menu_open"], 5), f"{path}: the deck shows nothing"
+        time.sleep(0.3)
+        sim.tap(0, key)
+        assert sim.wait(lambda: not sim.status()["menu_open"], 5), f"{path}: the page stays"
+        code, reply = post(sim, path, "127.0.0.6")
+        assert (code, reply.get("code")) == (429, "paused"), (path, reply)
 
 
 def dock_from(source: str) -> None:

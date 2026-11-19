@@ -507,6 +507,17 @@ test('without the password, the login page shows it on the deck or asks the deck
   expect(calls).toEqual(['POST /api/password/show', 'POST /api/password/reset', 'DELETE /api/password/reset'])
 })
 
+test('a question the deck turned down a moment ago says when to try again', async ({ page }) => {
+  await sim('PUT', '/api/config', { setup_done: true })
+  await page.route('**/api/password/show', (r) =>
+    r.fulfill({ status: 429, json: { ok: false, error: 'paused', code: 'paused', retry: 42 } }),
+  )
+  await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Password on the deck' }).click()
+  await expect(page.getByText('Too soon after the last question on the deck. Try again in 42 s.')).toBeVisible()
+})
+
 test('the deck menu button closes the menu it opened', async ({ app: page }) => {
   const btn = page.locator('#card-ctl .btnrow3 button').first()
   await expect(btn).toHaveText('Deck menu')

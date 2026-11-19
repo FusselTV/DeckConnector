@@ -498,7 +498,7 @@ static void rejoin_app(void *arg)
 #define NAMES_MAX  32
 #define DENIED_MAX 4
 #define REQUEST_US (60 * 1000000LL)
-#define REFUSED_US (60 * 1000000LL) /* a "No" on the deck holds the host off this long */
+#define REFUSED_US (60 * 1000000LL)
 
 static struct {
     portMUX_TYPE mux;

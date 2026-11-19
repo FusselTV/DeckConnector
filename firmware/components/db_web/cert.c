@@ -10,6 +10,7 @@
 #include "cJSON.h"
 #include "db_cert.h"
 #include "db_config.h"
+#include "db_deck.h"
 #include "db_json.h"
 #include "db_ui.h"
 #include "esp_heap_caps.h"
@@ -517,9 +518,10 @@ esp_err_t get_ca(httpd_req_t *req)
                           custom ? "an own certificate is in use" : "HTTPS is not running");
     }
     uint32_t who = auth_asker(req);
-    if (!auth_paused_s(DB_UI_PASSWORD, who)) { /* the download goes on, the deck stays free */
+    if (db_deck_first() >= 0 &&
+        !auth_paused_s(DB_UI_CA, who)) { /* the download goes on, the deck stays free */
         db_ui_show_ca(ca_short);
-        auth_raised(DB_UI_PASSWORD, who);
+        auth_raised(DB_UI_CA, who);
     }
     httpd_resp_set_type(req, "application/x-x509-ca-cert");
     httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"deckconnector-ca.crt\"");

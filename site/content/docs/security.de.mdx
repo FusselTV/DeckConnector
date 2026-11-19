@@ -7,7 +7,7 @@ description: Passwort, Login am Deck, API-Schlüssel, Sperre, HTTPS und CORS.
 
 Die Weboberfläche hat einen Benutzer, `admin`. Beim ersten Start erzeugt der Connector ein zufälliges Passwort und zeigt es im Deck-Menü. Ein eigenes (6 bis 23 Zeichen) setzt du in der Einrichtung oder unter **Zugang** ([Demo](/de/demo/#access)).
 
-Vor der Einrichtung kommt jeder Browser, der den Connector öffnet, ohne Passwort hinein. Das geht in den 30 Minuten nach dem Start, bis ein Passwort gesetzt oder die Einrichtung fertig ist. Ein Werkszustand öffnet es wieder.
+Vor der Einrichtung kommt jeder Browser, der den Connector öffnet, ohne Passwort hinein. Das geht in den 30 Minuten nach dem Start, bis jemand ein Passwort setzt oder die Einrichtung abschließt. Ein Werkszustand öffnet es wieder.
 
 Ein neues Passwort startet den Connector neu und beendet jede Sitzung. Eine Sitzung endet nach 12 Stunden ohne Nutzung und bei einem Stromausfall.
 
@@ -21,7 +21,7 @@ Die Anmeldeseite bietet drei Wege. Für jeden muss jemand am Deck stehen, und Ei
 | Passwort am Deck | Das Passwort steht 30 s lang da |
 | Zurücksetzen | Innerhalb von 60 s zweimal auf **Zurücksetzen** tippen. Alle Einstellungen sind weg |
 
-Endet einer davon ohne **Annehmen**, kann dieselbe Adresse ihn erst nach einer Minute wieder starten. Die Anmeldeseite zeigt, wie lange. Eine IPv6-Adresse zählt nach ihrer ersten Hälfte (`/64`).
+Endet einer davon ohne **Annehmen**, kann dieselbe Adresse ihn erst nach einer Minute wieder starten. Die Anmeldeseite zeigt, wie lange. Alle IPv6-Adressen mit derselben ersten Hälfte (`/64`) zählen als eine Adresse.
 
 ## Sperre
 

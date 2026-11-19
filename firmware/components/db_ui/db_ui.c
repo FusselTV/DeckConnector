@@ -1527,7 +1527,7 @@ void db_ui_end_login(void)
 
 int64_t db_ui_page_end(db_ui_page_t page)
 {
-    return until(page == DB_UI_LOGIN ? &ask.until : page == DB_UI_PASSWORD ? &pass_until : &reset_until);
+    return until(page == DB_UI_LOGIN ? &ask.until : page == DB_UI_RESET ? &reset_until : &pass_until);
 }
 
 void db_ui_set_active_link(int index)

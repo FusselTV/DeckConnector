@@ -34,6 +34,10 @@ class HttpsOnlyError(DeckConnectorError):
     pass
 
 
+class PausedError(DeckConnectorError):
+    pass
+
+
 async def _call(
     session: aiohttp.ClientSession, method: str, url: str, **kwargs: Any
 ) -> tuple[Any, aiohttp.ClientResponse]:
@@ -53,6 +57,8 @@ async def _call(
         raise AuthError(error)
     if resp.status == 409:
         raise ConflictError(error)
+    if resp.status == 429:
+        raise PausedError(error)
     if resp.status >= 400:
         raise DeckConnectorError(error)
     return body, resp

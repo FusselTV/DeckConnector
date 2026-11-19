@@ -12,7 +12,7 @@ const BASE = `http://127.0.0.1:${PORT}`
 const ELF = join(tmpdir(), `deckconnector-claim-${PORT}.elf`)
 const FLASH = join(tmpdir(), `deckconnector-claim-${PORT}.flash`)
 let sim: ChildProcess | null = null
-let password = 'simulator' // the simulator sets it at each start, as main.c does
+let password = 'simulator' // main.c writes DB_SIM_PASSWORD over the stored one at each start
 
 function start() {
   sim = spawn(ELF, [], {
@@ -53,9 +53,12 @@ test.afterAll(() => {
   rmSync(FLASH, { force: true })
 })
 
+const errors: string[] = []
+test.afterEach(() => expect(errors).toEqual([]))
+
 async function open(browser: Browser): Promise<Page> {
   const page = await (await browser.newContext()).newPage()
-  page.on('pageerror', (e) => expect(e.message).toBe(''))
+  page.on('pageerror', (e) => errors.push(e.message))
   await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
   await page.goto(BASE)
   return page
