@@ -59,19 +59,11 @@ static int er(uint32_t off, size_t len)
         return -1;
     }
     if (power_cut()) { /* some bytes are erased already */
-        static uint8_t was[DB_EVRING_ERASE];
-        memcpy(was, flash + off, len);
         for (size_t i = (size_t)rand() % len; i--;) {
             flash[off + (size_t)rand() % len] = 0xFF;
         }
-        for (size_t i = 0; i < len; i += DB_EVREC_SIZE) {
-            if (memcmp(was + i, flash + off + i, DB_EVREC_SIZE)) {
-                acked[(off + i) / DB_EVREC_SIZE] = 0;
-            }
-        }
         return -1;
     }
-    memset(&acked[off / DB_EVREC_SIZE], 0, len / DB_EVREC_SIZE * sizeof(acked[0]));
     memset(flash + off, 0xFF, len);
     erases[off / DB_EVRING_ERASE]++;
     return 0;
@@ -220,8 +212,19 @@ static void test_skipped_numbers_stay_empty(void)
     TEST_ASSERT_EQUAL(6 + 2 * DB_EVRING_ERASE / DB_EVREC_SIZE, r.next);
 }
 
-/* 16 sectors, numbers that jump now and then, and the power going at a random write or erase: every record an
- * append confirmed comes back, and nothing is written over (wr). */
+/* The records the ring may erase before it writes `seq`: those before the (sectors - 2) it keeps. */
+static void forget_before(uint32_t seq, uint32_t slots)
+{
+    uint32_t per = DB_EVRING_ERASE / DB_EVREC_SIZE, start = seq - seq % per, window = slots - 2 * per;
+    for (uint32_t s = 0; s < slots; s++) {
+        if (start > window && acked[s] < start - window) {
+            acked[s] = 0;
+        }
+    }
+}
+
+/* 16 sectors, numbers that jump now and then, and the power going at a random write or erase: every confirmed
+ * record the ring still keeps comes back, and nothing is written over (wr). */
 static void test_power_cuts_lose_only_what_was_not_confirmed(void)
 {
     const db_evflash_t small = {.read = rd, .write = wr, .erase = er, .size = 16 * DB_EVRING_ERASE};
@@ -235,11 +238,11 @@ static void test_power_cuts_lose_only_what_was_not_confirmed(void)
             TEST_ASSERT_TRUE(dead);
             continue;
         }
+        forget_before(r.next, slots);
         uint32_t newest = 0;
         for (uint32_t s = 0; s < slots; s++) {
-            db_evrec_t e;
             if (acked[s]) {
-                TEST_ASSERT_TRUE(db_evring_get(&r, acked[s], &e));
+                TEST_ASSERT_TRUE(db_evring_get(&r, acked[s], &(db_evrec_t){0}));
                 newest = acked[s] > newest ? acked[s] : newest;
             }
         }
@@ -247,8 +250,11 @@ static void test_power_cuts_lose_only_what_was_not_confirmed(void)
         uint32_t seq = r.next;
         for (int n = rand() % 200; n-- && !dead; seq++) {
             seq += rand() % 50 ? 0 : (uint32_t)rand() % (2 * slots);
+            forget_before(seq, slots);
             if (put(seq) == 0) {
                 acked[seq % slots] = seq;
+            } else {
+                TEST_ASSERT_TRUE(dead);
             }
         }
     }
