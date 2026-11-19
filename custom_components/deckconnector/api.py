@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 import contextlib
 import json
 from typing import Any
@@ -8,6 +10,7 @@ import aiohttp
 
 MARK = {"X-DeckConnector": "1"}
 TIMEOUT = aiohttp.ClientTimeout(total=15)
+PCM_RATE = 16000 * 2  # bytes per second the board's speaker plays
 
 
 class DeckConnectorError(Exception):
@@ -37,8 +40,9 @@ class HttpsOnlyError(DeckConnectorError):
 async def _call(
     session: aiohttp.ClientSession, method: str, url: str, **kwargs: Any
 ) -> tuple[Any, aiohttp.ClientResponse]:
+    kwargs.setdefault("timeout", TIMEOUT)
     try:
-        async with session.request(method, url, timeout=TIMEOUT, **kwargs) as resp:
+        async with session.request(method, url, **kwargs) as resp:
             text = await resp.text()
     except (aiohttp.ClientError, TimeoutError) as err:
         raise DeckConnectorError(str(err) or type(err).__name__) from err
@@ -66,6 +70,32 @@ class Api:
 
     async def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         return (await _call(self.session, method, f"http://{self.host}{path}", json=body, headers=self.headers))[0]
+
+    async def play(self, pcm: bytes) -> bool:
+        """Plays 16 kHz mono s16le on the board's speaker; returns when it has played, False when something on
+        the board ended it early."""
+
+        async def paced() -> AsyncIterator[bytes]:
+            # a second ahead of the speaker: the board buffers three, and what it cannot take yet would wait in
+            # its scarce network buffers
+            start = asyncio.get_running_loop().time()
+            for at in range(0, len(pcm), PCM_RATE // 5):
+                ahead = at / PCM_RATE - (asyncio.get_running_loop().time() - start) - 1
+                if ahead > 0:
+                    await asyncio.sleep(ahead)
+                yield pcm[at : at + PCM_RATE // 5]
+
+        # Content-Length set: the board takes no chunked body
+        headers = {**self.headers, "Content-Length": str(len(pcm)), "Content-Type": "application/octet-stream"}
+        body, _ = await _call(
+            self.session,
+            "POST",
+            f"http://{self.host}/api/sound/stream",
+            data=paced(),
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=len(pcm) / PCM_RATE + 30),
+        )
+        return not body.get("stopped")
 
     async def status(self) -> dict[str, Any]:
         body = await self.request("GET", "/api/status")

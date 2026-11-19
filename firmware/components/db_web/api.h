@@ -19,6 +19,7 @@ esp_err_t get_status(httpd_req_t *req);
 esp_err_t get_config(httpd_req_t *req);
 esp_err_t put_config(httpd_req_t *req);
 esp_err_t post_sound(httpd_req_t *req);
+esp_err_t post_sound_stream(httpd_req_t *req);
 esp_err_t post_sound_selftest(httpd_req_t *req);
 esp_err_t post_companion_setup(httpd_req_t *req);
 esp_err_t post_input(httpd_req_t *req);

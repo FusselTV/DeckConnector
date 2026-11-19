@@ -47,6 +47,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
   ['POST', '/api/sound', 'control'],
+  ['POST', '/api/sound/stream', 'control'],
   ['POST', '/api/sound/selftest', 'full'],
   ['DELETE', '/api/ap', 'full'],
   ['POST', '/api/reset', 'admin'],

@@ -257,6 +257,11 @@
       "firmware": {
         "name": "Firmware"
       }
+    },
+    "media_player": {
+      "speaker": {
+        "name": "Speaker"
+      }
     }
   },
   "exceptions": {
@@ -274,6 +279,9 @@
     },
     "https_only": {
       "message": "The connector allows HTTPS only."
+    },
+    "cannot_decode": {
+      "message": "Cannot play this: {error}"
     }
   },
   "device_automation": {

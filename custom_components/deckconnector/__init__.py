@@ -28,6 +28,7 @@ PLATFORMS = [
     Platform.BUTTON,
     Platform.CAMERA,
     Platform.EVENT,
+    Platform.MEDIA_PLAYER,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
@@ -61,7 +62,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
     speaker = bool(coordinator.data.get("speaker"))
     if not speaker:
         ent_reg = er.async_get(hass)
-        for platform, key in ((Platform.NUMBER, "volume"), (Platform.BUTTON, "find")):
+        speaker_entities = ((Platform.NUMBER, "volume"), (Platform.BUTTON, "find"), (Platform.MEDIA_PLAYER, "speaker"))
+        for platform, key in speaker_entities:
             if entity_id := ent_reg.async_get_entity_id(platform, DOMAIN, f"{coordinator.board_id}_{key}"):
                 ent_reg.async_remove(entity_id)
     reloading = False

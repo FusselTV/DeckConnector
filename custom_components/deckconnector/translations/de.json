@@ -257,6 +257,11 @@
       "firmware": {
         "name": "Firmware"
       }
+    },
+    "media_player": {
+      "speaker": {
+        "name": "Lautsprecher"
+      }
     }
   },
   "exceptions": {
@@ -274,6 +279,9 @@
     },
     "https_only": {
       "message": "Der Connector erlaubt nur HTTPS."
+    },
+    "cannot_decode": {
+      "message": "Das lässt sich nicht abspielen: {error}"
     }
   },
   "device_automation": {

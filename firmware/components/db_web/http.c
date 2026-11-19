@@ -403,7 +403,9 @@ static esp_err_t timed(httpd_req_t *req)
     }
     int64_t start = esp_timer_get_time();
     char origin[96];
-    cors(req, origin);
+    if (r->handler != post_sound_stream) { /* it answers from the audio task, after this frame is gone */
+        cors(req, origin);
+    }
     bool allowed = (r->level == WEB_OPEN || auth_check(req, r->level)) && !(r->deck && web_deck_refused(req));
     esp_err_t err = allowed ? r->handler(req) : ESP_OK;
     uint32_t us = (uint32_t)(esp_timer_get_time() - start);
@@ -602,6 +604,7 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/ota", .method = HTTP_POST, .handler = post_ota}, WEB_FULL},
         {{.uri = "/api/reboot", .method = HTTP_POST, .handler = post_reboot}, WEB_FULL},
         {{.uri = "/api/sound", .method = HTTP_POST, .handler = post_sound}, WEB_CONTROL},
+        {{.uri = "/api/sound/stream", .method = HTTP_POST, .handler = post_sound_stream}, WEB_CONTROL},
         {{.uri = "/api/sound/selftest", .method = HTTP_POST, .handler = post_sound_selftest}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
