@@ -106,6 +106,25 @@ static esp_err_t open_claim(void)
     return err;
 }
 
+/* lwip reads a leading zero as octal: "010" would apply .8, "08" no address at all */
+static bool valid_ip(const char *s)
+{
+    uint32_t ip;
+    return s[0] == '\0' || db_ipv4(s, strlen(s), &ip);
+}
+
+/* Older firmware took fields valid_ip refuses: kept, every later save of this interface would fail. */
+static void drop_bad_ips(db_ip_config_t *ip)
+{
+    char *fields[] = {ip->ip, ip->mask, ip->gateway, ip->dns};
+    for (size_t i = 0; i < 4; i++) {
+        if (!memchr(fields[i], 0, sizeof(ip->ip)) || !valid_ip(fields[i])) {
+            fields[i][0] = '\0';
+        }
+    }
+    ip->dhcp = ip->dhcp || !ip->ip[0] || !ip->mask[0];
+}
+
 esp_err_t db_config_load(void)
 {
     lock = xSemaphoreCreateMutex();
@@ -168,6 +187,8 @@ esp_err_t db_config_load(void)
                 !db_config_ntp_ok(current.ntp_server)) {
                 current.ntp_server[0] = '\0';
             }
+            drop_bad_ips(&current.lan);
+            drop_bad_ips(&current.wlan);
             uint32_t proxy;
             if (!memchr(current.trusted_proxy, 0, sizeof(current.trusted_proxy)) ||
                 (current.trusted_proxy[0] &&
@@ -389,13 +410,6 @@ bool db_config_bssid(const char *text, uint8_t out[6])
         out[i] = (uint8_t)b[i];
     }
     return true;
-}
-
-/* lwip reads a leading zero as octal: "010" would apply .8, "08" no address at all */
-static bool valid_ip(const char *s)
-{
-    uint32_t ip;
-    return s[0] == '\0' || db_ipv4(s, strlen(s), &ip);
 }
 
 bool db_config_wifi_pass_ok(const char *p)
