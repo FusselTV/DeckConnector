@@ -235,6 +235,7 @@ async def test_diagnostics_hide_the_key_and_addresses(hass, hass_client, entry, 
     assert diag["events"][2]["args"] == [REDACTED, "-50", "x"]
     assert diag["events"][3]["args"] == [REDACTED, REDACTED, "6", REDACTED]
     assert diag["events"][0]["args"] == [REDACTED]
+    assert [e["code"] for e in diag["events"]] == ["pair_accepted", "text", "wlan_back", "wlan_roam"]
     assert st["sources"][0]["name"] == REDACTED and diag["connected"] is True
 
 
