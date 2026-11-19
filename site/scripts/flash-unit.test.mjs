@@ -4,6 +4,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { test } from 'node:test'
 import * as im from '../components/flash/improv.ts'
 import { md5 } from '../components/flash/md5.ts'
+import { isManifest } from '../components/flash/firmware.ts'
 
 const hex = (s) => Uint8Array.from(s.split(' '), (x) => parseInt(x, 16))
 const enc = (s) => new TextEncoder().encode(s)
@@ -55,6 +56,24 @@ test('a bad checksum is dropped, the next frame still parses', () => {
   bad[bad.length - 2] ^= 1
   const got = new im.Reader().feed(cat(bad, im.frame(im.STATE, hex('02'))))
   assert.deepEqual(got, [{ type: im.STATE, data: hex('02') }])
+})
+
+test('a frame cut short does not swallow the next one', () => {
+  const real = im.frame(im.STATE, hex('02'))
+  const long = result(im.INFO, 'DeckConnector', 'v0.2.0', 'ESP32-P4', 'deck-a')
+  for (const head of [real.subarray(0, 9), long.subarray(0, 9), enc('IMPROV')])
+    assert.deepEqual(new im.Reader().feed(cat(head, real)), [{ type: im.STATE, data: hex('02') }], String(head))
+})
+
+test('a lost port rejects at once and leaves no timeout behind', async () => {
+  const late = []
+  const onLate = (e) => late.push(e)
+  process.on('unhandledRejection', onLate)
+  const client = new im.Improv(() => Promise.reject(new Error('port closed')))
+  await assert.rejects(client.state(50), /port closed/)
+  await new Promise((r) => setTimeout(r, 100))
+  process.off('unhandledRejection', onLate)
+  assert.deepEqual(late, [])
 })
 
 /** An Improv client wired to a scripted bridge: `answer(cmd, data)` returns the bytes the bridge sends back. */
@@ -168,4 +187,44 @@ test('every fix link in the flasher has its heading on the troubleshooting page'
     const md = readFileSync(new URL(`../content/docs/${page}`, import.meta.url), 'utf8')
     for (const id of ids) assert.match(md, new RegExp(`^#+ .*\\[#${id}\\]$`, 'm'), `${page} has #${id}`)
   }
+})
+
+test('a picked manifest must have what the page reads', () => {
+  const part = { path: 'deckconnector-factory.bin', offset: 0, size: 1861024 }
+  const m = {
+    version: 'v0.2.0',
+    chip_id: 18,
+    chip_revision: { min: 301, max: 399 },
+    esptool: { baud: 921600 },
+    console: { baud: 115200, improv: true },
+    builds: {
+      factory: { erase_all: true, parts: [part] },
+      update: { erase_all: false, parts: [{ ...part, offset: 0x20000 }] },
+    },
+  }
+  assert.ok(isManifest(m))
+  for (const bad of [
+    null,
+    [],
+    {
+      name: 'ESP Web Tools',
+      version: '1',
+      builds: [{ chipFamily: 'ESP32-P4', parts: [{ path: 'a.bin', offset: 0 }] }],
+    },
+    { ...m, version: 3 },
+    { ...m, chip_revision: undefined },
+    { ...m, builds: { factory: { erase_all: true, parts: [] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, offset: -4096 }] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, offset: 0x10 }] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, size: '1' }] } } },
+    { ...m, builds: { ...m.builds, update: { parts: [{ path: 'x.bin' }] } } },
+    { ...m, chip_id: '18' },
+    { ...m, esptool: {} },
+    { ...m, console: { improv: true } },
+    { ...m, built: 1 },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, path: undefined }] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, sha256: 1 }] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, size: 0 }] } } },
+  ])
+    assert.equal(isManifest(bad), false, JSON.stringify(bad)?.slice(0, 80))
 })

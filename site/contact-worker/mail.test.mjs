@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { check, mime } from './mail.ts'
+import { check, limitKey, mime } from './mail.ts'
 
 const ok = {
   name: ' Ada\r\nBcc: x@y.z ',
@@ -76,4 +76,13 @@ test('a long subject folds into encoded words of at most 75 characters', () => {
     words.map((w) => Buffer.from(w.slice(10, -2), 'base64').toString()).join(''),
     `Kontakt: ${'😀'.repeat(100)}`,
   )
+})
+
+test('the rate limit counts an IPv6 /64 as one sender, however the address is written', () => {
+  assert.equal(limitKey('192.0.2.7'), '192.0.2.7')
+  const k = limitKey('2001:db8:0:0:1:2:3:4')
+  assert.equal(k, '2001:db8:0:0')
+  for (const ip of ['2001:db8::1:2:3:5', '2001:db8::9', '2001:0db8:0000:0000:ffff::']) assert.equal(limitKey(ip), k, ip)
+  assert.notEqual(limitKey('2001:db8:0:1::1'), k)
+  assert.equal(limitKey('::1'), '0:0:0:0')
 })

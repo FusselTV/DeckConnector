@@ -89,6 +89,40 @@ const P4: Omit<Manifest, 'builds' | 'version'> = {
   console: { baud: 115200, improv: true },
 }
 
+const uint = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0
+const isBuild = (b: unknown) => {
+  const parts = (b as Build | null)?.parts
+  return (
+    Array.isArray(parts) &&
+    parts.length > 0 &&
+    parts.every(
+      (p: Partial<Part> | null) =>
+        typeof p?.path === 'string' &&
+        uint(p.offset) &&
+        (p.offset as number) % 0x1000 === 0 &&
+        uint(p.size) &&
+        (p.size as number) > 0 &&
+        (p.sha256 === undefined || typeof p.sha256 === 'string'),
+    )
+  )
+}
+
+/** A picked manifest.json has the fields the page reads, so a foreign or broken one cannot crash it. */
+export function isManifest(v: unknown): v is Manifest {
+  const m = v as Partial<Manifest> | null
+  return (
+    typeof m?.version === 'string' &&
+    (m.built === undefined || typeof m.built === 'string') &&
+    uint(m.chip_id) &&
+    uint(m.chip_revision?.min) &&
+    uint(m.chip_revision?.max) &&
+    uint(m.esptool?.baud) &&
+    uint(m.console?.baud) &&
+    isBuild(m.builds?.factory) &&
+    (m.builds?.update === undefined || isBuild(m.builds.update))
+  )
+}
+
 /** Files a developer picked: a manifest with its .bin files, or one .bin written at 0x0 as a full install. */
 export async function localSource(files: File[]): Promise<Source> {
   const byName = new Map(files.map((f) => [f.name, f]))
@@ -98,7 +132,11 @@ export async function localSource(files: File[]): Promise<Source> {
     return new Uint8Array(await f.arrayBuffer())
   }
   const json = byName.get('manifest.json')
-  if (json) return { manifest: JSON.parse(await json.text()) as Manifest, local: true, read }
+  if (json) {
+    const manifest: unknown = JSON.parse(await json.text())
+    if (!isManifest(manifest)) throw new FirmwareError('fetch', 'manifest.json')
+    return { manifest, local: true, read }
+  }
   const bins = files.filter((f) => f.name.endsWith('.bin'))
   const bin = bins[0]
   if (bins.length !== 1 || !bin) throw new FirmwareError('fetch', 'manifest.json')
