@@ -60,8 +60,9 @@ test('a bad checksum is dropped, the next frame still parses', () => {
 
 test('a frame cut short does not swallow the next one', () => {
   const real = im.frame(im.STATE, hex('02'))
-  const got = new im.Reader().feed(cat(real.subarray(0, 9), real))
-  assert.deepEqual(got, [{ type: im.STATE, data: hex('02') }])
+  const long = result(im.INFO, 'DeckConnector', 'v0.2.0', 'ESP32-P4', 'deck-a')
+  for (const head of [real.subarray(0, 9), long.subarray(0, 9), enc('IMPROV')])
+    assert.deepEqual(new im.Reader().feed(cat(head, real)), [{ type: im.STATE, data: hex('02') }], String(head))
 })
 
 test('a lost port rejects at once and leaves no timeout behind', async () => {
@@ -217,6 +218,13 @@ test('a picked manifest must have what the page reads', () => {
     { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, offset: 0x10 }] } } },
     { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, size: '1' }] } } },
     { ...m, builds: { ...m.builds, update: { parts: [{ path: 'x.bin' }] } } },
+    { ...m, chip_id: '18' },
+    { ...m, esptool: {} },
+    { ...m, console: { improv: true } },
+    { ...m, built: 1 },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, path: undefined }] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, sha256: 1 }] } } },
+    { ...m, builds: { factory: { erase_all: true, parts: [{ ...part, size: 0 }] } } },
   ])
     assert.equal(isManifest(bad), false, JSON.stringify(bad)?.slice(0, 80))
 })

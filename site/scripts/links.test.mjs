@@ -24,12 +24,13 @@ test('the language switch lands on a page: each page has its other-language twin
   const rules = readFileSync(new URL('_redirects', out), 'utf8')
     .split('\n')
     .filter((l) => l.startsWith('/'))
-    .map((l) => l.split(/\s+/)[0].replace('*', ''))
+    .map((l) => l.split(/\s+/).map((u) => u.replace(/[*]|:splat/, '')))
+  for (const [, to] of rules) assert.ok(found(to), `_redirects points at ${to}, which is missing`)
   const missing = pages
     .filter((p) => p.endsWith('index.html') && !/^(demo\/app|404|_)/.test(p))
     .map((p) => `/${p.replace(/index\.html$/, '')}`)
     .map((p) => (p.startsWith('/de/') ? p.slice(3) : `/de${p}`))
-    .filter((p) => !found(p) && !rules.some((r) => p.startsWith(r)))
+    .filter((p) => !found(p) && !rules.some(([from]) => p.startsWith(from)))
   assert.deepEqual(missing, [])
 })
 

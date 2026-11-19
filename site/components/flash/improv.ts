@@ -93,18 +93,16 @@ export class Reader {
       }
       this.addText(this.buf.subarray(0, at))
       this.buf = this.buf.slice(at)
-      if (this.buf.length < 9) return packets
-      const end = 9 + (this.buf[8] ?? 0) + 1
-      if (this.buf.length < end) return packets
-      const pk = this.buf.subarray(0, end)
-      const sum = pk.subarray(0, end - 1).reduce((a, b) => a + b, 0) & 0xff
-      // A damaged frame gives up only its first byte: its length may reach into the next real frame.
-      if (pk[6] !== 1 || sum !== pk[end - 1]) {
-        this.buf = this.buf.slice(1)
+      const end = frameEnd(this.buf, 0)
+      if (end > 0) {
+        packets.push({ type: this.buf[7] ?? 0, data: this.buf.slice(9, end - 1) })
+        this.buf = this.buf.slice(end)
         continue
       }
-      packets.push({ type: pk[7] ?? 0, data: pk.slice(9, end - 1) })
-      this.buf = this.buf.slice(end)
+      // A damaged frame gives up only its first byte: its length may reach into, or wait past, the next real frame.
+      const next = find(this.buf.subarray(1)) + 1
+      if (end < 0 || (next > 0 && frameEnd(this.buf, next) > 0)) this.buf = this.buf.slice(1)
+      else return packets
     }
   }
 
@@ -114,6 +112,15 @@ export class Reader {
     this.text = lines.pop() ?? ''
     for (const l of lines) if (l.trim()) this.onLine(redact(l))
   }
+}
+
+/** Where the frame at `at` ends: 0 while it is incomplete, -1 when it is damaged. */
+function frameEnd(buf: Uint8Array, at: number): number {
+  if (buf.length < at + 9) return 0
+  const end = at + 10 + (buf[at + 8] ?? 0)
+  if (buf.length < end) return 0
+  const sum = buf.subarray(at, end - 1).reduce((a, b) => a + b, 0) & 0xff
+  return buf[at + 6] === 1 && sum === buf[end - 1] ? end : -1
 }
 
 function find(buf: Uint8Array): number {
