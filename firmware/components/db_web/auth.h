@@ -53,10 +53,11 @@ esp_err_t auth_password_reset(httpd_req_t *req);
  * until a factory reset, and only until the setup is done. Setting a password uses that chance up too. */
 esp_err_t auth_setup_claim(httpd_req_t *req);
 esp_err_t auth_claim_close(void);
-/* A websocket opened with a session cookie checks it again on every command: a new password or the end of the
- * first-browser setup must reach it too. */
-bool auth_session_of(httpd_req_t *req, char *out, size_t cap);
-bool auth_session_alive(const char *token);
+/* A websocket checks its login again on every message: a logout, a new password, the end of the first-browser
+ * setup or a removed token must reach it too. The key is its session or its token's hash, "" for neither. */
+#define AUTH_KEY_LEN 66
+void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN]);
+bool auth_login_alive(const char *key);
 /* No login: POST asks on the deck to let this browser in. /<id>: GET polls and logs in once accepted, DELETE
  * takes the request back. */
 esp_err_t auth_login_request(httpd_req_t *req);

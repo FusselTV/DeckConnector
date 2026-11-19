@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from conftest import HOST, PASSWORD, TARGET, api
 from websockets.asyncio.client import connect
+from websockets.exceptions import ConnectionClosed
 
 pytestmark = pytest.mark.sim
 
@@ -185,6 +186,35 @@ PASSWORD_ONLY = [
 ]
 
 
+async def ends_with_its_login(ws, end, press: bool):
+    """Once its login is gone, a socket may not press and closes with the next message it would get (a ping is
+    at most 5 s away); what was on its way before may still come."""
+    assert json.loads(await ws.recv())["t"] == "state"
+    end()
+    if press:
+        await ws.send(json.dumps({"t": "input", "id": 1, "key": 0}))
+    with pytest.raises(ConnectionClosed):
+        async with asyncio.timeout(8):
+            while msg := json.loads(await ws.recv()):
+                assert msg["t"] != "result" or msg["status"] == 401, msg
+
+
+@pytest.mark.parametrize("press", [False, True])
+async def test_a_removed_token_loses_its_socket(token, press):
+    async with connect(f"ws://{HOST}/api/ws", additional_headers={"Authorization": f"Bearer {token}"}) as ws:
+        await ends_with_its_login(ws, lambda: api("DELETE", "/api/tokens/pytest"), press)
+
+
+async def test_a_logout_ends_the_socket_of_its_session():
+    code, _, headers = call(
+        "POST", "/api/login", None, {"X-DeckConnector": "1"}, json.dumps({"password": PASSWORD}).encode()
+    )
+    cookie = {"Cookie": headers["Set-Cookie"].split(";")[0], "X-DeckConnector": "1"}
+    assert code == 200
+    async with connect(f"ws://{HOST}/api/ws", additional_headers=cookie) as ws:
+        await ends_with_its_login(ws, lambda: call("POST", "/api/logout", None, cookie, b""), False)
+
+
 @pytest.fixture
 def full_token():
     code, body = api("POST", "/api/tokens", json.dumps({"name": "pytest-full", "right": "full"}).encode())
@@ -312,6 +342,7 @@ def test_a_backup_with_secrets_restores_them_and_needs_the_password():
     full = json.loads(api("GET", "/api/backup?secrets=1")[1])
     assert "admin_pass" not in plain and {"admin_pass", "wifi_pass", "token"} <= full.keys()
     assert full["admin_pass"] == PASSWORD
+    assert "admin_pass" in json.loads(api("GET", "/api/backup?secrets=1&_=" + "1" * 30)[1]), "a cache buster"
     assert api("PUT", "/api/config", json.dumps(full).encode())[0] == 200, "the backup goes back in as it is"
 
 
