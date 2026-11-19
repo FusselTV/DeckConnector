@@ -30,7 +30,7 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
-            firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/scripts/tidy-firmware.sh, .github/workflows/ci.yml]
+            firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/scripts/tidy-firmware.sh, .github/scripts/linked-libs.*, .github/workflows/ci.yml]
             host: [firmware/host_test/**, firmware/components/**, .github/workflows/ci.yml]
             lint: [tools/**, firmware/**, .github/**]
             web: [web/**, .github/workflows/ci.yml]
@@ -190,6 +190,7 @@ jobs:
             idf.py -C firmware build
             cd tools && python -m dbtools.flashimage
           '
+      - run: .github/scripts/linked-libs.sh
       - name: clang-tidy
         run: |
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/w" -w /w "$IDF_IMAGE" bash -c '
