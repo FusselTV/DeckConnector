@@ -4,8 +4,9 @@
  * each image a deck takes lands in <dir>/<n>/ (n the plug position from 0) as key-<i>.jpg/.bmp, lcd.jpg,
  * window.jpg or window-<x>-<y>-<w>-<h>.jpg (Elgato) or id-<hex>.jpg (Mirabox), as sent: turned as the deck
  * wants it, and <dir>/<n>/brightness as the deck got it last (Mirabox: the LIG byte). <dir>/ctl is a FIFO
- * that takes one line per action, as a person at the deck: <n> key <i> <1|0>          Elgato key, sensors
- * after the image keys <n> enc <i> <1|0>          Elgato encoder press <n> turn <i> <ticks>       Elgato
+ * that takes one line per action, as a person at the deck: <n> key <i> <1|0> [count]  Elgato key (count keys
+ * from i in one report), sensors after the image keys <n> enc <i> <1|0>          Elgato encoder press <n> turn
+ * <i> <ticks>       Elgato
  * encoder turn <n> touch <1|2|3> x y [x2 y2]   Elgato tap, long press, flick, window coordinates <n> rc <row>
  * <col> <1|0|-1|+1>  Mirabox press, release; -1 and +1 turn (or swipe) there <n> unplug | plug
  */
@@ -199,7 +200,9 @@ static void act(char *line)
     if (!devs[n].plugged || !devs[n].open || devs[n].elgato != (strcmp(what, "rc") != 0)) {
         len = 0;
     } else if (!strcmp(what, "key")) {
-        len = deck_emu_key((uint8_t)a[0], a[1], r, sizeof(r));
+        for (int i = 0; i < (got > 4 ? a[2] : 1); i++) { /* one report for all of them */
+            len = deck_emu_key((uint8_t)(a[0] + i), a[1], r, sizeof(r));
+        }
     } else if (!strcmp(what, "enc")) {
         len = deck_emu_encoder_press((uint8_t)a[0], a[1], r, sizeof(r));
     } else if (!strcmp(what, "turn")) {

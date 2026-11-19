@@ -241,3 +241,20 @@ def test_a_mirabox_deck_has_no_dock(start):
                              timeout=40)  # fmt: skip
         assert (run.returncode == 0) == works, run.stdout
         assert ("device port did not open" in run.stderr) != works, run.stderr
+
+
+def test_ten_keys_let_go_in_one_report_all_reach_companion(start, companion):
+    sim = start("xl")
+    dismiss_prompt(sim)
+    sim.config(
+        satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True
+    )
+    assert sim.wait(lambda: companion.devices and sim.status()["decks"][0]["writer"] == "satellite", 15), sim.log()
+    for k in range(10):
+        sim.act(f"0 key {k} 1")
+    sim.act("0 key 0 0 10")
+
+    def count(pressed: int) -> int:
+        return sum(x.startswith("KEY-PRESS") and x.endswith(f"PRESSED={pressed}") for x in companion.lines)
+
+    assert sim.wait(lambda: count(0) == 10, 3), (count(1), count(0))
