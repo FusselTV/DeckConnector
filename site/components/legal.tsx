@@ -26,7 +26,7 @@ export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
 const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
 const CF_COOKIES = 'https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/'
-const CF_ANALYTICS = 'https://developers.cloudflare.com/web-analytics/'
+const CF_ANALYTICS = 'https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/'
 
 function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
   return (
@@ -102,7 +102,7 @@ export function Privacy({ lang }: { lang: Lang }) {
         Wenn du eine Seite aufrufst, verarbeitet Cloudflare deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und
         die Kennung deines Browsers. Das ist nötig, um die Seite auszuliefern und vor Angriffen zu schützen.
         Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist eine sichere und schnelle
-        Website. Ich werte diese Daten nicht aus.
+        Website.
       </p>
       <p>
         Cloudflare verarbeitet die Daten in meinem Auftrag (Art. 28 DSGVO), auf Grundlage des{' '}
@@ -144,20 +144,15 @@ export function Privacy({ lang }: { lang: Lang }) {
         wieder lesbar.
       </p>
 
-      <h2>Besucherstatistik mit Cloudflare Web Analytics</h2>
+      <h2>Besucherstatistik von Cloudflare</h2>
       <p>
-        Ich zähle Seitenaufrufe mit Cloudflare Web Analytics. Dafür lädt jede Seite das Skript{' '}
-        <code>beacon.min.js</code> von <code>static.cloudflareinsights.com</code>, einem Server von Cloudflare. Es
-        schickt Messwerte an diese Website (<code>/cdn-cgi/rum</code>). Cloudflare wertet dabei aus: die aufgerufene
-        Seite (ohne den Teil nach „?“), die Seite, von der du kommst (Referrer), dein Land, Browser, Betriebssystem und
-        Gerätetyp, und wie schnell die Seite lädt.
-      </p>
-      <p>
-        Laut Cloudflare nutzt Web Analytics keine Cookies und keinen Speicher in deinem Browser, und Cloudflare erkennt
-        dich nicht über deine IP-Adresse oder deinen Browser wieder. Ich sehe nur zusammengefasste Zahlen, keine
-        einzelnen Besucher. Cloudflare hält die vollständigen Messwerte 7 Tage und zeigt die Zahlen 6 Monate lang an.
-        Mehr dazu in der <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>. Cloudflare handelt auch hier in meinem
-        Auftrag, auf Grundlage des Data Processing Addendum.
+        Cloudflare zählt die Anfragen, die es für diese Website ohnehin ausliefert. Daraus zeigt es mir Summen, zum
+        Beispiel die Zahl der Anfragen und Besucher, die Datenmenge und die Länder, aus denen die Anfragen kommen. Für
+        die Statistik lädt keine Seite ein Skript, und Cloudflare setzt dafür kein Cookie und liest dafür nichts von
+        deinem Gerät. Ich sehe nur zusammengefasste Zahlen, keine einzelnen Besucher. Laut Cloudflare stehen die Zahlen
+        mindestens 30 Tage lang zur Verfügung. Mehr dazu in der <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist zu sehen, wie viel die Website
+        genutzt wird. Cloudflare handelt auch hier in meinem Auftrag, auf Grundlage des Data Processing Addendum.
       </p>
 
       <h2>Kontaktformular und E-Mail</h2>
@@ -243,7 +238,7 @@ export function Privacy({ lang }: { lang: Lang }) {
       <p>
         When you open a page, Cloudflare processes your IP address, the time, the address of the page and your
         browser&apos;s user agent. Cloudflare needs this to deliver the page and to protect it from attacks. The legal
-        basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not analyse this data.
+        basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website.
       </p>
       <p>
         Cloudflare processes the data on my behalf (Art. 28 GDPR) under Cloudflare&apos;s{' '}
@@ -283,19 +278,15 @@ export function Privacy({ lang }: { lang: Lang }) {
         script <code>email-decode.min.js</code>, loaded from this website, makes them readable again in your browser.
       </p>
 
-      <h2>Visitor statistics with Cloudflare Web Analytics</h2>
+      <h2>Visitor statistics from Cloudflare</h2>
       <p>
-        I count page views with Cloudflare Web Analytics. For this, every page loads the script{' '}
-        <code>beacon.min.js</code> from <code>static.cloudflareinsights.com</code>, a Cloudflare server. It sends
-        measurements to this website (<code>/cdn-cgi/rum</code>). Cloudflare records the page you open (without the part
-        after &quot;?&quot;), the page you came from (referrer), your country, browser, operating system and device
-        type, and how fast the page loads.
-      </p>
-      <p>
-        Cloudflare says Web Analytics uses no cookies and no storage in your browser, and does not recognise you by your
-        IP address or browser. I only see totals, not single visitors. Cloudflare keeps the full measurements for 7 days
-        and shows the totals for 6 months. See <a href={CF_ANALYTICS}>Cloudflare&apos;s documentation</a>. Cloudflare
-        acts on my behalf here too, under the Data Processing Addendum.
+        Cloudflare counts the requests it serves for this website anyway. It shows me totals, for example the number of
+        requests and visitors, the amount of data and the countries the requests come from. The statistics need no
+        script. Cloudflare sets no cookie for them and reads nothing from your device for them. I only see totals, not
+        single visitors. Cloudflare says the numbers are available for at least 30 days. See{' '}
+        <a href={CF_ANALYTICS}>Cloudflare&apos;s documentation</a>. The legal basis is Art. 6(1)(f) GDPR. My legitimate
+        interest is to see how much the website is used. Cloudflare acts on my behalf here too, under the Data
+        Processing Addendum.
       </p>
 
       <h2>Contact form and email</h2>
