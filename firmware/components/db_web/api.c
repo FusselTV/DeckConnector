@@ -1257,31 +1257,8 @@ esp_err_t get_update_check(httpd_req_t *req)
     const char *current = esp_app_get_description()->version;
     const char *why = NULL, *code = NULL;
     char *text = fetch(feed, &why, &code);
-    /* every release links its page: "https://github.com/owner/repo/releases/tag/v1.2.3" */
-    char best[40] = "", base[96] = "";
-    bool pre_ok = db_version_pre(current);
-    for (const char *p = text; p && (p = strstr(p, TAG_PATH)); p += strlen(TAG_PATH)) {
-        const char *tag = p + strlen(TAG_PATH);
-        size_t len = strcspn(tag, "\"<& ");
-        char t[sizeof(best)];
-        if (len == 0 || len >= sizeof(t)) {
-            continue;
-        }
-        memcpy(t, tag, len);
-        t[len] = '\0';
-        if (db_version_cmp(t, "v0.0.0") < 0 || (!pre_ok && db_version_pre(t)) ||
-            (best[0] && db_version_cmp(t, best) <= 0)) {
-            continue;
-        }
-        const char *from = p;
-        while (from > text && from[-1] != '"') {
-            from--;
-        }
-        if ((size_t)(p - from) < sizeof(base)) {
-            strcpy(best, t);
-            snprintf(base, sizeof(base), "%.*s", (int)(p - from), from);
-        }
-    }
+    char best[40], base[96];
+    db_version_newest(text, db_version_pre(current), best, sizeof(best), base, sizeof(base));
     heap_caps_free(text);
     db_json_t j;
     db_json_begin(&j, reply, sizeof(reply));

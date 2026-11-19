@@ -575,6 +575,11 @@ bool db_config_pin(const char *hex, uint8_t out[32])
     return hex[0] != '\0';
 }
 
+static bool whole(const cJSON *v)
+{
+    return cJSON_IsNumber(v) && v->valuedouble == v->valueint;
+}
+
 static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t err_cap)
 {
     const cJSON *ctrl = cJSON_GetObjectItemCaseSensitive(root, "controller");
@@ -621,7 +626,7 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     }
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "brightness");
     if (b) {
-        if (!cJSON_IsNumber(b) || b->valueint < 0 || b->valueint > 100) {
+        if (!whole(b) || b->valueint < 0 || b->valueint > 100) {
             snprintf(err, err_cap, "brightness: 0 to 100 expected");
             return false;
         }
@@ -629,7 +634,7 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     }
     const cJSON *vol = cJSON_GetObjectItemCaseSensitive(root, "volume");
     if (vol) {
-        if (!cJSON_IsNumber(vol) || vol->valueint < 0 || vol->valueint > 100) {
+        if (!whole(vol) || vol->valueint < 0 || vol->valueint > 100) {
             snprintf(err, err_cap, "volume: 0 to 100 expected");
             return false;
         }
@@ -637,7 +642,7 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     }
     const cJSON *hold = cJSON_GetObjectItemCaseSensitive(root, "menu_hold_ms");
     if (hold) {
-        if (!cJSON_IsNumber(hold) || hold->valueint < 500 || hold->valueint > 10000) {
+        if (!whole(hold) || hold->valueint < 500 || hold->valueint > 10000) {
             snprintf(err, err_cap, "menu_hold_ms: 500 to 10000 expected");
             return false;
         }
@@ -645,7 +650,7 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     }
     const cJSON *max = cJSON_GetObjectItemCaseSensitive(root, "max_decks");
     if (max) {
-        if (!cJSON_IsNumber(max) || max->valueint < 1 || max->valueint > DB_MAX_DECKS) {
+        if (!whole(max) || max->valueint < 1 || max->valueint > DB_MAX_DECKS) {
             snprintf(err, err_cap, "max_decks: 1 to %d expected", DB_MAX_DECKS);
             return false;
         }
@@ -653,7 +658,7 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     }
     const cJSON *off = cJSON_GetObjectItemCaseSensitive(root, "screen_off_s");
     if (off) {
-        if (!cJSON_IsNumber(off) || !db_config_screen_off_ok(off->valueint)) {
+        if (!whole(off) || !db_config_screen_off_ok(off->valueint)) {
             snprintf(err, err_cap, "screen_off_s: 0 or 10 to 86400 expected");
             return false;
         }
@@ -661,8 +666,7 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
     }
     const cJSON *dim = cJSON_GetObjectItemCaseSensitive(root, "screen_dim");
     if (dim) {
-        if (!cJSON_IsNumber(dim) || !db_config_screen_dim_ok(dim->valueint) ||
-            dim->valuedouble != dim->valueint) {
+        if (!whole(dim) || !db_config_screen_dim_ok(dim->valueint)) {
             snprintf(err, err_cap, "screen_dim: 0 or 10 to 90 in steps of 10 expected");
             return false;
         }
