@@ -32,6 +32,12 @@ Each deck is its own device. It keeps its buttons when you plug it in again, als
 
 Dial turns and the touch strip do not reach Matter. Presses sent from the web UI or the API do not either.
 
+## Home Assistant
+
+Home Assistant names each button after its key, for example "Button (Key 1)" or "Button (Dial 2)". The part in brackets uses the deck's language. Home Assistant takes these names only from devices with the test vendor ID `0xFFF1`. The connector has that ID.
+
+After an update or a new deck language, open the device in Home Assistant and use **Re-interview device**. Then reload the Matter integration to see the new names.
+
 ## Google Home
 
 Google Home pairs only test devices that are added to your project in the [Google Home Developer Console](https://console.home.google.com/). Add vendor ID `0xFFF1` and product ID `0x8000`.

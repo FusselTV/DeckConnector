@@ -29,6 +29,9 @@ uint16_t db_matter_ep(uint8_t gen, int slot);
 uint16_t db_matter_node_ep(db_matter_slot_t *slot, int index, const char *serial, bool *moved);
 /* The switch a key or dial press or release goes to, 0 for any other input. */
 uint16_t db_matter_input_ep(uint16_t node_ep, const db_input_t *in);
+/* The name of switch `ep` of the node at `node_ep` as the web UI counts ("Taste 1", "Dial 2"); keys after the
+ * `image_keys` (0: none) are touch points. False when `ep` is none of its switches. */
+bool db_matter_label(uint16_t node_ep, uint16_t ep, int image_keys, const char *lang, char out[17]);
 
 /* Generic Switch with momentary, release and long press; no multi-press, which would hold every press back */
 #define DB_SW_LONG_US 600000

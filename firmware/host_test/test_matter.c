@@ -72,6 +72,38 @@ static void test_keys_and_dials_map_inside_the_block(void)
     TEST_ASSERT_LESS_THAN(ep + 64, input(ep, DB_INPUT_ENCODER_UP, DB_MATTER_DIALS - 1));
 }
 
+static void test_switches_are_named_like_the_web_ui(void)
+{
+    uint16_t n = node(0, "AL12");
+    char out[17];
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 0), 0, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Taste 1", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, DB_MATTER_KEYS - 1), 0, "en", out));
+    TEST_ASSERT_EQUAL_STRING("Key 48", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_ENCODER_DOWN, 0), 8, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Drehregler 1", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_ENCODER_DOWN, DB_MATTER_DIALS - 1), 0, "en", out));
+    TEST_ASSERT_EQUAL_STRING("Dial 8", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 0), 0, "fr", out));
+    TEST_ASSERT_EQUAL_STRING("Key 1", out);
+    TEST_ASSERT_FALSE(db_matter_label(n, n, 0, "de", out));
+    TEST_ASSERT_FALSE(db_matter_label(n, (uint16_t)(n + 1 + DB_MATTER_INPUTS), 0, "de", out));
+}
+
+static void test_the_neos_extra_keys_are_touch_points(void)
+{
+    uint16_t n = node(0, "NEO1");
+    char out[17];
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 7), 8, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Taste 8", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 8), 8, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Touch-Punkt 1", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 9), 8, "en", out));
+    TEST_ASSERT_EQUAL_STRING("Touch point 2", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, DB_MATTER_KEYS - 1), 8, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Touch-Punkt 40", out);
+}
+
 static void test_turns_touches_and_extra_keys_go_nowhere(void)
 {
     uint16_t ep = node(0, "P");
@@ -243,6 +275,8 @@ int main(void)
     RUN_TEST(test_another_deck_in_the_slot_gets_new_endpoints);
     RUN_TEST(test_blocks_never_overlap_and_stay_valid);
     RUN_TEST(test_keys_and_dials_map_inside_the_block);
+    RUN_TEST(test_switches_are_named_like_the_web_ui);
+    RUN_TEST(test_the_neos_extra_keys_are_touch_points);
     RUN_TEST(test_turns_touches_and_extra_keys_go_nowhere);
     RUN_TEST(test_a_short_press_is_told_at_once);
     RUN_TEST(test_long_press_once_then_long_release);

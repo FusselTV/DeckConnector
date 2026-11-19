@@ -4,7 +4,9 @@
 #include <crypto/CHIPCryptoPAL.h>
 #include <esp_matter.h>
 #include <esp_matter_providers.h>
+#include <new>
 #include <platform/CommissionableDataProvider.h>
+#include <platform/DeviceInfoProvider.h>
 #include <setup_payload/ManualSetupPayloadGenerator.h>
 #include <setup_payload/QRCodeSetupPayloadGenerator.h>
 
@@ -56,7 +58,8 @@ static struct {
     uint8_t salt[32];
     uint8_t verifier[chip::Crypto::kSpake2p_VerifierSerialized_Length];
     slot_t slots[DB_MAX_DECKS];
-    bool live[DB_MAX_DECKS]; /* its endpoints exist */
+    bool live[DB_MAX_DECKS];          /* its endpoints exist */
+    uint8_t image_keys[DB_MAX_DECKS]; /* 0 until the deck is seen after the start */
     db_sw_deck_t sw[DB_MAX_DECKS];
     endpoint_t *aggregator;
     QueueHandle_t q;
@@ -104,6 +107,82 @@ class Commissionable : public chip::DeviceLayer::CommissionableDataProvider
 };
 
 static Commissionable commissionable;
+
+static uint16_t node_ep(int slot);
+
+/* Home Assistant names an entity after the FixedLabel "ha_entitylabel", for test vendor IDs only */
+class Labels : public chip::DeviceLayer::DeviceInfoProvider
+{
+    class One : public FixedLabelIterator
+    {
+      public:
+        char value[17];
+        bool done = false;
+        size_t Count() override
+        {
+            return 1;
+        }
+        bool Next(FixedLabelType &item) override
+        {
+            if (done) {
+                return false;
+            }
+            item.label = chip::CharSpan::fromCharString("ha_entitylabel");
+            item.value = chip::CharSpan::fromCharString(value);
+            done = true;
+            return true;
+        }
+        void Release() override
+        {
+            delete this;
+        }
+    };
+
+    FixedLabelIterator *IterateFixedLabel(chip::EndpointId ep) override
+    {
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            char value[17];
+            if (s.live[d] && db_matter_label(node_ep(d), ep, s.image_keys[d], db_config()->lang, value)) {
+                One *it = new (std::nothrow) One;
+                if (it) {
+                    strlcpy(it->value, value, sizeof(it->value));
+                }
+                return it;
+            }
+        }
+        return nullptr;
+    }
+    UserLabelIterator *IterateUserLabel(chip::EndpointId) override
+    {
+        return nullptr;
+    }
+    SupportedLocalesIterator *IterateSupportedLocales() override
+    {
+        return nullptr;
+    }
+    SupportedCalendarTypesIterator *IterateSupportedCalendarTypes() override
+    {
+        return nullptr;
+    }
+    CHIP_ERROR SetUserLabelAt(chip::EndpointId, size_t, const UserLabelType &) override
+    {
+        return CHIP_ERROR_NOT_IMPLEMENTED;
+    }
+    CHIP_ERROR DeleteUserLabelAt(chip::EndpointId, size_t) override
+    {
+        return CHIP_ERROR_NOT_IMPLEMENTED;
+    }
+    CHIP_ERROR SetUserLabelLength(chip::EndpointId, size_t) override
+    {
+        return CHIP_ERROR_NOT_IMPLEMENTED;
+    }
+    CHIP_ERROR GetUserLabelLength(chip::EndpointId, size_t &) override
+    {
+        return CHIP_ERROR_NOT_IMPLEMENTED;
+    }
+};
+
+static Labels labels;
 
 static esp_err_t open_part(void)
 {
@@ -198,12 +277,15 @@ static endpoint_t *child(uint16_t id, endpoint_t *parent)
         return nullptr;
     }
     endpoint::generic_switch::config_t cfg;
+    cfg.identify.identify_type = chip::to_underlying(Identify::IdentifyTypeEnum::kNone);
     namespace f = cluster::switch_cluster::feature;
     cfg.switch_cluster.feature_flags = f::momentary_switch::get_id() | f::momentary_switch_release::get_id() |
                                        f::momentary_switch_long_press::get_id();
     /* add() leaves out the descriptor, without which a controller sees no endpoint */
     cluster::descriptor::create(ep, &cfg.descriptor, CLUSTER_FLAG_SERVER);
     endpoint::generic_switch::add(ep, &cfg);
+    cluster::fixed_label::config_t fixed;
+    cluster::fixed_label::create(ep, &fixed, CLUSTER_FLAG_SERVER);
     endpoint::set_parent_endpoint(ep, parent);
     endpoint::enable(ep);
     return ep;
@@ -236,6 +318,20 @@ static void drop(int slot, uint16_t base)
     s.live[slot] = false;
 }
 
+/* The model, with the slot number as the web UI counts once there are several decks */
+static void node_label(int slot, char *out, size_t cap)
+{
+    int decks = 0;
+    for (const slot_t &o : s.slots) {
+        decks += o.id.serial[0] != 0;
+    }
+    if (decks > 1) {
+        snprintf(out, cap, "%s %d", s.slots[slot].model, slot + 1);
+    } else {
+        strlcpy(out, s.slots[slot].model, cap);
+    }
+}
+
 /* Under the stack lock */
 static void build(int slot, bool reachable)
 {
@@ -254,8 +350,11 @@ static void build(int slot, bool reachable)
     endpoint::bridged_node::add(n, &cfg);
     cluster_t *info = cluster::get(n, BridgedDeviceBasicInformation::Id);
     char label[48];
-    snprintf(label, sizeof(label), "%s %d", k->model, slot + 1);
+    node_label(slot, label, sizeof(label));
     cluster::bridged_device_basic_information::attribute::create_node_label(info, label, strlen(label));
+    /* Home Assistant reads the vendor for its label list here, not on the root node */
+    cluster::bridged_device_basic_information::attribute::create_vendor_id(info, CONFIG_DEVICE_VENDOR_ID);
+    cluster::bridged_device_basic_information::attribute::create_product_id(info, CONFIG_DEVICE_PRODUCT_ID);
     cluster::bridged_device_basic_information::attribute::create_product_name(info, k->model,
                                                                               strlen(k->model));
     cluster::bridged_device_basic_information::attribute::create_serial_number(info, k->id.serial,
@@ -299,6 +398,7 @@ static void deck_changed(int slot)
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
     strlcpy(k->model, info.model, sizeof(k->model));
+    s.image_keys[slot] = db_device_image_keys(&info);
     /* a deck without a serial is named by its port (db_deck_identity): another model there is another deck.
      * Not for decks with one: a model renamed in our driver would move their endpoints. */
     if (!moved && strncmp(k->id.serial, "port-", 5) == 0 &&
@@ -311,6 +411,17 @@ static void deck_changed(int slot)
     }
     if (memcmp(&old, k, sizeof(old)) != 0) {
         save_slots();
+    }
+    if (!old.id.serial[0]) { /* one deck more: the others' names may gain their number */
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            if (d != slot && s.live[d]) {
+                char label[48];
+                node_label(d, label, sizeof(label));
+                esp_matter_attr_val_t v = esp_matter_char_str(label, (uint16_t)strlen(label));
+                attribute::update(node_ep(d), BridgedDeviceBasicInformation::Id,
+                                  BridgedDeviceBasicInformation::Attributes::NodeLabel::Id, &v);
+            }
+        }
     }
     if (s.live[slot]) {
         set_reachable(node_ep(slot), true);
@@ -518,6 +629,7 @@ static void start(void)
         return;
     }
     set_custom_commissionable_data_provider(&commissionable);
+    chip::DeviceLayer::SetDeviceInfoProvider(&labels);
 
     node::config_t cfg;
     strlcpy(cfg.root_node.basic_information.node_label, db_config()->name,
