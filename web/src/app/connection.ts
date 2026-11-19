@@ -65,17 +65,19 @@ export async function refreshStatus() {
 
 let cfgTimer = 0
 let cfgBackoff = 2000
+let cfgGen = 0
 export async function refreshConfig() {
   clearTimeout(cfgTimer)
+  const gen = ++cfgGen
   try {
-    const before = getState().config
     const config = await api.config()
-    // A save that landed while this was on its way is newer than this answer.
-    if (getState().config !== before) return
+    // A later read, started after a later save, is newer than this answer.
+    if (gen !== cfgGen) return
     dispatch({ type: 'config', config })
     configErrAtom.set(null)
     cfgBackoff = 2000
   } catch (e) {
+    if (gen !== cfgGen) return
     configErrAtom.set(e)
     if (started) cfgTimer = window.setTimeout(() => void refreshConfig(), cfgBackoff)
     cfgBackoff = Math.min(cfgBackoff * 2, 30_000)

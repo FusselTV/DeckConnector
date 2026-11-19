@@ -569,12 +569,18 @@ test('Access saves past a stored CORS list the page cannot read, and opens the f
 
 test('each click on a switch flips what it shows, also while a save runs', async ({ app: page }) => {
   const sent: unknown[] = []
+  let reads = 0
+  // slow answers: the reads after the two saves overlap, and only the later one may count
   await page.route('**/api/config', async (r) => {
     if (r.request().method() === 'PUT') {
       sent.push(r.request().postDataJSON())
       await new Promise((f) => setTimeout(f, 400))
+      return r.fallback()
     }
-    await r.fallback()
+    const res = await r.fetch()
+    await new Promise((f) => setTimeout(f, 300))
+    await r.fulfill({ response: res })
+    reads++
   })
   await openTab(page, 'Access')
   const sw = page.locator('#qr-login')
@@ -582,8 +588,12 @@ test('each click on a switch flips what it shows, also while a save runs', async
   await sw.click()
   await sw.click()
   await expect(sw).toHaveAttribute('aria-checked', 'true')
+  const after = reads
   await expect.poll(() => sent).toEqual([{ qr_login: false }, { qr_login: true }])
   await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ qr_login: true })
+  await expect.poll(() => reads).toBeGreaterThanOrEqual(after + 2)
+  await page.waitForTimeout(500)
+  expect(await sw.getAttribute('aria-checked')).toBe('true')
 })
 
 test('a server URL pasted with spaces still offers the certificate pin', async ({ app: page }) => {
