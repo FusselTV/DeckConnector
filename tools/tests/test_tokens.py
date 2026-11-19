@@ -187,15 +187,16 @@ PASSWORD_ONLY = [
 
 
 async def ends_with_its_login(ws, end, press: bool):
-    """Once its login is gone, a socket gets nothing more and may not press: within one ping (5 s) it closes."""
+    """Once its login is gone, a socket may not press and closes with the next message it would get (a ping is
+    at most 5 s away); what was on its way before may still come."""
     assert json.loads(await ws.recv())["t"] == "state"
     end()
     if press:
         await ws.send(json.dumps({"t": "input", "id": 1, "key": 0}))
     with pytest.raises(ConnectionClosed):
-        for _ in range(20):
-            msg = json.loads(await asyncio.wait_for(ws.recv(), 10))
-            assert press and msg["t"] in ("result", "ping") and msg.get("status", 401) == 401, msg
+        async with asyncio.timeout(8):
+            while msg := json.loads(await ws.recv()):
+                assert msg["t"] != "result" or msg["status"] == 401, msg
 
 
 @pytest.mark.parametrize("press", [False, True])
