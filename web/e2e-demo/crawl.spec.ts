@@ -111,7 +111,10 @@ async function crawl(page: Page, dict: Dict, tab: Tab, shot: string): Promise<Ro
     new MutationObserver(
       (m) =>
         (w.__toasts += m.reduce(
-          (n, r) => n + [...r.addedNodes].filter((x) => x instanceof Element && x.matches('.toast')).length,
+          (n, r) =>
+            n +
+            [...r.addedNodes].filter((x) => x instanceof Element && (x.matches('.toast') || x.querySelector('.toast')))
+              .length,
           0,
         )),
     ).observe(document.body, {
@@ -146,10 +149,8 @@ async function crawl(page: Page, dict: Dict, tab: Tab, shot: string): Promise<Ro
     page.on('download', onDownload)
     page.on('filechooser', onPicker)
     page.on('popup', onPopup)
-    const toastCount = () =>
-      page.evaluate(
-        () => document.querySelectorAll('.toast').length + (window as unknown as { __toasts: number }).__toasts,
-      )
+    // only toasts that appeared: one timing out during the click would cancel a new one in a count of those shown
+    const toastCount = () => page.evaluate(() => (window as unknown as { __toasts: number }).__toasts)
     const toasts = await toastCount()
     const wasOn =
       (await el.getAttribute('aria-checked')) === 'true' || (await el.getAttribute('aria-pressed')) === 'true'
