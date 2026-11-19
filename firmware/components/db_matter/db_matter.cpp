@@ -470,17 +470,28 @@ static void on_event(const ChipDeviceEvent *e, intptr_t arg)
     refresh();
 }
 
-/* Matter talks IPv6; the bridge's own interfaces have only IPv4 until asked. Without its own Wi-Fi station,
- * Matter hears of no new address: its mDNS starts again on each one, or a board on Wi-Fi only is never found.
+static void restart_mdns(chip::System::Layer *, void *)
+{
+    chip::app::DnssdServer::Instance().StartServer();
+}
+
+/* Matter talks IPv6; the bridge's own interfaces have only IPv4 until asked. CHIP restarts its mDNS on new
+ * Ethernet addresses, not on Wi-Fi ones (its station is off), so a board on Wi-Fi only needs this. Once per
+ * burst, a second after the last address: a restart keeps the old sockets until their queued packets are
+ * read, and restarts back to back ran CHIP's UDP pool dry and left no mDNS at all.
  */
 static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
+    esp_netif_t *netif = id == IP_EVENT_GOT_IP6 ? ((ip_event_got_ip6_t *)data)->esp_netif
+                                                : ((ip_event_got_ip_t *)data)->esp_netif;
     if (id != IP_EVENT_GOT_IP6) {
-        esp_netif_create_ip6_linklocal(((ip_event_got_ip_t *)data)->esp_netif);
+        esp_netif_create_ip6_linklocal(netif);
     }
-    if (s.started) {
-        LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork(
-            [](intptr_t) { chip::app::DnssdServer::Instance().StartServer(); }));
+    if (s.started && strcmp(esp_netif_get_ifkey(netif), "WIFI_STA_DEF") == 0) {
+        LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
+            LogErrorOnFailure(chip::DeviceLayer::SystemLayer().StartTimer(chip::System::Clock::Seconds16(1),
+                                                                          restart_mdns, nullptr));
+        }));
     }
 }
 

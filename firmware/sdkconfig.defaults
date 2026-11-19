@@ -100,6 +100,9 @@ CONFIG_ENABLE_WIFI_AP=n
 CONFIG_ENABLE_CHIPOBLE=n
 CONFIG_ENABLE_ETHERNET_TELEMETRY=y
 CONFIG_LWIP_IPV6_AUTOCONFIG=y
+# 2 for Matter itself, mDNS twice (its restart opens new sockets before queued packets free the old):
+# LAN v4+v6, WLAN v4+v6, setup AP v4
+CONFIG_NUM_UDP_ENDPOINTS=12
 # Matter's TCP/IP core lock slowed a competitor's redraws
 CONFIG_USE_TCPIP_CORE_LOCK_FOR_THREAD_SAFETY=n
 CONFIG_ENABLE_CHIP_SHELL=n
