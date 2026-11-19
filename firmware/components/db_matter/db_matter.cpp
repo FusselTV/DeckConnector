@@ -570,13 +570,20 @@ static void task(void *arg)
     }
 }
 
+static_assert(DB_INPUT_KEY_DOWN == 1 && DB_INPUT_ENCODER_UP < DB_INPUT_ENCODER_TURN,
+              "kind 0 is a deck change; holds come before taps and detents");
+
 static void queue_input(int deck, const db_input_t *ev, db_matter_from_t from)
 {
     if (db_matter_takes(from)) {
         char ip[16];
         msg_t m = {.slot = (int8_t)deck, .covered = db_ui_menu_open() || db_dock_request(ip), .in = *ev};
-        /* a lost release would leave the switch held; a lost tap or detent beats a deck task that waits */
-        xQueueSend(s.q, &m, ev->kind <= DB_INPUT_ENCODER_UP ? pdMS_TO_TICKS(20) : 0);
+        bool hold = ev->kind <= DB_INPUT_ENCODER_UP;
+        /* a lost release would leave the switch held. Taps and detents never wait and leave room for releases
+         * and decks that come and go, also while the stack lock holds the task up. */
+        if (hold || uxQueueSpacesAvailable(s.q) > 8) {
+            xQueueSend(s.q, &m, hold ? pdMS_TO_TICKS(20) : 0);
+        }
     }
 }
 
