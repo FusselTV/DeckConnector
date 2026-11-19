@@ -205,9 +205,14 @@ export function Wizard() {
     langSent.current = true
     if (cfgLang !== lang) void api.putConfig({ lang }).then(refreshConfig, () => undefined)
   }, [cfgLang, lang])
+  const [speaker, setSpeaker] = useState<boolean | null>(null)
   const nextLang = () => {
+    const patch = {
+      ...(cfg?.lang !== lang && { lang }),
+      ...(speaker !== null && { speaker }),
+    }
     // the deck's screens follow at once; no refresh, whose status would still name the language step
-    if (cfg?.lang !== lang) void act(() => api.putConfig({ lang }))
+    if (Object.keys(patch).length) void act(() => api.putConfig(patch))
     if (!nameE) return (ss.set(SEEN, true), setStep('pw'))
     setNameTried(true)
     document.getElementById('wname')?.focus()
@@ -372,6 +377,15 @@ export function Wizard() {
             onChange={(e) => setName(e.target.value.trim())}
           />
         </Field>
+        {cfg?.speaker !== undefined && (
+          <Switch
+            id="w-speaker"
+            on={speaker ?? cfg.speaker}
+            onChange={setSpeaker}
+            label={t('deck.speaker')}
+            hint={t('deck.speaker_h')}
+          />
+        )}
         {!rerun && menuOnDeck && (
           <Notice
             n={{

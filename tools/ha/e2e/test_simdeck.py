@@ -215,3 +215,39 @@ async def test_presses_at_each_deck_and_an_unplugged_deck(sim, ha):
         assert await until(lambda st: st[n4]["state"] != "unavailable")
         act("3 rc 0 0 1")
         await wait_event(s, auth, n4, "key_1_press")
+
+
+async def test_the_speaker_setting_adds_and_removes_its_entities(sim, ha):
+    async with aiohttp.ClientSession() as s:
+        import test_docker
+
+        auth = await test_docker.login(s)
+
+        async def registry() -> set[str]:
+            async with s.ws_connect(f"{HA}/api/websocket") as raw:
+                await raw.receive_json()
+                await raw.send_json({"type": "auth", "access_token": auth["Authorization"][7:]})
+                await raw.receive_json()
+                found = await Ws(raw).call(type="config/entity_registry/list")
+            return {e["entity_id"] for e in found if e["platform"] == "deckconnector"}
+
+        def speaker_ids(ids) -> set[str]:
+            return {i for i in ids if i.endswith(("_volume", "_find"))}
+
+        assert not speaker_ids(await registry()), "a new connector has no speaker"
+        for on in (True, False, True):
+            async with s.put(
+                f"http://127.0.0.1:{SIM_PORT}/api/config",
+                json={"speaker": on},
+                auth=aiohttp.BasicAuth("admin", "sim-pass"),
+                headers={"X-DeckConnector": "1"},
+            ) as r:
+                assert r.status == 200, await r.text()
+            want = 2 if on else 0
+            assert await until(lambda st, want=want: len(speaker_ids(st)) == want), on
+            assert len(speaker_ids(await registry())) == want, "no orphan in the entity registry"
+        ids = speaker_ids(await states(s, auth))
+        assert await until(lambda st: all(st[i]["state"] != "unavailable" for i in ids)), ids
+        button = next(i for i in ids if i.startswith("button."))
+        async with s.post(f"{HA}/api/services/button/press", json={"entity_id": button}, headers=auth) as r:
+            assert r.status == 200, await r.text()

@@ -34,7 +34,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_int(&j, "screen_off_s", (int)db_config()->screen_off_s);
     db_json_int(&j, "screen_dim", db_config()->screen_dim);
     db_json_int(&j, "max_decks", db_config()->max_decks);
-    db_json_bool(&j, "speaker", false);
+    db_json_bool(&j, "speaker", db_config()->speaker);
     db_json_int(&j, "api", DB_WEB_API);
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);

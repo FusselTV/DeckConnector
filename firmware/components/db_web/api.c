@@ -94,6 +94,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     db_config_t live = cfg;
     live.brightness = old.brightness;
     live.volume = old.volume;
+    live.speaker = old.speaker;
     live.controller = old.controller;
     live.setup_done = old.setup_done;
     memcpy(live.servers_first, old.servers_first, sizeof(old.servers_first));
@@ -1453,6 +1454,8 @@ esp_err_t delete_ap(httpd_req_t *req)
     return ESP_OK;
 }
 
+#define SPEAKER_OFF "speaker: the settings say none is connected"
+
 /* POST /api/sound {"sound": "find", "volume": 60}: plays it now. Without volume the setting's, at least 60
  * for find: who looks for the board wants to hear it. */
 esp_err_t post_sound(httpd_req_t *req)
@@ -1470,6 +1473,9 @@ esp_err_t post_sound(httpd_req_t *req)
     cJSON_Delete(root);
     if (!ok) {
         return send_error(req, "400 Bad Request", "sound: ready, connected, lost or find; volume: 0 to 100");
+    }
+    if (!db_config()->speaker) {
+        return send_error(req, "409 Conflict", SPEAKER_OFF);
     }
     if (!volume && sound != DB_SOUND_FIND) {
         return send_error(req, "409 Conflict", "sounds are off: set volume");
@@ -1501,6 +1507,9 @@ esp_err_t post_sound_selftest(httpd_req_t *req)
     cJSON_Delete(root);
     if (!ok) {
         return send_error(req, "400 Bad Request", "a JSON object; volume: 1 to 100; gain: 0 to 42 dB");
+    }
+    if (!db_config()->speaker) {
+        return send_error(req, "409 Conflict", SPEAKER_OFF);
     }
     db_audio_check_t c;
     esp_err_t err = db_audio_check(volume, gain, &c);

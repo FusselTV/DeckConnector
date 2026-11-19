@@ -116,7 +116,7 @@ export interface Status {
   screen_off_s?: number
   screen_dim?: number
   max_decks?: number
-  /** The board has a speaker. */
+  /** A speaker is connected: the board has the output and `speaker` is on in the config. */
   speaker?: boolean
   /** This page reached the device over its setup Wi-Fi, which needs no password. */
   via_ap?: boolean
@@ -164,6 +164,8 @@ export interface Config {
   brightness: number
   /** The speaker, 0 (off) to 100. */
   volume: number
+  /** A speaker is connected; off hides every sound option. Missing on older firmware. */
+  speaker?: boolean
   lan: IpConf
   wlan: IpConf
   wifi_ssid: string

@@ -94,7 +94,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
-| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or on a connector without a speaker | control |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or `speaker` is false | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 
@@ -204,6 +204,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `controller`, `host` | The source that draws, see [Sources](/docs/hosts#over-the-api) |
 | `brightness` | 0 to 100. One press on a deck at 0 sets it to 50 |
 | `volume` | The speaker, 0 (off, the default) to 100 |
+| `speaker` | A speaker is connected. A new connector starts with false until setup in the web UI asks. With false it plays no sound and `/api/sound` answers 409 |
 | `lan`, `wlan` | `dhcp`, or `ip` and `mask` with an optional `gateway` and `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` has 8 to 63 characters, 64 hex digits, or is empty for an open network |
 | `wifi_bssid` | Lock to one access point, empty for any |
@@ -230,7 +231,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
+`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -277,7 +278,7 @@ A refused value gets 400 with the reason, and the connector saves nothing. The r
 | `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
 | `decks[].writer` | Who draws on that deck, values as `writer` |
 | `decks[].hub` | The deck is behind a USB hub |
-| `speaker` | The connector has a speaker output, see [Hardware](/docs/hardware#board) |
+| `speaker` | A speaker is connected. The board has a speaker output and `speaker` is on in the settings, see [Hardware](/docs/hardware#board) |
 | `temp_c` | The chip temperature in °C. Missing until the first reading |
 | `https_ca` | The short code of the connector's CA, see [HTTPS](/docs/security#https). Empty with your own certificate, then `https_custom` is true |
 

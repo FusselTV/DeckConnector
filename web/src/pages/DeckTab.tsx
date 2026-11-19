@@ -5,7 +5,7 @@ import { deckSelAtom } from '../app/state'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { describedBy, Field, Help, Seg, SIcon } from '../components/controls'
+import { describedBy, Field, Help, Seg, SIcon, Switch } from '../components/controls'
 import { useDraft } from '../components/SaveBar'
 import { chordHl, chordSentence, type Hl } from '../deck/chord'
 import { MODELS, type Model, type ModelKey } from '../deck/models'
@@ -54,6 +54,7 @@ export function DeckTab() {
     max: String(cfg?.max_decks) as '1' | '2' | '3' | '4',
     off: String(cfg?.screen_off_s ?? 0),
     dim: String(cfg?.screen_dim ?? 0),
+    speaker: !!cfg?.speaker,
   }
   // Only the fields the person touched, over the live values: a save never sends back a stale copy.
   const [d, setD] = useState<Partial<typeof base>>({})
@@ -86,6 +87,7 @@ export function DeckTab() {
       ...(changed('max') ? { max_decks: Number(v.max) } : {}),
       ...(changed('off') ? { screen_off_s: Number(v.off) } : {}),
       ...(changed('dim') ? { screen_dim: Number(v.dim) } : {}),
+      ...(changed('speaker') ? { speaker: v.speaker } : {}),
     },
   })
   const anyDials = decks.some((x) => MODELS[x.kind].dials) || !decks.length
@@ -210,6 +212,15 @@ export function DeckTab() {
               options={dims.map((p) => [p, p === '0' ? t('deck.dim_off') : t('deck.dim_to', { pct: p })] as const)}
             />
           </fieldset>
+        )}
+        {cfg?.speaker !== undefined && (
+          <Switch
+            id="speaker"
+            on={v.speaker}
+            onChange={(speaker: boolean) => set({ speaker })}
+            label={t('deck.speaker')}
+            hint={t('deck.speaker_h')}
+          />
         )}
       </Card>
       <fieldset className="gate" disabled={!cfg}>

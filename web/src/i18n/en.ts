@@ -128,6 +128,8 @@ export const en = {
   'deck.hold': 'Hold time',
   'deck.hold_h': '0.5 to 10 s',
   'deck.speed': 'USB speed',
+  'deck.speaker': 'Speaker connected',
+  'deck.speaker_h': 'Turns on the sounds and "Find connector". A small speaker plugs into the board.',
   'deck.speed_h': 'Use full speed only when the deck has errors at high speed. Images then arrive slower.',
   'net.name': 'Device name',
   'net.at_lan': 'LAN (cable)',

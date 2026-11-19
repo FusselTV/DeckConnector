@@ -291,6 +291,24 @@ test('a notice opens the log on its kind, with the newest matching entry open', 
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
+test('a 12-hour time in the log stays on one line', async ({ app: page }) => {
+  await page.route(
+    (u) => u.pathname === '/api/events',
+    (r) => r.fulfill({ json: { events: FAKE.slice(0, 5), oldest: 1, newest: 250, total: 250, store: 'flash' } }),
+  )
+  await page.reload()
+  await openTab(page, 'Log')
+  const time = page.locator('.lg-row time').first()
+  await expect(time).toHaveText(/\d (AM|PM)$/)
+  const lines = await time.evaluate((el) => {
+    const r = document.createRange()
+    r.selectNodeContents(el)
+    return new Set([...r.getClientRects()].map((x) => Math.round(x.top))).size
+  })
+  expect(lines).toBe(1)
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})
+
 test('a restart shows the addresses the device names in its reply', async ({ app: page }) => {
   await page.route('**/api/config', (r) =>
     r.request().method() === 'PUT'
@@ -408,10 +426,7 @@ test('saving a backup asks whether passwords go in', async ({ app: page }) => {
   const dlg = page.getByRole('dialog')
   await expect(dlg.getByRole('radio', { name: /Settings only/ })).toHaveAttribute('aria-checked', 'true')
   await dlg.getByRole('radio', { name: /With passwords/ }).click()
-  const [file] = await Promise.all([
-    page.waitForEvent('download'),
-    dlg.getByRole('button', { name: 'Save', exact: true }).click(),
-  ])
+  const [file] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: /^Save/ }).click()])
   expect(file.suggestedFilename()).toMatch(/-backup\.json$/)
 })
 
@@ -614,13 +629,9 @@ test('each click on a switch flips what it shows, also while a save runs', async
   expect(await sw.getAttribute('aria-checked')).toBe('true')
 })
 
-test('a slider saves once when its save is still running as the focus leaves', async ({ app: page, errors }) => {
+test('a slider saves once when its save is still running as the focus leaves', async ({ app: page }) => {
   const sent: unknown[] = []
-  await page.routeWebSocket('**/api/ws', () => {}) // its state would drop the stubbed speaker
-  await page.route('**/api/status', async (r) => {
-    const res = await r.fetch()
-    await r.fulfill({ response: res, json: { ...((await res.json()) as object), speaker: true } })
-  })
+  await sim('PUT', '/api/config', { speaker: true })
   await page.route('**/api/config', async (r) => {
     if (r.request().method() === 'PUT') {
       sent.push(r.request().postDataJSON())
@@ -640,7 +651,26 @@ test('a slider saves once when its save is still running as the focus leaves', a
   expect(sent).toEqual([{ volume: 5 }])
   await sim('PUT', '/api/config', { volume: 0 })
   await page.unrouteAll({ behavior: 'ignoreErrors' })
-  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 409'))) // the simulator has no speaker
+})
+
+test('without a speaker every sound option is gone, and the Deck tab brings them back', async ({ app: page }) => {
+  await expect(page.locator('#vol-ov')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Find connector' })).toHaveCount(0)
+  await openTab(page, 'Deck')
+  const sw = page.locator('#speaker')
+  await expect(sw).toHaveAttribute('aria-checked', 'false')
+  await sw.click()
+  await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ speaker: true })
+  await openTab(page, 'Overview')
+  await expect(page.locator('#vol-ov')).toBeVisible()
+  await page.getByRole('button', { name: 'Find connector' }).click()
+  await openTab(page, 'Deck')
+  await sw.click()
+  await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ speaker: false })
+  await openTab(page, 'Overview')
+  await expect(page.locator('#vol-ov')).toHaveCount(0)
 })
 
 test('a server URL pasted with spaces still offers the certificate pin', async ({ app: page }) => {
