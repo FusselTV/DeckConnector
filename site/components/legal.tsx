@@ -102,7 +102,7 @@ export function Privacy({ lang }: { lang: Lang }) {
         Wenn du eine Seite aufrufst, verarbeitet Cloudflare deine IP-Adresse, den Zeitpunkt, die aufgerufene Adresse und
         die Kennung deines Browsers. Das ist nötig, um die Seite auszuliefern und vor Angriffen zu schützen.
         Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist eine sichere und schnelle
-        Website. Einzelne Anfragen werte ich nicht aus.
+        Website.
       </p>
       <p>
         Cloudflare verarbeitet die Daten in meinem Auftrag (Art. 28 DSGVO), auf Grundlage des{' '}
@@ -147,12 +147,12 @@ export function Privacy({ lang }: { lang: Lang }) {
       <h2>Besucherstatistik von Cloudflare</h2>
       <p>
         Cloudflare zählt die Anfragen, die es für diese Website ohnehin ausliefert. Daraus zeigt es mir Summen, zum
-        Beispiel die Zahl der Anfragen und Besucher, die Datenmenge und die Länder, aus denen die Anfragen kommen. Dafür
-        lädt keine Seite ein Skript, Cloudflare setzt kein Cookie und liest nichts von deinem Gerät. Ich sehe nur
-        zusammengefasste Zahlen, keine einzelnen Besucher. Laut Cloudflare stehen die Zahlen mindestens 30 Tage lang zur
-        Verfügung. Mehr dazu in der <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>. Rechtsgrundlage ist Art. 6
-        Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist zu sehen, wie viel die Website genutzt wird. Cloudflare
-        handelt auch hier in meinem Auftrag, auf Grundlage des Data Processing Addendum.
+        Beispiel die Zahl der Anfragen und Besucher, die Datenmenge und die Länder, aus denen die Anfragen kommen. Für
+        die Statistik lädt keine Seite ein Skript, und Cloudflare setzt dafür kein Cookie und liest dafür nichts von
+        deinem Gerät. Ich sehe nur zusammengefasste Zahlen, keine einzelnen Besucher. Laut Cloudflare stehen die Zahlen
+        mindestens 30 Tage lang zur Verfügung. Mehr dazu in der <a href={CF_ANALYTICS}>Dokumentation von Cloudflare</a>.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist zu sehen, wie viel die Website
+        genutzt wird. Cloudflare handelt auch hier in meinem Auftrag, auf Grundlage des Data Processing Addendum.
       </p>
 
       <h2>Kontaktformular und E-Mail</h2>
@@ -238,7 +238,7 @@ export function Privacy({ lang }: { lang: Lang }) {
       <p>
         When you open a page, Cloudflare processes your IP address, the time, the address of the page and your
         browser&apos;s user agent. Cloudflare needs this to deliver the page and to protect it from attacks. The legal
-        basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website. I do not look at single requests.
+        basis is Art. 6(1)(f) GDPR. My legitimate interest is a safe and fast website.
       </p>
       <p>
         Cloudflare processes the data on my behalf (Art. 28 GDPR) under Cloudflare&apos;s{' '}
@@ -281,9 +281,9 @@ export function Privacy({ lang }: { lang: Lang }) {
       <h2>Visitor statistics from Cloudflare</h2>
       <p>
         Cloudflare counts the requests it serves for this website anyway. It shows me totals, for example the number of
-        requests and visitors, the amount of data and the countries the requests come from. For this, no page loads a
-        script, Cloudflare sets no cookie and reads nothing from your device. I only see totals, not single visitors.
-        Cloudflare says the numbers are available for at least 30 days. See{' '}
+        requests and visitors, the amount of data and the countries the requests come from. The statistics need no
+        script. Cloudflare sets no cookie for them and reads nothing from your device for them. I only see totals, not
+        single visitors. Cloudflare says the numbers are available for at least 30 days. See{' '}
         <a href={CF_ANALYTICS}>Cloudflare&apos;s documentation</a>. The legal basis is Art. 6(1)(f) GDPR. My legitimate
         interest is to see how much the website is used. Cloudflare acts on my behalf here too, under the Data
         Processing Addendum.
