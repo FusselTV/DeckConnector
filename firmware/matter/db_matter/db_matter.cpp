@@ -299,8 +299,9 @@ static void deck_changed(int slot)
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
     strlcpy(k->model, info.model, sizeof(k->model));
-    /* a deck without a serial number is named by its port: another model there is another deck */
-    if (!moved && old.id.serial[0] &&
+    /* a deck without a serial number is named by its port (db_deck_identity): another model there is another
+     * deck. Only then: a model name renamed in our driver must not give a deck with a serial new endpoints. */
+    if (!moved && strncmp(k->id.serial, "port-", 5) == 0 &&
         (k->keys != old.keys || k->dials != old.dials || strcmp(k->model, old.model) != 0)) {
         k->id.gen = (uint8_t)((k->id.gen + 1) % DB_MATTER_GENS);
         moved = true;
