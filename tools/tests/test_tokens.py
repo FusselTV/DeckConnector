@@ -186,20 +186,22 @@ PASSWORD_ONLY = [
 ]
 
 
-async def ends_with_its_login(ws, end):
+async def ends_with_its_login(ws, end, press: bool):
     """Once its login is gone, a socket gets nothing more and may not press: within one ping (5 s) it closes."""
     assert json.loads(await ws.recv())["t"] == "state"
     end()
-    await ws.send(json.dumps({"t": "input", "id": 1, "key": 0}))
+    if press:
+        await ws.send(json.dumps({"t": "input", "id": 1, "key": 0}))
     with pytest.raises(ConnectionClosed):
         for _ in range(20):
             msg = json.loads(await asyncio.wait_for(ws.recv(), 10))
-            assert msg["t"] in ("result", "ping") and msg.get("status", 401) == 401, msg
+            assert press and msg["t"] in ("result", "ping") and msg.get("status", 401) == 401, msg
 
 
-async def test_a_removed_token_loses_its_socket(token):
+@pytest.mark.parametrize("press", [False, True])
+async def test_a_removed_token_loses_its_socket(token, press):
     async with connect(f"ws://{HOST}/api/ws", additional_headers={"Authorization": f"Bearer {token}"}) as ws:
-        await ends_with_its_login(ws, lambda: api("DELETE", "/api/tokens/pytest"))
+        await ends_with_its_login(ws, lambda: api("DELETE", "/api/tokens/pytest"), press)
 
 
 async def test_a_logout_ends_the_socket_of_its_session():
@@ -209,7 +211,7 @@ async def test_a_logout_ends_the_socket_of_its_session():
     cookie = {"Cookie": headers["Set-Cookie"].split(";")[0], "X-DeckConnector": "1"}
     assert code == 200
     async with connect(f"ws://{HOST}/api/ws", additional_headers=cookie) as ws:
-        await ends_with_its_login(ws, lambda: call("POST", "/api/logout", None, cookie, b""))
+        await ends_with_its_login(ws, lambda: call("POST", "/api/logout", None, cookie, b""), False)
 
 
 @pytest.fixture

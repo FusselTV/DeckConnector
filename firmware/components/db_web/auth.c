@@ -285,16 +285,8 @@ bool auth_by_token(httpd_req_t *req)
     return strncmp(given, "Bearer ", 7) == 0;
 }
 
-/* The index of the request's token, or -1. */
-static int token_index(httpd_req_t *req)
+static int token_by_sha(const uint8_t sha[32])
 {
-    char given[96] = {0};
-    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK) {
-        return -1;
-    }
-    uint8_t sha[32];
-    sha256(given + 7, sha);
-    mbedtls_platform_zeroize(given, sizeof(given));
     int found = -1;
     portENTER_CRITICAL(&mux);
     for (int i = 0; i < API_TOKENS; i++) {
@@ -305,6 +297,20 @@ static int token_index(httpd_req_t *req)
         found = d == 0 ? i : found;
     }
     portEXIT_CRITICAL(&mux);
+    return found;
+}
+
+/* The index of the request's token, or -1. */
+static int token_index(httpd_req_t *req)
+{
+    char given[96] = {0};
+    if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK) {
+        return -1;
+    }
+    uint8_t sha[32];
+    sha256(given + 7, sha);
+    mbedtls_platform_zeroize(given, sizeof(given));
+    int found = token_by_sha(sha);
     if (found < 0) {
         count_try(req, false, false); /* a hit must not reset the count: only the password does */
     }
@@ -467,18 +473,11 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
 
 bool auth_login_alive(const char *key)
 {
+    uint8_t sha[32];
     if (key[0] == 's') {
         return session_alive(key + 1);
     }
-    bool ok = false;
-    char hex[65];
-    portENTER_CRITICAL(&mux);
-    for (int i = 0; key[0] == 't' && i < API_TOKENS; i++) {
-        db_hex(hex, tokens[i].sha, sizeof(tokens[i].sha));
-        ok |= tokens[i].name[0] && equal(hex, key + 1);
-    }
-    portEXIT_CRITICAL(&mux);
-    return ok;
+    return key[0] == 't' && db_config_pin(key + 1, sha) && token_by_sha(sha) >= 0;
 }
 
 esp_err_t auth_login(httpd_req_t *req)

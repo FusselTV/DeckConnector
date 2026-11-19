@@ -124,8 +124,7 @@ static void send_job(job_t *job)
             continue;
         }
         if (e.login[i][0] && !auth_login_alive(e.login[i])) {
-            httpd_sess_trigger_close(job->server,
-                                     fd); /* logged out, a new password, the setup over, token removed */
+            httpd_sess_trigger_close(job->server, fd);
             e.fds[i] = -1;
             continue;
         }
