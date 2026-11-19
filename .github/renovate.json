@@ -15,6 +15,12 @@
       "description": "The firmware needs a board test after any component update.",
       "matchDatasources": ["custom.espressif"],
       "dependencyDashboardApproval": true
+    },
+    {
+      "description": "The firmware builds these from a local copy (override_path), not from the registry.",
+      "matchDatasources": ["custom.espressif"],
+      "matchPackageNames": ["espressif/usb", "espressif/esp_matter"],
+      "enabled": false
     }
   ],
   "customManagers": [
@@ -46,7 +52,7 @@
     },
     {
       "customType": "regex",
-      "description": "ESP-IDF components of the firmware. Only updates outside the range show up: idf.py update-dependencies moves dependencies.lock",
+      "description": "ESP-IDF components of the firmware. Only versions outside the range show up; for the rest run idf.py update-dependencies in firmware, firmware/sim and firmware/simdeck",
       "managerFilePatterns": ["/^firmware/.+/idf_component\\.yml$/"],
       "matchStrings": ["(?<depName>espressif/[\\w-]+):\\s*(?:\\n\\s+version:\\s*)?\"(?<currentValue>[^\"]+)\""],
       "datasourceTemplate": "custom.espressif",
@@ -57,7 +63,7 @@
     "espressif": {
       "defaultRegistryUrlTemplate": "https://components.espressif.com/api/components/{{packageName}}",
       "transformTemplates": [
-        "{\"releases\": versions[yanked_at = null].{\"version\": version, \"releaseTimestamp\": created_at}}"
+        "{\"releases\": [versions[yanked_at = null].{\"version\": version, \"releaseTimestamp\": created_at}]}"
       ]
     }
   }
