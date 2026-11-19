@@ -55,6 +55,7 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 | `strip_outside` | Der Punkt liegt außerhalb der Touchleiste |
 | `busy` | Der Connector ist beschäftigt. Versuch es noch einmal |
 | `locked` | Zu viele falsche Passwörter. Status 429, die Antwort hat `retry` in Sekunden |
+| `paused` | Diese Adresse hat vor weniger als einer Minute eine Frage aufs Deck gebracht, die ohne Ja endete. Status 429, `retry` in Sekunden und `Retry-After` |
 | `wrong_password` | Falsches Passwort |
 | `needs_password` | Braucht das Passwort, ein API-Schlüssel reicht nicht |
 
@@ -69,13 +70,13 @@ Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im St
 | `POST /api/login` | `{"password": "..."}`, setzt das Sitzungs-Cookie | open |
 | `POST /api/logout` | Beendet die Sitzung | open |
 | `POST /api/setup/claim` | Vor der Einrichtung: eine Sitzung ohne Passwort, siehe [Passwort](/de/docs/security/#passwort). 403 unter dem Namen einer fremden Seite, 409 mit `set up`, `claimed` oder `too late` | open |
-| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage | open |
+| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage oder mit `paused` | open |
 | `GET /api/login/request/<id>` | `state` ist `pending`, `accepted`, `denied`, `expired` oder `used`. Bei `accepted` setzt die Antwort einmal das Sitzungs-Cookie | open |
 | `DELETE /api/login/request/<id>` | Zieht die Anfrage zurück | open |
 | `POST /api/passkeys/challenge` | `{"login": true}` für eine Anmeldung, `false` für einen neuen Passkey. Antwortet `{"challenge": "<hex>"}`. Gilt einmal, 2 Minuten lang, von dieser Adresse. 30 je 10 s und Adresse, sonst 429. Nur per HTTPS unter einem Namen, sonst 403 | open |
 | `POST /api/login/passkey` | Die Antwort von `navigator.credentials.get()`, mit `id`, `clientDataJSON`, `authenticatorData` und `signature` in base64url. Der Passkey muss den Nutzer prüfen. Setzt das Sitzungs-Cookie. Ein abgelehnter Passkey zählt wie ein falsches Passwort, eine unbekannte oder benutzte Challenge nicht | open |
-| `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck | open |
-| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}` | open |
+| `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck, 429 mit `paused` | open |
+| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}`. 429 mit `paused` | open |
 | `DELETE /api/password/reset` | Beendet die Frage | open |
 
 Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
@@ -170,7 +171,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 bis 23 Bytes | admin |
 | `DELETE /api/passkeys/<id>` | Entfernt diesen Passkey | admin |
 | `GET /api/cert` | Das HTTPS-Zertifikat als PEM | open |
-| `GET /api/ca` | Die CA des Connectors als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status | open |
+| `GET /api/ca` | Die CA des Connectors als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status, aber nicht, solange diese Adresse `paused` ist | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und der Connector startet neu | admin |
 | `DELETE /api/tls` | Zurück zum eigenen Zertifikat des Connectors, mit Neustart | full |
 

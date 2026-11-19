@@ -6,6 +6,7 @@
 #include <strings.h>
 #include <time.h>
 
+#include "auth.h"
 #include "cJSON.h"
 #include "db_cert.h"
 #include "db_config.h"
@@ -515,7 +516,11 @@ esp_err_t get_ca(httpd_req_t *req)
         return send_error(req, "404 Not Found",
                           custom ? "an own certificate is in use" : "HTTPS is not running");
     }
-    db_ui_show_ca(ca_short);
+    uint32_t who = auth_asker(req);
+    if (!auth_paused_s(DB_UI_PASSWORD, who)) { /* the download goes on, the deck stays free */
+        db_ui_show_ca(ca_short);
+        auth_raised(DB_UI_PASSWORD, who);
+    }
     httpd_resp_set_type(req, "application/x-x509-ca-cert");
     httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"deckconnector-ca.crt\"");
     return httpd_resp_send(req, (const char *)ca, (ssize_t)ca_len);

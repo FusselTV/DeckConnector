@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 
+#include "db_ui.h"
 #include "esp_err.h"
 #include "esp_http_server.h"
 
@@ -49,10 +50,16 @@ esp_err_t auth_logout(httpd_req_t *req);
 esp_err_t auth_password_show(httpd_req_t *req);
 /* POST asks on the deck, DELETE takes the question back. */
 esp_err_t auth_password_reset(httpd_req_t *req);
-/* Before setup, the first browser within CLAIM_S after the start gets a session without the password, once
- * until a factory reset, and only until the setup is done. Setting a password uses that chance up too. */
+/* Before setup, any browser within CLAIM_S after the start gets a session without the password, until a
+ * password is set or the setup is done. */
 esp_err_t auth_setup_claim(httpd_req_t *req);
 esp_err_t auth_claim_close(void);
+/* Who put a page on the deck: the lockout key, an IPv6 client by its /64. */
+uint32_t auth_asker(httpd_req_t *req);
+/* Seconds `key` waits before it may put `page` on the deck again: 60 s after its last one there ended without
+ * a Yes. auth_raised notes it as the client of the page just shown. */
+int auth_paused_s(db_ui_page_t page, uint32_t key);
+void auth_raised(db_ui_page_t page, uint32_t key);
 /* A websocket checks its login again on every message: a logout, a new password, the end of the first-browser
  * setup or a removed token must reach it too. The key is its session or its token's hash, "" for neither. */
 #define AUTH_KEY_LEN 66

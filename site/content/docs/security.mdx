@@ -7,7 +7,7 @@ description: Password, login on the deck, API keys, lockout, HTTPS and CORS.
 
 The web UI has one user, `admin`. On its first start the connector makes a random password and shows it in the deck menu. Set your own (6 to 23 characters) in the setup or under **Access** ([demo](/demo/#access)).
 
-Before setup, the first browser that opens the connector gets in without the password. This works once, in the 30 minutes after the start. A factory reset opens it again.
+Before setup, every browser that opens the connector gets in without the password. This works in the 30 minutes after the start, until a password is set or setup is done. A factory reset opens it again.
 
 A new password restarts the connector and ends every session. A session ends after 12 hours without use, and on a power cut.
 
@@ -20,6 +20,8 @@ The login page offers three ways. Each needs someone at the deck, and presses se
 | Ask the deck | Tap **Accept** within 60 s |
 | Password on the deck | The password shows for 30 s |
 | Reset | Tap **Reset** twice within 60 s. Every setting is gone |
+
+When one of these ends without **Accept**, the same address can start it again only after one minute. The login page shows how long. An IPv6 address counts by its first half (`/64`).
 
 ## Lockout
 

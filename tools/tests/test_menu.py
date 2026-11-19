@@ -3,7 +3,7 @@
 import time
 
 import pytest
-from conftest import TARGET, api, status
+from conftest import TARGET, api, deck_page, status
 
 
 def wait_for(check, timeout: float = 5) -> dict:
@@ -47,7 +47,7 @@ def test_the_password_page_counts_as_open_and_closes_from_the_web():
     if TARGET != "sim" and not status()["device"]:
         pytest.skip("no deck")
     writer = status().get("writer")
-    assert api("POST", "/api/password/show")[0] == 200
+    assert deck_page("POST", "/api/password/show")[0] == 200
     try:
         assert wait_for(lambda s: s["menu_open"])["menu_open"] is True
     finally:

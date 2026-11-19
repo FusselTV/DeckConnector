@@ -4,8 +4,10 @@ import base64
 import http.client
 import json
 import subprocess
+import tempfile
 import time
 import urllib.request
+from pathlib import Path
 
 import pytest
 from conftest import HOST, PASSWORD, TARGET, WORKER, api, start_sim, status
@@ -184,13 +186,71 @@ def claim(port: int, host: str) -> tuple[int, str]:
         return e.code, e.read().decode()
 
 
+def put(port: int, body: dict, cookie: str = "") -> tuple[int, str]:
+    auth = (
+        {"Cookie": cookie}
+        if cookie
+        else {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}
+    )
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/config",
+        data=json.dumps(body).encode(),
+        method="PUT",
+        headers={"X-DeckConnector": "1", "Content-Type": "application/json", **auth},
+    )
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return r.status, (r.headers["Set-Cookie"] or "").split(";")[0]
+
+
+CLAIMED = (409, '{"ok":false,"error":"claimed"}')
+
+
 @pytest.mark.sim
-@pytest.mark.skipif(TARGET != "sim", reason="takes the one chance of a fresh simulator")
-def test_before_setup_the_first_browser_gets_in_once_and_only_on_a_local_name(own_sim):
+@pytest.mark.skipif(TARGET != "sim", reason="sets up a fresh simulator")
+def test_before_setup_every_browser_gets_in_on_a_local_name_until_a_password_is_set(own_sim):
     assert claim(own_sim, "evil.example")[0] == 403, "DNS rebinding: another site's name must not reach it"
-    code, cookie = claim(own_sim, f"127.0.0.1:{own_sim}")
-    assert code == 200 and cookie.startswith("dc_session="), cookie
-    assert claim(own_sim, f"127.0.0.1:{own_sim}") == (409, '{"ok":false,"error":"claimed"}')
+    local = f"127.0.0.1:{own_sim}"
+    (a, first), (b, second) = claim(own_sim, local), claim(own_sim, local)
+    assert a == b == 200 and first.startswith("dc_session=") and second.startswith("dc_session="), (first, second)
+    first, second = first.split(";")[0], second.split(";")[0]
+    status_url = f"http://{local}/api/status"
+    assert get(status_url, first) == get(status_url, second) == 200, "the phone joins the laptop's setup"
+    code, renewed = put(own_sim, {"admin_pass": "chosen-in-one-browser"}, first)
+    assert code == 200 and renewed.startswith("dc_session=")
+    assert get(status_url, second) == 401, "the other browser now needs that password"
+    assert get(status_url, renewed) == 200
+    assert claim(own_sim, local) == CLAIMED
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="sets up a fresh simulator")
+def test_the_end_of_setup_ends_the_way_in_without_a_password_for_good(own_sim):
+    local = f"127.0.0.1:{own_sim}"
+    code, cookie = claim(own_sim, local)
+    assert code == 200
+    assert put(own_sim, {"setup_done": True}, cookie.split(";")[0])[0] == 200
+    assert claim(own_sim, local) == (409, '{"ok":false,"error":"set up"}')
+    assert put(own_sim, {"setup_done": False})[0] == 200
+    assert claim(own_sim, local) == CLAIMED, "setup again with the password does not open it"
+
+
+CLOCK = Path(tempfile.gettempdir()) / f"deckconnector-clock-{WORKER}"
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="moves the clock of a fresh simulator")
+@pytest.mark.parametrize("own_sim", [{"DB_SIM_CLOCK_FILE": str(CLOCK)}], indirect=True)
+def test_the_way_in_without_a_password_ends_30_min_after_the_start(own_sim):
+    local = f"127.0.0.1:{own_sim}"
+    try:
+        code, cookie = claim(own_sim, local)
+        assert code == 200
+        CLOCK.write_text("1801")
+        time.sleep(0.3)  # the simulator reads the file at most every 0.1 s
+        assert claim(own_sim, local) == (409, '{"ok":false,"error":"too late"}')
+        assert get(f"http://{local}/api/status", cookie.split(";")[0]) == 200, "a browser already in finishes"
+    finally:
+        CLOCK.unlink(missing_ok=True)
 
 
 @pytest.mark.sim
@@ -207,7 +267,7 @@ def test_a_password_set_before_setup_closes_the_first_browser_way(own_sim):
     assert urllib.request.urlopen(req, timeout=5).status == 200
     # before the restart the new password causes: the answer comes from the stored flag, the password path
     # never sets the one in memory
-    assert claim(own_sim, f"127.0.0.1:{own_sim}") == (409, '{"ok":false,"error":"claimed"}')
+    assert claim(own_sim, f"127.0.0.1:{own_sim}") == CLAIMED
 
 
 def raw(port: int, addr: str, path: str, host: str) -> tuple[int, str]:

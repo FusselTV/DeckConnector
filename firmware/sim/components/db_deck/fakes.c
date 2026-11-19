@@ -326,10 +326,12 @@ esp_err_t db_ui_open_menu(int deck)
 void db_ui_close_menu(void)
 {
     menu_open = false;
-    pass_until = reset_until = 0;
-    if (esp_timer_get_time() < ask_until) {
+    int64_t now = esp_timer_get_time();
+    pass_until = pass_until < now ? pass_until : now;
+    reset_until = reset_until < now ? reset_until : now;
+    if (now < ask_until) {
         ask_answer = 0;
-        ask_until = 0;
+        ask_until = now;
     }
 }
 
@@ -362,7 +364,7 @@ int db_ui_ask_reset(void)
 
 void db_ui_cancel_reset(void)
 {
-    reset_until = 0;
+    reset_until = esp_timer_get_time();
 }
 
 bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
@@ -384,23 +386,43 @@ int db_ui_login_answer(void)
     if (ask_answer < 0 && esp_timer_get_time() < ask_until && getenv("DB_SIM_LOGIN_ACCEPT") &&
         esp_timer_get_time() - ask_at >= 1000000) {
         ask_answer = 1;
-        ask_until = 0;
+        ask_until = esp_timer_get_time();
     }
     return ask_answer;
 }
 
 void db_ui_end_login(void)
 {
-    ask_until = 0;
+    ask_until = esp_timer_get_time() < ask_until ? esp_timer_get_time() : ask_until;
+}
+
+int64_t db_ui_page_end(db_ui_page_t page)
+{
+    return page == DB_UI_LOGIN ? ask_until : page == DB_UI_PASSWORD ? pass_until : reset_until;
 }
 
 /* IDF's esp_timer has only its header on Linux. Timers never fire: the web watchdog has nothing to watch
- * here. */
+ * here. DB_SIM_CLOCK_FILE: the seconds written there move the clock on, so a test reaches a time limit at once. */
 int64_t esp_timer_get_time(void)
 {
+    static int64_t jump, read_at;
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
-    return (int64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+    int64_t now = (int64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+    const char *file = getenv("DB_SIM_CLOCK_FILE");
+    if (file && now - read_at > 100000) {
+        read_at = now;
+        long s = 0;
+        FILE *f = fopen(file, "r");
+        if (f && fscanf(f, "%ld", &s) != 1) {
+            s = 0;
+        }
+        if (f) {
+            fclose(f);
+        }
+        jump = (int64_t)s * 1000000;
+    }
+    return now + jump;
 }
 
 esp_err_t esp_timer_create(const esp_timer_create_args_t *args, esp_timer_handle_t *out)

@@ -288,6 +288,10 @@ export async function boot() {
         // Never a status: the login answered but the browser did not keep its cookie. No stale page to show.
         loginReasonAtom.set('cookie')
         dispatch({ type: 'auth', auth: 'login' })
+      } else if (getState().status.setup?.active && !getState().status.setup?.rerun) {
+        // Another browser set the password or finished the setup: the wizard has no login bar.
+        loginReasonAtom.set('claimed')
+        dispatch({ type: 'auth', auth: 'login' })
       } else dispatch({ type: 'auth', auth: 'expired' })
     } else if (code === 0) lost()
   })

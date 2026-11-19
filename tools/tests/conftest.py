@@ -4,8 +4,10 @@ import asyncio
 import atexit
 import base64
 import contextlib
+import http.client
 import io
 import ipaddress
+import itertools
 import json
 import os
 import signal
@@ -134,6 +136,28 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
+
+
+_sources = itertools.count()
+
+
+def deck_page(
+    method: str, path: str, body: bytes = b"", host: str = "", source: str = ""
+) -> tuple[int, dict, http.client.HTTPMessage]:
+    """An open request that puts a page on the deck. The bridge holds a client off for 60 s after its page there
+    ended without a Yes: on the simulator each call comes from its own 127.0.0.x unless `source` names one, a device
+    waits that out."""
+    addr, port = (host or HOST).rsplit(":", 1)
+    for _ in range(2):
+        src = source or (f"127.0.{next(_sources) % 250 + 1}.1" if TARGET == "sim" else "")
+        c = http.client.HTTPConnection(addr, int(port), timeout=10, source_address=(src, 0) if src else None)
+        c.request(method, path, body=body, headers={"X-DeckConnector": "1"})
+        r = c.getresponse()
+        body = json.loads(r.read() or b"null")
+        if r.status != 429 or source or (body or {}).get("code") != "paused":
+            return r.status, body, r.headers
+        time.sleep(int(r.headers["Retry-After"]))
+    return r.status, body, r.headers
 
 
 def events(query: str = "") -> list[dict]:

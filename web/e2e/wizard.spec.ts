@@ -17,12 +17,15 @@ test('a device nobody set up opens the wizard without the login page', async ({ 
   await sim('PUT', '/api/config', { setup_done: true })
 })
 
-test('a second browser during setup hears that another one opened it', async ({ page, errors: _errors }) => {
+test('a browser that comes after a password was set during setup hears why it must log in', async ({
+  page,
+  errors: _errors,
+}) => {
   await page.route('**/api/setup/claim', (r) => r.fulfill({ status: 409, json: { ok: false, error: 'claimed' } }))
   await page.addInitScript(() => localStorage.setItem('dc.lang', '"en"'))
   await sim('PUT', '/api/config', { setup_done: false })
   await page.goto('/')
-  await expect(page.getByText('This connector was already opened in another browser.')).toBeVisible()
+  await expect(page.getByText('Another browser went on with the setup.')).toBeVisible()
   await sim('PUT', '/api/config', { setup_done: true })
 })
 

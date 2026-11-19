@@ -343,6 +343,7 @@ export const en = {
   'login.show': 'Password on the deck',
   'login.shown': 'On the deck for {s} s',
   'login.no_deck': 'No deck connected.',
+  'login.paused': 'Too soon after the last question on the deck. Try again in {n} s.',
   'login.forgot': 'Reset…',
   'login.reset_t': 'Reset everything?',
   'login.reset_b':
@@ -702,7 +703,8 @@ export const en = {
   'meter.slow_n': 'Deck {n} slow',
   'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
   'login.reset': 'DeckConnector was reset. Log in with the password from the deck.',
-  'login.claimed': 'This connector was already opened in another browser. Log in with the password from the deck.',
+  'login.claimed':
+    'Another browser went on with the setup. Log in with the password set there. If none was set, use the password from the deck.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
   'login.pw': 'Password changed. Log in with the new one.',

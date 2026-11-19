@@ -8,10 +8,11 @@ import urllib.error
 import urllib.request
 
 import pytest
-from conftest import HOST, TARGET, WORKER, api, start_sim, status
+from conftest import HOST, TARGET, WORKER, api, deck_page, start_sim, status
 from websockets.asyncio.client import connect
 
 ZEROS = "0" * 32
+WHO = json.dumps({"who": "pytest · urllib"}).encode()
 
 
 def call(method: str, path: str, body: dict | None = None, marked: bool = True, host: str = HOST, cookie: str = ""):
@@ -28,15 +29,23 @@ def call(method: str, path: str, body: dict | None = None, marked: bool = True, 
         return e.code, json.loads(e.read() or b"null"), e.headers.get("Set-Cookie", "")
 
 
-def ask(host: str = HOST) -> str:
+def ask(host: str = "", source: str = "") -> str:
     """A new request, past the 3 s limit an earlier test may have started."""
     for _ in range(5):
-        code, reply, _ = call("POST", "/api/login/request", {"who": "pytest · urllib"}, host=host)
-        if code != 429:
+        code, reply, _ = deck_page("POST", "/api/login/request", WHO, host, source)
+        if code != 429 or reply.get("code") == "paused":
             assert code == 200, reply
             return reply["id"]
         time.sleep(1)
     raise AssertionError("still 429 after 5 s")
+
+
+def held_off(host: str = "", source: str = "") -> int:
+    """The seconds a new request from `source` must wait; fails when it is not held off."""
+    code, reply, headers = deck_page("POST", "/api/login/request", WHO, host, source)
+    assert (code, reply.get("code")) == (429, "paused"), reply
+    assert headers["Retry-After"] == str(reply["retry"])
+    return reply["retry"]
 
 
 @pytest.fixture
@@ -76,6 +85,27 @@ def test_a_request_waits_and_is_taken_back(deck):
         assert call("DELETE", f"/api/login/request/{rid}")[:2] == (200, {"ok": True})
     code, reply, cookie = call("GET", f"/api/login/request/{rid}")
     assert (code, reply, cookie) == (200, {"state": "denied", "s": 0}, "")
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="asks from addresses of its own")
+def test_a_request_without_a_yes_holds_off_its_address_for_a_minute():
+    """Else anyone on the network could cover the deck with questions again and again."""
+    rid = ask(source="127.0.0.21")
+    assert api("DELETE", "/api/menu")[0] == 200  # as a "No" on the deck
+    assert call("GET", f"/api/login/request/{rid}")[1]["state"] == "denied"
+    assert 58 <= held_off(source="127.0.0.21") <= 60
+    call("DELETE", f"/api/login/request/{ask(source='127.0.0.22')}")  # another address may still ask
+    assert 58 <= held_off(source="127.0.0.22") <= 60, "taking a request back counts as no Yes too"
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="asks over IPv6")
+def test_an_ipv6_client_is_held_off_and_ipv4_clients_are_not():
+    v6 = f"[::1]:{HOST.rsplit(':', 1)[1]}"
+    call("DELETE", f"/api/login/request/{ask(v6, '::1')}")
+    held_off(v6, "::1")
+    call("DELETE", f"/api/login/request/{ask(source='127.0.0.23')}")
 
 
 @pytest.mark.sim
@@ -119,7 +149,7 @@ def accepting_sim():
 def test_an_accepted_request_logs_in_once(accepting_sim):
     host = accepting_sim
     assert call("GET", "/api/status", host=host)[0] == 401
-    rid = ask(host)
+    rid = ask(host, "127.0.0.25")
     assert call("GET", f"/api/login/request/{rid}", host=host)[1]["state"] == "pending"
     time.sleep(1.2)
     code, reply, cookie = call("GET", f"/api/login/request/{rid}", host=host)
@@ -128,18 +158,20 @@ def test_an_accepted_request_logs_in_once(accepting_sim):
     assert call("GET", "/api/status", host=host, cookie=session)[0] == 200
     code, reply, cookie = call("GET", f"/api/login/request/{rid}", host=host)
     assert (reply["state"], cookie) == ("used", "")
+    call("DELETE", f"/api/login/request/{ask(host, '127.0.0.25')}", host=host)  # a Yes holds nobody off
 
 
 @pytest.mark.sim
 @pytest.mark.skipif(TARGET != "sim", reason="takes over the deck for a minute")
 def test_an_unanswered_request_expires():
-    rid = ask()
+    rid = ask(source="127.0.0.24")
     try:
         time.sleep(61)
         code, reply, cookie = call("GET", f"/api/login/request/{rid}")
         assert (code, reply, cookie) == (200, {"state": "expired", "s": 0}, "")
     finally:
         call("DELETE", f"/api/login/request/{rid}")
+    assert 56 <= held_off(source="127.0.0.24") <= 60, "no answer holds off like a No"
 
 
 @pytest.mark.sim
