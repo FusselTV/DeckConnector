@@ -683,9 +683,11 @@ function SettingSlider({
   const [v, setV] = useState<number | null>(null)
   const shown = v ?? saved ?? fallback
   const keyTm = useRef(0)
+  const unsaved = useRef<number | null>(null)
   const commit = () => {
     clearTimeout(keyTm.current)
-    if (v !== null) void save(v).finally(() => setV(null))
+    if (unsaved.current !== null) void save(unsaved.current).finally(() => setV(null))
+    unsaved.current = null
   }
   return (
     <div className="slider">
@@ -700,7 +702,10 @@ function SettingSlider({
         aria-label={label}
         aria-valuetext={fmt.pct(shown)}
         disabled={disabled || saved === undefined}
-        onChange={(e) => setV(Number(e.target.value))}
+        onChange={(e) => {
+          unsaved.current = Number(e.target.value)
+          setV(unsaved.current)
+        }}
         onPointerUp={commit}
         onKeyUp={() => {
           clearTimeout(keyTm.current)
