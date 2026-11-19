@@ -334,13 +334,22 @@ void db_log_keep_start(void)
     bool nv = nvs_open("evlog", NVS_READWRITE, &h) == ESP_OK; /* the boot count and earlier events */
     if (nv) {
         nvs_get_u32(h, "boot", &boot_no);
-        nvs_set_u32(h, "boot", ++boot_no);
     }
+    boot_no++;
     part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, PARTITION, "evlog");
     db_evflash_t f = {.read = fl_read, .write = fl_write, .erase = fl_erase, .size = part ? part->size : 0};
     int err = part ? db_evring_open(&ring, &f, buf) : 0;
     free(buf);
     on_flash = part && !err;
+    db_event_t newest;
+    /* the settings storage was erased but evlog was not: count on from the newest boot it holds */
+    if (on_flash && ring.newest && db_evring_get(&ring, ring.newest, &newest) &&
+        (int16_t)(uint16_t)(boot_no - newest.boot) <= 0) {
+        boot_no = newest.boot + 1u;
+    }
+    if (nv) {
+        nvs_set_u32(h, "boot", boot_no);
+    }
     on_nvs = !on_flash && nv;
     if (err) {
         ESP_LOGE("evlog", "evlog partition: %s, events go to the settings storage", esp_err_to_name(err));

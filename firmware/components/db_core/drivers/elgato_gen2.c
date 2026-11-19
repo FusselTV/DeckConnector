@@ -272,11 +272,18 @@ static void read_unit_info(db_dev_t *dev, const model_t *m)
     db_put_u16(u + 19, m->strip.h);
 }
 
+/* a row past these would write beyond the key state or the target list */
+static bool fits(const model_t *m)
+{
+    return m->cols * m->rows + m->sensors <= MAX_KEYS && m->encoders <= MAX_ENCODERS &&
+           m->full_image + m->cols * m->rows + (m->strip.w > 0) <= DB_MAX_TARGETS;
+}
+
 static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
 {
     (void)vid;
     const model_t *m = find_model(pid);
-    if (!m) {
+    if (!m || !fits(m)) {
         return DB_ERR_UNSUPPORTED;
     }
     memset(dev->state, 0, sizeof(dev->state));

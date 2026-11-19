@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unity.h>
@@ -79,6 +80,21 @@ static void test_unknown_device_has_no_driver(void)
 {
     TEST_ASSERT_NULL(db_driver_find(0x0fd9, 0x1234));
     TEST_ASSERT_NULL(db_driver_find(0x1234, 0x0084));
+}
+
+static void test_every_accepted_pid_fits_the_drivers_limits(void)
+{
+    int accepted = 0;
+    for (uint32_t pid = 0; pid <= 0xffff; pid++) {
+        db_dev_t d = {.io = &io, .driver = db_driver_find(0x0fd9, (uint16_t)pid)};
+        if (d.driver) {
+            char msg[16];
+            snprintf(msg, sizeof(msg), "pid %04x", (unsigned)pid);
+            TEST_ASSERT_EQUAL_INT_MESSAGE(DB_OK, d.driver->open(&d, 0x0fd9, (uint16_t)pid), msg);
+            accepted++;
+        }
+    }
+    TEST_ASSERT_GREATER_THAN_INT(10, accepted);
 }
 
 static void test_describes_stream_deck_plus(void)
@@ -334,6 +350,7 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_unknown_device_has_no_driver);
+    RUN_TEST(test_every_accepted_pid_fits_the_drivers_limits);
     RUN_TEST(test_describes_stream_deck_plus);
     RUN_TEST(test_unit_info_as_the_dock_keeps_it);
     RUN_TEST(test_splits_key_image_into_reports);

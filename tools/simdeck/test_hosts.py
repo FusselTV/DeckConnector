@@ -5,7 +5,9 @@ import asyncio
 import base64
 import io
 import json
+import socket
 import socketserver
+import struct
 import subprocess
 import threading
 import time
@@ -244,6 +246,44 @@ def test_companions_library_drives_the_dock(start, model):
     if model != "pedal":
         assert drawn_since(sim, 0, since), "the dock host drew nothing"
         shot(sim, 0, f"{model}-dock")
+
+
+def cora(op: int, payload: bytes, flags: int = 0) -> bytes:
+    return struct.pack("<4sHBBII", bytes.fromhex("43938a41"), flags, op, 0, 1, len(payload)) + payload
+
+
+def test_a_dock_host_that_stops_reading_does_not_hold_up_presses(start):
+    sim = start("mk2")
+    dismiss_prompt(sim)
+    sim.config(controller="companion", host="", setup_done=True)
+    dock = socket.create_connection(("127.0.0.1", 5343))
+    device = socket.socket()
+    device.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)  # a small window, so the bridge's buffer fills
+    device.connect(("127.0.0.1", 5344))
+    try:
+        # Companion's questions on both ports; the device port is never read again
+        dock.sendall(cora(2, b"\x03\x80"))
+        device.sendall(cora(2, b"\x03\x1c"))
+        assert sim.wait(lambda: sim.status()["decks"][0]["writer"] == "dock1", 5), sim.status()["decks"]
+        seq = max((e["seq"] for e in json.loads(sim.api("GET", "/api/input/log")[1])), default=0)
+        slowest = 0.0
+        for _ in range(400):  # up to 16000 reports of 528 bytes: past what the socket buffers hold
+            try:
+                for sock in (dock, device):
+                    sock.sendall(cora(0, b"\x03\x1a"))  # unanswered, keeps the host from timing out
+            except OSError:
+                break  # the bridge dropped the host that stopped reading
+            since = time.monotonic()
+            sim.act(*["0 key 0 1", "0 key 0 0"] * 20)  # 40 reports fit the deck's input queue
+            seq += 40
+            assert sim.wait(lambda n=seq - 1: json.loads(sim.api("GET", f"/api/input/log?since={n}")[1]), 10, 0.01)
+            slowest = max(slowest, time.monotonic() - since)
+        else:
+            raise AssertionError("the stuck host kept its connection and missed presses")
+        assert slowest < 1, f"the presses waited {slowest:.1f} s for the stuck host"
+    finally:
+        dock.close()
+        device.close()
 
 
 def test_a_mirabox_deck_has_no_dock(start):

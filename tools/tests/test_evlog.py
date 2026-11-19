@@ -113,6 +113,17 @@ def test_an_old_table_keeps_events_in_settings_and_evlog_takes_them_over(tmp_pat
     assert seqs == sorted(seqs, reverse=True) and len(set(seqs)) == len(seqs)
 
 
+def test_boot_numbers_stay_in_order_after_the_settings_storage_is_erased(tmp_path):
+    flash = tmp_path / "flash.bin"
+    flash.write_bytes(b"\xff" * 0x90000)
+    write_at(flash, 0x8000, table(NEW_TABLE, tmp_path))
+    boot(flash)
+    boot(flash)
+    write_at(flash, 0x9000, b"\xff" * 0x6000)  # what init_nvs leaves after it erased an unreadable storage
+    boots = [e["boot"] for e in boot(flash)[0]["events"]]
+    assert boots == sorted(boots) and boots[-1] == 2, boots
+
+
 def test_pages_go_back_by_number_and_stop_at_a_time(tmp_path):
     flash = tmp_path / "flash.bin"
     flash.write_bytes(b"\xff" * 0x90000)

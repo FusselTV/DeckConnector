@@ -1,3 +1,4 @@
+import type { WebSocketRoute } from '@playwright/test'
 import { expect, login, sim, test } from './fixtures.ts'
 
 const TABS = ['Overview', 'Sources', 'Deck', 'Network', 'Access', 'Firmware', 'Log', 'Diagnostics']
@@ -438,6 +439,40 @@ test('a new event arrives over the socket without a reload', async ({ app: page 
   await expect(page.locator('#tabpanel')).toBeVisible()
   await openTab(page, 'Log')
   await expect(page.locator('.lg-box')).toContainText('10.9.9.9 asks to pair')
+})
+
+test('an event that arrives while the log loads stays in the list', async ({ app: page }) => {
+  let sock: WebSocketRoute | undefined
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    const server = ws.connectToServer()
+    ws.onMessage((m) => server.send(m))
+    server.onMessage((m) => ws.send(m))
+    sock = ws
+  })
+  let release = () => {}
+  const held = new Promise<void>((r) => (release = r))
+  await page.route(
+    (u) => u.pathname === '/api/events',
+    async (r) => {
+      await held
+      const before = Number(new URL(r.request().url()).searchParams.get('before')) || Infinity
+      const events = FAKE.filter((e) => e.seq < before).slice(0, 200)
+      await r.fulfill({ json: { events, oldest: 1, newest: 250, total: 250, store: 'flash' } })
+    },
+  )
+  await page.reload()
+  await expect(page.locator('#tabpanel')).toBeVisible()
+  const asked = page.waitForRequest((r) => new URL(r.url()).pathname === '/api/events')
+  await openTab(page, 'Log')
+  await asked
+  const event = { ...FAKE[0], seq: 251, code: 'pair_asks', kind: 'pairing', level: 'warn', args: ['10.9.9.9'] }
+  expect(sock).toBeDefined()
+  sock?.send(JSON.stringify({ t: 'event', event }))
+  await expect(page.locator('.lg-box')).toContainText('10.9.9.9 asks to pair') // taken before the list comes
+  release()
+  await expect(page.locator('.lg-foot')).toContainText('of 250 entries')
+  await expect(page.locator('.lg-box')).toContainText('10.9.9.9 asks to pair')
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
 
 test('logging out says so on the login page', async ({ app: page }) => {
