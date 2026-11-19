@@ -136,6 +136,8 @@ function useEvents(on: boolean) {
   const [page, setPage] = useState<EventPage | null>(null)
   const [error, setError] = useState('')
   const busy = useRef(false)
+  // what the socket brought while a fresh load ran: newer than its page, so kept over it
+  const during = useRef<DeviceEvent[] | null>(null)
   // a new start: `boot` of every event changes, and without evlog the numbers start again
   const boot = useStore((s) => s.status.boot?.at ?? 0)
   const live = useStore((s) => s.conn === 'live')
@@ -147,17 +149,19 @@ function useEvents(on: boolean) {
   const load = async (before?: number, fresh = false) => {
     if (busy.current) return null
     busy.current = true
+    if (fresh) during.current = []
     try {
       const p = await api.events(before ? { before, n: PAGE } : { n: PAGE })
       setPage(p)
       setError('')
-      merge(p.events, fresh)
+      merge([...p.events, ...(during.current ?? [])], fresh)
       return p
     } catch (e) {
       setError(errText(e, t))
       return null
     } finally {
       busy.current = false
+      during.current = null
     }
   }
   // The last 7 days for the summary, a few pages at most; the rest on scrolling.
@@ -181,6 +185,7 @@ function useEvents(on: boolean) {
     () =>
       onDeviceEvent((e) => {
         merge([e])
+        during.current?.push(e)
         if (page && e.seq > page.newest + 1) void load() // some went missing on the way
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `page` is read when an event comes
