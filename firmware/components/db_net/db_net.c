@@ -256,6 +256,7 @@ static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
         xSemaphoreTake(s.lock, portMAX_DELAY);
         s.gateway_seen = false; /* a reply still in flight must not count the timeouts before the stop */
         s.missed = 0;
+        s.st.lan_dead = false;
         xSemaphoreGive(s.lock);
         set_ip(s.st.lan_ip, NULL);
     }
