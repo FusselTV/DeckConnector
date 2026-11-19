@@ -573,23 +573,20 @@ static void url_task(void *arg)
         uint8_t *all = heap_caps_malloc((size_t)len, MALLOC_CAP_SPIRAM);
         int n = 0;
         int64_t got = 0;
-        while (all && s.busy && got < len &&
+        while (all && got < len &&
                (n = esp_http_client_read(c, (char *)all + got,
                                          (int)(len - got < 65536 ? len - got : 65536))) > 0) {
             got += n;
             progress((int)(got * 100 / len));
         }
-        if (all && s.busy && got == len) {
-            db_ota_write(all, (size_t)got);
+        if (!all) {
+            db_ota_abort("no memory for the download");
+        } else if (got < len) {
+            db_ota_abort("download interrupted");
+        } else if (db_ota_write(all, (size_t)got) == ESP_OK) {
+            db_ota_end(); /* not on s.busy: after a refusal the lock is free and s may be the next update's */
         }
         heap_caps_free(all);
-        if (s.busy && !all) {
-            db_ota_abort("no memory for the download");
-        } else if (s.busy && got < len) {
-            db_ota_abort("download interrupted");
-        } else if (s.busy) {
-            db_ota_end();
-        }
     }
     esp_http_client_cleanup(c);
     free(url);
