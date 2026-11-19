@@ -50,7 +50,7 @@ def test_a_newer_stream_ends_the_one_playing(start):
     t = threading.Thread(target=lambda: result.update(first=post_stream(sim, b"\0" * RATE * 10)))
     t.start()
     time.sleep(1)
-    status, body, took = post_stream(sim, b"\0" * (RATE // 2))
+    status, body, _took = post_stream(sim, b"\0" * (RATE // 2))
     t.join()
     assert (status, body) == (200, {"ok": True, "stopped": False})
     first_status, first, first_took = result["first"]
