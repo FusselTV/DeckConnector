@@ -40,7 +40,7 @@ const t = {
     start: 'Startseite',
     menu: 'Menü',
     nav: 'Hauptmenü',
-    starOn: 'Stern auf GitHub',
+    starOn: 'Star auf GitHub',
   },
 }
 
