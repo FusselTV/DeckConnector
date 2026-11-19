@@ -125,7 +125,8 @@ function Forgot() {
   const [reset, setReset] = useCountdown()
   const [err, setErr] = useState<string | null>(null)
   const why = (x: unknown) => {
-    setErr(x instanceof ApiError && x.status === 409 ? t('login.no_deck') : t('login.offline'))
+    if (x instanceof ApiError && x.status === 429) setErr(t('login.paused', { n: x.retry || 3 }))
+    else setErr(x instanceof ApiError && x.status === 409 ? t('login.no_deck') : t('login.offline'))
   }
   const L = useDeckLogin(why, enter)
   const show = () => {

@@ -95,13 +95,14 @@ static void defaults(db_config_t *c)
     db_config_random_password(c->admin_pass, 9);
 }
 
-/* web/claimed 0: the first browser may set the device up without the password (db_web auth.c) */
-static esp_err_t open_claim(void)
+/* web/claimed 0: any browser may set the device up without the password until one is set or setup is done
+ * (db_web auth.c) */
+static esp_err_t set_claimed(uint8_t claimed)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
     if (err == ESP_OK) {
-        err = nvs_set_u8(h, "claimed", 0);
+        err = nvs_set_u8(h, "claimed", claimed);
         err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
@@ -224,7 +225,7 @@ esp_err_t db_config_load(void)
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGI(TAG, "first start, saving defaults");
         err = db_config_save(&current);
-        return err == ESP_OK ? open_claim() : err;
+        return err == ESP_OK ? set_claimed(0) : err;
     }
     return err;
 }
@@ -253,6 +254,9 @@ esp_err_t db_config_save(const db_config_t *cfg)
         err = nvs_commit(h);
     }
     nvs_close(h);
+    if (err == ESP_OK && cfg->setup_done && !current.setup_done && set_claimed(1) != ESP_OK) {
+        ESP_LOGE(TAG, "setup done, but the setup claim not closed for the next start");
+    }
     if (err == ESP_OK && cfg != &current) {
         xSemaphoreTake(lock, portMAX_DELAY);
         current = *cfg;
@@ -319,7 +323,7 @@ esp_err_t db_config_reset(void)
     defaults(&c);
     esp_err_t saved = db_config_save(&c);
     err = err == ESP_OK ? saved : err;
-    return err == ESP_OK ? open_claim() : err;
+    return err == ESP_OK ? set_claimed(0) : err;
 }
 
 static void ip_to_json(db_json_t *j, const char *key, const db_ip_config_t *ip)

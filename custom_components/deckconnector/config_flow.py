@@ -20,6 +20,7 @@ from .api import (
     DeckConnectorError,
     HttpsOnlyError,
     NoDeckError,
+    PausedError,
     TokenLimitError,
     create_token,
     login_cancel,
@@ -131,7 +132,7 @@ class DeckConnectorConfigFlow(ConfigFlow, domain=DOMAIN):
             self._error = "no_deck"
         except TokenLimitError:
             self._error = "too_many_keys"
-        except NotAccepted:
+        except NotAccepted, PausedError:
             self._error = "not_accepted"
         except DeckConnectorError:
             self._error = "cannot_connect"

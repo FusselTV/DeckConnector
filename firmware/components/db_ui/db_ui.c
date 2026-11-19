@@ -304,6 +304,13 @@ static struct { /* a Companion's Discover asking for the deck, under login_mux *
     char denied[sizeof(((db_config_t *)0)->satellite)]; /* the host, without the port */
 } adopt;
 
+/* A page taken down early ends now, so db_ui_page_end can tell when. Under login_mux. */
+static void cut(int64_t *end)
+{
+    int64_t now = esp_timer_get_time();
+    *end = *end < now ? *end : now;
+}
+
 static int64_t until(const int64_t *t)
 {
     portENTER_CRITICAL(&login_mux);
@@ -768,13 +775,13 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_HIDE_PASSWORD:
         portENTER_CRITICAL(&login_mux);
-        pass_until = 0;
+        cut(&pass_until);
         matter_until = 0;
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_CANCEL_RESET:
         portENTER_CRITICAL(&login_mux);
-        reset_until = 0;
+        cut(&reset_until);
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_LOGIN:
@@ -782,7 +789,7 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
         bool same = ask.seq == md->login_seq && ask.answer < 0;
         if (same) {
             ask.answer = act->value;
-            ask.until = 0;
+            cut(&ask.until);
         }
         portEXIT_CRITICAL(&login_mux);
         if (same) {
@@ -1028,12 +1035,12 @@ void db_ui_close_menu(void)
     int64_t now = esp_timer_get_time();
     bool covered = overlay(now);
     portENTER_CRITICAL(&login_mux);
-    pass_until = 0;
-    reset_until = 0;
+    cut(&pass_until);
+    cut(&reset_until);
     adopt.until = 0;
     if (now < ask.until) {
         ask.answer = 0;
-        ask.until = 0;
+        cut(&ask.until);
     }
     portEXIT_CRITICAL(&login_mux);
     bool open = false;
@@ -1434,7 +1441,7 @@ int db_ui_ask_reset(void)
 void db_ui_cancel_reset(void)
 {
     portENTER_CRITICAL(&login_mux);
-    reset_until = 0;
+    cut(&reset_until);
     portEXIT_CRITICAL(&login_mux);
     changed();
 }
@@ -1513,9 +1520,14 @@ int db_ui_login_answer(void)
 void db_ui_end_login(void)
 {
     portENTER_CRITICAL(&login_mux);
-    ask.until = 0;
+    cut(&ask.until);
     portEXIT_CRITICAL(&login_mux);
     changed();
+}
+
+int64_t db_ui_page_end(db_ui_page_t page)
+{
+    return until(page == DB_UI_LOGIN ? &ask.until : page == DB_UI_RESET ? &reset_until : &pass_until);
 }
 
 void db_ui_set_active_link(int index)

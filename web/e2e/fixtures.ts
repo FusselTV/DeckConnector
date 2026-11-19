@@ -52,7 +52,7 @@ export const test = base.extend<{ errors: string[]; app: Page }>({
   },
 })
 
-/** Logs in, unless the page went straight into the wizard (a device not set up, first browser since the start). */
+/** Logs in, unless the page went straight into the wizard (a device not set up, no password set yet). */
 export async function login(page: Page) {
   const pw = page.locator('#lpw')
   await expect(pw.or(page.locator('#wz-step'))).toBeVisible()

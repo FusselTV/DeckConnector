@@ -55,6 +55,7 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 | `strip_outside` | The point is outside the touch strip |
 | `busy` | The connector is busy. Try again |
 | `locked` | Too many wrong passwords. The reply has `retry` in seconds, with status 429 |
+| `paused` | This address put a question on the deck that ended without a Yes less than a minute ago. Status 429, `retry` in seconds and `Retry-After` |
 | `wrong_password` | Wrong password |
 | `needs_password` | Needs the password, an API key is not enough |
 
@@ -69,13 +70,13 @@ Routes that act on a deck take `?deck=<serial>` from `decks` in the status. With
 | `POST /api/login` | `{"password": "..."}`, sets the session cookie | open |
 | `POST /api/logout` | Ends the session | open |
 | `POST /api/setup/claim` | Before setup: a session without the password, see [Password](/docs/security/#password). 403 from another site's name, 409 with `set up`, `claimed` or `too late` | open |
-| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request | open |
+| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request or with `paused` | open |
 | `GET /api/login/request/<id>` | `state` is `pending`, `accepted`, `denied`, `expired` or `used`. With `accepted` the reply sets the session cookie once | open |
 | `DELETE /api/login/request/<id>` | Takes the request back | open |
 | `POST /api/passkeys/challenge` | `{"login": true}` for a login, `false` for a new passkey. Answers `{"challenge": "<hex>"}`. It works once, for 2 minutes, from this address. 30 per 10 s and address, else 429. Over HTTPS by name only, else 403 | open |
 | `POST /api/login/passkey` | The reply of `navigator.credentials.get()`, with `id`, `clientDataJSON`, `authenticatorData` and `signature` in base64url. The passkey must verify the user. Sets the session cookie. A refused passkey counts like a wrong password, an unknown or used challenge does not | open |
-| `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck | open |
-| `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}` | open |
+| `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck, 429 with `paused` | open |
+| `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}`. 429 with `paused` | open |
 | `DELETE /api/password/reset` | Ends the question | open |
 
 The `open` routes that do something need `X-DeckConnector: 1`.
@@ -171,7 +172,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 to 23 bytes | admin |
 | `DELETE /api/passkeys/<id>` | Removes that passkey | admin |
 | `GET /api/cert` | The HTTPS certificate as PEM | open |
-| `GET /api/ca` | The connector's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status | open |
+| `GET /api/ca` | The connector's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status, but not while this address is `paused` | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate. With `"apply": true` it is kept and the connector restarts | admin |
 | `DELETE /api/tls` | Back to the connector's own certificate, with a restart | full |
 

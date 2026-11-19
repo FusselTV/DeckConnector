@@ -113,6 +113,17 @@ async def test_no_deck_falls_back_to_the_password(hass, aioclient_mock):
     assert result["step_id"] == "password" and result["errors"] == {"base": "no_deck"}
 
 
+async def test_a_deck_that_said_no_a_moment_ago_falls_back_to_the_password(hass, aioclient_mock):
+    result = await hass.config_entries.flow.async_init(
+        "deckconnector", context={"source": SOURCE_ZEROCONF}, data=DISCOVERY
+    )
+    aioclient_mock.post(
+        f"{BASE}/api/login/request", status=429, json={"ok": False, "error": "paused", "code": "paused", "retry": 42}
+    )
+    result = await pair(hass, result["flow_id"])
+    assert result["step_id"] == "password" and result["errors"] == {"base": "not_accepted"}
+
+
 async def test_a_board_name_with_dots_shows_whole(hass):
     named = replace(DISCOVERY, name=f"Studio 1.2 🎛️.{DISCOVERY.type}")
     result = await hass.config_entries.flow.async_init("deckconnector", context={"source": SOURCE_ZEROCONF}, data=named)

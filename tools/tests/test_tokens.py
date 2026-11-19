@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 import pytest
-from conftest import HOST, PASSWORD, TARGET, api
+from conftest import HOST, PASSWORD, TARGET, api, deck_page
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
@@ -402,7 +402,7 @@ async def test_deck_pictures_are_for_the_password_while_the_password_shows(token
     ):
         await ha.recv()
         await ui.recv()
-        assert call("POST", "/api/password/show", headers={"X-DeckConnector": "1"}, body=b"")[0] == 200
+        assert (await asyncio.to_thread(deck_page, "POST", "/api/password/show"))[0] == 200  # may wait out a pause
         try:
             for path in ("/api/screen", "/api/screen.jpg"):
                 assert call("GET", path, token)[0] == 403, path

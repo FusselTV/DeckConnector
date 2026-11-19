@@ -52,7 +52,7 @@ static const char *TAG = "auth";
 static RTC_NOINIT_ATTR struct {
     char token[TOKEN_BYTES * 2 + 1];
     int64_t last_used;
-    bool claimed; /* from the first-browser setup: ends with the setup */
+    bool claimed; /* from the setup claim: ends with the setup */
 } sessions[SESSIONS];
 static RTC_NOINIT_ATTR uint8_t kept_sum[32];
 static uint8_t pass_sha[32]; /* of the password this boot started with: the live one already is the new one */
@@ -200,6 +200,91 @@ static uint32_t lock_key(httpd_req_t *req)
         return db_client_ip(peer_ip(req), proxy, xff);
     }
     return fold6(&a, 8);
+}
+
+uint32_t auth_asker(httpd_req_t *req)
+{
+    struct sockaddr_in6 a;
+    socklen_t len = sizeof(a);
+    if (getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&a, &len) == 0 &&
+        a.sin6_family == AF_INET6 && !IN6_IS_ADDR_V4MAPPED(&a.sin6_addr)) {
+        return fold6(&a.sin6_addr, 8); /* never the proxy: that one is IPv4 */
+    }
+    return lock_key(req);
+}
+
+#define PAUSE_US (60 * 1000000LL)
+#define PAUSED   8
+static struct {
+    uint32_t key;
+    int64_t end;       /* of its own page: the deck menu may show the same page again later */
+} raised[DB_UI_PAGES]; /* under mux */
+static struct {
+    uint32_t key;
+    db_ui_page_t page;
+    int64_t until;
+} paused[PAUSED]; /* under mux */
+
+/* Under mux. The oldest entry makes room. */
+static void hold(uint32_t key, db_ui_page_t page, int64_t end)
+{
+    int k = 0;
+    for (int i = 1; i < PAUSED; i++) {
+        k = paused[i].until < paused[k].until ? i : k;
+    }
+    paused[k] = (typeof(paused[0])){key, page, end + PAUSE_US};
+}
+
+int auth_paused_s(db_ui_page_t page, uint32_t key)
+{
+    int64_t now = esp_timer_get_time();
+    int64_t end = db_ui_page_end(page);
+    bool yes = page == DB_UI_LOGIN && db_ui_login_answer() == 1;
+    int64_t until = 0;
+    portENTER_CRITICAL(&mux);
+    if (raised[page].key && now >= end) {
+        if (!yes) {
+            hold(raised[page].key, page, end < raised[page].end ? end : raised[page].end);
+        }
+        raised[page].key = 0;
+    }
+    for (int i = 0; i < PAUSED; i++) {
+        until = paused[i].key == key && paused[i].page == page && paused[i].until > until ? paused[i].until
+                                                                                          : until;
+    }
+    portEXIT_CRITICAL(&mux);
+    return now < until ? (int)((until - now + 999999) / 1000000) : 0;
+}
+
+void auth_raised(db_ui_page_t page, uint32_t key)
+{
+    int64_t now = esp_timer_get_time();
+    int64_t end = db_ui_page_end(page);
+    portENTER_CRITICAL(&mux);
+    if (raised[page].key && raised[page].key != key) { /* its page was taken over without a Yes */
+        hold(raised[page].key, page, now);
+    }
+    raised[page].key = key;
+    raised[page].end = end;
+    portEXIT_CRITICAL(&mux);
+}
+
+/* true when this client's last page there ended without a Yes in the last minute; then it has its 429 */
+static bool paused_reply(httpd_req_t *req, db_ui_page_t page)
+{
+    int wait = auth_paused_s(page, auth_asker(req));
+    if (wait) {
+        static char after[2][8]; /* lives until the reply is sent, one per server like set_cookie's */
+        char *a = after[web_tls(req)];
+        snprintf(a, sizeof(after[0]), "%d", wait);
+        char msg[80];
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"paused\",\"code\":\"paused\",\"retry\":%d}",
+                 wait);
+        httpd_resp_set_status(req, "429 Too Many Requests");
+        httpd_resp_set_hdr(req, "Retry-After", a);
+        send_json(req, msg);
+    }
+    return wait;
 }
 
 static void ip_str(uint32_t ip, char out[16])
@@ -536,10 +621,14 @@ esp_err_t auth_password_show(httpd_req_t *req)
     if (!auth_marked(req)) {
         return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
     }
+    if (paused_reply(req, DB_UI_PASSWORD)) {
+        return ESP_OK;
+    }
     int decks = db_ui_show_password();
     if (!decks) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    auth_raised(DB_UI_PASSWORD, auth_asker(req));
     char reply[32];
     snprintf(reply, sizeof(reply), "{\"ok\":true,\"decks\":%d}", decks);
     return send_json(req, reply);
@@ -554,10 +643,14 @@ esp_err_t auth_password_reset(httpd_req_t *req)
         db_ui_cancel_reset();
         return send_json(req, "{\"ok\":true}");
     }
+    if (paused_reply(req, DB_UI_RESET)) {
+        return ESP_OK;
+    }
     int left = db_ui_ask_reset();
     if (left < 0) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    auth_raised(DB_UI_RESET, auth_asker(req));
     char reply[32];
     snprintf(reply, sizeof(reply), "{\"ok\":true,\"s\":%d}", left);
     return send_json(req, reply);
@@ -611,6 +704,9 @@ esp_err_t auth_login_request(httpd_req_t *req)
     if (!ok) {
         return send_error(req, "400 Bad Request", "who: a label of up to 48 characters");
     }
+    if (paused_reply(req, DB_UI_LOGIN)) {
+        return ESP_OK;
+    }
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     bool soon = ask_cur >= 0 && now - ask_last < ASK_AGAIN_US;
@@ -621,6 +717,7 @@ esp_err_t auth_login_request(httpd_req_t *req)
     if (!db_ui_ask_login(client_ip(req), who, ASK_S)) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    auth_raised(DB_UI_LOGIN, auth_asker(req));
     uint8_t raw[ASK_ID / 2];
     char id[ASK_ID + 1];
     esp_fill_random(raw, sizeof(raw));
@@ -708,25 +805,35 @@ static int64_t started; /* esp_timer counts from the host's start in the simulat
 
 /* Open only where a first start or a factory reset wrote 0; a device from an older firmware has no key:
  * closed */
+static bool claim_closed; /* this boot, also when NVS could not keep it */
+
 static bool claim_open(void)
 {
     nvs_handle_t h;
     uint8_t used = 1;
-    if (nvs_open("web", NVS_READONLY, &h) == ESP_OK) {
-        nvs_get_u8(h, "claimed", &used);
+    esp_err_t err = nvs_open("web", NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        err = nvs_get_u8(h, "claimed", &used);
         nvs_close(h);
     }
-    return !used;
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE(TAG, "setup claim not read, so closed: %s", esp_err_to_name(err));
+    }
+    return !claim_closed && !used;
 }
 
 esp_err_t auth_claim_close(void)
 {
+    claim_closed = true;
     nvs_handle_t h;
     esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
     if (err == ESP_OK) {
         err = nvs_set_u8(h, "claimed", 1);
         err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "setup claim closed until the next start only: %s", esp_err_to_name(err));
     }
     return err;
 }
@@ -761,7 +868,6 @@ bool auth_host_is_local(httpd_req_t *req)
 
 esp_err_t auth_setup_claim(httpd_req_t *req)
 {
-    static bool busy;
     if (!auth_marked(req) || !auth_host_is_local(req)) {
         return send_error(req, "403 Forbidden", "X-DeckConnector header or local address missing");
     }
@@ -771,15 +877,8 @@ esp_err_t auth_setup_claim(httpd_req_t *req)
     if (esp_timer_get_time() - started > CLAIM_S * 1000000LL) {
         return send_error(req, "409 Conflict", "too late");
     }
-    portENTER_CRITICAL(&mux);
-    bool first = !busy;
-    busy = true;
-    portEXIT_CRITICAL(&mux);
-    if (!first || !claim_open()) {
+    if (!claim_open()) {
         return send_error(req, "409 Conflict", "claimed");
-    }
-    if (auth_claim_close() != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "saving failed");
     }
     char who[16];
     ip_str(client_ip(req), who);

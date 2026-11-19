@@ -103,7 +103,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
         auth_end_sessions();
     }
     if (cfg.setup_done && !old.setup_done) {
-        auth_end_sessions(); /* a session from the first-browser setup must not outlive it */
+        auth_end_sessions(); /* a session from the setup claim must not outlive it */
     }
     db_config_t live = cfg;
     live.brightness = old.brightness;

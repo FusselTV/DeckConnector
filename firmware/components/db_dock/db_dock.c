@@ -498,6 +498,7 @@ static void rejoin_app(void *arg)
 #define NAMES_MAX  32
 #define DENIED_MAX 4
 #define REQUEST_US (60 * 1000000LL)
+#define REFUSED_US (60 * 1000000LL)
 
 static struct {
     portMUX_TYPE mux;
@@ -528,6 +529,16 @@ static void drop_denied(uint32_t ip)
             return;
         }
     }
+}
+
+/* With the lock held. */
+static bool refused_lately(uint32_t ip, int64_t now)
+{
+    bool lately = false;
+    for (int i = 0; i < pair.n_denied; i++) {
+        lately |= pair.denied[i].ip == ip && now - pair.denied[i].at_us < REFUSED_US;
+    }
+    return lately;
 }
 
 static void lookup_task(void *arg)
@@ -733,8 +744,9 @@ static bool admit(uint32_t ip)
         in = changed = remember(ip, mac, strict);
     }
     bool asking = pair.request && now - pair.request_at < REQUEST_US;
-    bool new_request = !in && !asking;
-    if (!in && (!asking || pair.request == ip)) {
+    bool held = !in && !asking && refused_lately(ip, now);
+    bool new_request = !in && !asking && !held;
+    if (!in && !held && (!asking || pair.request == ip)) {
         /* one request at a time: another address must not take the place of the one on the deck */
         pair.request = ip;
         memcpy(pair.request_mac, mac, 6);
@@ -749,7 +761,7 @@ static bool admit(uint32_t ip)
         inet_ntoa_r(*(struct in_addr *)&ip, a, sizeof(a));
         db_log_event(TAG, DB_EV_PAIR_ASKS, a);
     }
-    if (!in && s.hosts_changed) {
+    if (!in && !held && s.hosts_changed) {
         s.hosts_changed(); /* the deck shows the request */
     }
     return in;
