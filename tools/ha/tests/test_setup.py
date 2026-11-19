@@ -121,11 +121,22 @@ async def test_the_update_entity_starts_off(hass, entry, aioclient_mock, socket)
 async def test_update_shows_the_progress_from_the_socket(hass, entry, aioclient_mock, socket):
     entity = firmware_on(hass)
     await setup(hass, entry, aioclient_mock, socket, PLUS)
-    assert hass.states.get(entity).attributes["in_progress"] is False
+    assert hass.states.get(entity).state == STATE_UNKNOWN  # no release yet
     await socket.queue.put({"t": "ota", "target": "p4", "state": "download", "pct": 42})
     await hass.async_block_till_done()
     state = hass.states.get(entity)
     assert state.attributes["in_progress"] is True and state.attributes["update_percentage"] == 42
+
+
+async def test_a_failed_check_keeps_the_last_answer(hass, entry, aioclient_mock, socket):
+    entity = firmware_on(hass)
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    fw = hass.data["entity_components"]["update"].get_entity(entity)
+    for check in ({"latest": "v1.1.0"}, {"latest": None, "code": "rate_limited"}):
+        aioclient_mock.clear_requests()
+        aioclient_mock.get(CHECK, json=check)
+        await fw._fetch_check()
+    assert hass.states.get(entity).attributes["latest_version"] == "v1.1.0"
 
 
 async def spin(hass):
