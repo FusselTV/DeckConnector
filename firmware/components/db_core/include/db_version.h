@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 /* Firmware versions as `git describe` names them: v1.2.3, v1.2.3-rc4, and builds after a tag such as
  * v1.2.3-rc4-7-gabc1234-dirty, which count as newer than that tag. */
@@ -10,3 +11,7 @@ int db_version_cmp(const char *a, const char *b);
 
 /* A release candidate or other prerelease (v1.2.3-rc4), also a build after one. */
 bool db_version_pre(const char *v);
+
+/* The newest release a GitHub release feed (Atom) links, a prerelease only with `pre_ok`: its tag and the
+ * repository URL before "/releases/tag/". False when there is none, also for a NULL feed. */
+bool db_version_newest(const char *feed, bool pre_ok, char *tag, size_t tag_cap, char *base, size_t base_cap);

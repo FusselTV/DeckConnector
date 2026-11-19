@@ -1,6 +1,7 @@
 #include "db_version.h"
 
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -92,4 +93,56 @@ int db_version_cmp(const char *a, const char *b)
 bool db_version_pre(const char *v)
 {
     return parse(v).pre;
+}
+
+#define TAG_PATH "/releases/tag/"
+
+static const char *find(const char *from, const char *to, const char *what)
+{
+    size_t n = strlen(what);
+    for (; from + n <= to; from++) {
+        if (memcmp(from, what, n) == 0) {
+            return from;
+        }
+    }
+    return NULL;
+}
+
+bool db_version_newest(const char *feed, bool pre_ok, char *tag, size_t tag_cap, char *base, size_t base_cap)
+{
+    tag[0] = base[0] = '\0';
+    /* notes are escaped HTML in the feed: a raw <link> is always an entry's own */
+    const char *stop = feed ? feed + strlen(feed) : NULL;
+    const char *end;
+    for (const char *p = feed;
+         p && (p = find(p, stop, "<link ")) && (end = memchr(p, '>', (size_t)(stop - p))); p = end) {
+        const char *href = find(p, end, "href=\"");
+        if (!href) {
+            continue;
+        }
+        href += strlen("href=\"");
+        const char *url_end = href;
+        while (url_end < end && *url_end != '"' && *url_end != '<') {
+            url_end++;
+        }
+        const char *at = find(href, url_end, TAG_PATH);
+        if (!at) {
+            continue;
+        }
+        const char *t = at + strlen(TAG_PATH);
+        size_t len = (size_t)(url_end - t);
+        size_t base_len = (size_t)(at - href);
+        char v[64];
+        if (len == 0 || len >= tag_cap || len >= sizeof(v) || base_len >= base_cap) {
+            continue;
+        }
+        snprintf(v, sizeof(v), "%.*s", (int)len, t);
+        if (db_version_cmp(v, "v0.0.0") < 0 || (!pre_ok && db_version_pre(v)) ||
+            (tag[0] && db_version_cmp(v, tag) <= 0)) {
+            continue;
+        }
+        snprintf(tag, tag_cap, "%s", v);
+        snprintf(base, base_cap, "%.*s", (int)base_len, href);
+    }
+    return tag[0] != '\0';
 }
