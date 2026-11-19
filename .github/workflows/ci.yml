@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   changes:
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 5
     permissions:
       pull-requests: read # paths-filter lists the files of a pull request
@@ -38,7 +38,7 @@ jobs:
   host-tests:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.host == 'true'
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
   lint:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.lint == 'true'
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -64,7 +64,7 @@ jobs:
         with:
           enable-cache: false
       # every workflow, with shellcheck on its run: blocks
-      - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
+      - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
       - run: cd tools && uvx ruff@0.17.5 check . && uvx ruff@0.17.5 format --check . && uv run --locked mypy
       - run: git ls-files 'firmware/components/db_*/*.c' 'firmware/components/db_*/*.h' 'firmware/components/db_*/include/*.h' 'firmware/main/*.c' 'firmware/components/db_core/drivers/*.c' 'firmware/host_test/*.c' 'firmware/components/db_*/*.cpp' | grep -v font_data.c | xargs pipx run clang-format==23.1.5 --dry-run --Werror
       - run: cmake -S firmware/host_test -B build-host -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -75,7 +75,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.firmware == 'true'
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -107,7 +107,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.firmware == 'true'
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -128,6 +128,9 @@ jobs:
         with:
           enable-cache: false
       - run: cd web && npm ci && npx playwright install chromium && npm run build:demo
+      # the ESP-IDF image does not fit next to a GitHub-hosted runner's preinstalled SDKs
+      - if: matrix.project == 'contract' && runner.environment == 'github-hosted'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
       - if: matrix.project == 'contract'
         run: |
           (cd web && npx vite build) # the simulator embeds the page from web/dist
@@ -138,9 +141,9 @@ jobs:
             git config --global --add safe.directory "$PWD"
             idf.py -C firmware/sim build
           '
-      # the runners share one machine, so each takes its own ports (gh-runner-1 5192, gh-runner-2 5193)
+      # four runners share each VM, so each takes ports from its number (gh-runner-1-1 5192 ... gh-runner-1-4 5195)
       - run: |
-          n=${RUNNER_NAME##*-}
+          n=$((${RUNNER_NAME##*[!0-9]} % 1000)) # a GitHub-hosted runner's name ends in a long number
           [ "${{ matrix.project }}" = contract ] || export DC_NO_SIM=1
           cd web && DC_DEMO_PORT=$((5191 + n)) DC_SIM_PORT=$((18230 + n)) npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
       - if: failure()
@@ -155,7 +158,7 @@ jobs:
   firmware:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -221,7 +224,7 @@ jobs:
   sizes:
     needs: [web, firmware]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 5
     permissions:
       actions: read # the artifacts of main
@@ -266,7 +269,7 @@ jobs:
   ci-ok:
     needs: [changes, host-tests, lint, web, demo, firmware, sizes]
     if: always()
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 2
     permissions: {}
     steps:

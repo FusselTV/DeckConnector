@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     if: github.event_name != 'release' || !github.event.release.prerelease
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 20
     permissions:
       contents: read # also reads the release assets of this repo
@@ -100,7 +100,7 @@ jobs:
 
   lighthouse:
     needs: build
-    runs-on: [self-hosted, deckconnector]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 15
     permissions:
       contents: read # the checkout needs it in a private repository
