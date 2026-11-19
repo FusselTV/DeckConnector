@@ -138,9 +138,9 @@ jobs:
             git config --global --add safe.directory "$PWD"
             idf.py -C firmware/sim build
           '
-      # the runners share one machine, so each takes its own ports (gh-runner-1 5192, gh-runner-2 5193)
+      # the runners share one machine, so each takes its own ports (gh-runner-1-1 5192, gh-runner-1-2 5193)
       - run: |
-          n=${RUNNER_NAME##*[!0-9]}
+          n=$((${RUNNER_NAME##*[!0-9]} % 1000)) # a GitHub-hosted runner's name ends in a long number
           [ "${{ matrix.project }}" = contract ] || export DC_NO_SIM=1
           cd web && DC_DEMO_PORT=$((5191 + n)) DC_SIM_PORT=$((18230 + n)) npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
       - if: failure()
