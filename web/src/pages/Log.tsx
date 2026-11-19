@@ -154,7 +154,7 @@ function useEvents(on: boolean) {
       const p = await api.events(before ? { before, n: PAGE } : { n: PAGE })
       setPage(p)
       setError('')
-      merge([...p.events, ...(during.current ?? [])], fresh)
+      merge([...(during.current ?? []), ...p.events], fresh)
       return p
     } catch (e) {
       setError(errText(e, t))

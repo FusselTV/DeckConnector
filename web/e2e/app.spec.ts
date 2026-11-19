@@ -466,8 +466,9 @@ test('an event that arrives while the log loads stays in the list', async ({ app
   await openTab(page, 'Log')
   await asked
   const event = { ...FAKE[0], seq: 251, code: 'pair_asks', kind: 'pairing', level: 'warn', args: ['10.9.9.9'] }
+  expect(sock).toBeDefined()
   sock?.send(JSON.stringify({ t: 'event', event }))
-  await page.waitForTimeout(300) // the page takes the event before the list comes
+  await expect(page.locator('.lg-box')).toContainText('10.9.9.9 asks to pair') // taken before the list comes
   release()
   await expect(page.locator('.lg-foot')).toContainText('of 250 entries')
   await expect(page.locator('.lg-box')).toContainText('10.9.9.9 asks to pair')
