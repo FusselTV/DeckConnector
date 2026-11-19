@@ -197,6 +197,34 @@ static void test_the_neos_extra_keys_are_touch_points(void)
     TEST_ASSERT_EQUAL_STRING("Touch point 2", label(&neo, 9, "en"));
 }
 
+static void test_switches_count_in_deck_order(void)
+{
+    const db_matter_layout_t *all[] = {&plus, &plus_xl, &neo, &biggest};
+    for (size_t k = 0; k < sizeof(all) / sizeof(all[0]); k++) {
+        bool seen[DB_MATTER_INPUTS + 1] = {0};
+        int used = 0;
+        for (int i = 0; i < DB_MATTER_INPUTS; i++) {
+            int n = db_matter_order(all[k], i);
+            TEST_ASSERT_EQUAL(db_matter_used(all[k], i), n > 0);
+            TEST_ASSERT_FALSE(n && seen[n]);
+            seen[n] = true;
+            used += n > 0;
+        }
+        for (int n = 1; n <= used; n++) {
+            TEST_ASSERT_TRUE(seen[n]);
+        }
+    }
+    TEST_ASSERT_EQUAL(8, db_matter_order(&plus, 7));      /* Taste 8 */
+    TEST_ASSERT_EQUAL(9, db_matter_order(&plus, 48));     /* Drehregler 1 */
+    TEST_ASSERT_EQUAL(13, db_matter_order(&plus, 8));     /* Regler 1 links */
+    TEST_ASSERT_EQUAL(21, db_matter_order(&plus, 16));    /* Touchfeld 1 */
+    TEST_ASSERT_EQUAL(26, db_matter_order(&plus, 21));    /* Wischen rechts */
+    TEST_ASSERT_EQUAL(54, db_matter_order(&plus_xl, 47)); /* Regler 6 rechts, before the dials' own ids */
+    TEST_ASSERT_EQUAL(55, db_matter_order(&plus_xl, 54)); /* Touchfeld 1, after them */
+    TEST_ASSERT_EQUAL(0, db_matter_order(&plus, -1));
+    TEST_ASSERT_EQUAL(10, db_matter_order(&neo, 9));
+}
+
 static db_sw_t sw;
 static int64_t now;
 static db_sw_event_t e;
@@ -391,6 +419,7 @@ int main(void)
     RUN_TEST(test_a_deck_without_strip_or_dials_has_no_extras);
     RUN_TEST(test_switches_are_named_like_the_web_ui);
     RUN_TEST(test_the_neos_extra_keys_are_touch_points);
+    RUN_TEST(test_switches_count_in_deck_order);
     RUN_TEST(test_a_short_press_is_told_at_once);
     RUN_TEST(test_long_press_once_then_long_release);
     RUN_TEST(test_a_repeated_state_is_ignored);

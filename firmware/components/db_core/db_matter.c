@@ -87,6 +87,18 @@ int db_matter_input(const db_matter_layout_t *l, const db_input_t *in, db_press_
     return -1;
 }
 
+int db_matter_order(const db_matter_layout_t *l, int i)
+{
+    if (!db_matter_used(l, i)) {
+        return 0;
+    }
+    if (i < l->keys) {
+        return 1 + i;
+    }
+    return i >= DB_MATTER_KEYS && i < DB_MATTER_KEYS + l->dials ? 1 + l->keys + i - DB_MATTER_KEYS
+                                                                : 1 + l->keys + l->dials + extra_of(l, i);
+}
+
 bool db_matter_label(const db_matter_layout_t *l, int i, const char *lang, char out[17])
 {
     if (!db_matter_used(l, i)) {
