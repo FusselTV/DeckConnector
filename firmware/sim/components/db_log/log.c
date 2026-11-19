@@ -1,4 +1,3 @@
-#include <stdarg.h>
 #include <stdio.h>
 
 #include "db_log.h"
@@ -17,24 +16,6 @@ size_t db_log_since(uint64_t *pos, char *buf, size_t cap)
     return n;
 }
 
-void db_log_event(const char *tag, const char *kind, const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    printf("%s %s: ", tag, kind);
-    vprintf(fmt, ap);
-    putchar('\n');
-    va_end(ap);
-}
-
-size_t db_log_events(db_event_t *out, size_t max)
-{
-    if (!max) {
-        return 0;
-    }
-    out[0] = (db_event_t){.at_us = 0, .kind = "boot", .text = "started (sim)"};
-    return 1;
-}
 size_t db_log_prev(char *buf, size_t cap)
 {
     return 0;
@@ -66,10 +47,6 @@ esp_err_t get_profile(httpd_req_t *req)
 }
 
 void db_log_start(void)
-{
-}
-
-void db_log_keep_start(void)
 {
 }
 

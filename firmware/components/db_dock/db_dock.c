@@ -146,7 +146,7 @@ static void handle_dock(conn_t *c, const db_cora_hdr_t *h, const uint8_t *p)
         }
         char ip[16];
         inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
-        db_log_event(TAG, "source", "%s at %s connected", db_controller_name(c->kind), ip);
+        db_log_event(TAG, DB_EV_HOST_CONNECTED, db_controller_name(c->kind), ip);
         note_kind(c->ip, c->kind);
         __atomic_store_n(&peers_due, true, __ATOMIC_RELAXED);
         report_clients(); /* the writer is picked by this kind: without it a host that is ready waited for the
@@ -280,7 +280,7 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     xSemaphoreGive(c->tx);
     close(sock);
     if (c->device_port && kind != DB_CTRL_SERVER) {
-        db_log_event(TAG, "source", "%s left", db_controller_name(kind));
+        db_log_event(TAG, DB_EV_HOST_LEFT, db_controller_name(kind));
     } else {
         ESP_LOGI(TAG, "%s host left (%s)", c->device_port ? "device" : "dock", db_controller_name(kind));
     }
@@ -747,7 +747,7 @@ static bool admit(uint32_t ip)
     if (new_request) {
         char a[16];
         inet_ntoa_r(*(struct in_addr *)&ip, a, sizeof(a));
-        db_log_event(TAG, "pairing", "%s asks to pair", a);
+        db_log_event(TAG, DB_EV_PAIR_ASKS, a);
     }
     if (!in && s.hosts_changed) {
         s.hosts_changed(); /* the deck shows the request */
@@ -804,7 +804,7 @@ esp_err_t db_dock_answer(bool accept)
     if (r) {
         char a[16];
         inet_ntoa_r(*(struct in_addr *)&r, a, sizeof(a));
-        db_log_event(TAG, "pairing", "%s %s", a, accept ? "accepted" : "refused");
+        db_log_event(TAG, accept ? DB_EV_PAIR_ACCEPTED : DB_EV_PAIR_REFUSED, a);
     }
     if (s.hosts_changed) {
         s.hosts_changed();
@@ -907,7 +907,7 @@ static bool refuse(conn_t *c, db_controller_t kind)
         logged = c->ip;
         char ip[16];
         inet_ntoa_r(*(struct in_addr *)&c->ip, ip, sizeof(ip));
-        db_log_event(TAG, "source", "Companion at %s refused as a dock: it has the deck over Satellite", ip);
+        db_log_event(TAG, DB_EV_DOCK_REFUSED, ip);
     }
     shutdown(c->sock, SHUT_RDWR);
     return true;

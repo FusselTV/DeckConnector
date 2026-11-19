@@ -537,14 +537,12 @@ static void init_nvs(void)
 {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        db_log_event(TAG, "boot",
-                     "settings storage unreadable (%s): erased, all settings are back to defaults",
-                     esp_err_to_name(err));
+        db_log_event(TAG, DB_EV_SETTINGS_ERASED, esp_err_to_name(err));
         err = nvs_flash_erase();
         err = err == ESP_OK ? nvs_flash_init() : err;
     }
     if (err != ESP_OK) {
-        db_log_event(TAG, "boot", "settings storage failed: %s, running on defaults", esp_err_to_name(err));
+        db_log_event(TAG, DB_EV_SETTINGS_FAILED, esp_err_to_name(err));
     }
 }
 
@@ -553,7 +551,7 @@ static void init_nvs(void)
 static void started(const char *what, esp_err_t err)
 {
     if (err != ESP_OK) {
-        db_log_event(TAG, "boot", "%s failed to start: %s", what, esp_err_to_name(err));
+        db_log_event(TAG, DB_EV_START_FAILED, what, esp_err_to_name(err));
     }
 }
 
@@ -568,7 +566,10 @@ void app_main(void) /* NOLINT(misc-use-internal-linkage): ESP-IDF calls it */
     abort();
 #endif
     db_log_start();
-    db_log_event(TAG, "boot", "started (%s)", boot_reason());
+    const char *reason = boot_reason();
+    bool crashed =
+        strcmp(reason, "crash") == 0 || strcmp(reason, "watchdog") == 0 || strcmp(reason, "brownout") == 0;
+    db_log_event(TAG, crashed ? DB_EV_CRASHED : DB_EV_STARTED, reason);
     init_nvs();
     db_log_keep_start();
     started("settings", db_config_load());

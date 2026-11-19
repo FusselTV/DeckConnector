@@ -268,27 +268,137 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
   }
 }
 
-/** A bridge that has run for hours has a past: a few events and log lines between its start and now. */
+/** firmware/components/db_log/evlog.c's codes: kind, level and English text, {n} the n-th arg. contract.spec.ts
+ * compares the two. */
+export const EV: Record<string, [string, DeviceEvent['level'], string]> = {
+  text: ['boot', 'info', '{0}'],
+  more: ['boot', 'info', '{0}'],
+  started: ['boot', 'info', 'started ({0})'],
+  crashed: ['boot', 'err', 'started ({0})'],
+  settings_erased: ['boot', 'err', 'settings storage unreadable ({0}): erased, all settings are back to defaults'],
+  settings_failed: ['boot', 'err', 'settings storage failed: {0}, running on defaults'],
+  start_failed: ['boot', 'err', '{0} failed to start: {1}'],
+  update_aborted: ['update', 'err', 'update aborted: {0}'],
+  update_installed: ['update', 'ok', '{0} update installed'],
+  update_restart: ['update', 'ok', '{0} update installed, restarting'],
+  update_confirmed: ['update', 'ok', 'new firmware confirmed'],
+  rollback_unhealthy: ['update', 'err', 'new firmware never became healthy, rolling back'],
+  rollback_unconfirmed: ['update', 'err', 'the healthy new firmware could not be confirmed, rolling back'],
+  server_lost: ['source', 'warn', 'server {0} lost: {1}'],
+  server_connected: ['source', 'ok', 'server {0} connected over {1}: {2}'],
+  companion_lost: ['source', 'warn', 'Companion lost: {0}'],
+  companion_silent: ['source', 'warn', 'Companion silent for {0} s'],
+  companion_connected: ['source', 'ok', 'Companion connected at {0} over {1}'],
+  host_connected: ['source', 'ok', '{0} at {1} connected'],
+  host_left: ['source', 'info', '{0} left'],
+  dock_refused: ['source', 'warn', 'Companion at {0} refused as a dock: it has the deck over Satellite'],
+  no_satellite: ['source', 'warn', 'Companion at {0} has no Satellite API; Satellite would be better'],
+  moved_to_satellite: ['source', 'ok', 'Companion at {0} moved from Dock to Satellite'],
+  companion_asks: ['companion', 'warn', 'Companion {0} asks for the deck'],
+  companion_setup: ['companion', 'ok', 'Companion {0} set up over Satellite by its Discover'],
+  pair_asks: ['pairing', 'warn', '{0} asks to pair'],
+  pair_accepted: ['pairing', 'ok', '{0} accepted'],
+  pair_refused: ['pairing', 'err', '{0} refused'],
+  deck_parked: ['deck', 'warn', 'deck at USB address {0} left dark: max_decks is {1}'],
+  screen_off: ['deck', 'info', 'screen off'],
+  screen_dimmed: ['deck', 'info', 'screen dimmed'],
+  screen_on: ['deck', 'info', 'screen on'],
+  lan_dead: ['lan', 'warn', 'LAN dead: the gateway stopped answering'],
+  lan_back: ['lan', 'ok', 'LAN answers again'],
+  lan_down: ['lan', 'err', 'LAN link down'],
+  wlan_back: ['wlan', 'ok', 'WLAN {0} is back ({1} dBm), leaving the backup {2}'],
+  wlan_roam: ['wlan', 'info', 'WLAN roam {0} {3} -> {1}, channel {2}'],
+  wlan_joined: ['wlan', 'ok', 'WLAN joined {0} {1}, channel {2}'],
+  wlan_no_link: ['wlan', 'warn', 'WLAN {0} gives no link, trying {1}'],
+  wlan_no_link_backup: ['wlan', 'warn', 'WLAN {0} gives no link, trying the backup {1}'],
+  matter_paired: ['matter', 'ok', 'a controller paired'],
+  matter_left: ['matter', 'info', 'a controller left'],
+  matter_storage: ['matter', 'err', 'storage failed: {0}'],
+  matter_no_code: ['matter', 'err', 'no pairing code'],
+  matter_no_memory: ['matter', 'err', 'out of memory'],
+  matter_failed: ['matter', 'err', 'failed to start: {0}'],
+}
+
+const makeEvent = (s: Demo, at: number, boot: number, code: string, args: string[]): DeviceEvent => {
+  const [kind, level, en] = EV[code] ?? ['boot', 'info', '{0}']
+  return {
+    seq: (s.events.at(-1)?.seq ?? 0) + 1,
+    since_s: Math.max(0, Math.floor((at - (boot ? at - 30_000 : s.bootAt)) / 1000)),
+    boot,
+    at: Math.floor(at / 1000),
+    kind,
+    code,
+    level,
+    args,
+    text: en.replace(/\{(\d)\}/g, (_, i: string) => args[Number(i)] ?? ''),
+  }
+}
+
+/** A bridge that has run for hours has a past: events of this start and the ones before, and log lines. */
 export function history(s: Demo, now: number) {
-  const past: [number, string, string, string][] = [
-    [41, 'source', 'Companion reconnected after 3 s', 'W sat: connection lost, reconnecting'],
-    [42, 'source', 'Companion connected', `I sat: connected to ${s.cfg.satellite}:16622`],
-    [97, 'pairing', 'paired edit-pc (192.168.1.31)', 'I dock: 192.168.1.31 paired'],
-    [133, 'wlan', `WLAN ${s.cfg.wifi_ssid} 02:00:00:00:01:01, -47 dBm`, 'I net: WLAN roamed to channel 6'],
+  const D = 86_400_000
+  const before: [number, number, string, string[]][] = [
+    [5 * D, 2, 'started', ['power']],
+    [5 * D - 9000, 2, 'companion_connected', [`${s.cfg.satellite || '192.168.1.20'}:16622`, 'LAN']],
+    [4 * D, 2, 'lan_dead', []],
+    [4 * D - 40_000, 2, 'lan_back', []],
+    [3 * D, 2, 'pair_asks', ['192.168.1.77']],
+    [3 * D - 60_000, 2, 'pair_refused', ['192.168.1.77']],
+    [D + 3_600_000, 2, 'companion_lost', ['closed']],
+    [D + 3_590_000, 2, 'companion_connected', [`${s.cfg.satellite || '192.168.1.20'}:16622`, 'LAN']],
+    [D, 1, 'crashed', ['watchdog']],
+    [D - 9000, 1, 'companion_connected', [`${s.cfg.satellite || '192.168.1.20'}:16622`, 'LAN']],
   ]
-  for (const [min, kind, text, line] of past) {
+  for (const [ago, boot, code, args] of before) {
+    const at = s.bootAt - ago
+    s.events.push(makeEvent(s, at, boot, code, args))
+  }
+  const past: [number, string, string[], string][] = [
+    [41, 'companion_lost', ['closed'], 'W sat: connection lost, reconnecting'],
+    [42, 'companion_connected', [`${s.cfg.satellite}:16622`, 'LAN'], `I sat: connected to ${s.cfg.satellite}:16622`],
+    [97, 'pair_accepted', ['192.168.1.31'], 'I dock: 192.168.1.31 paired'],
+    [
+      133,
+      'wlan_roam',
+      [s.cfg.wifi_ssid, '02:00:00:00:01:02', '6', '02:00:00:00:01:01'],
+      'I net: WLAN roamed to channel 6',
+    ],
+  ]
+  for (const [min, code, args, line] of past) {
     const at = s.bootAt + min * 60_000
-    if (at >= now || (kind === 'wlan' && !s.cfg.wifi_ssid) || (kind === 'source' && !s.cfg.satellite)) continue
-    s.events.push({ since_s: Math.floor((at - s.bootAt) / 1000), boot: 0, at: Math.floor(at / 1000), kind, text })
+    if (at >= now || (code === 'wlan_roam' && !s.cfg.wifi_ssid) || (code.startsWith('comp') && !s.cfg.satellite))
+      continue
+    s.events.push(makeEvent(s, at, 0, code, args))
     logLine(s, at, line)
   }
+  // in time order, numbered as the firmware numbers them
+  s.events.sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
+  s.events.forEach((e, i) => (e.seq = i + 1))
 }
 
 /** Seconds after the start of the bridge. */
 const up = (s: Demo, now: number) => Math.max(0, Math.floor((now - s.bootAt) / 1000))
 
-export function event(s: Demo, now: number, kind: string, text: string) {
-  s.events = [...s.events, { since_s: up(s, now), boot: 0, at: Math.floor(now / 1000), kind, text }].slice(-64)
+/** The flash ring keeps 8064 events at least. */
+export function event(s: Demo, now: number, code: string, ...args: string[]) {
+  s.events = [...s.events, { ...makeEvent(s, now, 0, code, args), since_s: up(s, now) }].slice(-8064)
+}
+
+/** GET /api/events?before=&since=&n= as the firmware answers it: newest first. */
+export function eventPage(s: Demo, q: URLSearchParams) {
+  const before = Number(q.get('before')) || Infinity
+  const since = Number(q.get('since')) || 0
+  const n = Math.min(Number(q.get('n')) || 200, 200)
+  const events: DeviceEvent[] = []
+  for (let i = s.events.length - 1; i >= 0 && events.length < n; i--) {
+    const e = s.events[i]
+    if (!e || e.seq >= before) continue
+    if (e.at && e.at < since) break
+    events.push(e)
+  }
+  const oldest = s.events[0]?.seq ?? 0
+  const newest = s.events.at(-1)?.seq ?? 0
+  return { events, oldest, newest, total: oldest ? newest - oldest + 1 : 0, store: 'flash' as const }
 }
 
 export function logLine(s: Demo, now: number, text: string) {
@@ -310,8 +420,8 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   s.ota = null
   s.join = null
   s.joinState = ''
-  // like the firmware: the last 40 events stay in flash and come back as an earlier boot's
-  s.events = s.events.slice(-40).map((e) => ({ ...e, boot: (e.boot ?? 0) + 1 }))
+  // like the firmware: the events stay in flash and come back as an earlier boot's
+  s.events = s.events.map((e) => ({ ...e, boot: e.boot + 1 }))
   if (s.log.length) s.prev = s.log
   s.log = []
   s.since = {}
@@ -324,9 +434,8 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
     }))
     s.firmware = nx.version
   }
-  event(s, now, 'boot', `started (${reason}), firmware ${s.firmware}`)
-  event(s, now, 'lan', `LAN up, ${lanIp(s)}`)
-  if (s.cfg.wifi_ssid) event(s, now, 'wlan', `WLAN ${s.cfg.wifi_ssid}, ${WLAN_IP}`)
+  event(s, now, ['crash', 'watchdog', 'brownout'].includes(reason) ? 'crashed' : 'started', reason)
+  if (s.cfg.wifi_ssid) event(s, now, 'wlan_joined', s.cfg.wifi_ssid, '02:00:00:00:01:01', '6')
   const lines = [
     `I (21) boot: DeckConnector ${s.firmware}, ESP32-P4 rev v3.1`,
     'I (412) deck: Stream Deck + EL00K1A00001 at high speed',
@@ -587,12 +696,10 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   if (p.satellite !== undefined && p.satellite !== old.satellite) {
     next.satellite_auto = !!p.satellite
     s.since.satellite = now
-    if (p.satellite) event(s, now, 'source', `Satellite set to ${p.satellite}`)
   }
   for (const u of next.servers) if (u && !old.servers.includes(u)) s.since[u] = now
   if (p.controller !== undefined || p.host !== undefined) {
     ui(s, now, (u) => u.deck_close())
-    event(s, now, 'source', `picked ${next.controller}${next.host ? ` ${next.host}` : ''}`)
   }
   const restart =
     Object.keys(p).some(
@@ -655,7 +762,7 @@ export function input(s: Demo, now: number, b: InputBody, origin: 'web' | 'deck'
   const w = writer(s, now)
   const log = (kind: string, index?: number, value?: number) => {
     s.seq++
-    s.inputs = [...s.inputs, { seq: s.seq, at_ms: now - s.bootAt, origin, kind, index, value, writer: w }].slice(-200)
+    s.inputs = [...s.inputs, { seq: s.seq, at_ms: now - s.bootAt, origin, kind, index, value, writer: w }].slice(-2000)
   }
   const f = s.faces
   const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n))
@@ -853,7 +960,6 @@ function uiInput(s: Demo, now: number, kind: number, index: number, value = 0, x
       host: src.id,
       setup_done: true,
     }
-    event(s, now, 'source', `picked on the deck: ${src.label}`)
   }
   if (what === 'answer' && s.request) dock(s, now, { accept: v === 1, ip: s.request.ip })
   if (what === 'brightness') s.cfg = { ...s.cfg, brightness: Math.max(0, Math.min(100, s.cfg.brightness + v)) }
@@ -1114,7 +1220,7 @@ export function tick(s: Demo, now: number): Out {
             }
           : { ...x, running: false, next: false },
       )
-      event(s, now, 'update', `updated to ${s.ota.version}`)
+      event(s, now, 'update_restart', 'p4')
       s.ota = null
       restartSoon(s, now)
     } else out.ota = { target: 'p4', state: 'download', pct }
@@ -1130,7 +1236,7 @@ export function tick(s: Demo, now: number): Out {
       s.joinState = 'ok'
       s.joinError = ''
       s.cfg = { ...s.cfg, wifi_ssid: j.ssid, wifi_bssid: j.bssid, wifi_pass_set: !known?.open }
-      event(s, now, 'wlan', `joined ${j.ssid}`)
+      event(s, now, 'wlan_joined', j.ssid, j.bssid || '02:00:00:00:01:01', '6')
       say(`I net: WLAN ${j.ssid} joined, ${WLAN_IP}`)
     } else {
       s.joinState = 'failed'
@@ -1148,7 +1254,6 @@ export function tick(s: Demo, now: number): Out {
   if (!s.cfg.setup_done && appAt && now - appAt > 5000 && !s.docks.length) {
     s.docks = [{ ip: '192.168.1.31', mac: '02:00:5e:10:00:31', name: 'edit-pc', kind: 'app', connected: true }]
     if (!s.cfg.host) s.cfg = { ...s.cfg, controller: 'app', host: '192.168.1.31' }
-    event(s, now, 'pairing', 'paired edit-pc (192.168.1.31), the first computer')
     say('I dock: 192.168.1.31 paired, pairing was open')
   }
   // Like the firmware, an unanswered pairing request lapses after a minute.
@@ -1159,11 +1264,11 @@ export function tick(s: Demo, now: number): Out {
     // While pairing is open a computer pairs without a question (dock_paired_only).
     if (now < s.pairOpenUntil) {
       s.docks = [...s.docks.filter((d) => d.ip !== l.ip), { ...l, mac: '02:00:5e:10:00:53', connected: true }]
-      event(s, now, 'pairing', `paired ${l.name} (${l.ip}), pairing was open`)
+      event(s, now, 'host_connected', 'app', l.ip)
       say(`I dock: ${l.ip} paired, pairing was open`)
     } else {
       s.request = { ip: l.ip, name: l.name, at: now }
-      event(s, now, 'pairing', `${l.name} (${l.ip}) asks to pair`)
+      event(s, now, 'pair_asks', l.ip)
       say(`I dock: ${l.ip} asks to pair`)
     }
   }
@@ -1211,10 +1316,10 @@ export function dock(
         ...s.docks,
         { ip: r.ip, mac: '02:00:5e:10:00:52', name: r.name, kind: 'companion' as const, connected: true },
       ].slice(-8)
-      event(s, now, 'pairing', `paired ${r.name}`)
+      event(s, now, 'pair_accepted', r.ip)
     } else {
       s.denied = [...s.denied, { ip: r.ip, name: r.name, since_s: up(s, now) }].slice(-4)
-      event(s, now, 'pairing', `refused ${r.name}`)
+      event(s, now, 'pair_refused', r.ip)
     }
     return ok()
   }
@@ -1247,7 +1352,6 @@ function factoryReset(s: Demo, now: number) {
     tls: false,
     setupStep: 0,
   })
-  event(s, now, 'reset', 'factory reset confirmed on the deck')
   restartSoon(s, now)
 }
 
@@ -1256,7 +1360,6 @@ export function startOta(s: Demo, now: number, version = LATEST): Reply {
   const running = s.slots.find((x) => x.running)?.slot ?? 1
   const slot = (running % s.slots.length) + 1
   s.ota = { at: now, version, slot }
-  event(s, now, 'update', `update to ${version} started`)
   return ok()
 }
 

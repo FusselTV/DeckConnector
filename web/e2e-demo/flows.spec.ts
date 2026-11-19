@@ -264,10 +264,9 @@ test('backup: save both kinds, restore changes the name, a broken file is refuse
   expect(await failed(page)).toEqual([])
 })
 
-test('diagnostics: log, events, inputs, profile, metrics all show data', async ({ demo: page }) => {
+test('diagnostics: profile, metrics, memory, boot timing and routes show data', async ({ demo: page }) => {
   await page.goto('?lang=en')
   await openTab(page, en, 'diagnose')
-  await expect(page.getByText('DeckConnector v1.0.0').first()).toBeVisible()
   for (const part of ['Firmware', 'Settings'])
     await expect(page.locator('#card-health').getByText(part, { exact: true })).toBeVisible()
   // The folds are exclusive: opening one closes the others.
@@ -275,14 +274,40 @@ test('diagnostics: log, events, inputs, profile, metrics all show data', async (
     await page.locator('summary').filter({ hasText: name }).first().click()
     await expect(page.getByText(shows).filter({ visible: true }).first()).toBeVisible()
   }
-  await open('Events', /started \(restart\)/)
   await open('Profile', 'deck')
   await open('Memory', /MB|KB/)
   await open('Boot timing', /ms/)
   await open('API routes', '/api/screen/*')
-  await page.getByRole('radio', { name: 'Before the last restart' }).click()
-  await expect(page.getByText('restart asked over the API').first()).toBeVisible()
   expect(await failed(page)).toEqual([])
+})
+
+test('log: earlier starts, a crash with its report, the raw log of the start before', async ({ demo: page }) => {
+  await page.goto('?lang=en')
+  await openTab(page, en, 'log')
+  const box = page.locator('.lg-box')
+  await expect(box.locator('.lg-bootdiv').filter({ hasText: 'Watchdog' })).toBeVisible()
+  await box.locator('.lg-bootdiv').filter({ hasText: 'Watchdog' }).getByRole('button').click()
+  await expect(box.getByRole('button', { name: /Crash report/ })).toBeVisible()
+  await page.getByRole('radio', { name: 'Problems' }).click()
+  await expect(box.locator('.lg-row').first()).toContainText(/Warning|Error/)
+  await page.getByRole('radio', { name: 'All' }).click()
+  if (await page.locator('.lg .chips').isVisible()) await page.locator('.chip').filter({ hasText: 'Technical' }).click()
+  else {
+    await page.getByRole('button', { name: /^Kinds/ }).click()
+    await page.getByRole('dialog').getByText('Technical').click()
+    await page.keyboard.press('Escape')
+  }
+  await expect(box.getByText('restart asked over the API').first()).toBeVisible()
+  expect(await failed(page)).toEqual([])
+})
+
+test('the last input chip opens the log with only inputs', async ({ demo: page }, info) => {
+  test.skip(info.project.name === 'phone', 'the phone folds the live deck away')
+  await page.goto('?lang=en')
+  await page.getByRole('button', { name: t('ov.key', { n: 2, r: 1 }) }).click()
+  await page.locator('.lastin').first().click()
+  await expect(page.locator('.lg-box .lg-row').first()).toContainText('Key')
+  await expect(page.locator('.chip[aria-pressed="true"]')).toHaveText(/^Inputs/)
 })
 
 test('deck: keys, dials, strip and the deck menu', async ({ demo: page }) => {

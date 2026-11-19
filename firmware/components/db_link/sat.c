@@ -574,7 +574,7 @@ static void session(uint32_t moved_at)
         int n = sat_recv(s.line + s.fill, want);
         int64_t now = now_ms();
         if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
-            db_log_event(TAG, "source", "Companion lost: %s", n ? strerror(errno) : "closed");
+            db_log_event(TAG, DB_EV_COMPANION_LOST, n ? strerror(errno) : "closed");
             return;
         }
         if (n > 0) {
@@ -592,7 +592,9 @@ static void session(uint32_t moved_at)
             s.fill += (size_t)n - start;
             memmove(s.line, s.line + start, s.fill);
         } else if (now - last_rx > SILENT_MS) {
-            db_log_event(TAG, "source", "Companion silent for %d s", SILENT_MS / 1000);
+            char secs[12];
+            snprintf(secs, sizeof(secs), "%d", SILENT_MS / 1000);
+            db_log_event(TAG, DB_EV_COMPANION_SILENT, secs);
             return;
         }
         if (now - last_ping >= PING_MS) {
@@ -789,7 +791,7 @@ static void client_task(void *arg)
         s.over_wlan = bound && wlan;
         db_health_ok(&s.health, s.over_wlan);
         remember(sock);
-        db_log_event(TAG, "source", "Companion connected at %s over %s", s.addr,
+        db_log_event(TAG, DB_EV_COMPANION_CONNECTED, s.addr,
                      bound ? (wlan ? "WLAN" : "LAN") : "the default route");
         struct sockaddr_in peer = {0};
         socklen_t plen = sizeof(peer);

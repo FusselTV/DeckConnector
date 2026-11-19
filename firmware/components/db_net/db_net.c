@@ -159,7 +159,7 @@ static void note_gateway(bool answered)
     if (dead == was) {
         return;
     }
-    db_log_event(TAG, "lan", "%s", dead ? "LAN dead: the gateway stopped answering" : "LAN answers again");
+    db_log_event(TAG, dead ? DB_EV_LAN_DEAD : DB_EV_LAN_BACK);
     changed();
 }
 
@@ -247,7 +247,7 @@ static void on_eth(void *arg, esp_event_base_t base, int32_t id, void *data)
             esp_timer_start_once(s.kick, s.kick_us);
         }
     } else if (id == ETHERNET_EVENT_DISCONNECTED) {
-        db_log_event(TAG, "lan", "LAN link down");
+        db_log_event(TAG, DB_EV_LAN_DOWN);
         s.st.lan_link = false;
         s.st.lan_up = false;
         set_ip(s.st.lan_ip, NULL);
@@ -311,8 +311,9 @@ static void primary_scanned(void)
     }
     free(rec);
     if (s.w.backup && db_wlan_scanned(&s.w, esp_timer_get_time() / 1000, rssi)) {
-        db_log_event(TAG, "wlan", "WLAN %s is back (%d dBm), leaving the backup %s", c->wifi_ssid, rssi,
-                     c->wifi2_ssid);
+        char dbm[12];
+        snprintf(dbm, sizeof(dbm), "%d", rssi);
+        db_log_event(TAG, DB_EV_WLAN_BACK, c->wifi_ssid, dbm, c->wifi2_ssid);
         leave_backup();
     }
 }
@@ -360,13 +361,14 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
         char bssid[18];
         snprintf(bssid, sizeof(bssid), "%02x:%02x:%02x:%02x:%02x:%02x", c->bssid[0], c->bssid[1], c->bssid[2],
                  c->bssid[3], c->bssid[4], c->bssid[5]);
-        if (s.st.wlan_bssid[0] && strcmp(s.st.wlan_bssid, bssid) != 0 &&
-            strlen(s.st.wlan_ssid) == c->ssid_len && memcmp(s.st.wlan_ssid, c->ssid, c->ssid_len) == 0) {
-            db_log_event(TAG, "wlan", "WLAN roam %.*s %s -> %s, channel %u", c->ssid_len, c->ssid,
-                         s.st.wlan_bssid, bssid, c->channel);
+        char ssid[33];
+        char channel[4];
+        snprintf(ssid, sizeof(ssid), "%.*s", c->ssid_len, c->ssid);
+        snprintf(channel, sizeof(channel), "%u", c->channel);
+        if (s.st.wlan_bssid[0] && strcmp(s.st.wlan_bssid, bssid) != 0 && strcmp(s.st.wlan_ssid, ssid) == 0) {
+            db_log_event(TAG, DB_EV_WLAN_ROAM, ssid, bssid, channel, s.st.wlan_bssid);
         } else {
-            db_log_event(TAG, "wlan", "WLAN joined %.*s %s, channel %u", c->ssid_len, c->ssid, bssid,
-                         c->channel);
+            db_log_event(TAG, DB_EV_WLAN_JOINED, ssid, bssid, channel);
         }
         snprintf(s.st.wlan_ssid, sizeof(s.st.wlan_ssid), "%.*s", c->ssid_len, c->ssid);
         strcpy(s.st.wlan_bssid, bssid);
@@ -410,8 +412,8 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
                    db_wlan_lost(&s.w, esp_timer_get_time() / 1000, c->wifi2_ssid[0] != '\0')) {
             switched = true;
             if (after_link) {
-                db_log_event(TAG, "wlan", "WLAN %s gives no link, trying %s%s",
-                             s.w.backup ? c->wifi_ssid : c->wifi2_ssid, s.w.backup ? "the backup " : "",
+                db_log_event(TAG, s.w.backup ? DB_EV_WLAN_NO_LINK_BACKUP : DB_EV_WLAN_NO_LINK,
+                             s.w.backup ? c->wifi_ssid : c->wifi2_ssid,
                              s.w.backup ? c->wifi2_ssid : c->wifi_ssid);
             }
             s.hunting = true;

@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 
 import pytest
-from conftest import HOST, api, get_config, put_config, status
+from conftest import HOST, events, get_config, put_config, status
 from test_satellite_fake import PORT, drawing, wait
 from zeroconf import ServiceBrowser, Zeroconf
 
@@ -99,7 +99,7 @@ def test_setup_asks_on_the_deck_once_set_up(fake):
     assert wait(lambda: status()["writer"] == "ui", 5), "the question did not cover the deck"
     assert setup_request({"host": "192.0.2.2", "port": 16622})[0] == 409, "a second Companion replaced the question"
     assert get_config()["satellite"] == f"{local_ip()}:{PORT}", "taken without a tap on the deck"
-    assert any(f"{ip}:16622 asks for the deck" in e["text"] for e in json.loads(api("GET", "/api/events")[1]))
+    assert any(f"{ip}:16622 asks for the deck" in e["text"] for e in events())
     assert wait(drawing, 75), "the deck stayed covered after the question ran out"
     print(f"\ncovered for {time.time() - start - 4.2:.0f} s")
     code = setup_request({"host": ip, "port": 16623})[0]

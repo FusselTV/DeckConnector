@@ -106,7 +106,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/screen/<id>.jpg` | One image of that picture | control |
 | `GET /api/screen.jpg` | The whole picture as one JPEG | control |
 | `POST /api/input` | Press, turn or touch, see [Input](#input) | control |
-| `GET /api/input/log` | The last 200 inputs. `?since=<seq>` for newer ones only | control |
+| `GET /api/input/log` | The newest 400 of the last 2000 inputs, oldest first. `?since=<seq>` for newer ones, `?before=<seq>` for older ones | control |
 | `POST /api/menu` | Open the deck menu. 409 without a deck | control |
 | `DELETE /api/menu` | Close the deck menu, the password, the reset question and a login request | control |
 | `POST /api/screen` | `{"on": false}` turns every deck dark now, `{"on": true}` lights them again. No press is swallowed | full |
@@ -179,7 +179,7 @@ Only in the [Matter firmware](/docs/matter). Without it, these routes answer 404
 | Route | What it does | Level |
 |---|---|---|
 | `GET /api/log` | The last 16 KB of the log as text. `?boot=prev` for the start before | full |
-| `GET /api/events` | The last 32 events: `since_s`, `at`, `kind`, `text` | control |
+| `GET /api/events` | Events, newest first, 200 at most. `?before=<seq>` for older ones, `?since=<unix time>` to stop there, `?n=` for fewer. Each has `seq`, `at`, `since_s`, `boot`, `kind`, `code`, `level`, `args` and the English `text` | control |
 | `GET /api/metrics` | CPU, RAM and PSRAM every 5 s for 10 minutes, and flash use | control |
 | `GET /api/profile` | Time per route and CPU per task since the last call | full |
 | `GET /api/coredump` | The last crash. `?raw=1` gives the dump. 404 when there is none | admin |
@@ -344,6 +344,7 @@ Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host i
 | `ota` | Update progress: `target`, `state`, `pct`, and `error` |
 | `ping` | Every 5 s. Without any message for 12 s, connect again |
 | `log` | New log text, only after `{"t": "log"}`. Needs the password or a `full` key |
+| `event` | A new event in `event`, as `GET /api/events` has it |
 
 To change something, send the keys of `PUT /api/config` or `POST /api/input` with an `id`. An input goes to the first deck, or to the one whose serial is in `deck`. `GET /api/input/log` names the deck the same way.
 

@@ -396,7 +396,9 @@ static bool session(link_t *l)
             }
             continue;
         }
-        db_log_event(TAG, "source", "server %d lost: %s", l->index, strerror(-err));
+        char n[12];
+        snprintf(n, sizeof(n), "%d", l->index);
+        db_log_event(TAG, DB_EV_SERVER_LOST, n, strerror(-err));
         return false;
     }
 }
@@ -462,7 +464,9 @@ static void link_task(void *arg)
         wait_ms = RETRY_MS;
         failed[0] = '\0';
         logged_err[0] = logged_err[1] = 0;
-        db_log_event(TAG, "source", "server %d connected over %s: %s", l->index, over, l->url);
+        char idx[12];
+        snprintf(idx, sizeof(idx), "%d", l->index);
+        db_log_event(TAG, DB_EV_SERVER_CONNECTED, idx, over, l->url);
         l->over_wlan = bound && wlan;
         db_health_ok(&l->health, l->over_wlan);
         l->connected = true;

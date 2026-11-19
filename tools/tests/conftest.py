@@ -136,6 +136,13 @@ def api(method: str, path: str, body: bytes | None = None, auth: bool = True, ti
         return e.code, e.read()
 
 
+def events(query: str = "") -> list[dict]:
+    """GET /api/events, oldest first: the firmware pages newest first."""
+    code, body = api("GET", "/api/events" + query)
+    assert code == 200, body
+    return list(reversed(json.loads(body)["events"]))
+
+
 def status() -> dict:
     return json.loads(api("GET", "/api/status")[1])
 

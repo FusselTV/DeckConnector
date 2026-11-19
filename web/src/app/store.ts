@@ -28,7 +28,7 @@ export interface State {
   bootAt: number
 }
 
-export const INPUT_CAP = 200
+export const INPUT_CAP = 2000
 
 export const initial: State = {
   conn: 'live',
@@ -52,7 +52,7 @@ export type Action =
   | { type: 'config'; config: Config }
   | { type: 'configPatch'; patch: Partial<Config> }
   | { type: 'restart'; on: boolean; now: number; reach?: string[] }
-  | { type: 'inputs'; list: InputEvent[]; replace?: boolean }
+  | { type: 'inputs'; list: InputEvent[]; replace?: boolean; older?: boolean }
 
 /** GET /api/input/log entries (oldest first, time after the start) as page events, newest first. */
 export function fromLog(list: InputLogEntry[], bootAt: number): InputEvent[] {
@@ -128,7 +128,10 @@ export function reduce(s: State, a: Action): State {
     case 'restart':
       return { ...s, restarting: a.on ? { t0: a.now, reach: a.reach } : null }
     case 'inputs':
-      return { ...s, inputs: [...a.list, ...(a.replace ? [] : s.inputs)].slice(0, INPUT_CAP) }
+      return {
+        ...s,
+        inputs: (a.older ? [...s.inputs, ...a.list] : [...a.list, ...(a.replace ? [] : s.inputs)]).slice(0, INPUT_CAP),
+      }
   }
 }
 

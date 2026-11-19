@@ -446,10 +446,10 @@ static void on_event(const ChipDeviceEvent *e, intptr_t arg)
 {
     switch (e->Type) {
     case chip::DeviceLayer::DeviceEventType::kCommissioningComplete:
-        db_log_event(TAG, "matter", "a controller paired");
+        db_log_event_args(TAG, DB_EV_MATTER_PAIRED, nullptr);
         break;
     case chip::DeviceLayer::DeviceEventType::kFabricRemoved:
-        db_log_event(TAG, "matter", "a controller left");
+        db_log_event_args(TAG, DB_EV_MATTER_LEFT, nullptr);
         break;
     default:
         break;
@@ -477,7 +477,8 @@ static void start(void)
         esp_err_t err = open_part();
         err = err == ESP_OK ? load() : err;
         if (err != ESP_OK) {
-            db_log_event(TAG, "matter", "storage failed: %s", esp_err_to_name(err));
+            const char *why[] = {esp_err_to_name(err), nullptr};
+            db_log_event_args(TAG, DB_EV_MATTER_STORAGE, why);
             return;
         }
         s.loaded = true;
@@ -489,7 +490,7 @@ static void start(void)
     chip::MutableByteSpan vs(s.verifier);
     if (v.Generate(ITERS, chip::ByteSpan(s.salt), s.pin) != CHIP_NO_ERROR ||
         v.Serialize(vs) != CHIP_NO_ERROR) {
-        db_log_event(TAG, "matter", "no pairing code");
+        db_log_event_args(TAG, DB_EV_MATTER_NO_CODE, nullptr);
         return;
     }
     set_custom_commissionable_data_provider(&commissionable);
@@ -502,7 +503,7 @@ static void start(void)
     s.aggregator = n ? endpoint::aggregator::create(n, &agg, ENDPOINT_FLAG_NONE, nullptr) : nullptr;
     s.q = xQueueCreate(64, sizeof(msg_t));
     if (!s.aggregator || !s.q) {
-        db_log_event(TAG, "matter", "out of memory");
+        db_log_event_args(TAG, DB_EV_MATTER_NO_MEMORY, nullptr);
         return;
     }
     esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip, nullptr);
@@ -516,7 +517,8 @@ static void start(void)
     }
     esp_err_t err = esp_matter::start(on_event);
     if (err != ESP_OK) {
-        db_log_event(TAG, "matter", "failed to start: %s", esp_err_to_name(err));
+        const char *why[] = {esp_err_to_name(err), nullptr};
+        db_log_event_args(TAG, DB_EV_MATTER_FAILED, why);
         return;
     }
     {

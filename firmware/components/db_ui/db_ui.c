@@ -1284,9 +1284,7 @@ static void upgrade_task(void *arg)
             }
             if (why) {
                 if (first) {
-                    db_log_event(TAG, "source",
-                                 "Companion at %s has no Satellite API; Satellite would be better",
-                                 hosts[i].ip);
+                    db_log_event(TAG, DB_EV_NO_SATELLITE, hosts[i].ip);
                 }
                 continue;
             }
@@ -1303,10 +1301,7 @@ static void upgrade_task(void *arg)
                 snprintf(c.host, sizeof(c.host), "satellite");
             }
             if (edit_end(&c, "Companion address") == ESP_OK) {
-                char name[DB_DNS_NAME_LEN];
-                db_dock_name(ip, name);
-                db_log_event(TAG, "source", "Companion%s%s at %s moved from Dock to Satellite",
-                             name[0] ? " " : "", name, hosts[i].ip);
+                db_log_event(TAG, DB_EV_MOVED_TO_SATELLITE, hosts[i].ip);
             }
             break;
         }

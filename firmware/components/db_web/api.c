@@ -362,35 +362,55 @@ esp_err_t get_config(httpd_req_t *req)
     return send_built(req, JSON_MAX * 2, config_json);
 }
 
-/* GET /api/events: the timeline of the last DB_EVENTS events, oldest first, earlier boots included */
+#define EVENTS_PAGE 200
+static struct {
+    uint32_t before, n;
+    int64_t since;
+} ev_query;
+
+/* GET /api/events?before=<seq>&since=<unix>&n=<count>: newest first, from flash, earlier boots included */
 static size_t events_json(char *buf, size_t cap)
 {
-    db_event_t *ev = heap_caps_malloc(DB_EVENTS * sizeof(*ev), MALLOC_CAP_SPIRAM);
-    size_t n = ev ? db_log_events(ev, DB_EVENTS) : 0;
+    uint32_t oldest, newest;
+    db_log_events_range(&oldest, &newest);
     db_json_t j;
     db_json_begin(&j, buf, cap);
-    db_json_arr_open(&j, NULL);
-    for (size_t i = 0; i < n; i++) {
-        db_json_obj_open(&j, NULL);
-        db_json_int(&j, "since_s", ev[i].at_us / 1000000); /* after the start of its boot */
-        db_json_int(&j, "boot", ev[i].boot);
-        if (ev[i].unix_s) {
-            db_json_int(&j, "at", ev[i].unix_s);
-        } else {
-            db_json_null(&j, "at");
+    db_json_obj_open(&j, NULL);
+    db_json_arr_open(&j, "events");
+    uint32_t from = ev_query.before && ev_query.before <= newest ? ev_query.before - 1 : newest;
+    uint32_t sent = 0;
+    db_event_t e;
+    for (uint32_t seq = from; oldest && seq >= oldest && sent < ev_query.n; seq--) {
+        if (!db_log_event_get(seq, &e) || e.code == DB_EV_MORE) {
+            continue;
         }
-        db_json_str(&j, "kind", ev[i].kind);
-        db_json_str(&j, "text", ev[i].text);
-        db_json_obj_close(&j);
+        if (e.unix_s && e.unix_s < ev_query.since) {
+            break; /* events before the clock was set have no time: they never end the page */
+        }
+        db_log_event_json(&j, NULL, &e);
+        sent++;
     }
     db_json_arr_close(&j);
-    free(ev);
+    db_json_int(&j, "oldest", oldest);
+    db_json_int(&j, "newest", newest);
+    db_json_int(&j, "total", oldest ? newest - oldest + 1 : 0);
+    db_json_str(&j, "store", db_log_events_store());
+    db_json_obj_close(&j);
     return db_json_end(&j);
 }
 
 esp_err_t get_events(httpd_req_t *req)
 {
-    return send_built(req, DB_EVENTS * 160, events_json);
+    char q[96], v[16];
+    bool any = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK;
+    ev_query.before =
+        any && httpd_query_key_value(q, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    ev_query.since =
+        any && httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK ? strtoll(v, NULL, 10) : 0;
+    ev_query.n = any && httpd_query_key_value(q, "n", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    ev_query.n = ev_query.n && ev_query.n < EVENTS_PAGE ? ev_query.n : EVENTS_PAGE;
+    return send_built(req, ev_query.n * 400 + 256,
+                      events_json); /* under the handler lock: ev_query stays put */
 }
 
 /* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token,
@@ -541,7 +561,7 @@ esp_err_t post_companion_setup(httpd_req_t *req)
         if (why) {
             return send_error(req, "409 Conflict", why);
         }
-        db_log_event(TAG, "companion", "Companion %s asks for the deck", addr);
+        db_log_event(TAG, DB_EV_COMPANION_ASKS, addr);
         return send_json(req, "{\"ok\":true,\"confirm\":\"deck\"}");
     }
     db_config_t n;
@@ -557,7 +577,7 @@ esp_err_t post_companion_setup(httpd_req_t *req)
     if (err != ESP_OK) {
         return send_error(req, "500 Internal Server Error", esp_err_to_name(err));
     }
-    db_log_event(TAG, "companion", "Companion %s set up over Satellite by its Discover", addr);
+    db_log_event(TAG, DB_EV_COMPANION_SETUP, addr);
     return send_json(req, "{\"ok\":true}");
 }
 
@@ -1078,11 +1098,11 @@ static size_t scan_json(char *buf, size_t cap)
     return n < 0 ? 0 : db_json_end(&j);
 }
 
-static uint32_t log_since;
+static uint32_t log_since, log_before;
 
 static size_t input_log_json(char *buf, size_t cap)
 {
-    return events_input_log(buf, cap, log_since);
+    return events_input_log(buf, cap, log_since, log_before);
 }
 
 static int setup_step = -1; /* -1: not read from NVS yet */
@@ -1321,15 +1341,14 @@ esp_err_t post_source_probe(httpd_req_t *req)
     return send_json(req, reply);
 }
 
-/* GET /api/input/log?since=<seq> */
+/* GET /api/input/log?since=<seq>&before=<seq> */
 esp_err_t get_input_log(httpd_req_t *req)
 {
-    char q[32], v[12];
-    log_since = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
-                        httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK
-                    ? (uint32_t)strtoul(v, NULL, 10)
-                    : 0;
-    return send_built(req, INPUT_LOG * 180 + 16,
+    char q[48], v[12];
+    bool any = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK;
+    log_since = any && httpd_query_key_value(q, "since", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    log_before = any && httpd_query_key_value(q, "before", v, sizeof(v)) == ESP_OK ? strtoul(v, NULL, 10) : 0;
+    return send_built(req, INPUT_PAGE * 180 + 16,
                       input_log_json); /* runs under the handler lock: log_since stays put */
 }
 

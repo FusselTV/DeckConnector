@@ -11,6 +11,7 @@ import {
   Network as NetIcon,
   Power,
   RefreshCw,
+  ScrollText,
   ShieldCheck,
   Stethoscope,
   Sun,
@@ -28,6 +29,7 @@ import { Access } from '../pages/Access'
 import { DeckTab } from '../pages/DeckTab'
 import { Diagnose } from '../pages/Diagnose'
 import { Firmware } from '../pages/Firmware'
+import { Log } from '../pages/Log'
 import { Network } from '../pages/Network'
 import { Overview } from '../pages/Overview'
 import { Sources } from '../pages/Sources'
@@ -47,6 +49,7 @@ const TAB_META: Record<Tab, { icon: LucideIcon; group: 'run' | 'device' | 'care'
   network: { icon: NetIcon, group: 'device' },
   access: { icon: ShieldCheck, group: 'device' },
   firmware: { icon: Cpu, group: 'care' },
+  log: { icon: ScrollText, group: 'care' },
   diagnose: { icon: Stethoscope, group: 'care' },
 }
 const GROUPS = ['run', 'device', 'care'] as const
@@ -58,6 +61,7 @@ const PANELS: Record<Tab, () => React.JSX.Element> = {
   network: Network,
   access: Access,
   firmware: Firmware,
+  log: Log,
   diagnose: Diagnose,
 }
 

@@ -51,11 +51,11 @@ Flashen klappt nicht? Siehe [Probleme beim Flashen](/de/docs/flash-troubleshooti
 
 ## Ein Update bleibt nicht
 
-Die neue Firmware kam nicht innerhalb von zwei Minuten ins Netz oder lief keine 20 Sekunden. Warum, steht unter **Diagnose › Log › Vor dem letzten Neustart** ([Demo](/de/demo/#diagnose)).
+Die neue Firmware kam nicht innerhalb von zwei Minuten ins Netz oder lief keine 20 Sekunden. Warum, steht unter **Log**. Schalte **Technisch** ein: Die Zeilen unter dem Neustart sind vom Start davor ([Demo](/de/demo/#log)).
 
 ## Logs und Absturzberichte
 
-**Diagnose** zeigt Log, Ereignisse, Eingaben und den letzten Absturzbericht. Das Log vom Start davor bleibt bis zu einem Stromausfall. Ein Absturzbericht kann das Passwort enthalten, deshalb öffnet ihn nur das Passwort.
+**Log** zeigt Ereignisse, Eingaben und das Roh-Log in einer Liste. Ereignisse bleiben über Neustarts und Stromausfälle erhalten. Das Roh-Log vom Start davor bleibt bis zu einem Stromausfall. **Diagnose** zeigt den letzten Absturzbericht. Ein Absturzbericht kann das Passwort enthalten, deshalb öffnet ihn nur das Passwort.
 
 ```bash
 curl -u admin:PASSWORT http://192.168.1.50/api/log > log.txt

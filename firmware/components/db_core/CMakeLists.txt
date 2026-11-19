@@ -1,5 +1,5 @@
 set(srcs db_device.c db_driver.c db_json.c db_proto.c db_regions.c db_screen.c drivers/elgato_gen1.c drivers/elgato_gen2.c drivers/mirabox.c db_image.c db_quirks.c db_cora.c db_dns.c
-         db_sat.c db_ptable.c db_improv.c db_version.c db_wake.c db_wlan.c db_cert.c db_passkey.c db_client.c db_matter.c db_tones.c)
+         db_sat.c db_ptable.c db_evring.c db_improv.c db_version.c db_wake.c db_wlan.c db_cert.c db_passkey.c db_client.c db_matter.c db_tones.c)
 
 if(ESP_PLATFORM)
     idf_component_register(SRCS ${srcs} INCLUDE_DIRS include)

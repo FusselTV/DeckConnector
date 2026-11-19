@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-from conftest import HOST, PASSWORD, api, status
+from conftest import HOST, PASSWORD, api, events, status
 
 from dbtools.poe import KEY, SITE, TLS, call
 
@@ -69,8 +69,7 @@ def reachable_over_wlan(ip: str) -> bool:
 
 
 def wlan_events(since: float) -> list[str]:
-    evs = json.loads(api("GET", "/api/events")[1])
-    return [e["text"] for e in evs if e["kind"] == "wlan" and not e.get("boot") and e["since_s"] >= since]
+    return [e["text"] for e in events() if e["kind"] == "wlan" and not e.get("boot") and e["since_s"] >= since]
 
 
 def test_the_backup_takes_over_and_hands_back():

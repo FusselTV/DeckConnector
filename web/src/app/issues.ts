@@ -19,7 +19,16 @@ import { createContext, createElement, useContext, useMemo, type ReactNode } fro
 import type { NoticeData } from '../components/Notice'
 import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
-import { bootAckAtom, configErrAtom, statusErrAtom, crashAckAtom, crashAtom, crashKey, deckSelAtom } from './state'
+import {
+  bootAckAtom,
+  configErrAtom,
+  statusErrAtom,
+  crashAckAtom,
+  crashAtom,
+  crashKey,
+  deckSelAtom,
+  logFocusAtom,
+} from './state'
 import { ls } from '../lib/util'
 import { useStore } from './store'
 import { errText, useUi } from './ui'
@@ -36,6 +45,8 @@ export const useIssues = () => useContext(Ctx)
 export const IssuesProvider = ({ children }: { children: ReactNode }) =>
   createElement(Ctx.Provider, { value: useIssueList() }, children)
 
+const LOST = ['companion_lost', 'companion_silent', 'server_lost', 'host_left']
+
 function useIssueList(): Issues {
   const { t, go, jump, fmt } = useUi()
   const a = useActions()
@@ -50,6 +61,10 @@ function useIssueList(): Issues {
   const ack = crashAckAtom.use()
   const crashed = !!crash && crashKey(crash) !== ack
   return useMemo(() => {
+    const showLog = (kinds: string[], codes: string[]) => {
+      logFocusAtom.set({ kinds, codes })
+      go('log')
+    }
     const list: NoticeData[] = []
     const notes: NoticeData[] = []
     const sources = st.sources ?? []
@@ -111,6 +126,7 @@ function useIssueList(): Issues {
         acts: [
           { label: t('act.retry'), icon: RefreshCw, run: () => void a.retry(chosen) },
           { label: t('act.check'), icon: Search, run: () => jump('sources', 'card-src') },
+          { label: t('log.show_in'), ghost: true, run: () => showLog(['source'], LOST) },
         ],
       })
     else if (!sources.some((s) => s.connected && s.kind !== 'unknown'))
@@ -172,6 +188,7 @@ function useIssueList(): Issues {
         acts: [
           { label: t('act.accept'), icon: Check, run: () => a.accept(P.request ?? '', name) },
           { label: t('act.deny'), icon: X, run: () => a.deny(P.request ?? '') },
+          { label: t('log.show_in'), ghost: true, run: () => showLog(['pairing'], ['pair_asks']) },
         ],
       })
     }
@@ -186,7 +203,7 @@ function useIssueList(): Issues {
         lvl: 'info',
         title: `${t('dia.boot')}: ${t(`boot.${reason}`)}`,
         acts: [
-          { label: t('dia.prev'), ghost: true, run: () => jump('diagnose', 'log') },
+          { label: t('log.show_in'), ghost: true, run: () => showLog(['start', 'tech'], ['crashed']) },
           {
             label: t('is.hide'),
             ghost: true,
@@ -206,6 +223,7 @@ function useIssueList(): Issues {
         text: crash.task ?? t('dia.no_sum'),
         acts: [
           { label: t('is.view_crash'), ghost: true, run: () => jump('diagnose', 'dia-crash') },
+          { label: t('log.show_in'), ghost: true, run: () => showLog(['start'], ['crashed']) },
           {
             label: t('is.hide'),
             ghost: true,

@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,7 @@
 #include "db_config.h"
 #include "db_deck.h"
 #include "db_json.h"
+#include "db_log.h"
 #include "db_serial.h"
 #include "db_ui.h"
 #include "db_web.h"
@@ -86,9 +88,17 @@ static size_t state_json(char *buf, size_t cap)
 void app_main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* a browser that drops a socket mid-write would end the simulator */
+    /* DB_SIM_FLASH: a flash image that outlives the simulator, partition table at 0x8000 included */
+    const char *flash = getenv("DB_SIM_FLASH");
+    if (flash) {
+        strlcpy(esp_partition_get_file_mmap_ctrl_input()->flash_file_name, flash, PATH_MAX);
+    }
+    db_log_event("sim", DB_EV_STARTED, "power");
     nvs_flash_init();
-    /* IDF deletes its /tmp flash file only on a clean exit; tests kill the simulator. */
-    unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
+    if (!flash) { /* IDF deletes its /tmp flash file only on a clean exit; tests kill the simulator. */
+        unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
+    }
+    db_log_keep_start();
     esp_event_loop_create_default(); /* esp_http_server posts its events there */
     db_config_load();
     db_config_t cfg;

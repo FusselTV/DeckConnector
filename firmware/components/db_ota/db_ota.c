@@ -153,7 +153,7 @@ void db_ota_abort(const char *why)
     if (!s.busy) {
         return;
     }
-    db_log_event(TAG, "update", "update aborted: %s", why);
+    db_log_event(TAG, DB_EV_UPDATE_ABORTED, why);
     report("error", -1, why);
     finish();
 }
@@ -507,7 +507,7 @@ esp_err_t db_ota_end(void)
     }
     bool restart = s.target == TARGET_C6 || (s.target == TARGET_P4 && s.boot);
     s.restarts = restart;
-    db_log_event(TAG, "update", "%s update installed%s", target_name(), restart ? ", restarting" : "");
+    db_log_event(TAG, restart ? DB_EV_UPDATE_RESTART : DB_EV_UPDATE_INSTALLED, target_name());
     report("done", 100, NULL);
     finish();
     /* After a C6 update the host restarts too, so both sides start their link again. */
@@ -625,15 +625,13 @@ static void confirm_task(void *arg)
             reached = true;
             esp_err_t err = esp_ota_mark_app_valid_cancel_rollback();
             if (err == ESP_OK) {
-                db_log_event(TAG, "update", "new firmware confirmed");
+                db_log_event(TAG, DB_EV_UPDATE_CONFIRMED);
                 vTaskDelete(NULL);
             }
             ESP_LOGE(TAG, "confirming the new firmware failed: %s, trying again", esp_err_to_name(err));
         }
     }
-    db_log_event(TAG, "update", "%s, rolling back",
-                 reached ? "the healthy new firmware could not be confirmed"
-                         : "new firmware never became healthy");
+    db_log_event(TAG, reached ? DB_EV_ROLLBACK_UNCONFIRMED : DB_EV_ROLLBACK_UNHEALTHY);
     xSemaphoreTake(s.lock, portMAX_DELAY); /* it restarts: not during an update */
     esp_err_t err = esp_ota_mark_app_invalid_rollback_and_reboot();
     ESP_LOGE(TAG, "rolling back failed too: %s, the bootloader decides at the next start",

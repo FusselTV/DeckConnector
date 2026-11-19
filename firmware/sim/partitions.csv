@@ -1,0 +1,3 @@
+# Name, Type, SubType, Offset,  Size
+nvs,     data, nvs,     0x9000,  0x6000
+evlog,   data, 0x41,    0x10000, 0x80000
