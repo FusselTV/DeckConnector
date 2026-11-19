@@ -59,8 +59,18 @@ static int erase_if_used(db_evring_t *r, uint32_t sector, uint8_t *buf)
     return err ? err : blank(buf, DB_EVRING_ERASE) ? 0 : erase(r, sector);
 }
 
-static int scan(db_evring_t *r, uint8_t *b)
+/* The lowest seq the ring keeps once `seq` is written. */
+static uint32_t kept_from(const db_evring_t *r, uint32_t seq)
 {
+    uint32_t start = seq - seq % PER;
+    uint32_t window = (sectors(r) - 2) * PER;
+    return start > window ? start - window : 1;
+}
+
+/* Records below `floor` are left over from before a jump: the ring no longer counts them. */
+static int scan(db_evring_t *r, uint8_t *b, uint32_t floor)
+{
+    r->oldest = 0;
     for (uint32_t s = 0; s < sectors(r); s++) {
         int err = r->f.read(s * DB_EVRING_ERASE, b, DB_EVRING_ERASE);
         if (err) {
@@ -68,7 +78,7 @@ static int scan(db_evring_t *r, uint8_t *b)
         }
         for (uint32_t i = 0; i < PER; i++) {
             const db_evrec_t *rec = (const db_evrec_t *)(b + (size_t)i * DB_EVREC_SIZE);
-            if (valid(rec, s * PER + i, slots(r))) {
+            if (valid(rec, s * PER + i, slots(r)) && rec->seq >= floor) {
                 r->newest = rec->seq > r->newest ? rec->seq : r->newest;
                 r->oldest = !r->oldest || rec->seq < r->oldest ? rec->seq : r->oldest;
             }
@@ -105,7 +115,7 @@ int db_evring_open(db_evring_t *r, const db_evflash_t *f, void *buf)
     if (f->size < 2 * DB_EVRING_ERASE || f->size % DB_EVRING_ERASE) {
         return -1;
     }
-    int err = scan(r, buf);
+    int err = scan(r, buf, 0);
     if (err) {
         return err;
     }
@@ -113,7 +123,9 @@ int db_evring_open(db_evring_t *r, const db_evflash_t *f, void *buf)
     r->sector = sector_of(r, r->next);
     err = skip_used(r, buf);
     uint32_t n = f->size / DB_EVRING_ERASE; /* not sectors(r): the analyzer cannot see r->f stay put */
-    return err ? err : erase_if_used(r, (r->sector + 1) % n, buf);
+    err = err ? err : erase_if_used(r, (r->sector + 1) % n, buf);
+    uint32_t floor = kept_from(r, r->next);
+    return err || !r->oldest || r->oldest >= floor ? err : scan(r, buf, floor);
 }
 
 int db_evring_append(db_evring_t *r, db_evrec_t *rec)
@@ -137,10 +149,14 @@ int db_evring_append(db_evring_t *r, db_evrec_t *rec)
     if (err) {
         return err;
     }
-    uint32_t start = rec->seq - rec->seq % PER;
-    uint32_t window = (sectors(r) - 2) * PER;
-    uint32_t kept_from = start > window ? start - window : 1;
-    r->oldest = !r->oldest ? rec->seq : r->oldest < kept_from ? kept_from : r->oldest;
+    uint32_t from = kept_from(r, rec->seq);
+    if (!r->oldest || r->oldest < from) {
+        db_evrec_t e;
+        r->oldest = r->oldest ? from : rec->seq;
+        while (r->oldest < rec->seq && !db_evring_get(r, r->oldest, &e)) { /* skipped seqs leave gaps */
+            r->oldest++;
+        }
+    }
     r->newest = rec->seq;
     return 0;
 }

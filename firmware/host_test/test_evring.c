@@ -260,6 +260,44 @@ static void test_power_cuts_lose_only_what_was_not_confirmed(void)
     }
 }
 
+static void test_a_jump_of_more_than_a_lap_keeps_oldest_on_a_record(void)
+{
+    for (uint32_t s = 1; s <= SLOTS / 2; s++) {
+        put(s);
+    }
+    uint32_t far = SLOTS / 2 + 2 * SLOTS;
+    TEST_ASSERT_EQUAL(0, put(far));
+    TEST_ASSERT_EQUAL(far, r.oldest);
+    reopen();
+    TEST_ASSERT_EQUAL(far, r.oldest);
+    TEST_ASSERT_EQUAL(0, put(far + 1));
+    TEST_ASSERT_EQUAL(far, r.oldest);
+}
+
+static void test_a_jump_within_a_lap_agrees_with_a_restart(void)
+{
+    for (uint32_t s = 1; s < SLOTS - 100; s++) {
+        put(s);
+    }
+    TEST_ASSERT_EQUAL(0, put(SLOTS + SLOTS / 2));
+    uint32_t oldest = r.oldest;
+    db_evrec_t e;
+    TEST_ASSERT_TRUE(db_evring_get(&r, oldest, &e));
+    reopen();
+    TEST_ASSERT_EQUAL(oldest, r.oldest);
+}
+
+static void test_oldest_after_a_gap_is_a_record(void)
+{
+    uint32_t per = DB_EVRING_ERASE / DB_EVREC_SIZE;
+    put(1);
+    TEST_ASSERT_EQUAL(0, put(3 * per + 10));
+    TEST_ASSERT_EQUAL(0, put(SLOTS + per));
+    TEST_ASSERT_EQUAL(3 * per + 10, r.oldest);
+    reopen();
+    TEST_ASSERT_EQUAL(3 * per + 10, r.oldest);
+}
+
 static void test_args_that_do_not_fit_are_cut(void)
 {
     db_evrec_t e = {0};
@@ -307,6 +345,9 @@ int main(void)
     RUN_TEST(test_old_data_in_a_new_partition_is_ignored);
     RUN_TEST(test_skipped_numbers_stay_empty);
     RUN_TEST(test_power_cuts_lose_only_what_was_not_confirmed);
+    RUN_TEST(test_a_jump_of_more_than_a_lap_keeps_oldest_on_a_record);
+    RUN_TEST(test_a_jump_within_a_lap_agrees_with_a_restart);
+    RUN_TEST(test_oldest_after_a_gap_is_a_record);
     RUN_TEST(test_args_that_do_not_fit_are_cut);
     RUN_TEST(test_wear_in_a_year);
     return UNITY_END();
