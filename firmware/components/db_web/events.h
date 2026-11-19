@@ -18,6 +18,6 @@ esp_err_t events_start(size_t (*state_json)(char *buf, size_t cap),
                        size_t (*screen_json)(int deck, char *buf, size_t cap));
 #define INPUT_LOG  2000
 #define INPUT_PAGE 400
-/* The newest INPUT_PAGE inputs after `since` and before `before` (seq numbers, 0: no limit), oldest first, as a
- * JSON array; 0 when it does not fit. */
+/* The newest INPUT_PAGE inputs after `since` and before `before` (seq numbers, 0: no limit), oldest first, as
+ * a JSON array; 0 when it does not fit. */
 size_t events_input_log(char *buf, size_t cap, uint32_t since, uint32_t before);
