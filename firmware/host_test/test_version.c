@@ -66,11 +66,28 @@ static void test_the_newest_release_in_a_feed(void)
     TEST_ASSERT_EQUAL_STRING(REPO, base);
     TEST_ASSERT_TRUE(db_version_newest(feed, true, tag, sizeof(tag), base, sizeof(base)));
     TEST_ASSERT_EQUAL_STRING("v1.3.0-rc1", tag);
+    entry(feed, "v1.1.5", ""); /* a backport above a newer release */
+    entry(feed + strlen(feed), "v1.2.0", "");
+    TEST_ASSERT_TRUE(db_version_newest(feed, false, tag, sizeof(tag), base, sizeof(base)));
+    TEST_ASSERT_EQUAL_STRING("v1.2.0", tag);
     TEST_ASSERT_FALSE(db_version_newest(NULL, true, tag, sizeof(tag), base, sizeof(base)));
     TEST_ASSERT_FALSE(db_version_newest("<feed></feed>", true, tag, sizeof(tag), base, sizeof(base)));
 }
 
 /* A newer tag named in the notes, plain or as a link, is no release. */
+/* A tag or repository too long for the caller's room, or no version, is skipped whole, never cut. */
+static void test_links_that_do_not_fit_are_skipped(void)
+{
+    char feed[2048], tag[40], base[96];
+    char *at = feed + sprintf(feed, "<link href=\"https://github.com/%0100d/releases/tag/v9.0.0\"/>", 0);
+    at = entry(at, "v8.0.0-averyveryveryveryveryverylongname1", "");
+    at = entry(at, "nightly", "");
+    entry(at, "v1.2.0", "");
+    TEST_ASSERT_TRUE(db_version_newest(feed, true, tag, sizeof(tag), base, sizeof(base)));
+    TEST_ASSERT_EQUAL_STRING("v1.2.0", tag);
+    TEST_ASSERT_EQUAL_STRING(REPO, base);
+}
+
 static void test_a_tag_in_the_notes_is_not_offered(void)
 {
     char feed[2048], tag[40], base[96];
@@ -111,6 +128,7 @@ int main(void)
     RUN_TEST(test_dirty_and_prerelease);
     RUN_TEST(test_the_newest_release_in_a_feed);
     RUN_TEST(test_a_tag_in_the_notes_is_not_offered);
+    RUN_TEST(test_links_that_do_not_fit_are_skipped);
     RUN_TEST(test_a_huge_feed_without_quotes_is_quick);
     return UNITY_END();
 }

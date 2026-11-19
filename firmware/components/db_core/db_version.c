@@ -96,6 +96,8 @@ bool db_version_pre(const char *v)
 }
 
 #define TAG_PATH "/releases/tag/"
+#define HREF     "href=\""
+#define HREF_LEN (sizeof(HREF) - 1)
 
 static const char *find(const char *from, const char *to, const char *what)
 {
@@ -111,24 +113,24 @@ static const char *find(const char *from, const char *to, const char *what)
 bool db_version_newest(const char *feed, bool pre_ok, char *tag, size_t tag_cap, char *base, size_t base_cap)
 {
     tag[0] = base[0] = '\0';
+    if (!feed) {
+        return false;
+    }
     /* notes are escaped HTML in the feed: a raw <link> is always an entry's own */
-    const char *stop = feed ? feed + strlen(feed) : NULL;
-    const char *end;
-    for (const char *p = feed;
-         p && (p = find(p, stop, "<link ")) && (end = memchr(p, '>', (size_t)(stop - p))); p = end) {
-        const char *href = find(p, end, "href=\"");
-        if (!href) {
-            continue;
+    const char *stop = feed + strlen(feed);
+    for (const char *p = find(feed, stop, "<link "); p; p = find(p, stop, "<link ")) {
+        const char *end = memchr(p, '>', (size_t)(stop - p));
+        if (!end) {
+            break;
         }
-        href += strlen("href=\"");
-        const char *url_end = href;
-        while (url_end < end && *url_end != '"' && *url_end != '<') {
-            url_end++;
-        }
-        const char *at = find(href, url_end, TAG_PATH);
+        const char *href = find(p, end, HREF);
+        p = end;
+        const char *url_end = href ? memchr(href + HREF_LEN, '"', (size_t)(end - href - HREF_LEN)) : NULL;
+        const char *at = url_end ? find(href + HREF_LEN, url_end, TAG_PATH) : NULL;
         if (!at) {
             continue;
         }
+        href += HREF_LEN;
         const char *t = at + strlen(TAG_PATH);
         size_t len = (size_t)(url_end - t);
         size_t base_len = (size_t)(at - href);
