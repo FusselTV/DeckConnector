@@ -149,6 +149,11 @@ class DeckCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.connected = True
             self.async_set_updated_data(merge(self.data, msg))
         elif kind == "input" and not msg.get("simulated"):
+            deck = self.deck(msg.get("deck", ""))
+            if msg.get("kind") in ("touch_tap", "touch_long") and deck and deck["encoders"] and deck.get("width"):
+                # one zone above each dial, as Companion and the web UI split the strip
+                zone = msg["x"] * deck["encoders"] // deck["width"]
+                msg = {**msg, "zone": min(zone, deck["encoders"] - 1) + 1}
             async_dispatcher_send(self.hass, SIGNAL_INPUT.format(msg.get("deck")), msg)
         elif kind == "screen":
             async_dispatcher_send(self.hass, SIGNAL_SCREEN.format(msg.get("deck")))

@@ -63,9 +63,13 @@ async def test_every_input_kind_becomes_an_event(hass, entry, aioclient_mock, so
         await socket.queue.put({**base, "kind": kind})
         await hass.async_block_till_done()
         assert hass.states.get("event.stream_deck_controls").attributes["event_type"] == event_type
+    assert hass.states.get("event.stream_deck_controls").attributes.get("zone") is None
+    await socket.queue.put({**base, "kind": "touch_long"})
+    await hass.async_block_till_done()
+    assert hass.states.get("event.stream_deck_controls").attributes["zone"] == 1
     await socket.queue.put({**base, "kind": "unknown"})
     await hass.async_block_till_done()
-    assert hass.states.get("event.stream_deck_controls").attributes["event_type"] == "touch_swipe_right"
+    assert hass.states.get("event.stream_deck_controls").attributes["event_type"] == "touch_long_press"
 
 
 async def test_knobs_without_a_strip_and_a_deck_without_a_display(hass, entry, aioclient_mock, socket):

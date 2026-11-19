@@ -333,7 +333,13 @@
       "dial_4": "Drehregler 4",
       "dial_5": "Drehregler 5",
       "dial_6": "Drehregler 6",
-      "touch_strip": "Touchleiste"
+      "touch_strip": "Touchleiste",
+      "touch_1": "Touchfeld 1",
+      "touch_2": "Touchfeld 2",
+      "touch_3": "Touchfeld 3",
+      "touch_4": "Touchfeld 4",
+      "touch_5": "Touchfeld 5",
+      "touch_6": "Touchfeld 6"
     }
   },
   "issues": {

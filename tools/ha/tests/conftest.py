@@ -13,7 +13,15 @@ from custom_components.deckconnector.api import Api
 HOST = "192.0.2.10"
 TOKEN = "k" * 64
 
-PLUS = {"model": "Stream Deck +", "serial": "A1", "firmware": "1.0", "keys": 8, "encoders": 4, "writer": "satellite"}
+PLUS = {
+    "model": "Stream Deck +",
+    "serial": "A1",
+    "firmware": "1.0",
+    "keys": 8,
+    "encoders": 4,
+    "writer": "satellite",
+    "width": 800,
+}
 XL = {"model": "Stream Deck XL", "serial": "B2", "firmware": "1.0", "keys": 32, "encoders": 0, "writer": "ui"}
 
 STATUS = {

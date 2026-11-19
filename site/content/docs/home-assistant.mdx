@@ -50,9 +50,9 @@ The connector pushes every change at once. Signal and temperature update once a 
 
 ## Automations
 
-In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right** or **Touch strip swiped left**.
+In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right**, **Touch zone 2 tapped** or **Touch strip swiped left**. The touch strip has one zone above each dial.
 
-Every deck also has one **Controls** event entity for YAML and templates. Its `event_type` says what happened, for example `key_3_press`. A dial turn carries `ticks`, a touch carries `x` and `y`.
+Every deck also has one **Controls** event entity for YAML and templates. Its `event_type` says what happened, for example `key_3_press`. A dial turn carries `ticks`, a touch carries `x` and `y`. A tap or long touch also carries its `zone`.
 
 ```yaml
 triggers:

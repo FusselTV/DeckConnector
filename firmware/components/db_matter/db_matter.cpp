@@ -47,9 +47,8 @@ typedef struct {
 
 typedef struct {
     int8_t slot;
-    int8_t input; /* keys, then dials; -1: a deck came or went */
-    bool down;
     bool covered;
+    db_input_t in; /* kind 0: a deck came or went */
 } msg_t;
 
 static struct {
@@ -58,8 +57,9 @@ static struct {
     uint8_t salt[32];
     uint8_t verifier[chip::Crypto::kSpake2p_VerifierSerialized_Length];
     slot_t slots[DB_MAX_DECKS];
-    bool live[DB_MAX_DECKS];          /* its endpoints exist */
-    uint8_t image_keys[DB_MAX_DECKS]; /* 0 until the deck is seen after the start */
+    bool live[DB_MAX_DECKS]; /* its endpoints exist */
+    uint8_t zones[DB_MAX_DECKS];
+    db_matter_layout_t lay[DB_MAX_DECKS]; /* image_keys and strip: 0 until the deck is seen after the start */
     db_sw_deck_t sw[DB_MAX_DECKS];
     endpoint_t *aggregator;
     QueueHandle_t q;
@@ -142,7 +142,7 @@ class Labels : public chip::DeviceLayer::DeviceInfoProvider
     {
         for (int d = 0; d < DB_MAX_DECKS; d++) {
             char value[17];
-            if (s.live[d] && db_matter_label(node_ep(d), ep, s.image_keys[d], db_config()->lang, value)) {
+            if (s.live[d] && db_matter_label(&s.lay[d], ep - node_ep(d) - 1, db_config()->lang, value)) {
                 One *it = new (std::nothrow) One;
                 if (it) {
                     strlcpy(it->value, value, sizeof(it->value));
@@ -212,6 +212,8 @@ static void save_slots(void)
     nvs_handle_t h;
     if (nvs_open_from_partition(PART, NS, NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_blob(h, "slots", s.slots, sizeof(s.slots));
+        /* own key: "slots" keeps its size for older images */
+        nvs_set_blob(h, "zones", s.zones, sizeof(s.zones));
         nvs_commit(h);
         nvs_close(h);
     }
@@ -228,6 +230,14 @@ static esp_err_t load(void)
     size_t len = sizeof(s.slots);
     if (nvs_get_blob(h, "slots", s.slots, &len) != ESP_OK || len != sizeof(s.slots)) {
         memset(s.slots, 0, sizeof(s.slots));
+    }
+    len = sizeof(s.zones);
+    if (nvs_get_blob(h, "zones", s.zones, &len) != ESP_OK || len != sizeof(s.zones)) {
+        memset(s.zones, 0, sizeof(s.zones));
+    }
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        s.lay[d] =
+            (db_matter_layout_t){.keys = s.slots[d].keys, .dials = s.slots[d].dials, .zones = s.zones[d]};
     }
     len = sizeof(s.salt);
     if (nvs_get_u32(h, "pin", &s.pin) != ESP_OK || nvs_get_u16(h, "disc", &s.disc) != ESP_OK ||
@@ -303,6 +313,18 @@ static uint16_t node_ep(int slot)
     return db_matter_ep(s.slots[slot].id.gen, slot);
 }
 
+/* Under the stack lock; adds the switches a deck's node lacks */
+static void add_switches(int slot)
+{
+    uint16_t base = node_ep(slot);
+    endpoint_t *n = endpoint::get(node::get(), base);
+    for (int i = 0; n && i < DB_MATTER_INPUTS; i++) {
+        if (db_matter_used(&s.lay[slot], i) && !endpoint::get(node::get(), (uint16_t)(base + 1 + i))) {
+            child((uint16_t)(base + 1 + i), n);
+        }
+    }
+}
+
 static void drop(int slot, uint16_t base)
 {
     for (uint16_t id = base + 1; id <= base + DB_MATTER_INPUTS; id++) {
@@ -361,12 +383,7 @@ static void build(int slot, bool reachable)
                                                                                strlen(k->id.serial));
     endpoint::set_parent_endpoint(n, s.aggregator);
     endpoint::enable(n);
-    for (int i = 0; i < k->keys; i++) {
-        child(base + 1 + i, n);
-    }
-    for (int i = 0; i < k->dials; i++) {
-        child(base + 1 + DB_MATTER_KEYS + i, n);
-    }
+    add_switches(slot);
     s.live[slot] = true;
 }
 
@@ -398,7 +415,13 @@ static void deck_changed(int slot)
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
     strlcpy(k->model, info.model, sizeof(k->model));
-    s.image_keys[slot] = db_device_image_keys(&info);
+    uint8_t old_zones = s.zones[slot];
+    s.zones[slot] = info.touch_count ? k->dials : 0;
+    s.lay[slot] = (db_matter_layout_t){.keys = k->keys,
+                                       .dials = k->dials,
+                                       .zones = s.zones[slot],
+                                       .image_keys = db_device_image_keys(&info),
+                                       .strip_w = info.touch[0].rect.w};
     /* a deck without a serial is named by its port (db_deck_identity): another model there is another deck.
      * Not for decks with one: a model renamed in our driver would move their endpoints. */
     if (!moved && strncmp(k->id.serial, "port-", 5) == 0 &&
@@ -409,7 +432,7 @@ static void deck_changed(int slot)
     if (moved && s.live[slot]) {
         drop(slot, old_base);
     }
-    if (memcmp(&old, k, sizeof(old)) != 0) {
+    if (memcmp(&old, k, sizeof(old)) != 0 || old_zones != s.zones[slot]) {
         save_slots();
     }
     if (!old.id.serial[0]) { /* one deck more: the others' names may gain their number */
@@ -424,6 +447,7 @@ static void deck_changed(int slot)
         }
     }
     if (s.live[slot]) {
+        add_switches(slot); /* known since an older image, which had no turns and touches */
         set_reachable(node_ep(slot), true);
     } else {
         build(slot, true);
@@ -491,6 +515,31 @@ static int64_t tick(void)
     return next;
 }
 
+static void input(const msg_t *m)
+{
+    db_press_t press;
+    int i = db_matter_input(&s.lay[m->slot], &m->in, &press);
+    if (!s.live[m->slot] || i < 0) {
+        return;
+    }
+    db_sw_event_t e[3];
+    int64_t now = esp_timer_get_time();
+    int n;
+    if (press == DB_PRESS_DOWN || press == DB_PRESS_UP) {
+        e[0] = db_sw_deck_input(&s.sw[m->slot], i, press == DB_PRESS_DOWN, m->covered, chord(m->slot), now);
+        n = e[0] != DB_SW_NONE;
+    } else {
+        n = db_sw_deck_pulse(&s.sw[m->slot], i, press, m->covered, now, e);
+    }
+    if (!n) {
+        return;
+    }
+    lock::ScopedChipStackLock lock(portMAX_DELAY);
+    for (int j = 0; j < n; j++) {
+        emit((uint16_t)(node_ep(m->slot) + 1 + i), e[j]);
+    }
+}
+
 /* Its own task: the stack lock can be held for a while (a new session), the deck's event task must not wait.
  */
 static void task(void *arg)
@@ -511,31 +560,30 @@ static void task(void *arg)
         }
         msg_t m;
         if (xQueueReceive(s.q, &m, wait) == pdTRUE) {
-            if (m.input < 0) {
+            if (m.in.kind) {
+                input(&m);
+            } else {
                 deck_changed(m.slot);
-            } else if (s.live[m.slot]) {
-                db_sw_event_t e = db_sw_deck_input(&s.sw[m.slot], m.input, m.down, m.covered, chord(m.slot),
-                                                   esp_timer_get_time());
-                if (e != DB_SW_NONE) {
-                    lock::ScopedChipStackLock lock(portMAX_DELAY);
-                    emit((uint16_t)(node_ep(m.slot) + 1 + m.input), e);
-                }
             }
         }
         next = tick();
     }
 }
 
+static_assert(DB_INPUT_KEY_DOWN == 1 && DB_INPUT_ENCODER_UP < DB_INPUT_ENCODER_TURN,
+              "kind 0 is a deck change; holds come before taps and detents");
+
 static void queue_input(int deck, const db_input_t *ev, db_matter_from_t from)
 {
-    int at = db_matter_input_ep(0, ev);
-    if (db_matter_takes(from) && at) {
+    if (db_matter_takes(from)) {
         char ip[16];
-        msg_t m = {.slot = (int8_t)deck,
-                   .input = (int8_t)(at - 1),
-                   .down = ev->kind == DB_INPUT_KEY_DOWN || ev->kind == DB_INPUT_ENCODER_DOWN,
-                   .covered = db_ui_menu_open() || db_dock_request(ip)};
-        xQueueSend(s.q, &m, pdMS_TO_TICKS(20)); /* a lost release would leave the switch held */
+        msg_t m = {.slot = (int8_t)deck, .covered = db_ui_menu_open() || db_dock_request(ip), .in = *ev};
+        bool hold = ev->kind <= DB_INPUT_ENCODER_UP;
+        /* a lost release would leave the switch held. Taps and detents never wait and leave room for releases
+         * and decks that come and go, also while the stack lock holds the task up. */
+        if (hold || uxQueueSpacesAvailable(s.q) > 8) {
+            xQueueSend(s.q, &m, hold ? pdMS_TO_TICKS(20) : 0);
+        }
     }
 }
 
@@ -555,7 +603,7 @@ bool db_matter_debug_input(int deck, const db_input_t *ev)
 
 static void on_device(int deck, const db_device_info_t *info)
 {
-    msg_t m = {.slot = (int8_t)deck, .input = -1, .down = false, .covered = false};
+    msg_t m = {.slot = (int8_t)deck, .covered = false, .in = {}};
     xQueueSend(s.q, &m, pdMS_TO_TICKS(1000));
 }
 

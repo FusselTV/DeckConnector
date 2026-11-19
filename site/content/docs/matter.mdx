@@ -3,7 +3,7 @@ title: Matter
 description: Use the deck's keys in Apple Home, Google Home, Home Assistant and other Matter apps.
 ---
 
-With Matter on, every deck shows up as a device in your smart home app. Each key and each dial press is a button there. A press, a release and a long press can each start an automation. A press arrives at once. Companion or the Elgato app keeps working as before.
+With Matter on, every deck shows up as a device in your smart home app. Each key, dial and touch zone is a button there. Each dial has two more buttons for turns, and the touch strip two for swipes. A press, a release and a long press can each start an automation. A press arrives at once. Companion or the Elgato app keeps working as before.
 
 ## Pair
 
@@ -23,14 +23,14 @@ While the deck shows the menu or a question from the connector, its keys do not 
 | Stream Deck Mini | 6 |
 | Stream Deck, MK.2 | 15 |
 | Stream Deck XL | 32 |
-| Stream Deck + | 8 keys, 4 dials |
-| Stream Deck + XL | 36 keys, 6 dials |
+| Stream Deck + | 8 keys, 4 dials, 8 turns, 4 touch zones, 2 swipes |
+| Stream Deck + XL | 36 keys, 6 dials, 12 turns, 6 touch zones, 2 swipes |
 | Stream Deck Neo | 8 keys, 2 touch points |
 | Stream Deck Pedal | 3 |
 
 Each deck is its own device. It keeps its buttons when you plug it in again, also at another hub port. An unplugged deck shows as not responding. A different deck in its place is a new device.
 
-Dial turns and the touch strip do not reach Matter. Presses sent from the web UI or the API do not either.
+A dial turn presses "Dial 1 left" or "Dial 1 right" once per step. A fast turn sends at most 10 presses a second. A tap on the touch strip presses the zone under it. A long touch is a long press. Presses sent from the web UI or the API do not reach Matter.
 
 ## Home Assistant
 
