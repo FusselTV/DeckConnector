@@ -238,7 +238,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter und Token. Ein `PUT` davon stellt die Einstellungen wieder her. `GET /api/backup?secrets=1` fügt `admin_pass`, `wifi_pass`, `wifi2_pass` und `token` hinzu. Keine Sicherung enthält API-Schlüssel, Passkeys, gekoppelte Dock-Rechner, ein hochgeladenes HTTPS-Zertifikat oder die mit Matter gekoppelten Apps. Lege sie neu an, kopple sie neu oder lade sie neu hoch.
+Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter und Token. Ein `PUT` davon stellt die Einstellungen wieder her. `GET /api/backup?secrets=1` fügt `admin_pass`, `wifi_pass`, `wifi2_pass` und `token` hinzu. Keine Sicherung enthält API-Schlüssel, Passkeys, gekoppelte Dock-Rechner, die Dateien für [eigenes HTTPS](/de/docs/security#https) oder die mit Matter gekoppelten Apps. Lege sie neu an, kopple sie neu oder lade sie neu hoch.
 
 ## Status
 
