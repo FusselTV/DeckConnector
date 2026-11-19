@@ -120,12 +120,15 @@ static void fix_old_ips(db_ip_config_t *ip)
 {
     char *fields[] = {ip->ip, ip->mask, ip->gateway, ip->dns};
     for (size_t i = 0; i < 4; i++) {
-        struct in_addr a;
-        if (!memchr(fields[i], 0, sizeof(ip->ip)) || (!valid_ip(fields[i]) && !inet_aton(fields[i], &a))) {
-            fields[i][0] = '\0';
-        } else if (!valid_ip(fields[i])) {
+        struct in_addr a = {0};
+        if (memchr(fields[i], 0, sizeof(ip->ip)) && valid_ip(fields[i])) {
+            continue;
+        }
+        if (memchr(fields[i], 0, sizeof(ip->ip)) && inet_aton(fields[i], &a)) {
             const uint8_t *b = (const uint8_t *)&a.s_addr;
             snprintf(fields[i], sizeof(ip->ip), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
+        } else {
+            fields[i][0] = '\0';
         }
     }
     ip->dhcp = ip->dhcp || !ip->ip[0] || !ip->mask[0];

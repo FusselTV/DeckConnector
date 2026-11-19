@@ -273,6 +273,8 @@ static void build(int slot, bool reachable)
     s.live[slot] = true;
 }
 
+static void emit(uint16_t ep, db_sw_event_t e);
+
 static void deck_changed(int slot)
 {
     db_device_info_t info;
@@ -299,8 +301,8 @@ static void deck_changed(int slot)
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
     strlcpy(k->model, info.model, sizeof(k->model));
-    /* a deck without a serial number is named by its port (db_deck_identity): another model there is another
-     * deck. Only then: a model name renamed in our driver must not give a deck with a serial new endpoints. */
+    /* a deck without a serial is named by its port (db_deck_identity): another model there is another deck.
+     * Not for decks with one: a model renamed in our driver would move their endpoints. */
     if (!moved && strncmp(k->id.serial, "port-", 5) == 0 &&
         (k->keys != old.keys || k->dials != old.dials || strcmp(k->model, old.model) != 0)) {
         k->id.gen = (uint8_t)((k->id.gen + 1) % DB_MATTER_GENS);
