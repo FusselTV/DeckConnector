@@ -36,10 +36,10 @@ def event_of(msg: dict[str, Any]) -> tuple[str, dict[str, int]] | None:
         case "encoder_turn":
             ticks = msg["value"]
             return f"dial_{n}_{'right' if ticks > 0 else 'left'}", {"ticks": abs(ticks)}
-        case "touch_tap":
-            return "touch_tap", {"x": msg["x"], "y": msg["y"]}
-        case "touch_long":
-            return "touch_long_press", {"x": msg["x"], "y": msg["y"]}
+        case "touch_tap" | "touch_long":
+            zone = {"zone": msg["zone"]} if "zone" in msg else {}
+            name = "touch_tap" if msg["kind"] == "touch_tap" else "touch_long_press"
+            return name, {"x": msg["x"], "y": msg["y"], **zone}
         case "touch_swipe":
             side = "left" if msg["x2"] < msg["x"] else "right"
             return f"touch_swipe_{side}", {k: msg[k] for k in ("x", "y", "x2", "y2")}

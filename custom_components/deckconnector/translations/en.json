@@ -333,7 +333,13 @@
       "dial_4": "Dial 4",
       "dial_5": "Dial 5",
       "dial_6": "Dial 6",
-      "touch_strip": "Touch strip"
+      "touch_strip": "Touch strip",
+      "touch_1": "Touch zone 1",
+      "touch_2": "Touch zone 2",
+      "touch_3": "Touch zone 3",
+      "touch_4": "Touch zone 4",
+      "touch_5": "Touch zone 5",
+      "touch_6": "Touch zone 6"
     }
   },
   "issues": {

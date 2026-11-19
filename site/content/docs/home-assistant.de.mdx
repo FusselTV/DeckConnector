@@ -50,9 +50,9 @@ Der Connector schickt jede Änderung sofort. Signal und Temperatur kommen einmal
 
 ## Automationen
 
-Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht** oder **Touchleiste nach links gewischt**.
+Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht**, **Touchfeld 2 angetippt** oder **Touchleiste nach links gewischt**. Die Touchleiste hat über jedem Drehregler ein Feld.
 
-Jedes Deck hat außerdem eine Ereignis-Entität **Bedienung** für YAML und Templates. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Drehung bringt `ticks` mit, eine Berührung `x` und `y`.
+Jedes Deck hat außerdem eine Ereignis-Entität **Bedienung** für YAML und Templates. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Drehung bringt `ticks` mit, eine Berührung `x` und `y`. Tippen und langes Berühren bringen auch das Feld als `zone` mit.
 
 ```yaml
 triggers:
