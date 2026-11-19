@@ -104,3 +104,11 @@ db_sw_event_t db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now)
     db_sw_event_t e = db_sw_tick(&d->sw[input], now);
     return d->muted & bit ? DB_SW_NONE : e;
 }
+
+void db_sw_deck_gone(db_sw_deck_t *d, int64_t now, db_sw_event_t out[DB_MATTER_INPUTS])
+{
+    static const int none[2] = {-1, -1};
+    for (int i = 0; i < DB_MATTER_INPUTS; i++) {
+        out[i] = db_sw_deck_input(d, i, false, false, none, now);
+    }
+}

@@ -279,10 +279,16 @@ static void deck_changed(int slot)
     bool present = db_deck_info(slot, &info);
     lock::ScopedChipStackLock lock(portMAX_DELAY);
     if (!present) {
+        db_sw_event_t gone[DB_MATTER_INPUTS];
+        db_sw_deck_gone(&s.sw[slot], esp_timer_get_time(), gone);
+        for (int i = 0; i < DB_MATTER_INPUTS && s.live[slot]; i++) {
+            if (gone[i] != DB_SW_NONE) {
+                emit((uint16_t)(node_ep(slot) + 1 + i), gone[i]);
+            }
+        }
         if (s.live[slot]) {
             set_reachable(node_ep(slot), false);
         }
-        s.sw[slot] = (db_sw_deck_t){};
         return;
     }
     slot_t old = s.slots[slot];
@@ -293,6 +299,12 @@ static void deck_changed(int slot)
     k->keys = info.key_count < DB_MATTER_KEYS ? info.key_count : DB_MATTER_KEYS;
     k->dials = info.encoder_count < DB_MATTER_DIALS ? info.encoder_count : DB_MATTER_DIALS;
     strlcpy(k->model, info.model, sizeof(k->model));
+    /* a deck without a serial number is named by its port: another model there is another deck */
+    if (!moved && old.id.serial[0] &&
+        (k->keys != old.keys || k->dials != old.dials || strcmp(k->model, old.model) != 0)) {
+        k->id.gen = (uint8_t)((k->id.gen + 1) % DB_MATTER_GENS);
+        moved = true;
+    }
     if (moved && s.live[slot]) {
         drop(slot, old_base);
     }
