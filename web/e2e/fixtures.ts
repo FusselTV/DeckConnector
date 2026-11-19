@@ -43,6 +43,7 @@ export const test = base.extend<{ errors: string[]; app: Page }>({
       menu_hold_ms: 2000,
       cors_origins: '',
       trusted_proxy: '',
+      speaker: false,
     })
     await page.addInitScript(() => localStorage.getItem('dc.lang') ?? localStorage.setItem('dc.lang', '"en"'))
     await page.goto('/')

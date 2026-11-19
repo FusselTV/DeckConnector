@@ -171,6 +171,23 @@ async def test_a_new_firmware_reloads_the_entry(hass, entry, aioclient_mock, soc
     reload.assert_called_once_with(entry.entry_id)
 
 
+async def test_the_speaker_switch_reloads_and_takes_its_entities_along(hass, entry, aioclient_mock, socket):
+    speaker = {f"number.{BOARD}_volume", f"button.{BOARD}_find"}
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    assert speaker <= {e.entity_id for e in entities(hass, entry)}
+    for on in (False, True):
+        aioclient_mock.clear_requests()
+        aioclient_mock.get(f"http://{HOST}/api/status", json={**status(PLUS), "speaker": on})
+        aioclient_mock.get(CHECK, json={"latest": None})
+        await push(hass, socket, speaker=on)
+        await hass.async_block_till_done()
+        await push(hass, socket, speaker=on)
+        ids = {e.entity_id for e in entities(hass, entry)}
+        assert (speaker <= ids) if on else not (speaker & ids), "no orphan left in the entity registry"
+        assert all(hass.states.get(i) for i in speaker) == on
+        assert entry.state.name == "LOADED"
+
+
 async def test_the_connection_is_logged_once_lost_and_once_back(hass, entry, aioclient_mock, socket, caplog):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     caplog.set_level(logging.INFO, "custom_components.deckconnector")

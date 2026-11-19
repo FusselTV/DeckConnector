@@ -21,6 +21,7 @@ const WRITABLE = new Set<keyof ConfigPatch>([
   'host',
   'brightness',
   'volume',
+  'speaker',
   'lan',
   'wlan',
   'wifi_ssid',

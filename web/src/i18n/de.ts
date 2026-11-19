@@ -131,6 +131,8 @@ export const de: Dict = {
   'deck.hold': 'Haltedauer',
   'deck.hold_h': '0,5 bis 10 s',
   'deck.speed': 'USB-Geschwindigkeit',
+  'deck.speaker': 'Lautsprecher angeschlossen',
+  'deck.speaker_h': 'Schaltet die Töne und „Connector finden“ ein. Ein kleiner Lautsprecher kommt an die Platine.',
   'deck.speed_h': 'Full Speed nur, wenn das Deck an High Speed Fehler macht. Bilder kommen dann langsamer.',
   'net.name': 'Gerätename',
   'net.at_lan': 'LAN (Kabel)',

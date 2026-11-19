@@ -309,7 +309,7 @@ static void write_status(db_json_t *j, bool live)
     db_json_int(j, "screen_off_s", (int)db_config()->screen_off_s);
     db_json_int(j, "screen_dim", db_config()->screen_dim);
     db_json_int(j, "max_decks", db_config()->max_decks);
-    db_json_bool(j, "speaker", db_board()->speaker.present);
+    db_json_bool(j, "speaker", db_board()->speaker.present && db_config()->speaker);
     write_device(j);
     write_network(j, live);
     write_sources(j, live);

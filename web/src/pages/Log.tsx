@@ -501,7 +501,7 @@ export function Log() {
   const problemsLine = t('log.problems', { n: week.total })
   const lastAt = ev.list.at(-1)?.at
   return (
-    <div className="cards lg">
+    <div className={cx('cards lg', /[a-z]/i.test(fmt.time(0)) && 'h12')}>
       <Card
         id="lg-sum"
         live

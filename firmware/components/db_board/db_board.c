@@ -19,7 +19,7 @@ static const db_board_t board = {
                 .pa_gpio = 53},
 };
 #elif CONFIG_DB_BOARD_SIM
-static const db_board_t board = {.name = "sim", .eth = {.present = true}};
+static const db_board_t board = {.name = "sim", .eth = {.present = true}, .speaker = {.present = true}};
 #else
 #error "No board selected, see menuconfig -> DeckConnector board"
 #endif

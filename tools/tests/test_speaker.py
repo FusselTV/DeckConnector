@@ -28,3 +28,26 @@ def test_unknown_sound_and_volume_are_refused():
     assert api("POST", "/api/sound", json.dumps({"sound": "ready", "volume": 0}).encode())[0] == 409
     for bad in (b'{"volume": 0}', b'{"gain": 43}', b'{"volume": "60"}', b"{", b"[]", b"x" * 64):
         assert api("POST", "/api/sound/selftest", bad)[0] == 400, bad
+
+
+def put(body: dict) -> dict:
+    code, reply = api("PUT", "/api/config", json.dumps(body).encode())
+    assert code == 200, reply
+    return json.loads(reply)
+
+
+@pytest.mark.sim
+def test_without_a_speaker_nothing_plays_and_the_status_says_so():
+    was = json.loads(api("GET", "/api/config")[1])["speaker"]
+    try:
+        assert not put({"speaker": False}).get("restart")
+        assert json.loads(api("GET", "/api/status")[1])["speaker"] is False
+        for path in ("/api/sound", "/api/sound/selftest"):
+            code, body = api("POST", path, b'{"sound": "find"}' if path == "/api/sound" else b"{}")
+            assert code == 409 and "speaker" in json.loads(body)["error"], body
+        assert not put({"speaker": True}).get("restart")
+        assert json.loads(api("GET", "/api/status")[1])["speaker"] is True
+        assert api("POST", "/api/sound", b'{"sound": "find"}')[0] == 200
+        assert api("PUT", "/api/config", b'{"speaker": 1}')[0] == 400
+    finally:
+        put({"speaker": was})

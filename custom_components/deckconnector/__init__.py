@@ -5,7 +5,12 @@ import logging
 from homeassistant.config_entries import SIGNAL_CONFIG_ENTRY_CHANGED, ConfigEntry, ConfigEntryChange
 from homeassistant.const import CONF_HOST, CONF_TOKEN, Platform
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import config_validation as cv, device_registry as dr, issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.typing import ConfigType
@@ -53,6 +58,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     firmware = coordinator.data.get("firmware")
+    speaker = bool(coordinator.data.get("speaker"))
+    if not speaker:
+        ent_reg = er.async_get(hass)
+        for platform, key in ((Platform.NUMBER, "volume"), (Platform.BUTTON, "find")):
+            if entity_id := ent_reg.async_get_entity_id(platform, DOMAIN, f"{coordinator.board_id}_{key}"):
+                ent_reg.async_remove(entity_id)
     reloading = False
 
     @callback
@@ -61,8 +72,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
         data = coordinator.data
         if reloading:
             return
-        if data.get("firmware") and data["firmware"] != firmware:
-            _LOGGER.info("%s runs firmware %s now, loading it again", entry.title, data["firmware"])
+        if (data.get("firmware") and data["firmware"] != firmware) or bool(data.get("speaker")) != speaker:
+            _LOGGER.info(
+                "%s runs firmware %s, speaker %s now, loading it again",
+                entry.title,
+                data.get("firmware"),
+                bool(data.get("speaker")),
+            )
             reloading = True
             hass.config_entries.async_schedule_reload(entry.entry_id)
             return

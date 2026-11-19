@@ -56,7 +56,11 @@ describe('planRestore', () => {
     expect(p.errors).toEqual([])
   })
   it('instant keys need no restart', () => {
-    expect(planRestore(cfg, { ...cfg, brightness: 10, volume: 30 }).restart).toBe(false)
+    expect(planRestore(cfg, { ...cfg, brightness: 10, volume: 30, speaker: true }).restart).toBe(false)
+  })
+  it('carries the speaker, and a backup from before it changes nothing there', () => {
+    expect(planRestore({ ...cfg, speaker: false }, { ...cfg, speaker: true }).patch).toEqual({ speaker: true })
+    expect(planRestore({ ...cfg, speaker: true }, cfg).rows).toEqual([])
   })
   it('reports invalid values', () => {
     expect(planRestore(cfg, { ...cfg, lan: { dhcp: false, ip: 'x', mask: '' } }).errors.length).toBeGreaterThan(0)

@@ -119,12 +119,17 @@ def test_a_stored_address_now_refused_becomes_the_one_applied(tmp_path):
 
         cfg = call("GET")[1]
         assert cfg["name"] == "sim-old", "the stored settings were loaded"
+        assert cfg["speaker"] is True, "set up before the question: its sounds stay"
         assert cfg["lan"]["dhcp"] and cfg["lan"]["ip"] == "", "lwip applied no address from 09: DHCP"
         assert (cfg["wlan"]["dhcp"], cfg["wlan"]["ip"], cfg["wlan"]["dns"]) == (False, "10.0.0.8", "1.1.1.1"), (
             "as lwip read them"
         )
-        code, reply = call("PUT", json.dumps({"lan": cfg["lan"], "wlan": cfg["wlan"]}).encode())
+        code, reply = call("PUT", json.dumps({"lan": cfg["lan"], "wlan": cfg["wlan"], "speaker": False}).encode())
         assert code == 200, reply
+        sim.kill()
+        sim.wait()
+        sim = start_sim(port, DB_SIM_PASSWORD="simulator-pass", DB_SIM_FLASH=str(flash))
+        assert call("GET")[1]["speaker"] is False, "turned off, it stays off after a restart"
     finally:
         sim.kill()
         sim.wait()

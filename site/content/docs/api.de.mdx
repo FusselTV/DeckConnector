@@ -94,7 +94,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
-| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind, und auf einem Connector ohne Lautsprecher | control |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind oder `speaker` false ist | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
@@ -204,6 +204,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `controller`, `host` | Die Quelle, die zeichnet, siehe [Quellen](/de/docs/hosts#über-die-api) |
 | `brightness` | 0 bis 100. Ein Druck auf ein Deck bei 0 setzt sie auf 50 |
 | `volume` | Der Lautsprecher, 0 (aus, ab Werk) bis 100 |
+| `speaker` | Ein Lautsprecher ist angeschlossen. Ein neuer Connector startet mit false, bis die Einrichtung in der Weboberfläche fragt. Mit false spielt er keinen Ton, und `/api/sound` antwortet 409 |
 | `lan`, `wlan` | `dhcp`, oder `ip` und `mask` mit optionalem `gateway` und `dns` |
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
 | `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
@@ -230,7 +231,7 @@ Nur in der [Matter-Firmware](/de/docs/matter). Ohne sie antworten diese Routen m
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `volume`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
+`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -277,7 +278,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
 | `decks[].writer` | Wer auf diesem Deck zeichnet, Werte wie bei `writer` |
 | `decks[].hub` | Das Deck hängt an einem USB-Hub |
-| `speaker` | Der Connector hat einen Lautsprecher-Ausgang, siehe [Hardware](/de/docs/hardware#platine) |
+| `speaker` | Ein Lautsprecher ist angeschlossen. Die Platine hat einen Lautsprecher-Ausgang und `speaker` ist in den Einstellungen an, siehe [Hardware](/de/docs/hardware#platine) |
 | `temp_c` | Die Chiptemperatur in °C. Fehlt bis zur ersten Messung |
 | `https_ca` | Der Kurzcode der CA des Connectors, siehe [HTTPS](/de/docs/security#https). Leer mit eigenem Zertifikat, dann ist `https_custom` true |
 

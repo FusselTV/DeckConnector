@@ -47,9 +47,11 @@ test('the setup wizard goes forward and back and keeps what was entered', async 
   await login(page)
   await expect(page.locator('#wz-step')).toHaveText(/Welche Sprache|Which language/)
   await page.getByRole('radio', { name: 'English' }).click()
+  await expect(page.locator('#w-speaker')).toHaveAttribute('aria-checked', 'false')
+  await page.locator('#w-speaker').click()
   await page.getByRole('button', { name: 'Next' }).click()
   await expect(page.locator('#wz-step')).toHaveText('Set your own password')
-  await expect.poll(async () => ((await sim('GET', '/api/config')) as { lang: string }).lang).toBe('en') // the deck too
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ lang: 'en', speaker: true }) // the deck too
   await page.locator('#wpw').fill('abc')
   await page.getByRole('button', { name: 'Next' }).click()
   await expect(page.getByText('At least 6 characters.')).toBeVisible()
@@ -60,11 +62,14 @@ test('the setup wizard goes forward and back and keeps what was entered', async 
   await expect(page.locator('#wpw')).toHaveValue('abcdef1')
   await page.goBack()
   await expect(page.locator('#wz-step')).toHaveText('Which language?')
+  await page.locator('#w-speaker').click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ speaker: false }) // changed back, sent again
   // The wizard keeps its step on the device; close the page first so no late step write follows the reset.
   await page.waitForLoadState('networkidle')
   await page.close()
   await sim('PUT', '/api/setup', { step: 0 })
-  await sim('PUT', '/api/config', { setup_done: true, lang: 'de' })
+  await sim('PUT', '/api/config', { setup_done: true, lang: 'de', speaker: false })
 })
 
 test('the wizard offers the stored name and asks for a new password again after a reload', async ({

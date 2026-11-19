@@ -18,7 +18,7 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 5 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim */
+#define CONFIG_VERSION 6 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker */
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -161,6 +161,9 @@ esp_err_t db_config_load(void)
             }
             if (current.version < 5 || !db_config_screen_dim_ok(current.screen_dim)) {
                 current.screen_dim = 0;
+            }
+            if (current.version < 6) {
+                current.speaker = true; /* saved before the question existed: the sounds it had stay */
             }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
@@ -343,6 +346,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "setup_done", cfg->setup_done);
     db_json_int(&j, "brightness", cfg->brightness);
     db_json_int(&j, "volume", cfg->volume);
+    db_json_bool(&j, "speaker", cfg->speaker);
     ip_to_json(&j, "lan", &cfg->lan);
     ip_to_json(&j, "wlan", &cfg->wlan);
     db_json_str(&j, "wifi_ssid", cfg->wifi_ssid);
@@ -599,9 +603,9 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->controller = (db_controller_t)found;
     }
-    const char *flags[] = {"setup_done", "dock_paired_only", "https_only"};
-    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only};
-    for (int i = 0; i < 3; i++) {
+    const char *flags[] = {"setup_done", "dock_paired_only", "https_only", "speaker"};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->speaker};
+    for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
         const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
         if (v && !cJSON_IsBool(v)) {
             snprintf(err, err_cap, "%s: true or false expected", flags[i]);

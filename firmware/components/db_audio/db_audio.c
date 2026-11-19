@@ -232,7 +232,7 @@ esp_err_t db_audio_check(int volume, int gain, db_audio_check_t *out)
 void db_audio_play(db_sound_t sound)
 {
     int volume = db_config()->volume;
-    if (volume) {
+    if (volume && db_config()->speaker) {
         db_audio_play_at(sound, volume);
     }
 }

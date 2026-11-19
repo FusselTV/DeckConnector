@@ -1,4 +1,4 @@
-# The simulator has no speaker: the API answers as on a board without one.
+# The simulator's speaker is silent, and it has no microphone for the self-test.
 if(${IDF_TARGET} STREQUAL "linux")
     idf_component_register(SRCS db_audio_none.c INCLUDE_DIRS include REQUIRES db_core esp_common)
 else()

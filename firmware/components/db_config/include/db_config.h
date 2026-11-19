@@ -70,6 +70,7 @@ typedef struct {
                                none */
     uint8_t volume;         /* the speaker, 0 (off) to 100 */
     uint8_t screen_dim;     /* after screen_off_s the decks dim to this, 10 to 90 in tens; 0: they go off */
+    bool speaker;           /* a speaker is connected; off: no sounds, /api/sound refuses, status says none */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */

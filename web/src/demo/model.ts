@@ -50,7 +50,7 @@ export interface Faces {
 }
 
 export interface Demo {
-  v: 9
+  v: 10
   bootAt: number
   /** A restart: answers stop at downFrom (1 s after it was asked, like the firmware) until downUntil. */
   downFrom: number
@@ -150,7 +150,7 @@ export const PASS = 'studio-demo'
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
-    v: 9,
+    v: 10,
     bootAt: now - (setup ? 40_000 : 3 * 3600_000 + 17 * 60_000),
     downFrom: 0,
     downUntil: 0,
@@ -164,6 +164,7 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       host: setup ? '' : 'satellite',
       brightness: 80,
       volume: 0,
+      speaker: !setup,
       lan: ip(),
       wlan: ip(),
       wifi_ssid: setup ? '' : 'Studio',
@@ -568,7 +569,7 @@ export function status(s: Demo, now: number): Status {
     screen_off_s: c.screen_off_s,
     screen_dim: c.screen_dim,
     max_decks: c.max_decks,
-    speaker: true,
+    speaker: !!c.speaker,
     boot: { reason: s.bootReason, at: Math.floor(s.bootAt / 1000) },
     setup: { active: !c.setup_done || s.setupStep > 0, step: s.setupStep, rerun: c.setup_done && s.setupStep > 0 },
     device: deck(s),
@@ -640,6 +641,7 @@ export const config = (s: Demo): Config => ({ ...s.cfg, token_set: s.tokens.leng
 const LIVE: (keyof ConfigPatch)[] = [
   'brightness',
   'volume',
+  'speaker',
   'controller',
   'setup_done',
   'servers',
