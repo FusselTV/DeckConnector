@@ -2132,8 +2132,126 @@
     display: flex;
     gap: 4px;
   }
-  .in.short {
-    max-width: 140px;
+  .in.short,
+  .sel.short {
+    max-width: 180px;
+  }
+  .sel {
+    position: relative;
+    display: block;
+  }
+  .seltrig {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .seltrig .ic {
+    flex: none;
+    color: var(--fg-3);
+    transition: transform 0.15s;
+  }
+  .seltrig[aria-expanded='true'] .ic {
+    transform: rotate(180deg);
+  }
+  .selpop {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 100%;
+    max-height: min(300px, 50vh);
+    overflow: auto;
+    padding: 4px;
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+  }
+  .selpop.up {
+    top: auto;
+    bottom: calc(100% + 4px);
+  }
+  .selpop[hidden] {
+    display: none;
+  }
+  .selpop > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 36px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 14px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .selpop > div.act {
+    background: var(--panel-2);
+  }
+  .selpop > div[aria-selected='true'] {
+    font-weight: 600;
+  }
+  .selpop > div .ic {
+    color: var(--amber-fg);
+  }
+  @media (pointer: coarse) {
+    .selpop > div {
+      min-height: 44px;
+    }
+  }
+  .sa {
+    position: relative;
+  }
+  .sa-vp {
+    scrollbar-width: none;
+  }
+  .sa-vp::-webkit-scrollbar {
+    display: none;
+  }
+  .sa-bar {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    padding: 2px;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+    touch-action: none;
+  }
+  .sa:hover > .sa-bar,
+  .sa-bar:active {
+    opacity: 1;
+  }
+  .sa-bar[hidden] {
+    display: none;
+  }
+  .sa-bar.y {
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    width: 10px;
+  }
+  .sa-bar.x {
+    left: 1px;
+    right: 1px;
+    bottom: 1px;
+    height: 10px;
+  }
+  .sa-thumb {
+    flex: none;
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--edge);
+  }
+  .sa-bar.y .sa-thumb {
+    height: auto;
+  }
+  .sa-bar.x .sa-thumb {
+    width: auto;
   }
   .ddot {
     width: 8px;
@@ -3577,7 +3695,7 @@
   .lg-box {
     border: 1px solid var(--line);
     border-radius: var(--r);
-    background: var(--well);
+    background: var(--field);
     overflow: auto;
     overscroll-behavior: contain;
     height: calc(100dvh - 260px);
@@ -3638,9 +3756,6 @@
     font-size: 12.5px;
     margin-top: 2px;
   }
-  .lg-row .kd {
-    font-size: 12px;
-  }
   .lg-n {
     font-style: normal;
     margin-left: 6px;
@@ -3662,9 +3777,11 @@
   }
   .lg-row.err {
     background: color-mix(in srgb, var(--bad) 7%, transparent);
+    box-shadow: inset 3px 0 0 var(--bad);
   }
   .lg-row.w {
-    background: color-mix(in srgb, var(--warn) 5%, transparent);
+    background: color-mix(in srgb, var(--warn) 7%, transparent);
+    box-shadow: inset 3px 0 0 var(--warn);
   }
   .lg-row.tech {
     font-family: var(--f-mono);
@@ -3687,9 +3804,11 @@
     font-size: 12.5px;
     font-weight: 600;
     color: var(--fg-2);
-    background: var(--panel-2);
-    border-top: 2px solid var(--line-2);
+    border-top: 1px dashed var(--edge);
     border-bottom: 1px solid var(--line);
+  }
+  .lg-bootdiv.err {
+    border-top: 1px solid var(--bad);
   }
   .lg-bootdiv > button {
     display: flex;
@@ -3841,6 +3960,26 @@
   .lg .sumline,
   .lg .only-phone {
     display: none;
+  }
+  @media (min-width: 1200px) {
+    .content:has(.cards.lg) {
+      max-width: 1840px;
+    }
+    .cards.lg {
+      grid-template-columns: minmax(0, 1fr) 360px;
+    }
+    .lg .days button {
+      height: 72px;
+    }
+    .lg .dbar {
+      height: 44px;
+    }
+    .lg #lg-sum {
+      grid-area: 1 / 2;
+    }
+    .lg #log {
+      grid-area: 1 / 1;
+    }
   }
   @media (max-width: 899px) {
     .lg .hide-phone {

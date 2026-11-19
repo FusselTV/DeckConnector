@@ -1,8 +1,27 @@
 import type { Lang } from '../i18n'
 
-export function makeFmt(lang: Lang) {
+const HM = { hour: '2-digit', minute: '2-digit' } as const
+
+/** Words in the page's language; date order and the 12 or 24 hour clock from the browser's locale. */
+export function dateLocale(lang: Lang, browser = navigator.language): string {
+  try {
+    const hourCycle = new Intl.DateTimeFormat(browser, { hour: 'numeric' }).resolvedOptions().hourCycle
+    return new Intl.Locale(lang, { region: new Intl.Locale(browser).maximize().region, hourCycle }).toString()
+  } catch {
+    return lang
+  }
+}
+
+export function makeFmt(lang: Lang, loc = dateLocale(lang)) {
   // Built on first use and kept: an Intl formatter costs far more to make than to call.
   const made = new Map<string, Intl.NumberFormat>()
+  const dates = new Map<string, Intl.DateTimeFormat>()
+  const dt = (d: number | Date, o: Intl.DateTimeFormatOptions) => {
+    const k = JSON.stringify(o)
+    let f = dates.get(k)
+    if (!f) dates.set(k, (f = new Intl.DateTimeFormat(loc, o)))
+    return f.format(d)
+  }
   const nf = (k: string, o?: Intl.NumberFormatOptions) => {
     let f = made.get(k)
     if (!f) made.set(k, (f = new Intl.NumberFormat(lang, o)))
@@ -16,14 +35,8 @@ export function makeFmt(lang: Lang) {
     dec,
     pct: (n: number) => nf('pct', { style: 'percent', maximumFractionDigits: 0 }).format(n / 100),
     bytes: (n: number) => (n >= 1048576 ? dec(n / 1048576) + ' MB' : dec(n / 1024) + ' KB'),
-    time: (d: number | Date) => new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }),
-    clock: (d: number | Date) =>
-      new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    /** The clock today, else with the date. */
-    stamp: (d: number | Date) =>
-      new Date(d).toDateString() === new Date().toDateString()
-        ? new Date(d).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-        : new Date(d).toLocaleString(lang, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    dt,
+    time: (d: number | Date) => dt(d, HM),
     up: (s: number) => {
       const d = Math.floor(s / 86400)
       const h = Math.floor((s % 86400) / 3600)

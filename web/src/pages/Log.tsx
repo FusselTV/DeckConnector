@@ -22,7 +22,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { DeviceEvent, EventPage, InputEvent } from '../api/types'
 import { followLog, onDeviceEvent } from '../app/connection'
@@ -32,6 +32,7 @@ import { useStore } from '../app/store'
 import { errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
 import { Dialog } from '../components/Dialog'
+import { ScrollArea } from '../components/ScrollArea'
 import { Btn, IconBtn, Seg } from '../components/controls'
 import type { T, TKey } from '../i18n'
 import { cx, download, fold, useLatest } from '../lib/util'
@@ -102,6 +103,28 @@ function useNow() {
     return () => clearInterval(id)
   }, [])
   return now
+}
+
+/** The list box as tall as the window leaves room for, so the page itself does not scroll. */
+function useFill(box: { current: HTMLDivElement | null }) {
+  useLayoutEffect(() => {
+    const page = document.getElementById('panel')
+    const fit = () => {
+      const el = box.current
+      if (!el?.offsetParent || !page) return
+      const over = page.getBoundingClientRect().bottom + scrollY - innerHeight
+      // the new height resizes #panel and calls fit again: a sub-pixel rest must not refit forever
+      if (Math.abs(over) >= 0.5) el.style.height = `${Math.max(320, el.offsetHeight - Math.ceil(over))}px`
+    }
+    // a frame later: a resize inside the observer's own callback is reported as a loop error
+    const ro = new ResizeObserver(() => requestAnimationFrame(fit))
+    if (page) ro.observe(page)
+    addEventListener('resize', fit)
+    return () => {
+      ro.disconnect()
+      removeEventListener('resize', fit)
+    }
+  }, [box])
 }
 
 const startOfDay = (ms: number) => new Date(new Date(ms).toDateString()).getTime()
@@ -206,7 +229,7 @@ function lineTime(m: RegExpExecArray, lo: number, hi: number, up: number): numbe
 const LINE_LEVEL: Record<string, Level> = { E: 'err', W: 'warn' }
 
 export function Log() {
-  const { t, fmt, lang, jump } = useUi()
+  const { t, fmt, jump } = useUi()
   const visible = tabAtom.use() === 'log'
   const st = useStore((s) => s.status)
   const bootAt = useStore((s) => s.bootAt)
@@ -227,6 +250,7 @@ export function Log() {
   const box = useRef<HTMLDivElement>(null)
   const ev = useEvents(visible)
   const tech = useLines(visible && on.includes('tech'), paused)
+  useFill(box)
 
   const rows = useMemo(() => {
     const out: Row[] = []
@@ -362,7 +386,7 @@ export function Log() {
       ? t('log.today')
       : d === today - DAY
         ? t('log.yesterday')
-        : new Date(ms).toLocaleDateString(lang, { weekday: 'long', ...DM })
+        : fmt.dt(ms, { weekday: 'long', ...DM })
   }
   const kindLabel = (g: Group) => t(`log.k_${g}`)
   const toggle = (g: Group) =>
@@ -400,7 +424,7 @@ export function Log() {
     return (
       <dl className="lg-det">
         <dt>{t('log.d_time')}</dt>
-        <dd className="mono">{new Date(r.t).toLocaleString(lang, { dateStyle: 'short', timeStyle: 'medium' })}</dd>
+        <dd className="mono">{fmt.dt(r.t, { dateStyle: 'short', timeStyle: 'medium' })}</dd>
         {e && (
           <>
             <dt>{t('meter.uptime')}</dt>
@@ -449,7 +473,7 @@ export function Log() {
       return (
         <Fragment key={r.key}>
           {head}
-          <div className={cx('lg-bootdiv', isOpen && 'lg-open')} id={`lg-${r.key}`}>
+          <div className={cx('lg-bootdiv', r.level === 'err' && 'err', isOpen && 'lg-open')} id={`lg-${r.key}`}>
             <button type="button" aria-expanded={isOpen} onClick={click}>
               <Power size={14} className={`lv-${r.level}`} aria-hidden />
               <span>
@@ -478,16 +502,15 @@ export function Log() {
         >
           <button type="button" aria-expanded={isOpen} onClick={click}>
             <time>{fmt.time(r.t)}</time>
-            <I size={16} className={`ic lv-${r.level}`} aria-hidden />
+            <I size={16} className={`ic lv-${r.level}`} role="img" aria-label={kindLabel(r.g)} />
             <span className="lg-t">
               {r.text}
               {r.n && <em className="lg-n">×{r.n}</em>}
-              {r.g !== 'tech' && (
+              {(w || r.detail) && (
                 <small>
                   {w}
-                  {w && ' · '}
-                  <span className="kd">{kindLabel(r.g)}</span>
-                  {r.detail && ` · ${r.detail}`}
+                  {w && r.detail && ' · '}
+                  {r.detail}
                 </small>
               )}
             </span>
@@ -553,14 +576,13 @@ export function Log() {
         </div>
         <div className="days">
           {week.days.map(({ start, bins }) => {
-            const label =
-              start === today ? t('log.today') : new Date(start).toLocaleDateString(lang, { weekday: 'short' })
+            const label = start === today ? t('log.today') : fmt.dt(start, { weekday: 'short' })
             return (
               <button
                 key={start}
                 type="button"
                 aria-pressed={day === start}
-                aria-label={new Date(start).toLocaleDateString(lang, { weekday: 'long', ...DM })}
+                aria-label={fmt.dt(start, { weekday: 'long', ...DM })}
                 onClick={() => setDay(day === start ? null : start)}
               >
                 <span className="dbar">
@@ -638,7 +660,7 @@ export function Log() {
                 <span className="dayf">
                   <Calendar size={14} aria-hidden />
                   {t('log.only_day', {
-                    day: new Date(day).toLocaleDateString(lang, { weekday: 'short', ...DM }),
+                    day: fmt.dt(day, { weekday: 'short', ...DM }),
                   })}
                   <IconBtn icon={X} label={t('log.day_off')} onClick={() => setDay(null)} />
                 </span>
@@ -670,17 +692,17 @@ export function Log() {
               )}
             </div>
           )}
-          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the list scrolls in its own box and must be reachable by keyboard */}
-          <div className="lg-box" ref={box} onScroll={onScroll} tabIndex={0} aria-label={t('tab.log')}>
+          {/* tabIndex: the list scrolls in its own box; keyboard users need a stop */}
+          <ScrollArea className="lg-box" ref={box} onScroll={onScroll} tabIndex={0} aria-label={t('tab.log')}>
             {list.length ? list : <div className="empty">{ev.error || t(ev.page ? 'log.none' : 'log.loading')}</div>}
-          </div>
+          </ScrollArea>
           <div className="lg-foot">
             <span>
               {ev.page?.oldest
                 ? t('log.foot', {
                     n: fmt.num(ev.list.length),
                     total: fmt.num(ev.page.total),
-                    date: lastAt ? new Date(lastAt * 1000).toLocaleDateString(lang, { weekday: 'short', ...DM }) : '–',
+                    date: lastAt ? fmt.dt(lastAt * 1000, { weekday: 'short', ...DM }) : '–',
                   })
                 : ''}
             </span>

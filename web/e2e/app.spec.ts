@@ -72,10 +72,21 @@ test('the screen saver can dim instead of turning the screen off', async ({ app:
   await sim('PUT', '/api/config', { screen_off_s: 0, screen_dim: 0 })
   await openTab(page, 'Deck')
   await expect(page.locator('#screen-dim')).toHaveCount(0)
-  await page.getByLabel('Screen saver after', { exact: true }).selectOption({ label: '5 min' })
+  const saver = page.getByRole('combobox', { name: 'Screen saver after' })
+  await saver.focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('listbox')).toBeHidden()
+  await expect(saver).toHaveText('5 min')
+  await saver.click()
+  await page.getByRole('option', { name: '15 min' }).click()
+  await expect(saver).toHaveText('15 min')
   await page.locator('#screen-dim').getByRole('radio', { name: '30 %' }).click()
   await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
-  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ screen_off_s: 300, screen_dim: 30 })
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ screen_off_s: 900, screen_dim: 30 })
   await sim('PUT', '/api/config', { screen_off_s: 0, screen_dim: 0 })
 })
 
@@ -243,6 +254,10 @@ test('long lists scroll inside their own box', async ({ app: page }) => {
   expect(box.sh).toBeGreaterThan(box.h)
   await openTab(page, 'Log')
   await expect(page.locator('.lg-box')).toHaveCSS('overflow-y', 'auto')
+  // the list fills the window instead of the page scrolling; a phone with a notice above may hit the 320 px floor
+  if (test.info().project.name === 'phone') return
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBe(0)
+  expect(await page.locator('.lg-box').evaluate((el) => el.clientHeight)).toBeGreaterThan(320)
 })
 
 test('a pairing answer names the host that asked', async ({ app: page }) => {
@@ -325,7 +340,7 @@ test('a restart shows the addresses the device names in its reply', async ({ app
 
 test('the Log tab shows the device timeline with its restart', async ({ app: page }) => {
   await openTab(page, 'Log')
-  await expect(page.locator('.lg-bootdiv').first()).toContainText('Restarted at')
+  await expect(page.locator('.lg-bootdiv').first()).toContainText('Restarted ')
 })
 
 // Events the firmware would page: 250 in all, a LAN warning in the newest page and the oldest one only on page 2.
