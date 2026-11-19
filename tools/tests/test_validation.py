@@ -68,11 +68,13 @@ def ip_blob(dhcp: bool, *fields: str) -> bytes:
 
 
 @pytest.mark.sim
-def test_a_stored_address_now_refused_is_dropped_at_the_start(tmp_path):
+def test_a_stored_address_now_refused_becomes_the_one_applied(tmp_path):
     """Older firmware saved addresses with a leading zero; kept, every later save of the network page would fail."""
     head = struct.pack("<I32siB", 5, b"sim-old", 1, 80)  # db_config_t up to lan, version 5
     (tmp_path / "c.bin").write_bytes(
-        head + ip_blob(True, "", "", "", "01.1.1.1") + ip_blob(False, "10.0.0.010", "255.255.255.0")
+        head
+        + ip_blob(False, "10.0.0.09", "255.255.255.0")
+        + ip_blob(False, "10.0.0.010", "255.255.255.0", "", "01.1.1.1")
     )
     (tmp_path / "nvs.csv").write_text(
         f"key,type,encoding,value\ndeckbridge,namespace,,\nconfig,file,binary,{tmp_path / 'c.bin'}\n"
@@ -107,8 +109,10 @@ def test_a_stored_address_now_refused_is_dropped_at_the_start(tmp_path):
 
         cfg = call("GET")[1]
         assert cfg["name"] == "sim-old", "the stored settings were loaded"
-        assert cfg["lan"]["dns"] == ""
-        assert cfg["wlan"]["dhcp"] and cfg["wlan"]["ip"] == "", "no fixed address left to apply"
+        assert cfg["lan"]["dhcp"] and cfg["lan"]["ip"] == "", "lwip applied no address from 09: DHCP"
+        assert (cfg["wlan"]["dhcp"], cfg["wlan"]["ip"], cfg["wlan"]["dns"]) == (False, "10.0.0.8", "1.1.1.1"), (
+            "as lwip read them"
+        )
         code, reply = call("PUT", json.dumps({"lan": cfg["lan"], "wlan": cfg["wlan"]}).encode())
         assert code == 200, reply
     finally:

@@ -1,5 +1,6 @@
 #include "db_config.h"
 
+#include <arpa/inet.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,13 +114,18 @@ static bool valid_ip(const char *s)
     return s[0] == '\0' || db_ipv4(s, strlen(s), &ip);
 }
 
-/* Older firmware took fields valid_ip refuses: kept, every later save of this interface would fail. */
-static void drop_bad_ips(db_ip_config_t *ip)
+/* Older firmware took fields valid_ip refuses, and every later save of this interface would fail. Each one
+ * becomes the address lwip applied ("010": .8), or empty where lwip applied none. */
+static void fix_old_ips(db_ip_config_t *ip)
 {
     char *fields[] = {ip->ip, ip->mask, ip->gateway, ip->dns};
     for (size_t i = 0; i < 4; i++) {
-        if (!memchr(fields[i], 0, sizeof(ip->ip)) || !valid_ip(fields[i])) {
+        struct in_addr a;
+        if (!memchr(fields[i], 0, sizeof(ip->ip)) || (!valid_ip(fields[i]) && !inet_aton(fields[i], &a))) {
             fields[i][0] = '\0';
+        } else if (!valid_ip(fields[i])) {
+            const uint8_t *b = (const uint8_t *)&a.s_addr;
+            snprintf(fields[i], sizeof(ip->ip), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
         }
     }
     ip->dhcp = ip->dhcp || !ip->ip[0] || !ip->mask[0];
@@ -187,8 +193,8 @@ esp_err_t db_config_load(void)
                 !db_config_ntp_ok(current.ntp_server)) {
                 current.ntp_server[0] = '\0';
             }
-            drop_bad_ips(&current.lan);
-            drop_bad_ips(&current.wlan);
+            fix_old_ips(&current.lan);
+            fix_old_ips(&current.wlan);
             uint32_t proxy;
             if (!memchr(current.trusted_proxy, 0, sizeof(current.trusted_proxy)) ||
                 (current.trusted_proxy[0] &&
