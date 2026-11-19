@@ -16,6 +16,7 @@ let pollTimer = 0
 let lostAt = 0
 let backoff = 1000
 let started = false
+let heard = false
 // What the last ws `state` said, so a poll reply that left before it cannot undo it.
 let stateGen = 0
 let lastState: Partial<Status> = {}
@@ -41,6 +42,7 @@ export async function refreshStatus() {
     const gen = stateGen
     const status = await api.status()
     dispatch({ type: 'status', status: gen === stateGen ? status : { ...status, ...lastState }, now: Date.now() })
+    heard = true
     if (getState().auth !== 'app') dispatch({ type: 'auth', auth: 'app' })
     const up = status.uptime_s ?? 0
     const r = getState().restarting
@@ -63,17 +65,19 @@ export async function refreshStatus() {
 
 let cfgTimer = 0
 let cfgBackoff = 2000
+let cfgGen = 0
 export async function refreshConfig() {
   clearTimeout(cfgTimer)
+  const gen = ++cfgGen
   try {
-    const before = getState().config
     const config = await api.config()
-    // A save that landed while this was on its way is newer than this answer.
-    if (getState().config !== before) return
+    // A later read, started after a later save, is newer than this answer.
+    if (gen !== cfgGen) return
     dispatch({ type: 'config', config })
     configErrAtom.set(null)
     cfgBackoff = 2000
   } catch (e) {
+    if (gen !== cfgGen) return
     configErrAtom.set(e)
     if (started) cfgTimer = window.setTimeout(() => void refreshConfig(), cfgBackoff)
     cfgBackoff = Math.min(cfgBackoff * 2, 30_000)
@@ -144,6 +148,7 @@ function openWs() {
       return
     }
     if (m.t === 'state') {
+      heard = true
       stateGen++
       const { t: _t, ...rest } = m
       lastState = rest
@@ -211,6 +216,7 @@ export function retryNow() {
 /** `fresh`: the caller has just read the status, so it is not asked for again. */
 export function startSession(fresh = false) {
   started = true
+  heard = fresh
   inputSeq = 0
   openWs()
   void (fresh ? Promise.resolve(true) : refreshStatus()).then((ok) => {
@@ -278,7 +284,7 @@ export async function boot() {
         dispatch({ type: 'restart', on: false, now: Date.now() })
         if (loginReasonAtom.get() !== 'pw') loginReasonAtom.set('expired')
         dispatch({ type: 'auth', auth: 'login' })
-      } else if (getState().asOf === null) {
+      } else if (!heard) {
         // Never a status: the login answered but the browser did not keep its cookie. No stale page to show.
         loginReasonAtom.set('cookie')
         dispatch({ type: 'auth', auth: 'login' })
