@@ -274,3 +274,25 @@ def test_ten_keys_let_go_in_one_report_all_reach_companion(start, companion):
 
     assert sim.wait(lambda: count(0) == 10, 3), (count(1), count(0))
     assert count(1) == 10
+
+
+def test_a_long_bitmap_id_is_cached_and_drawn_again(start, companion):
+    sim = start("original")
+    dismiss_prompt(sim)
+    sim.config(
+        satellite=f"127.0.0.1:{companion.server_address[1]}", controller="companion", host="satellite", setup_done=True
+    )
+    assert sim.wait(lambda: companion.devices and sim.status()["decks"][0]["writer"] == "satellite", 15), sim.log()
+    dev, bid = companion.devices[0], "f" * 64
+    companion.send("BITMAP-CACHE OK")
+    rgb = base64.b64encode(bytes([220, 20, 20]) * 72 * 72).decode()
+    first = time.time()
+    companion.send(f'KEY-STATE DEVICEID="{dev}" CONTROLID="0/0" BITMAP="{rgb}" BITMAP_ID="{bid}"')
+    assert sim.wait(lambda: any(x.startswith(f'BITMAP-COST BITMAP_ID="{bid}"') for x in companion.lines), 5)
+    assert sim.wait(lambda: drawn_since(sim, 0, first), 5)
+    time.sleep(0.3)
+    since = time.time()
+    companion.send(f'KEY-STATE DEVICEID="{dev}" CONTROLID="0/0" BITMAP_ID="{bid}"')
+    assert sim.wait(lambda: drawn_since(sim, 0, since), 5), "the cached picture was not drawn"
+    time.sleep(1)
+    assert companion.devices == [dev], "the long id ended the session"
