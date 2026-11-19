@@ -84,6 +84,8 @@ static void test_switches_are_named_like_the_web_ui(void)
     TEST_ASSERT_EQUAL_STRING("Drehregler 1", out);
     TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_ENCODER_DOWN, DB_MATTER_DIALS - 1), 0, "en", out));
     TEST_ASSERT_EQUAL_STRING("Dial 8", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 0), 0, "fr", out));
+    TEST_ASSERT_EQUAL_STRING("Key 1", out);
     TEST_ASSERT_FALSE(db_matter_label(n, n, 0, "de", out));
     TEST_ASSERT_FALSE(db_matter_label(n, (uint16_t)(n + 1 + DB_MATTER_INPUTS), 0, "de", out));
 }
@@ -98,6 +100,8 @@ static void test_the_neos_extra_keys_are_touch_points(void)
     TEST_ASSERT_EQUAL_STRING("Touch-Punkt 1", out);
     TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, 9), 8, "en", out));
     TEST_ASSERT_EQUAL_STRING("Touch point 2", out);
+    TEST_ASSERT_TRUE(db_matter_label(n, input(n, DB_INPUT_KEY_DOWN, DB_MATTER_KEYS - 1), 8, "de", out));
+    TEST_ASSERT_EQUAL_STRING("Touch-Punkt 40", out);
 }
 
 static void test_turns_touches_and_extra_keys_go_nowhere(void)

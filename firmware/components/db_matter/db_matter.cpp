@@ -318,6 +318,20 @@ static void drop(int slot, uint16_t base)
     s.live[slot] = false;
 }
 
+/* The model, with the slot number as the web UI counts once there are several decks */
+static void node_label(int slot, char *out, size_t cap)
+{
+    int decks = 0;
+    for (const slot_t &o : s.slots) {
+        decks += o.id.serial[0] != 0;
+    }
+    if (decks > 1) {
+        snprintf(out, cap, "%s %d", s.slots[slot].model, slot + 1);
+    } else {
+        strlcpy(out, s.slots[slot].model, cap);
+    }
+}
+
 /* Under the stack lock */
 static void build(int slot, bool reachable)
 {
@@ -335,17 +349,12 @@ static void build(int slot, bool reachable)
     cluster::descriptor::create(n, &cfg.descriptor, CLUSTER_FLAG_SERVER);
     endpoint::bridged_node::add(n, &cfg);
     cluster_t *info = cluster::get(n, BridgedDeviceBasicInformation::Id);
-    int decks = 0;
-    for (const slot_t &o : s.slots) {
-        decks += o.id.serial[0] != 0;
-    }
     char label[48];
-    if (decks > 1) {
-        snprintf(label, sizeof(label), "%s %d", k->model, slot + 1);
-    } else {
-        strlcpy(label, k->model, sizeof(label));
-    }
+    node_label(slot, label, sizeof(label));
     cluster::bridged_device_basic_information::attribute::create_node_label(info, label, strlen(label));
+    /* Home Assistant reads the vendor for its label list here, not on the root node */
+    cluster::bridged_device_basic_information::attribute::create_vendor_id(info, CONFIG_DEVICE_VENDOR_ID);
+    cluster::bridged_device_basic_information::attribute::create_product_id(info, CONFIG_DEVICE_PRODUCT_ID);
     cluster::bridged_device_basic_information::attribute::create_product_name(info, k->model,
                                                                               strlen(k->model));
     cluster::bridged_device_basic_information::attribute::create_serial_number(info, k->id.serial,
@@ -402,6 +411,17 @@ static void deck_changed(int slot)
     }
     if (memcmp(&old, k, sizeof(old)) != 0) {
         save_slots();
+    }
+    if (!old.id.serial[0]) { /* one deck more: the others' names may gain their number */
+        for (int d = 0; d < DB_MAX_DECKS; d++) {
+            if (d != slot && s.live[d]) {
+                char label[48];
+                node_label(d, label, sizeof(label));
+                esp_matter_attr_val_t v = esp_matter_char_str(label, (uint16_t)strlen(label));
+                attribute::update(node_ep(d), BridgedDeviceBasicInformation::Id,
+                                  BridgedDeviceBasicInformation::Attributes::NodeLabel::Id, &v);
+            }
+        }
     }
     if (s.live[slot]) {
         set_reachable(node_ep(slot), true);
