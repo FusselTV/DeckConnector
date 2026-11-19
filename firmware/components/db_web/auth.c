@@ -78,9 +78,21 @@ static bool known_good(uint32_t ip)
 {
     bool known = false;
     for (int i = 0; i < GOOD_MAX; i++) {
-        known |= good[i] == ip;
+        known |= ip && good[i] == ip; /* the free slots hold 0 */
     }
     return known;
+}
+
+/* An IPv6 address as a key in 240.0.0.0/4, where no IPv4 client is: its first `bytes` bytes. Salted at each
+ * start, so nobody can pick an address that lands on the owner's key. */
+static uint32_t salt;
+static uint32_t fold6(const struct in6_addr *a, int bytes)
+{
+    uint32_t h = 2166136261u ^ salt; /* FNV-1a */
+    for (int i = 0; i < bytes; i++) {
+        h = (h ^ a->s6_addr[i]) * 16777619u;
+    }
+    return htonl(0xF0000000u | (h & 0x0FFFFFFFu));
 }
 
 typedef struct {
@@ -125,7 +137,8 @@ static bool session_valid(const char *token)
     return ok;
 }
 
-/* The peer's address, or with `local` the address the request came in on. */
+/* The peer's address, or with `local` the address the request came in on. An IPv6 one is folded: lwIP serves
+ * the web on link-local IPv6 too. */
 static uint32_t sock_ip(httpd_req_t *req, bool local)
 {
     struct sockaddr_in6 addr; /* lwIP reports IPv4 peers as IPv4-mapped IPv6 */
@@ -139,7 +152,7 @@ static uint32_t sock_ip(httpd_req_t *req, bool local)
         return ((struct sockaddr_in *)&addr)->sin_addr.s_addr;
     }
     if (!IN6_IS_ADDR_V4MAPPED(&addr.sin6_addr)) {
-        return 0;
+        return fold6(&addr.sin6_addr, 16);
     }
     uint32_t v4;
     memcpy(&v4, (const uint8_t *)&addr.sin6_addr + 12, 4); /* the last 4 bytes of ::ffff:a.b.c.d */
@@ -172,8 +185,7 @@ static uint32_t client_ip(httpd_req_t *req)
     return forwarded_for(req, &proxy, xff) ? db_client_ip(peer_ip(req), proxy, xff) : peer_ip(req);
 }
 
-/* The client_ip, but an IPv6 client behind the proxy gets its /64 (one host may use any address in it) folded
- * into 240.0.0.0/4, where no IPv4 client is. */
+/* The client_ip, but an IPv6 client behind the proxy by its /64: one host may use any address in it. */
 static uint32_t lock_key(httpd_req_t *req)
 {
     uint32_t proxy;
@@ -187,16 +199,16 @@ static uint32_t lock_key(httpd_req_t *req)
     if (inet_pton(AF_INET6, last + strspn(last, " \t"), &a) != 1) {
         return db_client_ip(peer_ip(req), proxy, xff);
     }
-    uint32_t h = 2166136261u; /* FNV-1a */
-    for (int i = 0; i < 8; i++) {
-        h = (h ^ a.s6_addr[i]) * 16777619u;
-    }
-    return htonl(0xF0000000u | (h & 0x0FFFFFFFu));
+    return fold6(&a, 8);
 }
 
 static void ip_str(uint32_t ip, char out[16])
 {
     const uint8_t *b = (const uint8_t *)&ip;
+    if (b[0] >= 240) { /* a fold6 key, not an address */
+        strlcpy(out, "IPv6", 16);
+        return;
+    }
     snprintf(out, 16, "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
 }
 
@@ -1324,6 +1336,7 @@ static void restore_sessions(void)
 void auth_start(void)
 {
     started = esp_timer_get_time();
+    salt = esp_random();
     restore_sessions();
     nvs_handle_t h;
     size_t len = sizeof(tokens);
