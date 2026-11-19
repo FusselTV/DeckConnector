@@ -16,6 +16,7 @@ let pollTimer = 0
 let lostAt = 0
 let backoff = 1000
 let started = false
+let heard = false
 // What the last ws `state` said, so a poll reply that left before it cannot undo it.
 let stateGen = 0
 let lastState: Partial<Status> = {}
@@ -41,6 +42,7 @@ export async function refreshStatus() {
     const gen = stateGen
     const status = await api.status()
     dispatch({ type: 'status', status: gen === stateGen ? status : { ...status, ...lastState }, now: Date.now() })
+    heard = true
     if (getState().auth !== 'app') dispatch({ type: 'auth', auth: 'app' })
     const up = status.uptime_s ?? 0
     const r = getState().restarting
@@ -211,6 +213,7 @@ export function retryNow() {
 /** `fresh`: the caller has just read the status, so it is not asked for again. */
 export function startSession(fresh = false) {
   started = true
+  heard = fresh
   inputSeq = 0
   openWs()
   void (fresh ? Promise.resolve(true) : refreshStatus()).then((ok) => {
@@ -278,7 +281,7 @@ export async function boot() {
         dispatch({ type: 'restart', on: false, now: Date.now() })
         if (loginReasonAtom.get() !== 'pw') loginReasonAtom.set('expired')
         dispatch({ type: 'auth', auth: 'login' })
-      } else if (getState().asOf === null) {
+      } else if (!heard) {
         // Never a status: the login answered but the browser did not keep its cookie. No stale page to show.
         loginReasonAtom.set('cookie')
         dispatch({ type: 'auth', auth: 'login' })
