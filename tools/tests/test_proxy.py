@@ -95,3 +95,14 @@ def test_a_challenge_is_bound_to_the_forwarded_client(proxy):
     c = challenge(True, {"X-Forwarded-For": "10.0.0.1"})
     code, body, _ = a.login(challenge=c, headers={"X-Forwarded-For": "10.0.0.1"})
     assert code == 403 and body["error"] == "passkey not accepted"  # past the challenge: no such passkey
+
+
+# Last: its wrong passwords count toward the 30 per minute that would lock the clients of the tests above.
+@pytest.mark.parametrize("proxy", ["127.0.0.1"], indirect=True)
+def test_ipv6_clients_behind_the_proxy_have_their_own_lockout(proxy):
+    unlock("2001:db8:0:3::1")  # waits out the 30 per minute the tests above may have used up
+    lock_out("2001:db8:0:1::1")
+    assert login(PASSWORD, "2001:db8:0:2::1") == 200
+    assert login(PASSWORD) == 200
+    assert login(PASSWORD, "2001:db8:0:1::2") == 429  # one host may use any address of its /64
+    unlock("2001:db8:0:1::1")

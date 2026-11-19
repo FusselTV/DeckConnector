@@ -157,17 +157,41 @@ static bool from_proxy(httpd_req_t *req, uint32_t *proxy)
     return tp[0] && db_ipv4(tp, strlen(tp), proxy) && peer_ip(req) == *proxy;
 }
 
-/* Whom lockouts, challenges and the deck's login question are about: behind the trusted proxy the client it
- * names in X-Forwarded-For, else the peer. */
+static bool forwarded_for(httpd_req_t *req, uint32_t *proxy, char xff[256])
+{
+    return from_proxy(req, proxy) && httpd_req_get_hdr_value_len(req, "X-Forwarded-For") < 256 &&
+           httpd_req_get_hdr_value_str(req, "X-Forwarded-For", xff, 256) == ESP_OK;
+}
+
+/* Whom challenges and the deck's login question are about: behind the trusted proxy the client it names in
+ * X-Forwarded-For, else the peer. */
 static uint32_t client_ip(httpd_req_t *req)
 {
     uint32_t proxy;
     char xff[256];
-    if (!from_proxy(req, &proxy) || httpd_req_get_hdr_value_len(req, "X-Forwarded-For") >= sizeof(xff) ||
-        httpd_req_get_hdr_value_str(req, "X-Forwarded-For", xff, sizeof(xff)) != ESP_OK) {
+    return forwarded_for(req, &proxy, xff) ? db_client_ip(peer_ip(req), proxy, xff) : peer_ip(req);
+}
+
+/* The client_ip, but an IPv6 client behind the proxy gets its /64 (one host may use any address in it) folded
+ * into 240.0.0.0/4, where no IPv4 client is. */
+static uint32_t lock_key(httpd_req_t *req)
+{
+    uint32_t proxy;
+    char xff[256];
+    struct in6_addr a;
+    if (!forwarded_for(req, &proxy, xff)) {
         return peer_ip(req);
     }
-    return db_client_ip(peer_ip(req), proxy, xff);
+    const char *last = strrchr(xff, ',');
+    last = last ? last + 1 : xff;
+    if (inet_pton(AF_INET6, last + strspn(last, " \t"), &a) != 1) {
+        return db_client_ip(peer_ip(req), proxy, xff);
+    }
+    uint32_t h = 2166136261u; /* FNV-1a */
+    for (int i = 0; i < 8; i++) {
+        h = (h ^ a.s6_addr[i]) * 16777619u;
+    }
+    return htonl(0xF0000000u | (h & 0x0FFFFFFFu));
 }
 
 static void ip_str(uint32_t ip, char out[16])
@@ -207,7 +231,7 @@ static int trier(uint32_t ip)
 /* Seconds this client must still wait, 0 when it may try. */
 static int locked_s(httpd_req_t *req)
 {
-    uint32_t ip = client_ip(req);
+    uint32_t ip = lock_key(req);
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     int64_t until = triers[trier(ip)].locked_until;
@@ -218,18 +242,18 @@ static int locked_s(httpd_req_t *req)
     return now < until ? (int)((until - now) / 1000000 + 1) : 0;
 }
 
-/* One count per client for the login form and for basic auth, so neither allows unlimited guessing. Only
- * passwords count towards ALL_TRIES: a 256-bit token cannot be guessed. */
-static void count_try(httpd_req_t *req, bool ok, bool password)
+/* One count per client for the login form and for basic auth, so neither allows unlimited guessing. A wrong
+ * token does not count: a 256-bit token cannot be guessed, and a stale one would lock out the password. */
+static void count_try(httpd_req_t *req, bool ok)
 {
-    uint32_t ip = client_ip(req);
+    uint32_t ip = lock_key(req);
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
-    if (password && !ok && now - all_since >= 60000000) {
+    if (!ok && now - all_since >= 60000000) {
         all_since = now;
         all_failures = 0;
     }
-    all_failures += password && !ok;
+    all_failures += !ok;
     if (ok && !known_good(ip)) {
         good[next_good++ % GOOD_MAX] = ip;
     }
@@ -244,7 +268,7 @@ static void count_try(httpd_req_t *req, bool ok, bool password)
     portEXIT_CRITICAL(&mux);
     if (!ok) {
         char who[16];
-        ip_str(ip, who);
+        ip_str(client_ip(req), who);
         ESP_LOGW(TAG, "wrong web password from %s (%d in a row)", who, failures);
     }
 }
@@ -267,7 +291,7 @@ static bool basic_auth_ok(httpd_req_t *req)
     mbedtls_platform_zeroize(given, sizeof(given));
     mbedtls_platform_zeroize(plain, sizeof(plain));
     mbedtls_platform_zeroize(expected, sizeof(expected));
-    count_try(req, ok, true);
+    count_try(req, ok);
     return ok;
 }
 
@@ -310,11 +334,7 @@ static int token_index(httpd_req_t *req)
     uint8_t sha[32];
     sha256(given + 7, sha);
     mbedtls_platform_zeroize(given, sizeof(given));
-    int found = token_by_sha(sha);
-    if (found < 0) {
-        count_try(req, false, false); /* a hit must not reset the count: only the password does */
-    }
-    return found;
+    return token_by_sha(sha);
 }
 
 bool auth_full(httpd_req_t *req)
@@ -491,7 +511,7 @@ esp_err_t auth_login(httpd_req_t *req)
         return ESP_OK;
     }
     bool ok = password_matches(req);
-    count_try(req, ok, true);
+    count_try(req, ok);
     if (!ok) {
         return send_error(req, "403 Forbidden", "wrong password");
     }
@@ -1115,7 +1135,7 @@ esp_err_t auth_passkey_login(httpd_req_t *req)
     if (client < 0) {
         return send_error(req, "403 Forbidden", "passkey challenge unknown, used or expired");
     }
-    count_try(req, ok, true);
+    count_try(req, ok);
     if (!ok) {
         return send_error(req, "403 Forbidden", "passkey not accepted");
     }

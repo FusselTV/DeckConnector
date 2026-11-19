@@ -61,7 +61,7 @@ static unsigned tcp_host(const char *addr, char *host, size_t cap)
 static const char *TAG = "satellite";
 
 typedef struct {
-    char id[24];
+    uint64_t id;   /* FNV-1a of Companion's BITMAP_ID, which has no length limit */
     uint8_t *jpeg; /* NULL: free slot */
     size_t len;
 } cached_t;
@@ -212,10 +212,20 @@ static void cache_clear(void)
     }
 }
 
+static uint64_t cache_key(const char *id)
+{
+    uint64_t h = 14695981039346656037ull;
+    for (; *id; id++) {
+        h = (h ^ (uint8_t)*id) * 1099511628211ull;
+    }
+    return h;
+}
+
 static cached_t *cache_find(const char *id)
 {
+    uint64_t key = cache_key(id);
     for (int i = 0; i < CACHE_SLOTS; i++) {
-        if (s.cache[i].jpeg && strcmp(s.cache[i].id, id) == 0) {
+        if (s.cache[i].jpeg && s.cache[i].id == key) {
             return &s.cache[i];
         }
     }
@@ -230,14 +240,13 @@ static bool cache_put(const char *id, const uint8_t *jpeg, size_t len)
     for (int i = 0; i < CACHE_SLOTS && !c; i++) {
         c = s.cache[i].jpeg ? NULL : &s.cache[i];
     }
-    uint8_t *copy = c && strlen(id) < sizeof(c->id) ? heap_caps_malloc(len, MALLOC_CAP_SPIRAM) : NULL;
+    uint8_t *copy = c ? heap_caps_malloc(len, MALLOC_CAP_SPIRAM) : NULL;
     if (!copy) {
         return false;
     }
     memcpy(copy, jpeg, len);
     heap_caps_free(c->jpeg);
-    *c = (cached_t){.jpeg = copy, .len = len};
-    strcpy(c->id, id);
+    *c = (cached_t){.id = cache_key(id), .jpeg = copy, .len = len};
     size_t cost = len > CACHE_BUDGET / CACHE_SLOTS ? len : CACHE_BUDGET / CACHE_SLOTS;
     send_line("BITMAP-COST BITMAP_ID=\"%s\" BYTES=%u\n", id, (unsigned)cost);
     return true;

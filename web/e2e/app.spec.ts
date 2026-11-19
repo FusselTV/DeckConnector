@@ -415,6 +415,24 @@ test('saving a backup asks whether passwords go in', async ({ app: page }) => {
   expect(file.suggestedFilename()).toMatch(/-backup\.json$/)
 })
 
+test('a restore with HTTPS only on a device without HTTPS takes the rest and says why', async ({
+  app: page,
+  errors,
+}) => {
+  await openTab(page, 'Firmware')
+  const cfg = (await sim('GET', '/api/config')) as Record<string, unknown>
+  await page.locator('input[type=file][accept^="application/json"]').setInputFiles({
+    name: 'backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ ...cfg, https_only: true, brightness: 35 })),
+  })
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Apply' }).click()
+  await expect(page.getByText(/HTTPS is not running/)).toBeVisible()
+  await expect(page.getByText('Settings applied')).toBeVisible()
+  expect(await sim('GET', '/api/config')).toMatchObject({ https_only: false, brightness: 35 })
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 409')))
+})
+
 test('without the password, the login page shows it on the deck or asks the deck for a reset', async ({ page }) => {
   await sim('PUT', '/api/config', { setup_done: true })
   const calls: string[] = []
@@ -594,6 +612,35 @@ test('each click on a switch flips what it shows, also while a save runs', async
   await expect.poll(() => reads).toBeGreaterThanOrEqual(after + 2)
   await page.waitForTimeout(500)
   expect(await sw.getAttribute('aria-checked')).toBe('true')
+})
+
+test('a slider saves once when its save is still running as the focus leaves', async ({ app: page, errors }) => {
+  const sent: unknown[] = []
+  await page.routeWebSocket('**/api/ws', () => {}) // its state would drop the stubbed speaker
+  await page.route('**/api/status', async (r) => {
+    const res = await r.fetch()
+    await r.fulfill({ response: res, json: { ...((await res.json()) as object), speaker: true } })
+  })
+  await page.route('**/api/config', async (r) => {
+    if (r.request().method() === 'PUT') {
+      sent.push(r.request().postDataJSON())
+      await new Promise((f) => setTimeout(f, 1000))
+    }
+    return r.fallback()
+  })
+  await page.reload()
+  const vol = page.locator('#vol-ov')
+  await expect(vol).toBeEnabled()
+  await vol.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(() => sent.length).toBe(1) // the key's save, 700 ms after the key
+  await vol.blur()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ volume: 5 })
+  await page.waitForTimeout(500)
+  expect(sent).toEqual([{ volume: 5 }])
+  await sim('PUT', '/api/config', { volume: 0 })
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 409'))) // the simulator has no speaker
 })
 
 test('a server URL pasted with spaces still offers the certificate pin', async ({ app: page }) => {

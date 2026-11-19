@@ -19,7 +19,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
 import { putConfig } from '../app/actions'
 import { expectRestart, refreshStatus } from '../app/connection'
@@ -535,7 +535,13 @@ export function Firmware() {
     })
     if (!ok) return
     await act(async () => {
-      const r = await putConfig(p.patch)
+      const { https_only, ...rest } = p.patch
+      // 409: HTTPS only without HTTPS running. The firmware saved nothing, so the rest goes again without it.
+      const r = await putConfig(p.patch).catch((e: unknown) => {
+        if (!(e instanceof ApiError && e.status === 409 && https_only)) throw e
+        toast(errText(e, t), { bad: true })
+        return putConfig(rest)
+      })
       if (!r.restart) toast(t('fw.restored'))
     })
   }

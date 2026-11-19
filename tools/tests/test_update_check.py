@@ -1,6 +1,6 @@
 """The update check reads the repository's release feed and offers only a newer release; OTA by URL follows
-redirects and speaks HTTPS, as a GitHub release file needs. A feed and files served from this machine stand in for
-GitHub, so nothing is installed: the files are no .dbfw."""
+redirects and speaks HTTPS, as a GitHub release file needs. Feeds come from public GitHub repositories; files served
+from this machine stand in for release files, so nothing is installed: they are no .dbfw."""
 
 import http.server
 import json
@@ -16,30 +16,10 @@ from dbtools.server import local_ip
 PORT = 8771
 
 
-def repo() -> str:
-    return f"http://{local_ip()}:{PORT}/owner/repo"
-
-
-def atom(*tags: str) -> str:
-    """GitHub's release feed: newest first, each entry links its release page."""
-    entries = "".join(
-        f"<entry><id>tag:github.com,2008:Repository/1/{t}</id>"
-        f'<link rel="alternate" type="text/html" href="{repo()}/releases/tag/{t}"/><title>{t}</title></entry>'
-        for t in tags
-    )
-    return f'<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">{entries}</feed>'
-
-
-FEEDS: dict[str, str] = {}
-
-
 class Feed(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
-        if path.startswith("/feed/") and path[6:] in FEEDS:
-            body = FEEDS[path[6:]].encode()
-            self.send_response(200)
-        elif path.startswith("/owner/repo/releases/download/"):  # what GitHub does: a redirect to its storage
+        if path.startswith("/owner/repo/releases/download/"):  # what GitHub does: a redirect to its storage
             self.send_response(302)
             self.send_header("Location", f"http://{local_ip()}:{PORT}/file")
             body = b""
@@ -58,10 +38,10 @@ class Feed(http.server.BaseHTTPRequestHandler):
 
 
 @pytest.fixture(scope="module")
-def feed():
+def server():
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Feed)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield lambda name: f"http://{local_ip()}:{PORT}/feed/{name}"
+    yield
     srv.shutdown()
     srv.server_close()
 
@@ -85,26 +65,30 @@ def test_github_is_asked_over_https():
     assert u.get("latest") or u.get("code") in ("no_releases", "rate_limited"), u
 
 
-def test_a_newer_release_is_offered_and_a_prerelease_only_to_a_prerelease(feed):
-    FEEDS["new"] = atom("v99.0.0-rc1", "v98.0.0", "v1.0.0", "junk-tag")
-    current = check()["current"]
-    u = check(feed("new"))
-    latest = "v99.0.0-rc1" if "-rc" in current else "v98.0.0"
-    assert u["latest"] == latest, u
-    assert u["url"] == f"{repo()}/releases/download/{latest}/deckconnector-{latest}.dbfw"
-    assert u["notes"] == f"{repo()}/releases/tag/{latest}"
+@pytest.mark.sim
+@pytest.mark.parametrize(
+    "feed", ["http://github.com/a/b/releases.atom", "https://github.com.example/a.atom", "file:///x"]
+)
+def test_a_feed_off_github_is_refused(feed):
+    code, body = api("GET", "/api/update/check?feed=" + urllib.parse.quote(feed, safe=""))
+    assert code == 400 and b"feed" in body, body
 
 
-def test_an_older_release_is_named_but_not_offered(feed):
-    FEEDS["old"] = atom("v0.0.1")
-    u = check(feed("old"))
-    assert u["latest"] == "v0.0.1" and "url" not in u
+def test_a_newer_release_is_offered():
+    u = check("https://github.com/espressif/esptool/releases.atom")
+    if u.get("code") == "rate_limited":
+        pytest.skip("GitHub limits checks")
+    assert "url" in u, u
+    latest = u["latest"]
+    assert u["url"] == f"https://github.com/espressif/esptool/releases/download/{latest}/deckconnector-{latest}.dbfw"
+    assert u["notes"] == f"https://github.com/espressif/esptool/releases/tag/{latest}"
 
 
-def test_a_feed_without_releases_and_a_missing_feed(feed):
-    FEEDS["empty"] = atom()
-    assert check(feed("empty"))["code"] == "no_releases"
-    assert check(feed("nothing-here"))["code"] == "no_releases"  # the feed of a repository without releases: 404
+def test_a_repository_without_releases():
+    assert check("https://github.com/FusselTV/no-such-repository/releases.atom")["code"] in (
+        "no_releases",
+        "rate_limited",
+    )
 
 
 def wait_for_log(text: str, since: str, secs: float = 30) -> str | None:
@@ -131,7 +115,7 @@ def wait_for_log(text: str, since: str, secs: float = 30) -> str | None:
         ),
     ],
 )
-def test_ota_by_url_follows_redirects_over_https(feed, url, outcome):
+def test_ota_by_url_follows_redirects_over_https(server, url, outcome):
     since = api("GET", "/api/log")[1].decode().splitlines()[-1]
     code, reply = api("POST", "/api/ota/url", json.dumps({"url": url}).encode())
     assert code == 200, reply

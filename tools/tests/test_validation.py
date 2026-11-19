@@ -51,6 +51,10 @@ def put(body: dict) -> tuple[int, str]:
         ({"wlan": {"dhcp": False, "ip": "10.0.0.5", "mask": "255.255.255.0", "gateway": "10.0.0.010"}}, "IPv4"),
         ({"lan": {"dhcp": True, "dns": " 1.1.1.1"}}, "IPv4"),
         ({"lan": {"dhcp": True, "dns": "+1.1.1.1"}}, "IPv4"),
+        ({"lan": {"dhcp": False, "ip": "0.0.0.5", "mask": "255.255.255.0"}}, "device address"),
+        ({"wlan": {"dhcp": False, "ip": "127.0.0.5", "mask": "255.255.255.0"}}, "device address"),
+        ({"lan": {"dhcp": False, "ip": "224.0.0.5", "mask": "255.255.255.0"}}, "device address"),
+        ({"lan": {"dhcp": False, "ip": "255.0.0.5", "mask": "255.255.255.0"}}, "device address"),
     ],
 )
 def test_a_bad_setting_is_refused_with_its_reason(body, word):
