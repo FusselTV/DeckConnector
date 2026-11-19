@@ -116,7 +116,7 @@ function DockSide({ f, t, chip }: { f: number; t: Text; chip: number }) {
       <Cable pts={[DOCK_RJ45, SW_PORT]} w={12} color="#2a2f36" glow={glow} glowColor={RED} />
       <Jack x={SW_PORT[0]} y={SW_PORT[1]} />
       <Jack x={DOCK_RJ45[0]} y={DOCK_RJ45[1]} />
-      <Deck {...DECK} keys={showKeys(t, f, 0)} strip={showStrip(40)} />
+      <Deck {...DECK} keys={showKeys(t, 0)} strip={showStrip(40)} />
       <Chip y={40} text={t.cableToSwitch} ok={false} k={1 - chip} size={26} />
       <Chip y={40} text={t.noHostMenu} ok={false} k={chip} size={26} />
     </g>
@@ -128,7 +128,7 @@ function BoardSide({ f, t, menu, chosen, tap }: { f: number; t: Text; menu: numb
   const usb = at(B, BOARD_USB)
   const c = at(B, BOARD_USBC)
   const plugX = c[0] - 20
-  const keys = menu > 0.5 ? menuKeys(t, chosen) : showKeys(t, f, 0)
+  const keys = menu > 0.5 ? menuKeys(t, chosen) : showKeys(t, 0)
   const lit = keys.map(() => (menu > 0.5 ? ramp(menu, 0.5, 1) : 1 - ramp(menu, 0, 0.5)))
   const ring = keys.map((_, i) => (i < 3 ? (tap[i] ?? 0) : 0))
   const down = ring.map((r) => r * 0.8)

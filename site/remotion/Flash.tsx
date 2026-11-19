@@ -88,7 +88,7 @@ export default function Flash({ lang }: LangProps) {
   const booted = f >= T.boot[1]
   const power = f >= T.boot[0] && f < T.boot[0] + 8 ? 0 : 1
   const first = firstPicture(t)
-  const page = showKeys(t, f, 0)
+  const page = showKeys(t, 0)
   const swept = (i: number) => f >= T.comp + ((i % 4) + Math.floor(i / 4)) * 3
   const keys = first.keys.map((k, i) => (swept(i) ? (page[i] ?? null) : k))
   const lit = keys.map(

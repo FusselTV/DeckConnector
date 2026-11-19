@@ -2,7 +2,7 @@ import { useId, type ComponentType, type ReactNode } from 'react'
 import { Clock, Lightbulb, Mic, Music, Pause, Presentation, Speaker, Video, Volume2 } from 'lucide-react'
 import { useVideoConfig } from 'remotion'
 import type { Text } from './text'
-import { AMBER, GREEN, Glow, RED, glowId, type Pt } from './board'
+import { AMBER, GREEN, Glow, glowId, type Pt } from './board'
 
 export * from './board'
 
@@ -217,10 +217,17 @@ export type Glyph = ComponentType<{
 }>
 /** One key picture on the 120 x 120 pixels a Stream Deck + key has: an icon over one bold word, coloured when on. */
 export type Key = { icon?: Glyph; word?: string; bg?: string; fg?: string; glow?: string; art?: ReactNode }
-export const TILE = '#2b2d31'
+export const TILE = '#26282c'
+// The demo's key colours (web/src/demo/model.ts): grey when off, one colour per meaning when on.
+export const KEY = {
+  live: { on: '#e5322b' },
+  audio: { on: '#1f9d55', fg: '#5fd08c' },
+  light: { on: '#f5a524', fg: '#f5b748', ink: '#1a1200' },
+  show: { on: '#3a78ee' },
+} as const
 
 export function Face({ k }: { k: Key }) {
-  const fg = k.fg ?? '#fff'
+  const fg = k.fg ?? (k.bg ? '#fff' : '#d4d7dc')
   const word = k.word ?? ''
   return (
     <>
@@ -257,8 +264,7 @@ const dot =
       <circle cx={12} cy={12} r={8} fill={c} />
     </svg>
   )
-const REC_ON = dot(RED)
-const REC_OFF = dot('#5a2420')
+const REC = dot('#fff')
 
 // Stream Deck + front in millimetres, measured on a real deck (web/src/deck/models.ts).
 export const SD = {
@@ -561,18 +567,17 @@ export function Zone({
 export const ZONE_ICONS = [Volume2, Mic, Music, Speaker] as const
 
 /** The show page Companion draws: cameras, slides, pause, mic, light, rec, clock. */
-export function showKeys(t: Text, f: number, live: 0 | 1 | 2): Key[] {
-  const blink = Math.floor(f / 15) % 2 === 0
+export function showKeys(t: Text, live: 0 | 1 | 2): Key[] {
   const cam = (n: number): Key =>
-    live === n ? { icon: Video, word: `CAM ${n + 1}`, bg: RED } : { icon: Video, word: `CAM ${n + 1}` }
+    live === n ? { icon: Video, word: `CAM ${n + 1}`, bg: KEY.live.on } : { icon: Video, word: `CAM ${n + 1}` }
   return [
     cam(0),
     cam(1),
     { icon: Presentation, word: t.slides },
     { icon: Pause, word: t.pause },
-    { icon: Mic, word: t.on.toUpperCase(), bg: '#30c060', glow: GREEN },
-    { icon: Lightbulb, word: '70%', bg: AMBER, fg: '#1a1200' },
-    { icon: blink ? REC_ON : REC_OFF, word: 'REC', glow: blink ? RED : '#4a1a16' },
+    { icon: Mic, word: t.mic, bg: KEY.audio.on },
+    { icon: Lightbulb, word: '70%', bg: KEY.light.on, fg: KEY.light.ink },
+    { icon: REC, word: 'REC', bg: KEY.live.on },
     { icon: Clock, word: '14:32' },
   ]
 }
@@ -580,10 +585,10 @@ export function showKeys(t: Text, f: number, live: 0 | 1 | 2): Key[] {
 export function showStrip(music: number, active = 0) {
   return (
     <>
-      <Zone i={0} icon={Volume2} value={80} />
-      <Zone i={1} icon={Mic} value={65} accent={GREEN} />
-      <Zone i={2} icon={Music} value={music} accent="#9b7bff" active={active} />
-      <Zone i={3} icon={Speaker} value={55} accent="#5aa9ff" />
+      <Zone i={0} icon={Volume2} value={80} accent={KEY.audio.fg} />
+      <Zone i={1} icon={Mic} value={65} accent={KEY.audio.fg} />
+      <Zone i={2} icon={Music} value={music} accent={KEY.audio.fg} active={active} />
+      <Zone i={3} icon={Speaker} value={55} accent={KEY.audio.fg} />
     </>
   )
 }
