@@ -199,26 +199,29 @@ static void test_the_neos_extra_keys_are_touch_points(void)
 
 static void test_switches_count_in_deck_order(void)
 {
-    static const char *want[] = {"Taste 1",        "Taste 8",         "Drehregler 1",    "Drehregler 4",
-                                 "Regler 1 links", "Regler 1 rechts", "Regler 4 rechts", "Touchfeld 1",
-                                 "Touchfeld 4",    "Wischen links",   "Wischen rechts"};
-    static const int at[] = {1, 8, 9, 12, 13, 14, 20, 21, 24, 25, 26};
-    bool seen[27] = {0};
-    for (int i = 0; i < DB_MATTER_INPUTS; i++) {
-        int n = db_matter_order(&plus, i);
-        TEST_ASSERT_EQUAL(db_matter_used(&plus, i), n > 0);
-        if (n) {
-            TEST_ASSERT_TRUE(n <= 26 && !seen[n]);
+    const db_matter_layout_t *all[] = {&plus, &plus_xl, &neo, &biggest};
+    for (size_t k = 0; k < sizeof(all) / sizeof(all[0]); k++) {
+        bool seen[DB_MATTER_INPUTS + 1] = {0};
+        int used = 0;
+        for (int i = 0; i < DB_MATTER_INPUTS; i++) {
+            int n = db_matter_order(all[k], i);
+            TEST_ASSERT_EQUAL(db_matter_used(all[k], i), n > 0);
+            TEST_ASSERT_FALSE(n && seen[n]);
             seen[n] = true;
-            for (size_t k = 0; k < sizeof(at) / sizeof(at[0]); k++) {
-                if (at[k] == n) {
-                    TEST_ASSERT_EQUAL_STRING(want[k], label(&plus, i, "de"));
-                }
-            }
+            used += n > 0;
+        }
+        for (int n = 1; n <= used; n++) {
+            TEST_ASSERT_TRUE(seen[n]);
         }
     }
+    TEST_ASSERT_EQUAL(8, db_matter_order(&plus, 7));      /* Taste 8 */
+    TEST_ASSERT_EQUAL(9, db_matter_order(&plus, 48));     /* Drehregler 1 */
+    TEST_ASSERT_EQUAL(13, db_matter_order(&plus, 8));     /* Regler 1 links */
+    TEST_ASSERT_EQUAL(21, db_matter_order(&plus, 16));    /* Touchfeld 1 */
+    TEST_ASSERT_EQUAL(26, db_matter_order(&plus, 21));    /* Wischen rechts */
+    TEST_ASSERT_EQUAL(54, db_matter_order(&plus_xl, 47)); /* Regler 6 rechts, before the dials' own ids */
+    TEST_ASSERT_EQUAL(55, db_matter_order(&plus_xl, 54)); /* Touchfeld 1, after them */
     TEST_ASSERT_EQUAL(0, db_matter_order(&plus, -1));
-    TEST_ASSERT_EQUAL(62, db_matter_order(&plus_xl, 61)); /* swipe right, the last of 62 */
     TEST_ASSERT_EQUAL(10, db_matter_order(&neo, 9));
 }
 
