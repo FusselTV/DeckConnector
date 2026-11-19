@@ -26,6 +26,10 @@ export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
 const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
 const CF_COOKIES = 'https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/'
+const APPLE_PRIVACY = {
+  de: 'https://www.apple.com/legal/privacy/de-ww/',
+  en: 'https://www.apple.com/legal/privacy/en-ww/',
+}
 const CF_ANALYTICS = 'https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/'
 
 function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
@@ -133,15 +137,17 @@ export function Privacy({ lang }: { lang: Lang }) {
       <p>
         Laut Cloudflare enthalten die Cookies keine Kennung, die dich über Websites oder Sitzungen hinweg verfolgt, und
         sind für den Schutz unbedingt nötig. Details stehen in der <a href={CF_COOKIES}>Cookie-Liste von Cloudflare</a>.
-        Andere Cookies setzt diese Website nicht. Rechtsgrundlage und Auftragsverarbeitung sind wie im Abschnitt
-        „Hosting bei Cloudflare“.
+        Andere Cookies setzt diese Website nicht. Das Setzen und Lesen der Cookies und die Prüfung in deinem Browser
+        erlaubt § 25 Abs. 2 Nr. 2 TDDDG, weil sie unbedingt erforderlich sind, damit ich dir die Website, die du
+        aufrufst, sicher bereitstellen kann. Für alles Weitere gelten Rechtsgrundlage und Auftragsverarbeitung wie im
+        Abschnitt „Hosting bei Cloudflare“.
       </p>
 
       <h2>Schutz von E-Mail-Adressen</h2>
       <p>
         Cloudflare ersetzt E-Mail-Adressen in den Seiten durch eine kodierte Form, damit Programme sie nicht einsammeln
         können. Das Skript <code>email-decode.min.js</code>, geladen von dieser Website, macht sie in deinem Browser
-        wieder lesbar.
+        wieder lesbar. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist Schutz vor Spam.
       </p>
 
       <h2>Besucherstatistik von Cloudflare</h2>
@@ -166,15 +172,22 @@ export function Privacy({ lang }: { lang: Lang }) {
         Das Formular schickt deine Angaben an Cloudflare Workers. Von dort gehen sie als E-Mail an mein Postfach. Dabei
         verarbeitet Cloudflare auch die Verbindungsdaten aus dem Abschnitt „Hosting bei Cloudflare“. Cloudflare handelt
         in meinem Auftrag, auf Grundlage desselben Data Processing Addendum. Mein Postfach liegt bei iCloud Mail von
-        Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Dort landen
-        auch E-Mails an die Adresse oben.
+        Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Apple
+        speichert die E-Mails als Anbieter meines Postfachs. Dort landen auch E-Mails an die Adresse oben.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, E-Mails zu empfangen. Ob Apple
+        Daten in die USA übermittelt, steht in der <a href={APPLE_PRIVACY.de}>Datenschutzerklärung von Apple</a>.
       </p>
       <p>
         Für jede Anfrage an das Formular schreibt Cloudflare einen Eintrag in die Workers Logs: Zeitpunkt, Adresse und
         Methode der Anfrage, die Header mit deiner IP-Adresse, Daten von Cloudflare zur Verbindung wie dein Land, und ob
         die Anfrage geklappt hat. Mein Code für das Formular schreibt nichts, was du eingibst, in die Logs, nur die
-        Fehlermeldung des Mailservers, wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden. Cloudflare
-        löscht sie nach {owner.logDays} Tagen.
+        Fehlermeldung des Mailservers, wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Cloudflare löscht sie nach {owner.logDays} Tagen.
+      </p>
+      <p>
+        Damit niemand das Formular massenhaft nutzt, zählt Cloudflare die Anfragen je IP-Adresse (bei IPv6 je /64-Netz)
+        eine Minute lang und lässt etwa fünf durch. Danach verfällt der Zähler. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+        DSGVO. Mein berechtigtes Interesse ist der Schutz vor Missbrauch.
       </p>
       <p>
         Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger
@@ -203,6 +216,12 @@ export function Privacy({ lang }: { lang: Lang }) {
         Diese Daten bleiben in deinem Browser und werden nicht übertragen. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG,
         denn das Speichern ist für die Funktion nötig, die du ausdrücklich nutzt. Du kannst die Daten in den
         Einstellungen deines Browsers löschen.
+      </p>
+
+      <h2>Die Software DeckConnector</h2>
+      <p>
+        Die Firmware und die Home-Assistant-Integration schicken mir keine Daten. Mit welchen Servern ein Connector
+        spricht, steht in der <a href="/de/docs/network/#internet">Anleitung</a>.
       </p>
 
       <h2>Deine Rechte</h2>
@@ -268,14 +287,16 @@ export function Privacy({ lang }: { lang: Lang }) {
       <p>
         Cloudflare says these cookies hold no identifier that follows you across websites or sessions, and that they are
         strictly necessary for the protection. Details are in <a href={CF_COOKIES}>Cloudflare&apos;s cookie list</a>.
-        This website sets no other cookies. The legal basis and the processing on my behalf are as in the section on
-        hosting.
+        This website sets no other cookies. Setting and reading the cookies and the check in your browser are allowed
+        under § 25(2) no. 2 TDDDG, because they are strictly necessary so I can safely deliver the website you asked
+        for. For everything else, the legal basis and the processing on my behalf are as in the section on hosting.
       </p>
 
       <h2>Protection of email addresses</h2>
       <p>
         Cloudflare replaces email addresses in the pages with an encoded form, so programs cannot collect them. The
         script <code>email-decode.min.js</code>, loaded from this website, makes them readable again in your browser.
+        The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is protection from spam.
       </p>
 
       <h2>Visitor statistics from Cloudflare</h2>
@@ -300,14 +321,21 @@ export function Privacy({ lang }: { lang: Lang }) {
         The form sends your details to Cloudflare Workers. From there they go as an email to my mailbox. Cloudflare also
         processes the connection data from the section on hosting. Cloudflare acts on my behalf under the same Data
         Processing Addendum. My mailbox is at iCloud Mail by Apple (Apple Distribution International Ltd., Hollyhill
-        Industrial Estate, Hollyhill, Cork, Ireland). Emails to the address above end up there too.
+        Industrial Estate, Hollyhill, Cork, Ireland). Apple stores the emails as the provider of my mailbox. Emails to
+        the address above end up there too. The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is to receive
+        email. <a href={APPLE_PRIVACY.en}>Apple&apos;s privacy policy</a> says whether Apple sends data to the USA.
       </p>
       <p>
         For each request to the form, Cloudflare writes an entry to its Workers Logs. It holds the time, the address and
         method of the request, the headers with your IP address, data from Cloudflare about the connection such as your
         country, and whether the request worked. My code behind the form writes nothing you typed into the logs, only
-        the mail server&apos;s error message when sending fails. I use the logs to find faults. Cloudflare deletes them
-        after {owner.logDays} days.
+        the mail server&apos;s error message when sending fails. I use the logs to find faults. The legal basis is Art.
+        6(1)(f) GDPR. Cloudflare deletes them after {owner.logDays} days.
+      </p>
+      <p>
+        To stop mass use of the form, Cloudflare counts the requests per IP address (per /64 network for IPv6) for one
+        minute and lets about five through. Then the count expires. The legal basis is Art. 6(1)(f) GDPR. My legitimate
+        interest is protection from abuse.
       </p>
       <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
 
@@ -329,6 +357,12 @@ export function Privacy({ lang }: { lang: Lang }) {
       <p>
         This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because
         storing it is needed for a function you asked for. You can delete it in your browser&apos;s settings.
+      </p>
+
+      <h2>The DeckConnector software</h2>
+      <p>
+        The firmware and the Home Assistant integration send me no data. The <a href="/docs/network/#internet">docs</a>{' '}
+        list the servers a connector talks to.
       </p>
 
       <h2>Your rights</h2>
