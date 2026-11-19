@@ -70,6 +70,21 @@ async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(s
         await srv.stop()
 
 
+async def test_deeply_nested_json_from_a_server_leaves_the_bridge_up(start):
+    srv = await Server(port=18991).start()
+    try:
+        sim = start("mk2")
+        await asyncio.to_thread(dismiss_prompt, sim)
+        url = f"ws://127.0.0.1:{srv.port}/deckbridge"
+        await asyncio.to_thread(sim.config, servers=[url], controller="server", setup_done=True)
+        bridge = await srv.wait_bridge(15)
+        await bridge.ws.send("[" * 2000)
+        await asyncio.sleep(1)
+        assert (await asyncio.to_thread(sim.status))["decks"]
+    finally:
+        await srv.stop()
+
+
 class Fake(socketserver.StreamRequestHandler):
     def handle(self):
         srv = self.server

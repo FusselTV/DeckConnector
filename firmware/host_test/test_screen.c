@@ -85,6 +85,18 @@ static void test_empty_image_is_dropped(void)
     TEST_ASSERT_EQUAL_INT(0, sc.count);
 }
 
+static void test_an_empty_first_piece_is_taken(void)
+{
+    uint8_t piece[10] = {1};
+    db_chunk_t c = {.rect = {0, 0, 10, 10}, .part = 0, .data = piece, .len = 0};
+    TEST_ASSERT_EQUAL_INT(DB_OK, db_screen_feed(&sc, &c));
+    c.part = 1;
+    c.len = sizeof(piece);
+    c.last = true;
+    TEST_ASSERT_EQUAL_INT(DB_OK, db_screen_feed(&sc, &c));
+    TEST_ASSERT_EQUAL_INT(1, sc.count);
+}
+
 /* A dock host picks the strip rect: an image placed off the picture must not write past it. */
 static void test_blit_stays_inside_the_picture(void)
 {
@@ -108,6 +120,7 @@ int main(void)
     RUN_TEST(test_keeps_a_bounded_list);
     RUN_TEST(test_drops_an_image_with_missing_pieces);
     RUN_TEST(test_empty_image_is_dropped);
+    RUN_TEST(test_an_empty_first_piece_is_taken);
     RUN_TEST(test_an_image_that_never_ends_is_bounded);
     RUN_TEST(test_blit_stays_inside_the_picture);
     return UNITY_END();

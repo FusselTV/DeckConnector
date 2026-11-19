@@ -4,7 +4,7 @@ project(deckbridge_host_test C)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 add_compile_options(-Wall -Wextra -Werror -Wconversion -Wno-sign-conversion -fsanitize=address,undefined
-                    -fno-omit-frame-pointer)
+                    -fno-sanitize-recover=undefined -fno-omit-frame-pointer)
 add_link_options(-fsanitize=address,undefined)
 
 include(FetchContent)
@@ -42,3 +42,7 @@ add_test(NAME test_ui COMMAND test_ui)
 add_executable(test_decks test_decks.c deck_emu.c)
 target_link_libraries(test_decks db_core)
 add_test(NAME test_decks COMMAND test_decks)
+
+add_executable(test_fuzz test_fuzz.c deck_emu.c)
+target_link_libraries(test_fuzz db_core z)
+add_test(NAME test_fuzz COMMAND test_fuzz)
