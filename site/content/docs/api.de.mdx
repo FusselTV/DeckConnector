@@ -195,7 +195,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Schlüssel | Werte |
@@ -228,6 +228,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
 | `trusted_proxy` | IPv4-Adresse eines Reverse Proxys, leer für keinen. Siehe [Hinter einem Reverse Proxy](/de/docs/security/#hinter-einem-reverse-proxy) |
+| `matter` | `true` startet Matter sofort. `false` startet den Connector neu, wenn Matter läuft |
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
@@ -237,7 +238,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter. Ein `PUT` davon stellt die Einstellungen wieder her.
+Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter und Token. Ein `PUT` davon stellt die Einstellungen wieder her. `GET /api/backup?secrets=1` fügt `admin_pass`, `wifi_pass`, `wifi2_pass` und `token` hinzu. Keine Sicherung enthält API-Schlüssel, Passkeys, gekoppelte Dock-Rechner, ein hochgeladenes HTTPS-Zertifikat oder die mit Matter gekoppelten Apps. Lege sie neu an, kopple sie neu oder lade sie neu hoch.
 
 ## Status
 

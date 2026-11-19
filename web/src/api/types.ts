@@ -199,6 +199,8 @@ export interface Config {
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean
+  /** Missing on older firmware. */
+  matter?: boolean
 }
 
 /** Keys PUT /api/config takes besides those of Config. */

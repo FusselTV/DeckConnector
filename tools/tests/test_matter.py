@@ -69,6 +69,26 @@ def test_switch_survives_a_restart_and_a_factory_reset_turns_it_off(tmp_path: Pa
         sim.wait()
 
 
+@pytest.mark.sim
+def test_the_backup_carries_the_switch(tmp_path: Path) -> None:
+    flash = tmp_path / "flash.bin"
+    flash.write_bytes(b"\xff" * 0x90000)
+    write_at(flash, 0x8000, table(NEW_TABLE, tmp_path))
+    sim = start_sim(PORT, DB_SIM_PASSWORD="simulator-pass", DB_SIM_FLASH=str(flash))
+    try:
+        assert call("GET", "/api/backup?secrets=1")[1]["matter"] is False
+        assert call("PUT", "/api/config", {"matter": "yes"})[0] == 400
+        code, reply = call("PUT", "/api/config", {"matter": True})
+        assert code == 200 and reply["restart"] is False and reply["config"]["matter"] is True, reply
+        assert call("GET", "/api/status")[1]["matter"]["running"], "on starts at once, as POST /api/matter"
+        assert call("GET", "/api/backup?secrets=1")[1]["matter"] is True
+        code, reply = call("PUT", "/api/config", {"matter": False})
+        assert code == 200 and reply["restart"] is True, "off stops Matter only with a restart"
+    finally:
+        sim.kill()
+        sim.wait()
+
+
 @pytest.mark.skipif(TARGET == "sim", reason="the simulator has no Matter stack")
 def test_turned_on_without_a_restart_it_can_be_paired():
     """Both LAN and WLAN up when Matter starts: its mDNS restarts on the new addresses must not run out of sockets."""

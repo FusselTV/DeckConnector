@@ -78,8 +78,22 @@ static int config_edit(const char *body, char *reply, size_t cap)
     if (db_config_from_json(&cfg, body, err, sizeof(err)) != ESP_OK) {
         return fail(reply, cap, 400, err);
     }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *m = cJSON_GetObjectItemCaseSensitive(root, "matter");
+    bool matter_bad = m && !cJSON_IsBool(m);
+    int matter = cJSON_IsBool(m) && cJSON_IsTrue(m) != db_matter_on() ? cJSON_IsTrue(m) : -1;
+    cJSON_Delete(root);
+    if (matter_bad) {
+        return fail(reply, cap, 400, "matter: true or false expected");
+    }
     if (cfg.https_only && !old.https_only && !web_tls_running()) {
         return fail(reply, cap, 409, "HTTPS is not running, so plain HTTP must stay");
+    }
+    bool matter_stops = matter == 0 && db_matter_running();
+    esp_err_t matter_err = matter >= 0 ? db_matter_set_on(matter) : ESP_OK;
+    /* ESP_FAIL: saved, but not started; the status says so */
+    if (matter_err != ESP_OK && matter_err != ESP_FAIL) {
+        return fail(reply, cap, 500, "saving failed");
     }
     if (db_config_save(&cfg) != ESP_OK) {
         return fail(reply, cap, 500, "saving failed");
@@ -118,6 +132,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
     memcpy(live.trusted_proxy, old.trusted_proxy, sizeof(old.trusted_proxy));
     bool restart = memcmp(&live, &old, sizeof(old)) != 0;
+    restart |= matter_stops; /* Matter stops only with a restart */
     if (!restart &&
         (strcmp(cfg.wifi2_ssid, old.wifi2_ssid) != 0 || strcmp(cfg.wifi2_pass, old.wifi2_pass) != 0)) {
         db_net_wifi_backup_changed();
@@ -377,14 +392,25 @@ esp_err_t get_status(httpd_req_t *req)
     return err;
 }
 
+/* The settings plus Matter's switch, which lives in Matter's own namespace. */
+static size_t settings_json(char *buf, size_t cap, bool secrets)
+{
+    size_t n = db_config_to_json(db_config(), secrets, buf, cap);
+    if (!n) {
+        return 0;
+    }
+    int more = snprintf(buf + n - 1, cap - n + 1, ",\"matter\":%s}", db_matter_on() ? "true" : "false");
+    return (size_t)more < cap - n + 1 ? n - 1 + (size_t)more : 0;
+}
+
 static size_t config_json(char *buf, size_t cap)
 {
-    return db_config_to_json(db_config(), false, buf, cap);
+    return settings_json(buf, cap, false);
 }
 
 static size_t backup_json(char *buf, size_t cap)
 {
-    return db_config_to_json(db_config(), true, buf, cap);
+    return settings_json(buf, cap, true);
 }
 
 /* quotes in the WLAN name or password grow the JSON past JSON_MAX */
@@ -441,10 +467,11 @@ esp_err_t get_events(httpd_req_t *req)
                       events_json); /* under the handler lock: ev_query stays put */
 }
 
-/* GET /api/backup?secrets=1: the settings with the admin password, the WLAN password and the server token,
- * for a restore through PUT /api/config. Without it the same as GET /api/config. API tokens (only their
- * hashes are kept), paired hosts and the TLS key stay out: create new tokens, pair again, upload the key
- * again. */
+/* GET /api/backup?secrets=1: the settings with the admin password, the WLAN passwords and the server token,
+ * for a restore through PUT /api/config. Without it the same as GET /api/config. Out on purpose: API tokens
+ * (only their hashes are kept), passkeys, paired hosts, an uploaded TLS pair, the device CA (a copy could
+ * vouch for this board's names) and Matter's fabrics (the node identity: a copy on a second board would
+ * clash). */
 esp_err_t get_backup(httpd_req_t *req)
 {
     char v[4] = "";
@@ -533,7 +560,7 @@ esp_err_t put_config(httpd_req_t *req)
     if (code == 200) {
         size_t n = strlen(reply) - 1; /* over the closing brace */
         n += snprintf(reply + n, REPLY_MAX - n, ",\"config\":");
-        size_t len = db_config_to_json(db_config(), false, reply + n, REPLY_MAX - n - 1);
+        size_t len = config_json(reply + n, REPLY_MAX - n - 1);
         n += len ? len : (size_t)snprintf(reply + n, REPLY_MAX - n, "null");
         snprintf(reply + n, REPLY_MAX - n, "}");
     }

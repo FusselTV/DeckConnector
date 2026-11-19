@@ -452,7 +452,7 @@ export const en = {
   'slot.why_pending': 'Waiting for confirmation. It boots once as a test.',
   'slot.why_nolevel': 'Unknown, no boot level.',
   'slot.failed': 'Boot failed',
-  'fw.not_in': 'Never in the file: API keys, paired computers, certificate.',
+  'fw.not_in': 'Never in the file: API keys, passkeys, paired computers, certificates, Matter pairings.',
   'fw.restore_err': 'The file has errors',
   'fw.restore_err_b': 'Nothing was applied:',
   'dia.cause': 'Cause',

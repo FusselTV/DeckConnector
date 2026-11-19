@@ -109,6 +109,8 @@ void db_matter_start(void);
 void db_matter_status(db_json_t *j);
 /* "qr" and "code" for pairing; false while the stack does not run */
 bool db_matter_codes(db_json_t *j);
+bool db_matter_on(void);
+bool db_matter_running(void);
 /* Off takes effect after a restart. ESP_FAIL: saved, but Matter did not start (the event log says why). */
 int db_matter_set_on(bool on);
 /* The pairing code on every deck; returns on how many. */

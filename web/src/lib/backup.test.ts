@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Config } from '../api/types'
-import { planRestore } from './backup'
+import { config, fresh } from '../demo/model'
+import { planRestore, WRITABLE } from './backup'
 
 const ip = { dhcp: true, ip: '', mask: '', gateway: '', dns: '' }
 const cfg: Config = {
@@ -87,5 +88,18 @@ describe('planRestore', () => {
     const p = planRestore(cfg, { ...cfg, wifi2_ssid: 'Ersatz', wifi2_pass: 'backup-secret' })
     expect(p.patch).toEqual({ wifi2_ssid: 'Ersatz', wifi2_pass: 'backup-secret' })
     expect(p.restart).toBe(false)
+  })
+  it('turning Matter off restarts, turning it on does not', () => {
+    expect(planRestore({ ...cfg, matter: true }, { ...cfg, matter: false })).toMatchObject({
+      patch: { matter: false },
+      restart: true,
+    })
+    expect(planRestore({ ...cfg, matter: false }, { ...cfg, matter: true }).restart).toBe(false)
+  })
+  // The demo sends every key the firmware's GET /api/config sends (e2e-demo/contract.spec.ts checks that).
+  it('restores every setting the firmware sends', () => {
+    const readOnly = ['wifi_pass_set', 'wifi2_pass_set', 'token_set', 'setup_done']
+    const keys = Object.keys(config(fresh(0))).filter((k) => !readOnly.includes(k))
+    expect(keys.filter((k) => !WRITABLE.has(k as keyof Config))).toEqual([])
   })
 })

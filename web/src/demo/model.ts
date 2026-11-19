@@ -641,7 +641,11 @@ export function wsState(s: Demo, now: number) {
   return rest
 }
 
-export const config = (s: Demo): Config => ({ ...s.cfg, token_set: s.tokens.length > 0 && s.cfg.token_set })
+export const config = (s: Demo): Config => ({
+  ...s.cfg,
+  token_set: s.tokens.length > 0 && s.cfg.token_set,
+  matter: s.matter.on,
+})
 
 const LIVE: (keyof ConfigPatch)[] = [
   'brightness',
@@ -668,6 +672,7 @@ const LIVE: (keyof ConfigPatch)[] = [
   'screen_dim',
   'wifi2_ssid',
   'wifi2_pass',
+  'matter',
 ]
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
@@ -693,7 +698,9 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   const next: Config = {
     ...old,
     ...Object.fromEntries(
-      Object.entries(p).filter(([k]) => !['wifi_pass', 'wifi2_pass', 'admin_pass', 'token', 'lan', 'wlan'].includes(k)),
+      Object.entries(p).filter(
+        ([k]) => !['wifi_pass', 'wifi2_pass', 'admin_pass', 'token', 'lan', 'wlan', 'matter'].includes(k),
+      ),
     ),
     lan: { ...old.lan, ...p.lan },
     wlan: { ...old.wlan, ...p.wlan },
@@ -717,7 +724,10 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
           JSON.stringify((old as unknown as Record<string, unknown>)[k]),
     ) ||
     p.admin_pass !== undefined ||
-    p.wifi_pass !== undefined
+    p.wifi_pass !== undefined ||
+    (p.matter === false && s.matter.running)
+  if (p.matter !== undefined) s.matter.on = p.matter
+  if (p.matter) s.matter.running = true
   s.cfg = next
   // Like the firmware: a new password ends the other sessions, the browser that set it gets a fresh one.
   if (p.admin_pass !== undefined) {
