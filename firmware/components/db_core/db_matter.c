@@ -70,17 +70,21 @@ db_sw_event_t db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool cover
 {
     uint64_t bit = 1ULL << input;
     if (d->muted & bit) {
+        db_sw_event_t e = DB_SW_NONE;
         if (!down) {
+            e = d->ending & bit ? db_sw_input(&d->sw[input], false, now) : DB_SW_NONE;
             d->sw[input] = (db_sw_t){0};
             d->muted &= ~bit;
+            d->ending &= ~bit;
         }
-        return DB_SW_NONE;
+        return e;
     }
     if (down && covered) {
         return DB_SW_NONE;
     }
     int other = input == chord[0] ? chord[1] : input == chord[1] ? chord[0] : -1;
     if (down && other >= 0 && d->sw[other].down) {
+        d->ending |= (1ULL << other) & ~d->muted;
         d->muted |= bit | 1ULL << other;
         d->sw[input].down = true;
         return DB_SW_NONE;
@@ -90,6 +94,13 @@ db_sw_event_t db_sw_deck_input(db_sw_deck_t *d, int input, bool down, bool cover
 
 db_sw_event_t db_sw_deck_tick(db_sw_deck_t *d, int input, int64_t now)
 {
+    uint64_t bit = 1ULL << input;
+    if (d->ending & bit) {
+        d->ending &= ~bit;
+        db_sw_event_t e = db_sw_input(&d->sw[input], false, now);
+        d->sw[input].down = true; /* still held: the chord's other control looks at it */
+        return e;
+    }
     db_sw_event_t e = db_sw_tick(&d->sw[input], now);
-    return d->muted & (1ULL << input) ? DB_SW_NONE : e;
+    return d->muted & bit ? DB_SW_NONE : e;
 }

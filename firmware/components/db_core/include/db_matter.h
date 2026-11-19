@@ -57,10 +57,11 @@ int64_t db_sw_due(const db_sw_t *sw);
 
 /* The switches of one deck. A press while the bridge's own pages take the deck's input (`covered`) goes
  * nowhere; a release always counts, it ends what a controller saw. Both controls of the menu chord held at
- * once mute both until they are let go. */
+ * once mute both until they are let go; the one pressed first is released for the controller at once. */
 typedef struct {
     db_sw_t sw[DB_MATTER_INPUTS];
     uint64_t muted;
+    uint64_t ending; /* muted after a controller saw the press: db_sw_deck_tick tells the release */
 } db_sw_deck_t;
 
 /* `chord`: the inputs (keys, then dials) of the menu chord, -1 when there is none. */

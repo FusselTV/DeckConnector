@@ -174,6 +174,7 @@ static void test_the_menu_chord_mutes_both_controls(void)
     TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, deck_in(chord[0], true, false));
     now += 100000;
     TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[1], true, false));
+    TEST_ASSERT_EQUAL(DB_SW_SHORT_RELEASE, db_sw_deck_tick(&deck, chord[0], now)); /* its press went out */
     for (int i = 0; i < 2; i++) {
         now += DB_SW_LONG_US;
         TEST_ASSERT_EQUAL(DB_SW_NONE, db_sw_deck_tick(&deck, chord[i], now));
@@ -182,6 +183,20 @@ static void test_the_menu_chord_mutes_both_controls(void)
     TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[1], false, true));
     TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[0], false, true));
     TEST_ASSERT_EQUAL(DB_SW_INITIAL_PRESS, deck_in(chord[0], true, false)); /* let go: it works again */
+}
+
+static void test_a_long_press_cut_by_the_chord_ends_long(void)
+{
+    deck = (db_sw_deck_t){0};
+    now = 1000000;
+    deck_in(chord[0], true, false);
+    now += DB_SW_LONG_US;
+    TEST_ASSERT_EQUAL(DB_SW_LONG_PRESS, db_sw_deck_tick(&deck, chord[0], now));
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[1], true, false));
+    TEST_ASSERT_EQUAL(DB_SW_LONG_RELEASE, deck_in(chord[0], false, false)); /* let go before the next tick */
+    TEST_ASSERT_EQUAL(DB_SW_NONE, db_sw_deck_tick(&deck, chord[0], now));
+    TEST_ASSERT_EQUAL(DB_SW_NONE, deck_in(chord[0], true, false)); /* again while the other is held: muted */
+    TEST_ASSERT_EQUAL(DB_SW_NONE, db_sw_deck_tick(&deck, chord[1], now));
 }
 
 static void test_two_other_controls_together_both_count(void)
@@ -214,6 +229,7 @@ int main(void)
     RUN_TEST(test_a_press_on_the_bridges_own_page_goes_nowhere);
     RUN_TEST(test_a_release_counts_while_covered);
     RUN_TEST(test_the_menu_chord_mutes_both_controls);
+    RUN_TEST(test_a_long_press_cut_by_the_chord_ends_long);
     RUN_TEST(test_two_other_controls_together_both_count);
     RUN_TEST(test_only_the_deck_and_the_debug_route_reach_matter);
     return UNITY_END();
