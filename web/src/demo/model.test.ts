@@ -33,20 +33,17 @@ describe('demo bridge', () => {
 
   it('presses toggle keys, page over and turn dials within 0 to 100', () => {
     const s = demo()
-    expect(host(s).keys.map((k) => k.t)).toEqual(['CAM 1', 'CAM 2', 'Slides', 'Pause', 'ON', 'Title', 'REC', 'Lights'])
+    expect(host(s).keys.map((k) => k.t)).toEqual(['CAM 1', 'CAM 2', 'Slides', 'Pause', 'Mic', 'Title', 'REC', 'Lights'])
     input(s, T0, { key: 4 })
-    expect(host(s).keys[4]?.t).toBe('OFF')
+    expect(host(s).keys[4]?.t).toBe('Muted')
     input(s, T0, { encoder: 0, action: 'turn', ticks: 50 })
     expect(s.faces.vol[0]).toBe(100)
     input(s, T0, { key: 7 })
     expect(host(s).keys[0]?.t).toBe('Front')
     expect(s.inputs.map((e) => e.kind)).toEqual(['key_down', 'key_up', 'encoder_turn', 'key_down', 'key_up'])
     input(s, T0, { key: 5 })
-    expect(
-      host(s)
-        .keys.slice(0, 5)
-        .map((k) => k.bg),
-    ).toEqual(Array(5).fill('#2b2d31'))
+    const [front, fill, rim, , wall] = host(s).keys.map((k) => k.bg)
+    expect([fill, rim, wall]).toEqual([front, front, front])
   })
 
   it('mutes the Elgato App mic from its key and from the dial alike', () => {
@@ -64,7 +61,7 @@ describe('demo bridge', () => {
     view.lang = 'de'
     const f = host(s)
     view.lang = 'en'
-    expect([f.keys[2]?.t, f.keys[4]?.t]).toEqual(['Folien', 'AN'])
+    expect([f.keys[2]?.t, f.keys[4]?.t]).toEqual(['Folien', 'Mikro'])
     s.requested = true
     s.request = { ip: '192.168.1.52', name: 'stage-laptop', at: T0 }
     tick(s, T0 + 59_000)

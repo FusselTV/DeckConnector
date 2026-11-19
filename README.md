@@ -17,21 +17,27 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a key, a dial, a folder, the Elgato App takes over, the brightness goes down and up">
+  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a scene key, a dial, the lights folder, the Elgato App takes over, the brightness goes down and up">
 </p>
+
+<table align="center">
+  <tr>
+    <th colspan="2">Home Assistant</th>
+  </tr>
+  <tr>
+    <td valign="top"><img src=".github/assets/ha-connector.webp" width="384" alt="The connector in Home Assistant: brightness, find, screen, controller, restart, screen off after and volume"></td>
+    <td valign="top"><img src=".github/assets/ha-screen.webp" width="330" alt="The deck picture in Home Assistant"><br><img src=".github/assets/ha-deck.webp" width="330" alt="A deck in Home Assistant: PIN lock, screen picture, source and the controls event"></td>
+  </tr>
+</table>
 
 - Companion connects over Satellite or as a Network Dock. The Elgato App sees a Network Dock.
 - Several programs connect at once. You pick the one that draws.
 - Several decks on one connector.
 - Ethernet with PoE, and Wi-Fi with a backup network.
-- Home Assistant gets every key press, sets the brightness and turns the screen off.
+- Home Assistant gets every key press and the deck picture. It sets the brightness and the volume, and picks the program that draws.
 - Matter firmware, tested with Home Assistant. Apple Home and Google Home are not tested yet.
 - The web UI shows the live deck, and you can press its keys.
 - Log in with a passkey, or confirm the login on the deck.
-
-<p align="center">
-  <img src="site/public/docs/ha-live-en.gif" width="860" alt="Home Assistant: a key press shows up in the deck picture and as an event, the brightness dims the picture, the screen goes off and on">
-</p>
 
 ## Get started
 

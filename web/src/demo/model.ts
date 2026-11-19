@@ -1028,10 +1028,18 @@ export type Face = { keys: KeyFace[]; strip: { zones: StripZone[] } } | { ui: nu
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-const AMBER = '#ffb020'
-const TILE = '#2b2d31'
-const VIOLET = '#9b7bff'
-const INK = '#1a1200'
+const OFF = '#26282c'
+const GREY = '#d4d7dc'
+const C = {
+  live: { on: '#e5322b', fg: '#ff7b70', ink: '#fff' },
+  audio: { on: '#1f9d55', fg: '#5fd08c', ink: '#fff' },
+  light: { on: '#f5a524', fg: '#f5b748', ink: '#1a1200' },
+  show: { on: '#3a78ee', fg: '#82a9ff', ink: '#fff' },
+  nav: { on: '#3a3d43', ink: '#fff' },
+}
+const key = (t: string, site: SiteIcon, c: keyof typeof C, on = false): KeyFace =>
+  on ? { t, site, bg: C[c].on, fg: C[c].ink } : { t, site, bg: OFF, fg: GREY }
+const mic = (on: boolean) => (on ? key('Mic', 'mic', 'audio', true) : key('Muted', 'mic-off', 'live'))
 
 function faceEn(s: Demo, now: number): Face {
   const f = s.faces
@@ -1041,20 +1049,17 @@ function faceEn(s: Demo, now: number): Face {
   // The bridge's own screen: the firmware's db_ui code draws it (deck-ui.ts).
   if (w === 'ui') return { ui: ui(s, now, (u) => u.deck_screen(s.ota ? 1 : 0), uiModel(s, now)) }
   if (w === 'satellite' || isCompDock(s, w)) {
-    // The show page of the animations on the website: same labels, same colours.
     if (f.page === 0)
       return {
         keys: [
-          ...(['CAM 1', 'CAM 2', 'Slides'] as const).map((t, i): KeyFace => ({
-            t,
-            site: i < 2 ? 'cam' : 'slides',
-            bg: f.scene === i ? '#ff4b3e' : TILE,
-          })),
-          { t: 'Pause', site: 'pause', bg: f.pause ? VIOLET : TILE, fg: f.pause ? '#140d26' : undefined },
-          f.mic ? { t: 'ON', site: 'mic', bg: '#30c060' } : { t: 'OFF', site: 'mic', bg: TILE, fg: '#ff7a70' },
-          { t: 'Title', site: 'title', bg: f.title ? AMBER : TILE, fg: f.title ? INK : undefined },
-          { t: 'REC', site: 'rec', bg: TILE, dot: f.rec ? '#ff4b3e' : '#5a2420' },
-          { t: 'Lights', site: 'next', bg: TILE },
+          ...(['CAM 1', 'CAM 2', 'Slides'] as const).map((t, i) =>
+            key(t, i < 2 ? 'cam' : 'slides', 'live', f.scene === i),
+          ),
+          key('Pause', 'pause', 'show', f.pause),
+          mic(f.mic),
+          key('Title', 'title', 'show', f.title),
+          { ...key('REC', 'rec', 'live', f.rec), dot: f.rec ? '#fff' : C.live.fg },
+          key('Lights', 'next', 'nav'),
         ],
         strip: {
           zones: ['Master', 'Mic', 'Music', 'Room'].map((t, i) => ({
@@ -1062,20 +1067,18 @@ function faceEn(s: Demo, now: number): Face {
             v: f.vol[i] ?? 0,
             text: f.mute[i] ? 'muted' : String(f.vol[i]),
             off: f.mute[i],
-            color: i === 1 ? '#3ddc84' : '#ffb020',
+            color: C.audio.fg,
           })),
         },
       }
     return {
       keys: [
-        ...['Front', 'Fill', 'Rim'].map((t, i): KeyFace =>
-          f.lights[i] ? { t, site: 'light', bg: AMBER, fg: INK } : { t, site: 'light', bg: TILE },
-        ),
-        { t: 'BRB', site: 'coffee', bg: f.brb ? VIOLET : TILE, fg: f.brb ? '#140d26' : undefined },
-        { t: 'Wall', site: 'palette', bg: f.wall ? '#2f7dff' : TILE },
-        { t: 'All off', site: 'power', bg: TILE, fg: '#ff7a70' },
-        { t: clock, sub: 'Clock', bg: TILE, clock: true },
-        { t: 'Show', site: 'back', bg: TILE },
+        ...['Front', 'Fill', 'Rim'].map((t, i) => key(t, 'light', 'light', f.lights[i])),
+        key('BRB', 'coffee', 'show', f.brb),
+        key('Wall', 'palette', 'light', f.wall),
+        { ...key('All off', 'power', 'nav'), fg: C.live.fg },
+        { t: clock, sub: 'Clock', bg: OFF, fg: GREY, clock: true },
+        key('Show', 'back', 'nav'),
       ],
       strip: {
         zones: [
@@ -1084,14 +1087,14 @@ function faceEn(s: Demo, now: number): Face {
             v: f.light[0] ?? 0,
             text: f.lights[0] ? `${f.light[0]}%` : 'off',
             off: !f.lights[0],
-            color: '#ffcf5a',
+            color: C.light.fg,
           },
           {
             t: 'Fill',
             v: f.light[1] ?? 0,
             text: f.lights[1] ? `${f.light[1]}%` : 'off',
             off: !f.lights[1],
-            color: '#ffcf5a',
+            color: C.light.fg,
           },
           { t: 'Colour', v: (((f.light[2] ?? 4800) - 2900) / 4100) * 100, text: `${f.light[2]} K`, color: '#9fd3ff' },
           {
@@ -1099,7 +1102,7 @@ function faceEn(s: Demo, now: number): Face {
             v: f.light[3] ?? 0,
             text: f.lights[2] ? `${f.light[3]}%` : 'off',
             off: !f.lights[2],
-            color: '#ffcf5a',
+            color: C.light.fg,
           },
         ],
       },
@@ -1108,16 +1111,14 @@ function faceEn(s: Demo, now: number): Face {
   if (w.startsWith('dock'))
     return {
       keys: [
-        f.play ? { t: 'Pause', site: 'pause', bg: '#8c9cff', fg: '#0d1030' } : { t: 'Play', site: 'play', bg: TILE },
-        { t: 'Next', site: 'skip', bg: TILE },
-        f.lights[0] ? { t: 'Light', site: 'light', bg: AMBER, fg: INK } : { t: 'Light', site: 'light', bg: TILE },
-        f.appMute[3]
-          ? { t: 'Muted', site: 'mic-off', bg: TILE, fg: '#ff7a70' }
-          : { t: 'Mic', site: 'mic', bg: '#30c060' },
-        { t: 'Shot', site: 'camera', bg: TILE },
-        { t: 'Focus', site: 'moon', bg: f.focus ? VIOLET : TILE, fg: f.focus ? '#140d26' : undefined },
-        f.lights[1] ? { t: 'Desk', site: 'sun', bg: AMBER, fg: INK } : { t: 'Desk', site: 'sun', bg: TILE },
-        { t: clock, sub: 'Clock', bg: TILE, clock: true },
+        f.play ? key('Pause', 'pause', 'show', true) : key('Play', 'play', 'show'),
+        key('Next', 'skip', 'show'),
+        key('Light', 'light', 'light', f.lights[0]),
+        mic(!f.appMute[3]),
+        key('Shot', 'camera', 'show'),
+        key('Focus', 'moon', 'show', f.focus),
+        key('Desk', 'sun', 'light', f.lights[1]),
+        { t: clock, sub: 'Clock', bg: OFF, fg: GREY, clock: true },
       ],
       strip: {
         zones: ['System', 'Music', 'Browser', 'Mic'].map((t, i) => ({
@@ -1125,7 +1126,7 @@ function faceEn(s: Demo, now: number): Face {
           v: f.appVol[i] ?? 0,
           text: f.appMute[i] ? 'muted' : `${f.appVol[i]}%`,
           off: f.appMute[i],
-          color: '#8c9cff',
+          color: i === 3 ? C.audio.fg : C.show.fg,
         })),
       },
     }
@@ -1153,8 +1154,6 @@ const DE: Record<string, string> = {
   Room: 'Saal',
   Slides: 'Folien',
   Title: 'Titel',
-  ON: 'AN',
-  OFF: 'AUS',
   muted: 'stumm',
   Front: 'Haupt',
   Rim: 'Hinten',
