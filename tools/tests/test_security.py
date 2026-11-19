@@ -143,6 +143,33 @@ def test_a_new_password_ends_the_other_sessions(own_sim):
     assert get(f"{base}/api/status", renewed) == 200, "the browser that set the password stays logged in"
 
 
+def wrong_login(port: int, addr: str, source: str = "") -> int:
+    c = http.client.HTTPConnection(addr, port, timeout=5, source_address=(source, 0) if source else None)
+    c.request("POST", "/api/login", body=b'{"password": "wrong"}', headers={"X-DeckConnector": "1"})
+    return c.getresponse().status
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="locks out every address of its own simulator")
+def test_an_ipv6_client_waits_out_the_lock_of_all_addresses(own_sim):
+    """The board answers on link-local IPv6. Every IPv6 client was address 0, which counted as logged in."""
+    codes = [wrong_login(own_sim, "127.0.0.1", f"127.0.0.{n}") for n in range(2, 8) for _ in range(5)]
+    assert codes == [403] * 30, codes
+    assert wrong_login(own_sim, "::1") == 429
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="locks out every address of its own simulator")
+def test_an_ipv6_client_that_logged_in_keeps_its_own_address(own_sim):
+    """It skips the lock of all addresses like an IPv4 one: it is not one shared address for every IPv6 client."""
+    c = http.client.HTTPConnection("::1", own_sim, timeout=5)
+    c.request("POST", "/api/login", body=json.dumps({"password": PASSWORD}).encode(), headers={"X-DeckConnector": "1"})
+    assert c.getresponse().status == 200
+    codes = [wrong_login(own_sim, "127.0.0.1", f"127.0.0.{n}") for n in range(2, 8) for _ in range(5)]
+    assert codes == [403] * 30, codes
+    assert wrong_login(own_sim, "::1") == 403
+
+
 def claim(port: int, host: str) -> tuple[int, str]:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/setup/claim",

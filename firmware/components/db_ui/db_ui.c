@@ -1483,8 +1483,10 @@ bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
         snprintf(mac_s, sizeof(mac_s), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3],
                  mac[4], mac[5]);
     }
-    char ip_s[16];
-    ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));
+    char ip_s[16] = "IPv6"; /* db_web folds an IPv6 client into 240.0.0.0/4 */
+    if (((const uint8_t *)&ip)[0] < 240) {
+        ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));
+    }
     forget_presses();
     portENTER_CRITICAL(&login_mux);
     ask.until = esp_timer_get_time() + (int64_t)seconds * 1000000;
