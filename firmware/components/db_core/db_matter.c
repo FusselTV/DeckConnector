@@ -77,7 +77,7 @@ int db_matter_input(const db_matter_layout_t *l, const db_input_t *in, db_press_
         if (!l->zones || !l->strip_w) {
             return -1;
         }
-        int zone = in->x < l->strip_x ? 0 : (in->x - l->strip_x) * l->zones / l->strip_w;
+        int zone = in->x * l->zones / l->strip_w;
         return extra_at(l, 2 * l->dials + (zone < l->zones ? zone : l->zones - 1));
     }
     case DB_INPUT_TOUCH_SWIPE:

@@ -35,7 +35,7 @@ typedef struct {
     uint8_t keys, dials;
     uint8_t zones;      /* of the touch strip, one above each dial; 0: no strip */
     uint8_t image_keys; /* keys after these are touch points; 0: none */
-    uint16_t strip_x, strip_w;
+    uint16_t strip_w;   /* the strip starts at x 0 */
 } db_matter_layout_t;
 
 typedef enum { DB_PRESS_DOWN, DB_PRESS_UP, DB_PRESS_SHORT, DB_PRESS_LONG } db_press_t;

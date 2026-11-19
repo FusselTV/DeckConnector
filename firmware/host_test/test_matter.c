@@ -21,8 +21,8 @@ static uint16_t node(int slot, const char *serial)
     return db_matter_node_ep(&slots[slot], slot, serial, &moved);
 }
 
-static const db_matter_layout_t plus = {.keys = 8, .dials = 4, .zones = 4, .strip_x = 0, .strip_w = 800};
-static const db_matter_layout_t plus_xl = {.keys = 36, .dials = 6, .zones = 6, .strip_x = 0, .strip_w = 1200};
+static const db_matter_layout_t plus = {.keys = 8, .dials = 4, .zones = 4, .strip_w = 800};
+static const db_matter_layout_t plus_xl = {.keys = 36, .dials = 6, .zones = 6, .strip_w = 1200};
 static const db_matter_layout_t neo = {.keys = 10, .image_keys = 8};
 static const db_matter_layout_t biggest = {
     .keys = DB_MATTER_KEYS, .dials = DB_MATTER_DIALS, .zones = 8, .strip_w = 800};

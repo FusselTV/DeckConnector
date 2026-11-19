@@ -212,8 +212,8 @@ static void save_slots(void)
     nvs_handle_t h;
     if (nvs_open_from_partition(PART, NS, NVS_READWRITE, &h) == ESP_OK) {
         nvs_set_blob(h, "slots", s.slots, sizeof(s.slots));
-        nvs_set_blob(h, "zones", s.zones,
-                     sizeof(s.zones)); /* own key: "slots" keeps its size for older images */
+        /* own key: "slots" keeps its size for older images */
+        nvs_set_blob(h, "zones", s.zones, sizeof(s.zones));
         nvs_commit(h);
         nvs_close(h);
     }
@@ -421,7 +421,6 @@ static void deck_changed(int slot)
                                        .dials = k->dials,
                                        .zones = s.zones[slot],
                                        .image_keys = db_device_image_keys(&info),
-                                       .strip_x = info.touch[0].rect.x,
                                        .strip_w = info.touch[0].rect.w};
     /* a deck without a serial is named by its port (db_deck_identity): another model there is another deck.
      * Not for decks with one: a model renamed in our driver would move their endpoints. */
