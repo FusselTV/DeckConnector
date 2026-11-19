@@ -372,6 +372,17 @@ export function Network() {
             <NetBlock id="wlan" v={v.wlan} set={(wlan) => set({ wlan })} err={err.wlan} cur={n?.wlan?.ip} />
           </Row>
         </>
+        <Field id="ntp" label={t('net.ntp')} hint={t('net.ntp_h')}>
+          <input
+            {...describedBy('ntp', null, t('net.ntp_h'))}
+            className="in mono"
+            maxLength={63}
+            pattern="[A-Za-z0-9.:\x2d]*"
+            value={v.ntp}
+            onChange={(e) => set({ ntp: e.target.value.trim() })}
+            spellCheck={false}
+          />
+        </Field>
       </Card>
       <Card id="card-names" icon={TagIcon} title={t('net.names')}>
         <Field
@@ -408,17 +419,6 @@ export function Network() {
             </div>
           ))
         })()}
-        <Field id="ntp" label={t('net.ntp')} hint={t('net.ntp_h')}>
-          <input
-            {...describedBy('ntp', null, t('net.ntp_h'))}
-            className="in mono"
-            maxLength={63}
-            pattern="[A-Za-z0-9.:\x2d]*"
-            value={v.ntp}
-            onChange={(e) => set({ ntp: e.target.value.trim() })}
-            spellCheck={false}
-          />
-        </Field>
       </Card>
     </fieldset>
   )

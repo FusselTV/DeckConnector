@@ -994,6 +994,11 @@
     gap: 16px;
     align-items: start;
   }
+  @media (min-width: 1440px) {
+    .ov {
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
+    }
+  }
   .ov > .meter {
     grid-column: 1/-1;
   }
@@ -1070,7 +1075,7 @@
   .host.warnrow {
     background: linear-gradient(90deg, color-mix(in srgb, var(--bad) 14%, transparent), transparent);
   }
-  @container (max-width:400px) {
+  @container (max-width:360px) {
     .host {
       grid-template-columns: auto minmax(0, 1fr);
     }
@@ -1207,10 +1212,27 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+  #card-health > .body {
+    container: health / inline-size;
+  }
+  /* seven counters: 4 + 3, or one row when wide; auto-fit left one alone */
   .cgrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
+  }
+  @container health (min-width: 700px) {
+    .cgrid {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+  }
+  @container health (max-width: 400px) {
+    .cgrid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .cgrid > :last-child:nth-child(odd) {
+      grid-column: 1/-1;
+    }
   }
   .cgrid div {
     background: var(--well);
@@ -1419,6 +1441,11 @@
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     background: radial-gradient(1200px 500px at 50% -10%, var(--amber-soft), transparent 60%), var(--bg);
+  }
+  /* top-aligned: centred, the card and its Next button moved on every step */
+  .center.wz {
+    align-items: start;
+    padding-top: max(24px, 6vh);
   }
   .panelbox {
     width: min(460px, 100%);
@@ -2064,9 +2091,8 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  /* A label that does not fit moves its button to the next row instead of breaking a word. */
   .btnrow3 .btn {
-    flex: 1 1 auto;
+    flex: 1 1 calc(50% - 4px);
     padding: 0 10px;
     white-space: nowrap;
     text-align: center;
@@ -2686,7 +2712,7 @@
     display: grid;
     grid-template-columns:
       minmax(110px, 0.9fr) minmax(0, 1.6fr) minmax(90px, 0.9fr)
-      minmax(110px, 0.8fr) 132px;
+      minmax(110px, 0.8fr) 140px;
     gap: 6px 12px;
     align-items: center;
     padding: 10px 16px;
@@ -2734,7 +2760,6 @@
     display: flex;
     gap: 4px;
     justify-content: flex-end;
-    flex-wrap: wrap;
   }
   @container (max-width:640px) {
     .srow {
@@ -2886,8 +2911,9 @@
     margin: 0;
     font-size: 15px;
   }
+  /* 2 by 2: auto-fit left "Web only" alone on a row */
   .chordopts {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .chordopts .choice {
     align-items: center;
@@ -3245,6 +3271,9 @@
   @media (max-width: 599px) {
     .top {
       flex-wrap: nowrap;
+    }
+    .chordopts {
+      grid-template-columns: minmax(0, 1fr);
     }
     .top h1 {
       flex: 1 1 0;

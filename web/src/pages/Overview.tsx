@@ -668,7 +668,6 @@ function SettingSlider({
   fallback,
   disabled,
   save,
-  children,
 }: {
   id: string
   icon: typeof SunDim
@@ -677,7 +676,6 @@ function SettingSlider({
   fallback: number
   disabled: boolean
   save: (n: number) => Promise<unknown>
-  children?: React.ReactNode
 }) {
   const { fmt } = useUi()
   const [v, setV] = useState<number | null>(null)
@@ -714,7 +712,6 @@ function SettingSlider({
         onBlur={commit}
       />
       <output htmlFor={id}>{fmt.pct(shown)}</output>
-      {children}
     </div>
   )
 }
@@ -751,12 +748,7 @@ function VolSlider() {
       fallback={0}
       disabled={false}
       save={a.volume}
-    >
-      <button type="button" className="btn ghost sm" title={t('ov.find_h')} onClick={() => void a.find()}>
-        <BellRing size={16} aria-hidden />
-        <span>{t('ov.find')}</span>
-      </button>
-    </SettingSlider>
+    />
   )
 }
 
@@ -790,6 +782,12 @@ function Controls() {
           <Usb size={18} aria-hidden />
           <span>{t('btn.reconnect')}</span>
         </button>
+        {st.speaker && (
+          <button type="button" className="btn" title={t('ov.find_h')} onClick={() => void a.find()}>
+            <BellRing size={18} aria-hidden />
+            <span>{t('ov.find')}</span>
+          </button>
+        )}
         <button type="button" className="btn" title={t('ov.reboot_h')} onClick={() => void a.reboot()}>
           <Power size={18} aria-hidden />
           <span>{t('ov.reboot_s')}</span>

@@ -587,6 +587,7 @@ export const de: Dict = {
   'src.col_conn': 'Verbindung',
   'src.col_state': 'Status',
   'api.add': 'Hinzufügen',
+  'api.add_t': 'API-Schlüssel hinzufügen',
   'api.empty': 'Noch kein API-Schlüssel.',
   'api.made': 'API-Schlüssel „{name}“',
   'api.use': 'Im Aufruf mitschicken als',
