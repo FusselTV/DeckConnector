@@ -347,7 +347,7 @@ function Passkeys() {
 }
 
 export function Access() {
-  const { t, act, ask, go } = useUi()
+  const { t, act, ask, jump } = useUi()
   const st = useStore((s) => s.status)
   const cfg = useStore((s) => s.config)
   const decks = decksOf(st)
@@ -385,10 +385,9 @@ export function Access() {
       setProxy(null)
     },
     check: () => {
-      if (!pwE && !corsE && !proxyE) return true
-      go('access')
-      setTimeout(() => document.getElementById(pwE ? 'npw' : corsE ? 'cors' : 'proxy')?.focus(), 80)
-      return false
+      const bad = pwE ? 'npw' : corsDirty && corsE ? 'cors' : proxyDirty && proxyE ? 'proxy' : null
+      if (bad) jump('access', bad)
+      return !bad
     },
     confirm: { title: t('cf.pw'), body: t('cf.pw_b') },
     patch: {

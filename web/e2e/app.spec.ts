@@ -519,6 +519,45 @@ test('a login the browser does not keep goes back to the login page and says why
   await expect(page.getByText('No deck attached')).toHaveCount(0)
 })
 
+test('a session that ends on a live page keeps the page and its draft behind the login bar', async ({ app: page }) => {
+  await openTab(page, 'Deck')
+  await page.locator('#hold').fill('3')
+  await page.request.post('/api/logout', { headers: { 'X-DeckConnector': '1' } })
+  const bar = page.getByRole('region', { name: 'Unsaved changes' })
+  await bar.getByRole('button', { name: /^Save/ }).click()
+  await page.locator('#lpw-bar').fill('simulator-pass')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('#lpw-bar')).toHaveCount(0)
+  await expect(page.locator('#hold')).toHaveValue('3')
+  await bar.getByRole('button', { name: /^Save/ }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ menu_hold_ms: 3000 })
+})
+
+test('a hold time left bad behind "Web only" does not fail the save', async ({ app: page }) => {
+  await openTab(page, 'Deck')
+  await page.locator('#hold').fill('0.2')
+  await page.getByRole('radio', { name: /^Web only/ }).click()
+  await page.getByRole('region', { name: 'Unsaved changes' }).getByRole('button', { name: /^Save/ }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ menu_chord: 'off', menu_hold_ms: 2000 })
+})
+
+test('Access saves past a stored CORS list the page cannot read, and opens the fold on a bad edit', async ({
+  app: page,
+}) => {
+  await sim('PUT', '/api/config', { cors_origins: '*', trusted_proxy: '' })
+  await openTab(page, 'Access')
+  const bar = page.getByRole('region', { name: 'Unsaved changes' })
+  await page.locator('#proxy').fill('10.0.0.7')
+  await bar.getByRole('button', { name: /^Save/ }).click()
+  await expect.poll(() => sim('GET', '/api/config')).toMatchObject({ trusted_proxy: '10.0.0.7', cors_origins: '*' })
+  await page.locator('#cors-fold summary').click()
+  await page.locator('#cors').fill('not a url')
+  await page.locator('#cors-fold summary').click()
+  await bar.getByRole('button', { name: /^Save/ }).click()
+  await expect(page.locator('#cors')).toBeFocused()
+  await sim('PUT', '/api/config', { cors_origins: '', trusted_proxy: '' })
+})
+
 test('a stored Wi-Fi can be forgotten after a confirm', async ({ app: page }) => {
   let sent: unknown = null
   await page.route('**/api/config', async (r) => {
