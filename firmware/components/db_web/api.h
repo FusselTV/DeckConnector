@@ -53,12 +53,10 @@ esp_err_t post_slot_boot(httpd_req_t *req);
 esp_err_t post_reboot(httpd_req_t *req);
 esp_err_t delete_ap(httpd_req_t *req);
 esp_err_t post_reset(httpd_req_t *req);
-#if CONFIG_DB_MATTER
 esp_err_t get_matter(httpd_req_t *req);
 esp_err_t post_matter(httpd_req_t *req);
 esp_err_t delete_matter(httpd_req_t *req);
 esp_err_t post_matter_press(httpd_req_t *req);
-#endif
 esp_err_t get_log(httpd_req_t *req);
 size_t api_screen_json(int deck, char *buf, size_t cap);
 esp_err_t get_screen(httpd_req_t *req);

@@ -313,9 +313,7 @@ static void write_status(db_json_t *j, bool live)
     write_device(j);
     write_network(j, live);
     write_sources(j, live);
-#if CONFIG_DB_MATTER
     db_matter_status(j);
-#endif
     if (!live) {
         return;
     }
@@ -580,9 +578,7 @@ void app_main(void) /* NOLINT(misc-use-internal-linkage): ESP-IDF calls it */
     db_net_on_change(on_net);
     started("deck", db_deck_start(strcmp(db_config()->usb_speed, "full") == 0, db_config()->max_decks));
     started("network", db_net_start());
-#if CONFIG_DB_MATTER
     db_matter_start();
-#endif
     db_ui_set_c6_version(db_ota_c6_version());
     db_ota_set_progress_cb(on_ota_progress);
 

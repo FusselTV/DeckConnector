@@ -38,9 +38,8 @@ Apache License 2.0 (text A)
     https://github.com/Mbed-TLS/mbedtls
     Offered under Apache-2.0 OR GPL-2.0-or-later. DeckConnector uses it under
     Apache-2.0.
-  Matter image only (deckconnector-matter):
   espressif/esp_matter 1.6.1, Copyright Espressif Systems (Shanghai) CO LTD.
-    Modified for DeckConnector (its manifest and one line).
+    Modified for DeckConnector (its manifest and two source files).
     https://github.com/espressif/esp-matter
   connectedhomeip, the Matter SDK inside esp_matter 1.6.1, Copyright Project
     CHIP Authors, with nlassert and nlio, Copyright Nest Labs, Inc.

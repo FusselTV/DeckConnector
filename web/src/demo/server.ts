@@ -108,6 +108,10 @@ const ROUTES: [string, string, Route['access']][] = [
   ['GET', '/api/coredump', 'admin'],
   ['GET', '/api/boot', 'full'],
   ['DELETE', '/api/coredump', 'full'],
+  ['GET', '/api/matter', 'full'],
+  ['POST', '/api/matter', 'full'],
+  ['DELETE', '/api/matter', 'full'],
+  ['POST', '/api/matter/press', 'full'],
 ]
 
 const OPEN = new Set(ROUTES.filter((r) => r[2] === 'open').map((r) => `${r[0]} ${r[1]}`))
@@ -302,6 +306,27 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return ok()
     case 'POST /api/dock':
       return dock(s, now, b)
+    case 'GET /api/matter':
+      if (!s.matter.running) return fail(409, 'Matter is off')
+      // Matter's test code, as firmware/sim gives it
+      return res('matter', {
+        qr: 'MT:-24J0AFN00KA0648G00',
+        code: '34970112332',
+        qr_bits:
+          '21:7fd33f08097615ddaea9dbf5748380e05ff50770004f2597f251cfc3958dc94b3dcd01b6dd1f290bc2e15d6ea1eb55754d8ea092f357a600',
+      })
+    case 'POST /api/matter':
+      if (typeof b.on === 'boolean') {
+        s.matter.on = b.on
+        if (b.on) s.matter.running = true
+      } else if (b.pair !== true && b.show !== true)
+        return fail(400, 'on: true or false, pair: true or show: true expected')
+      return s.matter.running || typeof b.on === 'boolean' ? ok() : fail(409, 'Matter is off')
+    case 'DELETE /api/matter':
+      restartSoon(s, now)
+      return ok()
+    case 'POST /api/matter/press':
+      return s.matter.running ? ok() : fail(409, 'Matter is off')
     case 'GET /api/log':
       return res('log', q.get('boot') === 'prev' ? prevLog(s) : s.log.join('\n') + '\n')
     case 'GET /api/events':

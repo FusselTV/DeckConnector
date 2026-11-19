@@ -138,7 +138,6 @@ export interface Status {
   /** The device CA's short fingerprint, also shown on the deck when the CA is downloaded. */
   https_ca?: string
   boot?: { reason?: string; at?: number | null }
-  /** Only in the Matter image. */
   matter?: { on: boolean; running: boolean; controllers: number; pairing: boolean }
 }
 

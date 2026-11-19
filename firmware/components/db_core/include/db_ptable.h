@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Flash between phy_init and ota_0 that no partition may use: the Matter image keeps its pairings there. */
+/* Flash between phy_init and ota_0 that no partition may use: Matter keeps its pairings there. */
 #define DB_SPARE_OFFSET 0x12000
 #define DB_SPARE_SIZE   0xE000
 

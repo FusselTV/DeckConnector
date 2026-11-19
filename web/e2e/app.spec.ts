@@ -727,3 +727,23 @@ test('a status reply with an error is shown and does not count as offline', asyn
   await expect(page.getByText(/not reachable|Reconnecting/i)).toHaveCount(0)
   errors.splice(0, errors.length, ...errors.filter((e) => !e.includes('status of 500')))
 })
+
+test('Matter starts at once when turned on and asks for a restart when turned off', async ({ app: page }) => {
+  await sim('POST', '/api/matter', { on: false })
+  let restarts = 0
+  await page.route('**/api/reboot', (r) => (restarts++, r.fulfill({ json: { ok: true } })))
+  await openTab(page, 'Sources')
+  const on = page.locator('#matter-on')
+  // off waits for a restart, which the simulator never gets here: an earlier run may leave Matter running
+  await expect(on).toHaveAttribute('aria-checked', 'false')
+  await on.click()
+  await expect(page.locator('#matter-code')).toContainText('34970112332')
+  await expect(page.getByRole('img', { name: 'MT:-24J0AFN00KA0648G00' })).toBeVisible()
+  expect(restarts).toBe(0)
+  await on.click()
+  const ask = page.getByRole('alertdialog')
+  await expect(ask).toContainText('Turn off Matter?')
+  await ask.getByRole('button', { name: 'Restart' }).click()
+  await expect.poll(() => restarts).toBe(1)
+  await expect.poll(() => sim('GET', '/api/status')).toMatchObject({ matter: { on: false } })
+})

@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
-import type { UpdateCheck } from '../api/types'
 
 export const cx = (...a: (string | false | null | undefined)[]) => a.filter(Boolean).join(' ')
 
@@ -112,15 +111,4 @@ export const docsPage = (lang: string, page: string) =>
 export function sourceUrl(version?: string) {
   if (!version || version.endsWith('-dirty')) return REPO
   return `${REPO}/tree/${version.match(/-g([0-9a-f]{7,})$/)?.[1] ?? version}`
-}
-
-/** The other firmware image (standard or Matter) of the newest release, once the running one is not older. */
-export function otherImage(u: UpdateCheck, matter: boolean) {
-  const v = u.latest
-  if (!v || !(u.url || v === u.current) || !u.notes?.includes('/releases/tag/')) return null
-  // release.yml names them deckconnector-<tag>.dbfw and deckconnector-matter-<tag>.dbfw
-  return {
-    v,
-    url: `${u.notes.replace('/releases/tag/', '/releases/download/')}/deckconnector${matter ? '' : '-matter'}-${v}.dbfw`,
-  }
 }

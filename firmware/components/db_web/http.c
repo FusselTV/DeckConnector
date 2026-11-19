@@ -346,7 +346,7 @@ static size_t api_json(char *buf, size_t cap)
 
 static esp_err_t get_api(httpd_req_t *req)
 {
-    return send_built(req, 4096, api_json);
+    return send_built(req, 6144, api_json);
 }
 
 /* A page from an origin in cors_origins may call the API with a token. Cookies never go cross-origin: no
@@ -605,12 +605,10 @@ esp_err_t db_web_start(size_t (*status)(char *buf, size_t cap), size_t (*state)(
         {{.uri = "/api/sound/selftest", .method = HTTP_POST, .handler = post_sound_selftest}, WEB_FULL},
         {{.uri = "/api/ap", .method = HTTP_DELETE, .handler = delete_ap}, WEB_FULL},
         {{.uri = "/api/reset", .method = HTTP_POST, .handler = post_reset}, WEB_ADMIN},
-#if CONFIG_DB_MATTER
         {{.uri = "/api/matter", .method = HTTP_GET, .handler = get_matter}, WEB_FULL},
         {{.uri = "/api/matter", .method = HTTP_POST, .handler = post_matter}, WEB_FULL},
         {{.uri = "/api/matter", .method = HTTP_DELETE, .handler = delete_matter}, WEB_FULL},
         {{.uri = "/api/matter/press", .method = HTTP_POST, .handler = post_matter_press}, WEB_FULL},
-#endif
         {{.uri = "/api/log", .method = HTTP_GET, .handler = get_log}, WEB_FULL},
         {{.uri = "/api/screen", .method = HTTP_GET, .handler = get_screen}, WEB_CONTROL},
         {{.uri = "/api/screen/*", .method = HTTP_GET, .handler = get_screen_image}, WEB_CONTROL},

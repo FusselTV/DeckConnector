@@ -1,4 +1,3 @@
-# Before project() of firmware/ and firmware/matter.
 execute_process(COMMAND git describe --tags --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
                 OUTPUT_VARIABLE PROJECT_VER OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 # Re-run the configure step (9 s) whenever HEAD moves, so the version inside the image stays right. Not on the index:

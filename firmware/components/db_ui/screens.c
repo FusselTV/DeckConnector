@@ -717,7 +717,6 @@ static void password_page(page_t *p)
     }
 }
 
-#if CONFIG_DB_MATTER
 /* POST /api/matter {"show": true} */
 static void matter_page(page_t *p)
 {
@@ -734,7 +733,6 @@ static void matter_page(page_t *p)
                 L("Wird nach 60 s ausgeblendet", "Hides after 60 s"));
     }
 }
-#endif
 
 /* POST /api/password/reset: two taps on the deck itself reset every setting. */
 static void reset_page(page_t *p)
@@ -979,11 +977,9 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_PASSWORD:
         password_page(&p);
         break;
-#if CONFIG_DB_MATTER
     case PAGE_MATTER:
         matter_page(&p);
         break;
-#endif
     case PAGE_RESET:
         reset_page(&p);
         break;
@@ -1015,10 +1011,8 @@ static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
         shown.page = PAGE_OFFER;
     } else if (md->show_pass) {
         shown.page = PAGE_PASSWORD;
-#if CONFIG_DB_MATTER
     } else if (md->show_matter) {
         shown.page = PAGE_MATTER;
-#endif
     } else if (md->locked) {
         shown.page = PAGE_LOCK;
     } else if (m->page == PAGE_HOME && md->ap_on) { /* also when it started by itself: its password is here */
@@ -1235,9 +1229,7 @@ bool ui_menu_input(ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l, con
         return lock_input(m, md, l, ev, act);
     }
     bool covers = shown.page == PAGE_PASSWORD;
-#if CONFIG_DB_MATTER
     covers |= shown.page == PAGE_MATTER;
-#endif
     if (covers &&
         (ev->kind == DB_INPUT_KEY_UP || ev->kind == DB_INPUT_ENCODER_UP || ev->kind == DB_INPUT_TOUCH_TAP)) {
         act->what = UI_DO_HIDE_PASSWORD;

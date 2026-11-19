@@ -1,3 +1,0 @@
-config DB_MATTER
-    bool
-    default y

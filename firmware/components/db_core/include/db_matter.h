@@ -7,7 +7,7 @@
 #include "db_json.h"
 
 /*
- * Matter, in the Matter image only (firmware/matter): every deck is a bridged node, each key and dial press a
+ * Matter, off until turned on: every deck is a bridged node, each key and dial press a
  * Generic Switch. Endpoint 1 is the aggregator; each slot has a block of 64 endpoints: the node, then its
  * keys, then its dials. The block stays while the slot keeps its deck and moves on when another deck takes
  * it.
@@ -75,14 +75,16 @@ void db_sw_deck_gone(db_sw_deck_t *d, int64_t now, db_sw_event_t out[DB_MATTER_I
 typedef enum { DB_MATTER_FROM_DECK, DB_MATTER_FROM_API, DB_MATTER_FROM_DEBUG } db_matter_from_t;
 bool db_matter_takes(db_matter_from_t from);
 
-/* The glue in firmware/matter/db_matter */
+/* The glue in components/db_matter, a fake in the simulator. On/off lives in this NVS namespace of the
+ * settings, so a factory reset turns Matter off. */
+#define DB_MATTER_NVS "matter"
 void db_matter_start(void);
 /* "matter" in the status */
 void db_matter_status(db_json_t *j);
-/* "qr" and "code" for pairing */
-void db_matter_codes(db_json_t *j);
-/* Off takes effect after a restart. */
-void db_matter_set_on(bool on);
+/* "qr" and "code" for pairing; false while the stack does not run */
+bool db_matter_codes(db_json_t *j);
+/* Off takes effect after a restart. ESP_FAIL: saved, but Matter did not start (the event log says why). */
+int db_matter_set_on(bool on);
 /* The pairing code on every deck; returns on how many. */
 int db_matter_show(void);
 /* Pairing open for 15 min, for one more controller. */

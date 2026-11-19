@@ -19,7 +19,7 @@ The ESP-IDF project for the ESP32-P4. Build, test and flash commands are in
 | `components/db_audio` | the speaker, its sounds and the self-test |
 | `components/db_log` | the log ring kept over a restart, boot time marks, the event history in `evlog.c` |
 | `components/db_serial` | Improv over USB serial, for the flasher |
+| `components/db_matter` | Matter, off until turned on. Each deck is a bridged node, each key and dial press a switch. `CMakeLists.txt` fetches and patches esp-matter |
 | `host_test/` | db_core and the deck screens on a PC, with a [deck emulator](host_test/DECK_EMU.md) |
 | `sim/` | db_web, db_config and db_core on Linux, with fakes for the rest |
-| `matter/` | the Matter image, the same components plus `db_matter` |
 | `vendor/` | Espressif's USB host and mDNS components, kept in the tree |

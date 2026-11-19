@@ -62,6 +62,7 @@ static struct {
     QueueHandle_t q;
     SemaphoreHandle_t start_lock;
     bool loaded, on, started;
+    bool failed; /* after node::create: another try would make a second node */
     int fabrics;
     bool window;
 } s;
@@ -137,7 +138,7 @@ static void save_slots(void)
     }
 }
 
-/* The pairing code stays until a reset; on/off and the decks seen too. */
+/* The pairing code stays until a reset; the decks seen too. */
 static esp_err_t load(void)
 {
     nvs_handle_t h;
@@ -145,9 +146,6 @@ static esp_err_t load(void)
     if (err != ESP_OK) {
         return err;
     }
-    uint8_t off = 0;
-    nvs_get_u8(h, "off", &off);
-    s.on = !off;
     size_t len = sizeof(s.slots);
     if (nvs_get_blob(h, "slots", s.slots, &len) != ESP_OK || len != sizeof(s.slots)) {
         memset(s.slots, 0, sizeof(s.slots));
@@ -488,6 +486,9 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
 
 static void start(void)
 {
+    if (!s.on || s.started || s.failed) {
+        return;
+    }
     if (!s.loaded) {
         esp_err_t err = open_part();
         err = err == ESP_OK ? load() : err;
@@ -497,9 +498,6 @@ static void start(void)
             return;
         }
         s.loaded = true;
-    }
-    if (!s.on || s.started) {
-        return;
     }
     chip::Crypto::Spake2pVerifier v;
     chip::MutableByteSpan vs(s.verifier);
@@ -513,6 +511,7 @@ static void start(void)
     node::config_t cfg;
     strlcpy(cfg.root_node.basic_information.node_label, db_config()->name,
             sizeof(cfg.root_node.basic_information.node_label));
+    s.failed = true;
     node_t *n = node::create(&cfg, nullptr, nullptr);
     endpoint::aggregator::config_t agg;
     s.aggregator = n ? endpoint::aggregator::create(n, &agg, ENDPOINT_FLAG_NONE, nullptr) : nullptr;
@@ -524,12 +523,6 @@ static void start(void)
     esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_ip, nullptr);
     esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, on_ip, nullptr);
     esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, on_ip, nullptr);
-    for (const char *key : {"ETH_DEF", "WIFI_STA_DEF"}) {
-        esp_netif_t *netif = esp_netif_get_handle_from_ifkey(key);
-        if (netif && esp_netif_is_netif_up(netif)) {
-            esp_netif_create_ip6_linklocal(netif);
-        }
-    }
     esp_err_t err = esp_matter::start(on_event);
     if (err != ESP_OK) {
         const char *why[] = {esp_err_to_name(err), nullptr};
@@ -540,7 +533,15 @@ static void start(void)
         lock::ScopedChipStackLock lock(portMAX_DELAY);
         refresh();
     }
+    s.failed = false;
     s.started = true;
+    /* after started: their GOT_IP6 must reach on_ip, also when Matter is turned on with the network up */
+    for (const char *key : {"ETH_DEF", "WIFI_STA_DEF"}) {
+        esp_netif_t *netif = esp_netif_get_handle_from_ifkey(key);
+        if (netif && esp_netif_is_netif_up(netif)) {
+            esp_netif_create_ip6_linklocal(netif);
+        }
+    }
     db_deck_listener_t l = {.device_changed = on_device, .input = on_input, .external = true};
     db_deck_add_listener(&l);
     xTaskCreate(task, "matter_in", 4096, nullptr, 5, nullptr);
@@ -556,8 +557,11 @@ void db_matter_status(db_json_t *j)
     db_json_obj_close(j);
 }
 
-void db_matter_codes(db_json_t *j)
+bool db_matter_codes(db_json_t *j)
 {
+    if (!s.started) {
+        return false;
+    }
     char qr[32], code[16];
     payload(qr, sizeof(qr), code, sizeof(code));
     db_json_str(j, "qr", qr);
@@ -570,20 +574,26 @@ void db_matter_codes(db_json_t *j)
         o += sprintf(o, "%02x", bits[i]);
     }
     db_json_str(j, "qr_bits", hex);
+    return true;
 }
 
-void db_matter_set_on(bool on)
+int db_matter_set_on(bool on)
 {
     nvs_handle_t h;
-    if (nvs_open_from_partition(PART, NS, NVS_READWRITE, &h) == ESP_OK) {
-        nvs_set_u8(h, "off", !on);
-        nvs_commit(h);
+    esp_err_t err = nvs_open(DB_MATTER_NVS, NVS_READWRITE, &h);
+    if (err == ESP_OK) {
+        err = nvs_set_u8(h, "on", on);
+        err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
+    if (err != ESP_OK) {
+        return err;
+    }
     s.on = on;
-    if (on && !s.started) {
+    if (on) {
         db_matter_start();
     }
+    return on && !s.started ? ESP_FAIL : ESP_OK;
 }
 
 int db_matter_show(void)
@@ -597,6 +607,13 @@ void db_matter_start(void)
 {
     if (!s.start_lock) {
         s.start_lock = xSemaphoreCreateMutex(); /* main calls first, before the web server runs */
+        nvs_handle_t h;
+        uint8_t on = 0;
+        if (nvs_open(DB_MATTER_NVS, NVS_READONLY, &h) == ESP_OK) {
+            nvs_get_u8(h, "on", &on);
+            nvs_close(h);
+        }
+        s.on = on;
     }
     xSemaphoreTake(s.start_lock, portMAX_DELAY);
     start();
@@ -620,6 +637,9 @@ bool db_matter_open_window(void)
 
 esp_err_t db_matter_erase(void)
 {
+    if (!s.loaded) { /* never on since the start: nothing has the area open */
+        return db_ota_spare_erase();
+    }
     if (s.started) {
         /* kept: the stack writes nothing more before the restart */
         chip::DeviceLayer::PlatformMgr().LockChipStack();
