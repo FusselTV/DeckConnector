@@ -62,7 +62,7 @@ export default function Hero({ lang }: LangProps) {
   const USB = L.usb
   const cam = breathe(f, D, L.wide, port ? 0.05 : 0.07, 4)
   const cap = L.cap
-  const keys = showKeys(t, f, lastKey(f, 'land'))
+  const keys = showKeys(t, lastKey(f, 'land'))
   const lit = keys.map(() => 1)
   const pulses = (fn: (p: number) => number) =>
     keys.map((_, i) => Math.max(0, ...PRESSES.map(({ p, key }) => (i === key ? fn(p) : 0))))
@@ -186,7 +186,7 @@ function PressBurst({ f, p, k: key, deck }: { f: number; p: number; k: number; d
 
 function Monitor({ t, f, m }: { t: Text; f: number; m: Layout['mon'] }) {
   const [x, y, w, h] = [0, 0, 480, 340]
-  const keys = showKeys(t, f, lastKey(f, 'hit'))
+  const keys = showKeys(t, lastKey(f, 'hit'))
   const btn = 92
   const gap = 12
   const gx = x + (w - (4 * btn + 3 * gap)) / 2

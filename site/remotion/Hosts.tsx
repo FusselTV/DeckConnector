@@ -28,7 +28,7 @@ import {
   Volume2,
   Wifi,
 } from 'lucide-react'
-import { AMBER, Deck, GREEN, keyBox, RED, SD, Zone, type Key, showKeys, showStrip } from './hw'
+import { AMBER, Deck, GREEN, KEY, keyBox, SD, Zone, type Key, showKeys, showStrip } from './hw'
 import { breathe, Caption, Scene } from './scene'
 import { lin, pulse, ramp } from './time'
 import { TEXT, type LangProps, type Text } from './text'
@@ -40,45 +40,45 @@ const BEAT = 100
 const MENU = 16
 const TAP = 44
 const SWEEP = [50, 70] as const
-const HOSTS = [{ color: AMBER }, { color: '#9b7bff' }, { color: '#5aa9ff' }] as const
+const HOSTS = [{ color: AMBER }, { color: GREEN }, { color: '#5aa9ff' }] as const
 
-function pages(t: Text, f: number) {
+function pages(t: Text) {
   return [
-    { keys: showKeys(t, f, 0), strip: showStrip(40) },
+    { keys: showKeys(t, 0), strip: showStrip(40) },
     {
       keys: [
-        { icon: Clapperboard, word: 'Intro', bg: '#5b3fc4', glow: '#9b7bff' },
+        { icon: Clapperboard, word: 'Intro', bg: KEY.live.on },
         { icon: Clapperboard, word: t.game },
-        { icon: Play, word: t.play, bg: '#30c060', glow: GREEN },
+        { icon: Play, word: t.play, bg: KEY.show.on },
         { icon: SkipForward, word: t.next },
-        { icon: MicOff, word: t.off, bg: RED },
+        { icon: MicOff, word: t.muted },
         { icon: Timer, word: '05:00' },
         { icon: Globe, word: 'Web' },
         { icon: Mail, word: 'Mail' },
       ] satisfies Key[],
       strip: (
         <>
-          <Zone i={0} icon={Volume2} value={60} accent="#9b7bff" />
-          <Zone i={1} icon={Mic} value={70} accent={GREEN} />
-          <Zone i={2} icon={Music} value={35} accent="#9b7bff" />
-          <Zone i={3} icon={MessageCircle} value={50} accent="#9b7bff" />
+          <Zone i={0} icon={Volume2} value={60} accent={KEY.audio.fg} />
+          <Zone i={1} icon={Mic} value={70} accent={KEY.audio.fg} />
+          <Zone i={2} icon={Music} value={35} accent={KEY.audio.fg} />
+          <Zone i={3} icon={MessageCircle} value={50} accent={KEY.audio.fg} />
         </>
       ),
     },
     {
       keys: [
-        { icon: Lightbulb, word: '70%', bg: AMBER, fg: '#1a1200' },
+        { icon: Lightbulb, word: '70%', bg: KEY.light.on, fg: KEY.light.ink },
         { icon: Blinds, word: '30%' },
-        { icon: DoorClosed, word: t.closed, bg: '#30c060', glow: GREEN },
+        { icon: DoorClosed, word: t.closed },
         { icon: Thermometer, word: '21°' },
         { icon: Fan, word: '2' },
-        { icon: Flame, word: t.on.toUpperCase(), bg: '#d4561c', glow: '#ff7a3d' },
+        { icon: Flame, word: t.heat, bg: KEY.light.on, fg: KEY.light.ink },
         { icon: Tv, word: 'TV' },
         { icon: Clock, word: '14:32' },
       ] satisfies Key[],
       strip: (
         <>
-          <Zone i={0} icon={Lightbulb} value={70} />
+          <Zone i={0} icon={Lightbulb} value={70} accent={KEY.light.fg} />
           <Zone i={1} icon={Blinds} value={30} accent="#5aa9ff" />
           <Zone i={2} icon={Thermometer} value={52} accent="#ff7a50" />
           <Zone i={3} icon={Fan} value={40} accent="#5aa9ff" />
@@ -126,7 +126,7 @@ export default function Hosts({ lang }: LangProps) {
   const from = b % 3
   const to = (b + 1) % 3
   const l = f - B
-  const all = pages(t, f)
+  const all = pages(t)
   const cur = all[from] ?? all[0]
   const next = all[to] ?? all[0]
   const names = [t.companion, t.app, t.server]

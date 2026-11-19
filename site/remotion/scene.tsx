@@ -75,7 +75,7 @@ export function Scene({
             style={{ position: 'absolute', left: -w * 0.1, top: -h * 0.1 }}
           >
             <defs>
-              {[AMBER, GREEN, RED, '#ffffff', '#9b7bff', '#5aa9ff', '#2bb3a6', '#000000'].map((c) => (
+              {[AMBER, GREEN, RED, '#ffffff', '#5aa9ff', '#2bb3a6', '#000000'].map((c) => (
                 <Glow key={c} c={c} />
               ))}
             </defs>

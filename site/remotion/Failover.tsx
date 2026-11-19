@@ -10,6 +10,7 @@ import {
   Deck,
   GREEN,
   INK,
+  KEY,
   Pool,
   SANS,
   rounded,
@@ -85,7 +86,7 @@ export default function Failover({ lang }: LangProps) {
   // The deck keeps its picture through the gap; the meters stand still until frames flow again.
   const still = f >= T.out && f < T.wifi + 2 ? T.out : f
   const meter = (i: number) => 45 + 30 * Math.sin((still / 330) * Math.PI * 2 * (2 + i) + i * 1.7)
-  const keys: Key[] = showKeys(t, still, 0).map((k, i) =>
+  const keys: Key[] = showKeys(t, 0).map((k, i) =>
     i === 6 ? { bg: '#0d0f12', glow: GREEN, art: <Meter v={[meter(0), meter(1), meter(2)]} /> } : k,
   )
   const port: Pt = [SW.x + SW.w / 2, SW.y]
@@ -171,7 +172,7 @@ export default function Failover({ lang }: LangProps) {
         strip={
           <>
             {ZONE_ICONS.map((icon, i) => (
-              <Zone key={i} i={i} icon={icon} value={meter(i)} accent={[AMBER, GREEN, '#9b7bff', '#5aa9ff'][i]} />
+              <Zone key={i} i={i} icon={icon} value={meter(i)} accent={KEY.audio.fg} />
             ))}
           </>
         }
