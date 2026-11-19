@@ -57,6 +57,8 @@ def drawing():
         yield
     finally:
         put_config({"satellite": cfg["satellite"], "controller": cfg["controller"], "host": cfg["host"]})
+        # a test that switches straight back would find this session still marked drawing, until it closes
+        wait(lambda: (x := satellite_source()) is None or x["connected"], 10)
 
 
 def test_companion_draws_keys_and_strip_parts(drawing):
@@ -74,7 +76,7 @@ def test_a_swipe_turns_the_page_and_back(drawing):
     swipe = {"touch": "swipe", "x": 700, "y": 430, "x2": 100, "y2": 430, "real": target}
     api("POST", "/api/input", json.dumps(swipe).encode())
     after = wait(lambda: (p := pictures()) != before and p, 5)
-    assert after, "the page did not change"
+    assert after, "the page did not change (the test Companion needs the surface's Horizontal Swipe Changes Page)"
     api("POST", "/api/input", json.dumps({**swipe, "x": 100, "x2": 700}).encode())
     assert wait(lambda: pictures() != after, 5), "the page did not change back"
 
