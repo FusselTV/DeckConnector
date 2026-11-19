@@ -89,6 +89,11 @@ describe('demo bridge', () => {
     expect(s.cfg.name).toBe('stage-deck')
   })
 
+  it('counts the password in bytes, as the firmware does', () => {
+    expect(putConfig(demo(), T0, { admin_pass: 'äöü' }).status).toBe(200)
+    expect(putConfig(demo(), T0, { admin_pass: 'ä'.repeat(12) }).status).toBe(400)
+  })
+
   it('keeps the events through a restart, marked as an earlier boot, and pages them newest first', () => {
     const s = demo()
     const before = (call(s, 'GET', '/api/events').body as EventPage).events.length

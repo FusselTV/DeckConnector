@@ -1,5 +1,6 @@
 import { DO, INPUT, withUi, type UiModel } from './deck-ui'
 import type { api } from '../api/client'
+import { passwordError } from '../lib/validate'
 import type {
   Config,
   ConfigPatch,
@@ -689,7 +690,7 @@ const bad = (status: number, error: string, code?: string): Reply => ({ status, 
 /** PUT /api/config. A change outside LIVE restarts the bridge, like the firmware. */
 export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   if (p.name !== undefined && !NAME.test(p.name)) return bad(400, 'name: 1 to 31 letters, digits and dashes')
-  if (p.admin_pass !== undefined && (p.admin_pass.length < 6 || p.admin_pass.length > 23))
+  if (p.admin_pass !== undefined && (!p.admin_pass || passwordError(p.admin_pass)))
     return bad(400, 'admin_pass: 6 to 23 characters')
   if (p.servers && p.servers.some((u) => u && !/^wss?:\/\/\S+$/.test(u))) return bad(400, 'servers: ws:// or wss://')
   if (p.brightness !== undefined && (p.brightness < 0 || p.brightness > 100)) return bad(400, 'brightness: 0 to 100')
