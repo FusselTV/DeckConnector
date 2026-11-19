@@ -391,12 +391,11 @@ bool db_config_bssid(const char *text, uint8_t out[6])
     return true;
 }
 
+/* lwip reads a leading zero as octal: "010" would apply .8, "08" no address at all */
 static bool valid_ip(const char *s)
 {
-    unsigned a, b, c, d;
-    char end;
-    return s[0] == '\0' ||
-           (sscanf(s, "%3u.%3u.%3u.%3u%c", &a, &b, &c, &d, &end) == 4 && (a | b | c | d) < 256);
+    uint32_t ip;
+    return s[0] == '\0' || db_ipv4(s, strlen(s), &ip);
 }
 
 bool db_config_wifi_pass_ok(const char *p)
