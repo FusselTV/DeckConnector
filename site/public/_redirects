@@ -3,3 +3,5 @@
 /de/privacy/* /de/datenschutz/:splat 301
 /impressum/* /imprint/:splat 301
 /datenschutz/* /privacy/:splat 301
+/de/contact/* /de/kontakt/:splat 301
+/kontakt/* /contact/:splat 301

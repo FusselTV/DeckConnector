@@ -97,9 +97,14 @@ export class Reader {
       const end = 9 + (this.buf[8] ?? 0) + 1
       if (this.buf.length < end) return packets
       const pk = this.buf.subarray(0, end)
-      this.buf = this.buf.slice(end)
       const sum = pk.subarray(0, end - 1).reduce((a, b) => a + b, 0) & 0xff
-      if (pk[6] === 1 && sum === pk[end - 1]) packets.push({ type: pk[7] ?? 0, data: pk.slice(9, end - 1) })
+      // A damaged frame gives up only its first byte: its length may reach into the next real frame.
+      if (pk[6] !== 1 || sum !== pk[end - 1]) {
+        this.buf = this.buf.slice(1)
+        continue
+      }
+      packets.push({ type: pk[7] ?? 0, data: pk.slice(9, end - 1) })
+      this.buf = this.buf.slice(end)
     }
   }
 
@@ -175,8 +180,9 @@ export class Improv {
   async ask(packet: Uint8Array, until: Until, timeoutMs = 5000): Promise<Packet[]> {
     const got: Packet[] = []
     let waiter: (p: Packet) => void = () => undefined
+    let timer: ReturnType<typeof setTimeout> | undefined
     const done = new Promise<Packet[]>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new ImprovError(-1)), timeoutMs)
+      timer = setTimeout(() => reject(new ImprovError(-1)), timeoutMs)
       waiter = (p) => {
         got.push(p)
         if (p.type === ERROR && p.data[0]) {
@@ -193,6 +199,7 @@ export class Improv {
       await this.write(packet)
       return await done
     } finally {
+      clearTimeout(timer)
       this.waiters.delete(waiter)
     }
   }

@@ -1,4 +1,4 @@
-import { check, mime, type Form } from './mail'
+import { check, limitKey, mime, type Form } from './mail'
 import { send } from './smtp'
 
 type Env = {
@@ -19,9 +19,7 @@ export default {
     if (req.headers.get('Origin') !== env.ORIGIN) return json({ error: 'origin' }, 403)
     // Content-Length first: req.text() would buffer any size. Missing counts as too big.
     if (!(Number(req.headers.get('Content-Length') ?? Infinity) <= 20_000)) return json({ error: 'size' }, 413)
-    const ip = req.headers.get('CF-Connecting-IP') ?? ''
-    // An IPv6 host owns its whole /64.
-    const { success } = await env.LIMIT.limit({ key: ip.includes(':') ? ip.split(':').slice(0, 4).join(':') : ip })
+    const { success } = await env.LIMIT.limit({ key: limitKey(req.headers.get('CF-Connecting-IP') ?? '') })
     if (!success) return json({ error: 'rate' }, 429)
     const raw = await req.text()
     if (raw.length > 20_000) return json({ error: 'size' }, 413)
