@@ -63,8 +63,8 @@ def dismiss_prompt(sim: SimDeck, n: int = 0) -> None:
 
 
 def pictures(sim: SimDeck, n: int) -> dict[Path, tuple[int, int]]:
-    """Each picture file of deck n by inode and mtime. The emulator renames a new file over the old one, so a new
-    picture is a new inode. File times come from a coarse kernel clock and may lie before time.time()."""
+    """The emulator renames a new file over the old one, so a new picture is a new inode. File times come from a
+    coarse kernel clock and can be earlier than time.time()."""
     return {
         f: (st.st_ino, st.st_mtime_ns)
         for f in (sim.decks / str(n)).iterdir()
