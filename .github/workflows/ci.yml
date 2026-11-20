@@ -137,12 +137,12 @@ jobs:
       - if: matrix.project == 'contract'
         run: |
           (cd web && npx vite build) # the simulator embeds the page from web/dist
-          .github/scripts/idf.sh 'idf.py -C firmware/sim build'
+          .github/scripts/idf.sh 'idf.py -C firmware/simdeck build'
       # four runners share each VM, so each takes ports from its number (gh-runner-1-1 5192 ... gh-runner-1-4 5195)
       - run: |
           n=$((${RUNNER_NAME##*[!0-9]} % 1000)) # a GitHub-hosted runner's name ends in a long number
           [ "${{ matrix.project }}" = contract ] || export DC_NO_SIM=1
-          cd web && DC_DEMO_PORT=$((5191 + n)) DC_SIM_PORT=$((18230 + n)) npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
+          cd web && DC_DEMO_PORT=$((5191 + n)) DC_SIM_PORT=$((18230 + n)) ../.github/scripts/netns.sh npx playwright test -c playwright.demo.config.ts --project "${{ matrix.project }}"
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
