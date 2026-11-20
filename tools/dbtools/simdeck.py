@@ -146,16 +146,23 @@ class SimDeck:
         return self.status()["decks"][n]["serial"]
 
     def screen(self, n: int) -> tuple[Image.Image, dict]:
-        """Deck n's picture as /api/screen describes it, and that description."""
-        code, body = self.api("GET", f"/api/screen?deck={self.serial(n)}")
-        assert code == 200, body
-        desc = json.loads(body)
-        img = Image.new("RGB", (desc["width"], desc["height"]))
-        for shot in desc["images"]:
-            code, jpg = self.api("GET", shot["url"])
-            assert code == 200, (shot, jpg)
-            img.paste(Image.open(io.BytesIO(jpg)).convert("RGB"), (shot["x"], shot["y"]))
-        return img, desc
+        """Deck n's picture as /api/screen describes it, and that description. A host still drawing replaces
+        images between the description and their download; then the whole read starts again."""
+        for _ in range(50):
+            code, body = self.api("GET", f"/api/screen?deck={self.serial(n)}")
+            assert code == 200, body
+            desc = json.loads(body)
+            img = Image.new("RGB", (desc["width"], desc["height"]))
+            for shot in desc["images"]:
+                code, jpg = self.api("GET", shot["url"])
+                if b"no longer shown" in jpg:
+                    break
+                assert code == 200, (shot, jpg)
+                img.paste(Image.open(io.BytesIO(jpg)).convert("RGB"), (shot["x"], shot["y"]))
+            else:
+                return img, desc
+            time.sleep(0.05)
+        raise AssertionError(f"deck {n} kept changing while its picture was read")
 
     def shown(self, n: int) -> dict[str, Image.Image]:
         """What deck n took over USB, by file name, turned as it was sent."""
