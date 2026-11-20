@@ -1,6 +1,6 @@
 // node ha-gif.mjs <en|de> <frame dir>: a dashboard while the deck is pressed; prints the crop for gif.sh.
 import { chromium, CURSOR, mouse, recorder } from './lib.mjs'
-import { BOARD, HA, hass, login, setLanguage, themed, waitForTheme } from './ha-shots.mjs'
+import { BOARD, cardBox, HA, hass, login, setLanguage, themed, waitForTheme } from './ha-shots.mjs'
 
 const SCENES = [
   ['hold', 1200],
@@ -45,16 +45,7 @@ await waitForTheme(page, true)
 const picture = page.locator('hui-picture-entity-card img').first()
 await page.waitForFunction((img) => img.complete && img.naturalWidth > 0, await picture.elementHandle())
 await page.waitForTimeout(1000)
-const crop = await page.evaluate(() => {
-  const found = []
-  const walk = (n) => {
-    if (n.matches?.('hui-picture-entity-card, hui-tile-card')) found.push(n.getBoundingClientRect())
-    ;[...(n.shadowRoot?.children ?? []), ...n.children].forEach(walk)
-  }
-  walk(document.body)
-  const [x, y] = [Math.min(...found.map((r) => r.left)), Math.min(...found.map((r) => r.top))]
-  return [Math.max(...found.map((r) => r.right)) - x, Math.max(...found.map((r) => r.bottom)) - y, x, y].map(Math.round)
-})
+const crop = await cardBox(page, 'hui-picture-entity-card, hui-tile-card')
 const m = mouse(page)
 await m.park([300, 440])
 const rec = await recorder(ctx, page, dir)

@@ -21,3 +21,9 @@ for lang in en de; do
   [ -n "$crop" ]
   tools/media/gif.sh "$WORK/gif-$lang/list.txt" "$crop" 860 "site/public/docs/ha-live-$lang.gif"
 done
+out=$(node tools/media/sync-gif.mjs "http://127.0.0.1:$PORT/" "$WORK/sync")
+o=.github/assets/sync.gif
+ffmpeg -loglevel error -y -f concat -safe 0 -i "$WORK/sync/web/list.txt" -f concat -safe 0 -i "$WORK/sync/ha/list.txt" \
+  -filter_complex "$(printf '%s\n' "$out" | tail -1),split[c][d];[c]palettegen=max_colors=128:stats_mode=full[p];[d][p]paletteuse=dither=none:diff_mode=rectangle" \
+  -loop 0 "$o"
+echo "$o: $(stat -c %s "$o") bytes, $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$o") s"

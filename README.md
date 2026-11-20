@@ -28,6 +28,9 @@
     <td valign="top"><img src=".github/assets/ha-connector.webp" width="384" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after and screen saver brightness"></td>
     <td valign="top"><img src=".github/assets/ha-screen.webp" width="330" alt="The deck picture in Home Assistant"><br><img src=".github/assets/ha-deck.webp" width="330" alt="A deck in Home Assistant: screen picture, source and the controls event"></td>
   </tr>
+  <tr>
+    <td colspan="2" align="center"><img src=".github/assets/sync.gif" width="828" alt="The volume and the brightness change in the web UI, and Home Assistant follows at the same moment"></td>
+  </tr>
 </table>
 
 - Companion connects over Satellite or as a Network Dock. The Elgato App sees a Network Dock.
