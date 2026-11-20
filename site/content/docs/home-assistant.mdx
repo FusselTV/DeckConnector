@@ -90,7 +90,7 @@ The [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) shows 
 ## Good to know
 
 - Home Assistant talks to the connector over plain HTTP on port 80.
-- Presses from the web page or a script never reach Home Assistant. Home Assistant never presses anything on the deck.
+- Presses from the live deck on the web page reach Home Assistant. Presses from a script reach it only with `"real": true`. Home Assistant never presses anything on the deck.
 - After a firmware update the integration loads again by itself, so new entities appear.
 - The logger is `custom_components.deckconnector`.
 

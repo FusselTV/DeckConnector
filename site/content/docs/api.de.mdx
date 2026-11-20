@@ -78,7 +78,7 @@ Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im St
 | `POST /api/passkeys/challenge` | `{"login": true}` für eine Anmeldung, `false` für einen neuen Passkey. Antwortet `{"challenge": "<hex>"}`. Gilt einmal, 2 Minuten lang, von dieser Adresse. 30 je 10 s und Adresse, sonst 429. Nur per HTTPS unter einem Namen, sonst 403 | open |
 | `POST /api/login/passkey` | Die Antwort von `navigator.credentials.get()`, mit `id`, `clientDataJSON`, `authenticatorData` und `signature` in base64url. Der Passkey muss den Nutzer prüfen. Setzt das Sitzungs-Cookie. Ein abgelehnter Passkey zählt wie ein falsches Passwort, eine unbekannte oder benutzte Challenge nicht | open |
 | `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck, 429 mit `paused` | open |
-| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}`. 429 mit `paused` | open |
+| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}`. 409 ohne Deck, 429 mit `paused` | open |
 | `DELETE /api/password/reset` | Beendet die Frage | open |
 
 Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
@@ -287,7 +287,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `temp_c` | Die Chiptemperatur in °C. Fehlt bis zur ersten Messung |
 | `https_ca` | Der Kurzcode der CA des Connectors, siehe [HTTPS](/de/docs/security#https). Leer mit eigenem Zertifikat, dann ist `https_custom` true |
 
-Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
+Der Status hat außerdem `api`, `simulated_input`, `boot_ms`, `memory`, `https_fingerprint` und `https_custom_unread` sowie Kopien der Einstellungen `volume`, `screen_off_s`, `screen_dim` und `max_decks`.
 
 ## Bild
 
@@ -344,7 +344,7 @@ Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, di
 
 | `t` | Wann |
 |---|---|
-| `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal und Zähler |
+| `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal, Zähler, `temp_c`, `boot_ms`, `memory`, `via_ap` und `pairing.open_s` |
 | `screen` | Das Bild des Decks in `deck` (seine Seriennummer) hat sich geändert |
 | `input` | Jemand hat das Deck in `deck` benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
 | `ota` | Update-Fortschritt mit `target`, `state`, `pct` und `error` |

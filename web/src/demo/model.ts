@@ -1357,9 +1357,8 @@ export function makeToken(s: Demo, name: string, right: 'control' | 'full'): Rep
   return res('makeToken', { name, right, token: `dc_${tok}` })
 }
 
-/** What a reset confirmed on the deck does: every setting goes, the bridge restarts into setup with a new
- *  password on the deck. */
-function factoryReset(s: Demo, now: number) {
+/** db_ui_factory_reset: every setting goes, the bridge restarts into setup with a new password on the deck. */
+export function factoryReset(s: Demo, now: number) {
   const f = fresh(now, { setup: true })
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'
   const pass = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => abc[b % abc.length]).join('')
@@ -1371,6 +1370,7 @@ function factoryReset(s: Demo, now: number) {
     claimed: false,
     requested: true,
     tls: false,
+    pagePartition: null,
     matter: f.matter,
     setupStep: 0,
   })

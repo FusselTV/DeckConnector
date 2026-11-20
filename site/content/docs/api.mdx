@@ -78,7 +78,7 @@ Routes that act on a deck take `?deck=<serial>` from `decks` in the status. With
 | `POST /api/passkeys/challenge` | `{"login": true}` for a login, `false` for a new passkey. Answers `{"challenge": "<hex>"}`. It works once, for 2 minutes, from this address. 30 per 10 s and address, else 429. Over HTTPS by name only, else 403 | open |
 | `POST /api/login/passkey` | The reply of `navigator.credentials.get()`, with `id`, `clientDataJSON`, `authenticatorData` and `signature` in base64url. The passkey must verify the user. Sets the session cookie. A refused passkey counts like a wrong password, an unknown or used challenge does not | open |
 | `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck, 429 with `paused` | open |
-| `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}`. 429 with `paused` | open |
+| `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}`. 409 without a deck, 429 with `paused` | open |
 | `DELETE /api/password/reset` | Ends the question | open |
 
 The `open` routes that do something need `X-DeckConnector: 1`.
@@ -287,7 +287,7 @@ A refused value gets 400 with the reason, and the connector saves nothing. The r
 | `temp_c` | The chip temperature in °C. Missing until the first reading |
 | `https_ca` | The short code of the connector's CA, see [HTTPS](/docs/security#https). Empty with your own certificate, then `https_custom` is true |
 
-The status also has `boot_ms`, `memory` and `https_fingerprint`.
+The status also has `api`, `simulated_input`, `boot_ms`, `memory`, `https_fingerprint` and `https_custom_unread`, and copies of the settings `volume`, `screen_off_s`, `screen_dim` and `max_decks`.
 
 ## Screen
 
@@ -344,7 +344,7 @@ Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host i
 
 | `t` | When |
 |---|---|
-| `state` | At once, then on every change. The status without uptime, signal and counters |
+| `state` | At once, then on every change. The status without uptime, signal, counters, `temp_c`, `boot_ms`, `memory`, `via_ap` and `pairing.open_s` |
 | `screen` | The picture of the deck in `deck` (its serial) changed |
 | `input` | Someone used the deck in `deck`. `simulated` is true for an API press without `"real"`. An API key never gets simulated presses |
 | `ota` | Update progress: `target`, `state`, `pct`, and `error` |
