@@ -4,13 +4,17 @@ import asyncio
 from collections.abc import AsyncIterator
 import contextlib
 import json
+import socket
+import struct
 from typing import Any
 
 import aiohttp
+import yarl
 
 MARK = {"X-DeckConnector": "1"}
 TIMEOUT = aiohttp.ClientTimeout(total=15)
 PCM_RATE = 16000 * 2  # bytes per second the board's speaker plays
+ENDLESS = 2**31 - 1  # Content-Length of a stream, 18 h: the board takes no chunked body; 2**32 - 1 reads as -1 there
 
 
 class DeckConnectorError(Exception):
@@ -56,16 +60,28 @@ async def _call(
         if resp.status == 403 and "HTTPS only" in text:
             raise HttpsOnlyError(text) from err
         raise DeckConnectorError(f"HTTP {resp.status}: not JSON") from err
-    error = body.get("error", f"HTTP {resp.status}") if isinstance(body, dict) else f"HTTP {resp.status}"
-    if resp.status == 401:
-        raise AuthError(error)
-    if resp.status == 409:
-        raise ConflictError(error)
-    if resp.status == 429:
-        raise PausedError(error)
-    if resp.status >= 400:
-        raise DeckConnectorError(error)
+    _raise_for(resp.status, body)
     return body, resp
+
+
+def _raise_for(status: int, body: Any) -> None:
+    error = body.get("error", f"HTTP {status}") if isinstance(body, dict) else f"HTTP {status}"
+    if status == 401:
+        raise AuthError(error)
+    if status == 409:
+        raise ConflictError(error)
+    if status == 429:
+        raise PausedError(error)
+    if status >= 400:
+        raise DeckConnectorError(error)
+
+
+async def _read_all(reader: asyncio.StreamReader) -> bytes:
+    got = b""
+    with contextlib.suppress(OSError):  # the board resets a connection it stopped reading: keep what came
+        while chunk := await reader.read(4096):
+            got += chunk
+    return got
 
 
 class Api:
@@ -77,30 +93,53 @@ class Api:
     async def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
         return (await _call(self.session, method, f"http://{self.host}{path}", json=body, headers=self.headers))[0]
 
-    async def play(self, pcm: bytes) -> bool:
-        """Plays 16 kHz mono s16le on the board's speaker; returns when it has played, False when something on
-        the board ended it early."""
-
-        async def paced() -> AsyncIterator[bytes]:
-            # a second ahead of the speaker: the board buffers three, and what it cannot take yet would wait in
-            # its scarce network buffers
-            start = asyncio.get_running_loop().time()
-            for at in range(0, len(pcm), PCM_RATE // 5):
-                ahead = at / PCM_RATE - (asyncio.get_running_loop().time() - start) - 1
-                if ahead > 0:
-                    await asyncio.sleep(ahead)
-                yield pcm[at : at + PCM_RATE // 5]
-
-        # Content-Length set: the board takes no chunked body
-        headers = {**self.headers, "Content-Length": str(len(pcm)), "Content-Type": "application/octet-stream"}
-        body, _ = await _call(
-            self.session,
-            "POST",
-            f"http://{self.host}/api/sound/stream",
-            data=paced(),
-            headers=headers,
-            timeout=aiohttp.ClientTimeout(total=len(pcm) / PCM_RATE + 30),
-        )
+    async def play(self, pcm: AsyncIterator[bytes]) -> bool:
+        """Plays 16 kHz mono s16le on the board's speaker as it comes; returns when it has played, False when
+        something on the board ended it early. Cancelled, it stops the speaker at once."""
+        url = yarl.URL(f"http://{self.host}")
+        try:
+            async with asyncio.timeout(TIMEOUT.total):
+                reader, writer = await asyncio.open_connection(url.host, url.port)
+        except (OSError, TimeoutError) as err:
+            raise DeckConnectorError(str(err) or type(err).__name__) from err
+        answer = asyncio.create_task(_read_all(reader))
+        try:
+            writer.write(
+                f"POST /api/sound/stream HTTP/1.1\r\nHost: {self.host}\r\n"
+                f"Authorization: {self.headers['Authorization']}\r\n"
+                f"Content-Type: application/octet-stream\r\nContent-Length: {ENDLESS}\r\n\r\n".encode()
+            )
+            loop = asyncio.get_running_loop()
+            start, sent = loop.time(), 0
+            with contextlib.suppress(OSError):  # the board ended it: its answer says why
+                async for chunk in pcm:
+                    # a second ahead of the speaker: the board buffers three, and what it cannot take yet would
+                    # wait in its scarce network buffers
+                    if (ahead := sent / PCM_RATE - (loop.time() - start) - 1) > 0:
+                        await asyncio.sleep(ahead)
+                    if answer.done():
+                        break
+                    writer.write(chunk)
+                    await writer.drain()
+                    sent += len(chunk)
+                else:
+                    writer.write_eof()
+            async with asyncio.timeout(15):  # the board plays what it holds, at most 3 s, then answers
+                got = await answer
+        except TimeoutError as err:
+            raise DeckConnectorError("no answer after the stream") from err
+        finally:
+            answer.cancel()
+            if not writer.transport.is_closing():
+                # a reset, not a close: the board would play the rest of its buffer after a close
+                writer.get_extra_info("socket").setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+                writer.transport.abort()
+        head, _, text = got.partition(b"\r\n\r\n")
+        try:
+            status, body = int(head.split()[1]), json.loads(text)
+        except (IndexError, ValueError) as err:
+            raise DeckConnectorError("the board gave no answer") from err
+        _raise_for(status, body)
         return not body.get("stopped")
 
     async def status(self) -> dict[str, Any]:
