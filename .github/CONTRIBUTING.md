@@ -26,11 +26,40 @@ with that key.
 
 ## Firmware
 
-`db_core` compiles on a PC, and its tests run with AddressSanitizer. A new model of a known deck family is one table
-row in its driver. A new vendor is one driver file and one line in `db_driver.c`.
+`db_core` compiles on a PC, and its tests run with AddressSanitizer. A new vendor is one driver file in
+`db_core/drivers` and one line in `db_driver.c`.
 
 One source draws on the deck at a time. The menu and an update come first, then the chosen host, else the home
 screen. `db_deck` keeps the newest image per area for every source, so a host that gets the deck back shows at once.
+
+### Add a setting
+
+- `db_config.h`: append the field to `db_config_t`, never insert. `db_config.c`: `CONFIG_VERSION` and its migration,
+  `defaults()`, `db_config_to_json`, `take_scalars`.
+- `api.c` `config_edit`: copy the field into `live` when it applies at once. Without that line every change of it
+  restarts the bridge.
+- `main.c` `write_status` when Home Assistant needs it. It reads `/api/status`, not the config.
+  `firmware/sim/main/main.c` has its own copy of the status.
+- Web UI: `api/types.ts`, `WRITABLE` in `lib/backup.ts` and `RESTARTS` when it restarts, the config, status and
+  `LIVE` of the demo in `demo/model.ts`, the page, the restore labels in `pages/Firmware.tsx`, both `i18n` files.
+- Home Assistant: the entity in `custom_components/deckconnector`, `translations/*.json`, `icons.json`,
+  `STATUS` in `tools/ha/tests/conftest.py`.
+- Docs: `site/content/docs/api.mdx` and `api.de.mdx`.
+
+`web/e2e-demo/contract.spec.ts` fails when the JSON, the demo or the live lists miss the field.
+
+### Add a deck model
+
+- The driver: a row in `models` of `elgato_gen2.c`. The Mini family is in `elgato_gen1.c`, Mirabox decks in
+  `mirabox.c`.
+- `db_cora_model()` in `db_cora.c`: the name the Network Dock reports.
+- `db_quirks.c` when the deck needs other wait times. `pad()` in `screens.c` when its grid has no PIN pad.
+- Host tests: `deck_models` in `host_test/deck_emu.c`, the hash per PID in `test_sat.c`, `decks` in `test_ui.c`.
+- simdeck: `MODELS` in `tools/dbtools/simdeck.py`, `EXPECT` in `tools/simdeck/test_models.py`, the lists in
+  `tools/simdeck/conftest.py`.
+- Web UI: `MODELS` and `modelOf()` in `web/src/deck/models.ts`.
+- Site: `hardware.mdx` and `matter.mdx` in both languages, `site/components/compare/data.ts`,
+  `site/components/landing/copy.ts`.
 
 ## Tests
 
