@@ -36,7 +36,7 @@ def entities(hass, entry):
 
 @pytest.mark.parametrize(
     ("decks", "count"),
-    [((), 16), ((PLUS,), 21), ((PLUS, XL), 26)],
+    [((), 15), ((PLUS,), 20), ((PLUS, XL), 25)],
 )
 async def test_entity_count(hass: HomeAssistant, entry, aioclient_mock, socket, decks, count):
     await setup(hass, entry, aioclient_mock, socket, *decks)
@@ -196,8 +196,8 @@ async def test_the_same_deck_on_two_boards_gets_entities_on_both(hass, entry, ai
     other.add_to_hass(hass)
     assert await hass.config_entries.async_setup(other.entry_id)
     await hass.async_block_till_done()
-    assert len(entities(hass, entry)) == 21
-    assert len(entities(hass, other)) == 21
+    assert len(entities(hass, entry)) == 20
+    assert len(entities(hass, other)) == 20
 
 
 async def test_a_deck_in_another_slot_keeps_its_entities(hass, entry, aioclient_mock, socket):
@@ -207,7 +207,7 @@ async def test_a_deck_in_another_slot_keeps_its_entities(hass, entry, aioclient_
     await hass.async_block_till_done()
     assert before <= {e.entity_id for e in entities(hass, entry)}
     assert hass.states.get("event.stream_deck_controls").state == STATE_UNKNOWN
-    assert len(entities(hass, entry)) == 26
+    assert len(entities(hass, entry)) == 25
 
 
 async def test_a_refused_command_is_a_translated_error(hass, entry, aioclient_mock, socket):

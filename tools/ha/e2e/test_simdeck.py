@@ -232,7 +232,7 @@ async def test_the_speaker_setting_adds_and_removes_its_entities(sim, ha):
             return {e["entity_id"] for e in found if e["platform"] == "deckconnector"}
 
         def speaker_ids(ids) -> set[str]:
-            return {i for i in ids if i.endswith(("_volume", "_find"))}
+            return {i for i in ids if i.endswith(("_speaker", "_find"))}
 
         assert not speaker_ids(await registry()), "a new connector has no speaker"
         for on in (True, False, True):

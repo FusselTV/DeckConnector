@@ -10,8 +10,8 @@ Die DeckConnector-Integration holt den Connector und jedes Deck daran in [Home A
 <table>
 <tbody>
   <tr>
-    <td width="50%" valign="top"><Shot src="ha-board-de" alt="Der Connector in Home Assistant: Bildschirm, Finden, Helligkeit, Lautsprecher, Bildschirm aus nach, Bildschirmschoner-Helligkeit, Lautstärke, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={392} height={912} /></td>
-    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, PIN-Sperre, Quelle, Ereignis Bedienung und Neu verbinden" width={392} height={530} /><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Quelle und Bedienung" width={532} height={622} /></td>
+    <td width="50%" valign="top"><Shot src="ha-board-de" alt="Der Connector in Home Assistant: Bildschirm, Finden, Helligkeit, Lautsprecher, Bildschirm aus nach, Bildschirmschoner-Helligkeit, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={392} height={864} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Quelle und Ereignis Bedienung" width={392} height={343} /><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Quelle und Bedienung" width={532} height={622} /></td>
   </tr>
 </tbody>
 </table>
@@ -41,10 +41,10 @@ Diese sind zuerst deaktiviert. Schalte sie am Gerät ein, wenn du sie brauchst:
 
 - **WLAN-Signal**, **WLAN-Netz** und **Letzter Neustart** des Connectors.
 - Das Update **Firmware**. Damit fragt der Connector alle 6 Stunden bei GitHub nach neuen Versionen.
-- **PIN-Sperre** eines Decks. Sie zeigt **Verriegelt**, solange Companion das Deck mit seiner PIN sperrt. Ihre zwei Auslöser erscheinen auch als Tasten in einer HomeKit Bridge.
+- **PIN-Sperre** eines Decks. Sie zeigt die PIN-Sperre von Companion.
 - **Neu verbinden** eines Decks. Es schaltet den USB-Anschluss aus und wieder ein, für ein Deck, das hängt.
 
-**Lautstärke**, **Finden** und den Mediaplayer **Lautsprecher** gibt es nur, solange **Lautsprecher angeschlossen** in der Weboberfläche an ist. Ändert sich das, kommen und gehen sie von selbst. **Bildschirm aus nach** ist in Minuten, 0 heißt nie. **Bildschirmschoner-Helligkeit** ist die Stufe, auf die die Decks nach dieser Zeit dimmen. 0 schaltet sie aus.
+**Finden** und den Mediaplayer **Lautsprecher** gibt es nur, solange **Lautsprecher angeschlossen** in der Weboberfläche an ist. Ändert sich das, kommen und gehen sie von selbst. **Bildschirm aus nach** ist in Minuten, 0 heißt nie. **Bildschirmschoner-Helligkeit** ist die Stufe, auf die die Decks nach dieser Zeit dimmen. 0 schaltet sie aus.
 
 Der **Lautsprecher** spielt Sprachausgabe und Audiodateien aus dem Medienbrowser. Home Assistant wandelt sie mit ffmpeg um, also geht jedes Format, das ffmpeg liest. Der Ton ist mono mit 16 kHz. Webradio und Music Assistant gehen auch und spielen, bis du sie stoppst. Ein neues Stück oder **Finden** beendet das laufende.
 

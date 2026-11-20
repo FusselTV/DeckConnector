@@ -5,8 +5,6 @@ import { chromium } from './lib.mjs'
 export const HA = 'http://127.0.0.1:18140'
 export const BOARD = 'http://127.0.0.1:18141'
 const VARIANTS = ['en-dark', 'en-light', 'de-dark', 'de-light']
-// shown on the device pages although they start disabled
-const ENABLE = ['binary_sensor.stream_deck_pin_lock', 'button.stream_deck_reconnect']
 const DASHBOARD_NAMES = { en: ['Brightness', 'Screen', 'Source', 'Controls'], de: ['Helligkeit', 'Bildschirm', 'Quelle', 'Bedienung'] }
 
 export async function login(browser) {
@@ -57,7 +55,7 @@ async function clip(page, boxes, path, margin = 16) {
   await page.screenshot({ path, clip: { x, y, width, height } })
 }
 
-// the cards in the device page's middle column, without "+n disabled entities"
+// the cards in the device page's middle column, without "+n disabled entities" and a card that only had those
 async function cards(page) {
   await page.evaluate(() => {
     const walk = (root) => {
@@ -70,7 +68,12 @@ async function cards(page) {
   })
   await page.waitForTimeout(400)
   const els = await page.locator('ha-config-device-page .column').nth(1).locator(':scope > *').all()
-  return (await Promise.all(els.map((el) => el.boundingBox()))).filter((b) => b && b.height > 0)
+  const shown = []
+  for (const el of els) {
+    const entities = (await el.evaluate((e) => e.tagName)) === 'HA-DEVICE-ENTITIES-CARD'
+    if (!entities || (await el.locator('ha-state-icon, state-badge').count())) shown.push(el)
+  }
+  return (await Promise.all(shown.map((el) => el.boundingBox()))).filter((b) => b && b.height > 0)
 }
 
 async function dashboard(page, names) {
@@ -102,10 +105,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   mkdirSync(out, { recursive: true })
   const browser = await chromium.launch()
   const main = await login(browser)
-  await hass(main, async ([ids]) => {
-    const h = document.querySelector('home-assistant').hass
-    for (const entity_id of ids) await h.callWS({ type: 'config/entity_registry/update', entity_id, disabled_by: null })
-  }, ENABLE)
   const dev = await devices(main)
   const state = await main.context().storageState()
 

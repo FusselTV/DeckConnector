@@ -210,9 +210,6 @@
       },
       "screen_dim": {
         "name": "Screen saver brightness"
-      },
-      "volume": {
-        "name": "Volume"
       }
     },
     "select": {

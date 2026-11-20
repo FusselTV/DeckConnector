@@ -55,17 +55,6 @@ NUMBERS = (
         payload=lambda v: {"screen_dim": round(v / 10) * 10},
         exists=lambda d: "screen_dim" in d,
     ),
-    BoardNumberDescription(
-        key="volume",
-        entity_category=EntityCategory.CONFIG,
-        native_unit_of_measurement=PERCENTAGE,
-        native_min_value=0,
-        native_max_value=100,
-        native_step=1,
-        value=lambda d: d.get("volume"),
-        payload=lambda v: {"volume": round(v)},
-        exists=lambda d: bool(d.get("speaker")) and "volume" in d,
-    ),
 )
 
 

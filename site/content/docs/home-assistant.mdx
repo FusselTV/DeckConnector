@@ -10,8 +10,8 @@ The DeckConnector integration brings the connector and every deck on it into [Ho
 <table>
 <tbody>
   <tr>
-    <td width="50%" valign="top"><Shot src="ha-board" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after, screen saver brightness, volume, backup Wi-Fi, Ethernet and temperature" width={392} height={912} /></td>
-    <td width="50%" valign="top"><Shot src="ha-deck" alt="A deck in Home Assistant: PIN lock, screen picture, source, controls event and reconnect" width={392} height={530} /><Shot src="ha-dashboard" alt="A dashboard with the deck picture, brightness, screen, source and controls" width={532} height={622} /></td>
+    <td width="50%" valign="top"><Shot src="ha-board" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after, screen saver brightness, backup Wi-Fi, Ethernet and temperature" width={392} height={864} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck" alt="A deck in Home Assistant: screen picture, source and controls event" width={392} height={343} /><Shot src="ha-dashboard" alt="A dashboard with the deck picture, brightness, screen, source and controls" width={532} height={622} /></td>
   </tr>
 </tbody>
 </table>
@@ -41,10 +41,10 @@ These start disabled. Turn them on under the device if you need them:
 
 - **Wi-Fi signal**, **Wi-Fi network** and **Last restart** of the connector.
 - **Firmware** update. With it on, the connector asks GitHub for new releases every 6 hours.
-- **PIN lock** of a deck. It shows **Locked** while Companion locks the deck with its PIN. Its two triggers also show up as buttons in a HomeKit bridge.
+- **PIN lock** of a deck. It mirrors Companion's PIN lock.
 - **Reconnect** of a deck. It turns the USB port off and on, for a deck that hangs.
 
-**Volume**, **Find** and the **Speaker** media player exist only while **Speaker connected** is on in the web UI. They come and go by themselves when it changes. **Screen off after** is in minutes, 0 means never. **Screen saver brightness** is the level the decks dim to after that time. 0 turns them off.
+**Find** and the **Speaker** media player exist only while **Speaker connected** is on in the web UI. They come and go by themselves when it changes. **Screen off after** is in minutes, 0 means never. **Screen saver brightness** is the level the decks dim to after that time. 0 turns them off.
 
 The **Speaker** plays text to speech and audio files from the media browser. Home Assistant converts them with ffmpeg, so every format ffmpeg reads works. Sound is mono at 16 kHz. Web radio and Music Assistant work too and play until you stop them. A new clip or **Find** stops the one that plays.
 

@@ -25,15 +25,18 @@ async def push(hass, socket, **changes):
 async def test_board_settings_show_and_go_to_the_board(hass, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     assert hass.states.get(f"number.{BOARD}_screen_off_after").state == "10.0"
-    assert hass.states.get(f"number.{BOARD}_volume").state == "30"
     aioclient_mock.put(f"http://{HOST}/api/config", json={"ok": True})
     await hass.services.async_call(
         "number", "set_value", {"entity_id": f"number.{BOARD}_screen_off_after", "value": 0}, blocking=True
     )
-    await hass.services.async_call(
-        "number", "set_value", {"entity_id": f"number.{BOARD}_volume", "value": 55}, blocking=True
-    )
-    assert [c[2] for c in aioclient_mock.mock_calls[-2:]] == [{"screen_off_s": 0}, {"volume": 55}]
+    assert aioclient_mock.mock_calls[-1][2] == {"screen_off_s": 0}
+
+
+async def test_the_old_volume_number_leaves_the_registry(hass, entry, aioclient_mock, socket):
+    reg = er.async_get(hass)
+    reg.async_get_or_create("number", "deckconnector", f"{STATUS['id']}_volume")
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    assert reg.async_get_entity_id("number", "deckconnector", f"{STATUS['id']}_volume") is None
 
 
 async def test_the_screen_saver_dims_to_a_level_in_tens(hass, entry, aioclient_mock, socket):
@@ -107,7 +110,7 @@ async def test_older_firmware_gets_no_entities_it_cannot_feed(hass, entry, aiocl
     await socket.queue.put({"t": "state", **old})
     await hass.async_block_till_done()
     ids = {e.entity_id for e in entities(hass, entry)}
-    assert not {i for i in ids if "volume" in i or "screen_off" in i or "find" in i or "ethernet" in i}
+    assert not {i for i in ids if "speaker" in i or "screen_off" in i or "find" in i or "ethernet" in i}
     assert hass.states.get("binary_sensor.stream_deck_pin_lock").state == "unknown"
 
 
@@ -172,7 +175,7 @@ async def test_a_new_firmware_reloads_the_entry(hass, entry, aioclient_mock, soc
 
 
 async def test_the_speaker_switch_reloads_and_takes_its_entities_along(hass, entry, aioclient_mock, socket):
-    speaker = {f"number.{BOARD}_volume", f"button.{BOARD}_find"}
+    speaker = {f"media_player.{BOARD}_speaker", f"button.{BOARD}_find"}
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     assert speaker <= {e.entity_id for e in entities(hass, entry)}
     for on in (False, True):

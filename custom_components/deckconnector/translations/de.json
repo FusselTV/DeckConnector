@@ -210,9 +210,6 @@
       },
       "screen_dim": {
         "name": "Bildschirmschoner-Helligkeit"
-      },
-      "volume": {
-        "name": "Lautstärke"
       }
     },
     "select": {
