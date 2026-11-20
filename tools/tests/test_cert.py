@@ -90,6 +90,7 @@ def openssl_verifies(ca: x509.Certificate, leaf: x509.Certificate, check: list[s
 @pytest.mark.sim
 def test_the_device_ca_vouches_only_for_this_board(tmp_path):
     ca = x509.load_der_x509_certificate(fetch("/api/ca"))
+    assert api("DELETE", "/api/menu")[0] == 200  # the download shows on the deck, and later tests expect it closed
     leaf = x509.load_pem_x509_certificate(fetch("/api/cert"))
     name = status()["name"] + ".local"
     assert ca.extensions.get_extension_for_class(x509.BasicConstraints).value.ca
