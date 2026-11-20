@@ -198,6 +198,12 @@ export interface Config {
   screen_off_s: number
   /** After screen_off_s the decks dim to this, 10 to 90 in tens; 0: they go dark. */
   screen_dim: number
+  /** The star note in the web UI: never again. Missing on older firmware, which has no note. */
+  star_off?: boolean
+  /** The firmware the note was last closed on; a newer one shows it again. Empty until the page first saw one. */
+  star_fw?: string
+  /** Closed until this Unix time. */
+  star_until?: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean

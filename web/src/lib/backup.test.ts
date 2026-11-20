@@ -63,6 +63,11 @@ describe('planRestore', () => {
     expect(planRestore({ ...cfg, speaker: false }, { ...cfg, speaker: true }).patch).toEqual({ speaker: true })
     expect(planRestore({ ...cfg, speaker: true }, cfg).rows).toEqual([])
   })
+  it('carries the star note without a restart', () => {
+    const p = planRestore(cfg, { ...cfg, star_off: true, star_fw: 'v1.0.0', star_until: 1 })
+    expect(p.patch).toEqual({ star_off: true, star_fw: 'v1.0.0', star_until: 1 })
+    expect(p.restart).toBe(false)
+  })
   it('reports invalid values', () => {
     expect(planRestore(cfg, { ...cfg, lan: { dhcp: false, ip: 'x', mask: '' } }).errors.length).toBeGreaterThan(0)
     expect(planRestore(cfg, { ...cfg, brightness: 200 }).errors).toEqual([{ key: 'brightness', err: 'fw.r_bri' }])

@@ -128,6 +128,9 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.max_decks = old.max_decks;
     live.screen_off_s = old.screen_off_s;
     live.screen_dim = old.screen_dim;
+    live.star_off = old.star_off;
+    live.star_until = old.star_until;
+    memcpy(live.star_fw, old.star_fw, sizeof(old.star_fw));
     memcpy(live.wifi2_ssid, old.wifi2_ssid, sizeof(old.wifi2_ssid));
     memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
     memcpy(live.trusted_proxy, old.trusted_proxy, sizeof(old.trusted_proxy));

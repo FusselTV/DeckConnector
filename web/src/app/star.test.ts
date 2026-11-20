@@ -1,47 +1,43 @@
 import { describe, expect, it } from 'vitest'
-import { starClose, starNever, starSeen, starShow } from './star'
+import type { Config } from '../api/types'
+import { starClose, starNever, starShow } from './star'
 
-const NOW = 1_800_000_000_000
-const DAY_S = 86_400
+const NOW = 1_800_000_000
+const DAY = 86_400
+const cfg = (o: Partial<Config> = {}) =>
+  ({ setup_done: true, star_off: false, star_fw: 'v1.0.0', star_until: 0, ...o }) as Config
+const after = (c: Config, patch: object): Config => ({ ...c, ...patch })
 
 describe('star card', () => {
   it('waits for a day of uptime after setup', () => {
-    expect(starShow({}, true, DAY_S - 1, NOW)).toBe(false)
-    expect(starShow({}, true, DAY_S, NOW)).toBe(true)
-    expect(starShow({}, false, DAY_S, NOW)).toBe(false)
-    expect(starShow({}, true, undefined, NOW)).toBe(false)
+    expect(starShow(cfg(), 'v1.0.0', DAY - 1, NOW)).toBe(false)
+    expect(starShow(cfg(), 'v1.0.0', DAY, NOW)).toBe(true)
+    expect(starShow(cfg({ setup_done: false }), 'v1.0.0', DAY, NOW)).toBe(false)
+    expect(starShow(cfg(), 'v1.0.0', undefined, NOW)).toBe(false)
   })
 
-  it('shows once after a firmware update, not on the first visit', () => {
-    const first = starSeen({}, 'v1.0.0')
-    expect(first).toEqual({ fw: 'v1.0.0', upd: false })
-    expect(starShow(first, true, 60, NOW)).toBe(false)
-    expect(starSeen(first, 'v1.0.0')).toBe(first)
-    const upd = starSeen(first, 'v1.0.1')
-    expect(starShow(upd, true, 60, NOW)).toBe(true)
-    const closed = starClose(upd, NOW)
-    expect(starShow(starSeen(closed, 'v1.0.1'), true, 60, NOW)).toBe(false)
+  it('never shows on firmware without the fields', () => {
+    expect(starShow(cfg({ star_off: undefined }), 'v1.0.0', DAY, NOW)).toBe(false)
   })
 
-  it('ignores a missing version and a rollback', () => {
-    const m = starSeen({}, 'v1.0.9')
-    expect(starSeen(m, undefined)).toBe(m)
-    expect(starShow(starSeen(m, 'v1.0.10'), true, 60, NOW)).toBe(true)
-    const back = starSeen(m, 'v1.0.8')
-    expect(back).toMatchObject({ fw: 'v1.0.8', upd: false })
-    expect(starShow(back, true, 60, NOW)).toBe(false)
+  it('shows after a firmware update until closed, not for an empty or older one', () => {
+    expect(starShow(cfg(), 'v1.0.1', 60, NOW)).toBe(true)
+    expect(starShow(cfg(), 'v1.0.10', 60, NOW)).toBe(true)
+    expect(starShow(cfg({ star_fw: '' }), 'v1.0.1', 60, NOW)).toBe(false)
+    expect(starShow(cfg({ star_fw: 'v1.0.9' }), 'v1.0.8', 60, NOW)).toBe(false)
+    expect(starShow(after(cfg(), starClose('v1.0.1', NOW)), 'v1.0.1', 60, NOW)).toBe(false)
   })
 
   it('closed for now comes back after 30 days or with the next update', () => {
-    const m = starClose(starSeen({}, 'v1'), NOW)
-    expect(starShow(m, true, DAY_S, NOW + 29 * DAY_S * 1000)).toBe(false)
-    expect(starShow(m, true, DAY_S, NOW + 30 * DAY_S * 1000)).toBe(true)
-    expect(starShow(starSeen(m, 'v2'), true, 60, NOW + 1000)).toBe(true)
+    const c = after(cfg(), starClose('v1.0.0', NOW))
+    expect(starShow(c, 'v1.0.0', DAY, NOW + 29 * DAY)).toBe(false)
+    expect(starShow(c, 'v1.0.0', DAY, NOW + 30 * DAY)).toBe(true)
+    expect(starShow(c, 'v1.1.0', 60, NOW + 1)).toBe(true)
   })
 
   it('never again stays hidden, also after an update', () => {
-    const m = starNever(starSeen({}, 'v1'))
-    expect(starShow(m, true, DAY_S * 9, NOW)).toBe(false)
-    expect(starShow(starSeen(m, 'v2'), true, DAY_S, NOW)).toBe(false)
+    const c = after(cfg(), starNever('v1.0.0'))
+    expect(starShow(c, 'v1.0.0', DAY * 9, NOW)).toBe(false)
+    expect(starShow(c, 'v2.0.0', DAY, NOW)).toBe(false)
   })
 })

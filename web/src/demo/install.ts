@@ -36,19 +36,15 @@ for (const [k, ok] of [
 }
 const real = store(() => localStorage)
 // A visitor came to press keys: the live deck starts open, also on a phone.
-ls.get = <V>(k: string, d: V): V =>
-  k in start
-    ? (start[k] as V)
-    : real.get(k, k === 'dc.deckOpen' ? (true as V) : k === 'dc.star' ? ({ never: true } as V) : d)
-// The star card never shows in the demo, and dc.star would store the firmware version on load.
-ls.set = (k, v) => void (k !== 'dc.star' && real.set(k, v))
+ls.get = <V>(k: string, d: V): V => (k in start ? (start[k] as V) : real.get(k, k === 'dc.deckOpen' ? (true as V) : d))
+ls.set = (k, v) => real.set(k, v)
 if (window.parent !== window) document.documentElement.classList.add('embed')
 
 function load(): Demo {
   try {
     const raw = sessionStorage.getItem(KEY)
     const s = raw ? (JSON.parse(raw) as { v?: number; mode?: string }) : null
-    if (s?.v === 11 && s.mode === mode) return { ...(s as Demo), pass: PASS }
+    if (s?.v === 12 && s.mode === mode) return { ...(s as Demo), pass: PASS }
   } catch {
     /* a fresh demo */
   }

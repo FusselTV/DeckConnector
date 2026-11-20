@@ -914,9 +914,8 @@ export const de: Dict = {
   'log.store_settings': 'Nur die letzten 40 Ereignisse bleiben über einen Neustart.',
   'log.store_ram': 'Kein Ereignis bleibt über einen Neustart.',
   'star.text':
-    'Gefällt dir DeckConnector? Ein Stern auf GitHub hilft anderen, es zu finden. Mit einer Spende kann ich weiter daran arbeiten.',
+    'Gefällt dir DeckConnector? Ein Stern auf GitHub hilft anderen, es zu finden. Wenn du magst, kannst du das Projekt auch unterstützen.',
   'star.gh': 'Stern auf GitHub',
-  'star.sponsor': 'Unterstützen',
   'star.never': 'Nicht mehr zeigen',
   'star.close': 'Vorerst schließen',
 }
