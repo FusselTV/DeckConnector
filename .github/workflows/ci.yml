@@ -200,7 +200,7 @@ jobs:
           # the OTA tests sign with a key made for this job; the simulator gets its public key
           echo "DBFW_KEY=$RUNNER_TEMP/ota_key.pem" >> "$GITHUB_ENV"
           (cd tools && uv sync --locked && DBFW_KEY=$RUNNER_TEMP/ota_key.pem uv run --locked python -m dbtools.dbfw keygen)
-          .github/scripts/idf.sh 'for s in ${{ matrix.sim }}; do idf.py -C "firmware/$s" build; done'
+          .github/scripts/idf.sh "for s in ${{ matrix.sim }}; do idf.py -C firmware/\$s build; done"
           case ${{ matrix.suite }} in
             # tests that write flash images use IDF's partition table and NVS generators (0.1.9 is in IDF_IMAGE)
             api)
