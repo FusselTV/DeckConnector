@@ -112,4 +112,3 @@ def test_a_brightness_set_from_the_web_while_the_menu_shows_stays(start):
     assert sim.wait(lambda: not sim.status()["menu_open"], 3)
     time.sleep(0.5)
     assert brightness(sim) == "40", f"closing the menu took the deck back to {brightness(sim)}"
-
