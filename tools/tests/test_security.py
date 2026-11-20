@@ -3,6 +3,7 @@
 import base64
 import http.client
 import json
+import socket
 import subprocess
 import tempfile
 import time
@@ -12,6 +13,7 @@ from pathlib import Path
 import pytest
 from conftest import HOST, PASSWORD, TARGET, WORKER, api, deck_page, start_sim, status
 from cryptography.hazmat.primitives import serialization
+from websockets.sync.client import connect
 
 from dbtools import dbfw
 
@@ -100,6 +102,16 @@ def get(url: str, cookie: str = "") -> int:
         return e.code
 
 
+def sim_login(port: int) -> str:
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/api/login",
+        data=json.dumps({"password": PASSWORD}).encode(),
+        headers={"X-DeckConnector": "1"},
+    )
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return r.headers["Set-Cookie"].split(";")[0]
+
+
 @pytest.fixture
 def own_sim(request):
     """A simulator of this test's own, so what it changes cannot touch the other tests."""
@@ -122,15 +134,7 @@ def test_only_requests_to_the_setup_wlan_address_skip_the_password(own_sim):
 @pytest.mark.skipif(TARGET != "sim", reason="changes the password")
 def test_a_new_password_ends_the_other_sessions(own_sim):
     base = f"http://127.0.0.1:{own_sim}"
-
-    def login() -> str:
-        req = urllib.request.Request(
-            f"{base}/api/login", data=json.dumps({"password": PASSWORD}).encode(), headers={"X-DeckConnector": "1"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as r:
-            return r.headers["Set-Cookie"].split(";")[0]
-
-    other, mine = login(), login()
+    other, mine = sim_login(own_sim), sim_login(own_sim)
     req = urllib.request.Request(
         f"{base}/api/config",
         data=b'{"admin_pass": "another-pass"}',
@@ -321,3 +325,38 @@ def test_phones_on_the_setup_wlan_get_the_captive_portal_and_the_lan_does_not(ow
     assert raw(own_sim, "127.0.0.1", "/", f"127.0.0.1:{own_sim}")[0] == 200, "the portal itself"
     assert raw(own_sim, "127.0.0.2", "/generate_204", "connectivitycheck.gstatic.com")[0] == 404, "not on the LAN"
     assert raw(own_sim, "127.0.0.2", "/", "example.com")[0] == 200, "the LAN keeps its page under any name"
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="needs the simulator's fresh socket and listener order")
+def test_a_socket_that_lost_its_listener_slot_may_not_change_anything(own_sim):
+    """A socket off the listener list stays open until the server closes it; a frame read before that once ran
+    with full rights."""
+    cookie = sim_login(own_sim)
+    upgrade = (
+        f"GET /api/ws HTTP/1.1\r\nHost: 127.0.0.1:{own_sim}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+        f"Cookie: {sim_login(own_sim)}\r\n\r\n"
+    ).encode()
+    # the server reads its sockets in slot order: ours must come after the ones that push it off the list
+    fillers = [socket.create_connection(("127.0.0.1", own_sim)) for _ in range(8)]
+    with connect(f"ws://127.0.0.1:{own_sim}/api/ws", additional_headers={"Cookie": cookie}) as ws:
+        assert json.loads(ws.recv())["t"] == "state"
+        for f in fillers:
+            f.close()
+        time.sleep(0.3)
+        others = [socket.create_connection(("127.0.0.1", own_sim)) for _ in range(8)]
+        time.sleep(0.3)
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{own_sim}/api/logout",
+            data=b"",
+            method="POST",
+            headers={"X-DeckConnector": "1", "Cookie": cookie},
+        )
+        assert urllib.request.urlopen(req, timeout=5).status == 200
+        for o in others:
+            o.sendall(upgrade)
+        ws.send(json.dumps({"t": "set", "id": 7, "brightness": 40}))
+        while (frame := json.loads(ws.recv(timeout=5)))["t"] != "result":
+            pass
+        assert (frame["id"], frame["status"]) == (7, 401)
