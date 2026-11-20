@@ -180,6 +180,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0 # git describe sets the firmware version, which test_update_check reads
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -197,6 +198,12 @@ jobs:
           (cd tools && uv sync --locked && DBFW_KEY=$RUNNER_TEMP/ota_key.pem uv run --locked python -m dbtools.dbfw keygen)
           .github/scripts/idf.sh 'idf.py -C firmware/${{ matrix.sim }} build'
           case ${{ matrix.suite }} in
+            # tests that write flash images use IDF's partition table and NVS generators (0.1.9 is in IDF_IMAGE)
+            api)
+              mkdir -p "$RUNNER_TEMP/idf"
+              docker run --rm --entrypoint tar "$IDF_IMAGE" c -C /opt/esp/idf components/partition_table | tar x -C "$RUNNER_TEMP/idf"
+              uv venv -q "$RUNNER_TEMP/idfpy" && uv pip install -q -p "$RUNNER_TEMP/idfpy" esp-idf-nvs-partition-gen==0.1.9
+              printf 'IDF_PATH=%s/idf\nIDF_PYTHON_ENV_PATH=%s/idfpy\n' "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV" ;;
             web-*) cd web && npx playwright install chromium ;;
             decks | hosts) cd tools/companion-check && npm ci ;;
           esac
@@ -244,11 +251,11 @@ jobs:
         run: |
           # CCACHE_DIR is the runner machine's ccache; a release builds from a clean slate
           [ "$GITHUB_REF_TYPE" != tag ] || export CCACHE_DIR=$RUNNER_TEMP/ccache
-          .github/scripts/idf.sh 'idf.py -C firmware build && cd tools && python -m dbtools.flashimage'
+          IDF_MOUNT=/w .github/scripts/idf.sh 'idf.py -C firmware build && cd tools && python -m dbtools.flashimage'
       - run: .github/scripts/linked-libs.sh
       - name: clang-tidy
         run: |
-          .github/scripts/idf.sh "python -m venv /tmp/tidy && /tmp/tidy/bin/pip install -q clang-tidy==23.1.4
+          IDF_MOUNT=/w .github/scripts/idf.sh "python -m venv /tmp/tidy && /tmp/tidy/bin/pip install -q clang-tidy==23.1.4
             PATH=/tmp/tidy/bin:\$PATH .github/scripts/tidy-firmware.sh"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
