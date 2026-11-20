@@ -19,9 +19,10 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 7 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star */
-#define NVS_NS         "deckbridge"
-#define NVS_KEY        "config"
+#define CONFIG_VERSION                                                                                       \
+    7 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star */
+#define NVS_NS  "deckbridge"
+#define NVS_KEY "config"
 
 static const char *TAG = "config";
 static db_config_t current;
@@ -617,7 +618,8 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         cfg->controller = (db_controller_t)found;
     }
     const char *flags[] = {"setup_done", "dock_paired_only", "https_only", "speaker", "star_off"};
-    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->speaker, &cfg->star_off};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->speaker,
+                      &cfg->star_off};
     for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
         const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
         if (v && !cJSON_IsBool(v)) {
