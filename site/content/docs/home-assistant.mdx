@@ -52,7 +52,9 @@ The connector pushes every change at once. Signal and temperature update once a 
 
 ## Automations
 
-In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right**, **Touch zone 2 tapped** or **Touch strip swiped left**. The touch strip has one zone above each dial.
+In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right**, **Touch zone 2 tapped** or **Touch strip swiped left**.
+
+<DeckMap />
 
 Every deck also has one **Controls** event entity for YAML and templates. Its `event_type` says what happened, for example `key_3_press`. A dial turn carries `ticks`, a touch carries `x` and `y`. A tap or long touch also carries its `zone`.
 
@@ -67,9 +69,13 @@ conditions:
     entity_id: event.stream_deck_controls
     attribute: event_type
     state: key_3_press
+actions:
+  - action: light.toggle
+    target:
+      entity_id: light.desk
 ```
 
-The source draws the keys. A key that Companion or the Elgato app also uses runs both actions.
+Home Assistant does not draw the keys. The active [source](/docs/hosts) does. Without one, the deck shows its home screen, where some keys switch sources or open the menu. Every press still reaches Home Assistant, and a key that a source also uses runs both actions.
 
 ### Blueprint
 

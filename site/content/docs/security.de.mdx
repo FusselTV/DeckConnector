@@ -7,9 +7,9 @@ description: Passwort, Login am Deck, API-Schlüssel, Sperre, HTTPS und CORS.
 
 Die Weboberfläche hat einen Benutzer, `admin`. Beim ersten Start erzeugt der Connector ein zufälliges Passwort und zeigt es im Deck-Menü. Ein eigenes (6 bis 23 Zeichen) setzt du in der Einrichtung oder unter **Zugang** ([Demo](/de/demo/#access)).
 
-Vor der Einrichtung kommt jeder Browser, der den Connector öffnet, ohne Passwort hinein. Das geht in den 30 Minuten nach dem Start, bis jemand ein Passwort setzt oder die Einrichtung abschließt. Ein Werkszustand öffnet es wieder.
+Vor der Einrichtung kommt ein Browser für kurze Zeit ohne Passwort hinein, siehe [Erste Einrichtung](/de/docs/first-setup#im-browser). Ein Werkszustand öffnet es wieder.
 
-Ein neues Passwort startet den Connector neu und beendet jede Sitzung. Eine Sitzung endet nach 12 Stunden ohne Nutzung und bei einem Stromausfall.
+Ein neues Passwort startet den Connector neu und beendet jede Sitzung. Eine Sitzung endet nach 12 Stunden ohne Nutzung, beim Abmelden und bei einem Stromausfall.
 
 ## Passwort vergessen
 
@@ -31,7 +31,7 @@ Endet einer davon ohne **Annehmen**, kann dieselbe Adresse ihn erst nach einer M
 
 ## API-Schlüssel
 
-Skripte und [Home Assistant](/de/docs/home-assistant) nutzen einen API-Schlüssel. Du legst ihn unter **Zugang › API-Schlüssel** an. Er wird nur einmal angezeigt.
+Skripte und [Home Assistant](/de/docs/home-assistant) nutzen einen API-Schlüssel. Du legst ihn unter **Zugang › API-Zugriff** an. Er wird nur einmal angezeigt.
 
 ```bash
 curl -H 'Authorization: Bearer SCHLUESSEL' http://192.168.1.50/api/status
@@ -50,7 +50,7 @@ Der Connector antwortet auf Port 80 und per HTTPS auf 443. Sein Zertifikat stamm
 - Ein neuer Name bekommt eine neue CA. Vertraue ihr dann auf jedem Gerät neu.
 - Ein Zurücksetzen auf Werkszustand löscht die CA.
 - `GET /api/ca` liefert die CA, `GET /api/cert` das aktuelle Zertifikat als PEM.
-- **Nur HTTPS** schaltet unverschlüsseltes HTTP ab. Seiten leiten um, API-Aufrufe über HTTP bekommen 403. Solange das Setup-WLAN offen ist, bleibt HTTP an.
+- **Nur HTTPS** schaltet unverschlüsseltes HTTP ab. Die Startseite leitet um, jede andere Anfrage über HTTP bekommt 403. Solange das Setup-WLAN offen ist, bleibt HTTP an. [Home Assistant](/de/docs/home-assistant) braucht unverschlüsseltes HTTP und funktioniert dann nicht mehr.
 - Du kannst ein eigenes Zertifikat mit Schlüssel als PEM hochladen. Einen Schlüssel mit Passwort lehnt der Connector ab.
 
 ## Passkeys

@@ -40,15 +40,11 @@ The connector's name in the network is `<name>.local`, for example `deckconnecto
 - **5343 and 5344** on the connector: the Network Dock, for Companion and the Elgato app. Deck 2 uses 5345 and 5346, and so on.
 - **16622** on the Companion computer: Satellite. **16623** for a `ws://` address.
 
-## Clock
-
-The connector sets its clock over NTP. It uses the server that DHCP names, then `pool.ntp.org`. Set your own under **Network** in the web UI.
-
 ## Internet
 
 The connector talks to the internet only in these cases. Each one shows the IP address of your network to that server.
 
-- **Time.** `pool.ntp.org`, only when your router names no time server and you set none.
+- **Time.** `pool.ntp.org`, only when your router names no time server and you set none under **Network**.
 - **Update check.** GitHub, only when you click **Check for updates** under **Firmware**, or while the [Home Assistant](/docs/home-assistant) firmware entity is on.
 - **Update by URL.** The address you give, and GitHub for a release.
 - **Your servers.** The Companion, Satellite and own servers you set.

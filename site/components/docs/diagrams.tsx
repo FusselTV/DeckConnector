@@ -6,6 +6,7 @@ import {
   Check,
   Cpu,
   Globe,
+  House,
   KeyRound,
   Lock,
   MonitorSmartphone,
@@ -56,13 +57,18 @@ export function Topology({ lang }: { lang?: Lang }) {
     lang,
     {
       title: 'How DeckConnector connects',
-      desc: 'The Stream Deck plugs into the connector over USB. The connector joins your network over Wi-Fi, Ethernet or both. Companion, the Elgato app, your own server and a browser reach the deck through the network.',
+      desc: 'The Stream Deck plugs into the connector over USB. The connector joins your network over Wi-Fi, Ethernet or both. Companion, the Elgato app, your own server and a browser reach the deck through the network. Home Assistant and Matter apps get the key presses but draw nothing.',
       deck: 'Your deck, unchanged',
       board: 'DeckConnector',
       boardSub: 'ESP32-P4, USB-C or PoE power',
       net: 'Wi-Fi and Ethernet',
       netSub: 'both at once',
       hosts: 'On any computer in the network',
+      listen: 'Only get the presses',
+      ha: 'Home Assistant',
+      haSub: 'triggers and entities',
+      matter: 'Matter',
+      matterSub: 'Apple Home, Google Home',
       app: 'Elgato app',
       appSub: 'as a Network Dock',
       comp: 'Companion',
@@ -74,13 +80,18 @@ export function Topology({ lang }: { lang?: Lang }) {
     },
     {
       title: 'So verbindet sich DeckConnector',
-      desc: 'Das Stream Deck steckt per USB am Connector. Der Connector ist per WLAN, LAN oder beidem im Netzwerk. Companion, die Elgato-App, ein eigener Server und ein Browser erreichen das Deck über das Netzwerk.',
+      desc: 'Das Stream Deck steckt per USB am Connector. Der Connector ist per WLAN, LAN oder beidem im Netzwerk. Companion, die Elgato-App, ein eigener Server und ein Browser erreichen das Deck über das Netzwerk. Home Assistant und Matter-Apps bekommen die Tastendrücke, zeichnen aber nichts.',
       deck: 'Dein Deck, unverändert',
       board: 'DeckConnector',
       boardSub: 'ESP32-P4, Strom per USB-C oder PoE',
       net: 'WLAN und LAN',
       netSub: 'beides zugleich',
       hosts: 'Auf jedem Rechner im Netz',
+      listen: 'Bekommen nur die Tastendrücke',
+      ha: 'Home Assistant',
+      haSub: 'Auslöser und Entitäten',
+      matter: 'Matter',
+      matterSub: 'Apple Home, Google Home',
       app: 'Elgato-App',
       appSub: 'als Network Dock',
       comp: 'Companion',
@@ -108,6 +119,11 @@ export function Topology({ lang }: { lang?: Lang }) {
         <Node icon={<Server />} title={t.srv} sub={t.srvSub} />
         <Node icon={<Globe />} title={t.web} sub={t.webSub} />
       </div>
+      <p className={`${mono} mb-1.5 mt-4`}>{t.listen}</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Node icon={<House />} title={t.ha} sub={t.haSub} />
+        <Node icon={<MonitorSmartphone />} title={t.matter} sub={t.matterSub} />
+      </div>
     </Figure>
   )
 }
@@ -122,7 +138,7 @@ export function SetupFlow({ lang }: { lang?: Lang }) {
       steps: [
         ['Flash', 'USB-C, Chrome or Edge, about a minute', '/flash/'],
         ['Plug in', 'Deck in USB-A, Wi-Fi or network cable', `${p}/docs/first-setup/`],
-        ['Set up', 'Name, password, network, program', `${p}/docs/first-setup/`],
+        ['Set up', 'Name, password, network, source', `${p}/docs/first-setup/`],
         ['Connect', 'Companion, Elgato app or your server', `${p}/docs/companion/`],
       ],
     },
@@ -132,7 +148,7 @@ export function SetupFlow({ lang }: { lang?: Lang }) {
       steps: [
         ['Flashen', 'USB-C, Chrome oder Edge, etwa eine Minute', '/de/flash/'],
         ['Einstecken', 'Deck in USB-A, WLAN oder Netzwerkkabel', `${p}/docs/first-setup/`],
-        ['Einrichten', 'Name, Passwort, Netzwerk, Programm', `${p}/docs/first-setup/`],
+        ['Einrichten', 'Name, Passwort, Netzwerk, Quelle', `${p}/docs/first-setup/`],
         ['Verbinden', 'Companion, Elgato-App oder eigener Server', `${p}/docs/companion/`],
       ],
     },
@@ -159,31 +175,27 @@ export function SetupPaths({ lang }: { lang?: Lang }) {
     lang,
     {
       title: 'Three ways into the setup',
-      desc: 'With a network cable, scan the QR code on the deck. Without a network, join the setup Wi-Fi the connector opens. Or skip the web UI and enter the address shown on the deck in Companion or the Elgato app. All three end in the same settings.',
+      desc: 'With a network cable, scan the QR code on the deck. Without a network, join the setup Wi-Fi the connector opens. Or skip the web UI and enter the address shown on the deck in Companion or the Elgato app. All three end with a source that draws on the deck.',
       ways: [
         ['Cable and QR code', 'The deck shows its address and a QR code. Scan it with a phone.', <Network key="n" />],
-        ['Setup Wi-Fi', 'No network yet? The connector opens its own Wi-Fi after a minute.', <Wifi key="w" />],
+        ['Setup Wi-Fi', 'No network yet? The connector opens its own Wi-Fi.', <Wifi key="w" />],
         ['Deck only', 'Enter the address from the deck in Companion or the Elgato app.', <SlidersHorizontal key="s" />],
       ],
-      end: 'Same settings: name, password, network, program',
+      end: 'Then a source draws on the deck',
     },
     {
       title: 'Drei Wege in die Einrichtung',
-      desc: 'Mit Netzwerkkabel den QR-Code auf dem Deck scannen. Ohne Netzwerk ins Setup-WLAN des Connectors gehen. Oder ohne Weboberfläche die Adresse vom Deck in Companion oder der Elgato-App eintragen. Alle drei enden bei denselben Einstellungen.',
+      desc: 'Mit Netzwerkkabel den QR-Code auf dem Deck scannen. Ohne Netzwerk ins Setup-WLAN des Connectors gehen. Oder ohne Weboberfläche die Adresse vom Deck in Companion oder der Elgato-App eintragen. Alle drei enden mit einer Quelle, die aufs Deck zeichnet.',
       ways: [
         ['Kabel und QR-Code', 'Das Deck zeigt Adresse und QR-Code. Mit dem Handy scannen.', <Network key="n" />],
-        [
-          'Setup-WLAN',
-          'Noch kein Netz? Dann öffnet der Connector nach einer Minute ein eigenes WLAN.',
-          <Wifi key="w" />,
-        ],
+        ['Setup-WLAN', 'Noch kein Netz? Dann öffnet der Connector ein eigenes WLAN.', <Wifi key="w" />],
         [
           'Nur am Deck',
           'Die Adresse vom Deck in Companion oder der Elgato-App eintragen.',
           <SlidersHorizontal key="s" />,
         ],
       ],
-      end: 'Dieselben Einstellungen: Name, Passwort, Netzwerk, Programm',
+      end: 'Dann zeichnet eine Quelle aufs Deck',
     },
   )
   return (
@@ -537,6 +549,109 @@ export function Ports({ lang }: { lang?: Lang }) {
         {t.rows.map(([icon, name, sub]) => (
           <Node key={name as string} icon={icon} title={name} sub={sub} tone={name === 'USB-C' ? 'amber' : undefined} />
         ))}
+      </div>
+    </Figure>
+  )
+}
+
+export function DeckMap({ lang }: { lang?: Lang }) {
+  const t = pick(
+    lang,
+    {
+      title: 'Names of the controls on a Stream Deck +',
+      desc: 'Keys 1 to 4 in the top row and 5 to 8 below, counted from the left. Below the keys the touch strip with touch zones 1 to 4, one above each dial. Dials 1 to 4 at the bottom.',
+      key: 'Key',
+      zone: 'Zone',
+      dial: 'Dial',
+    },
+    {
+      title: 'Namen der Bedienelemente auf einem Stream Deck +',
+      desc: 'Tasten 1 bis 4 in der oberen Reihe und 5 bis 8 darunter, von links gezählt. Unter den Tasten die Touchleiste mit den Touchfeldern 1 bis 4, je eines über einem Drehregler. Drehregler 1 bis 4 unten.',
+      key: 'Taste',
+      zone: 'Feld',
+      dial: 'Regler',
+    },
+  )
+  const four = [1, 2, 3, 4]
+  return (
+    <Figure title={t.title} desc={t.desc}>
+      <div aria-hidden className="mx-auto grid max-w-md gap-2 rounded-2xl border border-line-2 bg-panel-2 p-3">
+        <div className="grid grid-cols-4 gap-2">
+          {[...four, 5, 6, 7, 8].map((n) => (
+            <span
+              key={n}
+              className="grid aspect-square place-items-center rounded-lg border border-line bg-panel font-mono text-xs text-fg-2"
+            >
+              {t.key} {n}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 overflow-hidden rounded-lg border border-amber/60">
+          {four.map((n) => (
+            <span key={n} className="border-line py-2 text-center font-mono text-xs text-amber-fg [&+&]:border-s">
+              {t.zone} {n}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-4 gap-2 pt-1">
+          {four.map((n) => (
+            <span
+              key={n}
+              className="mx-auto grid size-14 place-items-center rounded-full border-2 border-line bg-panel text-center font-mono text-[11px] leading-tight text-fg-2"
+            >
+              {t.dial} {n}
+            </span>
+          ))}
+        </div>
+      </div>
+    </Figure>
+  )
+}
+
+export function CompanionModes({ lang }: { lang?: Lang }) {
+  const t = pick(
+    lang,
+    {
+      title: 'Two ways Companion connects',
+      desc: 'Satellite: the connector opens the connection to Companion on TCP 16622, or 16623 for WebSocket. Network Dock: Companion opens the connection to the connector on TCP 5343, after it finds it over mDNS.',
+      sat: 'Satellite',
+      satSub: 'The default. Works through Docker and other networks',
+      dock: 'Network Dock',
+      dockSub: 'Companion finds the connector in the same network',
+    },
+    {
+      title: 'Zwei Wege, wie Companion sich verbindet',
+      desc: 'Satellite: Der Connector baut die Verbindung zu Companion auf, TCP 16622 oder 16623 für WebSocket. Network Dock: Companion baut die Verbindung zum Connector auf, TCP 5343, nachdem es ihn per mDNS gefunden hat.',
+      sat: 'Satellite',
+      satSub: 'Der Standard. Geht auch durch Docker und andere Netze',
+      dock: 'Network Dock',
+      dockSub: 'Companion findet den Connector im selben Netz',
+    },
+  )
+  const lane = (name: string, sub: string, port: string, toCompanion: boolean) => (
+    <div className="grid gap-1.5">
+      <p className={mono}>
+        <span className="text-fg">{name}</span> · {sub}
+      </p>
+      <div className="grid items-center gap-2 @lg:grid-cols-[1fr_auto_1fr]">
+        <Node slim icon={<Cpu />} title="DeckConnector" tone="amber" />
+        <div
+          aria-hidden
+          className="flex items-center justify-center gap-2 font-mono text-xs text-fg-3 @lg:flex-col @lg:gap-0"
+        >
+          <span>{port}</span>
+          <span className="text-base leading-none @lg:hidden">{toCompanion ? '↓' : '↑'}</span>
+          <span className="text-base leading-none @max-lg:hidden">{toCompanion ? '→' : '←'}</span>
+        </div>
+        <Node slim icon={<AppWindow />} title="Companion" />
+      </div>
+    </div>
+  )
+  return (
+    <Figure title={t.title} desc={t.desc}>
+      <div className="grid gap-4">
+        {lane(t.sat, t.satSub, 'TCP 16622', true)}
+        {lane(t.dock, t.dockSub, 'TCP 5343', false)}
       </div>
     </Figure>
   )

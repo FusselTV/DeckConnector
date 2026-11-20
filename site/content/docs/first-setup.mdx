@@ -15,7 +15,7 @@ The wizard asks for the name, your own password, the network and the source that
 
 ## Over the setup Wi-Fi
 
-Without a network, the connector opens its own Wi-Fi. This happens right after the start, or after one minute when a cable is plugged in. You can also start it in the deck menu under **Setup Wi-Fi**.
+Before setup is done and without a network, the connector opens its own Wi-Fi. It waits one minute when a cable is plugged in or a Wi-Fi is saved, otherwise it opens at once. You can also start it in the deck menu under **Setup Wi-Fi**.
 
 Scan the QR code on the deck with the phone camera. The phone joins and opens the page by itself. Without a QR scanner, join the network with the name and password the deck shows. If the page does not open, open any `http://` address, or the one on the deck.
 
@@ -35,6 +35,6 @@ On a deck with dials you can set a fixed LAN address in the deck menu under **LA
 - Or pick **Reset** on the web login page and confirm twice on the deck.
 - Or, logged in, pick **Reset** next to **Factory reset** under **Firmware** in the web page.
 
-A reset removes every setting, the API keys, the paired sources, an uploaded certificate, an uploaded web page and the crash report. The new password shows on the deck, and setup starts again.
+A reset removes every setting, the API keys and passkeys, the paired sources, the Matter pairing, the HTTPS CA, an uploaded certificate, an uploaded web page and the crash report. The new password shows on the deck, and setup starts again.
 
 <Next links={[['Connect Companion', '/docs/companion/'], ['Network', '/docs/network/']]} />

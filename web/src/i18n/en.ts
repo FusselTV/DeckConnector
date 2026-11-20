@@ -447,7 +447,7 @@ export const en = {
   'wifi.pass_len': 'A Wi-Fi password has 8 to 63 characters, or 64 hex digits.',
   'fw.bad_header': 'The file has no valid DeckConnector header.',
   'fw.ver_unknown': 'The version is known only after checking.',
-  'fw.url_h': 'Only http://. The connector checks the signature of the file itself.',
+  'fw.url_h': 'http:// or https://. The connector checks the signature of the file itself.',
   'fw.write': 'Write',
   'cf.write': 'Write into slot {slot}?',
   'cf.write_b': 'Replaces {old}. The connector does not restart. You can boot the slot later.',

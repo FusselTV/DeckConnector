@@ -52,7 +52,9 @@ Der Connector schickt jede Änderung sofort. Signal und Temperatur kommen einmal
 
 ## Automationen
 
-Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht**, **Touchfeld 2 angetippt** oder **Touchleiste nach links gewischt**. Die Touchleiste hat über jedem Drehregler ein Feld.
+Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht**, **Touchfeld 2 angetippt** oder **Touchleiste nach links gewischt**.
+
+<DeckMap lang="de" />
 
 Jedes Deck hat außerdem eine Ereignis-Entität **Bedienung** für YAML und Templates. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Drehung bringt `ticks` mit, eine Berührung `x` und `y`. Tippen und langes Berühren bringen auch das Feld als `zone` mit.
 
@@ -67,9 +69,13 @@ conditions:
     entity_id: event.stream_deck_bedienung
     attribute: event_type
     state: key_3_press
+actions:
+  - action: light.toggle
+    target:
+      entity_id: light.desk
 ```
 
-Die Quelle zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
+Home Assistant zeichnet die Tasten nicht. Das macht die aktive [Quelle](/de/docs/hosts). Ohne Quelle zeigt das Deck seinen Startbildschirm, auf dem einige Tasten Quellen wechseln oder das Menü öffnen. Jeder Tastendruck kommt trotzdem bei Home Assistant an, und eine Taste, die auch eine Quelle nutzt, löst beide Aktionen aus.
 
 ### Blueprint
 

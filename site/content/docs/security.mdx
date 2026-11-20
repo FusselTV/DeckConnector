@@ -7,9 +7,9 @@ description: Password, login on the deck, API keys, lockout, HTTPS and CORS.
 
 The web UI has one user, `admin`. On its first start the connector makes a random password and shows it in the deck menu. Set your own (6 to 23 characters) in the setup or under **Access** ([demo](/demo/#access)).
 
-Before setup, every browser that opens the connector gets in without the password. This works in the 30 minutes after the start, until someone sets a password or finishes setup. A factory reset opens it again.
+Before setup, a browser gets in without the password for a short time, see [First setup](/docs/first-setup#in-the-browser). A factory reset opens it again.
 
-A new password restarts the connector and ends every session. A session ends after 12 hours without use, and on a power cut.
+A new password restarts the connector and ends every session. A session ends after 12 hours without use, on logout, and on a power cut.
 
 ## Lost password
 
@@ -31,7 +31,7 @@ When one of these ends without **Accept**, the same address can start it again o
 
 ## API keys
 
-Scripts and [Home Assistant](/docs/home-assistant) use an API key. Make one under **Access › API keys**. It shows only once.
+Scripts and [Home Assistant](/docs/home-assistant) use an API key. Make one under **Access › API access**. It shows only once.
 
 ```bash
 curl -H 'Authorization: Bearer KEY' http://192.168.1.50/api/status
@@ -50,7 +50,7 @@ The connector serves port 80 and HTTPS on 443. Its certificate comes from its ow
 - A new name gets a new CA. Trust it again on each device.
 - A factory reset deletes the CA.
 - `GET /api/ca` gives the CA, `GET /api/cert` the current certificate as PEM.
-- **HTTPS only** turns plain HTTP off. Pages redirect, API calls over HTTP get 403. While the setup Wi-Fi is open, HTTP stays on.
+- **HTTPS only** turns plain HTTP off. The start page redirects, every other request over HTTP gets 403. While the setup Wi-Fi is open, HTTP stays on. [Home Assistant](/docs/home-assistant) needs plain HTTP and stops working.
 - You can upload your own certificate and key as PEM. A key with a password is refused.
 
 ## Passkeys
