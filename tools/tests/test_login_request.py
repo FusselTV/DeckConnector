@@ -137,7 +137,7 @@ def test_closing_the_menu_denies_a_request(deck):
 @pytest.fixture
 def accepting_sim():
     """A second simulator where someone at the deck accepts every request after 1 s."""
-    port = 28080 + WORKER
+    port = 21480 + WORKER
     sim = start_sim(port, DB_SIM_LOGIN_ACCEPT="1")
     yield f"127.0.0.1:{port}"
     sim.kill()
