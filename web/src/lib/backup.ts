@@ -14,7 +14,8 @@ const flat = (o: object, p = ''): Flat =>
     ),
   )
 
-// Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device.
+// Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device, nor star_fw and
+// star_until: they move on by themselves, and an old snooze would come back.
 export const WRITABLE = new Set<keyof ConfigPatch>([
   'name',
   'controller',
@@ -42,6 +43,7 @@ export const WRITABLE = new Set<keyof ConfigPatch>([
   'max_decks',
   'screen_off_s',
   'screen_dim',
+  'star_off',
   'dock_paired_only',
   'qr_login',
   'ntp_server',

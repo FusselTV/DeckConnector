@@ -44,7 +44,7 @@ function load(): Demo {
   try {
     const raw = sessionStorage.getItem(KEY)
     const s = raw ? (JSON.parse(raw) as { v?: number; mode?: string }) : null
-    if (s?.v === 11 && s.mode === mode) return { ...(s as Demo), pass: PASS }
+    if (s?.v === 12 && s.mode === mode) return { ...(s as Demo), pass: PASS }
   } catch {
     /* a fresh demo */
   }

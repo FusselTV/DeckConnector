@@ -51,7 +51,7 @@ export interface Faces {
 }
 
 export interface Demo {
-  v: 11
+  v: 12
   bootAt: number
   /** A restart: answers stop at downFrom (1 s after it was asked, like the firmware) until downUntil. */
   downFrom: number
@@ -154,7 +154,7 @@ export const PASS = 'studio-demo'
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
-    v: 11,
+    v: 12,
     bootAt: now - (setup ? 40_000 : 3 * 3600_000 + 17 * 60_000),
     downFrom: 0,
     downUntil: 0,
@@ -193,6 +193,10 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       max_decks: 2,
       screen_off_s: 0,
       screen_dim: 0,
+      // updated from v0.9.0 three hours ago: the star note shows once
+      star_off: false,
+      star_fw: setup ? '' : 'v0.9.0',
+      star_until: 0,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,
@@ -674,6 +678,9 @@ export const LIVE: (keyof ConfigPatch)[] = [
   'max_decks',
   'screen_off_s',
   'screen_dim',
+  'star_off',
+  'star_fw',
+  'star_until',
   'wifi2_ssid',
   'wifi2_pass',
   'matter',

@@ -2959,6 +2959,20 @@
     gap: 8px;
     flex-wrap: wrap;
   }
+  .notice.star {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+  .notice.star .ntext {
+    font-size: 14px;
+    color: var(--fg-2);
+  }
+  .notice.star .btn.ghost {
+    color: var(--fg-2);
+    font-weight: 400;
+  }
+  .notice.star .ibtn {
+    grid-area: 1/4;
+  }
   .notice .nprog {
     gap: 8px;
     flex-wrap: nowrap;
