@@ -91,7 +91,7 @@ static int put(uint32_t seq)
     char n[12];
     snprintf(n, sizeof(n), "%u", (unsigned)seq);
     db_evrec_t e = {.seq = seq, .unix_s = 1700000000 + seq, .since_s = seq, .boot = 3, .code = 7, .kind = 2};
-    db_evrec_set_args(&e, (const char *const[]){"192.168.188.15", n, NULL});
+    db_evrec_set_args(&e, (const char *const[]){"192.168.100.15", n, NULL});
     return db_evring_append(&r, &e);
 }
 
@@ -111,7 +111,7 @@ static void test_records_come_back_with_their_fields(void)
     TEST_ASSERT_TRUE(db_evring_get(&r, 42, &e));
     TEST_ASSERT_EQUAL(1700000042, e.unix_s);
     TEST_ASSERT_EQUAL(3, e.boot);
-    TEST_ASSERT_EQUAL_STRING("192.168.188.15", db_evrec_arg(&e, 0));
+    TEST_ASSERT_EQUAL_STRING("192.168.100.15", db_evrec_arg(&e, 0));
     TEST_ASSERT_EQUAL_STRING("42", db_evrec_arg(&e, 1));
     TEST_ASSERT_NULL(db_evrec_arg(&e, 2));
     TEST_ASSERT_FALSE(db_evring_get(&r, 101, &e));
@@ -302,8 +302,8 @@ static void test_args_that_do_not_fit_are_cut(void)
 {
     db_evrec_t e = {0};
     db_evrec_set_args(
-        &e, (const char *const[]){"Fussel-IoT", "7c:10:c9:aa:01:02", "11", "7c:10:c9:aa:01:01", NULL});
-    TEST_ASSERT_EQUAL_STRING("Fussel-IoT", db_evrec_arg(&e, 0));
+        &e, (const char *const[]){"Studio-IoT", "7c:10:c9:aa:01:02", "11", "7c:10:c9:aa:01:01", NULL});
+    TEST_ASSERT_EQUAL_STRING("Studio-IoT", db_evrec_arg(&e, 0));
     TEST_ASSERT_EQUAL_STRING("11", db_evrec_arg(&e, 2));
     TEST_ASSERT_EQUAL_STRING("7c:10:c9:aa:0", db_evrec_arg(&e, 3));
     TEST_ASSERT_NULL(db_evrec_arg(&e, 4));
