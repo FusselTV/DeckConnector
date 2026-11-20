@@ -16,6 +16,9 @@ bool db_stream_run(const db_stream_io_t *io, int16_t *ring, size_t cap, size_t l
     char *buf = (char *)ring;
     size_t hush = least(CHUNK, cap) & ~(size_t)1; /* the ring's last bytes stay silence */
     size_t size = cap * 2 - hush;
+    if (!size) {
+        return false;
+    }
     memset(buf + size, 0, hush);
     size_t start = least(START, size / 2);
     size_t in = 0;    /* bytes received so far */
