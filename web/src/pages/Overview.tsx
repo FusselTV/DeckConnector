@@ -21,6 +21,7 @@ import {
   Usb,
   Volume2,
   VolumeX,
+  Heart,
   Wifi,
   X,
 } from 'lucide-react'
@@ -42,6 +43,8 @@ import {
   type Deck,
 } from '../app/derive'
 import { useIssues } from '../app/issues'
+import { starClose, starNever, starSeen, starShow, type StarMemo } from '../app/star'
+import { atom } from '../lib/atom'
 import { armAtom, ARM_MS, deckSelAtom, logFocusAtom, nudgeAtom, tabAtom, toast, type Tab } from '../app/state'
 import { getState, subscribe, useStore } from '../app/store'
 import { useUi } from '../app/ui'
@@ -51,7 +54,7 @@ import { Notice, type NoticeData } from '../components/Notice'
 import { DeckFront } from '../deck/DeckFront'
 import { MODELS } from '../deck/models'
 import type { T } from '../i18n'
-import { cx, ls, useLatest } from '../lib/util'
+import { cx, ls, REPO, useLatest } from '../lib/util'
 import { chordSentence } from '../deck/chord'
 
 function Hero() {
@@ -797,6 +800,47 @@ function Controls() {
   )
 }
 
+const SPONSOR = 'https://github.com/sponsors/FusselTV'
+const starAtom = atom<StarMemo>(ls.get('dc.star', {}))
+starAtom.subscribe(() => ls.set('dc.star', starAtom.get()))
+
+function StarNote() {
+  const { t } = useUi()
+  const m = starAtom.use()
+  const fw = useStore((s) => s.status.firmware)
+  const setupDone = useStore((s) => !!s.config?.setup_done)
+  const up = useStore((s) => s.status.uptime_s)
+  useEffect(() => starAtom.set((x) => starSeen(x, fw)), [fw])
+  const [now] = useState(Date.now)
+  if (!starShow(m, setupDone, up, now)) return null
+  return (
+    <div className="notice info star" id="ntc-star" role="status">
+      <SIcon icon={Heart} size={20} />
+      <span className="ntext">{t('star.text')}</span>
+      <div className="nacts">
+        <a className="btn sm" href={REPO} target="_blank" rel="noopener">
+          {t('star.gh')}
+        </a>
+        <a className="btn sm" href={SPONSOR} target="_blank" rel="noopener">
+          {t('star.sponsor')}
+        </a>
+        <button type="button" className="btn sm ghost" onClick={() => starAtom.set(starNever)}>
+          {t('star.never')}
+        </button>
+      </div>
+      <button
+        type="button"
+        className="ibtn ghost sm"
+        aria-label={t('star.close')}
+        title={t('star.close')}
+        onClick={() => starAtom.set((x) => starClose(x, Date.now()))}
+      >
+        <X size={16} aria-hidden />
+      </button>
+    </div>
+  )
+}
+
 export function Overview() {
   const { t } = useUi()
   const multi = useStore((s) => decksOf(s.status).length > 1)
@@ -826,6 +870,7 @@ export function Overview() {
           <Controls />
         </div>
       </div>
+      <StarNote />
     </>
   )
 }

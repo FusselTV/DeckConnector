@@ -913,4 +913,9 @@ export const de: Dict = {
   'ev.matter_failed': 'Matter startet nicht: {0}',
   'log.store_settings': 'Nur die letzten 40 Ereignisse bleiben über einen Neustart.',
   'log.store_ram': 'Kein Ereignis bleibt über einen Neustart.',
+  'star.text': 'Gefällt dir DeckConnector? Ein Stern auf GitHub oder eine Spende hilft, dass es weitergeht.',
+  'star.gh': 'Stern auf GitHub',
+  'star.sponsor': 'Unterstützen',
+  'star.never': 'Nicht mehr zeigen',
+  'star.close': 'Vorerst schließen',
 }
