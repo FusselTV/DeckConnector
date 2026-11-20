@@ -2,3 +2,5 @@ dependencies:
   espressif/esp_matter:
     version: "1.6.1"
     override_path: "../../esp_matter"
+    rules:
+      - if: "target != linux" # firmware/simdeck links a fake: simdeck/components/esp_matter

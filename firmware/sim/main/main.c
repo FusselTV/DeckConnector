@@ -10,6 +10,7 @@
 #include "db_json.h"
 #include "db_log.h"
 #include "db_matter.h"
+#include "db_net.h"
 #include "db_serial.h"
 #include "db_ui.h"
 #include "db_web.h"
@@ -101,8 +102,8 @@ void app_main(void)
         unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
     }
     db_log_keep_start();
-    esp_event_loop_create_default(); /* esp_http_server posts its events there */
     db_config_load();
+    db_net_start();
     db_config_t cfg;
     db_config_copy(&cfg);
     const char *pw = getenv("DB_SIM_PASSWORD");
