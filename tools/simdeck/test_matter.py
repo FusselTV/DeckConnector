@@ -123,7 +123,8 @@ def test_presses_at_the_deck_reach_the_controller_and_api_presses_do_not(start, 
     sim.key(0, 1, True)
     time.sleep(1)
     sim.key(0, 1, False)
-    assert ctl.wait_events(sim, 3) == [(NODE + 2, "initial_press"), (NODE + 2, "long_press"), (NODE + 2, "long_release")]
+    want = [(NODE + 2, "initial_press"), (NODE + 2, "long_press"), (NODE + 2, "long_release")]
+    assert ctl.wait_events(sim, 3) == want
     sim.act("0 enc 0 1")
     sim.act("0 enc 0 0")
     assert ctl.wait_events(sim, 2) == [(NODE + 49, "initial_press"), (NODE + 49, "short_release")]
@@ -182,7 +183,7 @@ def test_another_deck_in_the_slot_gets_new_ids(start, tmp_path):
 def test_off_takes_effect_with_the_restart(start, tmp_path):
     image = flash(tmp_path)
     log = tmp_path / "m.log"
-    sim, ctl = matter_on(start, log, "plus", DB_SIM_FLASH=str(image))
+    sim, _ctl = matter_on(start, log, "plus", DB_SIM_FLASH=str(image))
     sim.config(matter=False)
     assert sim.status()["matter"] == {"on": False, "running": True, "controllers": 0, "pairing": True}
     sim.stop()

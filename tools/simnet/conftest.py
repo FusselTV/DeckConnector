@@ -54,7 +54,13 @@ def sim():
         port = next(_ports)
         WORK.mkdir(parents=True, exist_ok=True)
         log = (WORK / f"sim-{port}.log").open("wb")
-        env = {**os.environ, "DB_SIM_PORT": str(port), "DB_SIM_PASSWORD": "simnet-pass", "DB_SIM_MDNS_IF": ifname, **env}
+        env = {
+            **os.environ,
+            "DB_SIM_PORT": str(port),
+            "DB_SIM_PASSWORD": "simnet-pass",
+            "DB_SIM_MDNS_IF": ifname,
+            **env,
+        }
         proc = subprocess.Popen([SIM], env=env, stdout=log, stderr=subprocess.STDOUT)
         atexit.register(proc.kill)
         procs.append(proc)

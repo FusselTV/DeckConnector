@@ -48,8 +48,11 @@ def test_two_bridges_of_the_same_name_end_up_with_two_names(sim):
     assert sorted(a for addrs in hosts.values() for a in addrs) == ["10.77.0.1", "10.77.0.2"], hosts
 
 
-@pytest.mark.xfail(strict=True, reason="esp mdns applies the probe tiebreak while not probing: the higher address keeps "
-                   "the name, so the bridge already there renames (RFC 6762 9 wants the newcomer to)")
+@pytest.mark.xfail(
+    strict=True,
+    reason="esp mdns applies the probe tiebreak while not probing: the higher address keeps "
+    "the name, so the bridge already there renames (RFC 6762 9 wants the newcomer to)",
+)
 def test_the_newcomer_renames(sim):
     assert conflict(sim)["deckconnector-5678ab.local."] == ["10.77.0.1"]
 
