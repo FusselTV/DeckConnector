@@ -55,12 +55,22 @@ def shot(sim: SimDeck, n: int, name: str):
 def dismiss_prompt(sim: SimDeck, n: int = 0) -> None:
     """The simulator finds a Companion at once; "Nein" is the third key on every deck. The deck's picture
     changes when the prompt goes."""
-    assert sim.wait(lambda: drawn_since(sim, n, 0), 5), "the deck shows nothing"
+    assert sim.wait(lambda: drawn_since(sim, n, {}), 5), "the deck shows nothing"
     time.sleep(0.3)
-    since = time.time()
+    before = pictures(sim, n)
     sim.tap(n, 2)
-    assert sim.wait(lambda: drawn_since(sim, n, since), 5), "the prompt did not go"
+    assert sim.wait(lambda: drawn_since(sim, n, before), 5), "the prompt did not go"
 
 
-def drawn_since(sim: SimDeck, n: int, since: float) -> list[Path]:
-    return [f for f in (sim.decks / str(n)).iterdir() if f.suffix in (".jpg", ".bmp") and f.stat().st_mtime >= since]
+def pictures(sim: SimDeck, n: int) -> dict[Path, tuple[int, int]]:
+    """Each picture file of deck n by inode and mtime. The emulator renames a new file over the old one, so a new
+    picture is a new inode. File times come from a coarse kernel clock and may lie before time.time()."""
+    return {
+        f: (st.st_ino, st.st_mtime_ns)
+        for f in (sim.decks / str(n)).iterdir()
+        if f.suffix in (".jpg", ".bmp") and (st := f.stat())
+    }
+
+
+def drawn_since(sim: SimDeck, n: int, before: dict[Path, tuple[int, int]]) -> list[Path]:
+    return [f for f, v in pictures(sim, n).items() if before.get(f) != v]

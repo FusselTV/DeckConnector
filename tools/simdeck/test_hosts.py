@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import DISPLAY, ELGATO, MODELS, dismiss_prompt, drawn_since, shot
+from conftest import DISPLAY, ELGATO, MODELS, dismiss_prompt, drawn_since, pictures, shot
 from PIL import Image
 
 from dbtools import protocol as p
@@ -55,15 +55,16 @@ async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(s
         keys = [t for t in dev["displays"][0]["targets"] if t["kind"] == "key"]
         assert keys
         assert sorted(t["index"] for t in keys) == list(range(len(keys)))
-        since = time.time()
+        before = pictures(sim, 0)
         for t in keys:
             img = red(t["w"], t["h"], dev["displays"][0]["format"])
             ack = await bridge.send_image((t["x"], t["y"], t["w"], t["h"]), img)
             assert ack.result == p.AckResult.SHOWN, (t, ack)
-        new = lambda: drawn_since(sim, 0, since)  # noqa: E731
-        assert sim.wait(lambda: new() and all(reddish(Image.open(f)) for f in new()))
-        if model not in ("plus", "plus-xl"):  # the + draws its keys into one LCD image
-            assert len(new()) == len(keys), sorted(f.name for f in new())
+        new = lambda: drawn_since(sim, 0, before)  # noqa: E731
+        want = 1 if model in ("plus", "plus-xl") else len(keys)  # the + draws its keys into one LCD image
+        assert sim.wait(lambda: len(new()) >= want and all(reddish(Image.open(f)) for f in new()))
+        if want > 1:
+            assert len(new()) == want, sorted(f.name for f in new())
         shot(sim, 0, f"{model}-server")
         await asyncio.to_thread(sim.tap, 0, 1)
         got = [await asyncio.wait_for(bridge.inputs.get(), 5) for _ in range(2)]
@@ -231,7 +232,7 @@ def test_companions_library_drives_the_dock(start, model):
     if model != "pedal":
         dismiss_prompt(sim)
     sim.config(controller="companion", host="", setup_done=True)
-    since = time.time()
+    before = pictures(sim, 0) if model != "pedal" else {}
     run = subprocess.Popen(
         ["node", CHECK, "127.0.0.1:5343", "3"], cwd=CHECK.parent, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True,
@@ -244,7 +245,7 @@ def test_companions_library_drives_the_dock(start, model):
     assert f"keys {deck['keys']}" in out or model == "neo", out
     assert '"button-down":1' in out, out
     if model != "pedal":
-        assert drawn_since(sim, 0, since), "the dock host drew nothing"
+        assert drawn_since(sim, 0, before), "the dock host drew nothing"
         shot(sim, 0, f"{model}-dock")
 
 
@@ -326,13 +327,13 @@ def test_a_long_bitmap_id_is_cached_and_drawn_again(start, companion):
     dev, bid = companion.devices[0], "f" * 64
     companion.send("BITMAP-CACHE OK")
     rgb = base64.b64encode(bytes([220, 20, 20]) * 72 * 72).decode()
-    first = time.time()
+    first = pictures(sim, 0)
     companion.send(f'KEY-STATE DEVICEID="{dev}" CONTROLID="0/0" BITMAP="{rgb}" BITMAP_ID="{bid}"')
     assert sim.wait(lambda: any(x.startswith(f'BITMAP-COST BITMAP_ID="{bid}"') for x in companion.lines), 5)
     assert sim.wait(lambda: drawn_since(sim, 0, first), 5)
     time.sleep(0.3)
-    since = time.time()
+    before = pictures(sim, 0)
     companion.send(f'KEY-STATE DEVICEID="{dev}" CONTROLID="0/0" BITMAP_ID="{bid}"')
-    assert sim.wait(lambda: drawn_since(sim, 0, since), 5), "the cached picture was not drawn"
+    assert sim.wait(lambda: drawn_since(sim, 0, before), 5), "the cached picture was not drawn"
     time.sleep(1)
     assert companion.devices == [dev], "the long id ended the session"

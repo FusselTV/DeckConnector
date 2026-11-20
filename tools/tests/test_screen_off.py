@@ -100,6 +100,7 @@ def test_one_press_lights_a_deck_at_brightness_0():
     put_config({"brightness": 0})
     try:
         assert status()["decks"][0]["brightness"] == 0
+        time.sleep(0.3)  # db_deck takes the new wake level on the next UI tick (200 ms)
         seen = input_since()
         press(1, real="192.0.2.1")
         assert status()["decks"][0]["brightness"] == 50, "a press left the deck black"
