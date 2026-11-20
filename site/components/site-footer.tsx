@@ -48,6 +48,8 @@ export function SiteFooter({ lang }: { lang: Lang }) {
     [s.releases, `${repo}/releases`],
     [s.source, repo],
     [s.license, `${repo}/blob/main/LICENSE`],
+    ['GitHub Sponsors', 'https://github.com/sponsors/FusselTV'],
+    ['Ko-fi', 'https://ko-fi.com/fusseltv'],
   ]
   return (
     <footer className="mt-auto border-t text-sm text-fd-muted-foreground">

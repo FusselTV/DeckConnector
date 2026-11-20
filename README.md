@@ -28,6 +28,9 @@
     <td valign="top"><img src=".github/assets/ha-connector.gif" width="384" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after and screen saver brightness. The brightness and the speaker volume change with the web UI above"></td>
     <td valign="top"><img src=".github/assets/ha-screen.webp" width="330" alt="The deck picture in Home Assistant"><br><img src=".github/assets/ha-deck.webp" width="330" alt="A deck in Home Assistant: screen picture, source and the controls event"></td>
   </tr>
+  <tr>
+    <td colspan="2" align="center"><a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=FusselTV&repository=DeckConnector&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open DeckConnector in HACS"></a></td>
+  </tr>
 </table>
 
 - Companion connects over Satellite or as a Network Dock. The Elgato App sees a Network Dock.
@@ -50,3 +53,5 @@ Everything else is in the [docs](https://deckconnector.com/docs). To build it yo
 ## License
 
 [AGPL-3.0](LICENSE). Warranty, trademarks and an added permission are in [NOTICE.md](NOTICE.md).
+
+Support DeckConnector on [GitHub Sponsors](https://github.com/sponsors/FusselTV) or [Ko-fi](https://ko-fi.com/fusseltv).
