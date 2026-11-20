@@ -8,9 +8,9 @@ export type Row = { k: string; a: Cell; b: Cell; win?: 'a' | 'b'; top?: true }
 
 const en = {
   meta: {
-    title: 'Stream Deck on Wi-Fi vs. Elgato Network Dock',
+    title: 'Elgato Network Dock alternative with Wi-Fi',
     description:
-      'DeckConnector vs the Elgato Network Dock: Wi-Fi, price, Companion, Elgato app, several computers. Honest table, tested on the bench.',
+      'DeckConnector and the Elgato Network Dock side by side: Wi-Fi, PoE, price, Bitfocus Companion, Elgato app, several computers. Tested on the bench.',
   },
   crumbs: ['Home', 'Compare'],
   h1: 'DeckConnector vs Elgato Network Dock',
@@ -131,9 +131,9 @@ const en = {
 
 const de: typeof en = {
   meta: {
-    title: 'Stream Deck im WLAN vs. Elgato Network Dock',
+    title: 'Alternative zum Elgato Network Dock, mit WLAN',
     description:
-      'DeckConnector und Elgato Network Dock im Vergleich: WLAN, Preis, Companion, Elgato-App, mehrere Rechner. Ehrlich, auf dem Prüfstand getestet.',
+      'DeckConnector und Elgato Network Dock im Vergleich: WLAN, PoE, Preis, Bitfocus Companion, Elgato-App, mehrere Rechner. Auf dem Prüfstand getestet.',
   },
   crumbs: ['Startseite', 'Vergleich'],
   h1: 'DeckConnector und Elgato Network Dock im Vergleich',

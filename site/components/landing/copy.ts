@@ -13,7 +13,7 @@ const en = {
   meta: {
     title: 'Stream Deck on Wi-Fi and Ethernet, DeckConnector',
     description:
-      'Free firmware that puts your Elgato Stream Deck on Wi-Fi or Ethernet. Works with Companion and the Elgato app. An open alternative to the Network Dock.',
+      'Free firmware puts your Elgato Stream Deck on Wi-Fi or Ethernet. For Bitfocus Companion, the Elgato app and Home Assistant. An Elgato Network Dock alternative.',
   },
   title: ['Your Stream Deck,', 'on Wi-Fi.'],
   lead: 'Free firmware for a board from about $25. Works with Companion and the Elgato app.',
@@ -89,7 +89,7 @@ const de: typeof en = {
   meta: {
     title: 'Stream Deck im WLAN und LAN, DeckConnector',
     description:
-      'Freie Firmware bringt dein Elgato Stream Deck ins WLAN oder per Kabel ins Netzwerk. Für Companion und die Elgato-App. Offene Alternative zum Network Dock.',
+      'Freie Firmware bringt dein Elgato Stream Deck ins WLAN oder LAN. Für Bitfocus Companion, die Elgato-App und Home Assistant. Alternative zum Elgato Network Dock.',
   },
   title: ['Dein Stream Deck', 'im WLAN.'],
   lead: 'Freie Firmware für eine Platine ab 25 Euro. Läuft mit Companion und der Elgato-App.',
