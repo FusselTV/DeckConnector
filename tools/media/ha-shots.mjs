@@ -69,7 +69,7 @@ async function clip(page, boxes, path, margin = 16) {
 }
 
 // the cards in the device page's middle column, without "+n disabled entities" and a card that only had those
-async function cards(page) {
+export async function cards(page) {
   await page.evaluate(() => {
     const walk = (root) => {
       for (const el of root.querySelectorAll('*')) {
@@ -106,7 +106,7 @@ async function dashboard(page, names) {
   }, names)
 }
 
-async function devices(page) {
+export async function devices(page) {
   return Object.fromEntries(await hass(page, () =>
     Object.values(document.querySelector('home-assistant').hass.devices)
       .filter((d) => d.identifiers.some(([domain]) => domain === 'deckconnector'))
@@ -137,7 +137,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const boxes = await cards(page)
         if (name === 'board') boxes.pop() // Connected devices
         await clip(page, boxes, `${out}/ha-${name}-${v}.png`)
-        if (v === 'en-dark') await clip(page, name === 'board' ? boxes.slice(0, 2) : boxes, `${out}/readme-${name}.png`)
+        if (v === 'en-dark' && name === 'deck') await clip(page, boxes, `${out}/readme-deck.png`)
       }
       if (v === 'en-dark') {
         await page.evaluate(() => document.querySelector('home-assistant').dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: 'camera.stream_deck_screen' }, bubbles: true, composed: true })))
