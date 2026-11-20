@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a scene key, a dial, the lights folder, the Elgato App takes over, the brightness goes down and up">
+  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a camera key, a dial, the lights folder, the volume, a restart and the speaker setting">
 </p>
 
 <table align="center">
@@ -25,8 +25,8 @@
     <th colspan="2">Home Assistant</th>
   </tr>
   <tr>
-    <td valign="top"><img src=".github/assets/ha-connector.webp" width="384" alt="The connector in Home Assistant: brightness, find, screen, controller, restart, screen off after and volume"></td>
-    <td valign="top"><img src=".github/assets/ha-screen.webp" width="330" alt="The deck picture in Home Assistant"><br><img src=".github/assets/ha-deck.webp" width="330" alt="A deck in Home Assistant: PIN lock, screen picture, source and the controls event"></td>
+    <td valign="top"><img src=".github/assets/ha-connector.webp" width="384" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after, screen saver brightness and volume"></td>
+    <td valign="top"><img src=".github/assets/ha-screen.webp" width="330" alt="The deck picture in Home Assistant"><br><img src=".github/assets/ha-deck.webp" width="330" alt="A deck in Home Assistant: PIN lock, screen picture, source, the controls event and reconnect"></td>
   </tr>
 </table>
 
