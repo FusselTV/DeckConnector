@@ -3,6 +3,7 @@ import {
   closeMenu,
   dbfw,
   event,
+  factoryReset,
   eventPage,
   reachable,
   openMenu,
@@ -302,8 +303,10 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
     case 'POST /api/sound/selftest':
       return fail(409, 'this board has no speaker')
     case 'POST /api/reboot':
-    case 'POST /api/reset':
       restartSoon(s, now)
+      return ok()
+    case 'POST /api/reset':
+      factoryReset(s, now)
       return ok()
     case 'POST /api/dock':
       return dock(s, now, b)

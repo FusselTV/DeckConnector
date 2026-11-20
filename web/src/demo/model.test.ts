@@ -245,6 +245,14 @@ describe('demo bridge', () => {
     expect(call(s, 'POST', '/api/login', { password: s.pass }, T0 + 20_000).status).toBe(200)
   })
 
+  it('does a factory reset from the web page too, not only a restart', () => {
+    const s = demo()
+    call(s, 'POST', '/api/reset')
+    tick(s, T0 + 1000 + RESTART_MS)
+    expect(s.cfg.setup_done).toBe(false)
+    expect(s.authed).toBe(false)
+  })
+
   it('connects to example LAN hosts only, after a short wait', () => {
     const s = demo()
     putConfig(s, T0, { satellite: '10.0.0.5' })

@@ -43,7 +43,7 @@
       "no_deck": "No deck is attached. Enter the web password instead.",
       "not_accepted": "The deck did not accept the request. Enter the web password instead.",
       "https_only": "The connector allows HTTPS only. Turn off 'HTTPS only' on its web page, then try again.",
-      "too_many_keys": "The connector has 8 API keys already. Delete one under Access › API keys on its web page, then try again.",
+      "too_many_keys": "The connector has 8 API keys already. Delete one under Access › API access on its web page, then try again.",
       "not_deckconnector": "Something answers at this address, but it is not a DeckConnector."
     },
     "abort": {

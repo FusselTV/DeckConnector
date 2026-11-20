@@ -90,7 +90,7 @@ Die [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) zeigt 
 ## Gut zu wissen
 
 - Home Assistant spricht mit dem Connector über HTTP auf Port 80.
-- Tastendrücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
+- Tastendrücke vom Live-Deck der Weboberfläche kommen bei Home Assistant an. Tastendrücke aus Skripten nur mit `"real": true`. Home Assistant drückt nie etwas am Deck.
 - Nach einem Firmware-Update lädt sich die Integration selbst neu, neue Entitäten erscheinen dann.
 - Der Logger heißt `custom_components.deckconnector`.
 
