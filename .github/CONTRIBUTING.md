@@ -34,13 +34,14 @@ screen. `db_deck` keeps the newest image per area for every source, so a host th
 
 ## Tests
 
-Most tests need no board. They run against the firmware built for Linux: `firmware/sim` (the web API) and
-`firmware/simdeck` (the whole firmware with emulated decks of every model). Building them needs `libbsd-dev`.
-Times are from a 12-core PC with a warm ccache.
+Most tests need no board. They run against the firmware built for Linux. `firmware/sim` has the web API, and
+`firmware/simdeck` has the whole firmware with emulated decks of every model. Building them needs `libbsd-dev` and
+`libjpeg-dev`. They carry the web UI from `web/dist`, so build that first (`cd web && npm run check`). Times are from
+a 12-core PC with a warm ccache.
 
 | What | Command | Time |
 |---|---|---|
-| `db_core` with AddressSanitizer | `cmake -S firmware/host_test -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host` | 1 min |
+| `db_core` | `cmake -S firmware/host_test -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host` | 1 min |
 | Firmware after an edit | `tools/build.sh` | 5 s |
 | Web UI checks | `cd web && npm run check` | 10 s |
 | Simulators | `cd firmware/sim && idf.py build`, the same in `firmware/simdeck` | 10 s each |
@@ -50,10 +51,10 @@ Times are from a 12-core PC with a warm ccache.
 | Home Assistant | `cd tools/ha && uv run pytest` | 15 s |
 | Home Assistant in Docker | `cd tools/ha && uv run pytest e2e -p no:homeassistant` | 30 s |
 
-The simulators carry the web UI from `web/dist`, so build it first (`cd web && npx vite build`). The deck model
-tests also need `cd tools/companion-check && npm ci` once. The suites use fixed ports. To run two at once, for
-example from two checkouts, start each in a network namespace of its own:
-`.github/scripts/netns.sh uv run pytest simdeck`. Tests that wait for a timer can fail when the PC is busy.
+The deck model tests also need `cd tools/companion-check && npm ci` once. The suites use fixed ports. To run two at
+once, for example from two checkouts, start each in a network namespace of its own:
+`.github/scripts/netns.sh uv run pytest simdeck`. This needs unprivileged user namespaces, which Ubuntu 24.04 turns
+off by default. Tests that wait for a timer can fail when the PC is busy; run them again alone.
 
 With a board, set its address as `host` in `~/.config/deckbridge/bench.json`. The other keys are in
 `tools/dbtools/site.py`. Tests that need a camera, a switch or a test Companion skip until those are set.

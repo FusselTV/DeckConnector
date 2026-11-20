@@ -2,9 +2,9 @@ name: home-assistant
 on:
   push:
     branches: [main]
-    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, .github/scripts/idf.sh, .github/workflows/ha.yml]
+    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, web/**, .github/scripts/idf.*, .github/workflows/ha.yml]
   pull_request:
-    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, .github/scripts/idf.sh, .github/workflows/ha.yml]
+    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, web/**, .github/scripts/idf.*, .github/workflows/ha.yml]
   schedule:
     - cron: '0 4 * * 1' # hassfest and HACS change their checks without this repo changing
   workflow_dispatch:
@@ -72,7 +72,7 @@ jobs:
           uv run --locked mypy ../../custom_components/deckconnector
           uv run --locked pytest --cov=custom_components.deckconnector --cov-report=term-missing --cov-fail-under=95
 
-  # A real Home Assistant in Docker against firmware/sim and firmware/simdeck: the API as the firmware serves it.
+  # A real Home Assistant in Docker against firmware/sim and firmware/simdeck
   e2e:
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 20

@@ -7,6 +7,7 @@ dbfw info FILE                    show the header
 
 import argparse
 import hashlib
+import os
 import re
 import struct
 import sys
@@ -21,7 +22,7 @@ FORMAT = 1
 TARGETS = {"p4": 1, "c6": 2, "web": 3, "bootloader": 4, "ptable": 5}  # web: level holds api_min
 HEADER = struct.Struct("<4sBBHI32s32s")  # signed part, 76 bytes
 HEADER_LEN = 144
-KEY = Path.home() / ".config/deckbridge/ota_key.pem"
+KEY = Path(os.environ.get("DBFW_KEY", Path.home() / ".config/deckbridge/ota_key.pem"))  # CI: a throwaway key
 PUBKEY_C = Path(__file__).resolve().parents[2] / "firmware/components/db_ota/ota_pubkey.c"
 OTA_C = PUBKEY_C.with_name("db_ota.c")
 PAGE = OTA_C.parents[3] / "web/dist/index.html"
