@@ -104,3 +104,28 @@ describe('the mock against the firmware route table', () => {
     expect(named.filter((r) => !routeOf(r.method, r.path.replace(/\*$/, 'x'))).map(key)).toEqual([])
   })
 })
+
+describe('POST /api/sound', () => {
+  const post = (s: ReturnType<typeof fresh>, body: Record<string, unknown>) =>
+    handle(s, 1000, 'POST', '/api/sound', body, () => [])
+  const peak = (pcm?: Int16Array) => Math.max(0, ...(pcm ?? []))
+
+  it('plays the firmware tones, louder with the volume, Find at least at 60', () => {
+    const s = fresh(0)
+    boot(s, 0)
+    s.cfg.speaker = true
+    s.cfg.volume = 0
+    expect(post(s, { sound: 'connected' }).status).toBe(409)
+    const find = post(s, { sound: 'find' }).pcm
+    expect(find?.length).toBe(16 * 1640)
+    expect(peak(find)).toBeCloseTo(16000 * 0.36, -2)
+    expect(peak(post(s, { sound: 'connected', volume: 50 }).pcm)).toBeCloseTo(16000 * 0.25, -2)
+    expect(peak(post(s, { sound: 'find', volume: 30 }).pcm)).toBeCloseTo(16000 * 0.09, -2)
+    expect(post(s, { sound: 'find', volume: 0 })).toMatchObject({ status: 200, pcm: new Int16Array() })
+    expect(post(s, { sound: 'find', volume: 101 }).status).toBe(400)
+    expect(post(s, { sound: 'find', volume: '50' }).status).toBe(400)
+    s.cfg.speaker = false
+    expect(post(s, { sound: 'find' }).status).toBe(409)
+    expect(post(s, { sound: 'beep' }).status).toBe(400)
+  })
+})

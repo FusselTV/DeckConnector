@@ -681,7 +681,8 @@ export const LIVE: (keyof ConfigPatch)[] = [
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
 
-export type Reply = { status: number; body: unknown }
+/** `pcm`: what the board's speaker plays, at TONE_RATE. */
+export type Reply = { status: number; body: unknown; pcm?: Int16Array }
 type Api = typeof api
 /** A 200 reply typed as the page reads it. `more` holds fields the firmware sends that the page does not read. */
 export const res = <K extends keyof Api>(_route: K, body: Awaited<ReturnType<Api[K]>>, more: object = {}): Reply => ({
