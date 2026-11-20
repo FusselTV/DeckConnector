@@ -3,17 +3,23 @@ import { expect, test } from '@playwright/test'
 import { en } from '../src/i18n/en.ts'
 
 // Plain imports would make tsc follow the app's extensionless imports, which this tsconfig refuses.
-const [modelFile, serverFile, uiFile]: string[] = [
+const [modelFile, serverFile, uiFile, backupFile]: string[] = [
   '../src/demo/model.ts',
   '../src/demo/server.ts',
   '../src/demo/deck-ui.ts',
+  '../src/lib/backup.ts',
 ]
 await ((await import(uiFile)) as { deckUiReady: Promise<void> }).deckUiReady
 type Demo = { bootAt: number }
-const { boot, fresh, EV } = (await import(modelFile)) as {
+const { boot, fresh, EV, LIVE } = (await import(modelFile)) as {
   fresh: (now: number) => Demo
   boot: (s: Demo, at: number) => void
   EV: Record<string, [string, string, string]>
+  LIVE: string[]
+}
+const { WRITABLE, restarts } = (await import(backupFile)) as {
+  WRITABLE: Set<string>
+  restarts: (k: string) => boolean
 }
 const { handle } = (await import(serverFile)) as {
   handle: (
@@ -157,21 +163,23 @@ test('the mock knows every firmware event code as the firmware defines it', () =
     expect(en, `the page has no words for ${code}`).toHaveProperty([`ev.${code}`])
 })
 
+// db_config_t field -> its JSON key, where they differ
+const JSON_KEY: Record<string, string> = {
+  servers_first: 'servers',
+  servers_more: 'servers',
+  qr_login_off: 'qr_login',
+  satellite_auto_off: 'satellite_auto',
+}
+
 // The backup is the settings JSON: a field of db_config_t outside it would be lost on a restore.
 test('every field of db_config_t is in the JSON', () => {
   const h = readFileSync(new URL('components/db_config/include/db_config.h', fw), 'utf8')
   const struct = h.slice(h.indexOf('/* Saved as one NVS blob'), h.indexOf('} db_config_t;'))
   const fields = [...struct.matchAll(/^\s+(?:const )?[a-z_0-9]+\s+([a-z_0-9]+)\s*[[;]/gm)].map((m) => m[1])
-  const json: Record<string, string> = {
-    servers_first: 'servers',
-    servers_more: 'servers',
-    qr_login_off: 'qr_login',
-    satellite_auto_off: 'satellite_auto',
-  }
   const notSettings = ['version', 'input_lock']
   const src = readFileSync(new URL('components/db_config/db_config.c', fw), 'utf8')
   expect(fields.length).toBeGreaterThan(30)
-  expect(fields.filter((f) => !notSettings.includes(f) && !src.includes(`"${json[f] ?? f}"`))).toEqual([])
+  expect(fields.filter((f) => !notSettings.includes(f) && !src.includes(`"${JSON_KEY[f] ?? f}"`))).toEqual([])
 })
 test('the firmware reads back every key it writes', () => {
   const src = readFileSync(new URL('components/db_config/db_config.c', fw), 'utf8')
@@ -179,4 +187,15 @@ test('the firmware reads back every key it writes', () => {
   const keys = (s = '') => new Set([...s.matchAll(/"([a-z_0-9]+)"/g)].map((m) => m[1]))
   const taken = keys(read)
   expect([...keys(write)].filter((k) => !k.endsWith('_set') && k !== 'setup_done' && !taken.has(k))).toEqual([])
+})
+
+// A field missing from api.c's list restarts the bridge on every change of it; the demo and the restore page say so.
+test('the demo and the restore page know which settings apply without a restart', () => {
+  const src = readFileSync(new URL('components/db_web/api.c', fw), 'utf8')
+  const fields = [...src.matchAll(/live\.(\w+) = old\.\1;|memcpy\(live\.(\w+), old\.\2,/g)].map((m) => m[1] || m[2])
+  const live = new Set([...fields.map((f) => JSON_KEY[f] ?? f), 'matter']) // api.c turns Matter on live, off restarts
+  expect(live.size).toBeGreaterThan(20)
+  expect(Object.keys(JSON_KEY).filter((f) => live.has(JSON_KEY[f]) !== fields.includes(f))).toEqual([])
+  expect([...new Set(LIVE)].sort()).toEqual([...live].sort())
+  expect([...WRITABLE].filter((k) => restarts(k) === live.has(k))).toEqual([])
 })

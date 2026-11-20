@@ -651,7 +651,7 @@ export const config = (s: Demo): Config => ({
   matter: s.matter.on,
 })
 
-const LIVE: (keyof ConfigPatch)[] = [
+export const LIVE: (keyof ConfigPatch)[] = [
   'brightness',
   'volume',
   'speaker',
