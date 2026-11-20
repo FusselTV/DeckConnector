@@ -1,17 +1,14 @@
 // Renders the deck pictures for the docs with the firmware's own db_ui code (deck-shots.c), shows them in the
 // real web UI's live deck and saves that crop as webp in public/docs/.
-// Needs the simulator and the built web UI behind `vite preview`, for example:
-//   cd web && DC_SIM_PORT=18460 node scripts/sim.mjs
-//   cd web && npx vite build --outDir /some/dir && DC_TARGET=http://127.0.0.1:18460 DC_SIM_PORT=18460 npx vite preview --outDir /some/dir --port 5460
-//   node site/scripts/deck-shots.mjs http://127.0.0.1:5460
+// Run it with tools/media/deck.sh.
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 
 const root = new URL('../../', import.meta.url).pathname
-const web = process.argv[2] ?? 'http://127.0.0.1:5460'
+const web = process.argv[2] ?? 'http://127.0.0.1:5470'
 const out = join(root, 'site/public/docs')
 const require = createRequire(join(root, 'web/package.json'))
 const { chromium } = require('playwright')
@@ -43,14 +40,19 @@ execFileSync(bin, [work])
 const keys = [12, 172].flatMap((y) => [13, 232, 451, 670].map((x) => ({ x, y, w: 120, h: 120 })))
 const strip = { x: 0, y: 380, w: 800, h: 100 }
 
-const sim = (process.env.DC_SIM ?? 'http://127.0.0.1:18460') + '/api/'
+const sim = (process.env.DC_SIM ?? 'http://127.0.0.1:18470') + '/api/'
 const headers = {
   Authorization: 'Basic ' + btoa('admin:simulator-pass'),
   'X-DeckConnector': '1',
   'Content-Type': 'application/json',
 }
-await fetch(sim + 'setup', { method: 'PUT', headers, body: '{"step":0}' })
-await fetch(sim + 'config', { method: 'PUT', headers, body: '{"setup_done":true,"brightness":100}' })
+for (const [path, body] of [
+  ['setup', '{"step":0}'],
+  ['config', '{"setup_done":true,"brightness":100}'],
+]) {
+  const r = await fetch(sim + path, { method: 'PUT', headers, body })
+  if (!r.ok) throw new Error(`PUT ${path}: ${r.status}`)
+}
 
 const browser = await chromium.launch()
 const page = await browser.newPage({
@@ -137,3 +139,4 @@ for (const [name, row] of ['en', 'de'].flatMap((l) => [
   console.log(file)
 }
 await browser.close()
+rmSync(work, { recursive: true })
