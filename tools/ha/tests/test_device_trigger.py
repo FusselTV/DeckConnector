@@ -118,6 +118,7 @@ async def test_a_tap_runs_the_automations_of_its_zone_and_of_the_whole_strip(has
                 {
                     "triggers": [trigger(deck, type_, subtype)],
                     "actions": [{"action": "test.run", "data": {"on": subtype, "zone": "{{ trigger.zone }}"}}],
+                    "mode": "parallel",  # the two strip taps come at once; "single" drops the second
                 }
                 for type_, subtype in (("tap", "touch_2"), ("tap", "touch_strip"), ("long_press", "touch_4"))
             ]
