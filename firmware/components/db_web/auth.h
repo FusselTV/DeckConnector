@@ -61,7 +61,9 @@ uint32_t auth_asker(httpd_req_t *req);
 int auth_paused_s(db_ui_page_t page, uint32_t key);
 void auth_raised(db_ui_page_t page, uint32_t key);
 /* A websocket checks its login again on every message: a logout, a new password, the end of the setup
- * claim or a removed token must reach it too. The key is its session or its token's hash, "" for neither. */
+ * claim, the closed setup WLAN or a removed token must reach it too. The key names what let it in: its
+ * session, its token's hash, the setup WLAN, or the password's generation for basic auth. "" never stays
+ * alive. */
 #define AUTH_KEY_LEN 66
 void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN]);
 bool auth_login_alive(const char *key);

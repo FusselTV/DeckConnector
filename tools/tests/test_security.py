@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from conftest import HOST, PASSWORD, TARGET, WORKER, api, deck_page, start_sim, status
 from cryptography.hazmat.primitives import serialization
+from websockets.exceptions import ConnectionClosed
 from websockets.sync.client import connect
 
 from dbtools import dbfw
@@ -190,12 +191,11 @@ def claim(port: int, host: str) -> tuple[int, str]:
         return e.code, e.read().decode()
 
 
+BASIC = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}
+
+
 def put(port: int, body: dict, cookie: str = "") -> tuple[int, str]:
-    auth = (
-        {"Cookie": cookie}
-        if cookie
-        else {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode()).decode()}
-    )
+    auth = {"Cookie": cookie} if cookie else BASIC
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/config",
         data=json.dumps(body).encode(),
@@ -360,3 +360,43 @@ def test_a_socket_that_lost_its_listener_slot_may_not_change_anything(own_sim):
         while (frame := json.loads(ws.recv(timeout=5)))["t"] != "result":
             pass
         assert (frame["id"], frame["status"]) == (7, 401)
+
+
+def ws_set_status(ws) -> int:
+    """The status of a set, 401 also when a broadcast closed the socket first."""
+    try:
+        ws.send(json.dumps({"t": "set", "id": 8, "brightness": 40}))
+        while (frame := json.loads(ws.recv(timeout=5)))["t"] != "result":
+            pass
+    except ConnectionClosed:
+        return 401
+    return frame["status"]
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="changes the password")
+def test_a_websocket_opened_with_the_old_password_loses_its_rights_with_it(own_sim):
+    with connect(f"ws://127.0.0.1:{own_sim}/api/ws", additional_headers=BASIC) as ws:
+        assert json.loads(ws.recv())["t"] == "state"
+        assert ws_set_status(ws) == 200
+        assert put(own_sim, {"admin_pass": "another-pass"})[0] == 200
+        assert ws_set_status(ws) == 401
+    assert get(f"http://127.0.0.1:{own_sim}/") == 200, "the bridge still runs"
+
+
+@pytest.mark.sim
+@pytest.mark.skipif(TARGET != "sim", reason="the setup WLAN of the simulator")
+@pytest.mark.parametrize("own_sim", [{"DB_SIM_VIA_AP": "1"}], indirect=True)
+def test_a_websocket_from_the_setup_wlan_loses_its_rights_when_it_closes(own_sim):
+    with connect(f"ws://127.0.0.1:{own_sim}/api/ws") as ws:
+        assert json.loads(ws.recv())["t"] == "state"
+        assert ws_set_status(ws) == 200
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{own_sim}/api/ap", method="DELETE", headers={"X-DeckConnector": "1"}
+        )
+        assert urllib.request.urlopen(req, timeout=5).status == 200
+        deadline = time.monotonic() + 5  # the AP closes 0.5 s after the answer
+        while get(f"http://127.0.0.1:{own_sim}/api/status") == 200 and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert ws_set_status(ws) == 401
+    assert get(f"http://127.0.0.1:{own_sim}/") == 200, "the bridge still runs"

@@ -2,7 +2,9 @@
 
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -370,11 +372,14 @@ static void count_try(httpd_req_t *req, bool ok)
     }
 }
 
-static bool basic_auth_ok(httpd_req_t *req)
+static uint32_t pass_gen; /* under mux: a websocket opened with basic auth lives while it stays */
+
+/* Counts no try: basic_auth_ok does. */
+static bool basic_matches(httpd_req_t *req)
 {
     char given[96] = {0};
     if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK ||
-        strncmp(given, "Basic ", 6) != 0 || locked_s(req)) {
+        strncmp(given, "Basic ", 6) != 0) {
         return false;
     }
     char plain[64];
@@ -388,6 +393,17 @@ static bool basic_auth_ok(httpd_req_t *req)
     mbedtls_platform_zeroize(given, sizeof(given));
     mbedtls_platform_zeroize(plain, sizeof(plain));
     mbedtls_platform_zeroize(expected, sizeof(expected));
+    return ok;
+}
+
+static bool basic_auth_ok(httpd_req_t *req)
+{
+    char kind[7] = "";
+    httpd_req_get_hdr_value_str(req, "Authorization", kind, sizeof(kind)); /* too long is fine: a prefix */
+    if (strcmp(kind, "Basic ") != 0 || locked_s(req)) {
+        return false;
+    }
+    bool ok = basic_matches(req);
     count_try(req, ok);
     return ok;
 }
@@ -520,6 +536,7 @@ void auth_end_sessions(void)
 {
     portENTER_CRITICAL(&mux);
     memset(sessions, 0, sizeof(sessions));
+    pass_gen++;
     portEXIT_CRITICAL(&mux);
 }
 
@@ -574,6 +591,9 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
 {
     char given[96] = {0};
     size_t cap = AUTH_KEY_LEN - 1;
+    portENTER_CRITICAL(&mux);
+    uint32_t gen = pass_gen; /* before the password check: a change in between leaves it stale */
+    portEXIT_CRITICAL(&mux);
     key[0] = '\0';
     if (auth_by_token(req) &&
         httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) == ESP_OK) {
@@ -584,6 +604,10 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
     } else if (httpd_req_get_cookie_val(req, COOKIE(req), key + 1, &cap) == ESP_OK &&
                session_valid(key + 1)) {
         key[0] = 's';
+    } else if (auth_via_ap(req)) {
+        strcpy(key, "a");
+    } else if (basic_matches(req)) {
+        snprintf(key, AUTH_KEY_LEN, "p%08" PRIx32, gen);
     }
     mbedtls_platform_zeroize(given, sizeof(given));
 }
@@ -591,10 +615,25 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
 bool auth_login_alive(const char *key)
 {
     uint8_t sha[32];
-    if (key[0] == 's') {
+    db_net_status_t n;
+    unsigned long gen = strtoul(key + 1, NULL, 16);
+    bool same;
+    switch (key[0]) {
+    case 's':
         return session_alive(key + 1);
+    case 't':
+        return db_config_pin(key + 1, sha) && token_by_sha(sha) >= 0;
+    case 'a':
+        db_net_status(&n);
+        return n.ap_active;
+    case 'p':
+        portENTER_CRITICAL(&mux);
+        same = key[1] && gen == pass_gen;
+        portEXIT_CRITICAL(&mux);
+        return same;
+    default:
+        return false;
     }
-    return key[0] == 't' && db_config_pin(key + 1, sha) && token_by_sha(sha) >= 0;
 }
 
 esp_err_t auth_login(httpd_req_t *req)
