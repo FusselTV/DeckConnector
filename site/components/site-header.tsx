@@ -1,7 +1,7 @@
 'use client'
 import { Fragment, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { BookOpen, Check, Languages, Menu, Moon, MonitorPlay, Scale, Search, Sun } from 'lucide-react'
+import { BookOpen, Check, Languages, Menu, Moon, MonitorPlay, Search, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useI18n } from 'fumadocs-ui/contexts/i18n'
 import { useSearchContext } from 'fumadocs-ui/contexts/search'
@@ -14,7 +14,6 @@ import { github } from './github'
 const t = {
   en: {
     docs: 'Docs',
-    compare: 'Compare',
     flash: 'Set it up',
     demo: 'Demo',
     home: 'DeckConnector home',
@@ -28,7 +27,6 @@ const t = {
   },
   de: {
     docs: 'Anleitung',
-    compare: 'Vergleich',
     flash: 'Einrichten',
     demo: 'Demo',
     home: 'Startseite von DeckConnector',
@@ -90,7 +88,6 @@ export function SiteHeader({ lang }: { lang: Lang }) {
   const links: [string, string, ReactNode][] = [
     [s.docs, `${p}/docs/`, <BookOpen key="d" />],
     [s.demo, `${p}/demo/`, <MonitorPlay key="m" />],
-    [s.compare, `${p}/compare/`, <Scale key="c" />],
   ]
   const current = (href: string) => (path.startsWith(href) ? 'page' : undefined)
   return (
