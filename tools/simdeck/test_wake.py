@@ -97,3 +97,19 @@ def test_a_dimmed_deck_stays_dimmed_when_a_dock_host_sets_its_brightness(start):
     assert run.returncode == 0, run.stdout
     assert brightness(sim) == "30", f"the dock host's 70 % came through: {brightness(sim)}"
     assert not sim.status()["screen_off"]
+
+
+def test_a_brightness_set_from_the_web_while_the_menu_shows_stays(start):
+    sim = start("plus")
+    dismiss_prompt(sim)
+    sim.config(setup_done=True)
+    assert sim.api("POST", "/api/menu")[0] == 200
+    assert sim.wait(lambda: sim.status()["menu_open"], 3)
+    sim.config(brightness=40)
+    time.sleep(1)  # a few UI ticks: the menu must not put the brightness from when it opened back
+    assert brightness(sim) == "40", f"the open menu took the deck back to {brightness(sim)}"
+    assert sim.api("DELETE", "/api/menu")[0] == 200
+    assert sim.wait(lambda: not sim.status()["menu_open"], 3)
+    time.sleep(0.5)
+    assert brightness(sim) == "40", f"closing the menu took the deck back to {brightness(sim)}"
+

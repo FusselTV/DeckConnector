@@ -412,8 +412,7 @@ static void main_menu(page_t *p)
     char login[72];
     snprintf(web, sizeof(web), "%s%s", ip_of(md) ? "http://" : L("Kein Netz", "No network"),
              ip_of(md) ? ip_of(md) : "");
-    snprintf(login, sizeof(login), L("Benutzer admin · Passwort %s", "User admin · password %s"),
-             md->web_pass);
+    snprintf(login, sizeof(login), L("Passwort %s", "Password %s"), md->web_pass);
     brightness(p, 2);
     if (p->l->strip) {
         firmware_card(p, put(p, at(p, 1, 2), K_NONE));
@@ -426,11 +425,11 @@ static void main_menu(page_t *p)
         if (cramped(p)) {
             if (md->web_pass[0] && p->l->cols >= 4) { /* 3 x 2: Status on the home screen shows it */
                 card(put(p, at(p, 1, 2), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass,
-                     "admin");
+                     fit(p, L("fürs Web", "for the web"), ""));
             }
         } else {
             card(put(p, at(p, 1, 2), K_NONE), ICON_WEB, "Web",
-                 ip_of(md) ? ip_of(md) : L("kein Netz", "no network"), "admin");
+                 ip_of(md) ? ip_of(md) : L("kein Netz", "no network"), "");
             if (md->web_pass[0]) {
                 card(put(p, at(p, 2, 2), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass, "");
             }
@@ -614,8 +613,7 @@ static void welcome_net(page_t *p)
     button(done, ICON_SAVE, L("Fertig", "Done"), fit(p, L("Setup beenden", "finish setup"), ""));
     done->active = true;
     done->color = C_ACTIVE;
-    card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : L("kein Netz", "no network"),
-         fit(p, L("Benutzer admin", "user admin"), "admin"));
+    card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : L("kein Netz", "no network"), "");
     card(put(p, at(p, 1, 1), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass,
          fit(p, L("fürs Web", "for the web"), ""));
     setup_keys(p);
@@ -704,10 +702,9 @@ static void password_page(page_t *p)
         }
         return;
     }
-    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, L("Benutzer", "User"), "admin", "");
-    card(put(p, at(p, 0, 1), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass, "");
+    card(put(p, at(p, 0, 0), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass, "");
     if (ip_of(md)) {
-        card(put(p, at(p, 0, 2), K_NONE), ICON_WEB, L("Adresse", "Address"), ip_of(md),
+        card(put(p, at(p, 0, 1), K_NONE), ICON_WEB, L("Adresse", "Address"), ip_of(md),
              fit(p, L("im Browser", "in a browser"), ""));
     }
     close_key(put(p, at(p, 0, -1), K_NONE), ICON_CLOSE, L("Schließen", "Close"), ""); /* any key closes it */

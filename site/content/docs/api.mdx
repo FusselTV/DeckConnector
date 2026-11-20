@@ -11,7 +11,7 @@ Use one of these.
 
 | Way | How | Notes |
 |---|---|---|
-| Password | HTTP basic auth, user `admin` | Every request that changes something also needs the header `X-DeckConnector: 1` |
+| Password | HTTP basic auth, any user name | Every request that changes something also needs the header `X-DeckConnector: 1` |
 | Session | `POST /api/login` with `{"password": "..."}` and `X-DeckConnector: 1` | Sets a cookie. Ends after 12 hours without use, or with `POST /api/logout` |
 | API key | `Authorization: Bearer KEY` | No `X-DeckConnector` header needed. Rights below |
 | Setup Wi-Fi | A client on the setup Wi-Fi | Rights of the password. Changes still need `X-DeckConnector: 1` |

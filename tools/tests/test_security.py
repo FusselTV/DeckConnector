@@ -38,6 +38,17 @@ def test_deep_json_does_not_crash_the_bridge():
 
 
 @pytest.mark.sim
+@pytest.mark.parametrize(("user", "password", "code"), [("", PASSWORD, 200), ("x", PASSWORD, 200), ("admin", "x", 401)])
+def test_basic_auth_checks_only_the_password(user, password, code):
+    auth = "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()
+    req = urllib.request.Request(f"http://{HOST}/api/config", headers={"Authorization": auth})
+    try:
+        assert urllib.request.urlopen(req, timeout=5).status == code
+    except urllib.error.HTTPError as e:
+        assert e.code == code
+
+
+@pytest.mark.sim
 def test_login_needs_the_marker_header():
     """A page on another site cannot add it, so it cannot guess passwords through a browser on the LAN."""
     assert post_raw("/api/login", json.dumps({"password": PASSWORD}).encode(), {}) == 403
