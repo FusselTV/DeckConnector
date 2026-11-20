@@ -70,21 +70,30 @@ const turnstile = (el: HTMLElement) =>
     s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
     s.onerror = bad
     s.onload = () => {
-      const ts = (window as unknown as { turnstile: Turnstile }).turnstile
-      let token: string | null = null
-      let wait: ((t: string | null) => void) | null = null
-      const give = (t: string | null) => ((token = t), wait?.(t), (wait = null))
-      const id = ts.render(el, {
-        sitekey: turnstileKey,
-        appearance: 'interaction-only',
-        callback: give,
-        'expired-callback': () => (token = null),
-        'error-callback': () => (give(null), true),
-      })
-      ok({
-        token: () => (token ? Promise.resolve(token) : new Promise((r) => (wait = r))),
-        reset: () => ((token = null), ts.reset(id)),
-      })
+      try {
+        const ts = (window as unknown as { turnstile: Turnstile }).turnstile
+        let token: string | null = null
+        let wait: ((t: string | null) => void) | null = null
+        const give = (t: string | null) => ((token = t), wait?.(t), (wait = null))
+        const id = ts.render(el, {
+          sitekey: turnstileKey,
+          appearance: 'interaction-only',
+          callback: give,
+          'expired-callback': () => (token = null),
+          'error-callback': () => (give(null), true),
+          'timeout-callback': () => give(null),
+        })
+        ok({
+          // An interactive check left alone never answers; after a minute the form offers the email address.
+          token: () =>
+            token
+              ? Promise.resolve(token)
+              : new Promise((r) => ((wait = r), setTimeout(() => wait === r && give(null), 60_000))),
+          reset: () => ((token = null), ts.reset(id)),
+        })
+      } catch (e) {
+        bad(e instanceof Error ? e : new Error(String(e)))
+      }
     }
     document.head.append(s)
   })
@@ -108,7 +117,11 @@ export function Contact({
   const box = useRef<HTMLDivElement>(null)
   const widget = useRef<Promise<Widget> | null>(null)
   const start = () => {
-    if (!widget.current && box.current) widget.current = turnstile(box.current)
+    if (!widget.current && box.current)
+      widget.current = turnstile(box.current).catch((e: unknown) => {
+        widget.current = null
+        throw e
+      })
   }
   const done = useRef<HTMLHeadingElement>(null)
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'rate' | 'failed'>('idle')
@@ -153,7 +166,6 @@ export function Contact({
       })
       setState(r.ok ? 'sent' : r.status === 429 ? 'rate' : 'failed')
     } catch {
-      widget.current = null
       setState('failed')
     }
   }

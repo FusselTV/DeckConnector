@@ -22,8 +22,19 @@ test('human refuses a failed check', async () => {
   assert.equal(await human('s', 'tok', '', 'deckconnector.com'), false)
 })
 
+test('human refuses when siteverify cannot be reached or answers garbage', async () => {
+  globalThis.fetch = async () => {
+    throw new TypeError('network')
+  }
+  assert.equal(await human('s', 'tok', '', 'deckconnector.com'), false)
+  globalThis.fetch = async () => new Response('<html>')
+  assert.equal(await human('s', 'tok', '', 'deckconnector.com'), false)
+})
+
 test('human refuses a token solved on another host', async () => {
   answer({ success: true, hostname: 'example.com' })
+  assert.equal(await human('s', 'tok', '', 'deckconnector.com'), false)
+  answer({ success: true })
   assert.equal(await human('s', 'tok', '', 'deckconnector.com'), false)
 })
 
