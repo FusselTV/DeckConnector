@@ -170,12 +170,13 @@ jobs:
           - suite: web-phone
             sim: sim
             run: cd web && npx playwright test --project phone
+          # a simdeck start hangs about once in 500 under load (#89): the failed tests run once more
           - suite: decks
             sim: simdeck
-            run: cd tools && uv run --locked pytest simdeck --ignore simdeck/test_hosts.py
+            run: cd tools && uv run --locked pytest simdeck --ignore simdeck/test_hosts.py || uv run --locked pytest --lf simdeck --ignore simdeck/test_hosts.py
           - suite: hosts
             sim: simdeck
-            run: cd tools && uv run --locked pytest simdeck/test_hosts.py
+            run: cd tools && uv run --locked pytest simdeck/test_hosts.py || uv run --locked pytest --lf simdeck/test_hosts.py
     name: sim-tests (${{ matrix.suite }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
