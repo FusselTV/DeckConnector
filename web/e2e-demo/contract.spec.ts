@@ -29,7 +29,7 @@ const { handle } = (await import(serverFile)) as {
   }
 }
 
-// The same GET to the mock and to the firmware simulator (firmware/sim, the real handlers on Linux) must answer
+// The same GET to the mock and to firmware/simdeck (the whole firmware on Linux) must answer
 // with the same keys and value types. Run by the "contract" project in playwright.demo.config.ts.
 
 const SIM = `http://127.0.0.1:${process.env.DC_SIM_PORT ?? 18230}`
@@ -121,6 +121,10 @@ test('the mock answers the main GET routes with the shape the simulator gives', 
     headers,
     body: JSON.stringify({ name: 'contract', right: 'full' }),
   })
+  // simdeck answers before its emulated deck is attached, and an empty deck list compares with anything
+  await expect
+    .poll(async () => ((await (await fetch(SIM + '/api/status', { headers })).json()) as { decks: [] }).decks.length)
+    .toBeGreaterThan(0)
   for (const path of ROUTES) {
     const r = await fetch(SIM + path, { headers })
     const text = await r.text()

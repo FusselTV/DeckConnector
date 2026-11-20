@@ -15,6 +15,7 @@ export interface DeckInfo {
   encoders?: number
   width?: number
   height?: number
+  touch?: boolean
   usb_speed?: 'high' | 'full'
   hub?: boolean
   surface?: number
@@ -135,6 +136,7 @@ export interface Status {
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
+  https_custom_unread?: boolean
   /** The device CA's short fingerprint, also shown on the deck when the CA is downloaded. */
   https_ca?: string
   boot?: { reason?: string; at?: number | null }

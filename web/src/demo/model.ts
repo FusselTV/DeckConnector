@@ -129,6 +129,7 @@ export const DECK: DeckInfo = {
   encoders: 4,
   width: 800,
   height: 480,
+  touch: true,
   usb_speed: 'high',
   hub: false,
 }
@@ -581,6 +582,7 @@ export function status(s: Demo, now: number): Status {
     decks: [{ ...deck(s), slot: 0, number: 1, writer: w, brightness: c.brightness, locked: false }],
     decks_over_limit: 0,
     https_custom: s.tls,
+    https_custom_unread: false,
     https_ca: s.tls ? '' : '7C2E 91A4 D06B 3F58',
     network: {
       lan: { cable: true, dead: false, ip: lanIp(s) },
@@ -625,6 +627,7 @@ export function status(s: Demo, now: number): Status {
       heap_min_free: 289_440,
       psram_free: 32_180_000,
       heap_largest: 208_896,
+      heap_lp_free: 9_216,
       psram_largest: 30_932_992,
       tasks: 37,
       sockets: 9,
