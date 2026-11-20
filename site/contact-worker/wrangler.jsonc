@@ -1,6 +1,5 @@
-// The contact form's backend. site.yml deploys it from main with the secrets CONTACT_TO, SMTP_USER and SMTP_PASS
-// (iCloud app-specific password), from OWNER_CONTACT_TO, OWNER_SMTP_USER and OWNER_SMTP_PASS.
-// TURNSTILE_SECRET, the secret key of the Turnstile widget, is set once by hand: `npx wrangler secret put TURNSTILE_SECRET`.
+// The contact form's backend. site.yml deploys it from main with the secrets CONTACT_TO, SMTP_USER, SMTP_PASS and TURNSTILE_SECRET
+// (iCloud app-specific password), from OWNER_CONTACT_TO, OWNER_SMTP_USER, OWNER_SMTP_PASS and OWNER_TURNSTILE_SECRET.
 {
   "name": "deckconnector-contact",
   "main": "index.ts",
