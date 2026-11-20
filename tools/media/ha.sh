@@ -21,6 +21,11 @@ for lang in en de; do
   [ -n "$crop" ]
   tools/media/gif.sh "$WORK/gif-$lang/list.txt" "$crop" 860 "site/public/docs/ha-live-$lang.gif"
 done
-node tools/media/web-gif.mjs "http://127.0.0.1:$PORT/" "$WORK/web"
+out=$(node tools/media/web-gif.mjs "http://127.0.0.1:$PORT/" "$WORK/web")
+printf '%s\n' "$out"
+crop=$(printf '%s\n' "$out" | sed -n 's/^crop //p')
+[ -n "$crop" ]
 tools/media/gif.sh "$WORK/web/list.txt" 1280:756:0:0 860 .github/assets/web-ui.gif
 tools/media/gif.sh "$WORK/web/ha/list.txt" iw:ih:0:0 iw .github/assets/ha-connector.gif
+tools/media/gif.sh "$WORK/web/deck/list.txt" iw:ih:0:0 iw .github/assets/ha-deck.gif
+tools/media/gif.sh "$WORK/web/screen/list.txt" "$crop" iw .github/assets/ha-screen.gif

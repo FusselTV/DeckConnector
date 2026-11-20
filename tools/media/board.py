@@ -1,8 +1,8 @@
 """A stand-in board for Home Assistant pictures: the demo's status and deck pictures from grab.mjs, no hardware.
 Runs inside the Home Assistant container, whose Python has aiohttp and Pillow.
 python3 board.py <dir with status.json and deck-*.jpg> <port>. GET /_press?k=1&show=1 presses key 1 and shows
-deck-1.jpg; without k it only changes the picture. Like the firmware's, the picture ignores brightness and
-screen off."""
+deck-1.jpg; without k it only changes the picture. POST /_screen takes a JPEG and POST /_input a list of inputs
+from the demo. Like the firmware's, the picture ignores brightness and screen off."""
 
 import asyncio
 import json
@@ -16,28 +16,27 @@ TOKEN = "s" * 64
 ST = json.loads((DIR / "status.json").read_text())
 SERIAL = ST["decks"][0]["serial"]
 PICTURES = sorted(DIR.glob("deck-*.jpg"))
-shown = [0]
+shown = [PICTURES[0].read_bytes()]
 sockets: set[web.WebSocketResponse] = set()
-
-
-def frame() -> bytes:
-    return PICTURES[shown[0]].read_bytes()
 
 
 @web.middleware
 async def auth(req: web.Request, handler):
-    open_paths = ("/api/tokens", "/_press", "/api/login/request")
+    open_paths = ("/api/tokens", "/_", "/api/login/request")
     if req.path.startswith(open_paths) or req.headers.get("Authorization") == f"Bearer {TOKEN}":
         return await handler(req)
     return web.json_response({"error": "login"}, status=401)
 
 
-async def send(msg: dict) -> None:
+async def send(msg: dict) -> int:
+    reached = 0
     for s in list(sockets):
         try:
             await s.send_json(msg)
+            reached += 1
         except ConnectionError:
             sockets.discard(s)  # an entry reload leaves the old socket here until its ping fails
+    return reached
 
 
 async def changed() -> None:
@@ -76,7 +75,8 @@ async def screen_set(req: web.Request) -> web.Response:
 
 
 async def press(req: web.Request) -> web.Response:
-    shown[0] = int(req.query.get("show", shown[0]))
+    if "show" in req.query:
+        shown[0] = PICTURES[int(req.query["show"])].read_bytes()
     if "k" not in req.query:
         await send({"t": "screen", "deck": SERIAL})
         return web.json_response({"ok": True})
@@ -85,6 +85,20 @@ async def press(req: web.Request) -> web.Response:
     await send({"t": "screen", "deck": SERIAL})
     await asyncio.sleep(0.3)
     await send({"t": "input", "kind": "key_up", **key})
+    return web.json_response({"ok": True})
+
+
+async def screen_push(req: web.Request) -> web.Response:
+    shown[0] = await req.read()
+    if not await send({"t": "screen", "deck": SERIAL}):
+        return web.json_response({"error": "Home Assistant is not connected"}, status=503)
+    return web.json_response({"ok": True})
+
+
+async def input_push(req: web.Request) -> web.Response:
+    for i in await req.json():
+        if not await send({"t": "input", "deck": SERIAL, "x": 0, "y": 0, **i}):
+            return web.json_response({"error": "Home Assistant is not connected"}, status=503)
     return web.json_response({"ok": True})
 
 
@@ -101,12 +115,14 @@ app.add_routes(
         web.get("/api/status", reply(lambda: web.json_response(ST))),
         web.get("/api/ws", ws),
         web.put("/api/config", config),
-        web.get("/api/screen.jpg", reply(lambda: web.Response(body=frame(), content_type="image/jpeg"))),
+        web.get("/api/screen.jpg", reply(lambda: web.Response(body=shown[0], content_type="image/jpeg"))),
         web.post("/api/screen", screen_set),
         web.post("/api/tokens", reply(lambda: web.json_response({"token": TOKEN}))),
         web.get("/api/update/check", reply(lambda: web.json_response({"current": ST["firmware"], "latest": None}))),
         web.get("/api/events", reply(lambda: web.json_response([]))),
         web.get("/_press", press),
+        web.post("/_screen", screen_push),
+        web.post("/_input", input_push),
         web.route("*", "/{tail:.*}", reply(lambda: web.json_response({"ok": True}))),
     ]
 )

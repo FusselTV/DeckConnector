@@ -139,13 +139,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const boxes = await cards(page)
         if (name === 'board') boxes.pop() // Connected devices
         await clip(page, boxes, `${out}/ha-${name}-${v}.png`)
-        if (v === 'en-dark' && name === 'deck') await clip(page, boxes, `${out}/readme-deck.png`)
-      }
-      if (v === 'en-dark') {
-        await page.evaluate(() => document.querySelector('home-assistant').dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: 'camera.stream_deck_screen' }, bubbles: true, composed: true })))
-        await page.waitForTimeout(4000)
-        await clip(page, [await page.locator('ha-more-info-dialog dialog').first().boundingBox()], `${out}/readme-screen.png`, 0)
-        await page.keyboard.press('Escape')
       }
       await page.goto(`${HA}/dashboard-studio/studio`)
       await page.waitForTimeout(6000)
