@@ -259,6 +259,8 @@ async def test_a_refused_play_ends_ffmpeg(hass, entry, aioclient_mock, socket, f
         await play_media(hass, url)
         async with asyncio.timeout(5):
             await gone.wait()
+            # ffmpeg can end before the play task logs the refusal
+            await asyncio.wait({hass.data["entity_components"]["media_player"].get_entity(PLAYER)._playing})
     assert "did not play it: speaker off" in caplog.text
 
 
