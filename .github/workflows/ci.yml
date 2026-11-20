@@ -37,7 +37,7 @@ jobs:
             firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/scripts/idf.*, .github/scripts/tidy-firmware.sh, .github/scripts/linked-libs.*, .github/workflows/ci.yml]
             host: [firmware/host_test/**, firmware/components/**, .github/workflows/ci.yml]
             lint: [tools/**, firmware/**, .github/**]
-            sim: [firmware/**, web/**, tools/dbtools/**, tools/tests/**, tools/simdeck/**, tools/companion-check/**, tools/pyproject.toml, tools/uv.lock, .github/scripts/idf.*, .github/scripts/netns.sh, .github/workflows/ci.yml]
+            sim: [firmware/**, web/**, tools/dbtools/**, tools/tests/**, tools/simdeck/**, tools/simnet/**, tools/companion-check/**, tools/pyproject.toml, tools/uv.lock, .github/scripts/idf.*, .github/scripts/netns.sh, .github/workflows/ci.yml]
             web: [web/**, .github/workflows/ci.yml]
 
   host-tests:
@@ -174,9 +174,12 @@ jobs:
           - suite: decks
             sim: simdeck
             run: cd tools && uv run --locked pytest simdeck --ignore simdeck/test_hosts.py || uv run --locked pytest --lf simdeck --ignore simdeck/test_hosts.py
+          # simnet unshares a namespace of its own (inside netns.sh's), which a GitHub-hosted runner blocks
           - suite: hosts
-            sim: simdeck
-            run: cd tools && uv run --locked pytest simdeck/test_hosts.py || uv run --locked pytest --lf simdeck/test_hosts.py
+            sim: simdeck sim
+            run: >-
+              cd tools && (uv run --locked pytest simdeck/test_hosts.py || uv run --locked pytest --lf simdeck/test_hosts.py)
+              && if [ $RUNNER_ENVIRONMENT != github-hosted ]; then uv run --locked pytest simnet; fi
     name: sim-tests (${{ matrix.suite }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -197,7 +200,7 @@ jobs:
           # the OTA tests sign with a key made for this job; the simulator gets its public key
           echo "DBFW_KEY=$RUNNER_TEMP/ota_key.pem" >> "$GITHUB_ENV"
           (cd tools && uv sync --locked && DBFW_KEY=$RUNNER_TEMP/ota_key.pem uv run --locked python -m dbtools.dbfw keygen)
-          .github/scripts/idf.sh 'idf.py -C firmware/${{ matrix.sim }} build'
+          .github/scripts/idf.sh 'for s in ${{ matrix.sim }}; do idf.py -C "firmware/$s" build; done'
           case ${{ matrix.suite }} in
             # tests that write flash images use IDF's partition table and NVS generators (0.1.9 is in IDF_IMAGE)
             api)
@@ -218,6 +221,7 @@ jobs:
           path: |
             web/test-results
             ~/.cache/simdeck/tests/*/sim.log
+            ~/.cache/simnet/*.log
           if-no-files-found: ignore
           retention-days: 7
 
