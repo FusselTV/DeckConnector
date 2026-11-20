@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator
 import contextlib
 import json
+import re
 import socket
 import struct
 from typing import Any
@@ -76,12 +77,17 @@ def _raise_for(status: int, body: Any) -> None:
         raise DeckConnectorError(error)
 
 
-async def _read_all(reader: asyncio.StreamReader) -> bytes:
-    got = b""
-    with contextlib.suppress(OSError):  # the board resets a connection it stopped reading: keep what came
-        while chunk := await reader.read(4096):
-            got += chunk
-    return got
+async def _answer(reader: asyncio.StreamReader) -> Any:
+    """The board's answer to a stream, read by its length: the board may not close the connection after it."""
+    try:
+        head = await reader.readuntil(b"\r\n\r\n")
+        status = int(head.split()[1])
+        length = re.search(rb"(?i)\r\ncontent-length: *(\d+)", head)
+        body = json.loads(await reader.readexactly(int(length[1])))  # type: ignore[index]
+    except (OSError, EOFError, ValueError, IndexError, TypeError) as err:
+        raise DeckConnectorError(f"the board gave no answer: {err!r}") from err
+    _raise_for(status, body)
+    return body
 
 
 class Api:
@@ -102,7 +108,9 @@ class Api:
                 reader, writer = await asyncio.open_connection(url.host, url.port)
         except (OSError, TimeoutError) as err:
             raise DeckConnectorError(str(err) or type(err).__name__) from err
-        answer = asyncio.create_task(_read_all(reader))
+        answer = asyncio.create_task(_answer(reader))
+        chunks = aiter(pcm)
+        chunk: asyncio.Future[bytes | None] | None = None
         try:
             writer.write(
                 f"POST /api/sound/stream HTTP/1.1\r\nHost: {self.host}\r\n"
@@ -112,34 +120,39 @@ class Api:
             loop = asyncio.get_running_loop()
             start, sent = loop.time(), 0
             with contextlib.suppress(OSError):  # the board ended it: its answer says why
-                async for chunk in pcm:
+                while True:
+                    # the board may answer while the source is silent: a radio that stalled
+                    chunk = asyncio.ensure_future(anext(chunks, None))
+                    await asyncio.wait((chunk, answer), return_when=asyncio.FIRST_COMPLETED)
+                    if answer.done():
+                        break
+                    if (data := chunk.result()) is None:
+                        writer.write_eof()
+                        break
                     # a second ahead of the speaker: the board buffers three, and what it cannot take yet would
                     # wait in its scarce network buffers
                     if (ahead := sent / PCM_RATE - (loop.time() - start) - 1) > 0:
                         await asyncio.sleep(ahead)
-                    if answer.done():
-                        break
-                    writer.write(chunk)
-                    await writer.drain()
-                    sent += len(chunk)
-                else:
-                    writer.write_eof()
+                    writer.write(data)
+                    try:
+                        async with asyncio.timeout(10):  # the board reads all the time, also through a gap
+                            await writer.drain()
+                    except TimeoutError as err:
+                        raise DeckConnectorError("the board stopped taking audio") from err
+                    sent += len(data)
             async with asyncio.timeout(15):  # the board plays what it holds, at most 3 s, then answers
-                got = await answer
+                body = await answer
         except TimeoutError as err:
             raise DeckConnectorError("no answer after the stream") from err
         finally:
+            if chunk and not chunk.done():
+                chunk.cancel()
+                await asyncio.wait((chunk,))  # else closing the source finds it still running
             answer.cancel()
             if not writer.transport.is_closing():
                 # a reset, not a close: the board would play the rest of its buffer after a close
                 writer.get_extra_info("socket").setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
                 writer.transport.abort()
-        head, _, text = got.partition(b"\r\n\r\n")
-        try:
-            status, body = int(head.split()[1]), json.loads(text)
-        except (IndexError, ValueError) as err:
-            raise DeckConnectorError("the board gave no answer") from err
-        _raise_for(status, body)
         return not body.get("stopped")
 
     async def status(self) -> dict[str, Any]:

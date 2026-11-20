@@ -4,6 +4,7 @@ import io
 import json
 import math
 import os
+import socket
 import struct
 import time
 from unittest.mock import patch
@@ -19,7 +20,7 @@ import pytest
 from test_setup import setup
 
 from conftest import HOST, PLUS, TOKEN
-from custom_components.deckconnector.api import Api, ConflictError
+from custom_components.deckconnector.api import Api, ConflictError, DeckConnectorError
 from custom_components.deckconnector.media_player import decode
 
 PLAYER = "media_player.deckconnector_a1b2c3_speaker"
@@ -29,8 +30,10 @@ class FakeBoard:
     """The firmware's side of POST /api/sound/stream on a plain socket: reads the body until the sender shuts its
     side (or `take` bytes, then answers stopped), answers and closes."""
 
-    def __init__(self, take: int | None = None, status: int = 200, answer: dict | None = None) -> None:
-        self.take, self.status, self.answer = take, status, answer
+    def __init__(
+        self, take: int | None = None, status: int = 200, answer: dict | None = None, close: str = "close"
+    ) -> None:
+        self.take, self.status, self.answer, self.close = take, status, answer, close
         self.head = b""
         self.body = bytearray()
         self.ended = ""  # "eof", "reset" or "took"
@@ -50,12 +53,17 @@ class FakeBoard:
                         break
                 else:
                     self.ended = "eof"
+            if self.close == "reset":  # gone without an answer
+                writer.get_extra_info("socket").setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+                writer.transport.abort()
+                return
             answer = self.answer or {"ok": True, "stopped": stopped}
             text = json.dumps(answer).encode()
-            writer.write(
-                f"HTTP/1.1 {self.status} X\r\nContent-Length: {len(text)}\r\nConnection: close\r\n\r\n".encode() + text
-            )
+            writer.write(f"HTTP/1.1 {self.status} X\r\nContent-Length: {len(text)}\r\n\r\n".encode() + text)
             await writer.drain()
+            if self.close == "late":  # answered, keeps the connection until the client goes
+                while await reader.read(4096):
+                    pass
         except ConnectionResetError:
             self.ended = "reset"
         finally:
@@ -142,6 +150,34 @@ def tone_wav(path, rate=44100, seconds=0.5):
         w.writeframes(b"".join(struct.pack("<hh", s, s) for s in frames))
 
 
+async def test_an_answer_counts_before_the_board_closes(socket_enabled):
+    """A refusal the board answers without closing (httpd would read the endless body) must not hold HA."""
+    board = FakeBoard(take=20000, close="late")
+    async with board as host, aiohttp.ClientSession() as session:
+        async with asyncio.timeout(3):
+            assert not await Api(session, host, TOKEN).play(endless())
+
+
+async def test_the_board_answers_while_the_source_is_silent(socket_enabled):
+    """A radio that stalls: the board ends the stream after 5 s and HA must see it without a next chunk."""
+
+    async def stalls() -> AsyncIterator[bytes]:
+        yield b"\1\0" * 3200
+        await asyncio.sleep(60)
+
+    board = FakeBoard(take=6400)
+    async with board as host, aiohttp.ClientSession() as session:
+        async with asyncio.timeout(3):
+            assert not await Api(session, host, TOKEN).play(stalls())
+
+
+async def test_a_board_gone_without_an_answer_raises(socket_enabled):
+    board = FakeBoard(take=20000, close="reset")
+    async with board as host, aiohttp.ClientSession() as session:
+        with pytest.raises(DeckConnectorError, match="no answer"):
+            await Api(session, host, TOKEN).play(endless())
+
+
 async def collect(pcm: AsyncIterator[bytes]) -> bytes:
     return b"".join([chunk async for chunk in pcm])
 
@@ -169,11 +205,12 @@ async def test_ffmpeg_turns_any_file_into_the_boards_format(hass, ffmpeg, tmp_pa
     assert err.value.translation_placeholders["error"] == "no audio"
 
 
-async def test_a_live_stream_flows_until_it_is_closed(hass, ffmpeg, socket_enabled):
-    """A radio station over HTTP that never ends: audio comes as it is sent, and closing ends ffmpeg."""
+@pytest.fixture
+async def radio(socket_enabled):
+    """A radio station over HTTP that never ends; `gone` is set when its listener leaves."""
     gone = asyncio.Event()
 
-    async def radio(request: web.Request) -> web.StreamResponse:
+    async def live(request: web.Request) -> web.StreamResponse:
         resp = web.StreamResponse(headers={"Content-Type": "audio/wav"})
         await resp.prepare(request)
         head = io.BytesIO()
@@ -190,26 +227,39 @@ async def test_a_live_stream_flows_until_it_is_closed(hass, ffmpeg, socket_enabl
             raise
 
     app = web.Application()
-    app.router.add_get("/live.wav", radio)
+    app.router.add_get("/live.wav", live)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "127.0.0.1", 0)
     await site.start()
-    port = site._server.sockets[0].getsockname()[1]
-    try:
-        start = time.monotonic()
-        pcm = await decode(hass, f"http://127.0.0.1:{port}/live.wav")
-        got = 0
-        async for chunk in pcm:
-            got += len(chunk)
-            if got >= 32000 * 2:
-                break
-        assert 1.5 < time.monotonic() - start < 10  # as it comes (after ffmpeg's probing), not at an end
-        await pcm.aclose()
+    yield f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}/live.wav", gone
+    await runner.cleanup()
+
+
+async def test_a_live_stream_flows_until_it_is_closed(hass, ffmpeg, radio):
+    url, gone = radio
+    start = time.monotonic()
+    pcm = await decode(hass, url)
+    got = 0
+    async for chunk in pcm:
+        got += len(chunk)
+        if got >= 32000 * 2:
+            break
+    assert 1.5 < time.monotonic() - start < 10  # as it comes (after ffmpeg's probing), not at an end
+    await pcm.aclose()
+    async with asyncio.timeout(5):
+        await gone.wait()
+
+
+async def test_a_refused_play_ends_ffmpeg(hass, entry, aioclient_mock, socket, ffmpeg, radio, caplog):
+    """decode's ffmpeg dies with the play that never read from it."""
+    url, gone = radio
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    with patch.object(Api, "play", side_effect=ConflictError("speaker off")):
+        await play_media(hass, url)
         async with asyncio.timeout(5):
             await gone.wait()
-    finally:
-        await runner.cleanup()
+    assert "did not play it: speaker off" in caplog.text
 
 
 def source(*chunks: bytes, then_wait: bool = False):
@@ -335,6 +385,37 @@ async def test_music_assistant_sees_its_stream_and_the_end_of_it(hass, entry, ai
         async with asyncio.timeout(2):
             await idle.wait()
         assert "media_content_id" not in hass.states.get(PLAYER).attributes
+
+
+async def test_an_announcement_goes_back_to_what_played(hass, entry, aioclient_mock, socket):
+    """Music Assistant announces with announce=True and leaves going back to its stream to the player."""
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    radio_url = "http://192.0.2.5:8097/flow/session/speaker/abc.flac"
+    started: list[str] = []
+    resumed = asyncio.Event()
+
+    async def fake_decode(hass, url):
+        started.append(url)
+        if len(started) == 3:
+            resumed.set()
+        return await source(b"\0\0", then_wait=url == radio_url)[0](hass, url)
+
+    async def play(self, pcm):
+        await collect(pcm)
+        return True
+
+    with (
+        patch("custom_components.deckconnector.media_player.decode", side_effect=fake_decode),
+        patch.object(Api, "play", play),
+    ):
+        await play_media(hass, radio_url)
+        await play_media(hass, "http://x/ding.mp3", announce=True)
+        async with asyncio.timeout(2):
+            await resumed.wait()
+        await hass.async_block_till_done()
+        assert started == [radio_url, "http://x/ding.mp3", radio_url]
+        assert hass.states.get(PLAYER).attributes["media_content_id"] == radio_url
+        await hass.services.async_call("media_player", "media_stop", {"entity_id": PLAYER}, blocking=True)
 
 
 async def test_a_board_that_refuses_leaves_the_speaker_idle(hass, entry, aioclient_mock, socket, caplog):

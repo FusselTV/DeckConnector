@@ -24,6 +24,8 @@ typedef struct {
     int plays, silent;
     size_t end;                 /* sends DB_STREAM_END after this many bytes; 0: never */
     size_t stall_at, stall_for; /* nothing for this many calls once stall_at bytes went */
+    size_t stall_again;         /* then the same stall again this many bytes later; 0: once */
+    size_t stalled;
 } fake_t;
 
 /* Pieces of any size, and now and then nothing when the caller does not wait: like a socket. */
@@ -36,8 +38,11 @@ static int fake_recv(void *ctx, char *buf, size_t len, bool wait)
     if (f->end && f->sent >= f->end) {
         return DB_STREAM_END;
     }
-    if (f->stall_for && f->sent >= f->stall_at) {
-        f->stall_for--;
+    if (f->stalled < f->stall_for && f->sent >= f->stall_at) {
+        if (++f->stalled == f->stall_for && f->stall_again) {
+            f->stalled = 0;
+            f->stall_at += f->stall_again;
+        }
         return 0;
     }
     size_t n = (size_t)(rand_r(&f->seed) % 3000);
@@ -136,6 +141,24 @@ static void test_a_stall_plays_silence_and_then_the_rest(void)
     TEST_ASSERT_GREATER_OR_EQUAL_INT(40, f.silent);
 }
 
+/* The 5 s count starts again with each piece of data: three stalls of 3 s each are not one of 9 s. */
+static void test_stalls_do_not_add_up(void)
+{
+    static int16_t ring[8000];
+    fake_t f = {.seed = 9,
+                .break_at = -1,
+                .stop_after = -1,
+                .end = LEN - 1,
+                .stall_at = 8000,
+                .stall_for = 94,
+                .stall_again = 10000};
+    db_stream_io_t io = {fake_recv, fake_play, &f};
+    memset(heard, 0, sizeof(heard));
+    TEST_ASSERT_TRUE(db_stream_run(&io, ring, 8000, SIZE_MAX));
+    TEST_ASSERT_EQUAL_size_t(LEN / 2, f.heard);
+    TEST_ASSERT_GREATER_OR_EQUAL_INT(3 * 94, f.silent);
+}
+
 static void test_five_seconds_without_data_end_it(void)
 {
     static int16_t ring[8000];
@@ -177,6 +200,7 @@ int main(void)
     RUN_TEST(test_a_broken_stream_or_a_refused_play_ends_it);
     RUN_TEST(test_a_stream_of_unknown_length_ends_when_the_sender_finishes);
     RUN_TEST(test_a_stall_plays_silence_and_then_the_rest);
+    RUN_TEST(test_stalls_do_not_add_up);
     RUN_TEST(test_five_seconds_without_data_end_it);
     RUN_TEST(test_nothing_to_play_ends_at_once);
     RUN_TEST(test_gain_follows_the_tone_curve);

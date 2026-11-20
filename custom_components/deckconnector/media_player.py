@@ -11,12 +11,13 @@ from homeassistant.components.ffmpeg import get_ffmpeg_manager
 from homeassistant.components.media_player import MediaPlayerEntity
 from homeassistant.components.media_player.browse_media import BrowseMedia, async_process_play_media_url
 from homeassistant.components.media_player.const import (
+    ATTR_MEDIA_ANNOUNCE,
     MediaPlayerDeviceClass,
     MediaPlayerEntityFeature,
     MediaPlayerState,
     MediaType,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -142,14 +143,30 @@ class Speaker(BoardEntity, MediaPlayerEntity):
         if media_source.is_media_source_id(url):
             url = (await media_source.async_resolve_media(self.hass, url, self.entity_id)).url
         pcm = await decode(self.hass, async_process_play_media_url(self.hass, url))
+        # after an announcement what played before goes on: Music Assistant leaves that to the player
+        resume = self._url if kwargs.get(ATTR_MEDIA_ANNOUNCE) and self.state == MediaPlayerState.PLAYING else None
         await self.async_media_stop()
         self._url = media_id
-        self._playing = self.coordinator.config_entry.async_create_background_task(
+        task = self._playing = self.coordinator.config_entry.async_create_background_task(
             self.hass, self._play(pcm), f"{DOMAIN} speaker"
         )
         # a callback, not the task's own last line: an eager task can end before _playing holds it
-        self._playing.add_done_callback(lambda _: self.async_write_ha_state())
+        task.add_done_callback(lambda _: self._ended(task, resume))
         self.async_write_ha_state()
+
+    @callback
+    def _ended(self, task: asyncio.Task[None], resume: str | None) -> None:
+        self.async_write_ha_state()
+        if resume and self._playing is task and not task.cancelled():
+            self.coordinator.config_entry.async_create_background_task(
+                self.hass, self._resume(resume), f"{DOMAIN} speaker resume"
+            )
+
+    async def _resume(self, media_id: str) -> None:
+        try:
+            await self.async_play_media(MediaType.MUSIC, media_id)
+        except HomeAssistantError as err:
+            _LOGGER.warning("%s did not go on after the announcement: %s", self.coordinator.data["name"], err)
 
     async def _play(self, pcm: AsyncIterator[bytes]) -> None:
         try:
@@ -157,7 +174,8 @@ class Speaker(BoardEntity, MediaPlayerEntity):
                 played = await self.coordinator.api.play(pcm)
             if not played:
                 _LOGGER.warning(
-                    "%s ended it early: a sound, another stream or the speaker setting", self.coordinator.data["name"]
+                    "%s ended it early: a sound, another stream, the speaker setting or 5 s without audio",
+                    self.coordinator.data["name"],
                 )
         except DeckConnectorError as err:
             _LOGGER.warning("%s did not play it: %s", self.coordinator.data["name"], err)
