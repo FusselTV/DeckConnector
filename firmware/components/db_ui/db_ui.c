@@ -1563,7 +1563,7 @@ void db_ui_refresh(void)
     brightness = c->brightness;
     light_lock(true);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        decks[d].lit = -1; /* PUT /api/config may have set the brightness on the decks */
+        decks[d].lit = -1;        /* PUT /api/config may have set the brightness on the decks */
         decks[d].turned |= moved; /* an open menu shows the new setting, not the brightness from before it */
     }
     light_lock(false);
