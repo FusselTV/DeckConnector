@@ -8,6 +8,9 @@ on:
 
 permissions: {}
 
+env:
+  IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -22,6 +25,7 @@ jobs:
       firmware: ${{ steps.filter.outputs.firmware }}
       host: ${{ steps.filter.outputs.host }}
       lint: ${{ steps.filter.outputs.lint }}
+      sim: ${{ steps.filter.outputs.sim }}
       web: ${{ steps.filter.outputs.web }}
     steps:
       # Pushes, tags and manual runs build everything; only pull requests skip by path.
@@ -33,6 +37,7 @@ jobs:
             firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/scripts/tidy-firmware.sh, .github/scripts/linked-libs.*, .github/workflows/ci.yml]
             host: [firmware/host_test/**, firmware/components/**, .github/workflows/ci.yml]
             lint: [tools/**, firmware/**, .github/**]
+            sim: [firmware/**, web/**, tools/dbtools/**, tools/tests/**, tools/simdeck/**, tools/companion-check/**, tools/pyproject.toml, tools/uv.lock, .github/scripts/idf.sh, .github/scripts/netns.sh, .github/workflows/ci.yml]
             web: [web/**, .github/workflows/ci.yml]
 
   host-tests:
@@ -114,8 +119,6 @@ jobs:
     strategy:
       matrix:
         project: [desktop, phone, contract] # one runner each: the runner gets one Playwright worker
-    env:
-      IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -134,13 +137,7 @@ jobs:
       - if: matrix.project == 'contract'
         run: |
           (cd web && npx vite build) # the simulator embeds the page from web/dist
-          docker image inspect "$IDF_IMAGE" >/dev/null 2>&1 || docker pull -q "$IDF_IMAGE"
-          # under the same path: the simulator opens its flash files at the path it was built in
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -w "$GITHUB_WORKSPACE" "$IDF_IMAGE" bash -c '
-            set -e
-            git config --global --add safe.directory "$PWD"
-            idf.py -C firmware/sim build
-          '
+          .github/scripts/idf.sh 'idf.py -C firmware/sim build'
       # four runners share each VM, so each takes ports from its number (gh-runner-1-1 5192 ... gh-runner-1-4 5195)
       - run: |
           n=$((${RUNNER_NAME##*[!0-9]} % 1000)) # a GitHub-hosted runner's name ends in a long number
@@ -153,6 +150,68 @@ jobs:
           path: web/test-results
           retention-days: 7
 
+  # The end to end suites that need no board: the API tests against firmware/sim, the web UI against firmware/sim,
+  # and every deck model through firmware/simdeck.
+  sim-tests:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.sim == 'true'
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: api
+            sim: sim
+            run: cd tools && uv run --locked pytest tests --target sim -n 4
+          - suite: web-desktop
+            sim: sim
+            run: cd web && npx playwright test --project desktop
+          - suite: web-phone
+            sim: sim
+            run: cd web && npx playwright test --project phone
+          - suite: decks
+            sim: simdeck
+            run: cd tools && uv run --locked pytest simdeck/test_models.py simdeck/test_wake.py
+          - suite: hosts
+            sim: simdeck
+            run: cd tools && uv run --locked pytest simdeck/test_hosts.py
+    name: sim-tests (${{ matrix.suite }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          package-manager-cache: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - if: runner.environment == 'github-hosted'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+      - run: |
+          (cd web && npm ci && npx vite build) # the simulator embeds the page from web/dist
+          .github/scripts/idf.sh 'idf.py -C firmware/${{ matrix.sim }} build'
+          (cd tools && uv sync --locked)
+          case ${{ matrix.suite }} in
+            web-*) cd web && npx playwright install chromium ;;
+            decks | hosts) cd tools/companion-check && npm ci ;;
+          esac
+      # in a network namespace of its own: no internet, and the four runners on a VM can all use the fixed ports
+      - run: .github/scripts/netns.sh sh -c "${{ matrix.run }}"
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sim-tests-${{ matrix.suite }}
+          path: |
+            web/test-results
+            ~/.cache/simdeck/tests/*/sim.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Builds its own copy of the web page, so it runs beside the web job. The ESP-IDF image (about 10 GB unpacked)
   # comes down in the background while the page builds.
   firmware:
@@ -162,8 +221,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-    env:
-      IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
     steps:
       - run: |
           (docker image inspect "$IDF_IMAGE" >/dev/null 2>&1 || docker pull -q "$IDF_IMAGE"; echo $? > "$RUNNER_TEMP/pull-status") > "$RUNNER_TEMP/pull.log" 2>&1 < /dev/null &
@@ -185,23 +242,13 @@ jobs:
       - name: Build
         run: |
           # CCACHE_DIR is the runner machine's ccache; a release builds from a clean slate
-          cc=${CCACHE_DIR:-$RUNNER_TEMP/ccache}; [ "$GITHUB_REF_TYPE" != tag ] || cc=$RUNNER_TEMP/ccache; mkdir -p "$cc"
-          # as the runner's user: files a root container leaves in the workspace break the next checkout
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/w" -v "$cc:/ccache" -w /w -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=5G "$IDF_IMAGE" bash -c '
-            set -e
-            git config --global --add safe.directory /w
-            idf.py -C firmware build
-            cd tools && python -m dbtools.flashimage
-          '
+          [ "$GITHUB_REF_TYPE" != tag ] || export CCACHE_DIR=$RUNNER_TEMP/ccache
+          .github/scripts/idf.sh 'idf.py -C firmware build && cd tools && python -m dbtools.flashimage'
       - run: .github/scripts/linked-libs.sh
       - name: clang-tidy
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:/w" -w /w "$IDF_IMAGE" bash -c '
-            set -e
-            git config --global --add safe.directory /w
-            python -m venv /tmp/tidy && /tmp/tidy/bin/pip install -q clang-tidy==23.1.4
-            PATH=/tmp/tidy/bin:$PATH .github/scripts/tidy-firmware.sh
-          '
+          .github/scripts/idf.sh "python -m venv /tmp/tidy && /tmp/tidy/bin/pip install -q clang-tidy==23.1.4
+            PATH=/tmp/tidy/bin:\$PATH .github/scripts/tidy-firmware.sh"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deckconnector
@@ -267,7 +314,7 @@ jobs:
 
   # The one check branch protection needs: it fails when any job above failed or was cancelled.
   ci-ok:
-    needs: [changes, host-tests, lint, web, demo, firmware, sizes]
+    needs: [changes, host-tests, lint, web, demo, sim-tests, firmware, sizes]
     if: always()
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
     timeout-minutes: 2
