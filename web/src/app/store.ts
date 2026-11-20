@@ -86,7 +86,7 @@ export function share<T>(a: T, b: T): T {
 }
 
 // `speaker` is not here: the state's says whether one is fitted and on, the config's only whether it is on.
-const LIVE_CONFIG = ['brightness', 'volume', 'screen_off_s', 'screen_dim', 'max_decks', 'controller'] as const
+const LIVE_CONFIG = ['brightness', 'volume', 'screen_off_s', 'screen_dim', 'max_decks'] as const
 const pick = <T extends object, K extends keyof T>(o: T, keys: readonly K[]) =>
   Object.fromEntries(keys.filter((k) => o[k] !== undefined).map((k) => [k, o[k]])) as Partial<Pick<T, K>>
 
