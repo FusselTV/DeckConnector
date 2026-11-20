@@ -43,6 +43,7 @@ typedef struct {
 
 static QueueHandle_t queue;
 static bool write_failed;
+static volatile bool streaming;
 static esp_codec_dev_handle_t dev;
 static bool broken; /* the codec did not answer once: its bus stays half made, no second try */
 
@@ -169,7 +170,7 @@ static void play(int16_t *pcm, size_t n)
     }
 }
 
-/* A sound or a newer stream waiting ends this one, as does switching the speaker off. */
+/* Find, a self-test or a newer stream waiting ends this one, as does switching the speaker off. */
 static bool stream_play(void *ctx, int16_t *pcm, size_t n)
 {
     if (uxQueueMessagesWaiting(queue) || !db_config()->speaker) {
@@ -191,7 +192,9 @@ static void stream(int16_t *pcm, httpd_req_t *req)
     amp(true);
     db_stream_io_t io = {stream_recv, stream_play, req};
     write_failed = false;
+    streaming = true;
     bool all = db_stream_run(&io, pcm, LONGEST + TAIL, req->content_len);
+    streaming = false;
     memset(pcm, 0, TAIL * sizeof(int16_t));
     esp_codec_dev_write(dev, pcm, TAIL * sizeof(int16_t));
     amp(false);
@@ -245,6 +248,9 @@ esp_err_t db_audio_play_at(db_sound_t sound, int volume)
 {
     if (!queue) {
         return ESP_ERR_NOT_SUPPORTED;
+    }
+    if (streaming && sound != DB_SOUND_FIND) {
+        return ESP_OK; /* the web UI's volume preview and deck sounds would cut the music off */
     }
     play_t p = {.sound = sound, .volume = volume};
     return xQueueSend(queue, &p, 0) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;

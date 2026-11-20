@@ -308,6 +308,9 @@ async def test_the_speaker_plays_stops_and_sets_the_volume(hass, entry, aioclien
         "media_player", "volume_set", {"entity_id": PLAYER, "volume_level": 0.55}, blocking=True
     )
     assert aioclient_mock.mock_calls[-1][2] == {"volume": 55}
+    await socket.queue.put({"t": "state", "volume": 80})  # set on the board or in its web UI
+    await hass.async_block_till_done()
+    assert hass.states.get(PLAYER).attributes["volume_level"] == 0.8
 
     playing = asyncio.Event()
     stopped = asyncio.Event()

@@ -2,6 +2,8 @@
 silent."""
 
 import json
+import threading
+import time
 
 import pytest
 from conftest import api
@@ -51,3 +53,17 @@ def test_without_a_speaker_nothing_plays_and_the_status_says_so():
         assert api("PUT", "/api/config", b'{"speaker": 1}')[0] == 400
     finally:
         put({"speaker": was})
+
+
+def test_a_sound_does_not_end_a_stream(speaker):
+    """The web UI plays a sound after each volume change; that once cut Home Assistant's music off."""
+    result = {}
+    t = threading.Thread(
+        target=lambda: result.update(r=api("POST", "/api/sound/stream", b"\0" * 32000 * 3, timeout=30))
+    )
+    t.start()
+    time.sleep(1)
+    assert api("POST", "/api/sound", json.dumps({"sound": "connected", "volume": 5}).encode())[0] == 200
+    t.join()
+    code, body = result["r"]
+    assert (code, json.loads(body)) == (200, {"ok": True, "stopped": False})
