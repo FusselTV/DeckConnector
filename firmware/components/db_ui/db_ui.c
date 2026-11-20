@@ -58,7 +58,7 @@ typedef struct {
     db_sat_held_t pad_kept;
     int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
     int before;    /* the deck's brightness when the menu opened; -1: none */
-    bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
+    bool turned;   /* the setting changed while this menu shows: from then on the saved brightness counts */
     bool menu_lit; /* the UI lit the deck for the menu */
 } ui_deck_t;
 
@@ -1558,9 +1558,15 @@ void db_ui_refresh(void)
         auto_off = c->satellite_auto_off;
         satellite_changes++;
     }
+    static int brightness = -1;
+    bool moved = brightness >= 0 && c->brightness != brightness;
+    brightness = c->brightness;
+    light_lock(true);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         decks[d].lit = -1; /* PUT /api/config may have set the brightness on the decks */
+        decks[d].turned |= moved; /* an open menu shows the new setting, not the brightness from before it */
     }
+    light_lock(false);
     changed();
 }
 

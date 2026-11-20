@@ -382,17 +382,16 @@ static bool basic_matches(httpd_req_t *req)
         strncmp(given, "Basic ", 6) != 0) {
         return false;
     }
-    char plain[64];
-    unsigned char expected[96];
+    unsigned char plain[72];
     size_t n = 0;
-    int len = snprintf(plain, sizeof(plain), "admin:%s", db_config()->admin_pass);
-    mbedtls_base64_encode(expected, sizeof(expected) - 1, &n, (const unsigned char *)plain, (size_t)len);
-    expected[n] = '\0';
-    bool ok = equal(given + 6, (const char *)expected);
+    bool ok = mbedtls_base64_decode(plain, sizeof(plain) - 1, &n, (const unsigned char *)given + 6,
+                                    strlen(given + 6)) == 0;
+    plain[ok ? n : 0] = '\0'; /* a failed decode may set n to the size it would need */
+    const char *pass = strchr((const char *)plain, ':');
+    ok = ok && pass && equal(pass + 1, db_config()->admin_pass); /* no users: any name before the colon */
     /* a crash dump carries this stack */
     mbedtls_platform_zeroize(given, sizeof(given));
     mbedtls_platform_zeroize(plain, sizeof(plain));
-    mbedtls_platform_zeroize(expected, sizeof(expected));
     return ok;
 }
 

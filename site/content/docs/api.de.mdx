@@ -11,7 +11,7 @@ Nimm einen dieser Wege.
 
 | Weg | Wie | Hinweise |
 |---|---|---|
-| Passwort | HTTP Basic Auth, Benutzer `admin` | Jede Anfrage, die etwas ändert, braucht dazu den Header `X-DeckConnector: 1` |
+| Passwort | HTTP Basic Auth, beliebiger Benutzername | Jede Anfrage, die etwas ändert, braucht dazu den Header `X-DeckConnector: 1` |
 | Sitzung | `POST /api/login` mit `{"password": "..."}` und `X-DeckConnector: 1` | Setzt ein Cookie. Endet nach 12 Stunden ohne Nutzung oder mit `POST /api/logout` |
 | API-Schlüssel | `Authorization: Bearer SCHLUESSEL` | Braucht keinen `X-DeckConnector`-Header. Rechte siehe unten |
 | Setup-WLAN | Ein Client im Setup-WLAN | Rechte wie das Passwort. Änderungen brauchen trotzdem `X-DeckConnector: 1` |

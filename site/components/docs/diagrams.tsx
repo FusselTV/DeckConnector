@@ -335,7 +335,7 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
     lang,
     {
       title: 'The deck menu on a Stream Deck +',
-      alt: "The deck menu in the web UI's live deck view. Top row: Deutsch Language, two empty keys, Menu close. Second row: LAN 192.168.1.50 automatic, Setup Wi-Fi start, Firmware with its version, Restart 5 s: factory reset. Touch strip: Brightness 80 %, Web access http://192.168.1.50 with user admin and the password, Close.",
+      alt: "The deck menu in the web UI's live deck view. Top row: Deutsch Language, two empty keys, Menu close. Second row: LAN 192.168.1.50 automatic, Setup Wi-Fi start, Firmware with its version, Restart 5 s: factory reset. Touch strip: Brightness 80 %, Web access http://192.168.1.50 and the password, Close.",
       rows: [
         ['Deutsch', 'Switches the deck to German. In German it says English'],
         ['LAN', 'Fixed or automatic address'],
@@ -343,13 +343,13 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
         ['Restart', 'Tap twice: restart. Hold 5 s: factory reset'],
         [
           'Strip',
-          'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, user admin, password. Close',
+          'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, password. Close',
         ],
       ],
     },
     {
       title: 'Das Deck-Menü auf einem Stream Deck +',
-      alt: 'Das Deck-Menü in der Live-Ansicht der Weboberfläche. Obere Reihe: English Sprache, zwei leere Tasten, Menü schließen. Zweite Reihe: LAN 192.168.1.50 automatisch, Setup-WLAN starten, Firmware mit ihrer Version, Neustart 5 s: Werkszustand. Touchleiste: Helligkeit 80 %, Web-Zugang http://192.168.1.50 mit Benutzer admin und Passwort, Schließen.',
+      alt: 'Das Deck-Menü in der Live-Ansicht der Weboberfläche. Obere Reihe: English Sprache, zwei leere Tasten, Menü schließen. Zweite Reihe: LAN 192.168.1.50 automatisch, Setup-WLAN starten, Firmware mit ihrer Version, Neustart 5 s: Werkszustand. Touchleiste: Helligkeit 80 %, Web-Zugang http://192.168.1.50 mit Passwort, Schließen.',
       rows: [
         ['English', 'Stellt das Deck auf Englisch. Auf Englisch steht dort Deutsch'],
         ['LAN', 'Feste oder automatische Adresse'],
@@ -357,7 +357,7 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
         ['Neustart', 'Zweimal tippen: Neustart. 5 s halten: Werkszustand'],
         [
           'Leiste',
-          'Helligkeit, Drehregler 1 drehen, im Menü mindestens 20 %. Web-Adresse, Benutzer admin, Passwort. Schließen',
+          'Helligkeit, Drehregler 1 drehen, im Menü mindestens 20 %. Web-Adresse, Passwort. Schließen',
         ],
       ],
     },
