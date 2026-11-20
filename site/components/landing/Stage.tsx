@@ -1,11 +1,9 @@
 'use client'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { startTransition, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { preload } from 'react-dom'
 import type { Lang } from '~/lib/i18n'
 import { compositions, type CompositionId } from '~/remotion'
 import { RemotionStage } from '~/remotion/RemotionStage'
-
-const idle = (fn: () => void) => ('requestIdleCallback' in window ? requestIdleCallback(fn) : setTimeout(fn, 200))
 
 export function Stage({
   id,
@@ -25,25 +23,43 @@ export function Stage({
   const [on, setOn] = useState(false)
 
   useEffect(() => {
-    // After load and idle, so the player never competes with first paint; then every stage's code is warm before it scrolls in.
-    const go = () =>
-      idle(() => {
-        void import('~/remotion/Stage')
-        void compositions[id].load()
-        if (eager) setOn(true)
-      })
-    if (document.readyState === 'complete') go()
-    else window.addEventListener('load', go, { once: true })
-    if (eager) return () => window.removeEventListener('load', go)
-    const io = new IntersectionObserver(([e]) => e?.isIntersecting && (setNear(true), setOn(true), io.disconnect()), {
-      rootMargin: '150% 0px',
-    })
-    if (ref.current) io.observe(ref.current)
+    const ac = new AbortController()
+    const once = { once: true, passive: true, signal: ac.signal }
+    let timer = 0
+    let seen = !!eager
+    let ready = false
+    // A transition, so input that arrives during the mount goes first.
+    const play = () => seen && ready && startTransition(() => setOn(true))
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e?.isIntersecting) return
+        seen = true
+        setNear(true)
+        play()
+        io.disconnect()
+      },
+      { rootMargin: '150% 0px' },
+    )
+    if (!eager && ref.current) io.observe(ref.current)
+    // The player's code is heavy: it waits for the first input after load, or a few seconds, so startup stays free.
+    const go = () => {
+      ac.abort()
+      clearTimeout(timer)
+      ready = true
+      play()
+    }
+    const wait = () => {
+      timer = window.setTimeout(go, 3000)
+      for (const e of ['pointerdown', 'keydown', 'scroll', 'touchstart', 'wheel']) addEventListener(e, go, once)
+    }
+    if (document.readyState === 'complete') wait()
+    else addEventListener('load', wait, once)
     return () => {
-      window.removeEventListener('load', go)
+      ac.abort()
+      clearTimeout(timer)
       io.disconnect()
     }
-  }, [id, eager])
+  }, [eager])
 
   const file = (v: string) => `/stills/${id}-${lang}-${v}.webp`
   const src = (v: string) => `url(${file(v)})`

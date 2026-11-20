@@ -341,10 +341,7 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
         ['LAN', 'Fixed or automatic address'],
         ['Setup Wi-Fi', 'Starts the setup Wi-Fi'],
         ['Restart', 'Tap twice: restart. Hold 5 s: factory reset'],
-        [
-          'Strip',
-          'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, password. Close',
-        ],
+        ['Strip', 'Brightness, turn dial 1, at least 20 % while the menu is open. Web address, password. Close'],
       ],
     },
     {
@@ -355,10 +352,7 @@ export function DeckMenu({ lang }: { lang?: Lang }) {
         ['LAN', 'Feste oder automatische Adresse'],
         ['Setup-WLAN', 'Startet das Setup-WLAN'],
         ['Neustart', 'Zweimal tippen: Neustart. 5 s halten: Werkszustand'],
-        [
-          'Leiste',
-          'Helligkeit, Drehregler 1 drehen, im Menü mindestens 20 %. Web-Adresse, Passwort. Schließen',
-        ],
+        ['Leiste', 'Helligkeit, Drehregler 1 drehen, im Menü mindestens 20 %. Web-Adresse, Passwort. Schließen'],
       ],
     },
   )
