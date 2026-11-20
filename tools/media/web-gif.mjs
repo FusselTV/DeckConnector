@@ -1,5 +1,6 @@
-// node web-gif.mjs <demo url> <frame dir>: prints the crop of the deck picture dialog for gif.sh. One scene per line;
+// node web-gif.mjs <demo url> <frame dir>: prints the crop of the deck picture dialog for readme.py. One scene per line;
 // edit SCENES to change the GIF. Also records <frame dir>/ha (connector page), /deck (deck page) and /screen (dialog).
+import { writeFileSync } from 'node:fs'
 import { center, chromium, CURSOR, deckJpeg, mouse, recorder } from './lib.mjs'
 import { around, BOARD, cards, devices, HA, login, setLanguage, themed, waitForTheme } from './ha-shots.mjs'
 
@@ -34,7 +35,7 @@ const ha = await haCtx.newPage()
 await ha.goto(`${HA}/config/devices/device/${dev.board}`)
 await waitForTheme(ha, true)
 await ha.waitForTimeout(3500)
-const clip = around((await cards(ha)).slice(0, 2))
+const clip = around((await cards(ha)).slice(0, 1)) // Controls
 
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark', reducedMotion: 'reduce' })
 const sent = {}
@@ -50,7 +51,9 @@ const put = async (cfg) => {
     failed ??= e
   }
 }
-const post = async (path, body) => {
+const timeline = [] // [Date.now() seconds, path, body] for readme.py
+const post = async (path, body, t = Date.now() / 1000) => {
+  timeline.push([t, path, body])
   const r = await fetch(`${BOARD}${path}`, { method: 'POST', body })
   if (!r.ok) throw new Error(`board.py: ${path} ${r.status}`)
 }
@@ -62,7 +65,8 @@ const inputs = (log) => {
   seen = Math.max(seen ?? 0, ...log.map((e) => e.seq))
   if (fresh.some((e) => e.kind.startsWith('touch'))) failed ??= new Error('touch inputs are not sent to board.py')
   const body = JSON.stringify(fresh.map(({ kind, index, value }) => ({ kind, index, value: value ?? 0 })))
-  if (fresh.length) chain = chain.then(() => post('/_input', body)).catch((e) => (failed ??= e))
+  const t = Date.now() / 1000 // when the demo took them, not when the queue gets to them
+  if (fresh.length) chain = chain.then(() => post('/_input', body, t)).catch((e) => (failed ??= e))
 }
 const screen = () =>
   (chain = chain.then(async () => {
@@ -103,13 +107,24 @@ const haDeck = await haCtx.newPage()
 await haDeck.goto(`${HA}/config/devices/device/${dev.deck}`)
 await waitForTheme(haDeck, true)
 await haDeck.waitForTimeout(3500)
-const deckClip = around(await cards(haDeck))
+const deckClip = around((await cards(haDeck)).slice(-1)) // Events: the Screen sensor thumbnail loads once
 const haScreen = await haCtx.newPage()
 await haScreen.goto(`${HA}/config/devices/device/${dev.deck}`)
 await waitForTheme(haScreen, true)
-await haScreen.evaluate(() => document.querySelector('home-assistant').dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: 'camera.stream_deck_screen' }, bubbles: true, composed: true })))
+// HA ignores the event until its frontend has loaded the dialog, so it is sent until the dialog opens
+await haScreen.waitForFunction(() => {
+  document.querySelector('home-assistant').dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: 'camera.stream_deck_screen' }, bubbles: true, composed: true }))
+  return document.querySelector('home-assistant')?.shadowRoot?.querySelector('ha-more-info-dialog')
+}, null, { polling: 1000, timeout: 20000 })
 await haScreen.waitForTimeout(4000)
 const screenClip = around([await haScreen.locator('ha-more-info-dialog dialog').first().boundingBox()], 0)
+const box = (r) => [r.x, r.y, r.width, r.height].map(Math.round)
+const deckBox = box(await page.evaluate(() => document.querySelector('img[src^="data:"][style*="left"]').parentElement.getBoundingClientRect().toJSON()))
+const camBox = await haScreen.evaluate(() => {
+  const walk = (n) => n.src?.includes('camera_proxy_stream') ? n : [...(n.shadowRoot?.children ?? []), ...n.children].reduce((f, c) => f ?? walk(c), null)
+  return walk(document.body)?.getBoundingClientRect().toJSON()
+})
+if (!camBox) throw new Error('no camera stream in the dialog')
 await page.evaluate(CURSOR)
 const m = mouse(page)
 await m.park([1150, 720])
@@ -153,6 +168,10 @@ for (const [step, ...args] of SCENES) await STEPS[step](...args)
 await chain
 if (failed) throw failed
 const t1 = Date.now() / 1000
-for (const r of [rec, ...haRecs]) await r.stop(t0, t1)
+const out = await rec.stop(t0, t1)
+for (const r of haRecs) await r.stop(t0, t1)
+const pictures = timeline.filter(([, path]) => path === '/_screen').map(([, , body]) => body)
+pictures.forEach((b, i) => writeFileSync(`${dir}/screen-${i}.jpg`, b))
+writeFileSync(`${dir}/timeline.json`, JSON.stringify({ deck: deckBox, camera: box(camBox), events: timeline.map(([t, path, body]) => [out(t), path === '/_screen' ? pictures.indexOf(body) : JSON.parse(body)]) }))
 await Promise.all([browser.close(), haBrowser.close()])
 console.log(`crop ${[screenClip.width, screenClip.height, screenClip.x, screenClip.y].map(Math.round).join(':')}`)

@@ -24,8 +24,8 @@ export async function recorder(ctx, page, dir, clip) {
   if (clip)
     loop = (async () => {
       while (running) {
+        const t = Date.now() / 1000 // the page is captured when the call starts, encoding takes the rest
         const data = await page.screenshot({ clip })
-        const t = Date.now() / 1000
         if (!frames.at(-1)?.data.equals(data)) frames.push({ t, data })
         await page.waitForTimeout(40)
       }
@@ -55,6 +55,7 @@ export async function recorder(ctx, page, dir, clip) {
       list += `file '${dir}/${String(frames.length - 1).padStart(4, '0')}.png'\n`
       writeFileSync(`${dir}/list.txt`, list)
       console.log(frames.length, 'frames')
+      return out
     },
   }
 }

@@ -5,7 +5,7 @@ look at the result and commit it.
 
 | Command | Writes |
 |---|---|
-| `tools/media/ha.sh` | `.github/assets/web-ui.gif` and `ha-*.gif`, `site/public/docs/ha-*.webp` and `ha-live-*.gif` |
+| `tools/media/ha.sh` | `.github/assets/readme.gif`, `site/public/docs/ha-*.webp` and `ha-live-*.gif` |
 | `tools/media/deck.sh` | `site/public/docs/deck-*.webp` |
 
 `ha.sh` needs `npm ci` in `web/`, ffmpeg, Docker and uv. It starts Home Assistant with the integration
@@ -13,10 +13,12 @@ from this checkout in the container `dc-media-ha` (ports 18140 and 18141) and re
 `board.py` runs in that container and serves the demo's status and deck pictures. Frames and PNGs go to
 `~/.cache/deckbridge/media` (`MEDIA_WORK`).
 
-It records `web-ui.gif` and the three `ha-*.gif` on one timeline. All have the same length and frame times, so the
-README pictures stay in step with the web UI. The demo sends its settings, presses and deck picture to `board.py`.
-Home Assistant gets them over the same socket it uses with a board, and shows a new deck picture up to a second later,
-as with a board.
+`readme.gif` shows the web UI and Home Assistant in one picture, recorded on one timeline. The demo sends its
+settings, presses and deck picture to `board.py`. Home Assistant gets them over the same socket it uses with a board.
+The camera shows a new picture up to 100 ms later, so `readme.py` moves the camera onto the web UI's frames.
+`ha.sh` stops before recording when the host is busy. `readme.py` writes nothing when a frame shows different deck
+pictures in the web UI and in Home Assistant, or when an event shows more than one frame late. gifsicle then shrinks
+the GIF.
 
 `deck.sh` needs gcc, `npm ci` in `web/` and `site/`, and a simulator. Build it with `idf.py -C firmware/sim build` or
 set `DC_SIM_ELF` to an existing one. To change a deck picture, edit `site/scripts/deck-shots.c`. It draws the screens
