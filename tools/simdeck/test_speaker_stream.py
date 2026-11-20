@@ -2,10 +2,16 @@
 board's would, so these show timing and that the server keeps answering while a stream plays."""
 
 import base64
+import contextlib
 import http.client
 import json
+import math
+import os
+import socket
+import struct
 import threading
 import time
+from pathlib import Path
 
 RATE = 32000  # bytes per second: 16 kHz, 16 bit, mono
 
@@ -80,3 +86,124 @@ def test_turning_the_speaker_off_ends_the_stream(start):
     status, body, took = result["r"]
     assert (status, body) == (200, {"ok": True, "stopped": True})
     assert took < 3
+
+
+def open_stream(sim, pcm: bytes, pause_at: int = -1, pause: float = 0, end: bool = True) -> tuple[dict, float]:
+    """Sends like Home Assistant: a Content-Length it never reaches, paced a second ahead, then shuts its side."""
+    auth = base64.b64encode(f"admin:{sim.password}".encode()).decode()
+    s = socket.create_connection(("127.0.0.1", sim.port), timeout=30)
+    start = time.monotonic()
+    try:
+        s.sendall(
+            f"POST /api/sound/stream HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {auth}\r\nX-DeckConnector: 1\r\n"
+            f"Content-Length: {2**31 - 1}\r\n\r\n".encode()
+        )
+        for at in range(0, len(pcm), RATE // 10):
+            if at == pause_at:
+                time.sleep(pause)
+            ahead = at / RATE - (time.monotonic() - start) - 1
+            if ahead > 0:
+                time.sleep(ahead)
+            s.sendall(pcm[at : at + RATE // 10])
+        if end:
+            s.shutdown(socket.SHUT_WR)
+        answer = b""
+        while chunk := s.recv(4096):
+            answer += chunk
+        return json.loads(answer.partition(b"\r\n\r\n")[2]), time.monotonic() - start
+    finally:
+        s.close()
+
+
+def cpu_s(pid: int) -> float:
+    fields = Path(f"/proc/{pid}/stat").read_text().rpartition(")")[2].split()
+    return (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
+
+
+def test_twenty_seconds_of_unknown_length_play_through(start):
+    sim = start("plus")
+    sim.config(speaker=True)
+    pcm = b"".join(struct.pack("<h", int(8000 * math.sin(i / 5))) for i in range(16000 * 20))
+    cpu = cpu_s(sim.proc.pid)
+    t = threading.Thread(target=lambda: result.update(r=open_stream(sim, pcm)))
+    result = {}
+    t.start()
+    worst = 0.0
+    while t.is_alive():
+        asked = time.monotonic()
+        sim.status()
+        worst = max(worst, time.monotonic() - asked)
+        time.sleep(1)
+    t.join()
+    body, took = result["r"]
+    used = cpu_s(sim.proc.pid) - cpu
+    print(f"\n20 s stream: {took:.1f} s, sim CPU {used:.2f} s ({100 * used / took:.1f} %), status worst {worst:.3f} s")
+    assert body == {"ok": True, "stopped": False}
+    assert 19 < took < 22  # the sim's speaker runs a few % fast: 32 ms chunks wait 3 ticks of 10 ms
+    assert worst < 0.5, "the server answers while a stream plays"
+
+
+def test_a_stall_plays_silence_and_goes_on(start):
+    sim = start("plus")
+    sim.config(speaker=True)
+    pcm = b"\1\0" * 16000 * 4
+    _body, plain = open_stream(sim, pcm)
+    body, took = open_stream(sim, pcm, pause_at=RATE * 2, pause=2)
+    assert body == {"ok": True, "stopped": False}
+    assert 0.5 < took - plain < 3  # silence while the ring ran dry, then the rest
+
+
+def test_five_seconds_without_data_end_a_stream(start):
+    sim = start("plus")
+    sim.config(speaker=True)
+    body, took = open_stream(sim, b"\1\0" * 16000, end=False)
+    assert body == {"ok": True, "stopped": True}
+    assert 5.5 < took < 8
+
+
+def test_after_a_reset_the_next_stream_plays(start):
+    """Home Assistant's stop resets the connection; the board's side of that is in host_test/test_stream.c."""
+    sim = start("plus")
+    sim.config(speaker=True)
+    s = socket.create_connection(("127.0.0.1", sim.port), timeout=30)
+    auth = base64.b64encode(f"admin:{sim.password}".encode()).decode()
+    s.sendall(
+        f"POST /api/sound/stream HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {auth}\r\nX-DeckConnector: 1\r\n"
+        f"Content-Length: {2**31 - 1}\r\n\r\n".encode()
+        + b"\1\0" * 16000 * 3
+    )
+    time.sleep(1)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+    s.close()
+    time.sleep(0.3)
+    status, body, _took = post_stream(sim, b"\0" * 3200)
+    assert (status, body) == (200, {"ok": True, "stopped": False}), "the next stream plays: the last one is over"
+
+
+def test_a_refused_endless_stream_closes_its_connection(start):
+    """httpd reads the whole body of a refused request before the next one: from a sender that keeps going, that
+    is forever, and the server answers nobody else meanwhile."""
+    sim = start("plus")
+    sim.config(speaker=True)
+    s = socket.create_connection(("127.0.0.1", sim.port), timeout=5)
+
+    def keep_sending() -> None:
+        with contextlib.suppress(OSError):
+            s.sendall(
+                b"POST /api/sound/stream HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer wrong\r\n"
+                + f"X-DeckConnector: 1\r\nContent-Length: {2**31 - 1}\r\n\r\n".encode()
+            )
+            until = time.monotonic() + 3
+            while time.monotonic() < until:  # without gaps: the sim's sockets end httpd's read at the first
+                s.sendall(b"\0" * 3200)
+
+    t = threading.Thread(target=keep_sending)
+    t.start()
+    try:
+        time.sleep(1)
+        asked = time.monotonic()
+        sim.status()
+        assert time.monotonic() - asked < 1, "the server answers while the refused sender keeps sending"
+    finally:
+        t.join()
+        s.close()

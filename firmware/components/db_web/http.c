@@ -388,18 +388,25 @@ static esp_err_t cors_preflight(httpd_req_t *req)
     return httpd_resp_send(req, NULL, 0);
 }
 
+/* A refused stream closes its connection: else httpd reads the whole body, which may never end, before it
+ * takes another request. */
+static esp_err_t refused(const route_t *r, esp_err_t err)
+{
+    return r->handler == post_sound_stream ? ESP_FAIL : err;
+}
+
 static esp_err_t timed(httpd_req_t *req)
 {
-    if (web_plain_refused(req)) {
-        return refuse_plain(req);
-    }
     route_t *r = req->user_ctx;
+    if (web_plain_refused(req)) {
+        return refused(r, refuse_plain(req));
+    }
     /* an upload and the speaker self-test take seconds and share nothing; the update check waits on GitHub
      * and keeps its own cache */
     bool lock = r->handler != post_ota && r->handler != get_update_check && r->handler != post_sound_selftest;
     /* a handler that hangs must not take every other request on both ports with it */
     if (lock && !web_lock_for(10000)) {
-        return send_error(req, "503 Service Unavailable", "busy");
+        return refused(r, send_error(req, "503 Service Unavailable", "busy"));
     }
     int64_t start = esp_timer_get_time();
     char origin[96];
@@ -407,7 +414,7 @@ static esp_err_t timed(httpd_req_t *req)
         cors(req, origin);
     }
     bool allowed = (r->level == WEB_OPEN || auth_check(req, r->level)) && !(r->deck && web_deck_refused(req));
-    esp_err_t err = allowed ? r->handler(req) : ESP_OK;
+    esp_err_t err = allowed ? r->handler(req) : refused(r, ESP_OK);
     uint32_t us = (uint32_t)(esp_timer_get_time() - start);
     r->count++;
     r->total_us += us;

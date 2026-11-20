@@ -16,8 +16,9 @@ void db_audio_play(db_sound_t sound);
 esp_err_t db_audio_play_at(db_sound_t sound, int volume);
 
 /* From a request handler: plays the body, 16 kHz mono 16-bit PCM, at the volume setting and answers once it
- * ended. A sound, a newer stream or the speaker setting turned off ends it. ESP_OK when the request is taken;
- * ESP_ERR_NOT_SUPPORTED without a speaker, ESP_ERR_NO_MEM. */
+ * ended: at Content-Length or when the client shuts down its sending side, so an endless stream may send a
+ * length it never reaches. A sound, a newer stream, the speaker setting turned off or 5 s without data end
+ * it. ESP_OK when the request is taken; ESP_ERR_NOT_SUPPORTED without a speaker, ESP_ERR_NO_MEM. */
 esp_err_t db_audio_stream(httpd_req_t *req);
 
 /* The self-test: Find at `volume` heard by the board's microphone at `gain` dB, then the same at volume 0 and

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <sys/select.h>
 
+#include "db_stream.h"
+
 int stream_recv(void *ctx, char *buf, size_t len, bool wait)
 {
     httpd_req_t *req = ctx;
@@ -17,7 +19,7 @@ int stream_recv(void *ctx, char *buf, size_t len, bool wait)
         }
     }
     int n = httpd_req_recv(req, buf, len); /* waits at most the server's recv timeout */
-    return n > 0 ? n : -1;
+    return n > 0 ? n : !n ? DB_STREAM_END : n == HTTPD_SOCK_ERR_TIMEOUT ? 0 : -1;
 }
 
 void stream_end(httpd_req_t *req, const char *error, bool all)
