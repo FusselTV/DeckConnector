@@ -123,7 +123,7 @@ static void send_job(job_t *job)
             e.fds[i] = -1; /* gone */
             continue;
         }
-        if (e.login[i][0] && !auth_login_alive(e.login[i])) {
+        if (!auth_login_alive(e.login[i])) {
             httpd_sess_trigger_close(job->server, fd);
             e.fds[i] = -1;
             continue;
@@ -515,7 +515,7 @@ static void command(httpd_handle_t server, int fd, const char *text)
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
         /* off the list (evicted, or its login ended) but not closed yet: its rights are gone with its slot */
-        if (!listed || (login[0] && !auth_login_alive(login))) {
+        if (!listed || !auth_login_alive(login)) {
             snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"login required\"}");
             code = 401;
         } else if (set && token) {

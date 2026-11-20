@@ -20,14 +20,16 @@ size_t db_net_companions(db_net_found_t *out, size_t max)
 }
 
 static const char *sim_join = "";
+static bool ap_closed;
 
-/* DB_SIM_VIA_AP=1: the setup AP is on and has the loopback address, so every request counts as over the AP.
+/* DB_SIM_VIA_AP=1: the setup AP is on and has the loopback address, so every request counts as over the AP
+ * until DELETE /api/ap closes it.
  */
 void db_net_status(db_net_status_t *out)
 {
     *out = (db_net_status_t){.lan_link = true, .lan_up = true, .join_state = sim_join};
     strcpy(out->lan_ip, "127.0.0.1");
-    if (getenv("DB_SIM_VIA_AP")) {
+    if (getenv("DB_SIM_VIA_AP") && !ap_closed) {
         out->ap_active = true;
         strcpy(out->ap_ip, "127.0.0.1");
     }
@@ -35,6 +37,7 @@ void db_net_status(db_net_status_t *out)
 
 esp_err_t db_net_ap_stop(void)
 {
+    ap_closed = true;
     return ESP_OK;
 }
 
