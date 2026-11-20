@@ -2,7 +2,7 @@
 // Records Home Assistant's connector page on the same timeline to <frame dir>/ha. The demo's volume and brightness
 // go to board.py, which pushes them to Home Assistant like the board does.
 import { center, chromium, CURSOR, mouse, recorder } from './lib.mjs'
-import { BOARD, cards, devices, HA, login, setLanguage, themed, waitForTheme } from './ha-shots.mjs'
+import { around, BOARD, cards, devices, HA, login, setLanguage, themed, waitForTheme } from './ha-shots.mjs'
 
 const SCENES = [
   ['hold', 700],
@@ -33,8 +33,7 @@ const ha = await haCtx.newPage()
 await ha.goto(`${HA}/config/devices/device/${(await devices(main)).board}`)
 await waitForTheme(ha, true)
 await ha.waitForTimeout(3500)
-const [x, y, r, b] = (await cards(ha)).slice(0, 2).reduce(([x, y, r, b], c) => [Math.min(x, c.x), Math.min(y, c.y), Math.max(r, c.x + c.width), Math.max(b, c.y + c.height)], [1e9, 1e9, 0, 0])
-const clip = { x: x - 16, y: y - 16, width: r - x + 32, height: b - y + 32 } // ha-shots' margin
+const clip = around((await cards(ha)).slice(0, 2))
 
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark', reducedMotion: 'reduce' })
 const sent = {}
@@ -66,6 +65,7 @@ await page.evaluate(CURSOR)
 const m = mouse(page)
 await m.park([1150, 720])
 await ha.waitForTimeout(1500)
+const t0 = Date.now() / 1000
 const rec = await recorder(ctx, page, dir)
 const haRec = await recorder(haCtx, ha, `${dir}/ha`, clip)
 
@@ -98,6 +98,6 @@ const STEPS = {
 
 for (const [step, ...args] of SCENES) await STEPS[step](...args)
 if (failed) throw failed
-const [t0, t1] = [Math.min(rec.first(), haRec.first()), Date.now() / 1000]
+const t1 = Date.now() / 1000
 for (const r of [rec, haRec]) await r.stop(t0, t1)
 await browser.close()

@@ -24,8 +24,8 @@ export async function recorder(ctx, page, dir, clip) {
   if (clip)
     loop = (async () => {
       while (running) {
-        const t = Date.now() / 1000
         const data = await page.screenshot({ clip })
+        const t = Date.now() / 1000
         if (!frames.at(-1)?.data.equals(data)) frames.push({ t, data })
         await page.waitForTimeout(40)
       }
@@ -40,10 +40,10 @@ export async function recorder(ctx, page, dir, clip) {
   }
   return {
     speed: (n) => speeds.push({ t: Date.now() / 1000, n }),
-    first: () => frames[0]?.t,
     async stop(t0 = frames[0].t, t1 = Date.now() / 1000) {
       running = false
       await (loop ?? cdp.send('Page.stopScreencast'))
+      while (frames.length > 1 && frames.at(-1).t > t1) frames.pop()
       // GIF seconds from t0 to t; a still page sends no frames, so the last one lasts until t1
       const out = (t) => speeds.reduce((o, s, i) => o + Math.max(0, Math.min(t, speeds[i + 1]?.t ?? t1) - Math.max(t0, s.t)) / s.n, 0)
       let list = ''

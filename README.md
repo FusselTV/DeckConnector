@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a camera key, a dial, the lights folder, the volume, a restart and the speaker setting">
+  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a camera key, a dial, the lights folder, the volume, the brightness, a restart and the speaker setting">
 </p>
 
 <table align="center">

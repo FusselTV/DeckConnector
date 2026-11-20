@@ -60,13 +60,15 @@ export const cardBox = (page, sel) =>
     return [Math.max(...found.map((r) => r.right)) - x, Math.max(...found.map((r) => r.bottom)) - y, x, y].map(Math.round)
   }, sel)
 
-async function clip(page, boxes, path, margin = 16) {
+export function around(boxes, margin = 16) {
   const x = Math.min(...boxes.map((b) => b.x)) - margin
   const y = Math.min(...boxes.map((b) => b.y)) - margin
   const width = Math.max(...boxes.map((b) => b.x + b.width)) + margin - x
   const height = Math.max(...boxes.map((b) => b.y + b.height)) + margin - y
-  await page.screenshot({ path, clip: { x, y, width, height } })
+  return { x, y, width, height }
 }
+
+const clip = (page, boxes, path, margin) => page.screenshot({ path, clip: around(boxes, margin) })
 
 // the cards in the device page's middle column, without "+n disabled entities" and a card that only had those
 export async function cards(page) {
