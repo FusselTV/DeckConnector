@@ -5,6 +5,7 @@ import {
   Clock,
   EthernetPort,
   Hand,
+  Heart,
   LayoutGrid,
   Lock,
   MousePointer2,
@@ -21,7 +22,6 @@ import {
   Usb,
   Volume2,
   VolumeX,
-  Heart,
   Wifi,
   X,
 } from 'lucide-react'
@@ -800,7 +800,6 @@ function Controls() {
   )
 }
 
-const SPONSOR = 'https://github.com/sponsors/FusselTV'
 const starAtom = atom<StarMemo>(ls.get('dc.star', {}))
 starAtom.subscribe(() => ls.set('dc.star', starAtom.get()))
 
@@ -821,7 +820,7 @@ function StarNote() {
         <a className="btn sm" href={REPO} target="_blank" rel="noopener">
           {t('star.gh')}
         </a>
-        <a className="btn sm" href={SPONSOR} target="_blank" rel="noopener">
+        <a className="btn sm" href="https://github.com/sponsors/FusselTV" target="_blank" rel="noopener">
           {t('star.sponsor')}
         </a>
         <button type="button" className="btn sm ghost" onClick={() => starAtom.set(starNever)}>
