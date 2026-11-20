@@ -45,9 +45,9 @@ cd firmware/sim && idf.py build
 cd tools && uv run pytest tests --target sim -n auto
 ```
 
-`firmware/simdeck` runs the whole firmware on emulated decks, Matter included. The Matter stack there is a fake,
-so pairing and the real mDNS records of Matter still need a board. The mDNS tests start both simulators in a
-network namespace of their own, so nothing reaches the LAN. They need user namespaces (`unshare -rn true`).
+`firmware/simdeck` runs the whole firmware on emulated decks, Matter included. Its Matter stack is a fake, so
+pairing and the Matter mDNS records still need a board. The mDNS tests put both simulators in a network namespace
+of their own, and nothing reaches the LAN. This needs unprivileged user namespaces. `unshare -rn true` checks it.
 
 ```
 cd firmware/simdeck && idf.py build
