@@ -4,6 +4,7 @@ export type Form = {
   message?: unknown
   website?: unknown
   t?: unknown
+  turnstile?: unknown
 }
 export type Problem = 'email' | 'message' | 'fast'
 
