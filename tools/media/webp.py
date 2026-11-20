@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = Path(sys.argv[1])
-README = {"readme-board": "ha-connector", "readme-deck": "ha-deck", "readme-screen": "ha-screen"}
+README = {"readme-deck": "ha-deck", "readme-screen": "ha-screen"}
 
 
 def save(src: Path, out: Path, rounded: bool = False) -> None:

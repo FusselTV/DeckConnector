@@ -12,30 +12,45 @@ export const CURSOR = `(() => { const c = document.createElement('div');
   addEventListener('mousedown', () => (c.style.scale = '0.8'), true); addEventListener('mouseup', () => (c.style.scale = '1'), true) })()`
 
 // CDP screencast. speed(n) plays everything after it n times faster in the GIF; stop() writes an ffmpeg concat list.
-// stop(t0) holds the first frame from t0 on, so two recorders of one browser share a timeline.
-export async function recorder(ctx, page, dir) {
+// stop(t0, t1) cuts to that span of Date.now() seconds, so two recorders of one browser share a timeline.
+// With a clip it takes screenshots of that part in a loop instead: the screencast has no device pixels.
+export async function recorder(ctx, page, dir, clip) {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
-  const cdp = await ctx.newCDPSession(page)
   const frames = []
-  const speeds = [{ i: 0, n: 1 }]
-  cdp.on('Page.screencastFrame', async (f) => {
-    frames.push({ t: f.metadata.timestamp, at: Date.now(), data: f.data })
-    await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {})
-  })
-  await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 })
+  const speeds = [{ t: 0, n: 1 }]
+  let running = true
+  let cdp, loop
+  if (clip)
+    loop = (async () => {
+      while (running) {
+        const data = await page.screenshot({ clip })
+        const t = Date.now() / 1000
+        if (!frames.at(-1)?.data.equals(data)) frames.push({ t, data })
+        await page.waitForTimeout(40)
+      }
+    })()
+  else {
+    cdp = await ctx.newCDPSession(page)
+    cdp.on('Page.screencastFrame', async (f) => {
+      frames.push({ t: f.metadata.timestamp, data: Buffer.from(f.data, 'base64') })
+      await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {})
+    })
+    await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 })
+  }
   return {
-    speed: (n) => speeds.push({ i: frames.length, n }),
-    first: () => frames[0]?.t,
-    async stop(t0 = frames[0].t) {
-      await cdp.send('Page.stopScreencast')
-      let list = t0 < frames[0].t ? `file '${dir}/0000.png'\nduration ${(frames[0].t - t0).toFixed(3)}\n` : ''
+    speed: (n) => speeds.push({ t: Date.now() / 1000, n }),
+    async stop(t0 = frames[0].t, t1 = Date.now() / 1000) {
+      running = false
+      await (loop ?? cdp.send('Page.stopScreencast'))
+      while (frames.length > 1 && frames.at(-1).t > t1) frames.pop()
+      // GIF seconds from t0 to t; a still page sends no frames, so the last one lasts until t1
+      const out = (t) => speeds.reduce((o, s, i) => o + Math.max(0, Math.min(t, speeds[i + 1]?.t ?? t1) - Math.max(t0, s.t)) / s.n, 0)
+      let list = ''
       frames.forEach((f, i) => {
         const name = `${dir}/${String(i).padStart(4, '0')}.png`
-        writeFileSync(name, Buffer.from(f.data, 'base64'))
-        // a still page sends no frames: the last one lasts until stop()
-        const next = frames[i + 1]?.t ?? f.t + (Date.now() - f.at) / 1000
-        list += `file '${name}'\nduration ${((next - f.t) / speeds.findLast((s) => s.i <= i).n).toFixed(3)}\n`
+        writeFileSync(name, f.data)
+        list += `file '${name}'\nduration ${(out(frames[i + 1]?.t ?? t1) - out(i ? f.t : t0)).toFixed(6)}\n`
       })
       list += `file '${dir}/${String(frames.length - 1).padStart(4, '0')}.png'\n`
       writeFileSync(`${dir}/list.txt`, list)
