@@ -169,9 +169,14 @@ static void play(int16_t *pcm, size_t n)
     }
 }
 
-/* A sound or a newer stream waiting ends this one, as does switching the speaker off. */
+/* Find, a self-test or a newer stream waiting ends this one, as does switching the speaker off. */
 static bool stream_play(void *ctx, int16_t *pcm, size_t n)
 {
+    play_t next;
+    /* other sounds are dropped: the web UI's volume preview and deck sounds would cut the music off */
+    while (xQueuePeek(queue, &next, 0) == pdTRUE && !next.job && !next.req && next.sound != DB_SOUND_FIND) {
+        xQueueReceive(queue, &next, 0);
+    }
     if (uxQueueMessagesWaiting(queue) || !db_config()->speaker) {
         return false;
     }

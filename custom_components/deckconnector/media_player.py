@@ -174,7 +174,7 @@ class Speaker(BoardEntity, MediaPlayerEntity):
                 played = await self.coordinator.api.play(pcm)
             if not played:
                 _LOGGER.warning(
-                    "%s ended it early: a sound, another stream, the speaker setting or 5 s without audio",
+                    "%s ended it early: Find, another stream, the speaker setting or 5 s without audio",
                     self.coordinator.data["name"],
                 )
         except DeckConnectorError as err:
