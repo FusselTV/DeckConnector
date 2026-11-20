@@ -5,7 +5,7 @@ import json
 import socket
 import time
 
-from conftest import dismiss_prompt, drawn_since
+from conftest import dismiss_prompt, drawn_since, pictures
 
 YES, NO = 1, 2
 
@@ -80,10 +80,10 @@ def test_a_dock_host_refused_on_the_deck_asks_again_only_a_minute_later(start):
     sim.config(setup_done=True, dock_paired_only=True)
     dock_from("127.0.0.2")  # the first host gets in while none is known
     assert sim.api("POST", "/api/dock", {"pairing": 0})[0] == 200
-    since = time.time()
+    before = pictures(sim, 0)
     dock_from("127.0.0.4")
     assert sim.wait(lambda: sim.status()["pairing"]["request"] == "127.0.0.4", 5), sim.status()["pairing"]
-    assert sim.wait(lambda: drawn_since(sim, 0, since), 5), "the deck does not ask"
+    assert sim.wait(lambda: drawn_since(sim, 0, before), 5), "the deck does not ask"
     time.sleep(0.3)
     sim.tap(0, NO)
     assert sim.wait(lambda: sim.status()["pairing"]["request"] is None, 5)

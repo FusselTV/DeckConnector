@@ -34,16 +34,27 @@ screen. `db_deck` keeps the newest image per area for every source, so a host th
 
 ## Tests
 
-```
-cmake -S firmware/host_test -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host
-```
+Most tests need no board. They run against the firmware built for Linux. `firmware/sim` has the web API, and
+`firmware/simdeck` has the whole firmware with emulated decks of every model. Building them needs `libbsd-dev` and
+`libjpeg-dev`. They carry the web UI from `web/dist`, so build that first (`cd web && npm run check`). Times are from
+a 12-core PC with a warm ccache.
 
-The API tests also run without a board, against the web code built for Linux. Building it needs `libbsd-dev`.
+| What | Command | Time |
+|---|---|---|
+| `db_core` | `cmake -S firmware/host_test -B build-host -G Ninja && cmake --build build-host && ctest --test-dir build-host` | 1 min |
+| Firmware after an edit | `tools/build.sh` | 5 s |
+| Web UI checks | `cd web && npm run check` | 10 s |
+| Simulators | `cd firmware/sim && idf.py build`, the same in `firmware/simdeck` | 10 s each |
+| API on the simulator | `cd tools && uv run pytest tests --target sim -n 4` | 2.5 min |
+| Web UI end to end | `cd web && npm run e2e` | 4 min |
+| Every deck model | `cd tools && uv run pytest simdeck` | 5 min |
+| Home Assistant | `cd tools/ha && uv run pytest` | 15 s |
+| Home Assistant in Docker | `cd tools/ha && uv run pytest e2e -p no:homeassistant` | 30 s |
 
-```
-cd firmware/sim && idf.py build
-cd tools && uv run pytest tests --target sim -n auto
-```
+The deck model tests also need `cd tools/companion-check && npm ci` once. The suites use fixed ports. To run two at
+once, for example from two checkouts, start each in a network namespace of its own:
+`.github/scripts/netns.sh uv run pytest simdeck`. This needs unprivileged user namespaces, which Ubuntu 24.04 turns
+off by default. Tests that wait for a timer can fail when the PC is busy; run them again alone.
 
 `firmware/simdeck` runs the whole firmware on emulated decks, Matter included. Its Matter stack is a fake, so
 pairing and the Matter mDNS records still need a board. The mDNS tests put both simulators in a network namespace
@@ -62,6 +73,16 @@ With a board, set its address as `host` in `~/.config/deckbridge/bench.json`. Th
 cd tools && uv run pytest tests            # end to end
 cd tools && uv run pytest tests -m ota     # updates, restarts the board
 ```
+
+## CI
+
+A pull request runs only the jobs its files can affect. `ci-ok` is the check that must pass.
+
+| Workflow | Runs on changes in | Jobs | Time |
+|---|---|---|---|
+| ci | `firmware`, `web`, `tools`, `.github` | firmware build and clang-tidy, host tests, lint, web UI, demo, the board-free suites, size check | 9 min |
+| home-assistant | `custom_components`, `tools/ha`, `firmware` | hassfest, HACS, tests, Home Assistant in Docker | 3 min |
+| site | `site`, `web`, the deck screens | build, Lighthouse | 7 min |
 
 ## Update files
 

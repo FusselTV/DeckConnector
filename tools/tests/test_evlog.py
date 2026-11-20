@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 IDF = Path(os.environ.get("IDF_PATH", Path.home() / "esp/esp-idf"))
 OLD_TABLE = "nvs, data, nvs, 0x9000, 0x6000\n"
 NEW_TABLE = (ROOT / "firmware/sim/partitions.csv").read_text()
-PORT = 38180 + WORKER
+PORT = 21180 + WORKER
 AUTH = "Basic YWRtaW46c2ltdWxhdG9yLXBhc3M="  # admin:simulator-pass
 LONG = "WLAN roam Fussel-IoT 7c:10:c9:aa:01:01 -> 7c:10:c9:aa:01:02, channel 11"
 

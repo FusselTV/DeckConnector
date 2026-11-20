@@ -56,7 +56,8 @@ WORKER = int(os.environ.get("PYTEST_XDIST_WORKER", "gw0")[2:])
 
 
 def start_sim(port: int, **env: str) -> subprocess.Popen:
-    """A simulator on 127.0.0.1:port that answers; DB_SIM_* settings come in `env`."""
+    """A simulator on 127.0.0.1:port that answers; DB_SIM_* settings come in `env`. Keep port below 22768: the
+    simulator also takes port + 10000, and from 32768 up Linux hands out client ports."""
     with tempfile.TemporaryFile() as log:  # the simulator keeps its own handle
         sim = subprocess.Popen(
             [SIM], env={**os.environ, "DB_SIM_PORT": str(port), **env}, stdout=log, stderr=subprocess.STDOUT

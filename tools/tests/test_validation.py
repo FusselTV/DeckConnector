@@ -103,7 +103,7 @@ def test_a_stored_address_now_refused_becomes_the_one_applied(tmp_path):
     flash.write_bytes(b"\xff" * 0x90000)
     write_at(flash, 0x8000, table(NEW_TABLE, tmp_path))
     write_at(flash, 0x9000, (tmp_path / "nvs.bin").read_bytes())
-    port = 38280 + WORKER
+    port = 21280 + WORKER
     sim = start_sim(port, DB_SIM_PASSWORD="simulator-pass", DB_SIM_FLASH=str(flash))
     try:
 

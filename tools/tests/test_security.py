@@ -103,7 +103,7 @@ def get(url: str, cookie: str = "") -> int:
 @pytest.fixture
 def own_sim(request):
     """A simulator of this test's own, so what it changes cannot touch the other tests."""
-    port = 28180 + WORKER
+    port = 21580 + WORKER
     sim = start_sim(port, DB_SIM_PASSWORD=PASSWORD, **getattr(request, "param", {}))
     yield port
     sim.kill()

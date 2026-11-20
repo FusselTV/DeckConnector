@@ -12,7 +12,7 @@ from test_discover import ours
 from test_evlog import NEW_TABLE, table, write_at
 from zeroconf import Zeroconf
 
-PORT = 38380 + WORKER
+PORT = 21380 + WORKER
 
 
 def call(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
