@@ -59,6 +59,22 @@ export async function recorder(ctx, page, dir, clip) {
   }
 }
 
+// in the page: the live deck as the firmware's screen.jpg, a data URL; null without a live deck
+export async function deckJpeg([w, h]) {
+  const c = Object.assign(document.createElement('canvas'), { width: w, height: h })
+  const g = c.getContext('2d')
+  g.fillRect(0, 0, w, h)
+  const imgs = document.querySelectorAll('img[src^="data:"][style*="left"]')
+  if (!imgs.length) return null
+  for (const img of imgs) {
+    await img.decode().catch(() => {})
+    const s = img.style
+    const [x, y, iw, ih] = [s.left, s.top, s.width, s.height].map((v) => parseFloat(v) / 100)
+    g.drawImage(img, x * w, y * h, iw * w, ih * h)
+  }
+  return c.toDataURL('image/jpeg', 0.92)
+}
+
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
 export function mouse(page) {

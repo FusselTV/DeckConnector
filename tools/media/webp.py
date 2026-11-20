@@ -1,4 +1,4 @@
-"""PNGs from ha-shots.mjs to the README and docs files, plus contact sheets to look at.
+"""PNGs from ha-shots.mjs to the docs files, plus contact sheets to look at.
 uv run --with pillow python tools/media/webp.py <png dir>"""
 
 import sys
@@ -8,7 +8,6 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = Path(sys.argv[1])
-README = {"readme-deck": "ha-deck", "readme-screen": "ha-screen"}
 
 
 def save(src: Path, out: Path, rounded: bool = False) -> None:
@@ -17,14 +16,10 @@ def save(src: Path, out: Path, rounded: bool = False) -> None:
         mask = Image.new("L", im.size, 0)
         ImageDraw.Draw(mask).rounded_rectangle((0, 0, im.width - 1, im.height - 1), radius=48, fill=255)
         im.putalpha(mask)
-    if src.stem == "readme-screen":
-        im = im.resize((im.width // 2, im.height // 2), Image.LANCZOS)
     im.save(out, quality=88, method=6)
     print(out.relative_to(ROOT), im.size, out.stat().st_size)
 
 
-for src, name in README.items():
-    save(SRC / f"{src}.png", ROOT / ".github/assets" / f"{name}.webp", src == "readme-screen")
 for src in sorted(SRC.glob("ha-*-*-*.png")):
     name, lang, theme = src.stem.rsplit("-", 2)
     save(src, ROOT / "site/public/docs" / f"{name}{'' if lang == 'en' else '-de'}-{theme}.webp", name == "ha-flow")
