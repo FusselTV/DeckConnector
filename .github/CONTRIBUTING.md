@@ -70,9 +70,9 @@ A pull request runs only the jobs its files can affect. `ci-ok` is the check tha
 
 | Workflow | Runs on changes in | Jobs | Time |
 |---|---|---|---|
-| ci | `firmware`, `web`, `tools`, `.github` | firmware build and clang-tidy, host tests, lint, web UI, demo, the board-free suites, size check | CI_TIME |
-| home-assistant | `custom_components`, `tools/ha`, `firmware` | hassfest, HACS, tests, Home Assistant in Docker | HA_TIME |
-| site | `site`, `web`, the deck screens | build, Lighthouse | 6.5 min |
+| ci | `firmware`, `web`, `tools`, `.github` | firmware build and clang-tidy, host tests, lint, web UI, demo, the board-free suites, size check | 9 min |
+| home-assistant | `custom_components`, `tools/ha`, `firmware` | hassfest, HACS, tests, Home Assistant in Docker | 3 min |
+| site | `site`, `web`, the deck screens | build, Lighthouse | 7 min |
 
 ## Update files
 
