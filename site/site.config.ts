@@ -1,5 +1,7 @@
 export const repo = 'https://github.com/FusselTV/DeckConnector'
 export const site = 'https://deckconnector.com'
+// Cloudflare's always-pass test key until the real Turnstile widget exists; the Worker refuses its tokens.
+export const turnstileKey = '1x00000000000000000000BB'
 
 // Imprint and privacy policy. The owner's data stays out of git: site.yml takes it from the OWNER_* repository
 // secrets, a local build from site/.env.local. LEGAL_STRICT=1 (site.yml outside pull requests) fails on a missing one.

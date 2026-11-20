@@ -1,5 +1,6 @@
 import { check, limitKey, mime, type Form } from './mail'
 import { send } from './smtp'
+import { human } from './turnstile'
 
 type Env = {
   LIMIT: { limit(o: { key: string }): Promise<{ success: boolean }> }
@@ -7,6 +8,7 @@ type Env = {
   SMTP_USER: string
   SMTP_PASS: string
   ORIGIN: string
+  TURNSTILE_SECRET: string
 }
 
 // iCloud+ custom domain: SMTP_USER is the account's @icloud.com address, FROM one of its domain addresses.
@@ -19,7 +21,8 @@ export default {
     if (req.headers.get('Origin') !== env.ORIGIN) return json({ error: 'origin' }, 403)
     // Content-Length first: req.text() would buffer any size. Missing counts as too big.
     if (!(Number(req.headers.get('Content-Length') ?? Infinity) <= 20_000)) return json({ error: 'size' }, 413)
-    const { success } = await env.LIMIT.limit({ key: limitKey(req.headers.get('CF-Connecting-IP') ?? '') })
+    const ip = req.headers.get('CF-Connecting-IP') ?? ''
+    const { success } = await env.LIMIT.limit({ key: limitKey(ip) })
     if (!success) return json({ error: 'rate' }, 429)
     const raw = await req.text()
     if (raw.length > 20_000) return json({ error: 'size' }, 413)
@@ -31,6 +34,8 @@ export default {
     }
     const f = check(form ?? {})
     if ('problem' in f) return json({ error: f.problem }, 400)
+    if (!(await human(env.TURNSTILE_SECRET, form?.turnstile, ip, new URL(env.ORIGIN).hostname)))
+      return json({ error: 'turnstile' }, 403)
     if (f.bot) return json({ ok: true }) // the honeypot field was filled: look sent, send nothing
     const id = `<${crypto.randomUUID()}@deckconnector.com>`
     const mail = mime({

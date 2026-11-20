@@ -9,7 +9,7 @@
     "lint": "oxlint --type-aware --max-warnings 0 .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs scripts/flash-unit.test.mjs contact-worker/mail.test.mjs",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run build && node --test scripts/llms.test.mjs scripts/search.test.mjs scripts/links.test.mjs scripts/flash-unit.test.mjs contact-worker/mail.test.mjs contact-worker/turnstile.test.mjs",
     "test:flash": "node --test scripts/flash-unit.test.mjs scripts/flash-e2e.test.mjs"
   },
   "dependencies": {

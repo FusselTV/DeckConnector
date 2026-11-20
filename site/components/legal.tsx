@@ -30,6 +30,7 @@ const APPLE_PRIVACY = {
   de: 'https://www.apple.com/legal/privacy/de-ww/',
   en: 'https://www.apple.com/legal/privacy/en-ww/',
 }
+const TURNSTILE_PRIVACY = 'https://www.cloudflare.com/turnstile-privacy-policy/'
 const CF_ANALYTICS = 'https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/'
 
 function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
@@ -190,6 +191,20 @@ export function Privacy({ lang }: { lang: Lang }) {
         DSGVO. Mein berechtigtes Interesse ist der Schutz vor Missbrauch.
       </p>
       <p>
+        Gegen Spam nutzt das Formular Cloudflare Turnstile von Cloudflare, Inc. (Adresse oben). Das Skript lädt erst,
+        sobald du ein Feld im Formular nutzt, von <code>challenges.cloudflare.com</code>. Es prüft im Hintergrund, ob
+        ein Mensch das Formular nutzt. Dafür verarbeitet Cloudflare deine IP-Adresse, die Kennung deines Browsers und
+        Merkmale deines Browsers und Geräts, zum Beispiel aus der TLS-Verbindung. Nur selten zeigt Turnstile ein
+        Kästchen zum Anklicken. Turnstile setzt kein Cookie. Es legt aber im lokalen Speicher deines Browsers für
+        challenges.cloudflare.com den Eintrag <code>cf.turnstile.u</code> an. Er bleibt, bis du ihn löschst. Das
+        Speichern und Lesen erlaubt § 25 Abs. 2 Nr. 2 TDDDG, weil es für das Formular, das du nutzt, unbedingt nötig
+        ist. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist ein Formular ohne Spam. Für
+        die Prüfung handelt Cloudflare in meinem Auftrag. Nutzt Cloudflare die Daten, um die Erkennung von Bots zu
+        verbessern, ist Cloudflare selbst verantwortlich. Die Übermittlung in die USA stützt sich auf das EU-US Data
+        Privacy Framework (Art. 45 DSGVO). Mehr dazu im <a href={TURNSTILE_PRIVACY}>Turnstile Privacy Addendum</a> und
+        in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
+      </p>
+      <p>
         Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger
         aufzubewahren.
       </p>
@@ -336,6 +351,20 @@ export function Privacy({ lang }: { lang: Lang }) {
         To stop mass use of the form, Cloudflare counts the requests per IP address (per /64 network for IPv6) for one
         minute and lets about five through. Then the count expires. The legal basis is Art. 6(1)(f) GDPR. My legitimate
         interest is protection from abuse.
+      </p>
+      <p>
+        Against spam, the form uses Cloudflare Turnstile by Cloudflare, Inc. (address above). The script loads from{' '}
+        <code>challenges.cloudflare.com</code> only once you use a field of the form. It checks in the background
+        whether a person uses the form. For this, Cloudflare processes your IP address, your browser&apos;s identifier
+        and signals from your browser and device, for example from the TLS connection. Only rarely does Turnstile show a
+        box to click. Turnstile sets no cookie. It does keep the entry <code>cf.turnstile.u</code> in your
+        browser&apos;s local storage for challenges.cloudflare.com. It stays until you delete it. Storing and reading
+        are allowed under § 25(2) no. 2 TDDDG, because it is strictly necessary for the form you use. The legal basis is
+        Art. 6(1)(f) GDPR. My legitimate interest is a form without spam. For the check, Cloudflare acts on my behalf.
+        When Cloudflare uses the data to improve its bot detection, Cloudflare is the controller itself. The transfer to
+        the USA is based on the EU-US Data Privacy Framework (Art. 45 GDPR). See the{' '}
+        <a href={TURNSTILE_PRIVACY}>Turnstile Privacy Addendum</a> and{' '}
+        <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a>.
       </p>
       <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
 
