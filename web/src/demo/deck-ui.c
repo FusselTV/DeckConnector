@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "db_driver.h"
+#include "db_tones.h"
 #include "ui.h"
 
 #define EXPORT(name) __attribute__((export_name(#name)))
@@ -222,4 +223,23 @@ EXPORT(deck_render) uint8_t *deck_render(void)
     db_rect_t dirty[DB_MAX_TARGETS + UI_SEGMENTS];
     ui_render(&canvas, &dev.info, &sc, NULL, dirty, DB_MAX_TARGETS + UI_SEGMENTS);
     return canvas.px;
+}
+
+static int16_t pcm[16000 * 3];
+
+/* The sound named in the buffer at `volume`, as db_audio plays it: 16 kHz samples at deck_pcm; how many. 0 for
+ * an unknown name. */
+EXPORT(deck_tone) size_t deck_tone(int volume)
+{
+    for (int i = 0; i < DB_SOUND_COUNT; i++) {
+        if (strcmp(buf, db_sound_name((db_sound_t)i)) == 0) {
+            return db_tones_render((db_sound_t)i, volume, 16000, pcm, sizeof(pcm) / sizeof(pcm[0]));
+        }
+    }
+    return 0;
+}
+
+EXPORT(deck_pcm) int16_t *deck_pcm(void)
+{
+    return pcm;
 }

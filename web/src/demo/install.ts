@@ -1,6 +1,6 @@
 import type { WsMsg } from '../api/types'
 import { fontsReady, paint } from './deck'
-import { deckUiReady } from './deck-ui'
+import { deckUiReady, TONE_RATE } from './deck-ui'
 import { boot, face, fresh, history, input, isDown, PASS, putConfig, tick, wsState, type Demo } from './model'
 import { ls, store } from '../lib/util'
 import { handle, type Body } from './server'
@@ -111,11 +111,32 @@ window.fetch = async (req: RequestInfo | URL, init?: RequestInit) => {
   calls.push({ method: init?.method ?? 'GET', url: apiUrl, status: r.status })
   save()
   after()
+  try {
+    if (r.pcm?.length) play(r.pcm)
+  } catch {
+    // a browser without Web Audio stays silent, like a board without a speaker
+  }
   const text = typeof r.body === 'string'
   return new Response(text ? (r.body as string) : JSON.stringify(r.body), {
     status: r.status,
     headers: { 'content-type': text ? 'text/plain' : 'application/json' },
   })
+}
+
+let audio: AudioContext | undefined
+let audioEnd = 0
+function play(pcm: Int16Array) {
+  audio ??= new AudioContext()
+  if (audio.state === 'suspended') void audio.resume()
+  const buf = audio.createBuffer(1, pcm.length, TONE_RATE)
+  buf.getChannelData(0).set(Float32Array.from(pcm, (v) => v / 32768))
+  const src = audio.createBufferSource()
+  src.buffer = buf
+  src.connect(audio.destination)
+  // one after the other, each with the 100 ms of silence db_audio adds (TAIL)
+  audioEnd = Math.max(audio.currentTime, audioEnd)
+  src.start(audioEnd)
+  audioEnd += buf.duration + 0.1
 }
 
 class DemoSocket {

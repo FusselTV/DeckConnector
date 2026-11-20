@@ -29,6 +29,7 @@ import {
   res,
   type Reply,
 } from './model'
+import { tone } from './deck-ui'
 
 /** Turns a face into one image URL per key and one for the strip. */
 export type Paint = (f: Face) => (Rect & { url: string })[]
@@ -155,6 +156,19 @@ function prevLog(s: Demo) {
     '03:14:27.180 I web: POST /api/reboot',
     '03:14:27.190 W main: restart asked over the API',
   ].join('\n')
+}
+
+/** firmware/components/db_web/api.c post_sound */
+function sound(s: Demo, b: Body) {
+  const { sound: name, volume: v } = (b ?? {}) as { sound?: unknown; volume?: unknown }
+  let volume = typeof v === 'number' ? Math.trunc(v) : s.cfg.volume
+  const pcm = typeof name === 'string' ? tone(name, 100) : new Int16Array()
+  if (!pcm.length || volume < 0 || volume > 100 || (v !== undefined && typeof v !== 'number'))
+    return fail(400, 'sound: ready, connected, lost or find; volume: 0 to 100')
+  if (!s.cfg.speaker) return fail(409, 'speaker: the settings say none is connected')
+  if (!volume && name !== 'find') return fail(409, 'sounds are off: set volume')
+  if (name === 'find' && v === undefined && volume < 60) volume = 60
+  return { ...ok(), pcm: tone(name as string, volume) }
 }
 
 export function handle(s: Demo, now: number, method: string, url: string, body: Body, paint: Paint): Reply {
@@ -298,8 +312,8 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return ok()
     case 'DELETE /api/ap':
       return ok()
-    case 'POST /api/sound': // the demo has no speaker to play it on
-      return ok()
+    case 'POST /api/sound':
+      return sound(s, b)
     case 'POST /api/sound/selftest':
       return fail(409, 'this board has no speaker')
     case 'POST /api/reboot':
