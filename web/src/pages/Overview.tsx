@@ -817,10 +817,10 @@ function StarNote() {
       <SIcon icon={Heart} size={20} />
       <span className="ntext">{t('star.text')}</span>
       <div className="nacts">
-        <a className="btn sm" href={REPO} target="_blank" rel="noopener">
+        <a className="btn sm" href={REPO} target="_blank" rel="noreferrer">
           {t('star.gh')}
         </a>
-        <a className="btn sm" href="https://github.com/sponsors/FusselTV" target="_blank" rel="noopener">
+        <a className="btn sm" href="https://github.com/sponsors/FusselTV" target="_blank" rel="noreferrer">
           {t('star.sponsor')}
         </a>
         <button type="button" className="btn sm ghost" onClick={() => starAtom.set(starNever)}>

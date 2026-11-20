@@ -36,9 +36,11 @@ for (const [k, ok] of [
 }
 const real = store(() => localStorage)
 // A visitor came to press keys: the live deck starts open, also on a phone.
-ls.get = <V>(k: string, d: V): V => (k in start ? (start[k] as V) : real.get(k, k === 'dc.deckOpen' ? (true as V) : d))
-// dc.star would store the firmware version on load. Without it the star card never shows: the demo is up 3 h, and its
-// update reloads into a page that has no older version to compare.
+ls.get = <V>(k: string, d: V): V =>
+  k in start
+    ? (start[k] as V)
+    : real.get(k, k === 'dc.deckOpen' ? (true as V) : k === 'dc.star' ? ({ never: true } as V) : d)
+// The star card never shows in the demo, and dc.star would store the firmware version on load.
 ls.set = (k, v) => void (k !== 'dc.star' && real.set(k, v))
 if (window.parent !== window) document.documentElement.classList.add('embed')
 

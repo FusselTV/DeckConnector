@@ -893,7 +893,7 @@ export const en = {
   'ev.matter_failed': 'Matter failed to start: {0}',
   'log.store_settings': 'Only the last 40 events stay over a restart.',
   'log.store_ram': 'No event stays over a restart.',
-  'star.text': 'Enjoying DeckConnector? A GitHub star or a sponsorship helps it keep going.',
+  'star.text': 'Like DeckConnector? A GitHub star helps others find it. Sponsoring helps me keep working on it.',
   'star.gh': 'Star on GitHub',
   'star.sponsor': 'Sponsor',
   'star.never': "Don't show again",

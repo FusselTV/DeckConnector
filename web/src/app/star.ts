@@ -8,13 +8,12 @@ export interface StarMemo {
   never?: boolean
 }
 
-/** The memo after a status read: a firmware other than the one seen last is an update. */
+/** A rollback or an older slot is no update. */
 export function starSeen(m: StarMemo, fw: string | undefined): StarMemo {
   if (!fw || fw === m.fw) return m
-  return { ...m, fw, upd: !!m.fw }
+  return { ...m, fw, upd: !!m.fw && fw.localeCompare(m.fw, 'en', { numeric: true }) > 0 }
 }
 
-/** Shown once after an update, else from a day of uptime on, but never during setup or in a pause. */
 export const starShow = (m: StarMemo, setupDone: boolean, uptimeS: number | undefined, now: number) =>
   !m.never && setupDone && (!!m.upd || ((uptimeS ?? 0) >= 86_400 && now >= (m.until ?? 0)))
 

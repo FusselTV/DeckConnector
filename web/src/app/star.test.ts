@@ -23,6 +23,15 @@ describe('star card', () => {
     expect(starShow(starSeen(closed, 'v1.0.1'), true, 60, NOW)).toBe(false)
   })
 
+  it('ignores a missing version and a rollback', () => {
+    const m = starSeen({}, 'v1.0.9')
+    expect(starSeen(m, undefined)).toBe(m)
+    expect(starShow(starSeen(m, 'v1.0.10'), true, 60, NOW)).toBe(true)
+    const back = starSeen(m, 'v1.0.8')
+    expect(back).toMatchObject({ fw: 'v1.0.8', upd: false })
+    expect(starShow(back, true, 60, NOW)).toBe(false)
+  })
+
   it('closed for now comes back after 30 days or with the next update', () => {
     const m = starClose(starSeen({}, 'v1'), NOW)
     expect(starShow(m, true, DAY_S, NOW + 29 * DAY_S * 1000)).toBe(false)
