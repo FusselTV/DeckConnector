@@ -12,6 +12,7 @@ export const CURSOR = `(() => { const c = document.createElement('div');
   addEventListener('mousedown', () => (c.style.scale = '0.8'), true); addEventListener('mouseup', () => (c.style.scale = '1'), true) })()`
 
 // CDP screencast. speed(n) plays everything after it n times faster in the GIF; stop() writes an ffmpeg concat list.
+// stop(t0) holds the first frame from t0 on, so two recorders of one browser share a timeline.
 export async function recorder(ctx, page, dir) {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
@@ -25,9 +26,10 @@ export async function recorder(ctx, page, dir) {
   await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 })
   return {
     speed: (n) => speeds.push({ i: frames.length, n }),
-    async stop() {
+    first: () => frames[0]?.t,
+    async stop(t0 = frames[0].t) {
       await cdp.send('Page.stopScreencast')
-      let list = ''
+      let list = t0 < frames[0].t ? `file '${dir}/0000.png'\nduration ${(frames[0].t - t0).toFixed(3)}\n` : ''
       frames.forEach((f, i) => {
         const name = `${dir}/${String(i).padStart(4, '0')}.png`
         writeFileSync(name, Buffer.from(f.data, 'base64'))

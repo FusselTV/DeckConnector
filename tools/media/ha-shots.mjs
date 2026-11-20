@@ -47,6 +47,19 @@ export async function waitForTheme(page, dark) {
   }, dark, { timeout: 20000 })
 }
 
+// the box around every card matching sel, through the shadow roots, as ffmpeg's crop w:h:x:y
+export const cardBox = (page, sel) =>
+  page.evaluate((sel) => {
+    const found = []
+    const walk = (n) => {
+      if (n.matches?.(sel)) found.push(n.getBoundingClientRect())
+      ;[...(n.shadowRoot?.children ?? []), ...n.children].forEach(walk)
+    }
+    walk(document.body)
+    const [x, y] = [Math.min(...found.map((r) => r.left)), Math.min(...found.map((r) => r.top))]
+    return [Math.max(...found.map((r) => r.right)) - x, Math.max(...found.map((r) => r.bottom)) - y, x, y].map(Math.round)
+  }, sel)
+
 async function clip(page, boxes, path, margin = 16) {
   const x = Math.min(...boxes.map((b) => b.x)) - margin
   const y = Math.min(...boxes.map((b) => b.y)) - margin
