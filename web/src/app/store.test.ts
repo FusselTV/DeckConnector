@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { InputEvent } from '../api/types'
+import type { Config, InputEvent } from '../api/types'
 import { INPUT_CAP, initial, reduce, share } from './store'
 
 const ev = (o: Partial<InputEvent>): InputEvent => ({ at: 0, origin: 'deck', kind: 'down', key: 0, ...o })
@@ -14,6 +14,14 @@ describe('reduce', () => {
     const s2 = reduce(s1, { type: 'ws', now: 1, msg: { t: 'state', name: 'b' } })
     expect(s2.status).toMatchObject({ uptime_s: 50, name: 'b', counters: { images: 3 } })
     expect(s2.bootAt).toBe(10_000)
+  })
+
+  it('takes settings another client changed from ws state into the config', () => {
+    const cfg = { brightness: 80, volume: 50, speaker: true } as unknown as Config
+    const s1 = reduce(initial, { type: 'config', config: cfg })
+    const s2 = reduce(s1, { type: 'ws', now: 1, msg: { t: 'state', brightness: 40, volume: 50, speaker: false } })
+    expect(s2.config).toMatchObject({ brightness: 40, volume: 50, speaker: true })
+    expect(reduce(s2, { type: 'ws', now: 1, msg: { t: 'state', brightness: 40 } }).config).toBe(s2.config)
   })
 
   it('remembers when the connection was lost, once', () => {
