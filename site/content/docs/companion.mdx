@@ -3,6 +3,10 @@ title: Connect Companion
 description: Use the deck in Bitfocus Companion over Wi-Fi or Ethernet, as a Satellite surface.
 ---
 
+Companion connects over Satellite or as a Network Dock. Use Satellite.
+
+<CompanionModes />
+
 ## Satellite
 
 <Steps>
@@ -17,7 +21,7 @@ The deck shows up under **Surfaces** as `streamdeck:<serial>`, the same id as ov
 </Step>
 </Steps>
 
-Companion in Docker without host networking cannot be found. Publish port 16622 and type its address under **Sources**.
+The connector cannot find Companion in Docker without host networking. Publish port 16622 and type the address under **Sources**.
 
 A `wss://` address needs a certificate from a public CA. For any other certificate, paste the SHA-256 of the server's own certificate as the pin. When that certificate is renewed, enter the new pin.
 

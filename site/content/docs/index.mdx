@@ -7,17 +7,14 @@ DeckConnector is free firmware for a small board. The connector drives an [Elgat
 
 <Topology />
 
-- [Bitfocus Companion](https://bitfocus.io/companion) connects over Satellite, or as a Network Dock.
-- The [Elgato app](https://www.elgato.com/us/en/s/stream-deck-app) finds it as a Network Dock.
-- [Your own server](/docs/own-server) draws the keys over WebSocket.
-- Several programs connect at once. You [pick the source](/docs/hosts) that draws on the deck.
-- [Home Assistant](/docs/home-assistant) gets every key press. [Matter](/docs/matter) adds Apple Home and Google Home.
+- [Companion](/docs/companion), the [Elgato app](/docs/elgato-app) and [your own server](/docs/own-server) connect at once. You [pick the source](/docs/hosts) that draws.
+- [Home Assistant](/docs/home-assistant) and [Matter](/docs/matter) get every key press.
 - Wi-Fi and Ethernet at the same time. [When the cable fails](/docs/network), Wi-Fi takes over.
 - [Signed updates](/docs/updates). A firmware that does not start rolls back by itself.
 
 ## What you need
 
-- **Board.** A [Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), see [Hardware](/docs/hardware).
+- **Board.** A [Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), with chip revision v3.1 or later. The flasher checks it. See [Hardware](/docs/hardware).
 - **Deck.** A Stream Deck + (tested). [Other models](/docs/hardware#decks) should work too.
 - **Power.** A USB-C power supply, or a PoE switch port.
 - **Computer.** Chrome or Edge, to [flash](/flash/) once.

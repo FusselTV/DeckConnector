@@ -456,7 +456,7 @@ export const de: Dict = {
   'wifi.pass_len': 'Ein WLAN-Passwort hat 8 bis 63 Zeichen oder 64 Hex-Ziffern.',
   'fw.bad_header': 'Die Datei hat keinen gültigen DeckConnector-Kopf.',
   'fw.ver_unknown': 'Die Version steht erst nach dem Prüfen fest.',
-  'fw.url_h': 'Nur http://. Der Connector prüft die Signatur der Datei selbst.',
+  'fw.url_h': 'http:// oder https://. Der Connector prüft die Signatur der Datei selbst.',
   'fw.write': 'Schreiben',
   'cf.write': 'In Platz {slot} schreiben?',
   'cf.write_b': 'Ersetzt {old}. Der Connector startet nicht neu. Starten kannst du den Platz später.',

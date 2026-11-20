@@ -24,13 +24,11 @@ curl -H 'Authorization: Bearer SCHLUESSEL' http://192.168.1.50/api/status
 
 ## Zugriffsstufen
 
-Jede Route hat eine Stufe, in der letzten Spalte der Tabellen unten.
-
-<AuthLevels lang="de" />
+Jede Route hat eine Stufe, in der letzten Spalte der Tabellen unten. Die Stufen stehen unter [API-Schlüssel](/de/docs/security#api-schlüssel).
 
 Kein API-Schlüssel ändert `admin_pass`, `setup_done` oder `qr_login`. Das gibt 403.
 
-Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken. Das Deck-Bild (`/api/screen`, seine Bilder, `/api/screen.jpg`) antwortet außerdem mit 403, solange das Menü oder eine Seite der Einrichtung offen ist, denn sie zeigen das Passwort.
+Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken. Das Deck-Bild (`/api/screen`, seine Bilder, `/api/screen.jpg`) antwortet einem API-Schlüssel außerdem mit 403, solange das Deck das Passwort zeigt, im Menü oder auf einer Seite der Einrichtung.
 
 ## Fehler
 
@@ -49,6 +47,8 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 | `ota_too_old` | Unter der Sicherheitsstufe |
 | `url_http_only` | Die URL muss mit `http://` oder `https://` beginnen |
 | `no_releases` | Noch keine Releases zum Prüfen |
+| `rate_limited` | GitHub begrenzt die Abfragen. Später nochmal versuchen |
+| `unreachable` | GitHub antwortet nicht |
 | `probe_no_connection` | Unter dieser Adresse antwortet nichts |
 | `probe_no_answer` | Die Adresse nimmt die Verbindung an, schickt aber 3 s lang nichts |
 | `probe_not_companion` | Etwas antwortet, aber nicht Companion Satellite |
@@ -58,6 +58,8 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 | `paused` | Diese Adresse hat vor weniger als einer Minute eine Frage aufs Deck gebracht, die ohne Ja endete. Status 429, `retry` in Sekunden und `Retry-After` |
 | `wrong_password` | Falsches Passwort |
 | `needs_password` | Braucht das Passwort, ein API-Schlüssel reicht nicht |
+| `passkey_host` | Passkeys brauchen HTTPS und einen Namen |
+| `passkey_refused` | Der Connector hat den Passkey nicht angenommen |
 
 ## Routen
 
@@ -95,7 +97,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
-| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind oder `speaker` false ist | control |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung. Ohne `volume` spielt `find` mindestens mit 60. 409, solange `speaker` false ist, und bei Lautstärke 0 für jeden Ton außer `find` | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
@@ -121,7 +123,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `POST /api/sources/retry` | `{"host": "..."}` mit einer Server-URL oder der Satellite-Adresse. Verbindet sofort statt nach der Wartezeit | control |
-| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version` oder einen `code` dafür, was scheiterte (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). Höchstens etwa 10 s. Die Webseite probiert mehrere Formen einer Adresse nacheinander | full |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version` oder einen `code` dafür, was scheiterte (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). Höchstens etwa 6 s. Die Webseite probiert mehrere Formen einer Adresse nacheinander | full |
 | `GET /api/companion/found` | Companions, die Satellite per mDNS anmelden. Der erste Aufruf startet eine Suche von 2 s | full |
 | `POST /api/dock` | Kopplung, siehe [Kopplung](#kopplung) | full |
 | `DELETE /api/pairing/denied/<ip>` | Nimmt einen Rechner von der Liste der Abgelehnten | full |
@@ -296,7 +298,7 @@ Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
 ```
 
-`strips` listet Leisten mit Bild, aber ohne Touch, etwa die Infoleiste des Stream Deck Neo. Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
+`strips` listet jede Leiste des Displays, auch die Infoleiste des Stream Deck Neo, die keinen Touch hat. Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
 
 ## Eingaben
 

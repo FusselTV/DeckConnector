@@ -24,13 +24,11 @@ curl -H 'Authorization: Bearer KEY' http://192.168.1.50/api/status
 
 ## Access levels
 
-Each route has one level, in the last column of the tables below.
-
-<AuthLevels />
+Each route has one level, in the last column of the tables below. [API keys](/docs/security#api-keys) explains the levels.
 
 No API key changes `admin_pass`, `setup_done` or `qr_login`. Those answer 403.
 
-While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck. The deck picture (`/api/screen`, its images, `/api/screen.jpg`) also answers 403 while the menu or a setup page is open, because they show the password.
+While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck. The deck picture (`/api/screen`, its images, `/api/screen.jpg`) also answers 403 to an API key while the deck shows the password, in the menu or a setup page.
 
 ## Errors
 
@@ -49,6 +47,8 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 | `ota_too_old` | Below the security level |
 | `url_http_only` | The URL must start with `http://` or `https://` |
 | `no_releases` | No releases to check yet |
+| `rate_limited` | GitHub limits the checks. Try again later |
+| `unreachable` | GitHub does not answer |
 | `probe_no_connection` | Nothing answers at this address |
 | `probe_no_answer` | The address takes the connection but sends nothing within 3 s |
 | `probe_not_companion` | Something answers, but it is not Companion Satellite |
@@ -58,6 +58,8 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 | `paused` | This address put a question on the deck that ended without a Yes less than a minute ago. Status 429, `retry` in seconds and `Retry-After` |
 | `wrong_password` | Wrong password |
 | `needs_password` | Needs the password, an API key is not enough |
+| `passkey_host` | Passkeys need HTTPS and a name |
+| `passkey_refused` | The connector did not accept the passkey |
 
 ## Routes
 
@@ -95,7 +97,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
-| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or `speaker` is false | control |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting. Without it, `find` plays at 60 at least. 409 while `speaker` is false, and for every sound but `find` while the volume is 0 | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 
@@ -121,7 +123,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | Route | What it does | Level |
 |---|---|---|
 | `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. Connects now instead of after the wait | control |
-| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` tries Companion once and returns its `version`, or a `code` for what failed (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). About 10 s at most. The web page tries several forms of an address in turn | full |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` tries Companion once and returns its `version`, or a `code` for what failed (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). About 6 s at most. The web page tries several forms of an address in turn | full |
 | `GET /api/companion/found` | Companions that announce Satellite over mDNS. The first call starts a 2 s search | full |
 | `POST /api/dock` | Pairing, see [Pairing](#pairing) | full |
 | `DELETE /api/pairing/denied/<ip>` | Takes a host off the denied list | full |
@@ -296,7 +298,7 @@ The status also has `boot_ms`, `memory` and `https_fingerprint`.
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
 ```
 
-`strips` lists display strips that take no touch, such as the info bar of the Stream Deck Neo. Draw the JPEGs in order at their place to get the picture. An image keeps its URL until something covers it, so a browser may cache it. A URL that is gone answers 404.
+`strips` lists every display strip, also the info bar of the Stream Deck Neo, which takes no touch. Draw the JPEGs in order at their place to get the picture. An image keeps its URL until something covers it, so a browser may cache it. A URL that is gone answers 404.
 
 ## Input
 
