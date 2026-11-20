@@ -613,7 +613,8 @@ static void welcome_net(page_t *p)
     button(done, ICON_SAVE, L("Fertig", "Done"), fit(p, L("Setup beenden", "finish setup"), ""));
     done->active = true;
     done->color = C_ACTIVE;
-    card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : L("kein Netz", "no network"), "");
+    card(put(p, at(p, 1, 0), K_NONE), ICON_WEB, "Web", ip_of(md) ? ip_of(md) : L("kein Netz", "no network"),
+         "");
     card(put(p, at(p, 1, 1), K_NONE), ICON_PASSWORD, L("Passwort", "Password"), md->web_pass,
          fit(p, L("fürs Web", "for the web"), ""));
     setup_keys(p);
