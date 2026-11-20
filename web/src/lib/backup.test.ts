@@ -63,9 +63,9 @@ describe('planRestore', () => {
     expect(planRestore({ ...cfg, speaker: false }, { ...cfg, speaker: true }).patch).toEqual({ speaker: true })
     expect(planRestore({ ...cfg, speaker: true }, cfg).rows).toEqual([])
   })
-  it('carries the star note without a restart', () => {
+  it('carries "never show the star note" without a restart, not its snooze', () => {
     const p = planRestore(cfg, { ...cfg, star_off: true, star_fw: 'v1.0.0', star_until: 1 })
-    expect(p.patch).toEqual({ star_off: true, star_fw: 'v1.0.0', star_until: 1 })
+    expect(p.patch).toEqual({ star_off: true })
     expect(p.restart).toBe(false)
   })
   it('reports invalid values', () => {
@@ -103,7 +103,7 @@ describe('planRestore', () => {
   })
   // The demo sends every key the firmware's GET /api/config sends (e2e-demo/contract.spec.ts checks that).
   it('restores every setting the firmware sends', () => {
-    const readOnly = ['wifi_pass_set', 'wifi2_pass_set', 'token_set', 'setup_done']
+    const readOnly = ['wifi_pass_set', 'wifi2_pass_set', 'token_set', 'setup_done', 'star_fw', 'star_until']
     const keys = Object.keys(config(fresh(0))).filter((k) => !readOnly.includes(k))
     expect(keys.filter((k) => !WRITABLE.has(k as keyof Config))).toEqual([])
   })

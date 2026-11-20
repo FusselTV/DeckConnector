@@ -49,7 +49,7 @@ def put(body: dict) -> tuple[int, str]:
         ({"screen_dim": 30.5}, "screen_dim"),
         ({"star_until": -1}, "star_until"),
         ({"star_until": 1.5}, "star_until"),
-        ({"star_fw": "v" * 24}, "star_fw"),
+        ({"star_fw": "v" * 32}, "star_fw"),
         ({"star_off": 1}, "star_off"),
         ({"lan": {"dhcp": False, "ip": "10.0.0.08", "mask": "255.255.255.0"}}, "IPv4"),
         ({"wlan": {"dhcp": False, "ip": "10.0.0.5", "mask": "255.255.255.0", "gateway": "10.0.0.010"}}, "IPv4"),
@@ -129,7 +129,7 @@ def test_a_stored_address_now_refused_becomes_the_one_applied(tmp_path):
         assert (cfg["wlan"]["dhcp"], cfg["wlan"]["ip"], cfg["wlan"]["dns"]) == (False, "10.0.0.8", "1.1.1.1"), (
             "as lwip read them"
         )
-        star = {"star_off": True, "star_fw": "v1.2.3", "star_until": 1900000000}
+        star = {"star_off": True, "star_fw": "v1.0.0-rc3-1480-gc6d552a-dirty", "star_until": 1900000000}
         body = {"lan": cfg["lan"], "wlan": cfg["wlan"], "speaker": False, **star}
         code, reply = call("PUT", json.dumps(body).encode())
         assert code == 200 and reply["restart"] is False, reply

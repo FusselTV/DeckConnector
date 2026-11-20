@@ -25,6 +25,9 @@ describe('star card', () => {
     expect(starShow(cfg(), 'v1.0.10', 60, NOW)).toBe(true)
     expect(starShow(cfg({ star_fw: '' }), 'v1.0.1', 60, NOW)).toBe(false)
     expect(starShow(cfg({ star_fw: 'v1.0.9' }), 'v1.0.8', 60, NOW)).toBe(false)
+    expect(starShow(cfg(), 'v1.0.0-5-gabc1234-dirty', 60, NOW)).toBe(false)
+    expect(starShow(cfg({ star_fw: 'v1.0.0-rc3-480-gc6d552a' }), 'v1.0.0', 60, NOW)).toBe(false)
+    expect(starShow(cfg({ star_fw: 'v1.0.0-rc3' }), 'v1.1.0-rc1', 60, NOW)).toBe(true)
     expect(starShow(after(cfg(), starClose('v1.0.1', NOW)), 'v1.0.1', 60, NOW)).toBe(false)
   })
 

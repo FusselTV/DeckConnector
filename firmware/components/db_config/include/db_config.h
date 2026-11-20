@@ -72,7 +72,7 @@ typedef struct {
     uint8_t screen_dim;     /* after screen_off_s the decks dim to this, 10 to 90 in tens; 0: they go off */
     bool speaker;           /* a speaker is connected; off: no sounds, /api/sound refuses, status says none */
     bool star_off;          /* the web UI's star note: never again */
-    char star_fw[24];       /* the firmware the note was last closed on; the page shows it after a newer one */
+    char star_fw[32];       /* the firmware the note was last closed on; the page shows it after a newer one */
     uint32_t star_until;    /* closed until this Unix time, by the browser's clock */
 } db_config_t;
 

@@ -57,6 +57,7 @@ const LABEL: Record<string, TKey> = {
   qr_login: 'access.qr',
   usb_speed: 'deck.speed',
   speaker: 'deck.speaker',
+  star_off: 'star.never',
   matter: 'mt.title',
   dock_paired_only: 'src.only',
   admin_pass: 'access.pw',
