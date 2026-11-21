@@ -30,6 +30,6 @@ crop=$(printf '%s\n' "$out" | sed -n 's/^crop //p')
 [ -n "$crop" ]
 uv run -q --with pillow python tools/media/readme.py "$WORK/web" "$crop" "$WORK/readme.gif"
 mkdir -p .github/assets
-docker run --rm -i alpine:3.20 sh -c 'apk add -q gifsicle=1.95-r0 >/dev/null && gifsicle -O3 --lossy=20' <"$WORK/readme.gif" >"$WORK/readme-small.gif"
+docker run --rm -i alpine:3.20 sh -c 'apk add -q gifsicle=1.95-r0 >/dev/null && gifsicle -O3 --lossy=10' <"$WORK/readme.gif" >"$WORK/readme-small.gif"
 mv "$WORK/readme-small.gif" .github/assets/readme.gif
 echo ".github/assets/readme.gif: $(stat -c %s .github/assets/readme.gif) bytes"

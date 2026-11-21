@@ -5,8 +5,9 @@
 <h1 align="center">DeckConnector</h1>
 
 <p align="center">
-  Your Stream Deck on the network. A small ESP32-P4 board drives it over USB,<br>
-  and Bitfocus Companion and the Elgato App use it like an Elgato Network Dock.
+  Your Stream Deck on the network.<br>
+  A small ESP32-P4 board drives it over USB.<br>
+  Bitfocus Companion and the Elgato App use it like an Elgato Network Dock.
 </p>
 
 <p align="center">

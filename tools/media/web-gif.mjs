@@ -25,7 +25,8 @@ const SCENES = [
 ]
 
 const [url, dir] = process.argv.slice(2)
-const browser = await chromium.launch()
+// the screencast sends CSS pixels; the flag makes them device pixels. Not for Home Assistant: its screenshots fall behind
+const browser = await chromium.launch({ args: ['--force-device-scale-factor=2'] })
 const haBrowser = await chromium.launch() // its screenshot loops must not slow the web page down
 const main = await login(haBrowser)
 await setLanguage(main, 'en')
@@ -37,7 +38,7 @@ await waitForTheme(ha, true)
 await ha.waitForTimeout(3500)
 const clip = around((await cards(ha)).slice(0, 1)) // Controls
 
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark', reducedMotion: 'reduce' })
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2, colorScheme: 'dark', reducedMotion: 'reduce' })
 const sent = {}
 let failed // the page does not await put: its errors would vanish there
 const put = async (cfg) => {
@@ -117,24 +118,32 @@ await haScreen.waitForFunction(() => {
   return document.querySelector('home-assistant')?.shadowRoot?.querySelector('ha-more-info-dialog')
 }, null, { polling: 1000, timeout: 20000 })
 await haScreen.waitForTimeout(4000)
-const screenClip = around([await haScreen.locator('ha-more-info-dialog dialog').first().boundingBox()], 0)
+const dialog = haScreen.locator('ha-more-info-dialog dialog').first()
+const screenClip = around([await dialog.boundingBox()], 0)
+const radius = await dialog.evaluate((d) => parseFloat(getComputedStyle(d).borderTopLeftRadius))
 const box = (r) => [r.x, r.y, r.width, r.height].map(Math.round)
-const deckBox = box(await page.evaluate(() => document.querySelector('img[src^="data:"][style*="left"]').parentElement.getBoundingClientRect().toJSON()))
+const d = await page.evaluate(() => document.querySelector('img[src^="data:"][style*="left"]').parentElement.getBoundingClientRect().toJSON())
+const deckBox = [d.x, d.y, d.width, d.height] // not rounded: at 2x half a CSS pixel shifts the crop enough to mix up dial values
 const camBox = await haScreen.evaluate(() => {
   const walk = (n) => n.src?.includes('camera_proxy_stream') ? n : [...(n.shadowRoot?.children ?? []), ...n.children].reduce((f, c) => f ?? walk(c), null)
   return walk(document.body)?.getBoundingClientRect().toJSON()
 })
 if (!camBox) throw new Error('no camera stream in the dialog')
+// a first real press, so the Events card starts with this run's input and not one from the docs pictures
+await page.getByLabel(/^Key 2, row/).click() // CAM 2, already live
+await page.waitForTimeout(300)
+await chain
+if (!timeline.some(([, path]) => path === '/_input')) throw failed ?? new Error('the first press did not reach board.py')
 await page.evaluate(CURSOR)
 const m = mouse(page)
 await m.park([1150, 720])
 await ha.waitForTimeout(1500)
 const t0 = Date.now() / 1000
-const rec = await recorder(ctx, page, dir)
+const rec = await recorder(ctx, page, dir, undefined, 'jpeg')
 const haRecs = [
   await recorder(haCtx, ha, `${dir}/ha`, clip),
   await recorder(haCtx, haDeck, `${dir}/deck`, deckClip),
-  await recorder(haCtx, haScreen, `${dir}/screen`), // no clip: screenshots are too slow here; ha.sh crops the screencast
+  await recorder(haCtx, haScreen, `${dir}/screen`), // no clip: screenshots are too slow here; readme.py crops the screencast
 ]
 
 const STEPS = {
@@ -146,7 +155,7 @@ const STEPS = {
     await dial.focus()
     for (let i = 0; i < clicks; i++) {
       await page.mouse.wheel(0, 120)
-      await page.waitForTimeout(70)
+      await page.waitForTimeout(120) // each value lasts a GIF frame; the 2x screencast misses shorter ones
     }
     await dial.blur()
     await page.waitForTimeout(350)
@@ -170,8 +179,15 @@ if (failed) throw failed
 const t1 = Date.now() / 1000
 const out = await rec.stop(t0, t1)
 for (const r of haRecs) await r.stop(t0, t1)
+const bar = await (await themed(haBrowser, await main.context().storageState(), 'en', true, { viewport: { width: 1000, height: 300 }, deviceScaleFactor: 2 })).newPage()
+await bar.goto(`${HA}/config/devices/device/${dev.deck}`)
+await waitForTheme(bar, true)
+const toolbar = await bar.locator('hass-subpage .toolbar').first().boundingBox()
+await bar.getByText('Stream Deck +').first().waitFor()
+await bar.waitForTimeout(1000)
+await bar.screenshot({ path: `${dir}/ha-bar.png`, clip: { x: 0, y: 0, width: 1000, height: toolbar.y + toolbar.height } })
 const pictures = timeline.filter(([, path]) => path === '/_screen').map(([, , body]) => body)
 pictures.forEach((b, i) => writeFileSync(`${dir}/screen-${i}.jpg`, b))
-writeFileSync(`${dir}/timeline.json`, JSON.stringify({ deck: deckBox, camera: box(camBox), events: timeline.map(([t, path, body]) => [out(t), path === '/_screen' ? pictures.indexOf(body) : JSON.parse(body)]) }))
+writeFileSync(`${dir}/timeline.json`, JSON.stringify({ deck: deckBox, camera: box(camBox), radius, events: timeline.filter(([t, path]) => t >= t0 || path === '/_screen').map(([t, path, body]) => [out(t), path === '/_screen' ? pictures.indexOf(body) : JSON.parse(body)]) }))
 await Promise.all([browser.close(), haBrowser.close()])
 console.log(`crop ${[screenClip.width, screenClip.height, screenClip.x, screenClip.y].map(Math.round).join(':')}`)

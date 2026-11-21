@@ -13,11 +13,14 @@ export const CURSOR = `(() => { const c = document.createElement('div');
 
 // CDP screencast. speed(n) plays everything after it n times faster in the GIF; stop() writes an ffmpeg concat list.
 // stop(t0, t1) cuts to that span of Date.now() seconds, so two recorders of one browser share a timeline.
-// With a clip it takes screenshots of that part in a loop instead: the screencast has no device pixels.
-export async function recorder(ctx, page, dir, clip) {
+// With a clip it takes screenshots of that part in a loop instead: the screencast has no device pixels
+// unless the browser runs with --force-device-scale-factor.
+// format 'jpeg' keeps up with a 2x page, where PNG frames come 100 ms or more apart.
+export async function recorder(ctx, page, dir, clip, format = 'png') {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
   const frames = []
+  const ext = clip ? 'png' : format
   const speeds = [{ t: 0, n: 1 }]
   let running = true
   let cdp, loop
@@ -36,7 +39,7 @@ export async function recorder(ctx, page, dir, clip) {
       frames.push({ t: f.metadata.timestamp, data: Buffer.from(f.data, 'base64') })
       await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(() => {})
     })
-    await cdp.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 })
+    await cdp.send('Page.startScreencast', { format, quality: 92, everyNthFrame: 1 })
   }
   return {
     speed: (n) => speeds.push({ t: Date.now() / 1000, n }),
@@ -48,11 +51,11 @@ export async function recorder(ctx, page, dir, clip) {
       const out = (t) => speeds.reduce((o, s, i) => o + Math.max(0, Math.min(t, speeds[i + 1]?.t ?? t1) - Math.max(t0, s.t)) / s.n, 0)
       let list = ''
       frames.forEach((f, i) => {
-        const name = `${dir}/${String(i).padStart(4, '0')}.png`
+        const name = `${dir}/${String(i).padStart(4, '0')}.${ext}`
         writeFileSync(name, f.data)
         list += `file '${name}'\nduration ${(out(frames[i + 1]?.t ?? t1) - out(i ? f.t : t0)).toFixed(6)}\n`
       })
-      list += `file '${dir}/${String(frames.length - 1).padStart(4, '0')}.png'\n`
+      list += `file '${dir}/${String(frames.length - 1).padStart(4, '0')}.${ext}'\n`
       writeFileSync(`${dir}/list.txt`, list)
       console.log(frames.length, 'frames')
       return out

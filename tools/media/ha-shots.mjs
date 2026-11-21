@@ -70,8 +70,8 @@ export function around(boxes, margin = 16) {
 
 const clip = (page, boxes, path, margin) => page.screenshot({ path, clip: around(boxes, margin) })
 
-// the cards in the device page's middle column, without "+n disabled entities" and a card that only had those
-export async function cards(page) {
+// the cards in one column of the device page, without "+n disabled entities" and a card that only had those
+export async function cards(page, col = 1, entitiesOnly = false) {
   await page.evaluate(() => {
     const walk = (root) => {
       for (const el of root.querySelectorAll('*')) {
@@ -82,11 +82,11 @@ export async function cards(page) {
     walk(document)
   })
   await page.waitForTimeout(400)
-  const els = await page.locator('ha-config-device-page .column').nth(1).locator(':scope > *').all()
+  const els = await page.locator('ha-config-device-page .column').nth(col).locator(':scope > *').all()
   const shown = []
   for (const el of els) {
     const entities = (await el.evaluate((e) => e.tagName)) === 'HA-DEVICE-ENTITIES-CARD'
-    if (!entities || (await el.locator('ha-state-icon, state-badge').count())) shown.push(el)
+    if (entities ? await el.locator('ha-state-icon, state-badge').count() : !entitiesOnly) shown.push(el)
   }
   return (await Promise.all(shown.map((el) => el.boundingBox()))).filter((b) => b && b.height > 0)
 }
@@ -130,16 +130,21 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     await dashboard(main, DASHBOARD_NAMES[lang])
     await fetch(`${BOARD}/_press?k=1&show=1`)
     for (const v of wanted) {
+      // one column: in two, Home Assistant cuts long names like "Bildschirmschoner-Helligkeit"
+      const narrow = await themed(browser, state, lang, v.endsWith('dark'), { viewport: { width: 900, height: 2000 }, deviceScaleFactor: 2 })
+      const board = await narrow.newPage()
+      await board.goto(`${HA}/config/devices/device/${dev.board}`)
+      await waitForTheme(board, v.endsWith('dark'))
+      await board.waitForTimeout(3500)
+      if ((await board.locator('ha-config-device-page .column').count()) !== 1) throw new Error('the board page has more than one column')
+      await clip(board, await cards(board, 0, true), `${out}/ha-board-${v}.png`)
+      await narrow.close()
       const ctx = await themed(browser, state, lang, v.endsWith('dark'))
       const page = await ctx.newPage()
-      for (const name of ['board', 'deck']) {
-        await page.goto(`${HA}/config/devices/device/${dev[name]}`)
-        await waitForTheme(page, v.endsWith('dark'))
-        await page.waitForTimeout(3500)
-        const boxes = await cards(page)
-        if (name === 'board') boxes.pop() // Connected devices
-        await clip(page, boxes, `${out}/ha-${name}-${v}.png`)
-      }
+      await page.goto(`${HA}/config/devices/device/${dev.deck}`)
+      await waitForTheme(page, v.endsWith('dark'))
+      await page.waitForTimeout(3500)
+      await clip(page, await cards(page), `${out}/ha-deck-${v}.png`)
       await page.goto(`${HA}/dashboard-studio/studio`)
       await page.waitForTimeout(6000)
       await clip(page, [await page.locator('hui-grid-section').first().boundingBox()], `${out}/ha-dashboard-${v}.png`)
