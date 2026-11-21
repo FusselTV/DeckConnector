@@ -133,7 +133,7 @@ static bool issue(mbedtls_pk_context *subject_key, mbedtls_pk_context *ca_key, c
     char issuer[64], subject[80], nb[16], na[16];
     uint8_t serial[16];
     esp_fill_random(serial, sizeof(serial));
-    serial[0] &= 0x7f; /* a positive number */
+    serial[0] = (serial[0] & 0x7f) | 0x40; /* positive, and no leading zero byte, which DER forbids */
     stamp(from, nb);
     stamp(san ? from + LEAF_DAYS * DAY : 2524607999 /* 2049-12-31 */, na);
     snprintf(issuer, sizeof(issuer), "CN=DeckConnector %s CA", ca_for);
