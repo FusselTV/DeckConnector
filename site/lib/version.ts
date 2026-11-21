@@ -1,18 +1,20 @@
 import { execSync } from 'node:child_process'
 import { builtManifest } from '../components/flash/built'
 
-// The release the flasher ships; a local build without it takes the newest release tag.
+// The release the flasher ships; a local build (no manifest, or one of a dev firmware) takes the newest release tag.
 const tag = (): string => {
   try {
-    return execSync("git describe --tags --abbrev=0 --match 'v*' --exclude '*-*'", { encoding: 'utf8' }).trim()
+    const cmd = "git describe --tags --abbrev=0 --match 'v*' --exclude '*-*'"
+    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
   } catch {
     return 'vX.Y.Z'
   }
 }
-export const version = builtManifest?.version ?? tag()
+const built = builtManifest?.version
+export const version = built && /^v\d+\.\d+\.\d+$/.test(built) ? built : tag()
 
-/** Docs examples write `vX.Y.Z`; the pages, the search index and llms-full.txt show the current release. */
-export const withVersion = (text: string) => text.replaceAll('vX.Y.Z', version)
+/** Docs examples write `{{version}}`; the pages, the search index and llms-full.txt show the current release. */
+export const withVersion = (text: string) => text.replaceAll('{{version}}', version)
 
 type Node = { type: string; value?: string; children?: Node[] }
 
