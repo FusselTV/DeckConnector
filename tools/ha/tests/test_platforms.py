@@ -31,20 +31,33 @@ async def test_the_camera_fetches_only_after_a_change(hass, entry, aioclient_moc
     assert (await async_get_image(hass, "camera.stream_deck_screen")).content == b"\xff\xd8one"
 
 
-async def test_the_live_stream_sends_each_new_picture_twice(hass, entry, aioclient_mock, socket):
+async def test_the_live_stream_sends_each_new_picture_twice_at_once(hass, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     aioclient_mock.get(JPG, content=b"\xff\xd8one")
     cam = hass.data["camera"].get_entity("camera.stream_deck_screen")
     with patch("custom_components.deckconnector.camera.async_get_still_stream") as stream:
         await cam.handle_async_mjpeg_stream(MagicMock())
     frame = stream.call_args.args[1]
-    sent = [await frame() for _ in range(3)]
+    sent = [await frame() for _ in range(2)]
+    waiting = asyncio.create_task(frame())
+    await asyncio.sleep(0.05)
+    assert not waiting.done()
     aioclient_mock.clear_requests()
     aioclient_mock.get(JPG, content=b"\xff\xd8two")
     await socket.queue.put({"t": "screen", "deck": "A1"})
     await hass.async_block_till_done()
-    sent += [await frame() for _ in range(2)]
-    assert sent == [b"\xff\xd8one", b"\xff\xd8one\0", b"\xff\xd8one\0", b"\xff\xd8two", b"\xff\xd8two\0"]
+    sent += [await asyncio.wait_for(waiting, 0.2), await frame()]
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(JPG, status=500)
+    await socket.queue.put({"t": "screen", "deck": "A1"})
+    await hass.async_block_till_done()
+    sent.append(await asyncio.wait_for(frame(), 0.2))  # the failed fetch keeps the old picture
+    assert aioclient_mock.call_count == 1
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(JPG, content=b"\xff\xd8three")
+    sent.append(await asyncio.wait_for(frame(), 1))  # and the next interval fetches again
+    one, two, three = b"\xff\xd8one", b"\xff\xd8two", b"\xff\xd8three"
+    assert sent == [one, one + b"\0", two, two + b"\0", two + b"\0", three]
 
 
 async def test_every_input_kind_becomes_an_event(hass, entry, aioclient_mock, socket):
