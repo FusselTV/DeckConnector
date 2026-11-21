@@ -24,6 +24,7 @@ const t = {
     start: 'Home',
     menu: 'Menu',
     nav: 'Main',
+    starOn: 'Star on GitHub',
   },
   de: {
     docs: 'Anleitung',
@@ -37,6 +38,7 @@ const t = {
     start: 'Startseite',
     menu: 'Menü',
     nav: 'Hauptmenü',
+    starOn: 'Star auf GitHub',
   },
 }
 
@@ -110,8 +112,14 @@ export function SiteHeader({ lang }: { lang: Lang }) {
               {text}
             </a>
           ))}
-          <a href={repo} data-nav className={link}>
-            GitHub
+          <a
+            href={repo}
+            aria-label={s.starOn}
+            title={s.starOn}
+            className="ms-1 inline-flex h-11 items-center gap-1.5 rounded-lg border bg-fd-secondary/50 px-2.5 text-sm font-medium text-fd-muted-foreground transition-colors hover:text-fd-foreground lg:h-9 [&_svg]:size-4"
+          >
+            {github}
+            Star
           </a>
         </nav>
         <span className="flex-1 max-md:hidden" />
@@ -200,7 +208,7 @@ function MobileMenu({
         ))}
         <a href={repo} className={row}>
           {github}
-          GitHub
+          {s.starOn}
         </a>
         <div className="my-1 h-px bg-fd-border" />
         <div className="flex gap-1 px-1 py-1" role="group" aria-label={s.language}>
