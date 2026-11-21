@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 #include <arpa/inet.h>
 
@@ -131,6 +132,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.star_off = old.star_off;
     live.star_until = old.star_until;
     memcpy(live.star_fw, old.star_fw, sizeof(old.star_fw));
+    live.update_auto = old.update_auto;
     memcpy(live.wifi2_ssid, old.wifi2_ssid, sizeof(old.wifi2_ssid));
     memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
     memcpy(live.trusted_proxy, old.trusted_proxy, sizeof(old.trusted_proxy));
@@ -1257,27 +1259,42 @@ static char *fetch(const char *url, const char **why, const char **code)
 }
 
 static portMUX_TYPE check_mux = portMUX_INITIALIZER_UNLOCKED;
-static struct { /* the last good answer, under check_mux */
+static struct { /* the last answer, under check_mux */
     int64_t at;
+    bool good;
     char feed[160];
     char reply[512];
 } cache;
 
+#define DAY_US (24 * 3600 * 1000000LL)
+
 /* GET /api/update/check: the newest release in the repository's release feed, a prerelease only while one
  * runs. `url` (the release's .dbfw by the name the release workflow gives it, for POST /api/ota/url) only
  * when it is newer than the running firmware. `?feed=` takes another GitHub feed, for tests. Not
- * under the web lock: GitHub can take seconds. Good answers are kept for a minute. */
+ * under the web lock: GitHub can take seconds. Good answers are kept for a minute. `?auto=1` is the web UI's
+ * check at login: 409 while update_auto is off, 503 before the clock is set, else any answer from the last
+ * 24 hours, good or not, so the board asks GitHub at most once a day for it. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
-    char feed[160] = RELEASES;
+    char feed[160] = RELEASES, flag[4];
     esp_err_t got = query_value(req, "feed", feed, sizeof(feed));
     if ((got != ESP_OK && got != ESP_ERR_NOT_FOUND) || strncmp(feed, FEED_HOST, strlen(FEED_HOST)) != 0) {
         return send_error(req, "400 Bad Request", "feed: an " FEED_HOST " URL of up to 159 characters");
     }
+    bool automatic = query_value(req, "auto", flag, sizeof(flag)) == ESP_OK && strcmp(flag, "1") == 0;
+    if (automatic && !db_config()->update_auto) {
+        return send_error(req, "409 Conflict", "update_auto is off");
+    }
+    /* No clock yet means no time server reached: likely no internet, and a fetch would block this port's
+     * handlers for its 8 s timeout. */
+    if (automatic && time(NULL) < 1700000000) {
+        return send_error(req, "503 Service Unavailable", "clock not set yet");
+    }
     char reply[sizeof(cache.reply)];
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&check_mux);
-    bool hit = cache.at && now - cache.at < 60 * 1000000LL && strcmp(feed, cache.feed) == 0;
+    bool hit = cache.at && strcmp(feed, cache.feed) == 0 &&
+               (automatic ? now - cache.at < DAY_US : cache.good && now - cache.at < 60 * 1000000LL);
     if (hit) {
         strcpy(reply, cache.reply);
     }
@@ -1313,13 +1330,12 @@ esp_err_t get_update_check(httpd_req_t *req)
     if (!db_json_end(&j)) {
         return send_error(req, "500 Internal Server Error", "reply too long");
     }
-    if (!why) { /* a failure is asked again at once */
-        portENTER_CRITICAL(&check_mux);
-        cache.at = now;
-        strcpy(cache.feed, feed);
-        strcpy(cache.reply, reply);
-        portEXIT_CRITICAL(&check_mux);
-    }
+    portENTER_CRITICAL(&check_mux);
+    cache.at = now;
+    cache.good = !why; /* a manual check asks again at once after a failure */
+    strcpy(cache.feed, feed);
+    strcpy(cache.reply, reply);
+    portEXIT_CRITICAL(&check_mux);
     return send_json(req, reply);
 }
 

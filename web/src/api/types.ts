@@ -204,6 +204,8 @@ export interface Config {
   star_fw?: string
   /** Closed until this Unix time. */
   star_until?: number
+  /** After login the page offers a newer release. Missing on older firmware. */
+  update_auto?: boolean
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean

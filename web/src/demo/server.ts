@@ -412,6 +412,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return startOta(s, now)
     }
     case 'GET /api/update/check':
+      if (q.get('auto') === '1' && !s.cfg.update_auto) return fail(409, 'update_auto is off')
       return res(
         'updateCheck',
         s.firmware === latest

@@ -19,10 +19,10 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION                                                                                       \
-    7 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star */
-#define NVS_NS  "deckbridge"
-#define NVS_KEY "config"
+/* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star, 8: update_auto */
+#define CONFIG_VERSION 8
+#define NVS_NS         "deckbridge"
+#define NVS_KEY        "config"
 
 static const char *TAG = "config";
 static db_config_t current;
@@ -90,6 +90,7 @@ static void defaults(db_config_t *c)
                        .lang = "de",
                        .max_decks = 2,
                        .usb_speed = "auto",
+                       .update_auto = true,
                        .lan = {.dhcp = true},
                        .wlan = {.dhcp = true}};
     snprintf(c->name, sizeof(c->name), "deckconnector-%02x%02x%02x", mac[3], mac[4], mac[5]);
@@ -172,6 +173,9 @@ esp_err_t db_config_load(void)
                 current.star_off = false;
                 current.star_fw[0] = '\0';
                 current.star_until = 0;
+            }
+            if (current.version < 8) {
+                current.update_auto = true;
             }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
@@ -391,6 +395,7 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_bool(&j, "star_off", cfg->star_off);
     db_json_str(&j, "star_fw", cfg->star_fw);
     db_json_int(&j, "star_until", (int)cfg->star_until);
+    db_json_bool(&j, "update_auto", cfg->update_auto);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -617,9 +622,10 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->controller = (db_controller_t)found;
     }
-    const char *flags[] = {"setup_done", "dock_paired_only", "https_only", "speaker", "star_off"};
-    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->speaker,
-                      &cfg->star_off};
+    const char *flags[] = {"setup_done", "dock_paired_only", "https_only",
+                           "speaker",    "star_off",         "update_auto"};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only,
+                      &cfg->speaker,    &cfg->star_off,         &cfg->update_auto};
     for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
         const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
         if (v && !cJSON_IsBool(v)) {

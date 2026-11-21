@@ -675,6 +675,8 @@ export const en = {
   'upd.check': 'Check for updates',
   'upd.check_h': 'Asks GitHub for the newest release. GitHub sees the IP address of your network.',
   'upd.checking': 'Checking…',
+  'upd.auto': 'Look for updates at login',
+  'upd.auto_h': 'Asks GitHub at most once a day and after a restart.',
   'upd.new': 'Firmware {v} is available',
   'upd.new_h': 'Install downloads the signed file and restarts the connector.',
   'upd.notes': 'What is new',

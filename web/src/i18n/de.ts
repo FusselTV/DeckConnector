@@ -690,6 +690,8 @@ export const de: Dict = {
   'upd.check': 'Nach Updates suchen',
   'upd.check_h': 'Fragt GitHub nach dem neuesten Release. GitHub sieht dabei die IP-Adresse deines Netzes.',
   'upd.checking': 'Suche…',
+  'upd.auto': 'Bei der Anmeldung nach Updates suchen',
+  'upd.auto_h': 'Fragt GitHub höchstens einmal am Tag und nach einem Neustart.',
   'upd.new': 'Firmware {v} ist verfügbar',
   'upd.new_h': 'Installieren lädt die signierte Datei und startet den Connector neu.',
   'upd.notes': 'Was ist neu',

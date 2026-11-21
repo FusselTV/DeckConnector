@@ -44,6 +44,7 @@ export const WRITABLE = new Set<keyof ConfigPatch>([
   'screen_off_s',
   'screen_dim',
   'star_off',
+  'update_auto',
   'dock_paired_only',
   'qr_login',
   'ntp_server',
