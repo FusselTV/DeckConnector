@@ -49,6 +49,9 @@ class Firmware(BoardEntity, UpdateEntity):
                 self._check = check
         self.async_write_ha_state()
 
+    async def async_update(self) -> None:  # "Check for updates" in the UI; without it a release waits up to 6 h
+        await self._fetch_check()
+
     @property
     def installed_version(self) -> str | None:
         return self.coordinator.data.get("firmware")
