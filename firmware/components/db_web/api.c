@@ -1240,7 +1240,8 @@ static char *fetch(const char *url, const char **why, const char **code)
     while (!*why && got < FEED_MAX - 1 && (n = esp_http_client_read(c, body + got, FEED_MAX - 1 - got)) > 0) {
         got += n;
     }
-    if (!*why && (n < 0 || !esp_http_client_is_complete_data_received(c))) {
+    /* A feed longer than FEED_MAX is read up to there: the newest releases come first. */
+    if (!*why && (n < 0 || (got < FEED_MAX - 1 && !esp_http_client_is_complete_data_received(c)))) {
         *why = "GitHub not reachable"; /* cut off: what came is no list */
     }
     if (c) {
