@@ -2,9 +2,9 @@ name: home-assistant
 on:
   push:
     branches: [main]
-    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, web/**, .github/scripts/idf.*, .github/scripts/hosted-setup.sh, .github/workflows/ha.yml]
+    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, web/**, .github/scripts/idf.*, .github/workflows/ha.yml]
   pull_request:
-    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, web/**, .github/scripts/idf.*, .github/scripts/hosted-setup.sh, .github/workflows/ha.yml]
+    paths: [custom_components/**, blueprints/**, tools/ha/**, hacs.json, firmware/**, web/**, .github/scripts/idf.*, .github/workflows/ha.yml]
   schedule:
     - cron: '0 4 * * 1' # hassfest and HACS change their checks without this repo changing
   workflow_dispatch:
@@ -91,7 +91,6 @@ jobs:
         with:
           enable-cache: false
       - run: |
-          .github/scripts/hosted-setup.sh
           (cd web && npm ci && npx vite build) # the simulators embed the page from web/dist
           .github/scripts/idf.sh 'idf.py -C firmware/sim build && idf.py -C firmware/simdeck build'
       - working-directory: tools/ha

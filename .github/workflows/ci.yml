@@ -34,10 +34,10 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
-            firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/scripts/idf.*, .github/scripts/hosted-setup.sh, .github/scripts/tidy-firmware.sh, .github/scripts/linked-libs.*, .github/workflows/ci.yml]
+            firmware: [firmware/**, web/**, tools/dbtools/flashimage.py, .github/scripts/idf.*, .github/scripts/tidy-firmware.sh, .github/scripts/linked-libs.*, .github/workflows/ci.yml]
             host: [firmware/host_test/**, firmware/components/**, .github/workflows/ci.yml]
             lint: [tools/**, firmware/**, .github/**]
-            sim: [firmware/**, web/**, tools/dbtools/**, tools/tests/**, tools/simdeck/**, tools/simnet/**, tools/companion-check/**, tools/pyproject.toml, tools/uv.lock, .github/scripts/idf.*, .github/scripts/netns.sh, .github/scripts/hosted-setup.sh, .github/workflows/ci.yml]
+            sim: [firmware/**, web/**, tools/dbtools/**, tools/tests/**, tools/simdeck/**, tools/simnet/**, tools/companion-check/**, tools/pyproject.toml, tools/uv.lock, .github/scripts/idf.*, .github/scripts/netns.sh, .github/workflows/ci.yml]
             web: [web/**, .github/workflows/ci.yml]
 
   host-tests:
@@ -133,7 +133,6 @@ jobs:
       - run: cd web && npm ci && npx playwright install chromium && npm run build:demo
       - if: matrix.project == 'contract'
         run: |
-          .github/scripts/hosted-setup.sh
           (cd web && npx vite build) # the simulator embeds the page from web/dist
           .github/scripts/idf.sh 'idf.py -C firmware/simdeck build'
       - run: |
@@ -188,8 +187,9 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
+      # Ubuntu's AppArmor blocks the unprivileged namespaces netns.sh and simnet make
+      - run: sudo sysctl -qw kernel.apparmor_restrict_unprivileged_userns=0
       - run: |
-          .github/scripts/hosted-setup.sh
           (cd web && npm ci && npx vite build) # the simulator embeds the page from web/dist
           # the OTA tests sign with a key made for this job; the simulator gets its public key
           echo "DBFW_KEY=$RUNNER_TEMP/ota_key.pem" >> "$GITHUB_ENV"
