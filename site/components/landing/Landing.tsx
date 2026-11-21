@@ -3,7 +3,7 @@ import { ArrowRight, ArrowUpRight, MonitorPlay } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { prefix, type Lang } from '~/lib/i18n'
 import { copy } from './copy'
-import { docs, out } from './links'
+import { docs, out, type Out } from './links'
 import { Stage } from './Stage'
 import { dots, primary, secondary, stage, textLink, wrap } from './ui'
 import './landing.css'
@@ -116,9 +116,9 @@ export function Landing({ lang }: { lang: Lang }) {
         text={t.hosts.text}
         more={
           <ul className="flex flex-wrap justify-[inherit] gap-3">
-            {t.works.items.map(([k, name]) => (
+            {t.works.items.map(([k, name, doc]) => (
               <li key={k}>
-                <a href={o[k]} className={chip}>
+                <a href={doc ? d(doc) : o[k as Out]} className={chip}>
                   {name}
                 </a>
               </li>

@@ -26,7 +26,7 @@ Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganze
 ## Vom Connector
 
 ```json
-{"t": "hello", "proto": 1, "id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3", "fw": "v1.0.0",
+{"t": "hello", "proto": 1, "id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3", "fw": "vX.Y.Z",
  "c6": "3.0.10", "board": "waveshare-p4-poe-eth", "active": true}
 ```
 
@@ -44,7 +44,7 @@ Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele
 
 ```json
 {"t": "role", "active": true}
-{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0", "controller": "server", "writer": "server1"}
+{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "vX.Y.Z", "controller": "server", "writer": "server1"}
 {"t": "ota", "target": "p4", "state": "download", "pct": 40}
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
@@ -55,7 +55,7 @@ Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele
 
 ```json
 {"t": "brightness", "pct": 70}
-{"t": "ota", "target": "p4", "url": "http://server:8000/deckconnector-v1.0.0.dbfw"}
+{"t": "ota", "target": "p4", "url": "http://server:8000/deckconnector-vX.Y.Z.dbfw"}
 {"t": "reboot"}
 ```
 

@@ -1,4 +1,5 @@
 import type { Node, Root } from 'fumadocs-core/page-tree'
+import { withVersion } from './version'
 import { compare } from '~/components/compare/data'
 import { out as links } from '~/components/landing/links'
 import { repo, site } from '~/site.config'
@@ -73,7 +74,7 @@ const demote = (md: string) =>
     .join('')
 
 export async function pageMarkdown(page: Page) {
-  const raw = await page.data.getText('raw')
+  const raw = withVersion(await page.data.getText('raw'))
   const body = raw.replace(/^---\n[\s\S]*?\n---\n/, '')
   return `# ${page.data.title}\n\n> ${page.data.description}\n\nSource: ${abs(`${page.url}/`)}\n\n${mdx(body)}\n`
 }

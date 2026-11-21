@@ -58,8 +58,9 @@ const en = {
     items: [
       ['companion', 'Bitfocus Companion'],
       ['app', 'Elgato app'],
-      ['ha', 'Home Assistant (optional)'],
-    ] as [Out, string][],
+      ['ha', 'Home Assistant', 'home-assistant/'],
+      ['matter', 'Matter', 'matter/'],
+    ] as [string, string, string?][],
     own: 'Your own server',
     ownLink: 'own-server/',
   },
@@ -76,6 +77,7 @@ const en = {
         'Most Elgato Stream Decks, and with Companion also Stream Docks from Mirabox and Ajazz. Only the Stream Deck + is tested on real hardware. The others pass tests on emulated decks and should work.',
         ['All models', '/docs/hardware/#decks'],
       ],
+      ['Do I need Home Assistant?', 'No. Companion or the Elgato app is enough. Home Assistant and Matter are extras.'],
       ['Which browser does the flasher need?', 'Chrome or Edge on a desktop. Firefox and Safari have no Web Serial.'],
       ['Does it work on 5 GHz Wi-Fi?', 'No. The board has 2.4 GHz Wi-Fi only.'],
     ] as FaqItem[],
@@ -135,7 +137,8 @@ const de: typeof en = {
     items: [
       ['companion', 'Bitfocus Companion'],
       ['app', 'Elgato-App'],
-      ['ha', 'Home Assistant (optional)'],
+      ['ha', 'Home Assistant', 'home-assistant/'],
+      ['matter', 'Matter', 'matter/'],
     ],
     own: 'Eigener Server',
     ownLink: 'own-server/',
@@ -152,6 +155,10 @@ const de: typeof en = {
         'Welche Decks laufen?',
         'Die meisten Elgato Stream Decks und mit Companion auch Stream Docks von Mirabox und Ajazz. Nur das Stream Deck + ist an echter Hardware getestet. Die anderen bestehen Tests mit emulierten Decks und sollten laufen.',
         ['Alle Modelle', '/de/docs/hardware/#decks'],
+      ],
+      [
+        'Brauche ich Home Assistant?',
+        'Nein. Companion oder die Elgato-App reichen. Home Assistant und Matter sind Extras.',
       ],
       [
         'Welchen Browser braucht der Flasher?',
