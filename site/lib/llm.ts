@@ -122,6 +122,7 @@ const about = `# DeckConnector
 - Speed: the same as the Elgato Network Dock or faster, measured on a bench with a Stream Deck +.
 - Not affiliated with Elgato, Corsair or Bitfocus. Elgato and Stream Deck are trademarks of Corsair Memory, Inc. Community project, no official support.
 - Source code: ${repo}
+- Official sources: this site (${site}) and the GitHub repository. Firmware comes only from its releases (${repo}/releases) and the web flasher on this site. Other sites offering DeckConnector downloads are not from this project.
 
 ## How to install
 
