@@ -111,11 +111,12 @@ const about = `# DeckConnector
 - Power: a USB-C power supply, or PoE from the network cable. PoE is optional.
 - Bitfocus Companion: over the Satellite API (Companion 5.2 tested), or as an emulated Elgato Network Dock.
 - Elgato app: finds the board as a Network Dock by itself (app 7.6 on Windows tested).
-- Your own software: open WebSocket protocol and a JSON HTTP API. Home Assistant guide in the docs.
+- Your own software: open WebSocket protocol and a JSON HTTP API.
+- Optional: a Home Assistant integration from HACS, and Matter for Apple Home, Google Home and other Matter apps. The deck works without them.
 - Several computers at once: Companion over Satellite, Network Dock hosts (Companion, Elgato app) and your own servers share one list. Up to 4 servers and 4 dock hosts stay connected at once. One draws. Two taps on the deck switch between them.
-- Languages: web UI in English and German. The screens on the deck itself are in German.
-- Decks: tested with the Stream Deck +. MK.2, XL, Neo and Stream Deck V2 are in the driver but not tested.
-- Install: open ${site}/flash/ in Chrome or Edge, connect the board's USB-C port, flash (about a minute), then set Wi-Fi, admin password and name over USB. No tools to install.
+- Languages: the web UI and the screens on the deck are in English and German.
+- Decks: most Elgato Stream Decks, and with Companion also Mirabox and Ajazz Stream Docks. Only the Stream Deck + is tested on real hardware. The others pass tests on emulated decks and should work. Every model: ${site}/docs/hardware/#decks
+- Install: open ${site}/flash/ in Chrome or Edge, connect the board's USB-C port, flash (about a minute), then join Wi-Fi over USB. No tools to install.
 - Updates: signed firmware files, installed from the web UI. New firmware that does not start rolls back by itself.
 - Speed: the same as the Elgato Network Dock or faster, measured on a bench with a Stream Deck +.
 - Not affiliated with Elgato, Corsair or Bitfocus. Elgato and Stream Deck are trademarks of Corsair Memory, Inc. Community project, no official support.
@@ -124,7 +125,7 @@ const about = `# DeckConnector
 ## How to install
 
 1. Buy the Waveshare ESP32-P4-WIFI6-POE-ETH board.
-2. Open the web flasher at ${site}/flash/ in Chrome or Edge, plug the board's USB-C port into the computer and flash. The flasher can set Wi-Fi, admin password and device name right away.
+2. Open the web flasher at ${site}/flash/ in Chrome or Edge, plug the board's USB-C port into the computer and flash. The flasher can join your Wi-Fi right away.
 3. Plug the Stream Deck into the board's USB-A port. Power the board over USB-C or PoE. With Wi-Fi set in the flasher, or a network cable, the deck shows the board's address and a QR code. Without a network, the board opens its own setup Wi-Fi one minute after the start, and the deck shows how to join it.
 4. Open that address in a browser. The setup wizard asks for name, password, network and the program that controls the deck.
 5. Connect a program. Companion: in the web UI under Sources, enter the Companion address (Satellite), or add the board in Companion as a Network Dock. Elgato app: it finds the board as a Network Dock by itself.

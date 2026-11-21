@@ -1,5 +1,5 @@
 import type { Lang } from '~/lib/i18n'
-import type { Rich, VsRow } from '~/components/landing/copy'
+import type { FaqItem, Rich, VsRow } from '~/components/landing/copy'
 
 /** yes / no / partly / neutral, then the cell text. */
 export type Cell = [mark: 'y' | 'n' | 'p' | 'i', text: string]
@@ -61,7 +61,7 @@ const en = {
     { k: 'Price', a: ['i', 'Board about $25 to $35, firmware free'], b: ['i', '$79.99'], win: 'a', top: true },
     {
       k: 'Tested decks',
-      a: ['p', 'Stream Deck + (more in the driver)'],
+      a: ['p', 'Stream Deck +. Most Elgato decks and Stream Docks should work'],
       b: ['y', 'Most current decks'],
       win: 'b',
       top: true,
@@ -108,7 +108,8 @@ const en = {
       ['Do I need PoE?', 'No. Power the board over USB-C and use Wi-Fi. PoE works too if your switch has it.'],
       [
         'Which Stream Decks work?',
-        'We test with the Stream Deck +. The MK.2, XL, Neo and Stream Deck V2 are in the driver but not tested yet.',
+        'Most Elgato Stream Decks, and with Companion also Stream Docks from Mirabox and Ajazz. Only the Stream Deck + is tested on real hardware. The others pass tests on emulated decks and should work.',
+        ['All models', '/docs/hardware/#decks'],
       ],
       [
         'Is DeckConnector official?',
@@ -118,7 +119,7 @@ const en = {
         'Is it as fast as the Network Dock?',
         'On our bench it was the same speed or faster with Companion and the Elgato app. The numbers are on the docs speed page.',
       ],
-    ] as [string, string][],
+    ] as FaqItem[],
   },
   next: {
     title: 'Ready to try it?',
@@ -199,7 +200,7 @@ const de: typeof en = {
     },
     {
       k: 'Getestete Decks',
-      a: ['p', 'Stream Deck + (weitere im Treiber)'],
+      a: ['p', 'Stream Deck +. Die meisten Elgato-Decks und Stream Docks sollten laufen'],
       b: ['y', 'Die meisten aktuellen Decks'],
       win: 'b',
       top: true,
@@ -258,7 +259,8 @@ const de: typeof en = {
       ],
       [
         'Welche Stream Decks laufen?',
-        'Wir testen mit dem Stream Deck +. MK.2, XL, Neo und Stream Deck V2 sind im Treiber, aber noch nicht getestet.',
+        'Die meisten Elgato Stream Decks und mit Companion auch Stream Docks von Mirabox und Ajazz. Nur das Stream Deck + ist an echter Hardware getestet. Die anderen bestehen Tests mit emulierten Decks und sollten laufen.',
+        ['Alle Modelle', '/de/docs/hardware/#decks'],
       ],
       [
         'Ist DeckConnector offiziell?',

@@ -1,5 +1,6 @@
 'use client'
 import type { MouseEvent } from 'react'
+import type { FaqItem } from './copy'
 import { focus } from './ui'
 
 const timers = new WeakMap<HTMLDetailsElement, number>()
@@ -28,10 +29,10 @@ function toggle(e: MouseEvent<HTMLElement>) {
   setOpen(d, opening)
 }
 
-export function Faq({ items, className = '' }: { items: [string, string][]; className?: string }) {
+export function Faq({ items, className = '' }: { items: FaqItem[]; className?: string }) {
   return (
     <div className={`divide-y divide-line border-y border-line ${className}`}>
-      {items.map(([q, a]) => (
+      {items.map(([q, a, link]) => (
         <details key={q} className="group">
           <summary
             onClick={toggle}
@@ -46,7 +47,17 @@ export function Faq({ items, className = '' }: { items: [string, string][]; clas
               <span className="absolute inset-y-0 left-1/2 w-[1.5px] -translate-x-1/2 rounded bg-current" />
             </span>
           </summary>
-          <p className="pb-5 leading-relaxed text-fg-2">{a}</p>
+          <p className="pb-5 leading-relaxed text-fg-2">
+            {a}
+            {link && (
+              <>
+                {' '}
+                <a href={link[1]} className={`rounded font-medium text-amber-fg underline underline-offset-4 ${focus}`}>
+                  {link[0]}
+                </a>
+              </>
+            )}
+          </p>
         </details>
       ))}
     </div>

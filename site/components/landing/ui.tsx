@@ -1,5 +1,5 @@
 import type { Lang } from '~/lib/i18n'
-import type { Rich } from './copy'
+import type { FaqItem, Rich } from './copy'
 import { out } from './links'
 
 export const wrap = 'mx-auto w-full max-w-6xl px-4 sm:px-6'
@@ -43,7 +43,7 @@ export function JsonLd({ data }: { data: object }) {
   )
 }
 
-export const faqLd = (items: [string, string][]) => ({
+export const faqLd = (items: FaqItem[]) => ({
   '@type': 'FAQPage',
   mainEntity: items.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
 })
