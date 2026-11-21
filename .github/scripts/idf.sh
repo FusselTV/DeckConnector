@@ -15,5 +15,5 @@ if ! docker image inspect "$img" > /dev/null 2>&1; then
 fi
 # ccache checks -specs files like the compiler; IDF rewrites picolibc.specs at every configure, so mtime never hits
 exec docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$GITHUB_WORKSPACE:$w" -w "$w" -v "$cc:/ccache" \
-  -e CCACHE_DIR=/ccache -e CCACHE_COMPILERCHECK=content "$img" bash -ec 'git config --global --add safe.directory "$PWD"
+  -e CCACHE_DIR=/ccache -e CCACHE_MAXSIZE=500M -e CCACHE_COMPILERCHECK=content "$img" bash -ec 'git config --global --add safe.directory "$PWD"
 '"$1"

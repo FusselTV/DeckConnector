@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   hassfest:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -32,7 +32,7 @@ jobs:
       - uses: home-assistant/actions/hassfest@86d4564712fa02543c808e3a693dd04f9d3f8361 # master 2026-10-26
 
   hacs:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -55,7 +55,7 @@ jobs:
           category: integration
 
   test:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -66,6 +66,7 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
+      - run: sudo apt-get update -q && sudo apt-get install -yq --no-install-recommends ffmpeg
       - working-directory: tools/ha
         run: |
           uvx ruff@0.17.5 check --config pyproject.toml ../../custom_components . && uvx ruff@0.17.5 format --config pyproject.toml --check ../../custom_components .
@@ -74,7 +75,7 @@ jobs:
 
   # A real Home Assistant in Docker against firmware/sim and firmware/simdeck
   e2e:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || fromJSON('["self-hosted", "deckconnector"]') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -89,14 +90,8 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
-      - if: runner.environment == 'github-hosted'
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
       - run: |
           (cd web && npm ci && npx vite build) # the simulators embed the page from web/dist
           .github/scripts/idf.sh 'idf.py -C firmware/sim build && idf.py -C firmware/simdeck build'
-      # Docker publishes the Home Assistant port on the VM, so each of its four runners takes its own ports
       - working-directory: tools/ha
-        run: |
-          n=$((${RUNNER_NAME##*[!0-9]} % 1000)) # a GitHub-hosted runner's name ends in a long number
-          export DC_HA_PORT=$((18300 + n)) DC_HA_SIM_PORT=$((18320 + n)) DC_HA_SIMDECK_HA_PORT=$((18340 + n)) DC_HA_SIMDECK_PORT=$((18360 + n))
-          uv run --locked pytest e2e -p no:homeassistant
+        run: uv run --locked pytest e2e -p no:homeassistant
