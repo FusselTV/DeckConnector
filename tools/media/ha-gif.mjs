@@ -34,7 +34,7 @@ await hass(main, async ([names]) => {
   ] }] } })
   await h.callService('number', 'set_value', { entity_id: 'number.studio_deck_brightness', value: 80 })
 }, names)
-await fetch(`${BOARD}/_press?show=0`)
+if (!(await fetch(`${BOARD}/_press?k=2&show=0`)).ok) throw new Error('the board did not take the press') // deck-0.jpg has CAM 2 live; without this, Controls still shows key 1 from ha-shots.mjs
 const state = await main.context().storageState()
 
 const ctx = await themed(browser, state, lang, true, { viewport: { width: 1100, height: 460 } })
@@ -45,9 +45,9 @@ await waitForTheme(page, true)
 const picture = page.locator('hui-picture-entity-card img').first()
 await page.waitForFunction((img) => img.complete && img.naturalWidth > 0, await picture.elementHandle())
 await page.waitForTimeout(1000)
-const crop = await cardBox(page, 'hui-picture-entity-card, hui-tile-card')
+const [w, h, x, y] = await cardBox(page, 'hui-picture-entity-card, hui-tile-card')
+const crop = [w + 32, h + 32, x - 16, y - 16]
 const m = mouse(page)
-await m.park([300, 440])
 const rec = await recorder(ctx, page, dir)
 const STEPS = {
   hold: (ms) => page.waitForTimeout(ms),
@@ -57,6 +57,7 @@ const STEPS = {
   slider: async (from, to) => {
     const b = await page.locator('ha-control-slider').first().boundingBox()
     const at = (v) => [b.x + (b.width * v) / 100, b.y + b.height / 2]
+    await m.park(at(from)) // moving there would cross the empty page below the cards
     await m.drag(at(from), at(to), 900)
   },
 }

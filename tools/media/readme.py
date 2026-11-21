@@ -8,11 +8,11 @@ import math
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 
 FPS = 12
-WIDTH = 860
-GAP = 10
+WIDTH = 1720  # shown at 860: sharp on a 2x screen
+GAP = 20
 BG = (17, 17, 17)  # Home Assistant's dark page
 LATE = 0.5  # seconds
 SEEN = 20  # mean grey difference under which a deck crop shows a pushed picture; a dimmed or hidden deck is above
@@ -77,7 +77,9 @@ def picture(im: Image.Image) -> int | None:
 
 web, total = track(".")
 ha_tracks = {n: track(n)[0] for n in ("ha", "deck", "screen")}
-x, y, w, h = TL["deck"]
+if web[0][1].width != 2560:  # the boxes are CSS pixels of a 1280 wide page, the web frames device pixels
+    sys.exit(f"web frames are {web[0][1].width} px wide, not 2560: the GIF would be blurry")
+x, y, w, h = (round(2 * v) for v in TL["deck"])
 deck_box = (w, h, x, y)
 cx, cy, cw, ch = TL["camera"]
 cam_box = (cw, ch, cx - CAMERA[2], cy - CAMERA[3])  # inside the camera crop
@@ -117,33 +119,46 @@ def cam_time(t: float) -> float:
 
 n = round(total * FPS)
 grid = [i / FPS for i in range(n)]
-webs = [at(web, t).crop((0, 0, 1280, 756)) for t in grid]
+webs = [at(web, t).crop((0, 0, 2560, 1512)) for t in grid]
 cams = [at(cam_track, cam_time(t)) for t in grid]
 ctrls = [at(ha_tracks["ha"], t) for t in grid]
 evs = [at(ha_tracks["deck"], t) for t in grid]
 
-# layout: the web UI on top; below it the camera on the left and Controls over Events on the right, one height
+# layout: web UI; Home Assistant's top bar; camera dialog left, Controls over Events right, one height
 web_h = round(756 * WIDTH / 1280)
+bar = Image.open(DIR / "ha-bar.png").convert("RGB")
+bar = bar.resize((WIDTH, round(bar.height * WIDTH / bar.width)), Image.LANCZOS)
+top = web_h + GAP + bar.height + GAP
 c0, e0, k0 = cams[0].size, ctrls[0].size, evs[0].size
 r_aspect = e0[1] / e0[0] + k0[1] / k0[0]  # right column height per width, without the gap
-right_w = round((WIDTH - GAP - c0[0] / c0[1] * GAP) / (1 + c0[0] / c0[1] * r_aspect))
+row_w = WIDTH - GAP  # a left margin like the one in the card crops on the right
+right_w = round((row_w - GAP - c0[0] / c0[1] * GAP) / (1 + c0[0] / c0[1] * r_aspect))
 row_h = round(right_w * r_aspect + GAP)
-left_w = WIDTH - GAP - right_w
+left_w = row_w - GAP - right_w
 ctrl_h = round(right_w * e0[1] / e0[0])
+corners = Image.new("L", (left_w * 4, row_h * 4), 0)
+ImageDraw.Draw(corners).rounded_rectangle(
+    (0, 0, left_w * 4 - 1, row_h * 4 - 1), TL["radius"] * 4 * left_w / c0[0], fill=255
+)
+corners = corners.resize((left_w, row_h), Image.LANCZOS)  # drawn at 4x for smooth edges
 
 
 def fit(im: Image.Image, size) -> Image.Image:
     return im.resize(size, Image.LANCZOS)
 
 
-frames = []
+merged = []  # [frame, how many GIF frames it lasts]
 for i in range(n):
-    f = Image.new("RGB", (WIDTH, web_h + GAP + row_h + GAP), BG)
+    f = Image.new("RGB", (WIDTH, top + row_h + GAP), BG)
     f.paste(fit(webs[i], (WIDTH, web_h)), (0, 0))
-    f.paste(fit(cams[i], (left_w, row_h)), (0, web_h + GAP))
-    f.paste(fit(ctrls[i], (right_w, ctrl_h)), (left_w + GAP, web_h + GAP))
-    f.paste(fit(evs[i], (right_w, row_h - ctrl_h - GAP)), (left_w + GAP, web_h + GAP + ctrl_h + GAP))
-    frames.append(f)
+    f.paste(bar, (0, web_h + GAP))
+    f.paste(fit(cams[i], (left_w, row_h)), (GAP, top), corners)
+    f.paste(fit(ctrls[i], (right_w, ctrl_h)), (GAP + left_w + GAP, top))
+    f.paste(fit(evs[i], (right_w, row_h - ctrl_h - GAP)), (GAP + left_w + GAP, top + ctrl_h + GAP))
+    if merged and not ImageChops.difference(f, merged[-1][0]).getbbox():
+        merged[-1][1] += 1
+    else:
+        merged.append([f, 1])
 
 # the check runs on the source crops at full size: what the composite shows, without the scaling blur
 bad, seen = [], 0
@@ -174,17 +189,13 @@ if seen < n / 3:
 if bad:
     sys.exit("out of sync:\n" + "\n".join(bad))
 
-merged = []
-for f in frames:
-    if merged and not ImageChops.difference(f, merged[-1][0]).getbbox():
-        merged[-1][1] += 1
-    else:
-        merged.append([f, 1])
-picks = [f for f, _ in merged][:: max(1, len(merged) // 24)]
-sample = Image.new("RGB", (WIDTH, frames[0].height * len(picks)))
+picks = [f for f, _ in merged[::4]]
+sheet = Image.new("RGB", (WIDTH, picks[0].height * len(picks)))
 for k, f in enumerate(picks):
-    sample.paste(f, (0, k * f.height))
-palette = sample.quantize(256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    sheet.paste(f, (0, k * f.height))
+# median cut gave the dimmed keys two colours in a diagonal and turned red text orange; octree keeps them
+palette = sheet.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+del sheet
 out = [f.quantize(palette=palette, dither=Image.Dither.NONE) for f, _ in merged]
 ms, end = [], 0
 for _, k in merged:  # a GIF counts in 10 ms: rounding the sum keeps the length

@@ -13,9 +13,14 @@ SRC = Path(sys.argv[1])
 def save(src: Path, out: Path, rounded: bool = False) -> None:
     im = Image.open(src).convert("RGBA")
     if rounded:  # a dialog has round corners; the dimmed page behind them must not show
-        mask = Image.new("L", im.size, 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, im.width - 1, im.height - 1), radius=48, fill=255)
-        im.putalpha(mask)
+        mask = Image.new("L", (im.width * 4, im.height * 4), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, mask.width - 1, mask.height - 1), radius=48 * 4, fill=255)
+        alpha = mask.resize(im.size, Image.LANCZOS)
+        # the corner pixels take the dialog's colour: half transparent, the dimmed page in them shows as a grey edge
+        im = Image.composite(
+            im, Image.new("RGBA", im.size, im.getpixel((im.width // 2, 4))), alpha.point(lambda a: 255 * (a == 255))
+        )
+        im.putalpha(alpha)
     im.save(out, quality=88, method=6)
     print(out.relative_to(ROOT), im.size, out.stat().st_size)
 
