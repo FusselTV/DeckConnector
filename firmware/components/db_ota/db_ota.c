@@ -603,7 +603,9 @@ esp_err_t db_ota_start_url(const char *url)
         return ESP_ERR_NO_MEM;
     }
     ESP_LOGI(TAG, "downloading %s", url);
-    if (xTaskCreate(url_task, "ota_url", 6144, copy, 5, NULL) != pdPASS) {
+    /* Not above the Matter task (priority 1): a TLS download above it starved it until its event queue
+     * overflowed on incoming mDNS and Matter aborted. */
+    if (xTaskCreate(url_task, "ota_url", 6144, copy, 1, NULL) != pdPASS) {
         free(copy);
         return ESP_ERR_NO_MEM;
     }
