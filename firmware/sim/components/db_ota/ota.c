@@ -110,6 +110,11 @@ const char *db_ota_c6_version(void)
     return NULL;
 }
 
+bool db_ota_spare_free(void)
+{
+    return false; /* the "matter" partition is in the table */
+}
+
 esp_err_t db_ota_spare_erase(void)
 {
     return ESP_OK;

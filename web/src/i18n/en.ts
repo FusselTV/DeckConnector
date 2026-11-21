@@ -343,6 +343,7 @@ export const en = {
   'login.show': 'Password on the deck',
   'login.shown': 'On the deck for {s} s',
   'login.no_deck': 'No deck connected.',
+  'login.paused': 'Too soon after the last question on the deck. Try again in {n} s.',
   'login.forgot': 'Reset…',
   'login.reset_t': 'Reset everything?',
   'login.reset_b':
@@ -446,7 +447,7 @@ export const en = {
   'wifi.pass_len': 'A Wi-Fi password has 8 to 63 characters, or 64 hex digits.',
   'fw.bad_header': 'The file has no valid DeckConnector header.',
   'fw.ver_unknown': 'The version is known only after checking.',
-  'fw.url_h': 'Only http://. The connector checks the signature of the file itself.',
+  'fw.url_h': 'http:// or https://. The connector checks the signature of the file itself.',
   'fw.write': 'Write',
   'cf.write': 'Write into slot {slot}?',
   'cf.write_b': 'Replaces {old}. The connector does not restart. You can boot the slot later.',
@@ -702,7 +703,8 @@ export const en = {
   'meter.slow_n': 'Deck {n} slow',
   'login.cookie': 'The browser did not keep the login. Allow cookies for this address and log in again.',
   'login.reset': 'DeckConnector was reset. Log in with the password from the deck.',
-  'login.claimed': 'This connector was already opened in another browser. Log in with the password from the deck.',
+  'login.claimed':
+    'Another browser went on with the setup. Log in with the password it set. If it set none, use the password from the deck.',
   'login.expired': 'Session ended. Your inputs are kept.',
   'login.logout': 'You logged out.',
   'login.pw': 'Password changed. Log in with the new one.',
@@ -891,4 +893,8 @@ export const en = {
   'ev.matter_failed': 'Matter failed to start: {0}',
   'log.store_settings': 'Only the last 40 events stay over a restart.',
   'log.store_ram': 'No event stays over a restart.',
+  'star.text': 'Like DeckConnector? A GitHub star helps others find it. You can also support the project if you want.',
+  'star.gh': 'Star on GitHub',
+  'star.never': "Don't show again",
+  'star.close': 'Close for now',
 }

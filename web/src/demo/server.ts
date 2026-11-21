@@ -3,6 +3,7 @@ import {
   closeMenu,
   dbfw,
   event,
+  factoryReset,
   eventPage,
   reachable,
   openMenu,
@@ -28,6 +29,7 @@ import {
   res,
   type Reply,
 } from './model'
+import { tone } from './deck-ui'
 
 /** Turns a face into one image URL per key and one for the strip. */
 export type Paint = (f: Face) => (Rect & { url: string })[]
@@ -47,6 +49,7 @@ const ROUTES: [string, string, Route['access']][] = [
   ['POST', '/api/ota', 'full'],
   ['POST', '/api/reboot', 'full'],
   ['POST', '/api/sound', 'control'],
+  ['POST', '/api/sound/stream', 'control'],
   ['POST', '/api/sound/selftest', 'full'],
   ['DELETE', '/api/ap', 'full'],
   ['POST', '/api/reset', 'admin'],
@@ -155,6 +158,19 @@ function prevLog(s: Demo) {
   ].join('\n')
 }
 
+/** firmware/components/db_web/api.c post_sound */
+function sound(s: Demo, b: Body) {
+  const { sound: name, volume: v } = (b ?? {}) as { sound?: unknown; volume?: unknown }
+  let volume = typeof v === 'number' ? Math.trunc(v) : s.cfg.volume
+  const pcm = typeof name === 'string' ? tone(name, 100) : new Int16Array()
+  if (!pcm.length || volume < 0 || volume > 100 || (v !== undefined && typeof v !== 'number'))
+    return fail(400, 'sound: ready, connected, lost or find; volume: 0 to 100')
+  if (!s.cfg.speaker) return fail(409, 'speaker: the settings say none is connected')
+  if (!volume && name !== 'find') return fail(409, 'sounds are off: set volume')
+  if (name === 'find' && v === undefined && volume < 60) volume = 60
+  return { ...ok(), pcm: tone(name as string, volume) }
+}
+
 export function handle(s: Demo, now: number, method: string, url: string, body: Body, paint: Paint): Reply {
   const u = new URL(url, 'http://demo.invalid')
   const path = u.pathname.replace(/\/$/, '') || '/'
@@ -202,7 +218,7 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
   if (route === 'POST /api/setup/claim') {
     if (s.cfg.setup_done) return fail(409, 'set up')
     if (s.claimed) return fail(409, 'claimed')
-    s.claimed = s.authed = true
+    s.authed = true
     return ok()
   }
   if (route === 'POST /api/login/request') {
@@ -296,13 +312,15 @@ export function handle(s: Demo, now: number, method: string, url: string, body: 
       return ok()
     case 'DELETE /api/ap':
       return ok()
-    case 'POST /api/sound': // the demo has no speaker to play it on
-      return ok()
+    case 'POST /api/sound':
+      return sound(s, b)
     case 'POST /api/sound/selftest':
       return fail(409, 'this board has no speaker')
     case 'POST /api/reboot':
-    case 'POST /api/reset':
       restartSoon(s, now)
+      return ok()
+    case 'POST /api/reset':
+      factoryReset(s, now)
       return ok()
     case 'POST /api/dock':
       return dock(s, now, b)

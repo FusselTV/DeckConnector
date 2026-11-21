@@ -29,7 +29,6 @@ TO_REDACT = {
     "https_fingerprint",
     "https_ca",
     "qr",
-    "code",
 }
 
 

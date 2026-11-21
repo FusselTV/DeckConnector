@@ -17,7 +17,7 @@ AUTH = {"Authorization": "Basic " + base64.b64encode(f"admin:{PASSWORD}".encode(
 @pytest.fixture(scope="module")
 def host():
     """Three decks plugged in, two driven: max_decks is 2 by default."""
-    port = 38080 + WORKER
+    port = 21080 + WORKER
     sim = start_sim(port, DB_SIM_PASSWORD=PASSWORD, DB_SIM_DECKS="3")
     yield f"127.0.0.1:{port}"
     sim.kill()

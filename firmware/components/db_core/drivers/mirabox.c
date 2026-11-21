@@ -153,6 +153,8 @@ typedef struct {
 } state_t;
 
 _Static_assert(sizeof(state_t) <= sizeof(((db_dev_t *)0)->state), "driver state too large");
+_Static_assert(MAX_KEYS <= DB_MAX_TARGETS && MAX_KEYS + MAX_ENC <= DB_MAX_PLACES,
+               "the key and encoder checks in open_dev cover targets and places");
 
 static state_t *st(const db_dev_t *dev)
 {
@@ -193,6 +195,13 @@ static db_err_t open_dev(db_dev_t *dev, uint16_t vid, uint16_t pid)
         return DB_ERR_UNSUPPORTED;
     }
     const family_t *f = m->family;
+    size_t encs = 0;
+    for (uint8_t i = 0; i < f->count; i++) {
+        encs += f->ctl[i].left != 0;
+    }
+    if (f->count - encs > MAX_KEYS || encs > MAX_ENC) { /* past the key state, targets or places */
+        return DB_ERR_UNSUPPORTED;
+    }
     memset(dev->state, 0, sizeof(dev->state));
     state_t *s = st(dev);
     s->model = m;

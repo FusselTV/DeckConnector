@@ -3,6 +3,10 @@ title: Companion verbinden
 description: Das Deck in Bitfocus Companion über WLAN oder LAN nutzen, als Satellite-Surface.
 ---
 
+Companion verbindet sich per Satellite oder als Network Dock. Nimm Satellite.
+
+<CompanionModes lang="de" />
+
 ## Satellite
 
 <Steps>
@@ -17,7 +21,7 @@ Unter **Surfaces** erscheint das Deck als `streamdeck:<seriennummer>`, mit derse
 </Step>
 </Steps>
 
-Companion in Docker ohne Host-Netzwerk lässt sich nicht finden. Gib Port 16622 frei und trag seine Adresse unter **Quellen** ein.
+Der Connector findet Companion in Docker ohne Host-Netzwerk nicht. Gib Port 16622 frei und trag seine Adresse unter **Quellen** ein.
 
 Eine `wss://`-Adresse braucht ein Zertifikat einer öffentlichen CA. Für jedes andere Zertifikat fügst du den SHA-256 des Server-Zertifikats selbst als Pin ein. Wird dieses Zertifikat erneuert, trägst du den neuen Pin ein.
 

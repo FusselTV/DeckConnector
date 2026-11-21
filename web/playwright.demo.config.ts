@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 // The built demo (npm run build:demo) under a sub path, as the website serves it. No device. The "contract" project
-// compares the mock with the firmware simulator on its own port.
+// compares the mock with firmware/simdeck, the whole firmware on Linux, on its own port.
 const PORT = Number(process.env.DC_DEMO_PORT ?? 5191)
 const SIM = Number(process.env.DC_SIM_PORT ?? 18230)
 export default defineConfig({
@@ -34,7 +34,12 @@ export default defineConfig({
       : [
           {
             command: 'node scripts/sim.mjs',
-            env: { DC_SIM_PORT: String(SIM) },
+            env: {
+              DC_SIM_PORT: String(SIM),
+              DC_SIM_ELF:
+                process.env.DC_SIM_ELF ??
+                new URL('../firmware/simdeck/build/deckbridge_simdeck.elf', import.meta.url).pathname,
+            },
             url: `http://127.0.0.1:${SIM}/`,
             reuseExistingServer: false,
           },

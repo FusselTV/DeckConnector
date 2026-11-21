@@ -38,10 +38,10 @@ export function LandingLd({ lang }: { lang: Lang }) {
             downloadUrl: `${site}${prefix(lang)}/flash/`,
             inLanguage: lang,
             author: owner,
-            screenshot: `${site}/og.jpg`,
+            screenshot: `${site}/${lang === 'de' ? 'og-de' : 'og'}.jpg`,
             sameAs: repo,
           },
-          { '@type': 'WebSite', name: 'DeckConnector', url: url(lang, '/'), inLanguage: lang },
+          { '@type': 'WebSite', name: 'DeckConnector', url: `${site}/`, inLanguage: ['en', 'de'] },
           faqLd(t.faq.items),
         ],
       }}

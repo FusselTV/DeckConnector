@@ -5,13 +5,15 @@ description: The DeckConnector integration for Home Assistant. Key presses as tr
 
 The DeckConnector integration brings the connector and every deck on it into [Home Assistant](https://www.home-assistant.io/). Each press, release, dial turn and touch arrives at once and can start an automation. You set the brightness, turn the screens off, pick the source and see what each deck shows.
 
-<img loading="lazy" src="/docs/ha-live-en.gif" alt="A dashboard in Home Assistant: a key press shows up in the deck picture and as an event, the brightness dims the picture, the screen goes off and on" width={860} height={271} />
+<img loading="lazy" src="/docs/ha-live-en.gif" alt="A dashboard in Home Assistant: two key presses show up in the deck picture and as events, then the brightness goes down" width={860} height={297} />
+
+<Shot src="ha-board" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after, screen saver brightness, backup Wi-Fi, Ethernet and temperature" width={644} height={864} />
 
 <table>
 <tbody>
   <tr>
-    <td width="50%" valign="top"><Shot src="ha-board" alt="The connector in Home Assistant: brightness, find, screen, controller, restart, screen off after, volume, backup Wi-Fi, Ethernet and temperature" width={392} height={874} /></td>
-    <td width="50%" valign="top"><Shot src="ha-deck" alt="A deck in Home Assistant: source, PIN lock, screen picture, controls event and reconnect" width={392} height={530} /><Shot src="ha-dashboard" alt="A dashboard with the deck picture, brightness, screen, source and controls" width={532} height={622} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck" alt="A deck in Home Assistant: screen picture, source and controls event" width={392} height={343} /></td>
+    <td width="50%" valign="top"><Shot src="ha-dashboard" alt="A dashboard with the deck picture, brightness, screen, source and controls" width={532} height={622} /></td>
   </tr>
 </tbody>
 </table>
@@ -41,16 +43,20 @@ These start disabled. Turn them on under the device if you need them:
 
 - **Wi-Fi signal**, **Wi-Fi network** and **Last restart** of the connector.
 - **Firmware** update. With it on, the connector asks GitHub for new releases every 6 hours.
-- **PIN lock** of a deck. It shows **Locked** while Companion locks the deck with its PIN. Its two triggers also show up as buttons in a HomeKit bridge.
+- **PIN lock** of a deck. It shows whether Companion has locked the deck with its PIN.
 - **Reconnect** of a deck. It turns the USB port off and on, for a deck that hangs.
 
-**Volume** and **Find** exist only while **Speaker connected** is on in the web UI. They come and go by themselves when it changes. **Screen off after** is in minutes, 0 means never. **Screen saver brightness** is the level the decks dim to after that time. 0 turns them off.
+**Find** and the **Speaker** media player exist only while **Speaker connected** is on in the web UI. They come and go by themselves when it changes. **Screen off after** is in minutes, 0 means never. **Screen saver brightness** is the level the decks dim to after that time. 0 turns them off.
+
+The **Speaker** plays text to speech and audio files from the media browser. Home Assistant converts them with ffmpeg, so every format ffmpeg reads works. Sound is mono at 16 kHz. Web radio and Music Assistant work too and play until you stop them. A new clip or **Find** stops the one that plays.
 
 The connector pushes every change at once. Signal and temperature update once a minute.
 
 ## Automations
 
-In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right**, **Touch zone 2 tapped** or **Touch strip swiped left**. The touch strip has one zone above each dial.
+In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right**, **Touch zone 2 tapped** or **Touch strip swiped left**.
+
+<DeckMap />
 
 Every deck also has one **Controls** event entity for YAML and templates. Its `event_type` says what happened, for example `key_3_press`. A dial turn carries `ticks`, a touch carries `x` and `y`. A tap or long touch also carries its `zone`.
 
@@ -65,13 +71,17 @@ conditions:
     entity_id: event.stream_deck_controls
     attribute: event_type
     state: key_3_press
+actions:
+  - action: light.toggle
+    target:
+      entity_id: light.desk
 ```
 
-The source draws the keys. A key that Companion or the Elgato app also uses runs both actions.
+Home Assistant does not draw the keys. The active [source](/docs/hosts) does. Without one, the deck shows its home screen, where some keys switch sources or open the menu. Every press still reaches Home Assistant, and a key that a source also uses runs both actions.
 
 ### Blueprint
 
-[![Open your Home Assistant instance and show the blueprint import dialog.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
+[Import the blueprint into Home Assistant](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
 
 **Dial dims a light.** Turn a dial right for brighter, left for darker. Press it to switch the light on or off.
 
@@ -82,7 +92,7 @@ The [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) shows 
 ## Good to know
 
 - Home Assistant talks to the connector over plain HTTP on port 80.
-- Presses from the web page or a script never reach Home Assistant. Home Assistant never presses anything on the deck.
+- Presses from the live deck on the web page reach Home Assistant. Presses from a script reach it only with `"real": true`. Home Assistant never presses anything on the deck.
 - After a firmware update the integration loads again by itself, so new entities appear.
 - The logger is `custom_components.deckconnector`.
 

@@ -89,6 +89,11 @@ describe('demo bridge', () => {
     expect(s.cfg.name).toBe('stage-deck')
   })
 
+  it('counts the password in bytes, as the firmware does', () => {
+    expect(putConfig(demo(), T0, { admin_pass: 'äöü' }).status).toBe(200)
+    expect(putConfig(demo(), T0, { admin_pass: 'ä'.repeat(12) }).status).toBe(400)
+  })
+
   it('keeps the events through a restart, marked as an earlier boot, and pages them newest first', () => {
     const s = demo()
     const before = (call(s, 'GET', '/api/events').body as EventPage).events.length
@@ -238,6 +243,14 @@ describe('demo bridge', () => {
     expect(s.cfg.setup_done).toBe(false)
     expect(s.pass).not.toBe('studio-demo')
     expect(call(s, 'POST', '/api/login', { password: s.pass }, T0 + 20_000).status).toBe(200)
+  })
+
+  it('does a factory reset from the web page too, not only a restart', () => {
+    const s = demo()
+    call(s, 'POST', '/api/reset')
+    tick(s, T0 + 1000 + RESTART_MS)
+    expect(s.cfg.setup_done).toBe(false)
+    expect(s.authed).toBe(false)
   })
 
   it('connects to example LAN hosts only, after a short wait', () => {

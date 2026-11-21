@@ -15,7 +15,9 @@ Its Wi-Fi is 2.4 GHz only.
 
 With PoE the board and the deck run from one cable. With PoE and USB-C both plugged in, the board keeps running when PoE goes away.
 
-A speaker on the board's speaker connector plays a short sound when a source starts to draw. It also sounds when the source goes away and comes back. Setup in the web UI asks whether a speaker is connected. Later you change that under **Speaker connected** on the Deck tab. The sounds are off by default. Turn them up with the speaker slider under **Controls** on the overview.
+Use standard PoE only, from a switch or injector to IEEE 802.3af or 802.3at. A passive PoE injector can destroy the board. The base kit has no case, so keep the board away from metal and water. You run it at your [own risk](/docs/license#no-warranty).
+
+A speaker on the board's speaker connector plays short sounds when a source connects or goes away. [Home Assistant](/docs/home-assistant) can play audio on it.
 
 ## Decks
 
@@ -30,8 +32,10 @@ Some of these decks share one serial number. The connector tells them apart by t
 Some controls send only the press, not the release. You cannot hold them, so a long press in Companion does not work there. This affects:
 
 - the dials and the touch strip of the N4, N4 Pro and Ajazz AKP05E
-- the right key column of the 293S
+- the right key column of the 293S with USB ID 6602:1014 or 6603:1014
 - every key of the Ajazz AKP153, and of the 293S with USB ID 5548:6670
+
+The right key column of the Streonor S15 sends nothing.
 
 The Deck tab shows which keys open the menu.
 

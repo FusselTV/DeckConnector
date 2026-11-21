@@ -10,14 +10,18 @@
 #include "db_json.h"
 #include "db_log.h"
 #include "db_matter.h"
+#include "db_net.h"
 #include "db_serial.h"
 #include "db_ui.h"
 #include "db_web.h"
 #include "esp_event.h"
 #include "esp_private/partition_linux.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+
+static int64_t started_us; /* esp_timer runs on the host's clock, which did not start with the simulator */
 
 static size_t tagged(char *buf, size_t cap, const char *t)
 {
@@ -26,7 +30,7 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_obj_open(&j, NULL);
     db_json_str(&j, "t", t);
     db_json_str(&j, "id", "02005e000001");
-    db_json_str(&j, "firmware", "sim");
+    db_json_str(&j, "firmware", getenv("DB_SIM_FIRMWARE") ? getenv("DB_SIM_FIRMWARE") : "sim");
     db_json_str(&j, "controller", "companion");
     db_json_bool(&j, "menu_open", db_ui_menu_open());
     db_json_bool(&j, "screen_off", db_deck_screen_is_off());
@@ -40,7 +44,9 @@ static size_t tagged(char *buf, size_t cap, const char *t)
     db_json_str(&j, "simulated_input", "local");
     db_json_str(&j, "name", db_config()->name);
     db_json_str(&j, "https_ca", db_web_ca_short());
-    db_json_int(&j, "uptime_s", 0);
+    if (strcmp(t, "status") == 0) { /* as on the chip: the state leaves out what changes every second */
+        db_json_int(&j, "uptime_s", (int)((esp_timer_get_time() - started_us) / 1000000));
+    }
     db_json_obj_open(&j, "setup");
     db_json_bool(&j, "active", !db_config()->setup_done || db_web_setup_step());
     db_json_int(&j, "step", db_web_setup_step());
@@ -89,6 +95,7 @@ static size_t state_json(char *buf, size_t cap)
 /* The password comes from DB_SIM_PASSWORD, so tests know it without reading a device. */
 void app_main(void)
 {
+    started_us = esp_timer_get_time();
     signal(SIGPIPE, SIG_IGN); /* a browser that drops a socket mid-write would end the simulator */
     /* DB_SIM_FLASH: a flash image that outlives the simulator, partition table at 0x8000 included */
     const char *flash = getenv("DB_SIM_FLASH");
@@ -101,8 +108,8 @@ void app_main(void)
         unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
     }
     db_log_keep_start();
-    esp_event_loop_create_default(); /* esp_http_server posts its events there */
     db_config_load();
+    db_net_start();
     db_config_t cfg;
     db_config_copy(&cfg);
     const char *pw = getenv("DB_SIM_PASSWORD");

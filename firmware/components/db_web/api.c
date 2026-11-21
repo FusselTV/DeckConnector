@@ -103,7 +103,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
         auth_end_sessions();
     }
     if (cfg.setup_done && !old.setup_done) {
-        auth_end_sessions(); /* a session from the first-browser setup must not outlive it */
+        auth_end_sessions(); /* a session from the setup claim must not outlive it */
     }
     db_config_t live = cfg;
     live.brightness = old.brightness;
@@ -128,6 +128,9 @@ static int config_edit(const char *body, char *reply, size_t cap)
     live.max_decks = old.max_decks;
     live.screen_off_s = old.screen_off_s;
     live.screen_dim = old.screen_dim;
+    live.star_off = old.star_off;
+    live.star_until = old.star_until;
+    memcpy(live.star_fw, old.star_fw, sizeof(old.star_fw));
     memcpy(live.wifi2_ssid, old.wifi2_ssid, sizeof(old.wifi2_ssid));
     memcpy(live.wifi2_pass, old.wifi2_pass, sizeof(old.wifi2_pass));
     memcpy(live.trusted_proxy, old.trusted_proxy, sizeof(old.trusted_proxy));
@@ -1514,6 +1517,24 @@ esp_err_t post_sound(httpd_req_t *req)
     }
     return err == ESP_OK ? send_json(req, "{\"ok\":true}")
                          : send_error(req, "503 Service Unavailable", "busy");
+}
+
+/* POST /api/sound/stream, the body 16 kHz mono 16-bit little-endian PCM: see db_audio_stream. */
+esp_err_t post_sound_stream(httpd_req_t *req)
+{
+    const char *status = "409 Conflict", *error = SPEAKER_OFF;
+    if (db_config()->speaker) {
+        esp_err_t err = db_audio_stream(req);
+        if (err == ESP_OK) {
+            return ESP_OK;
+        }
+        bool none = err == ESP_ERR_NOT_SUPPORTED;
+        status = none ? status : "503 Service Unavailable";
+        error = none ? "this board has no speaker" : "no memory";
+    }
+    httpd_resp_set_hdr(req, "Connection", "close");
+    send_error(req, status, error);
+    return ESP_FAIL; /* closes the connection: else the server reads the whole body before the next request */
 }
 
 /* POST /api/sound/selftest {"volume": 60, "gain": 24}: Find through the speaker and back in through the

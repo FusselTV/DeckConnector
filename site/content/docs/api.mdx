@@ -11,7 +11,7 @@ Use one of these.
 
 | Way | How | Notes |
 |---|---|---|
-| Password | HTTP basic auth, user `admin` | Every request that changes something also needs the header `X-DeckConnector: 1` |
+| Password | HTTP basic auth, any user name | Every request that changes something also needs the header `X-DeckConnector: 1` |
 | Session | `POST /api/login` with `{"password": "..."}` and `X-DeckConnector: 1` | Sets a cookie. Ends after 12 hours without use, or with `POST /api/logout` |
 | API key | `Authorization: Bearer KEY` | No `X-DeckConnector` header needed. Rights below |
 | Setup Wi-Fi | A client on the setup Wi-Fi | Rights of the password. Changes still need `X-DeckConnector: 1` |
@@ -24,13 +24,11 @@ curl -H 'Authorization: Bearer KEY' http://192.168.1.50/api/status
 
 ## Access levels
 
-Each route has one level, in the last column of the tables below.
-
-<AuthLevels />
+Each route has one level, in the last column of the tables below. [API keys](/docs/security#api-keys) explains the levels.
 
 No API key changes `admin_pass`, `setup_done` or `qr_login`. Those answer 403.
 
-While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck. The deck picture (`/api/screen`, its images, `/api/screen.jpg`) also answers 403 while the menu or a setup page is open, because they show the password.
+While the deck shows the password or the setup login code, or the setup Wi-Fi is open, an API key gets 403 for the routes that act on a deck. The deck picture (`/api/screen`, its images, `/api/screen.jpg`) also answers 403 to an API key while the deck shows the password, in the menu or a setup page.
 
 ## Errors
 
@@ -49,14 +47,19 @@ Errors are JSON with a matching HTTP status. `error` is English text. `code`, wh
 | `ota_too_old` | Below the security level |
 | `url_http_only` | The URL must start with `http://` or `https://` |
 | `no_releases` | No releases to check yet |
+| `rate_limited` | GitHub limits the checks. Try again later |
+| `unreachable` | GitHub does not answer |
 | `probe_no_connection` | Nothing answers at this address |
 | `probe_no_answer` | The address takes the connection but sends nothing within 3 s |
 | `probe_not_companion` | Something answers, but it is not Companion Satellite |
 | `strip_outside` | The point is outside the touch strip |
 | `busy` | The connector is busy. Try again |
 | `locked` | Too many wrong passwords. The reply has `retry` in seconds, with status 429 |
+| `paused` | This address put a question on the deck that ended without a Yes less than a minute ago. Status 429, `retry` in seconds and `Retry-After` |
 | `wrong_password` | Wrong password |
 | `needs_password` | Needs the password, an API key is not enough |
+| `passkey_host` | Passkeys need HTTPS and a name |
+| `passkey_refused` | The connector did not accept the passkey |
 
 ## Routes
 
@@ -69,13 +72,13 @@ Routes that act on a deck take `?deck=<serial>` from `decks` in the status. With
 | `POST /api/login` | `{"password": "..."}`, sets the session cookie | open |
 | `POST /api/logout` | Ends the session | open |
 | `POST /api/setup/claim` | Before setup: a session without the password, see [Password](/docs/security/#password). 403 from another site's name, 409 with `set up`, `claimed` or `too late` | open |
-| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request | open |
+| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, up to 48 characters. The deck asks someone to let this browser in. Answers `{"id": "...", "s": 60}`. 409 without a deck, 429 within 3 s of the last request or with `paused` | open |
 | `GET /api/login/request/<id>` | `state` is `pending`, `accepted`, `denied`, `expired` or `used`. With `accepted` the reply sets the session cookie once | open |
 | `DELETE /api/login/request/<id>` | Takes the request back | open |
 | `POST /api/passkeys/challenge` | `{"login": true}` for a login, `false` for a new passkey. Answers `{"challenge": "<hex>"}`. It works once, for 2 minutes, from this address. 30 per 10 s and address, else 429. Over HTTPS by name only, else 403 | open |
 | `POST /api/login/passkey` | The reply of `navigator.credentials.get()`, with `id`, `clientDataJSON`, `authenticatorData` and `signature` in base64url. The passkey must verify the user. Sets the session cookie. A refused passkey counts like a wrong password, an unknown or used challenge does not | open |
-| `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck | open |
-| `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}` | open |
+| `POST /api/password/show` | The deck shows the password for 30 s. 409 without a deck, 429 with `paused` | open |
+| `POST /api/password/reset` | The deck asks for 60 s whether to reset everything. Answers `{"ok": true, "s": 60}`. 409 without a deck, 429 with `paused` | open |
 | `DELETE /api/password/reset` | Ends the question | open |
 
 The `open` routes that do something need `X-DeckConnector: 1`.
@@ -94,7 +97,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
 | `PUT /api/setup` | `{"step": 3}` keeps the web wizard's step, `{"step": 0}` ends it | full |
 | `POST /api/reboot` | Restart | full |
-| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting; `find` plays at 60 at least. 409 while the sounds are off or `speaker` is false | control |
+| `POST /api/sound` | `{"sound": "find"}` plays `ready`, `connected`, `lost` or `find`. `volume` 0 to 100 overrides the setting. Without it, `find` plays at 60 at least. 409 while `speaker` is false, and for every sound but `find` while the volume is 0 | control |
 | `DELETE /api/ap` | Closes the setup Wi-Fi | full |
 | `POST /api/reset` | [Factory reset](/docs/first-setup/#factory-reset), then a restart | admin |
 
@@ -112,6 +115,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `POST /api/screen` | `{"on": false}` turns every deck dark now, `{"on": true}` lights them again. No press is swallowed | full |
 | `POST /api/deck/reconnect` | Turn the USB port off and on. `?off_s=N` (1 to 600) keeps it off for N seconds | control |
 | `POST /api/deck/stall` | Stop the image output as a hung deck would, for tests | full |
+| `POST /api/sound/stream` | The body is raw PCM: 16 kHz, mono, 16 bit little-endian, with `Content-Length`. For a stream of unknown length, send a larger `Content-Length` (at most 2147483647) and shut down the sending side of the connection at the end. Plays it at the `volume` setting and answers `{"ok": true, "stopped": false}` when it has played. While data is late it plays silence. `stopped` is true when `find`, a newer stream, `speaker` false or 5 seconds without data ended it. The connector skips other sounds while it plays. A reset connection stops it at once. The connector buffers 3 seconds, so send no more than a second ahead. 409 while `speaker` is false, 503 when the codec fails. No CORS headers | control |
 | `POST /api/sound/selftest` | Play `find` and record it with the connector's microphone, for tests. Three controls: another pitch (1500 Hz) in the same recording, `find` at volume 0, and `find` with the amplifier off. `heard` is true when the tone is more than 10 times each of them. Optional: `volume` 1 to 100 (60), `gain` 0 to 42 dB (24). Takes about 6 seconds. 503 with the reason when a run fails | full |
 
 ### Sources and pairing
@@ -119,7 +123,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | Route | What it does | Level |
 |---|---|---|
 | `POST /api/sources/retry` | `{"host": "..."}` with a server URL or the Satellite address. Connects now instead of after the wait | control |
-| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` tries Companion once and returns its `version`, or a `code` for what failed (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). About 10 s at most. The web page tries several forms of an address in turn | full |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` tries Companion once and returns its `version`, or a `code` for what failed (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). About 6 s at most. The web page tries several forms of an address in turn | full |
 | `GET /api/companion/found` | Companions that announce Satellite over mDNS. The first call starts a 2 s search | full |
 | `POST /api/dock` | Pairing, see [Pairing](#pairing) | full |
 | `DELETE /api/pairing/denied/<ip>` | Takes a host off the denied list | full |
@@ -170,7 +174,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 to 23 bytes | admin |
 | `DELETE /api/passkeys/<id>` | Removes that passkey | admin |
 | `GET /api/cert` | The HTTPS certificate as PEM | open |
-| `GET /api/ca` | The connector's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status | open |
+| `GET /api/ca` | The connector's CA as DER, to trust once. The deck shows its short code, `https_ca` in the status, but not while this address is `paused` | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` checks your own certificate. With `"apply": true` it is kept and the connector restarts | admin |
 | `DELETE /api/tls` | Back to the connector's own certificate, with a restart | full |
 
@@ -195,7 +199,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "v1.0.0", "star_until": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Key | Values |
@@ -224,6 +228,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `max_decks` | 1 to 4 decks at once, 2 by default |
 | `screen_off_s` | Seconds without input until the screen saver starts, 10 to 86400. 0 means never and is the default |
 | `screen_dim` | What the screen saver does. 0 turns every deck dark and is the default. 10 to 90 in steps of 10 dims them to that percent |
+| `star_off`, `star_fw`, `star_until` | The web UI's star note. `star_off` hides it for good. `star_until` hides it until this Unix time. `star_fw` is the firmware someone last closed it on. After an update to a newer one it shows once |
 | `dock_paired_only` | Only paired dock hosts get in |
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
@@ -232,7 +237,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
+`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `star_off`, `star_fw`, `star_until`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -283,7 +288,7 @@ A refused value gets 400 with the reason, and the connector saves nothing. The r
 | `temp_c` | The chip temperature in °C. Missing until the first reading |
 | `https_ca` | The short code of the connector's CA, see [HTTPS](/docs/security#https). Empty with your own certificate, then `https_custom` is true |
 
-The status also has `boot_ms`, `memory` and `https_fingerprint`.
+The status also has `api`, `simulated_input`, `boot_ms`, `memory`, `https_fingerprint` and `https_custom_unread`, and copies of the settings `volume`, `screen_off_s`, `screen_dim` and `max_decks`.
 
 ## Screen
 
@@ -294,7 +299,7 @@ The status also has `boot_ms`, `memory` and `https_fingerprint`.
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
 ```
 
-`strips` lists display strips that take no touch, such as the info bar of the Stream Deck Neo. Draw the JPEGs in order at their place to get the picture. An image keeps its URL until something covers it, so a browser may cache it. A URL that is gone answers 404.
+`strips` lists every display strip, also the info bar of the Stream Deck Neo, which takes no touch. Draw the JPEGs in order at their place to get the picture. An image keeps its URL until something covers it, so a browser may cache it. A URL that is gone answers 404.
 
 ## Input
 
@@ -340,7 +345,7 @@ Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host i
 
 | `t` | When |
 |---|---|
-| `state` | At once, then on every change. The status without uptime, signal and counters |
+| `state` | At once, then on every change. The status without uptime, signal, counters, `temp_c`, `boot_ms`, `memory`, `via_ap` and `pairing.open_s` |
 | `screen` | The picture of the deck in `deck` (its serial) changed |
 | `input` | Someone used the deck in `deck`. `simulated` is true for an API press without `"real"`. An API key never gets simulated presses |
 | `ota` | Update progress: `target`, `state`, `pct`, and `error` |

@@ -5,8 +5,9 @@
 <h1 align="center">DeckConnector</h1>
 
 <p align="center">
-  Your Stream Deck on the network. A small ESP32-P4 board drives it over USB,<br>
-  and Bitfocus Companion and the Elgato App use it like an Elgato Network Dock.
+  Your Stream Deck on the network.<br>
+  A small ESP32-P4 board drives it over USB.<br>
+  Bitfocus Companion and the Elgato App use it like an Elgato Network Dock.
 </p>
 
 <p align="center">
@@ -17,24 +18,14 @@
 </p>
 
 <p align="center">
-  <img src=".github/assets/web-ui.gif" width="860" alt="The web UI with the live deck: a scene key, a dial, the lights folder, the Elgato App takes over, the brightness goes down and up">
+  <img src=".github/assets/readme.gif" width="860" alt="The web UI with the live deck on top. Below it, Home Assistant shows the same deck picture, the brightness and the volume, and each key press and dial turn as an event">
 </p>
-
-<table align="center">
-  <tr>
-    <th colspan="2">Home Assistant</th>
-  </tr>
-  <tr>
-    <td valign="top"><img src=".github/assets/ha-connector.webp" width="384" alt="The connector in Home Assistant: brightness, find, screen, controller, restart, screen off after and volume"></td>
-    <td valign="top"><img src=".github/assets/ha-screen.webp" width="330" alt="The deck picture in Home Assistant"><br><img src=".github/assets/ha-deck.webp" width="330" alt="A deck in Home Assistant: PIN lock, screen picture, source and the controls event"></td>
-  </tr>
-</table>
 
 - Companion connects over Satellite or as a Network Dock. The Elgato App sees a Network Dock.
 - Several programs connect at once. You pick the one that draws.
 - Several decks on one connector.
 - Ethernet with PoE, and Wi-Fi with a backup network.
-- Home Assistant gets every key press and the deck picture. It sets the brightness and the volume, and picks the program that draws.
+- Home Assistant gets every key press and the deck picture. It sets the brightness and the volume, and picks the program that draws. <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=FusselTV&repository=DeckConnector&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" height="24" alt="Open DeckConnector in HACS" align="top"></a>
 - Matter, tested with Home Assistant and Apple Home.
 - The web UI shows the live deck, and you can press its keys.
 - Log in with a passkey, or confirm the login on the deck.
@@ -49,6 +40,6 @@ Everything else is in the [docs](https://deckconnector.com/docs). To build it yo
 
 ## License
 
-[AGPL-3.0](LICENSE), with an [exception for Remotion](https://deckconnector.com/docs/license). Third-party notices are in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).
+[AGPL-3.0](LICENSE). Warranty, trademarks and an added permission are in [NOTICE.md](NOTICE.md).
 
-DeckConnector is not affiliated with Elgato or Corsair. Elgato and Stream Deck are trademarks of Corsair Memory, Inc.
+Support DeckConnector on [GitHub Sponsors](https://github.com/sponsors/FusselTV) or [Ko-fi](https://ko-fi.com/fusseltv).

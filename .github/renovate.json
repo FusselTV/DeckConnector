@@ -9,7 +9,26 @@
     {
       "description": "firmware/vendor/esp_hal_usb is a patched copy of this version's USB HAL. Update both and test on a board.",
       "matchPackageNames": ["espressif/idf"],
-      "dependencyDashboardApproval": true
+      "dependencyDashboardApproval": true,
+      "groupName": "firmware components"
+    },
+    {
+      "description": "The firmware needs a board test after any component update.",
+      "matchDatasources": ["custom.espressif"],
+      "dependencyDashboardApproval": true,
+      "groupName": "firmware components"
+    },
+    {
+      "description": "The firmware builds these from a local copy (override_path), not from the registry.",
+      "matchDatasources": ["custom.espressif"],
+      "matchPackageNames": ["espressif/usb", "espressif/esp_matter"],
+      "enabled": false
+    },
+    {
+      "description": "Follows the Python version Home Assistant runs on.",
+      "matchManagers": ["pyenv"],
+      "matchFileNames": ["tools/ha/**"],
+      "enabled": false
     }
   ],
   "customManagers": [
@@ -17,14 +36,19 @@
       "customType": "regex",
       "description": "Python tools the workflows run by version",
       "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
-      "matchStrings": ["uvx (?<depName>[\\w-]+)@(?<currentValue>[\\d.]+)", "pipx run (?<depName>[\\w-]+)==(?<currentValue>[\\d.]+)"],
+      "matchStrings": [
+        "uvx (?<depName>[\\w-]+)@(?<currentValue>[\\d.]+)",
+        "(?:pipx run|pip install -q) (?<depName>[\\w-]+)==(?<currentValue>[\\d.]+)"
+      ],
       "datasourceTemplate": "pypi"
     },
     {
       "customType": "regex",
-      "description": "The ESP-IDF image the firmware job runs",
+      "description": "Docker images the workflows run, by tag and digest",
       "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
-      "matchStrings": ["(?<depName>espressif/idf):(?<currentValue>v[\\d.]+)@(?<currentDigest>sha256:[a-f0-9]+)"],
+      "matchStrings": [
+        "(?<depName>[a-z0-9]+/[a-z0-9._-]+):(?<currentValue>v?[\\d.]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
       "datasourceTemplate": "docker"
     },
     {
@@ -33,6 +57,22 @@
       "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
       "matchStrings": ["npx -y (?<depName>@?[\\w/.-]+)@(?<currentValue>[\\d.]+)"],
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "ESP-IDF components of the firmware. Only versions outside the range show up; for the rest run idf.py update-dependencies in firmware, firmware/sim and firmware/simdeck",
+      "managerFilePatterns": ["/^firmware/.+/idf_component\\.yml$/"],
+      "matchStrings": ["(?<depName>espressif/[\\w-]+):\\s*(?:\\n\\s+version:\\s*)?\"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "custom.espressif",
+      "versioningTemplate": "npm"
     }
-  ]
+  ],
+  "customDatasources": {
+    "espressif": {
+      "defaultRegistryUrlTemplate": "https://components.espressif.com/api/components/{{packageName}}",
+      "transformTemplates": [
+        "{\"releases\": [versions[yanked_at = null].{\"version\": version, \"releaseTimestamp\": created_at}]}"
+      ]
+    }
+  }
 }

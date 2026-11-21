@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from typing import Any
 
 from aiohttp import web
@@ -29,6 +31,8 @@ class ScreenCamera(DeckEntity, Camera):
         Camera.__init__(self)
         self._jpg: bytes | None = None
         self._changed = True
+        self._next = asyncio.Event()
+        self._fetch = asyncio.Lock()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -37,28 +41,41 @@ class ScreenCamera(DeckEntity, Camera):
     @callback
     def _screen(self) -> None:
         self._changed = True
+        self._next.set()
+        self._next = asyncio.Event()
 
     async def async_camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
-        if self._changed or self._jpg is None:
-            self._changed = False
-            jpg = await self.coordinator.api.screen_jpg(self.serial)
-            if jpg is None:
-                self._changed = True
-            else:
-                self._jpg = jpg
-        return self._jpg
+        # one fetch at a time: a slower older fetch would overwrite the newer picture
+        async with self._fetch:
+            if self._changed or self._jpg is None:
+                self._changed = False
+                jpg = await self.coordinator.api.screen_jpg(self.serial)
+                if jpg is None:
+                    self._changed = True
+                else:
+                    self._jpg = jpg
+            return self._jpg
 
     async def handle_async_mjpeg_stream(self, request: web.Request) -> web.StreamResponse:
         seen: bytes | None = None
+        echoed = False
+        next_ = self._next
 
         # Chrome shows an MJPEG frame only when the next one arrives, and HA sends a frame only when the bytes change.
-        # A copy with a byte after the JPEG end marker follows each new picture, so it shows within one interval.
+        # A copy with a byte after the JPEG end marker follows each new picture at once, so it shows at once.
         async def frame() -> bytes | None:
-            nonlocal seen
+            nonlocal seen, echoed, next_
+            if echoed:
+                # the timeout fetches again after a failed fetch
+                with suppress(TimeoutError):
+                    async with asyncio.timeout(self.frame_interval):
+                        await next_.wait()
+            next_ = self._next
             jpg = await self.async_camera_image()
             if jpg is None or jpg != seen:
-                seen = jpg
+                seen, echoed = jpg, False
                 return jpg
+            echoed = True
             return jpg + b"\0"
 
-        return await async_get_still_stream(request, frame, self.content_type, self.frame_interval)
+        return await async_get_still_stream(request, frame, self.content_type, 0)

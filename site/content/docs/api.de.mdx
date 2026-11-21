@@ -11,7 +11,7 @@ Nimm einen dieser Wege.
 
 | Weg | Wie | Hinweise |
 |---|---|---|
-| Passwort | HTTP Basic Auth, Benutzer `admin` | Jede Anfrage, die etwas ändert, braucht dazu den Header `X-DeckConnector: 1` |
+| Passwort | HTTP Basic Auth, beliebiger Benutzername | Jede Anfrage, die etwas ändert, braucht dazu den Header `X-DeckConnector: 1` |
 | Sitzung | `POST /api/login` mit `{"password": "..."}` und `X-DeckConnector: 1` | Setzt ein Cookie. Endet nach 12 Stunden ohne Nutzung oder mit `POST /api/logout` |
 | API-Schlüssel | `Authorization: Bearer SCHLUESSEL` | Braucht keinen `X-DeckConnector`-Header. Rechte siehe unten |
 | Setup-WLAN | Ein Client im Setup-WLAN | Rechte wie das Passwort. Änderungen brauchen trotzdem `X-DeckConnector: 1` |
@@ -24,13 +24,11 @@ curl -H 'Authorization: Bearer SCHLUESSEL' http://192.168.1.50/api/status
 
 ## Zugriffsstufen
 
-Jede Route hat eine Stufe, in der letzten Spalte der Tabellen unten.
-
-<AuthLevels lang="de" />
+Jede Route hat eine Stufe, in der letzten Spalte der Tabellen unten. Die Stufen stehen unter [API-Schlüssel](/de/docs/security#api-schlüssel).
 
 Kein API-Schlüssel ändert `admin_pass`, `setup_done` oder `qr_login`. Das gibt 403.
 
-Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken. Das Deck-Bild (`/api/screen`, seine Bilder, `/api/screen.jpg`) antwortet außerdem mit 403, solange das Menü oder eine Seite der Einrichtung offen ist, denn sie zeigen das Passwort.
+Solange das Deck das Passwort oder den Login-Code der Einrichtung zeigt oder das Setup-WLAN offen ist, bekommt ein API-Schlüssel 403 für die Routen, die auf ein Deck wirken. Das Deck-Bild (`/api/screen`, seine Bilder, `/api/screen.jpg`) antwortet einem API-Schlüssel außerdem mit 403, solange das Deck das Passwort zeigt, im Menü oder auf einer Seite der Einrichtung.
 
 ## Fehler
 
@@ -49,14 +47,19 @@ Fehler sind JSON mit passendem HTTP-Status. `error` ist englischer Text. `code`,
 | `ota_too_old` | Unter der Sicherheitsstufe |
 | `url_http_only` | Die URL muss mit `http://` oder `https://` beginnen |
 | `no_releases` | Noch keine Releases zum Prüfen |
+| `rate_limited` | GitHub begrenzt die Abfragen. Später nochmal versuchen |
+| `unreachable` | GitHub antwortet nicht |
 | `probe_no_connection` | Unter dieser Adresse antwortet nichts |
 | `probe_no_answer` | Die Adresse nimmt die Verbindung an, schickt aber 3 s lang nichts |
 | `probe_not_companion` | Etwas antwortet, aber nicht Companion Satellite |
 | `strip_outside` | Der Punkt liegt außerhalb der Touchleiste |
 | `busy` | Der Connector ist beschäftigt. Versuch es noch einmal |
 | `locked` | Zu viele falsche Passwörter. Status 429, die Antwort hat `retry` in Sekunden |
+| `paused` | Diese Adresse hat vor weniger als einer Minute eine Frage aufs Deck gebracht, die ohne Ja endete. Status 429, `retry` in Sekunden und `Retry-After` |
 | `wrong_password` | Falsches Passwort |
 | `needs_password` | Braucht das Passwort, ein API-Schlüssel reicht nicht |
+| `passkey_host` | Passkeys brauchen HTTPS und einen Namen |
+| `passkey_refused` | Der Connector hat den Passkey nicht angenommen |
 
 ## Routen
 
@@ -69,13 +72,13 @@ Routen, die auf ein Deck wirken, nehmen `?deck=<seriennummer>` aus `decks` im St
 | `POST /api/login` | `{"password": "..."}`, setzt das Sitzungs-Cookie | open |
 | `POST /api/logout` | Beendet die Sitzung | open |
 | `POST /api/setup/claim` | Vor der Einrichtung: eine Sitzung ohne Passwort, siehe [Passwort](/de/docs/security/#passwort). 403 unter dem Namen einer fremden Seite, 409 mit `set up`, `claimed` oder `too late` | open |
-| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage | open |
+| `POST /api/login/request` | `{"who": "iPhone · Safari"}`, bis zu 48 Zeichen. Das Deck fragt, ob dieser Browser rein darf. Antwortet `{"id": "...", "s": 60}`. 409 ohne Deck, 429 innerhalb von 3 s nach der letzten Anfrage oder mit `paused` | open |
 | `GET /api/login/request/<id>` | `state` ist `pending`, `accepted`, `denied`, `expired` oder `used`. Bei `accepted` setzt die Antwort einmal das Sitzungs-Cookie | open |
 | `DELETE /api/login/request/<id>` | Zieht die Anfrage zurück | open |
 | `POST /api/passkeys/challenge` | `{"login": true}` für eine Anmeldung, `false` für einen neuen Passkey. Antwortet `{"challenge": "<hex>"}`. Gilt einmal, 2 Minuten lang, von dieser Adresse. 30 je 10 s und Adresse, sonst 429. Nur per HTTPS unter einem Namen, sonst 403 | open |
 | `POST /api/login/passkey` | Die Antwort von `navigator.credentials.get()`, mit `id`, `clientDataJSON`, `authenticatorData` und `signature` in base64url. Der Passkey muss den Nutzer prüfen. Setzt das Sitzungs-Cookie. Ein abgelehnter Passkey zählt wie ein falsches Passwort, eine unbekannte oder benutzte Challenge nicht | open |
-| `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck | open |
-| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}` | open |
+| `POST /api/password/show` | Das Deck zeigt das Passwort 30 s lang. 409 ohne Deck, 429 mit `paused` | open |
+| `POST /api/password/reset` | Das Deck fragt 60 s lang, ob alles zurückgesetzt wird. Antwortet `{"ok": true, "s": 60}`. 409 ohne Deck, 429 mit `paused` | open |
 | `DELETE /api/password/reset` | Beendet die Frage | open |
 
 Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
@@ -94,7 +97,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
 | `PUT /api/setup` | `{"step": 3}` merkt sich den Schritt der Einrichtung, `{"step": 0}` beendet sie | full |
 | `POST /api/reboot` | Neustart | full |
-| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung, `find` spielt mindestens mit 60. 409, solange die Töne aus sind oder `speaker` false ist | control |
+| `POST /api/sound` | `{"sound": "find"}` spielt `ready`, `connected`, `lost` oder `find`. `volume` 0 bis 100 übergeht die Einstellung. Ohne `volume` spielt `find` mindestens mit 60. 409, solange `speaker` false ist, und bei Lautstärke 0 für jeden Ton außer `find` | control |
 | `DELETE /api/ap` | Schließt das Setup-WLAN | full |
 | `POST /api/reset` | [Werkszustand](/de/docs/first-setup/#werkszustand), danach ein Neustart | admin |
 
@@ -112,6 +115,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `POST /api/screen` | `{"on": false}` schaltet alle Decks sofort dunkel, `{"on": true}` wieder an. Kein Druck wird verschluckt | full |
 | `POST /api/deck/reconnect` | Schaltet den USB-Port aus und wieder an. `?off_s=N` (1 bis 600) lässt ihn N Sekunden aus | control |
 | `POST /api/deck/stall` | Stoppt die Bildausgabe wie bei einem hängenden Deck, für Tests | full |
+| `POST /api/sound/stream` | Der Body ist rohes PCM: 16 kHz, mono, 16 Bit Little Endian, mit `Content-Length`. Bei einem Stream unbekannter Länge eine größere `Content-Length` (höchstens 2147483647) senden und am Ende die Senderichtung der Verbindung schließen. Spielt es mit der Einstellung `volume` und antwortet `{"ok": true, "stopped": false}`, wenn es gespielt hat. Kommen Daten zu spät, spielt es Stille. `stopped` ist true, wenn `find`, ein neuerer Stream, `speaker` false oder 5 Sekunden ohne Daten es beendet haben. Andere Töne lässt der Connector weg, solange es spielt. Eine zurückgesetzte Verbindung stoppt es sofort. Der Connector puffert 3 Sekunden, also höchstens eine Sekunde im Voraus senden. 409, solange `speaker` false ist, 503, wenn der Codec versagt. Ohne CORS-Header | control |
 | `POST /api/sound/selftest` | Spielt `find` und nimmt es mit dem Mikrofon der Platine auf, für Tests. Drei Gegenproben: eine andere Tonhöhe (1500 Hz) in derselben Aufnahme, `find` mit Lautstärke 0 und `find` mit ausgeschaltetem Verstärker. `heard` ist true, wenn der Ton mehr als 10-mal stärker ist als jede davon. Optional: `volume` 1 bis 100 (60), `gain` 0 bis 42 dB (24). Dauert etwa 6 Sekunden. 503 mit dem Grund, wenn ein Durchlauf scheitert | full |
 
 ### Quellen und Kopplung
@@ -119,7 +123,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | Route | Was sie tut | Stufe |
 |---|---|---|
 | `POST /api/sources/retry` | `{"host": "..."}` mit einer Server-URL oder der Satellite-Adresse. Verbindet sofort statt nach der Wartezeit | control |
-| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version` oder einen `code` dafür, was scheiterte (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). Höchstens etwa 10 s. Die Webseite probiert mehrere Formen einer Adresse nacheinander | full |
+| `POST /api/sources/probe` | `{"addr": "host:port", "pin": ""}` versucht Companion einmal und liefert seine `version` oder einen `code` dafür, was scheiterte (`probe_no_name`, `probe_refused`, `probe_timeout`, `probe_no_connection`, `probe_cert`, `probe_tls`, `probe_not_ws`, `probe_no_answer`, `probe_not_companion`). Höchstens etwa 6 s. Die Webseite probiert mehrere Formen einer Adresse nacheinander | full |
 | `GET /api/companion/found` | Companions, die Satellite per mDNS anmelden. Der erste Aufruf startet eine Suche von 2 s | full |
 | `POST /api/dock` | Kopplung, siehe [Kopplung](#kopplung) | full |
 | `DELETE /api/pairing/denied/<ip>` | Nimmt einen Rechner von der Liste der Abgelehnten | full |
@@ -170,7 +174,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `PUT /api/passkeys/<id>` | `{"name": "Laptop"}`, 1 bis 23 Bytes | admin |
 | `DELETE /api/passkeys/<id>` | Entfernt diesen Passkey | admin |
 | `GET /api/cert` | Das HTTPS-Zertifikat als PEM | open |
-| `GET /api/ca` | Die CA des Connectors als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status | open |
+| `GET /api/ca` | Die CA des Connectors als DER, um ihr einmal zu vertrauen. Das Deck zeigt ihren kurzen Code, `https_ca` im Status, aber nicht, solange diese Adresse `paused` ist | open |
 | `PUT /api/tls` | `{"cert": "<PEM>", "key": "<PEM>"}` prüft dein eigenes Zertifikat. Mit `"apply": true` wird es behalten und der Connector startet neu | admin |
 | `DELETE /api/tls` | Zurück zum eigenen Zertifikat des Connectors, mit Neustart | full |
 
@@ -195,7 +199,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "v1.0.0", "star_until": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Schlüssel | Werte |
@@ -224,6 +228,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `max_decks` | 1 bis 4 Decks gleichzeitig, Standard 2 |
 | `screen_off_s` | Sekunden ohne Eingabe, bis der Bildschirmschoner startet, 10 bis 86400. 0 heißt nie und ist der Standard |
 | `screen_dim` | Was der Bildschirmschoner tut. 0 schaltet alle Decks dunkel und ist der Standard. 10 bis 90 in Zehnerschritten dimmt sie auf so viel Prozent |
+| `star_off`, `star_fw`, `star_until` | Der Stern-Hinweis im Web-UI. `star_off` blendet ihn für immer aus. `star_until` blendet ihn bis zu dieser Unix-Zeit aus. `star_fw` ist die Firmware, auf der ihn zuletzt jemand geschlossen hat. Nach einem Update auf eine neuere erscheint er einmal |
 | `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
@@ -232,7 +237,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
+`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `star_off`, `star_fw`, `star_until`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
@@ -283,7 +288,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `temp_c` | Die Chiptemperatur in °C. Fehlt bis zur ersten Messung |
 | `https_ca` | Der Kurzcode der CA des Connectors, siehe [HTTPS](/de/docs/security#https). Leer mit eigenem Zertifikat, dann ist `https_custom` true |
 
-Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
+Der Status hat außerdem `api`, `simulated_input`, `boot_ms`, `memory`, `https_fingerprint` und `https_custom_unread` sowie Kopien der Einstellungen `volume`, `screen_off_s`, `screen_dim` und `max_decks`.
 
 ## Bild
 
@@ -294,7 +299,7 @@ Der Status hat außerdem `boot_ms`, `memory` und `https_fingerprint`.
  "images": [{"x": 13, "y": 12, "w": 120, "h": 120, "url": "/api/screen/9.jpg"}]}
 ```
 
-`strips` listet Leisten mit Bild, aber ohne Touch, etwa die Infoleiste des Stream Deck Neo. Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
+`strips` listet jede Leiste des Displays, auch die Infoleiste des Stream Deck Neo, die keinen Touch hat. Zeichne die JPEGs in dieser Reihenfolge an ihre Stelle, dann hast du das Bild. Ein Bild behält seine URL, bis etwas es verdeckt. Ein Browser darf es also cachen. Eine URL, die weg ist, gibt 404.
 
 ## Eingaben
 
@@ -340,7 +345,7 @@ Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, di
 
 | `t` | Wann |
 |---|---|
-| `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal und Zähler |
+| `state` | Sofort, dann bei jeder Änderung. Der Status ohne Laufzeit, Signal, Zähler, `temp_c`, `boot_ms`, `memory`, `via_ap` und `pairing.open_s` |
 | `screen` | Das Bild des Decks in `deck` (seine Seriennummer) hat sich geändert |
 | `input` | Jemand hat das Deck in `deck` benutzt. `simulated` ist bei einer API-Eingabe ohne `"real"` wahr. Ein API-Schlüssel bekommt nie simulierte Eingaben |
 | `ota` | Update-Fortschritt mit `target`, `state`, `pct` und `error` |

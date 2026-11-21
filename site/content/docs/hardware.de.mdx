@@ -5,7 +5,7 @@ description: Die ESP32-P4-Platine für DeckConnector, ihre Stromversorgung und w
 
 ## Platine
 
-[Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), etwa 25 bis 35 Euro. Das Basis-Kit reicht. Details stehen im [Waveshare-Wiki](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-POE-ETH).
+[Waveshare ESP32-P4-WIFI6-POE-ETH](https://www.waveshare.com/esp32-p4-wifi6-poe-eth.htm), ab etwa 25 US-Dollar bei Waveshare, plus Versand. Das Basis-Kit reicht. Details stehen im [Waveshare-Wiki](https://www.waveshare.com/wiki/ESP32-P4-WIFI6-POE-ETH).
 
 Sie braucht die ESP32-P4-Chip-Revision v3.1 oder eine spätere v3. Manche Platinen kamen mit älteren v1.3-Chips. Frag den Händler. Der [Flasher](/de/flash/) prüft die Revision, bevor er etwas schreibt.
 
@@ -15,7 +15,9 @@ Ihr WLAN kann nur 2,4 GHz.
 
 Mit PoE laufen Platine und Deck über ein Kabel. Stecken PoE und USB-C, läuft die Platine weiter, wenn PoE wegfällt.
 
-Ein Lautsprecher am Lautsprecher-Anschluss der Platine spielt einen kurzen Ton, wenn eine Quelle zu zeichnen beginnt. Er tönt auch, wenn die Quelle wegfällt und zurückkommt. Die Einrichtung in der Weboberfläche fragt, ob ein Lautsprecher angeschlossen ist. Später änderst du das unter **Lautsprecher angeschlossen** im Tab Deck. Die Töne sind anfangs aus. Du drehst sie mit dem Lautsprecher-Regler unter **Steuerung** in der Übersicht auf.
+Nutze nur Standard-PoE, von einem Switch oder Injektor nach IEEE 802.3af oder 802.3at. Ein passiver PoE-Injektor kann die Platine zerstören. Das Basis-Kit hat kein Gehäuse. Halte die Platine von Metall und Wasser fern. Du betreibst sie auf [eigene Gefahr](/de/docs/license#keine-gewährleistung).
+
+Ein Lautsprecher am Lautsprecher-Anschluss der Platine spielt kurze Töne, wenn sich eine Quelle verbindet oder wegfällt. [Home Assistant](/de/docs/home-assistant) kann Audio darauf abspielen.
 
 ## Decks
 
@@ -30,8 +32,10 @@ Manche dieser Decks haben alle dieselbe Seriennummer. Der Connector erkennt sie 
 Manche Bedienelemente melden nur das Drücken, nicht das Loslassen. Halten geht bei ihnen nicht, ein langer Druck in Companion wirkt dort also nicht. Das betrifft:
 
 - die Drehregler und die Touchleiste von N4, N4 Pro und Ajazz AKP05E
-- die rechte Tastenspalte des 293S
+- die rechte Tastenspalte des 293S mit der USB-ID 6602:1014 oder 6603:1014
 - alle Tasten des Ajazz AKP153 und des 293S mit der USB-ID 5548:6670
+
+Die rechte Tastenspalte des Streonor S15 sendet gar nichts.
 
 Welche Tasten das Menü öffnen, zeigt der Reiter Deck.
 

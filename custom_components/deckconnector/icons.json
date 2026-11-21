@@ -23,11 +23,7 @@
     "number": {
       "brightness": { "default": "mdi:brightness-6" },
       "screen_off_after": { "default": "mdi:monitor-off" },
-      "screen_dim": { "default": "mdi:brightness-4", "range": { "0": "mdi:monitor-off", "10": "mdi:brightness-4" } },
-      "volume": {
-        "default": "mdi:volume-high",
-        "range": { "0": "mdi:volume-off", "1": "mdi:volume-low", "34": "mdi:volume-medium", "67": "mdi:volume-high" }
-      }
+      "screen_dim": { "default": "mdi:brightness-4", "range": { "0": "mdi:monitor-off", "10": "mdi:brightness-4" } }
     },
     "select": { "controller": { "default": "mdi:swap-horizontal" } },
     "sensor": {

@@ -131,7 +131,7 @@ async def test_pair_and_press(press_file, ha):
             assert (await ws.receive_json())["type"] == "auth_ok"
             await ws.send_json({"id": 1, "type": "config/entity_registry/list"})
             entries = [e for e in (await ws.receive_json())["result"] if e["platform"] == "deckconnector"]
-            assert len(entries) == 10 + 2 * 5, sorted(e["entity_id"] for e in entries)
+            assert len(entries) == 11 + 2 * 5, sorted(e["entity_id"] for e in entries)
             controls = next(e["entity_id"] for e in entries if e["unique_id"] == "02005e000001_SIM0001_controls")
 
             await ws.send_json({"id": 2, "type": "subscribe_entities", "entity_ids": [controls]})
@@ -240,7 +240,7 @@ async def test_homekit_bridges_the_deck_triggers(press_file, ha):
                 hap = next(a for a in diag["accessories"] if a["aid"] == accessory["aid"])
                 services = [x["type"] for x in hap["services"]]
                 break
-        assert services.count("89") == 8 + 4 * 3 + 4, services
+        assert services.count("89") == 8 + 4 * 3 + 4 + 4 * 2, services  # keys, dials, strip, zones
         assert services.count("CC") == services.count("89")
 
         async with s.get(f"{HA}/api/states/automation.key_1", headers=auth) as r:

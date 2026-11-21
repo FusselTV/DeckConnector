@@ -1,5 +1,6 @@
 export const repo = 'https://github.com/FusselTV/DeckConnector'
 export const site = 'https://deckconnector.com'
+export const turnstileKey = '0x4AAAAAAGKgW0-Anryulwta'
 
 // Imprint and privacy policy. The owner's data stays out of git: site.yml takes it from the OWNER_* repository
 // secrets, a local build from site/.env.local. LEGAL_STRICT=1 (site.yml outside pull requests) fails on a missing one.

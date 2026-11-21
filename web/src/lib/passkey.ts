@@ -1,4 +1,5 @@
 import { api } from '../api/client'
+import { getState } from '../app/store'
 
 /** Browsers allow passkeys only in a secure context, and never for an IP address. */
 export const passkeysHere = () =>
@@ -13,12 +14,13 @@ const b64u = (b: ArrayBuffer) =>
 
 export async function addPasskey(name: string) {
   const { challenge } = await api.passkeyChallenge(false)
+  const user = `DeckConnector ${getState().status.name ?? location.hostname}`
   const c = (await navigator.credentials.create({
     publicKey: {
       challenge: bytes(challenge),
       rp: { id: location.hostname, name: 'DeckConnector' },
       // one id per passkey: the same id again would replace an older passkey on that device
-      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'admin', displayName: location.hostname },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: user, displayName: user },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
       authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
       attestation: 'none',

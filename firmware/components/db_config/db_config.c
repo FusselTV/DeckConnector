@@ -19,9 +19,10 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-#define CONFIG_VERSION 6 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker */
-#define NVS_NS         "deckbridge"
-#define NVS_KEY        "config"
+#define CONFIG_VERSION                                                                                       \
+    7 /* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star */
+#define NVS_NS  "deckbridge"
+#define NVS_KEY "config"
 
 static const char *TAG = "config";
 static db_config_t current;
@@ -95,13 +96,14 @@ static void defaults(db_config_t *c)
     db_config_random_password(c->admin_pass, 9);
 }
 
-/* web/claimed 0: the first browser may set the device up without the password (db_web auth.c) */
-static esp_err_t open_claim(void)
+/* web/claimed 0: any browser may set the device up without the password until one is set or setup is done
+ * (db_web auth.c) */
+static esp_err_t set_claimed(uint8_t claimed)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
     if (err == ESP_OK) {
-        err = nvs_set_u8(h, "claimed", 0);
+        err = nvs_set_u8(h, "claimed", claimed);
         err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
     }
@@ -166,6 +168,11 @@ esp_err_t db_config_load(void)
             if (current.version < 6) {
                 current.speaker = true; /* saved before the question existed: the sounds it had stay */
             }
+            if (current.version < 7 || !memchr(current.star_fw, 0, sizeof(current.star_fw))) {
+                current.star_off = false;
+                current.star_fw[0] = '\0';
+                current.star_until = 0;
+            }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
                 current.controller = DB_CTRL_SERVER;
@@ -224,7 +231,7 @@ esp_err_t db_config_load(void)
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGI(TAG, "first start, saving defaults");
         err = db_config_save(&current);
-        return err == ESP_OK ? open_claim() : err;
+        return err == ESP_OK ? set_claimed(0) : err;
     }
     return err;
 }
@@ -253,6 +260,9 @@ esp_err_t db_config_save(const db_config_t *cfg)
         err = nvs_commit(h);
     }
     nvs_close(h);
+    if (err == ESP_OK && cfg->setup_done && !current.setup_done && set_claimed(1) != ESP_OK) {
+        ESP_LOGE(TAG, "setup done, but the setup claim not closed for the next start");
+    }
     if (err == ESP_OK && cfg != &current) {
         xSemaphoreTake(lock, portMAX_DELAY);
         current = *cfg;
@@ -319,7 +329,7 @@ esp_err_t db_config_reset(void)
     defaults(&c);
     esp_err_t saved = db_config_save(&c);
     err = err == ESP_OK ? saved : err;
-    return err == ESP_OK ? open_claim() : err;
+    return err == ESP_OK ? set_claimed(0) : err;
 }
 
 static void ip_to_json(db_json_t *j, const char *key, const db_ip_config_t *ip)
@@ -378,6 +388,9 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_int(&j, "max_decks", cfg->max_decks);
     db_json_int(&j, "screen_off_s", (int)cfg->screen_off_s);
     db_json_int(&j, "screen_dim", cfg->screen_dim);
+    db_json_bool(&j, "star_off", cfg->star_off);
+    db_json_str(&j, "star_fw", cfg->star_fw);
+    db_json_int(&j, "star_until", (int)cfg->star_until);
     db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
@@ -604,8 +617,9 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->controller = (db_controller_t)found;
     }
-    const char *flags[] = {"setup_done", "dock_paired_only", "https_only", "speaker"};
-    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->speaker};
+    const char *flags[] = {"setup_done", "dock_paired_only", "https_only", "speaker", "star_off"};
+    bool *fields[] = {&cfg->setup_done, &cfg->dock_paired_only, &cfg->https_only, &cfg->speaker,
+                      &cfg->star_off};
     for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
         const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, flags[i]);
         if (v && !cJSON_IsBool(v)) {
@@ -680,6 +694,14 @@ static bool take_scalars(const cJSON *root, db_config_t *cfg, char *err, size_t 
         }
         cfg->screen_dim = (uint8_t)dim->valueint;
     }
+    const cJSON *until = cJSON_GetObjectItemCaseSensitive(root, "star_until");
+    if (until) {
+        if (!whole(until) || until->valueint < 0) {
+            snprintf(err, err_cap, "star_until: Unix time expected");
+            return false;
+        }
+        cfg->star_until = (uint32_t)until->valueint;
+    }
     return true;
 }
 
@@ -708,6 +730,7 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "wifi_bssid", cfg->wifi_bssid, sizeof(cfg->wifi_bssid), err, err_cap) &&
               take_str(root, "ntp_server", cfg->ntp_server, sizeof(cfg->ntp_server), err, err_cap) &&
               take_str(root, "trusted_proxy", cfg->trusted_proxy, sizeof(cfg->trusted_proxy), err, err_cap) &&
+              take_str(root, "star_fw", cfg->star_fw, sizeof(cfg->star_fw), err, err_cap) &&
               take_str(root, "admin_pass", cfg->admin_pass, sizeof(cfg->admin_pass), err, err_cap) &&
               take_ip(root, "lan", &cfg->lan, err, err_cap) &&
               take_ip(root, "wlan", &cfg->wlan, err, err_cap) && take_servers(root, cfg, err, err_cap) &&

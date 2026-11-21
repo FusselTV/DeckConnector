@@ -16,5 +16,6 @@ Python tools and tests, run with `uv run` from this folder. Bench values come fr
 | `tests/` | end to end tests against the board, or against `firmware/sim` with `--target sim` |
 | `ha/` | tests of the Home Assistant integration in `tests/`, a Home Assistant in Docker in `e2e/` |
 | `companion-check/` | drives the Dock path with the library inside Bitfocus Companion |
+| `media/` | re-records the README and docs pictures, see its [README](media/README.md) |
 | `baselines/` | earlier `load.py --json` runs to compare against |
 | `build.sh`, `flash.sh` | a quick firmware build, flashing over the serial bridge |

@@ -58,7 +58,7 @@ typedef struct {
     db_sat_held_t pad_kept;
     int lit;       /* what the device UI last set on the deck; -1: someone else may have changed it */
     int before;    /* the deck's brightness when the menu opened; -1: none */
-    bool turned;   /* the dial moved in this menu: from then on the saved brightness counts */
+    bool turned;   /* the setting changed while this menu shows: from then on the saved brightness counts */
     bool menu_lit; /* the UI lit the deck for the menu */
 } ui_deck_t;
 
@@ -303,6 +303,13 @@ static struct { /* a Companion's Discover asking for the deck, under login_mux *
                              again */
     char denied[sizeof(((db_config_t *)0)->satellite)]; /* the host, without the port */
 } adopt;
+
+/* A page taken down early ends now, so db_ui_page_end can tell when. Under login_mux. */
+static void cut(int64_t *end)
+{
+    int64_t now = esp_timer_get_time();
+    *end = *end < now ? *end : now;
+}
 
 static int64_t until(const int64_t *t)
 {
@@ -768,13 +775,13 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
         break;
     case UI_DO_HIDE_PASSWORD:
         portENTER_CRITICAL(&login_mux);
-        pass_until = 0;
+        cut(&pass_until);
         matter_until = 0;
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_CANCEL_RESET:
         portENTER_CRITICAL(&login_mux);
-        reset_until = 0;
+        cut(&reset_until);
         portEXIT_CRITICAL(&login_mux);
         break;
     case UI_DO_LOGIN:
@@ -782,7 +789,7 @@ static void carry_out(int deck, const ui_action_t *act, const ui_model_t *md)
         bool same = ask.seq == md->login_seq && ask.answer < 0;
         if (same) {
             ask.answer = act->value;
-            ask.until = 0;
+            cut(&ask.until);
         }
         portEXIT_CRITICAL(&login_mux);
         if (same) {
@@ -1028,12 +1035,12 @@ void db_ui_close_menu(void)
     int64_t now = esp_timer_get_time();
     bool covered = overlay(now);
     portENTER_CRITICAL(&login_mux);
-    pass_until = 0;
-    reset_until = 0;
+    cut(&pass_until);
+    cut(&reset_until);
     adopt.until = 0;
     if (now < ask.until) {
         ask.answer = 0;
-        ask.until = 0;
+        cut(&ask.until);
     }
     portEXIT_CRITICAL(&login_mux);
     bool open = false;
@@ -1434,7 +1441,7 @@ int db_ui_ask_reset(void)
 void db_ui_cancel_reset(void)
 {
     portENTER_CRITICAL(&login_mux);
-    reset_until = 0;
+    cut(&reset_until);
     portEXIT_CRITICAL(&login_mux);
     changed();
 }
@@ -1483,8 +1490,10 @@ bool db_ui_ask_login(uint32_t ip, const char *who, int seconds)
         snprintf(mac_s, sizeof(mac_s), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3],
                  mac[4], mac[5]);
     }
-    char ip_s[16];
-    ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));
+    char ip_s[16] = "IPv6"; /* db_web folds an IPv6 client into 240.0.0.0/4 */
+    if (((const uint8_t *)&ip)[0] < 240) {
+        ip4addr_ntoa_r((const ip4_addr_t *)&ip, ip_s, sizeof(ip_s));
+    }
     forget_presses();
     portENTER_CRITICAL(&login_mux);
     ask.until = esp_timer_get_time() + (int64_t)seconds * 1000000;
@@ -1511,9 +1520,14 @@ int db_ui_login_answer(void)
 void db_ui_end_login(void)
 {
     portENTER_CRITICAL(&login_mux);
-    ask.until = 0;
+    cut(&ask.until);
     portEXIT_CRITICAL(&login_mux);
     changed();
+}
+
+int64_t db_ui_page_end(db_ui_page_t page)
+{
+    return until(page == DB_UI_LOGIN ? &ask.until : page == DB_UI_RESET ? &reset_until : &pass_until);
 }
 
 void db_ui_set_active_link(int index)
@@ -1544,9 +1558,15 @@ void db_ui_refresh(void)
         auto_off = c->satellite_auto_off;
         satellite_changes++;
     }
+    static int brightness = -1;
+    bool moved = brightness >= 0 && c->brightness != brightness;
+    brightness = c->brightness;
+    light_lock(true);
     for (int d = 0; d < DB_MAX_DECKS; d++) {
-        decks[d].lit = -1; /* PUT /api/config may have set the brightness on the decks */
+        decks[d].lit = -1;        /* PUT /api/config may have set the brightness on the decks */
+        decks[d].turned |= moved; /* an open menu shows the new setting, not the brightness from before it */
     }
+    light_lock(false);
     changed();
 }
 

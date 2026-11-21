@@ -11,7 +11,7 @@ Your server renders the images. The connector shows them and sends back every pr
 - With an empty list, it finds servers that announce `_deckconnector._tcp` over mDNS and opens `ws://<address>:<port>/deckbridge`.
 - `wss://` needs a certificate from a public CA for that host, or the SHA-256 pin set for that server.
 - To check who connects, set `token` in the [settings](/docs/api#settings). The connector sends it as `Authorization: Bearer` to the servers you entered.
-- The first connected server is **active**, the others **standby**. Only the active one draws and gets input.
+- The server named in `host` is **active** when it is connected. Otherwise it is the first connected server in the list. The others are **standby**. Only the active one draws and gets input.
 - When it is lost, the next one becomes active, gets a `role` message, and must draw every area again. Until then the deck shows what that server drew last, which may be old.
 - The active server also gets `role` after the menu or an update drew over its picture.
 - While Companion or the Elgato app is the active source, every server is standby. See [Sources](/docs/hosts).
@@ -21,7 +21,7 @@ Text frames carry JSON. Binary frames carry images, acknowledgements, input and 
 
 ## Coordinates
 
-Each display has one pixel coordinate system, origin at the top left of the whole glass. Keys and strips are rectangles in it. Send any rectangle from the display's `targets`, and the connector picks the USB command. Apply the listed rotation and flip before you encode the JPEG.
+Each display has one pixel coordinate system, origin at the top left of the whole glass. Keys and strips are rectangles in it. Send any rectangle from the display's `targets`, and the connector picks the USB command. Apply the listed rotation and flip before you encode the image. `format` is `jpeg`, or `bmp` on the Mini and the Module 6. `max_bytes`, when present, is the largest image the display takes.
 
 ## From the connector
 
@@ -49,7 +49,7 @@ A `strip` target with `partial: true` takes any rectangle inside it. Other targe
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
 
-`status` has the fields of [`GET /api/status`](/docs/api#status) without `memory`. OTA `state` is `download`, `verify`, `done` or `error`. After `done` the connector restarts.
+`status` has the fields of [`GET /api/status`](/docs/api#status) without `memory`, `boot_ms`, `temp_c` and `via_ap`. OTA `state` is `download`, `verify`, `done` or `error`. After `done` the connector restarts.
 
 ## To the connector
 
@@ -59,7 +59,7 @@ A `strip` target with `partial: true` takes any rectangle inside it. Other targe
 {"t": "reboot"}
 ```
 
-The signed file decides which chip it is for. `target` only comes back in the progress messages. See [Updates](/docs/updates).
+The connector takes these only from the active server. `ota` needs `target`, but the signed file decides which chip it is for. See [Updates](/docs/updates).
 
 ## Binary frames
 

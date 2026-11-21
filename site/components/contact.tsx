@@ -4,6 +4,7 @@ import { Bug, Check, Mail } from 'lucide-react'
 import { Btn, Field, Note, Spinner, card, input } from './flash/ui'
 import type { Lang } from '~/lib/i18n'
 import { EMAIL, MAX } from '~/contact-worker/mail'
+import { turnstileKey } from '~/site.config'
 
 const t = {
   en: {
@@ -56,6 +57,47 @@ const t = {
   },
 }
 
+type Turnstile = {
+  render(el: HTMLElement, o: object): string
+  reset(id: string): void
+}
+type Widget = { token(): Promise<string | null>; reset(): void }
+
+// Loaded on the first focus in the form, so a visit alone sends nothing to Cloudflare.
+const turnstile = (el: HTMLElement) =>
+  new Promise<Widget>((ok, bad) => {
+    const s = document.createElement('script')
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+    s.onerror = bad
+    s.onload = () => {
+      try {
+        const ts = (window as unknown as { turnstile: Turnstile }).turnstile
+        let token: string | null = null
+        let wait: ((t: string | null) => void) | null = null
+        const give = (t: string | null) => ((token = t), wait?.(t), (wait = null))
+        const id = ts.render(el, {
+          sitekey: turnstileKey,
+          appearance: 'interaction-only',
+          callback: give,
+          'expired-callback': () => (token = null),
+          'error-callback': () => (give(null), true),
+          'timeout-callback': () => give(null),
+        })
+        ok({
+          // An interactive check left alone never answers; after a minute the form offers the email address.
+          token: () =>
+            token
+              ? Promise.resolve(token)
+              : new Promise((r) => ((wait = r), setTimeout(() => wait === r && give(null), 60_000))),
+          reset: () => ((token = null), ts.reset(id)),
+        })
+      } catch (e) {
+        bad(e instanceof Error ? e : new Error(String(e)))
+      }
+    }
+    document.head.append(s)
+  })
+
 const link = 'font-medium text-fg underline decoration-line-2 underline-offset-4 hover:decoration-current'
 
 export function Contact({
@@ -72,6 +114,15 @@ export function Contact({
   const c = t[lang]
   const opened = useRef(0)
   const form = useRef<HTMLFormElement>(null)
+  const box = useRef<HTMLDivElement>(null)
+  const widget = useRef<Promise<Widget> | null>(null)
+  const start = () => {
+    if (!widget.current && box.current)
+      widget.current = turnstile(box.current).catch((e: unknown) => {
+        widget.current = null
+        throw e
+      })
+  }
   const done = useRef<HTMLHeadingElement>(null)
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'rate' | 'failed'>('idle')
   const [tried, setTried] = useState(false)
@@ -103,10 +154,15 @@ export function Contact({
     setState('sending')
     const website = (form.current?.elements.namedItem('c-hp') as HTMLInputElement | null)?.value ?? ''
     try {
+      start()
+      const w = await widget.current
+      const token = await w?.token()
+      w?.reset()
+      if (!token) return setState('failed')
       const r = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...v, website, t: Date.now() - opened.current }),
+        body: JSON.stringify({ ...v, website, t: Date.now() - opened.current, turnstile: token }),
       })
       setState(r.ok ? 'sent' : r.status === 429 ? 'rate' : 'failed')
     } catch {
@@ -173,6 +229,7 @@ export function Contact({
                     value={v.name}
                     maxLength={MAX.name}
                     autoComplete="name"
+                    onFocus={start}
                     onChange={(e) => setV({ ...v, name: e.target.value })}
                   />
                 </Field>
@@ -184,6 +241,7 @@ export function Contact({
                     value={v.email}
                     maxLength={MAX.email}
                     autoComplete="email"
+                    onFocus={start}
                     required
                     onChange={(e) => setV({ ...v, email: e.target.value })}
                     {...inv('email')}
@@ -197,6 +255,7 @@ export function Contact({
                   rows={7}
                   value={v.message}
                   maxLength={MAX.message}
+                  onFocus={start}
                   required
                   onChange={(e) => setV({ ...v, message: e.target.value })}
                   {...inv('message')}
@@ -241,6 +300,7 @@ export function Contact({
               </div>
             </form>
           )}
+          <div ref={box} />
         </section>
 
         <aside className="grid content-start gap-4">

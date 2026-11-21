@@ -49,6 +49,7 @@ typedef struct {
     uint16_t peer_port;   /* network order */
     db_controller_t kind; /* DB_CTRL_SERVER until the first message tells */
     SemaphoreHandle_t tx;
+    bool missed; /* a press found tx taken: the next sender drops the host */
     uint8_t out[DB_CORA_HDR_LEN + DB_CORA_REPORT_LEN]; /* under tx */
 } conn_t;
 
@@ -81,27 +82,64 @@ static void keep_peers(void);
 /* the keepalive task saves them: a flash write held a host's first answer 3 to 70 ms */
 static bool peers_due;
 
-/* block false: skip a host that is not reading instead of waiting up to the send timeout for it */
+#define NOW_MS 50 /* a host that reads, slowly over WLAN, takes a burst of dial turns within this */
+
+/* WAIT: up to the socket's send timeout. SKIP: a host that is not reading misses this frame. NOW: at most
+ * NOW_MS, then the host is dropped rather than miss a press; it connects again. */
+typedef enum { SEND_WAIT, SEND_SKIP, SEND_NOW } send_mode_t;
+
+static bool writable(int sock, TickType_t until)
+{
+    TickType_t now = xTaskGetTickCount();
+    if ((int32_t)(until - now) <= 0) {
+        return false;
+    }
+    fd_set w;
+    FD_ZERO(&w);
+    FD_SET(sock, &w);
+    struct timeval tv = {.tv_usec = (suseconds_t)(pdTICKS_TO_MS(until - now) * 1000)};
+    return select(sock + 1, NULL, &w, NULL, &tv) > 0;
+}
+
 static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload,
-                          size_t len, bool block)
+                          size_t len, send_mode_t mode)
 {
     configASSERT(len <= DB_CORA_REPORT_LEN);
-    if (xSemaphoreTake(c->tx, block ? portMAX_DELAY : 0) != pdTRUE) {
+    TickType_t until = xTaskGetTickCount() + pdMS_TO_TICKS(NOW_MS);
+    TickType_t wait = mode == SEND_WAIT ? portMAX_DELAY : mode == SEND_NOW ? pdMS_TO_TICKS(NOW_MS) : 0;
+    if (xSemaphoreTake(c->tx, wait) != pdTRUE) {
+        if (mode == SEND_NOW) { /* a reply holds it, stuck on this host's full socket */
+            __atomic_store_n(&c->missed, true, __ATOMIC_RELAXED);
+        }
         return;
     }
     int sock = c->sock;
-    if (sock >= 0) {
+    if (sock >= 0 && __atomic_exchange_n(&c->missed, false, __ATOMIC_RELAXED)) {
+        ESP_LOGW(TAG, "host lost a press while it was not reading, dropped");
+        shutdown(sock, SHUT_RDWR);
+    } else if (sock >= 0) {
         /* one send: header and data in one TCP segment */
         db_cora_write_hdr(c->out, &(db_cora_hdr_t){.flags = flags, .op = op, .id = id, .len = (uint32_t)len});
         memcpy(c->out + DB_CORA_HDR_LEN, payload, len);
         size_t want = DB_CORA_HDR_LEN + len;
-        ssize_t n = send(sock, c->out, want, block ? 0 : MSG_DONTWAIT);
-        if (n > 0 && (size_t)n < want) { /* partly sent: the rest must follow or the stream breaks */
+        ssize_t n = send(sock, c->out, want, mode == SEND_WAIT ? 0 : MSG_DONTWAIT);
+        bool skip = n < 0 && errno == EWOULDBLOCK && mode == SEND_SKIP;
+        if (mode == SEND_WAIT && n > 0 && (size_t)n < want) { /* partly sent: the rest must follow */
             ssize_t rest = send(sock, c->out + n, want - n, 0);
             n = rest < 0 ? rest : n + rest;
         }
-        if (n != (ssize_t)want && !(n < 0 && !block && errno == EWOULDBLOCK)) {
-            shutdown(sock, SHUT_RDWR);
+        size_t done = n > 0 ? (size_t)n : 0;
+        bool waiting = mode != SEND_WAIT && !skip && (n >= 0 || errno == EWOULDBLOCK);
+        while (waiting && done < want && writable(sock, until)) {
+            n = send(sock, c->out + done, want - done, MSG_DONTWAIT);
+            done += n > 0 ? (size_t)n : 0;
+            waiting = n >= 0 || errno == EWOULDBLOCK;
+        }
+        if (done < want && !skip) {
+            if (mode == SEND_NOW) {
+                ESP_LOGW(TAG, "host not reading, dropped");
+            }
+            shutdown(sock, SHUT_RDWR); /* a partly sent frame breaks the stream */
         }
     }
     xSemaphoreGive(c->tx);
@@ -109,7 +147,7 @@ static void send_frame_to(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, co
 
 static void send_frame(conn_t *c, uint16_t flags, uint8_t op, uint32_t id, const uint8_t *payload, size_t len)
 {
-    send_frame_to(c, flags, op, id, payload, len, true);
+    send_frame_to(c, flags, op, id, payload, len, SEND_WAIT);
 }
 
 static void send_dock_report(conn_t *c, uint8_t cmd, uint32_t id)
@@ -243,7 +281,6 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
 {
     struct timeval tv = {.tv_sec = IDLE_TIMEOUT};
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    /* A host that stops reading must not block the deck's input path, which sends from its own task. */
     struct timeval send_tv = {.tv_sec = 2};
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &send_tv, sizeof(send_tv));
     int one = 1;
@@ -275,6 +312,7 @@ static void serve(conn_t *c, int sock, uint8_t *payload)
     }
     xSemaphoreTake(c->tx, portMAX_DELAY);
     c->sock = -1;
+    c->missed = false;
     c->kind = DB_CTRL_SERVER; /* a reader of this slot must never see a new host with the old one's kind */
     c->ip = 0;
     xSemaphoreGive(c->tx);
@@ -498,6 +536,7 @@ static void rejoin_app(void *arg)
 #define NAMES_MAX  32
 #define DENIED_MAX 4
 #define REQUEST_US (60 * 1000000LL)
+#define REFUSED_US (60 * 1000000LL)
 
 static struct {
     portMUX_TYPE mux;
@@ -528,6 +567,16 @@ static void drop_denied(uint32_t ip)
             return;
         }
     }
+}
+
+/* With the lock held. */
+static bool refused_lately(uint32_t ip, int64_t now)
+{
+    bool lately = false;
+    for (int i = 0; i < pair.n_denied; i++) {
+        lately |= pair.denied[i].ip == ip && now - pair.denied[i].at_us < REFUSED_US;
+    }
+    return lately;
 }
 
 static void lookup_task(void *arg)
@@ -733,8 +782,9 @@ static bool admit(uint32_t ip)
         in = changed = remember(ip, mac, strict);
     }
     bool asking = pair.request && now - pair.request_at < REQUEST_US;
-    bool new_request = !in && !asking;
-    if (!in && (!asking || pair.request == ip)) {
+    bool held = !in && !asking && refused_lately(ip, now);
+    bool new_request = !in && !asking && !held;
+    if (!in && !held && (!asking || pair.request == ip)) {
         /* one request at a time: another address must not take the place of the one on the deck */
         pair.request = ip;
         memcpy(pair.request_mac, mac, 6);
@@ -749,7 +799,7 @@ static bool admit(uint32_t ip)
         inet_ntoa_r(*(struct in_addr *)&ip, a, sizeof(a));
         db_log_event(TAG, DB_EV_PAIR_ASKS, a);
     }
-    if (!in && s.hosts_changed) {
+    if (!in && !held && s.hosts_changed) {
         s.hosts_changed(); /* the deck shows the request */
     }
     return in;
@@ -1056,8 +1106,8 @@ static void keepalive_task(void *arg)
                          SHUT_RDWR); /* came over while the LAN was dead: back to LAN via the rejoin */
             } else if (c->sock >= 0) {
                 db_cora_keepalive(c->connection_no, buf);
-                send_frame_to(c, 0, 0, 0, buf, sizeof(buf),
-                              false); /* one stuck host must not delay the others */
+                /* one stuck host must not delay the others */
+                send_frame_to(c, 0, 0, 0, buf, sizeof(buf), SEND_SKIP);
             }
         }
     }
@@ -1073,7 +1123,9 @@ static void on_raw_input(int deck, const uint8_t *report, size_t len)
         conn_t *c = conn(deck, true, i);
         if (c->sock >= 0 && c->kind != DB_CTRL_SERVER && source_of(c) == writer &&
             db_deck_input_real_for(c->ip)) {
-            send_frame(c, DB_CORA_FLAG_VERBATIM, 0, 0, buf, sizeof(buf));
+            /* on the deck's input task: a stuck host must not hold up the next press or the other listeners
+             */
+            send_frame_to(c, DB_CORA_FLAG_VERBATIM, 0, 0, buf, sizeof(buf), SEND_NOW);
         }
     }
 }

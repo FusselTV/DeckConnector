@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 
@@ -117,6 +118,7 @@ async def test_a_tap_runs_the_automations_of_its_zone_and_of_the_whole_strip(has
                 {
                     "triggers": [trigger(deck, type_, subtype)],
                     "actions": [{"action": "test.run", "data": {"on": subtype, "zone": "{{ trigger.zone }}"}}],
+                    "mode": "parallel",  # the two strip taps come at once; "single" drops the second
                 }
                 for type_, subtype in (("tap", "touch_2"), ("tap", "touch_strip"), ("long_press", "touch_4"))
             ]
@@ -125,6 +127,11 @@ async def test_a_tap_runs_the_automations_of_its_zone_and_of_the_whole_strip(has
     tap = {"t": "input", "kind": "touch_tap", "index": 0, "value": 0, "x": 250, "y": 420, "deck": "A1"}
     for msg in (tap, {**tap, "x": 799}, {**tap, "kind": "touch_long", "x": 800}, {**tap, "simulated": True}):
         await socket.queue.put(msg)
+    # the socket task may still hold a message when the loop goes idle once: wait for all four runs
+    async with asyncio.timeout(5):
+        while len(runs) < 4:
+            await hass.async_block_till_done()
+            await asyncio.sleep(0.01)
     await hass.async_block_till_done()
     assert sorted((r["on"], r["zone"]) for r in runs) == [
         ("touch_2", 2),

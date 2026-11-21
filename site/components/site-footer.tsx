@@ -48,6 +48,8 @@ export function SiteFooter({ lang }: { lang: Lang }) {
     [s.releases, `${repo}/releases`],
     [s.source, repo],
     [s.license, `${repo}/blob/main/LICENSE`],
+    ['GitHub Sponsors', 'https://github.com/sponsors/FusselTV'],
+    ['Ko-fi', 'https://ko-fi.com/fusseltv'],
   ]
   return (
     <footer className="mt-auto border-t text-sm text-fd-muted-foreground">
@@ -70,7 +72,7 @@ export function SiteFooter({ lang }: { lang: Lang }) {
             ))}
           </span>
         </p>
-        <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 sm:grid-cols-3 md:gap-x-10">
+        <nav aria-label={s.nav} className="grid grid-cols-2 gap-x-6 md:gap-x-10">
           {links.map(([text, url]) => (
             <a
               key={url}

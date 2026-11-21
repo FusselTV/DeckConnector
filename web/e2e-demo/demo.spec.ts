@@ -114,3 +114,14 @@ test('an update installs with progress and restarts into the new version', async
   await expect(page.locator('#ntc-upd-new'), 'the offer goes with the old version').toHaveCount(0)
   await expect(page.locator('#fw-file')).toHaveCount(1)
 })
+
+test('the star note shows after the update and stays closed after a reload', async ({ demo: page }) => {
+  await page.goto('?lang=en')
+  const note = page.locator('#ntc-star')
+  await expect(note).toBeVisible()
+  await note.getByRole('button', { name: en['star.close'] }).click()
+  await expect(note).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('#card-ctl')).toBeVisible()
+  await expect(note).toHaveCount(0)
+})

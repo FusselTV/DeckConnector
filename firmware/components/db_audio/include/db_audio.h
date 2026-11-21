@@ -4,6 +4,7 @@
 
 #include "db_tones.h"
 #include "esp_err.h"
+#include "esp_http_server.h"
 
 /* The board's speaker, when it has one (db_board). Sounds play one after the other on their own task; the
  * codec and its amplifier are on only while one plays. */
@@ -13,6 +14,13 @@ void db_audio_play(db_sound_t sound);
 /* At `volume` (0 to 100) whatever the settings say: Find and the test button. ESP_ERR_NOT_SUPPORTED without a
  * speaker. */
 esp_err_t db_audio_play_at(db_sound_t sound, int volume);
+
+/* From a request handler: plays the body, 16 kHz mono 16-bit PCM, at the volume setting and answers once it
+ * ended: at Content-Length or when the client shuts down its sending side, so an endless stream may send a
+ * length it never reaches. Find, the self-test, a newer stream, the speaker setting turned off or 5 s without
+ * data end it; other sounds are skipped while it plays. ESP_OK when the request is taken;
+ * ESP_ERR_NOT_SUPPORTED without a speaker, ESP_ERR_NO_MEM. */
+esp_err_t db_audio_stream(httpd_req_t *req);
 
 /* The self-test: Find at `volume` heard by the board's microphone at `gain` dB, then the same at volume 0 and
  * with the amplifier off. mic and dac (the codec's copy of what it plays) hold the level at Find's pitch for

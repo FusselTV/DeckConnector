@@ -348,6 +348,7 @@ export const de: Dict = {
   'login.show': 'Passwort am Deck',
   'login.shown': 'Steht {s} s auf dem Deck',
   'login.no_deck': 'Kein Deck angeschlossen.',
+  'login.paused': 'Zu kurz nach der letzten Frage am Deck. Versuche es in {n} s wieder.',
   'login.forgot': 'Zurücksetzen…',
   'login.reset_t': 'Alles zurücksetzen?',
   'login.reset_b':
@@ -455,7 +456,7 @@ export const de: Dict = {
   'wifi.pass_len': 'Ein WLAN-Passwort hat 8 bis 63 Zeichen oder 64 Hex-Ziffern.',
   'fw.bad_header': 'Die Datei hat keinen gültigen DeckConnector-Kopf.',
   'fw.ver_unknown': 'Die Version steht erst nach dem Prüfen fest.',
-  'fw.url_h': 'Nur http://. Der Connector prüft die Signatur der Datei selbst.',
+  'fw.url_h': 'http:// oder https://. Der Connector prüft die Signatur der Datei selbst.',
   'fw.write': 'Schreiben',
   'cf.write': 'In Platz {slot} schreiben?',
   'cf.write_b': 'Ersetzt {old}. Der Connector startet nicht neu. Starten kannst du den Platz später.',
@@ -720,7 +721,7 @@ export const de: Dict = {
     'Der Browser hat die Anmeldung nicht behalten. Erlaube Cookies für diese Adresse und melde dich noch einmal an.',
   'login.reset': 'Der DeckConnector wurde zurückgesetzt. Melde dich mit dem Passwort vom Deck an.',
   'login.claimed':
-    'Dieser Connector wurde schon in einem anderen Browser geöffnet. Melde dich mit dem Passwort vom Deck an.',
+    'Ein anderer Browser hat die Einrichtung fortgesetzt. Melde dich mit dem Passwort an, das er gesetzt hat. Hat er keins gesetzt, nimm das Passwort vom Deck.',
   'login.expired': 'Sitzung abgelaufen. Deine Eingaben bleiben erhalten.',
   'login.logout': 'Du hast dich abgemeldet.',
   'login.pw': 'Passwort geändert. Melde dich mit dem neuen an.',
@@ -912,4 +913,9 @@ export const de: Dict = {
   'ev.matter_failed': 'Matter startet nicht: {0}',
   'log.store_settings': 'Nur die letzten 40 Ereignisse bleiben über einen Neustart.',
   'log.store_ram': 'Kein Ereignis bleibt über einen Neustart.',
+  'star.text':
+    'Gefällt dir DeckConnector? Ein Stern auf GitHub hilft anderen, es zu finden. Wenn du magst, kannst du das Projekt auch unterstützen.',
+  'star.gh': 'Stern auf GitHub',
+  'star.never': 'Nicht mehr zeigen',
+  'star.close': 'Vorerst schließen',
 }

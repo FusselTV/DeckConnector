@@ -43,7 +43,7 @@
       "no_deck": "Kein Deck angeschlossen. Gib stattdessen das Web-Passwort ein.",
       "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein.",
       "https_only": "Der Connector erlaubt nur HTTPS. Schalte „Nur HTTPS“ auf seiner Weboberfläche aus und versuche es noch einmal.",
-      "too_many_keys": "Der Connector hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Schlüssel auf seiner Weboberfläche und versuche es noch einmal.",
+      "too_many_keys": "Der Connector hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Zugriff auf seiner Weboberfläche und versuche es noch einmal.",
       "not_deckconnector": "Unter dieser Adresse antwortet etwas, aber kein DeckConnector."
     },
     "abort": {
@@ -210,9 +210,6 @@
       },
       "screen_dim": {
         "name": "Bildschirmschoner-Helligkeit"
-      },
-      "volume": {
-        "name": "Lautstärke"
       }
     },
     "select": {
@@ -257,6 +254,11 @@
       "firmware": {
         "name": "Firmware"
       }
+    },
+    "media_player": {
+      "speaker": {
+        "name": "Lautsprecher"
+      }
     }
   },
   "exceptions": {
@@ -274,6 +276,9 @@
     },
     "https_only": {
       "message": "Der Connector erlaubt nur HTTPS."
+    },
+    "cannot_decode": {
+      "message": "Das lässt sich nicht abspielen: {error}"
     }
   },
   "device_automation": {

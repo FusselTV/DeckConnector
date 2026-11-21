@@ -1,4 +1,5 @@
 /* What the firmware gets from the chip and has no Linux counterpart. */
+#include <limits.h>
 #include <signal.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -24,12 +25,23 @@ int db_web_temp_c(void)
 
 esp_err_t __real_db_config_load(void);
 
+/* DB_SIM_FLASH: a flash image that outlives the simulator, as in firmware/sim. Before the first partition opens. */
+__attribute__((constructor)) static void flash_file(void)
+{
+    const char *flash = getenv("DB_SIM_FLASH");
+    if (flash) {
+        strlcpy(esp_partition_get_file_mmap_ctrl_input()->flash_file_name, flash, PATH_MAX);
+    }
+}
+
 /* Before anything reads the settings: the password from DB_SIM_PASSWORD, as firmware/sim takes it, no flash
  * file left in /tmp, and a browser that drops a socket mid-write does not end the simulator. */
 esp_err_t __wrap_db_config_load(void)
 {
     signal(SIGPIPE, SIG_IGN);
-    unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
+    if (!getenv("DB_SIM_FLASH")) {
+        unlink(esp_partition_get_file_mmap_ctrl_act()->flash_file_name);
+    }
     esp_err_t err = __real_db_config_load();
     db_config_t cfg;
     db_config_copy(&cfg);

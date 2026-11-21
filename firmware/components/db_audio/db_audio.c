@@ -5,6 +5,7 @@
 
 #include "db_board.h"
 #include "db_config.h"
+#include "db_stream.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
@@ -17,6 +18,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "stream.h"
 
 #define RATE    16000
 #define LONGEST (RATE * 3)  /* samples; Find is the longest sound */
@@ -35,10 +37,12 @@ typedef struct {
 typedef struct {
     db_sound_t sound;
     int volume;
-    job_t *job; /* the self-test instead of a sound */
+    job_t *job;       /* the self-test instead of a sound */
+    httpd_req_t *req; /* a stream instead of a sound */
 } play_t;
 
 static QueueHandle_t queue;
+static bool write_failed;
 static esp_codec_dev_handle_t dev;
 static bool broken; /* the codec did not answer once: its bus stays half made, no second try */
 
@@ -165,6 +169,44 @@ static void play(int16_t *pcm, size_t n)
     }
 }
 
+/* Find, a self-test or a newer stream waiting ends this one, as does switching the speaker off. */
+static bool stream_play(void *ctx, int16_t *pcm, size_t n)
+{
+    play_t next;
+    /* other sounds are dropped: the web UI's volume preview and deck sounds would cut the music off */
+    while (xQueuePeek(queue, &next, 0) == pdTRUE && !next.job && !next.req && next.sound != DB_SOUND_FIND) {
+        xQueueReceive(queue, &next, 0);
+    }
+    if (uxQueueMessagesWaiting(queue) || !db_config()->speaker) {
+        return false;
+    }
+    db_stream_gain(pcm, n, db_config()->volume);
+    write_failed = esp_codec_dev_write(dev, pcm, (int)(n * sizeof(int16_t))) != ESP_CODEC_DEV_OK;
+    return !write_failed;
+}
+
+static void stream(int16_t *pcm, httpd_req_t *req)
+{
+    esp_codec_dev_sample_info_t fs = {.sample_rate = RATE, .channel = 1, .bits_per_sample = 16};
+    if (!pcm || !ready() || esp_codec_dev_open(dev, &fs) != ESP_CODEC_DEV_OK) {
+        stream_end(req, pcm ? "the codec does not answer" : "no memory", false);
+        return;
+    }
+    esp_codec_dev_set_out_vol(dev, 85);
+    amp(true);
+    db_stream_io_t io = {stream_recv, stream_play, req};
+    write_failed = false;
+    bool all = db_stream_run(&io, pcm, LONGEST + TAIL, req->content_len);
+    memset(pcm, 0, TAIL * sizeof(int16_t));
+    esp_codec_dev_write(dev, pcm, TAIL * sizeof(int16_t));
+    amp(false);
+    esp_codec_dev_close(dev);
+    if (write_failed) {
+        ESP_LOGW(TAG, "the codec failed during a stream");
+    }
+    stream_end(req, write_failed ? "the codec failed" : NULL, all);
+}
+
 static void audio_task(void *arg)
 {
     int16_t *pcm = heap_caps_calloc(LONGEST + TAIL, sizeof(int16_t), MALLOC_CAP_SPIRAM);
@@ -179,6 +221,10 @@ static void audio_task(void *arg)
                          : !ready() ? ESP_ERR_INVALID_STATE
                                     : check(pcm, p.volume, p.job->c);
             xSemaphoreGive(p.job->done);
+            continue;
+        }
+        if (p.req) {
+            stream(pcm, p.req);
             continue;
         }
         size_t n = pcm ? db_tones_render(p.sound, p.volume, RATE, pcm, LONGEST) : 0;
@@ -227,6 +273,21 @@ esp_err_t db_audio_check(int volume, int gain, db_audio_check_t *out)
     xSemaphoreTake(job.done, portMAX_DELAY);
     vSemaphoreDelete(job.done);
     return job.err;
+}
+
+esp_err_t db_audio_stream(httpd_req_t *req)
+{
+    if (!queue) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    play_t p = {0};
+    if (httpd_req_async_handler_begin(req, &p.req) != ESP_OK) {
+        return ESP_ERR_NO_MEM;
+    }
+    if (xQueueSend(queue, &p, 0) != pdTRUE) {
+        stream_end(p.req, "busy", false);
+    }
+    return ESP_OK;
 }
 
 void db_audio_play(db_sound_t sound)

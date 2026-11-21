@@ -5,14 +5,16 @@ import asyncio
 import base64
 import io
 import json
+import socket
 import socketserver
+import struct
 import subprocess
 import threading
 import time
 from pathlib import Path
 
 import pytest
-from conftest import DISPLAY, ELGATO, MODELS, dismiss_prompt, drawn_since, shot
+from conftest import DISPLAY, ELGATO, MODELS, dismiss_prompt, drawn_since, pictures, shot
 from PIL import Image
 
 from dbtools import protocol as p
@@ -53,15 +55,16 @@ async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(s
         keys = [t for t in dev["displays"][0]["targets"] if t["kind"] == "key"]
         assert keys
         assert sorted(t["index"] for t in keys) == list(range(len(keys)))
-        since = time.time()
+        before = pictures(sim, 0)
         for t in keys:
             img = red(t["w"], t["h"], dev["displays"][0]["format"])
             ack = await bridge.send_image((t["x"], t["y"], t["w"], t["h"]), img)
             assert ack.result == p.AckResult.SHOWN, (t, ack)
-        new = lambda: drawn_since(sim, 0, since)  # noqa: E731
-        assert sim.wait(lambda: new() and all(reddish(Image.open(f)) for f in new()))
-        if model not in ("plus", "plus-xl"):  # the + draws its keys into one LCD image
-            assert len(new()) == len(keys), sorted(f.name for f in new())
+        new = lambda: drawn_since(sim, 0, before)  # noqa: E731
+        want = 1 if model in ("plus", "plus-xl") else len(keys)  # the + draws its keys into one LCD image
+        assert sim.wait(lambda: len(new()) >= want and all(reddish(Image.open(f)) for f in new()))
+        if want > 1:
+            assert len(new()) == want, sorted(f.name for f in new())
         shot(sim, 0, f"{model}-server")
         await asyncio.to_thread(sim.tap, 0, 1)
         got = [await asyncio.wait_for(bridge.inputs.get(), 5) for _ in range(2)]
@@ -229,7 +232,7 @@ def test_companions_library_drives_the_dock(start, model):
     if model != "pedal":
         dismiss_prompt(sim)
     sim.config(controller="companion", host="", setup_done=True)
-    since = time.time()
+    before = pictures(sim, 0) if model != "pedal" else {}
     run = subprocess.Popen(
         ["node", CHECK, "127.0.0.1:5343", "3"], cwd=CHECK.parent, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True,
@@ -242,8 +245,46 @@ def test_companions_library_drives_the_dock(start, model):
     assert f"keys {deck['keys']}" in out or model == "neo", out
     assert '"button-down":1' in out, out
     if model != "pedal":
-        assert drawn_since(sim, 0, since), "the dock host drew nothing"
+        assert drawn_since(sim, 0, before), "the dock host drew nothing"
         shot(sim, 0, f"{model}-dock")
+
+
+def cora(op: int, payload: bytes, flags: int = 0) -> bytes:
+    return struct.pack("<4sHBBII", bytes.fromhex("43938a41"), flags, op, 0, 1, len(payload)) + payload
+
+
+def test_a_dock_host_that_stops_reading_does_not_hold_up_presses(start):
+    sim = start("mk2")
+    dismiss_prompt(sim)
+    sim.config(controller="companion", host="", setup_done=True)
+    dock = socket.create_connection(("127.0.0.1", 5343))
+    device = socket.socket()
+    device.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)  # a small window, so the bridge's buffer fills
+    device.connect(("127.0.0.1", 5344))
+    try:
+        # Companion's questions on both ports; the device port is never read again
+        dock.sendall(cora(2, b"\x03\x80"))
+        device.sendall(cora(2, b"\x03\x1c"))
+        assert sim.wait(lambda: sim.status()["decks"][0]["writer"] == "dock1", 5), sim.status()["decks"]
+        seq = max((e["seq"] for e in json.loads(sim.api("GET", "/api/input/log")[1])), default=0)
+        slowest = 0.0
+        for _ in range(400):  # up to 16000 reports of 528 bytes: past what the socket buffers hold
+            try:
+                for sock in (dock, device):
+                    sock.sendall(cora(0, b"\x03\x1a"))  # unanswered, keeps the host from timing out
+            except OSError:
+                break  # the bridge dropped the host that stopped reading
+            since = time.monotonic()
+            sim.act(*["0 key 0 1", "0 key 0 0"] * 20)  # 40 reports fit the deck's input queue
+            seq += 40
+            assert sim.wait(lambda n=seq - 1: json.loads(sim.api("GET", f"/api/input/log?since={n}")[1]), 10, 0.01)
+            slowest = max(slowest, time.monotonic() - since)
+        else:
+            raise AssertionError("the stuck host kept its connection and missed presses")
+        assert slowest < 1, f"the presses waited {slowest:.1f} s for the stuck host"
+    finally:
+        dock.close()
+        device.close()
 
 
 def test_a_mirabox_deck_has_no_dock(start):
@@ -286,13 +327,13 @@ def test_a_long_bitmap_id_is_cached_and_drawn_again(start, companion):
     dev, bid = companion.devices[0], "f" * 64
     companion.send("BITMAP-CACHE OK")
     rgb = base64.b64encode(bytes([220, 20, 20]) * 72 * 72).decode()
-    first = time.time()
+    first = pictures(sim, 0)
     companion.send(f'KEY-STATE DEVICEID="{dev}" CONTROLID="0/0" BITMAP="{rgb}" BITMAP_ID="{bid}"')
     assert sim.wait(lambda: any(x.startswith(f'BITMAP-COST BITMAP_ID="{bid}"') for x in companion.lines), 5)
     assert sim.wait(lambda: drawn_since(sim, 0, first), 5)
     time.sleep(0.3)
-    since = time.time()
+    before = pictures(sim, 0)
     companion.send(f'KEY-STATE DEVICEID="{dev}" CONTROLID="0/0" BITMAP_ID="{bid}"')
-    assert sim.wait(lambda: drawn_since(sim, 0, since), 5), "the cached picture was not drawn"
+    assert sim.wait(lambda: drawn_since(sim, 0, before), 5), "the cached picture was not drawn"
     time.sleep(1)
     assert companion.devices == [dev], "the long id ended the session"

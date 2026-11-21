@@ -2,7 +2,9 @@
 
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cJSON.h"
@@ -52,7 +54,7 @@ static const char *TAG = "auth";
 static RTC_NOINIT_ATTR struct {
     char token[TOKEN_BYTES * 2 + 1];
     int64_t last_used;
-    bool claimed; /* from the first-browser setup: ends with the setup */
+    bool claimed; /* from the setup claim: ends with the setup */
 } sessions[SESSIONS];
 static RTC_NOINIT_ATTR uint8_t kept_sum[32];
 static uint8_t pass_sha[32]; /* of the password this boot started with: the live one already is the new one */
@@ -78,9 +80,21 @@ static bool known_good(uint32_t ip)
 {
     bool known = false;
     for (int i = 0; i < GOOD_MAX; i++) {
-        known |= good[i] == ip;
+        known |= ip && good[i] == ip; /* the free slots hold 0 */
     }
     return known;
+}
+
+/* An IPv6 address as a key in 240.0.0.0/4, where no IPv4 client is: its first `bytes` bytes. Salted at each
+ * start, so nobody can pick an address that lands on the owner's key. */
+static uint32_t salt;
+static uint32_t fold6(const struct in6_addr *a, int bytes)
+{
+    uint32_t h = 2166136261u ^ salt; /* FNV-1a */
+    for (int i = 0; i < bytes; i++) {
+        h = (h ^ a->s6_addr[i]) * 16777619u;
+    }
+    return htonl(0xF0000000u | (h & 0x0FFFFFFFu));
 }
 
 typedef struct {
@@ -125,7 +139,8 @@ static bool session_valid(const char *token)
     return ok;
 }
 
-/* The peer's address, or with `local` the address the request came in on. */
+/* The peer's address, or with `local` the address the request came in on. An IPv6 one is folded: lwIP serves
+ * the web on link-local IPv6 too. */
 static uint32_t sock_ip(httpd_req_t *req, bool local)
 {
     struct sockaddr_in6 addr; /* lwIP reports IPv4 peers as IPv4-mapped IPv6 */
@@ -139,7 +154,7 @@ static uint32_t sock_ip(httpd_req_t *req, bool local)
         return ((struct sockaddr_in *)&addr)->sin_addr.s_addr;
     }
     if (!IN6_IS_ADDR_V4MAPPED(&addr.sin6_addr)) {
-        return 0;
+        return fold6(&addr.sin6_addr, 16);
     }
     uint32_t v4;
     memcpy(&v4, (const uint8_t *)&addr.sin6_addr + 12, 4); /* the last 4 bytes of ::ffff:a.b.c.d */
@@ -172,8 +187,7 @@ static uint32_t client_ip(httpd_req_t *req)
     return forwarded_for(req, &proxy, xff) ? db_client_ip(peer_ip(req), proxy, xff) : peer_ip(req);
 }
 
-/* The client_ip, but an IPv6 client behind the proxy gets its /64 (one host may use any address in it) folded
- * into 240.0.0.0/4, where no IPv4 client is. */
+/* The client_ip, but an IPv6 client behind the proxy by its /64: one host may use any address in it. */
 static uint32_t lock_key(httpd_req_t *req)
 {
     uint32_t proxy;
@@ -187,16 +201,101 @@ static uint32_t lock_key(httpd_req_t *req)
     if (inet_pton(AF_INET6, last + strspn(last, " \t"), &a) != 1) {
         return db_client_ip(peer_ip(req), proxy, xff);
     }
-    uint32_t h = 2166136261u; /* FNV-1a */
-    for (int i = 0; i < 8; i++) {
-        h = (h ^ a.s6_addr[i]) * 16777619u;
+    return fold6(&a, 8);
+}
+
+uint32_t auth_asker(httpd_req_t *req)
+{
+    struct sockaddr_in6 a;
+    socklen_t len = sizeof(a);
+    if (getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&a, &len) == 0 &&
+        a.sin6_family == AF_INET6 && !IN6_IS_ADDR_V4MAPPED(&a.sin6_addr)) {
+        return fold6(&a.sin6_addr, 8); /* never the proxy: that one is IPv4 */
     }
-    return htonl(0xF0000000u | (h & 0x0FFFFFFFu));
+    return lock_key(req);
+}
+
+#define PAUSE_US (60 * 1000000LL)
+#define PAUSED   8
+static struct {
+    uint32_t key;
+    int64_t end;       /* of its own page: the deck menu may show the same page again later */
+} raised[DB_UI_PAGES]; /* under mux */
+static struct {
+    uint32_t key;
+    db_ui_page_t page;
+    int64_t until;
+} paused[PAUSED]; /* under mux */
+
+/* Under mux. The oldest entry makes room. */
+static void hold(uint32_t key, db_ui_page_t page, int64_t end)
+{
+    int k = 0;
+    for (int i = 1; i < PAUSED; i++) {
+        k = paused[i].until < paused[k].until ? i : k;
+    }
+    paused[k] = (typeof(paused[0])){key, page, end + PAUSE_US};
+}
+
+int auth_paused_s(db_ui_page_t page, uint32_t key)
+{
+    int64_t now = esp_timer_get_time();
+    int64_t end = db_ui_page_end(page);
+    bool yes = page == DB_UI_LOGIN && db_ui_login_answer() == 1;
+    int64_t until = 0;
+    portENTER_CRITICAL(&mux);
+    if (raised[page].key && now >= end) {
+        if (!yes) {
+            hold(raised[page].key, page, end < raised[page].end ? end : raised[page].end);
+        }
+        raised[page].key = 0;
+    }
+    for (int i = 0; i < PAUSED; i++) {
+        until = paused[i].key == key && paused[i].page == page && paused[i].until > until ? paused[i].until
+                                                                                          : until;
+    }
+    portEXIT_CRITICAL(&mux);
+    return now < until ? (int)((until - now + 999999) / 1000000) : 0;
+}
+
+void auth_raised(db_ui_page_t page, uint32_t key)
+{
+    int64_t now = esp_timer_get_time();
+    int64_t end = db_ui_page_end(page);
+    portENTER_CRITICAL(&mux);
+    if (raised[page].key && raised[page].key != key) { /* its page was taken over without a Yes */
+        hold(raised[page].key, page, now);
+    }
+    raised[page].key = key;
+    raised[page].end = end;
+    portEXIT_CRITICAL(&mux);
+}
+
+/* true when this client's last page there ended without a Yes in the last minute; then it has its 429 */
+static bool paused_reply(httpd_req_t *req, db_ui_page_t page)
+{
+    int wait = auth_paused_s(page, auth_asker(req));
+    if (wait) {
+        static char after[2][8]; /* lives until the reply is sent, one per server like set_cookie's */
+        char *a = after[web_tls(req)];
+        snprintf(a, sizeof(after[0]), "%d", wait);
+        char msg[80];
+        snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"paused\",\"code\":\"paused\",\"retry\":%d}",
+                 wait);
+        httpd_resp_set_status(req, "429 Too Many Requests");
+        httpd_resp_set_hdr(req, "Retry-After", a);
+        send_json(req, msg);
+    }
+    return wait;
 }
 
 static void ip_str(uint32_t ip, char out[16])
 {
     const uint8_t *b = (const uint8_t *)&ip;
+    if (b[0] >= 240) { /* a fold6 key, not an address */
+        strlcpy(out, "IPv6", 16);
+        return;
+    }
     snprintf(out, 16, "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
 }
 
@@ -273,24 +372,37 @@ static void count_try(httpd_req_t *req, bool ok)
     }
 }
 
-static bool basic_auth_ok(httpd_req_t *req)
+static uint32_t pass_gen; /* under mux: a websocket opened with basic auth lives while it stays */
+
+/* Counts no try: basic_auth_ok does. */
+static bool basic_matches(httpd_req_t *req)
 {
     char given[96] = {0};
     if (httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) != ESP_OK ||
-        strncmp(given, "Basic ", 6) != 0 || locked_s(req)) {
+        strncmp(given, "Basic ", 6) != 0) {
         return false;
     }
-    char plain[64];
-    unsigned char expected[96];
+    unsigned char plain[72];
     size_t n = 0;
-    int len = snprintf(plain, sizeof(plain), "admin:%s", db_config()->admin_pass);
-    mbedtls_base64_encode(expected, sizeof(expected) - 1, &n, (const unsigned char *)plain, (size_t)len);
-    expected[n] = '\0';
-    bool ok = equal(given + 6, (const char *)expected);
+    bool ok = mbedtls_base64_decode(plain, sizeof(plain) - 1, &n, (const unsigned char *)given + 6,
+                                    strlen(given + 6)) == 0;
+    plain[ok ? n : 0] = '\0'; /* a failed decode may set n to the size it would need */
+    const char *pass = strchr((const char *)plain, ':');
+    ok = ok && pass && equal(pass + 1, db_config()->admin_pass); /* no users: any name before the colon */
     /* a crash dump carries this stack */
     mbedtls_platform_zeroize(given, sizeof(given));
     mbedtls_platform_zeroize(plain, sizeof(plain));
-    mbedtls_platform_zeroize(expected, sizeof(expected));
+    return ok;
+}
+
+static bool basic_auth_ok(httpd_req_t *req)
+{
+    char kind[7] = "";
+    httpd_req_get_hdr_value_str(req, "Authorization", kind, sizeof(kind)); /* too long is fine: a prefix */
+    if (strcmp(kind, "Basic ") != 0 || locked_s(req)) {
+        return false;
+    }
+    bool ok = basic_matches(req);
     count_try(req, ok);
     return ok;
 }
@@ -423,6 +535,7 @@ void auth_end_sessions(void)
 {
     portENTER_CRITICAL(&mux);
     memset(sessions, 0, sizeof(sessions));
+    pass_gen++;
     portEXIT_CRITICAL(&mux);
 }
 
@@ -477,6 +590,9 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
 {
     char given[96] = {0};
     size_t cap = AUTH_KEY_LEN - 1;
+    portENTER_CRITICAL(&mux);
+    uint32_t gen = pass_gen; /* before the password check: a change in between leaves it stale */
+    portEXIT_CRITICAL(&mux);
     key[0] = '\0';
     if (auth_by_token(req) &&
         httpd_req_get_hdr_value_str(req, "Authorization", given, sizeof(given)) == ESP_OK) {
@@ -487,6 +603,10 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
     } else if (httpd_req_get_cookie_val(req, COOKIE(req), key + 1, &cap) == ESP_OK &&
                session_valid(key + 1)) {
         key[0] = 's';
+    } else if (auth_via_ap(req)) {
+        strcpy(key, "a");
+    } else if (basic_matches(req)) {
+        snprintf(key, AUTH_KEY_LEN, "p%08" PRIx32, gen);
     }
     mbedtls_platform_zeroize(given, sizeof(given));
 }
@@ -494,10 +614,25 @@ void auth_login_of(httpd_req_t *req, char key[AUTH_KEY_LEN])
 bool auth_login_alive(const char *key)
 {
     uint8_t sha[32];
-    if (key[0] == 's') {
+    db_net_status_t n;
+    unsigned long gen = strtoul(key + 1, NULL, 16);
+    bool same;
+    switch (key[0]) {
+    case 's':
         return session_alive(key + 1);
+    case 't':
+        return db_config_pin(key + 1, sha) && token_by_sha(sha) >= 0;
+    case 'a':
+        db_net_status(&n);
+        return n.ap_active;
+    case 'p':
+        portENTER_CRITICAL(&mux);
+        same = key[1] && gen == pass_gen;
+        portEXIT_CRITICAL(&mux);
+        return same;
+    default:
+        return false;
     }
-    return key[0] == 't' && db_config_pin(key + 1, sha) && token_by_sha(sha) >= 0;
 }
 
 esp_err_t auth_login(httpd_req_t *req)
@@ -524,10 +659,14 @@ esp_err_t auth_password_show(httpd_req_t *req)
     if (!auth_marked(req)) {
         return send_error(req, "403 Forbidden", "X-DeckConnector header missing");
     }
+    if (paused_reply(req, DB_UI_PASSWORD)) {
+        return ESP_OK;
+    }
     int decks = db_ui_show_password();
     if (!decks) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    auth_raised(DB_UI_PASSWORD, auth_asker(req));
     char reply[32];
     snprintf(reply, sizeof(reply), "{\"ok\":true,\"decks\":%d}", decks);
     return send_json(req, reply);
@@ -542,10 +681,14 @@ esp_err_t auth_password_reset(httpd_req_t *req)
         db_ui_cancel_reset();
         return send_json(req, "{\"ok\":true}");
     }
+    if (paused_reply(req, DB_UI_RESET)) {
+        return ESP_OK;
+    }
     int left = db_ui_ask_reset();
     if (left < 0) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    auth_raised(DB_UI_RESET, auth_asker(req));
     char reply[32];
     snprintf(reply, sizeof(reply), "{\"ok\":true,\"s\":%d}", left);
     return send_json(req, reply);
@@ -599,6 +742,9 @@ esp_err_t auth_login_request(httpd_req_t *req)
     if (!ok) {
         return send_error(req, "400 Bad Request", "who: a label of up to 48 characters");
     }
+    if (paused_reply(req, DB_UI_LOGIN)) {
+        return ESP_OK;
+    }
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&mux);
     bool soon = ask_cur >= 0 && now - ask_last < ASK_AGAIN_US;
@@ -609,6 +755,7 @@ esp_err_t auth_login_request(httpd_req_t *req)
     if (!db_ui_ask_login(client_ip(req), who, ASK_S)) {
         return send_error(req, "409 Conflict", "no deck attached");
     }
+    auth_raised(DB_UI_LOGIN, auth_asker(req));
     uint8_t raw[ASK_ID / 2];
     char id[ASK_ID + 1];
     esp_fill_random(raw, sizeof(raw));
@@ -696,25 +843,35 @@ static int64_t started; /* esp_timer counts from the host's start in the simulat
 
 /* Open only where a first start or a factory reset wrote 0; a device from an older firmware has no key:
  * closed */
+static bool claim_closed; /* this boot, also when NVS could not keep it */
+
 static bool claim_open(void)
 {
     nvs_handle_t h;
     uint8_t used = 1;
-    if (nvs_open("web", NVS_READONLY, &h) == ESP_OK) {
-        nvs_get_u8(h, "claimed", &used);
+    esp_err_t err = nvs_open("web", NVS_READONLY, &h);
+    if (err == ESP_OK) {
+        err = nvs_get_u8(h, "claimed", &used);
         nvs_close(h);
     }
-    return !used;
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE(TAG, "setup claim not read, so closed: %s", esp_err_to_name(err));
+    }
+    return !claim_closed && !used;
 }
 
 esp_err_t auth_claim_close(void)
 {
+    claim_closed = true;
     nvs_handle_t h;
     esp_err_t err = nvs_open("web", NVS_READWRITE, &h);
     if (err == ESP_OK) {
         err = nvs_set_u8(h, "claimed", 1);
         err = err == ESP_OK ? nvs_commit(h) : err;
         nvs_close(h);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "setup claim closed until the next start only: %s", esp_err_to_name(err));
     }
     return err;
 }
@@ -749,7 +906,6 @@ bool auth_host_is_local(httpd_req_t *req)
 
 esp_err_t auth_setup_claim(httpd_req_t *req)
 {
-    static bool busy;
     if (!auth_marked(req) || !auth_host_is_local(req)) {
         return send_error(req, "403 Forbidden", "X-DeckConnector header or local address missing");
     }
@@ -759,15 +915,8 @@ esp_err_t auth_setup_claim(httpd_req_t *req)
     if (esp_timer_get_time() - started > CLAIM_S * 1000000LL) {
         return send_error(req, "409 Conflict", "too late");
     }
-    portENTER_CRITICAL(&mux);
-    bool first = !busy;
-    busy = true;
-    portEXIT_CRITICAL(&mux);
-    if (!first || !claim_open()) {
+    if (!claim_open()) {
         return send_error(req, "409 Conflict", "claimed");
-    }
-    if (auth_claim_close() != ESP_OK) {
-        return send_error(req, "500 Internal Server Error", "saving failed");
     }
     char who[16];
     ip_str(client_ip(req), who);
@@ -1324,6 +1473,7 @@ static void restore_sessions(void)
 void auth_start(void)
 {
     started = esp_timer_get_time();
+    salt = esp_random();
     restore_sessions();
     nvs_handle_t h;
     size_t len = sizeof(tokens);

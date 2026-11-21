@@ -21,6 +21,8 @@ interface Exports {
   deck_act_value(): number
   deck_screen(update: number): number
   deck_render(): number
+  deck_tone(volume: number): number
+  deck_pcm(): number
 }
 
 /** ui_model_t by its C field names. */
@@ -113,3 +115,12 @@ export function renderUi(w: number, h: number) {
   g.putImageData(img, 0, 0)
   return c.toDataURL('image/png')
 }
+
+/** The board's sound `name` at `volume` (0 to 100) as firmware/components/db_audio plays it, at TONE_RATE; empty
+ * for an unknown name. */
+export function tone(name: string, volume: number) {
+  put(name)
+  const n = x.deck_tone(volume)
+  return new Int16Array(x.memory.buffer, x.deck_pcm(), n).slice()
+}
+export const TONE_RATE = 16000

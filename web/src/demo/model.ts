@@ -1,5 +1,6 @@
 import { DO, INPUT, withUi, type UiModel } from './deck-ui'
 import type { api } from '../api/client'
+import { passwordError } from '../lib/validate'
 import type {
   Config,
   ConfigPatch,
@@ -50,7 +51,7 @@ export interface Faces {
 }
 
 export interface Demo {
-  v: 11
+  v: 12
   bootAt: number
   /** A restart: answers stop at downFrom (1 s after it was asked, like the firmware) until downUntil. */
   downFrom: number
@@ -128,6 +129,7 @@ export const DECK: DeckInfo = {
   encoders: 4,
   width: 800,
   height: 480,
+  touch: true,
   usb_speed: 'high',
   hub: false,
 }
@@ -152,7 +154,7 @@ export const PASS = 'studio-demo'
 export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {}): Demo {
   const setup = !!o.setup
   return {
-    v: 11,
+    v: 12,
     bootAt: now - (setup ? 40_000 : 3 * 3600_000 + 17 * 60_000),
     downFrom: 0,
     downUntil: 0,
@@ -191,6 +193,10 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       max_decks: 2,
       screen_off_s: 0,
       screen_dim: 0,
+      // updated from v0.9.0 three hours ago: the star note shows once
+      star_off: false,
+      star_fw: setup ? '' : 'v0.9.0',
+      star_until: 0,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,
@@ -580,6 +586,7 @@ export function status(s: Demo, now: number): Status {
     decks: [{ ...deck(s), slot: 0, number: 1, writer: w, brightness: c.brightness, locked: false }],
     decks_over_limit: 0,
     https_custom: s.tls,
+    https_custom_unread: false,
     https_ca: s.tls ? '' : '7C2E 91A4 D06B 3F58',
     network: {
       lan: { cable: true, dead: false, ip: lanIp(s) },
@@ -624,6 +631,7 @@ export function status(s: Demo, now: number): Status {
       heap_min_free: 289_440,
       psram_free: 32_180_000,
       heap_largest: 208_896,
+      heap_lp_free: 9_216,
       psram_largest: 30_932_992,
       tasks: 37,
       sockets: 9,
@@ -647,7 +655,7 @@ export const config = (s: Demo): Config => ({
   matter: s.matter.on,
 })
 
-const LIVE: (keyof ConfigPatch)[] = [
+export const LIVE: (keyof ConfigPatch)[] = [
   'brightness',
   'volume',
   'speaker',
@@ -670,6 +678,9 @@ const LIVE: (keyof ConfigPatch)[] = [
   'max_decks',
   'screen_off_s',
   'screen_dim',
+  'star_off',
+  'star_fw',
+  'star_until',
   'wifi2_ssid',
   'wifi2_pass',
   'matter',
@@ -677,7 +688,8 @@ const LIVE: (keyof ConfigPatch)[] = [
 
 const NAME = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,29}[A-Za-z0-9])?$/
 
-export type Reply = { status: number; body: unknown }
+/** `pcm`: what the board's speaker plays, at TONE_RATE. */
+export type Reply = { status: number; body: unknown; pcm?: Int16Array }
 type Api = typeof api
 /** A 200 reply typed as the page reads it. `more` holds fields the firmware sends that the page does not read. */
 export const res = <K extends keyof Api>(_route: K, body: Awaited<ReturnType<Api[K]>>, more: object = {}): Reply => ({
@@ -689,7 +701,7 @@ const bad = (status: number, error: string, code?: string): Reply => ({ status, 
 /** PUT /api/config. A change outside LIVE restarts the bridge, like the firmware. */
 export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   if (p.name !== undefined && !NAME.test(p.name)) return bad(400, 'name: 1 to 31 letters, digits and dashes')
-  if (p.admin_pass !== undefined && (p.admin_pass.length < 6 || p.admin_pass.length > 23))
+  if (p.admin_pass !== undefined && (!p.admin_pass || passwordError(p.admin_pass)))
     return bad(400, 'admin_pass: 6 to 23 characters')
   if (p.servers && p.servers.some((u) => u && !/^wss?:\/\/\S+$/.test(u))) return bad(400, 'servers: ws:// or wss://')
   if (p.brightness !== undefined && (p.brightness < 0 || p.brightness > 100)) return bad(400, 'brightness: 0 to 100')
@@ -1353,9 +1365,8 @@ export function makeToken(s: Demo, name: string, right: 'control' | 'full'): Rep
   return res('makeToken', { name, right, token: `dc_${tok}` })
 }
 
-/** What a reset confirmed on the deck does: every setting goes, the bridge restarts into setup with a new
- *  password on the deck. */
-function factoryReset(s: Demo, now: number) {
+/** db_ui_factory_reset: every setting goes, the bridge restarts into setup with a new password on the deck. */
+export function factoryReset(s: Demo, now: number) {
   const f = fresh(now, { setup: true })
   const abc = 'abcdefghjkmnpqrstuvwxyz23456789'
   const pass = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => abc[b % abc.length]).join('')
@@ -1367,6 +1378,7 @@ function factoryReset(s: Demo, now: number) {
     claimed: false,
     requested: true,
     tls: false,
+    pagePartition: null,
     matter: f.matter,
     setupStep: 0,
   })

@@ -5,13 +5,15 @@ description: Die DeckConnector-Integration für Home Assistant. Tastendrücke al
 
 Die DeckConnector-Integration holt den Connector und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen, jede Drehung und jede Berührung kommt sofort an und kann eine Automation starten. Du stellst die Helligkeit ein, schaltest die Bildschirme aus, wählst die Quelle und siehst, was jedes Deck zeigt.
 
-<img loading="lazy" src="/docs/ha-live-de.gif" alt="Ein Dashboard in Home Assistant: ein Tastendruck erscheint im Bild des Decks und als Ereignis, die Helligkeit dimmt das Bild, der Bildschirm geht aus und an" width={860} height={271} />
+<img loading="lazy" src="/docs/ha-live-de.gif" alt="Ein Dashboard in Home Assistant: zwei Tastendrücke erscheinen im Bild des Decks und als Ereignis, dann geht die Helligkeit runter" width={860} height={297} />
+
+<Shot src="ha-board-de" alt="Der Connector in Home Assistant: Bildschirm, Finden, Helligkeit, Lautsprecher, Bildschirm aus nach, Bildschirmschoner-Helligkeit, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={644} height={864} />
 
 <table>
 <tbody>
   <tr>
-    <td width="50%" valign="top"><Shot src="ha-board-de" alt="Der Connector in Home Assistant: Bildschirm, Finden, Helligkeit, Bildschirm aus nach, Lautstärke, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={392} height={874} /></td>
-    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Quelle, PIN-Sperre, Ereignis Bedienung und Neu verbinden" width={392} height={530} /><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Quelle und Bedienung" width={532} height={622} /></td>
+    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Quelle und Ereignis Bedienung" width={392} height={343} /></td>
+    <td width="50%" valign="top"><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Quelle und Bedienung" width={532} height={622} /></td>
   </tr>
 </tbody>
 </table>
@@ -41,16 +43,20 @@ Diese sind zuerst deaktiviert. Schalte sie am Gerät ein, wenn du sie brauchst:
 
 - **WLAN-Signal**, **WLAN-Netz** und **Letzter Neustart** des Connectors.
 - Das Update **Firmware**. Damit fragt der Connector alle 6 Stunden bei GitHub nach neuen Versionen.
-- **PIN-Sperre** eines Decks. Sie zeigt **Verriegelt**, solange Companion das Deck mit seiner PIN sperrt. Ihre zwei Auslöser erscheinen auch als Tasten in einer HomeKit Bridge.
+- **PIN-Sperre** eines Decks. Sie zeigt, ob Companion das Deck mit seiner PIN gesperrt hat.
 - **Neu verbinden** eines Decks. Es schaltet den USB-Anschluss aus und wieder ein, für ein Deck, das hängt.
 
-**Lautstärke** und **Finden** gibt es nur, solange **Lautsprecher angeschlossen** in der Weboberfläche an ist. Ändert sich das, kommen und gehen sie von selbst. **Bildschirm aus nach** ist in Minuten, 0 heißt nie. **Bildschirmschoner-Helligkeit** ist die Stufe, auf die die Decks nach dieser Zeit dimmen. 0 schaltet sie aus.
+**Finden** und den Mediaplayer **Lautsprecher** gibt es nur, solange **Lautsprecher angeschlossen** in der Weboberfläche an ist. Ändert sich das, kommen und gehen sie von selbst. **Bildschirm aus nach** ist in Minuten, 0 heißt nie. **Bildschirmschoner-Helligkeit** ist die Stufe, auf die die Decks nach dieser Zeit dimmen. 0 schaltet sie aus.
+
+Der **Lautsprecher** spielt Sprachausgabe und Audiodateien aus dem Medienbrowser. Home Assistant wandelt sie mit ffmpeg um, also geht jedes Format, das ffmpeg liest. Der Ton ist mono mit 16 kHz. Webradio und Music Assistant gehen auch und spielen, bis du sie stoppst. Ein neues Stück oder **Finden** beendet das laufende.
 
 Der Connector schickt jede Änderung sofort. Signal und Temperatur kommen einmal pro Minute.
 
 ## Automationen
 
-Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht**, **Touchfeld 2 angetippt** oder **Touchleiste nach links gewischt**. Die Touchleiste hat über jedem Drehregler ein Feld.
+Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht**, **Touchfeld 2 angetippt** oder **Touchleiste nach links gewischt**.
+
+<DeckMap lang="de" />
 
 Jedes Deck hat außerdem eine Ereignis-Entität **Bedienung** für YAML und Templates. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Drehung bringt `ticks` mit, eine Berührung `x` und `y`. Tippen und langes Berühren bringen auch das Feld als `zone` mit.
 
@@ -65,13 +71,17 @@ conditions:
     entity_id: event.stream_deck_bedienung
     attribute: event_type
     state: key_3_press
+actions:
+  - action: light.toggle
+    target:
+      entity_id: light.desk
 ```
 
-Die Quelle zeichnet die Tasten. Eine Taste, die auch Companion oder die Elgato-App nutzt, löst beide Aktionen aus.
+Home Assistant zeichnet die Tasten nicht. Das macht die aktive [Quelle](/de/docs/hosts). Ohne Quelle zeigt das Deck seinen Startbildschirm, auf dem einige Tasten Quellen wechseln oder das Menü öffnen. Jeder Tastendruck kommt trotzdem bei Home Assistant an, und eine Taste, die auch eine Quelle nutzt, löst beide Aktionen aus.
 
 ### Blueprint
 
-[![Öffne deine Home-Assistant-Instanz und zeige den Dialog zum Importieren des Blueprints.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
+[Blueprint in Home Assistant importieren](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
 
 **Drehregler dimmt ein Licht.** Nach rechts heller, nach links dunkler. Ein Druck auf den Drehregler schaltet das Licht ein oder aus.
 
@@ -82,7 +92,7 @@ Die [HomeKit Bridge](https://www.home-assistant.io/integrations/homekit/) zeigt 
 ## Gut zu wissen
 
 - Home Assistant spricht mit dem Connector über HTTP auf Port 80.
-- Tastendrücke aus der Weboberfläche oder aus Skripten kommen nie bei Home Assistant an. Home Assistant drückt nie etwas am Deck.
+- Tastendrücke vom Live-Deck der Weboberfläche kommen bei Home Assistant an. Tastendrücke aus Skripten nur mit `"real": true`. Home Assistant drückt nie etwas am Deck.
 - Nach einem Firmware-Update lädt sich die Integration selbst neu, neue Entitäten erscheinen dann.
 - Der Logger heißt `custom_components.deckconnector`.
 

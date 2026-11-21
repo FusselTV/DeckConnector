@@ -14,7 +14,8 @@ const flat = (o: object, p = ''): Flat =>
     ),
   )
 
-// Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device.
+// Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device, nor star_fw and
+// star_until: they move on by themselves, and an old snooze would come back.
 export const WRITABLE = new Set<keyof ConfigPatch>([
   'name',
   'controller',
@@ -42,6 +43,7 @@ export const WRITABLE = new Set<keyof ConfigPatch>([
   'max_decks',
   'screen_off_s',
   'screen_dim',
+  'star_off',
   'dock_paired_only',
   'qr_login',
   'ntp_server',
@@ -49,6 +51,8 @@ export const WRITABLE = new Set<keyof ConfigPatch>([
   ...SECRETS,
 ])
 const RESTARTS = new Set(['name', 'lan', 'wlan', 'wifi_ssid', 'wifi_bssid', 'usb_speed', 'ntp_server'])
+// The firmware restarts when a secret differs from the stored one, which the page cannot see.
+export const restarts = (k: string) => RESTARTS.has(k) || (isSecret(k) && k !== 'wifi2_pass')
 
 interface RestorePlan {
   patch: ConfigPatch
@@ -93,11 +97,10 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
         ? { key, now: isSet[key as (typeof SECRETS)[number]], file: !!fo[key], secret: true }
         : { key, now: fc[key], file: fo[key] },
     )
-  // The firmware restarts when a secret differs from the stored one, which the page cannot see.
   return {
     patch,
     rows,
-    restart: top.some((k) => RESTARTS.has(k) || (isSecret(k) && k !== 'wifi2_pass')) || patch.matter === false,
+    restart: top.some(restarts) || patch.matter === false,
     errors,
   }
 }

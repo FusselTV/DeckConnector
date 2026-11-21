@@ -28,6 +28,7 @@ PLATFORMS = [
     Platform.BUTTON,
     Platform.CAMERA,
     Platform.EVENT,
+    Platform.MEDIA_PLAYER,
     Platform.NUMBER,
     Platform.SELECT,
     Platform.SENSOR,
@@ -59,11 +60,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
     entry.runtime_data = coordinator
     firmware = coordinator.data.get("firmware")
     speaker = bool(coordinator.data.get("speaker"))
+    gone = [(Platform.NUMBER, "volume")]  # older versions had it; the speaker's media player has the volume now
     if not speaker:
-        ent_reg = er.async_get(hass)
-        for platform, key in ((Platform.NUMBER, "volume"), (Platform.BUTTON, "find")):
-            if entity_id := ent_reg.async_get_entity_id(platform, DOMAIN, f"{coordinator.board_id}_{key}"):
-                ent_reg.async_remove(entity_id)
+        gone += [(Platform.BUTTON, "find"), (Platform.MEDIA_PLAYER, "speaker")]
+    ent_reg = er.async_get(hass)
+    for platform, key in gone:
+        if entity_id := ent_reg.async_get_entity_id(platform, DOMAIN, f"{coordinator.board_id}_{key}"):
+            ent_reg.async_remove(entity_id)
     reloading = False
 
     @callback

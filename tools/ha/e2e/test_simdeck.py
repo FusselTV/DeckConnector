@@ -160,7 +160,7 @@ async def test_every_model_gets_its_device_events_triggers_and_camera(sim, ha):
             assert manufacturer == maker, name
             want = 2 * keys + 4 * dials + (4 if touch else 0)
             assert len(types) == want, (name, types)
-            assert n_triggers == keys + 3 * dials + (4 if touch else 0), name  # presses and turns, no releases
+            assert n_triggers == keys + 3 * dials + (4 + 2 * dials if touch else 0), name  # no releases; strip zones
             assert picture == (None if name == "Stream Deck Pedal" else (200, "image/jpeg")), (name, picture)
         WORK.joinpath("events.json").write_text(json.dumps({name: got[name][4] for name in got}))
 
@@ -232,7 +232,7 @@ async def test_the_speaker_setting_adds_and_removes_its_entities(sim, ha):
             return {e["entity_id"] for e in found if e["platform"] == "deckconnector"}
 
         def speaker_ids(ids) -> set[str]:
-            return {i for i in ids if i.endswith(("_volume", "_find"))}
+            return {i for i in ids if i.endswith(("_speaker", "_find"))}
 
         assert not speaker_ids(await registry()), "a new connector has no speaker"
         for on in (True, False, True):

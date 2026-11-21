@@ -15,6 +15,7 @@ export interface DeckInfo {
   encoders?: number
   width?: number
   height?: number
+  touch?: boolean
   usb_speed?: 'high' | 'full'
   hub?: boolean
   surface?: number
@@ -135,6 +136,7 @@ export interface Status {
   setup?: { active?: boolean; step?: number; rerun?: boolean }
   /** HTTPS uses a certificate uploaded with PUT /api/tls instead of the device's own. */
   https_custom?: boolean
+  https_custom_unread?: boolean
   /** The device CA's short fingerprint, also shown on the deck when the CA is downloaded. */
   https_ca?: string
   boot?: { reason?: string; at?: number | null }
@@ -196,6 +198,12 @@ export interface Config {
   screen_off_s: number
   /** After screen_off_s the decks dim to this, 10 to 90 in tens; 0: they go dark. */
   screen_dim: number
+  /** The star note in the web UI: never again. Missing on older firmware, which has no note. */
+  star_off?: boolean
+  /** The firmware the note was last closed on; a newer one shows it again. Empty until the page first saw one. */
+  star_fw?: string
+  /** Closed until this Unix time. */
+  star_until?: number
   dock_paired_only: boolean
   setup_done: boolean
   token_set: boolean

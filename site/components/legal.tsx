@@ -25,7 +25,11 @@ export function legalMeta(lang: Lang, page: keyof typeof legalPath): Metadata {
 
 const DPA = 'https://www.cloudflare.com/cloudflare-customer-dpa/'
 const CF_PRIVACY = 'https://www.cloudflare.com/privacypolicy/'
-const CF_COOKIES = 'https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/'
+const APPLE_PRIVACY = {
+  de: 'https://www.apple.com/legal/privacy/de-ww/',
+  en: 'https://www.apple.com/legal/privacy/en-ww/',
+}
+const TURNSTILE_PRIVACY = 'https://www.cloudflare.com/turnstile-privacy-policy/'
 const CF_ANALYTICS = 'https://developers.cloudflare.com/analytics/account-and-zone-analytics/zone-analytics/'
 
 function Page({ lang, page, children }: { lang: Lang; page: keyof typeof legalPath; children: ReactNode }) {
@@ -112,36 +116,14 @@ export function Privacy({ lang }: { lang: Lang }) {
         lange Cloudflare die Daten speichert, steht in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
       </p>
 
-      <h2>Schutz vor Bots und Cookies</h2>
-      <p>
-        Cloudflare prüft mit „Bot Fight Mode“, ob eine Anfrage von einem Menschen oder einem Programm kommt. Dazu fügt
-        Cloudflare ein kleines Skript in die Seiten ein, das von dieser Website geladen wird (Pfad{' '}
-        <code>/cdn-cgi/challenge-platform/</code>) und in deinem Browser Merkmale prüft. Verdächtigen Anfragen zeigt
-        Cloudflare eine Prüfseite oder lehnt sie ab.
-      </p>
-      <p>Dabei setzt Cloudflare diese Cookies für deckconnector.com:</p>
-      <ul>
-        <li>
-          <code>__cf_bm</code>: Daten zur Bewertung, ob ein Bot anfragt, verschlüsselt. Läuft nach 30 Minuten ohne
-          Aktivität ab.
-        </li>
-        <li>
-          <code>cf_clearance</code>: das Ergebnis der Prüfung, damit sie nicht bei jeder Seite neu läuft. Läuft nach 30
-          Minuten ab.
-        </li>
-      </ul>
-      <p>
-        Laut Cloudflare enthalten die Cookies keine Kennung, die dich über Websites oder Sitzungen hinweg verfolgt, und
-        sind für den Schutz unbedingt nötig. Details stehen in der <a href={CF_COOKIES}>Cookie-Liste von Cloudflare</a>.
-        Andere Cookies setzt diese Website nicht. Rechtsgrundlage und Auftragsverarbeitung sind wie im Abschnitt
-        „Hosting bei Cloudflare“.
-      </p>
+      <h2>Cookies</h2>
+      <p>Diese Website setzt keine Cookies.</p>
 
       <h2>Schutz von E-Mail-Adressen</h2>
       <p>
         Cloudflare ersetzt E-Mail-Adressen in den Seiten durch eine kodierte Form, damit Programme sie nicht einsammeln
         können. Das Skript <code>email-decode.min.js</code>, geladen von dieser Website, macht sie in deinem Browser
-        wieder lesbar.
+        wieder lesbar. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist Schutz vor Spam.
       </p>
 
       <h2>Besucherstatistik von Cloudflare</h2>
@@ -166,15 +148,36 @@ export function Privacy({ lang }: { lang: Lang }) {
         Das Formular schickt deine Angaben an Cloudflare Workers. Von dort gehen sie als E-Mail an mein Postfach. Dabei
         verarbeitet Cloudflare auch die Verbindungsdaten aus dem Abschnitt „Hosting bei Cloudflare“. Cloudflare handelt
         in meinem Auftrag, auf Grundlage desselben Data Processing Addendum. Mein Postfach liegt bei iCloud Mail von
-        Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Dort landen
-        auch E-Mails an die Adresse oben.
+        Apple (Apple Distribution International Ltd., Hollyhill Industrial Estate, Hollyhill, Cork, Irland). Apple
+        speichert die E-Mails als Anbieter meines Postfachs. Dort landen auch E-Mails an die Adresse oben.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, E-Mails zu empfangen. Ob Apple
+        Daten in die USA übermittelt, steht in der <a href={APPLE_PRIVACY.de}>Datenschutzerklärung von Apple</a>.
       </p>
       <p>
         Für jede Anfrage an das Formular schreibt Cloudflare einen Eintrag in die Workers Logs: Zeitpunkt, Adresse und
         Methode der Anfrage, die Header mit deiner IP-Adresse, Daten von Cloudflare zur Verbindung wie dein Land, und ob
         die Anfrage geklappt hat. Mein Code für das Formular schreibt nichts, was du eingibst, in die Logs, nur die
-        Fehlermeldung des Mailservers, wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden. Cloudflare
-        löscht sie nach {owner.logDays} Tagen.
+        Fehlermeldung des Mailservers, wenn das Senden scheitert. Ich nutze die Logs, um Fehler zu finden.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Cloudflare löscht sie nach {owner.logDays} Tagen.
+      </p>
+      <p>
+        Damit niemand das Formular massenhaft nutzt, zählt Cloudflare die Anfragen je IP-Adresse (bei IPv6 je /64-Netz)
+        eine Minute lang und lässt etwa fünf durch. Danach verfällt der Zähler. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+        DSGVO. Mein berechtigtes Interesse ist der Schutz vor Missbrauch.
+      </p>
+      <p>
+        Gegen Spam nutzt das Formular Cloudflare Turnstile von Cloudflare, Inc. (Adresse oben). Das Skript lädt erst,
+        sobald du ein Feld im Formular nutzt, von <code>challenges.cloudflare.com</code>. Es prüft im Hintergrund, ob
+        ein Mensch das Formular nutzt. Dafür verarbeitet Cloudflare deine IP-Adresse, die Kennung deines Browsers und
+        Merkmale deines Browsers und Geräts, zum Beispiel aus der TLS-Verbindung. Nur selten zeigt Turnstile ein
+        Kästchen zum Anklicken. Turnstile setzt kein Cookie. Es legt aber im lokalen Speicher deines Browsers für
+        challenges.cloudflare.com den Eintrag <code>cf.turnstile.u</code> an. Er bleibt, bis du ihn löschst. Das
+        Speichern und Lesen erlaubt § 25 Abs. 2 Nr. 2 TDDDG, weil es für das Formular, das du nutzt, unbedingt nötig
+        ist. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist ein Formular ohne Spam. Für
+        die Prüfung handelt Cloudflare in meinem Auftrag. Nutzt Cloudflare die Daten, um die Erkennung von Bots zu
+        verbessern, ist Cloudflare selbst verantwortlich. Die Übermittlung in die USA stützt sich auf das EU-US Data
+        Privacy Framework (Art. 45 DSGVO). Mehr dazu im <a href={TURNSTILE_PRIVACY}>Turnstile Privacy Addendum</a> und
+        in der <a href={CF_PRIVACY}>Datenschutzerklärung von Cloudflare</a>.
       </p>
       <p>
         Ich lösche deine Nachricht, wenn deine Anfrage erledigt ist, außer ein Gesetz verlangt, sie länger
@@ -203,6 +206,12 @@ export function Privacy({ lang }: { lang: Lang }) {
         Diese Daten bleiben in deinem Browser und werden nicht übertragen. Rechtsgrundlage ist § 25 Abs. 2 Nr. 2 TDDDG,
         denn das Speichern ist für die Funktion nötig, die du ausdrücklich nutzt. Du kannst die Daten in den
         Einstellungen deines Browsers löschen.
+      </p>
+
+      <h2>Die Software DeckConnector</h2>
+      <p>
+        Die Firmware und die Home-Assistant-Integration schicken mir keine Daten. Mit welchen Servern ein Connector
+        spricht, steht in der <a href="/de/docs/network/#internet">Anleitung</a>.
       </p>
 
       <h2>Deine Rechte</h2>
@@ -247,35 +256,14 @@ export function Privacy({ lang }: { lang: Lang }) {
         (Art. 46(2)(c) GDPR). <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a> says how long it keeps the data.
       </p>
 
-      <h2>Bot protection and cookies</h2>
-      <p>
-        Cloudflare uses &quot;Bot Fight Mode&quot; to check whether a request comes from a person or a program. For
-        this, Cloudflare adds a small script to the pages. It loads from this website (path{' '}
-        <code>/cdn-cgi/challenge-platform/</code>) and checks signals in your browser. Cloudflare shows suspicious
-        requests a check page or refuses them.
-      </p>
-      <p>Cloudflare sets these cookies for deckconnector.com:</p>
-      <ul>
-        <li>
-          <code>__cf_bm</code> holds encrypted data for deciding whether a bot is asking. It expires after 30 minutes
-          without activity.
-        </li>
-        <li>
-          <code>cf_clearance</code> holds the result of the check, so it does not run again on every page. It expires
-          after 30 minutes.
-        </li>
-      </ul>
-      <p>
-        Cloudflare says these cookies hold no identifier that follows you across websites or sessions, and that they are
-        strictly necessary for the protection. Details are in <a href={CF_COOKIES}>Cloudflare&apos;s cookie list</a>.
-        This website sets no other cookies. The legal basis and the processing on my behalf are as in the section on
-        hosting.
-      </p>
+      <h2>Cookies</h2>
+      <p>This website sets no cookies.</p>
 
       <h2>Protection of email addresses</h2>
       <p>
         Cloudflare replaces email addresses in the pages with an encoded form, so programs cannot collect them. The
         script <code>email-decode.min.js</code>, loaded from this website, makes them readable again in your browser.
+        The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is protection from spam.
       </p>
 
       <h2>Visitor statistics from Cloudflare</h2>
@@ -300,14 +288,35 @@ export function Privacy({ lang }: { lang: Lang }) {
         The form sends your details to Cloudflare Workers. From there they go as an email to my mailbox. Cloudflare also
         processes the connection data from the section on hosting. Cloudflare acts on my behalf under the same Data
         Processing Addendum. My mailbox is at iCloud Mail by Apple (Apple Distribution International Ltd., Hollyhill
-        Industrial Estate, Hollyhill, Cork, Ireland). Emails to the address above end up there too.
+        Industrial Estate, Hollyhill, Cork, Ireland). Apple stores the emails as the provider of my mailbox. Emails to
+        the address above end up there too. The legal basis is Art. 6(1)(f) GDPR. My legitimate interest is to receive
+        email. <a href={APPLE_PRIVACY.en}>Apple&apos;s privacy policy</a> says whether Apple sends data to the USA.
       </p>
       <p>
         For each request to the form, Cloudflare writes an entry to its Workers Logs. It holds the time, the address and
         method of the request, the headers with your IP address, data from Cloudflare about the connection such as your
         country, and whether the request worked. My code behind the form writes nothing you typed into the logs, only
-        the mail server&apos;s error message when sending fails. I use the logs to find faults. Cloudflare deletes them
-        after {owner.logDays} days.
+        the mail server&apos;s error message when sending fails. I use the logs to find faults. The legal basis is Art.
+        6(1)(f) GDPR. Cloudflare deletes them after {owner.logDays} days.
+      </p>
+      <p>
+        To stop mass use of the form, Cloudflare counts the requests per IP address (per /64 network for IPv6) for one
+        minute and lets about five through. Then the count expires. The legal basis is Art. 6(1)(f) GDPR. My legitimate
+        interest is protection from abuse.
+      </p>
+      <p>
+        Against spam, the form uses Cloudflare Turnstile by Cloudflare, Inc. (address above). The script loads from{' '}
+        <code>challenges.cloudflare.com</code> only once you use a field of the form. It checks in the background
+        whether a person uses the form. For this, Cloudflare processes your IP address, your browser&apos;s identifier
+        and signals from your browser and device, for example from the TLS connection. Only rarely does Turnstile show a
+        box to click. Turnstile sets no cookie. It does keep the entry <code>cf.turnstile.u</code> in your
+        browser&apos;s local storage for challenges.cloudflare.com. It stays until you delete it. Storing and reading
+        are allowed under § 25(2) no. 2 TDDDG, because it is strictly necessary for the form you use. The legal basis is
+        Art. 6(1)(f) GDPR. My legitimate interest is a form without spam. For the check, Cloudflare acts on my behalf.
+        When Cloudflare uses the data to improve its bot detection, Cloudflare is the controller itself. The transfer to
+        the USA is based on the EU-US Data Privacy Framework (Art. 45 GDPR). See the{' '}
+        <a href={TURNSTILE_PRIVACY}>Turnstile Privacy Addendum</a> and{' '}
+        <a href={CF_PRIVACY}>Cloudflare&apos;s privacy policy</a>.
       </p>
       <p>I delete your message when your question is done, unless a law says I must keep it longer.</p>
 
@@ -329,6 +338,12 @@ export function Privacy({ lang }: { lang: Lang }) {
       <p>
         This data stays in your browser and is not sent anywhere. The legal basis is § 25(2) no. 2 TDDDG, because
         storing it is needed for a function you asked for. You can delete it in your browser&apos;s settings.
+      </p>
+
+      <h2>The DeckConnector software</h2>
+      <p>
+        The firmware and the Home Assistant integration send me no data. The <a href="/docs/network/#internet">docs</a>{' '}
+        list the servers a connector talks to.
       </p>
 
       <h2>Your rights</h2>

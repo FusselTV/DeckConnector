@@ -123,7 +123,7 @@ static void send_job(job_t *job)
             e.fds[i] = -1; /* gone */
             continue;
         }
-        if (e.login[i][0] && !auth_login_alive(e.login[i])) {
+        if (!auth_login_alive(e.login[i])) {
             httpd_sess_trigger_close(job->server, fd);
             e.fds[i] = -1;
             continue;
@@ -499,10 +499,12 @@ static void command(httpd_handle_t server, int fd, const char *text)
         bool set = t->valuestring[0] == 's';
         bool token = false;
         bool any_token = false;
+        bool listed = false;
         char login[AUTH_KEY_LEN] = "";
         xSemaphoreTake(e.lock, portMAX_DELAY);
         for (int i = 0; i < CLIENTS; i++) {
             if (e.fds[i] == fd && e.servers[i] == server) {
+                listed = true;
                 token |= e.limited[i];
                 any_token |= e.by_token[i];
                 strcpy(login, e.login[i]);
@@ -512,7 +514,8 @@ static void command(httpd_handle_t server, int fd, const char *text)
         cJSON_DeleteItemFromObjectCaseSensitive(root, "t");
         cJSON_DeleteItemFromObjectCaseSensitive(root, "id");
         char *body = cJSON_PrintUnformatted(root);
-        if (login[0] && !auth_login_alive(login)) {
+        /* off the list (evicted, or its login ended) but not closed yet: its rights are gone with its slot */
+        if (!listed || !auth_login_alive(login)) {
             snprintf(reply, sizeof(reply), "{\"ok\":false,\"error\":\"login required\"}");
             code = 401;
         } else if (set && token) {

@@ -1,4 +1,5 @@
-// Builds src/demo/deck-ui.wasm: the firmware's db_ui code (pages, input, drawing, font) for the demo's deck.
+// Builds src/demo/deck-ui.wasm: the firmware's db_ui code (pages, input, drawing, font) and its speaker tones
+// for the demo's deck.
 // Uses zig's clang from PyPI through uv, so nothing but uv has to be installed. Skips when nothing changed.
 import { execFileSync } from 'node:child_process'
 import { readdirSync, statSync } from 'node:fs'
@@ -11,7 +12,7 @@ const out = join(root, 'web/src/demo/deck-ui.wasm')
 const sources = [
   join(root, 'web/src/demo/deck-ui.c'),
   ...['screens.c', 'render.c', 'canvas.c', 'font_data.c'].map((f) => join(ui, f)),
-  ...['db_driver.c', 'db_device.c', 'db_screen.c'].map((f) => join(core, f)),
+  ...['db_driver.c', 'db_device.c', 'db_screen.c', 'db_tones.c'].map((f) => join(core, f)),
   ...readdirSync(join(core, 'drivers'))
     .filter((f) => f.endsWith('.c'))
     .map((f) => join(core, 'drivers', f)),

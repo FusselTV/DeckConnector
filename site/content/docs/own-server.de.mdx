@@ -8,10 +8,10 @@ Dein Server rendert die Bilder. Der Connector zeigt sie an und schickt jeden Dru
 ## Verbindung
 
 - Der Connector ist der Client. Er öffnet bis zu vier URLs aus **Quellen** mit dem Subprotokoll `deckconnector.v1`.
-- Ist die Liste leer, findet sie Server, die `_deckconnector._tcp` per mDNS anmelden, und öffnet `ws://<adresse>:<port>/deckbridge`.
+- Ist die Liste leer, findet er Server, die `_deckconnector._tcp` per mDNS anmelden, und öffnet `ws://<adresse>:<port>/deckbridge`.
 - `wss://` braucht ein Zertifikat einer öffentlichen CA für diesen Host oder den SHA-256-Pin dieses Servers.
 - Damit dein Server prüfen kann, wer sich verbindet, setz `token` in den [Einstellungen](/de/docs/api#einstellungen). Der Connector schickt ihn als `Authorization: Bearer` an die Server, die du eingetragen hast.
-- Der erste verbundene Server ist **aktiv**, die anderen stehen auf **Standby**. Nur der aktive zeichnet und bekommt Eingaben.
+- Der Server aus `host` ist **aktiv**, wenn er verbunden ist. Sonst ist es der erste verbundene Server der Liste. Die anderen stehen auf **Standby**. Nur der aktive zeichnet und bekommt Eingaben.
 - Fällt er weg, wird der nächste aktiv, bekommt eine `role`-Nachricht und muss alle Bereiche neu zeichnen. Bis dahin zeigt das Deck, was dieser Server zuletzt gezeichnet hat. Das kann alt sein.
 - Der aktive Server bekommt `role` auch, wenn das Menü oder ein Update über sein Bild gezeichnet hat.
 - Solange Companion oder die Elgato-App die aktive Quelle ist, stehen alle Server auf Standby. Siehe [Quellen](/de/docs/hosts).
@@ -21,7 +21,7 @@ Text-Frames tragen JSON. Binäre Frames tragen Bilder, Bestätigungen, Eingaben 
 
 ## Koordinaten
 
-Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganzen Glas. Tasten und Leisten sind Rechtecke darin. Schick jedes Rechteck aus `targets` des Displays, den USB-Befehl wählt der Connector. Wende Drehung und Spiegelung an, bevor du das JPEG kodierst.
+Jedes Display hat ein Pixel-Koordinatensystem, Ursprung oben links auf dem ganzen Glas. Tasten und Leisten sind Rechtecke darin. Schick jedes Rechteck aus `targets` des Displays, den USB-Befehl wählt der Connector. Wende Drehung und Spiegelung an, bevor du das Bild kodierst. `format` ist `jpeg`, beim Mini und beim Module 6 `bmp`. `max_bytes` ist, wenn vorhanden, das größte Bild, das das Display nimmt.
 
 ## Vom Connector
 
@@ -49,7 +49,7 @@ Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele
 {"t": "ota", "target": "p4", "state": "error", "error": "signature"}
 ```
 
-`status` hat die Felder von [`GET /api/status`](/de/docs/api#status) ohne `memory`. OTA-`state` ist `download`, `verify`, `done` oder `error`. Nach `done` startet der Connector neu.
+`status` hat die Felder von [`GET /api/status`](/de/docs/api#status) ohne `memory`, `boot_ms`, `temp_c` und `via_ap`. OTA-`state` ist `download`, `verify`, `done` oder `error`. Nach `done` startet der Connector neu.
 
 ## An den Connector
 
@@ -59,7 +59,7 @@ Ein `strip`-Ziel mit `partial: true` nimmt jedes Rechteck darin an. Andere Ziele
 {"t": "reboot"}
 ```
 
-Die signierte Datei bestimmt, für welchen Chip sie ist. `target` kommt nur in den Fortschrittsmeldungen zurück. Siehe [Updates](/de/docs/updates).
+Der Connector nimmt diese nur vom aktiven Server an. `ota` braucht `target`, aber die signierte Datei bestimmt, für welchen Chip sie ist. Siehe [Updates](/de/docs/updates).
 
 ## Binäre Frames
 

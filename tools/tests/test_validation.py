@@ -47,6 +47,10 @@ def put(body: dict) -> tuple[int, str]:
         ({"max_decks": 1.5}, "max_decks"),
         ({"screen_off_s": 60.5}, "screen_off_s"),
         ({"screen_dim": 30.5}, "screen_dim"),
+        ({"star_until": -1}, "star_until"),
+        ({"star_until": 1.5}, "star_until"),
+        ({"star_fw": "v" * 32}, "star_fw"),
+        ({"star_off": 1}, "star_off"),
         ({"lan": {"dhcp": False, "ip": "10.0.0.08", "mask": "255.255.255.0"}}, "IPv4"),
         ({"wlan": {"dhcp": False, "ip": "10.0.0.5", "mask": "255.255.255.0", "gateway": "10.0.0.010"}}, "IPv4"),
         ({"lan": {"dhcp": True, "dns": " 1.1.1.1"}}, "IPv4"),
@@ -103,7 +107,7 @@ def test_a_stored_address_now_refused_becomes_the_one_applied(tmp_path):
     flash.write_bytes(b"\xff" * 0x90000)
     write_at(flash, 0x8000, table(NEW_TABLE, tmp_path))
     write_at(flash, 0x9000, (tmp_path / "nvs.bin").read_bytes())
-    port = 38280 + WORKER
+    port = 21280 + WORKER
     sim = start_sim(port, DB_SIM_PASSWORD="simulator-pass", DB_SIM_FLASH=str(flash))
     try:
 
@@ -120,16 +124,21 @@ def test_a_stored_address_now_refused_becomes_the_one_applied(tmp_path):
         cfg = call("GET")[1]
         assert cfg["name"] == "sim-old", "the stored settings were loaded"
         assert cfg["speaker"] is True, "set up before the question: its sounds stay"
+        assert (cfg["star_off"], cfg["star_fw"], cfg["star_until"]) == (False, "", 0)
         assert cfg["lan"]["dhcp"] and cfg["lan"]["ip"] == "", "lwip applied no address from 09: DHCP"
         assert (cfg["wlan"]["dhcp"], cfg["wlan"]["ip"], cfg["wlan"]["dns"]) == (False, "10.0.0.8", "1.1.1.1"), (
             "as lwip read them"
         )
-        code, reply = call("PUT", json.dumps({"lan": cfg["lan"], "wlan": cfg["wlan"], "speaker": False}).encode())
-        assert code == 200, reply
+        star = {"star_off": True, "star_fw": "v1.0.0-rc3-1480-gc6d552a-dirty", "star_until": 1900000000}
+        body = {"lan": cfg["lan"], "wlan": cfg["wlan"], "speaker": False, **star}
+        code, reply = call("PUT", json.dumps(body).encode())
+        assert code == 200 and reply["restart"] is False, reply
         sim.kill()
         sim.wait()
         sim = start_sim(port, DB_SIM_PASSWORD="simulator-pass", DB_SIM_FLASH=str(flash))
-        assert call("GET")[1]["speaker"] is False, "turned off, it stays off after a restart"
+        cfg = call("GET")[1]
+        assert cfg["speaker"] is False, "turned off, it stays off after a restart"
+        assert {k: cfg[k] for k in star} == star, "the star note stays closed for every browser"
     finally:
         sim.kill()
         sim.wait()
