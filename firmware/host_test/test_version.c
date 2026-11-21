@@ -66,6 +66,9 @@ static void test_the_newest_release_in_a_feed(void)
     TEST_ASSERT_EQUAL_STRING(REPO, base);
     TEST_ASSERT_TRUE(db_version_newest(feed, true, tag, sizeof(tag), base, sizeof(base)));
     TEST_ASSERT_EQUAL_STRING("v1.3.0-rc1", tag);
+    *strstr(feed, "/releases/tag/v1.1.0") = '\0'; /* a feed cut off at FEED_MAX */
+    TEST_ASSERT_TRUE(db_version_newest(feed, false, tag, sizeof(tag), base, sizeof(base)));
+    TEST_ASSERT_EQUAL_STRING("v1.2.0", tag);
     entry(feed, "v1.1.5", ""); /* a backport above a newer release */
     entry(feed + strlen(feed), "v1.2.0", "");
     TEST_ASSERT_TRUE(db_version_newest(feed, false, tag, sizeof(tag), base, sizeof(base)));
