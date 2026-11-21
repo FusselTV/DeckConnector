@@ -140,6 +140,16 @@ async def test_install_loads_the_offered_file(hass, entry, aioclient_mock, socke
 
 
 @pytest.mark.usefixtures("entity_registry_enabled_by_default")
+async def test_a_refresh_asks_for_a_new_release(hass, entry, aioclient_mock, socket):
+    await setup(hass, entry, aioclient_mock, socket, PLUS)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(CHECK, json={"latest": "v1.1.0"})
+    entity = hass.data["entity_components"]["update"].get_entity(f"update.{BOARD}_firmware")
+    await entity.async_update_ha_state(force_refresh=True)
+    assert hass.states.get(f"update.{BOARD}_firmware").attributes["latest_version"] == "v1.1.0"
+
+
+@pytest.mark.usefixtures("entity_registry_enabled_by_default")
 async def test_install_without_an_offer(hass, entry, aioclient_mock, socket):
     await setup(hass, entry, aioclient_mock, socket, PLUS)
     await offer(hass, aioclient_mock, {"latest": "v1.1.0"})
