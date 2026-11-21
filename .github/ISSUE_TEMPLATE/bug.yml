@@ -1,0 +1,21 @@
+name: Bug
+description: Something does not work as it should. Every field is optional.
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw.
+  - type: input
+    attributes:
+      label: Deck
+      placeholder: Stream Deck +
+  - type: input
+    attributes:
+      label: Board
+      placeholder: Waveshare ESP32-P4-WIFI6-POE-ETH
+  - type: input
+    attributes:
+      label: Firmware version
+      description: In the web UI under Firmware.
+      placeholder: v1.0.1
