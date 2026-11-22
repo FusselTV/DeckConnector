@@ -193,7 +193,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: 4.161.0
+          wranglerVersion: 4.162.0
           command: pages deploy out --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'deckconnector' }} --branch=${{ steps.branch.outputs.name }}
 
   # The contact form's backend (site/contact-worker), from main only: a PR preview has no form backend.
@@ -230,7 +230,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: 4.161.0
+          wranglerVersion: 4.162.0
           workingDirectory: site/contact-worker
           command: deploy
           secrets: |
