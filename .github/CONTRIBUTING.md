@@ -2,6 +2,11 @@
 
 The user docs are on the [website](https://deckconnector.com/docs). This page is for working on the code.
 
+## Pull requests and AI
+
+AI tools are welcome. Say in the pull request that you used one and name the model, for example "Claude Opus 5.5" or
+"GPT-5". You stay responsible for the change: read it, test it, and be ready to explain it.
+
 ## Build
 
 Needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).

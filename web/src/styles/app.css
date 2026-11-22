@@ -2959,19 +2959,58 @@
     gap: 8px;
     flex-wrap: wrap;
   }
-  .notice.star {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  .pop {
+    position: fixed;
+    z-index: 45;
+    right: 24px;
+    bottom: 24px;
+    width: min(400px, calc(100vw - 48px));
   }
-  .notice.star .ntext {
+  .pop:empty,
+  :root:has(.savebar) .pop {
+    display: none;
+  }
+  .popcard {
+    padding: 16px 18px 18px;
+    border: 1px solid var(--line-2);
+    border-radius: 14px;
+    background: var(--panel-2);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  }
+  .pophead {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: -8px;
+  }
+  .pophead .ibtn {
+    margin-block: -10px;
+  }
+  .pophead b {
+    flex: 1;
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .popcard > p {
+    margin: 2px 0 0;
     font-size: 14px;
     color: var(--fg-2);
   }
-  .notice.star .btn.ghost {
-    color: var(--fg-2);
-    font-weight: 400;
+  .popacts {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 8px;
+    margin-top: 16px;
   }
-  .notice.star .ibtn {
-    grid-area: 1/4;
+  .popacts .btn:not(.pri) {
+    border-color: var(--line-2);
+  }
+  :root:has(.pop:not(:empty)) .content {
+    padding-bottom: calc(var(--pop-h, 0px) + 48px);
+  }
+  :root:has(.pop:not(:empty)) .toasts {
+    bottom: calc(var(--pop-h, 0px) + 36px);
   }
   .notice .nprog {
     gap: 8px;
@@ -3151,6 +3190,15 @@
     }
     .savebar {
       bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    }
+    .pop {
+      left: max(12px, env(safe-area-inset-left, 0px));
+      right: max(12px, env(safe-area-inset-right, 0px));
+      bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+    }
+    :root:has(.pop:not(:empty)) .content {
+      padding-bottom: calc(var(--pop-h, 0px) + 96px + env(safe-area-inset-bottom, 0px));
     }
     .shell {
       grid-template-columns: minmax(0, 1fr);

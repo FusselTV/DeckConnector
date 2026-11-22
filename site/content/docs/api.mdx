@@ -153,7 +153,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `POST /api/ota` | A signed `.dbfw` file as the body. Goes into the next slot and restarts. `?slot=N` writes into slot N, `?boot=0` keeps the running firmware | full |
 | `POST /api/ota/url` | `{"url": "https://..."}`, the connector loads the file itself, also behind a redirect. Progress comes over the WebSocket | full |
 | `POST /api/ota/inspect` | The first 144 bytes of a file. Answers `target`, `version`, `length`, `sha256`, and `ok` with `error` | full |
-| `GET /api/update/check` | `{"current": "{{version}}", "latest": null, ...}` | full |
+| `GET /api/update/check` | `{"current": "{{version}}", "latest": null, ...}`. `url` only for a newer release. `?auto=1` is the check at login: 409 while `update_auto` is off, 503 before the clock is set, else the last good answer of the past 24 hours or the last failure of the past 10 minutes | full |
 | `GET /api/slots` | The four slots with `state`, `version`, `running`, `next`, `bootable` and `why_not` | full |
 | `POST /api/slots/<n>/boot` | Restart into slot N. 409 when it cannot start | full |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api`, and `version` for an uploaded one | control |
@@ -199,7 +199,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Key | Values |
@@ -229,6 +229,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `screen_off_s` | Seconds without input until the screen saver starts, 10 to 86400. 0 means never and is the default |
 | `screen_dim` | What the screen saver does. 0 turns every deck dark and is the default. 10 to 90 in steps of 10 dims them to that percent |
 | `star_off`, `star_fw`, `star_until` | The web UI's star note. `star_off` hides it for good. `star_until` hides it until this Unix time. `star_fw` is the firmware someone last closed it on. After an update to a newer one it shows once |
+| `update_auto` | After login the web UI asks for a newer release. `true` by default |
 | `dock_paired_only` | Only paired dock hosts get in |
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |
@@ -237,7 +238,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `admin_pass` | 6 to 23 characters. Password only |
 | `setup_done` | Password only. To run setup again, use `PUT /api/setup` with `{"step": 1}` |
 
-`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `star_off`, `star_fw`, `star_until`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
+`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `star_off`, `star_fw`, `star_until`, `update_auto`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` and `setup_done` work at once. Every other change restarts the connector. The reply then has `reach`, the addresses where the connector will be.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}

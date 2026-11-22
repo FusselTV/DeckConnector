@@ -93,6 +93,11 @@ CONFIG_LWIP_SNTP_MAX_SERVERS=2
 CONFIG_LOG_TIMESTAMP_SOURCE_SYSTEM=y
 # A CPU that runs no idle task for 5 s restarts the bridge instead of only logging it
 CONFIG_ESP_TASK_WDT_PANIC=y
+# A flash erase or write rests 50 ms after every 100 (one 64 KB erase takes about 110): meanwhile the other
+# core waits with its cache off. With the default 1 ms after 20, its tasks fell behind during an update and
+# kept its idle task off it for 5 s.
+CONFIG_SPI_FLASH_ERASE_YIELD_DURATION_MS=100
+CONFIG_SPI_FLASH_ERASE_YIELD_TICKS=50
 
 # Matter: the bridge joins the network itself and Matter commissions over it, without BLE and without its own WLAN
 CONFIG_ENABLE_WIFI_STATION=n

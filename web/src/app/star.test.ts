@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Config } from '../api/types'
-import { starClose, starNever, starShow } from './star'
+import { starClose, starShow } from './star'
 
 const NOW = 1_800_000_000
 const DAY = 86_400
@@ -38,8 +38,8 @@ describe('star card', () => {
     expect(starShow(c, 'v1.1.0', 60, NOW + 1)).toBe(true)
   })
 
-  it('never again stays hidden, also after an update', () => {
-    const c = after(cfg(), starNever('v1.0.0'))
+  it('the switch turned off stays off, also after an update', () => {
+    const c = cfg({ star_off: true, star_fw: 'v1.0.0' })
     expect(starShow(c, 'v1.0.0', DAY * 9, NOW)).toBe(false)
     expect(starShow(c, 'v2.0.0', DAY, NOW)).toBe(false)
   })

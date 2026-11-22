@@ -1,6 +1,8 @@
+import { Download, ExternalLink } from 'lucide-react'
 import { useMemo } from 'react'
 import { api, ApiError } from '../api/client'
-import type { ConfigPatch, Source } from '../api/types'
+import type { ConfigPatch, Source, UpdateCheck } from '../api/types'
+import type { NoticeData } from '../components/Notice'
 import { atom } from '../lib/atom'
 import { expectRestart, refreshConfig, refreshStatus, stopSession } from './connection'
 import { hk, hostKey, hostLabel, hostName } from './derive'
@@ -64,6 +66,20 @@ export function useActions() {
     }
     return {
       pick,
+      updateActs: (u: UpdateCheck & { latest: string; url: string }): NonNullable<NoticeData['acts']> => [
+        {
+          label: t('btn.install'),
+          icon: Download,
+          pri: true,
+          run: () =>
+            void ask({ title: t('upd.cf', { v: u.latest }), body: t('upd.cf_b'), ok: t('btn.install') }).then((ok) =>
+              ok ? act(() => api.otaUrl(u.url)) : undefined,
+            ),
+        },
+        ...(u.notes?.startsWith('https://')
+          ? [{ label: t('upd.notes'), icon: ExternalLink, run: () => window.open(u.notes, '_blank', 'noopener') }]
+          : []),
+      ],
       brightness: (n: number) => act(() => putConfig({ brightness: n })),
       // a short sound at the new level, so the slider can be judged by ear
       volume: (n: number) => act(async () => (await putConfig({ volume: n }), n ? await api.sound('connected') : null)),

@@ -4,7 +4,6 @@ import {
   Cpu,
   DatabaseBackup,
   Download,
-  ExternalLink,
   FileUp,
   KeyRound,
   Globe,
@@ -20,13 +19,13 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
 import type { Config, Frontend, Slot, UpdateCheck } from '../api/types'
-import { putConfig } from '../app/actions'
+import { putConfig, useActions } from '../app/actions'
 import { expectRestart, refreshStatus } from '../app/connection'
 import { loginReasonAtom, toast } from '../app/state'
 import { useStore } from '../app/store'
 import { codeText, errText, useUi } from '../app/ui'
 import { Card } from '../components/Card'
-import { Btn, Choice, describedBy, Field, Help, Seg, SIcon, type Tone } from '../components/controls'
+import { Btn, Choice, describedBy, Field, Help, Seg, SIcon, Switch, type Tone } from '../components/controls'
 import { Modal } from '../components/Dialog'
 import { FilePick } from '../components/InputAction'
 import { KeyValue } from '../components/KeyValue'
@@ -57,7 +56,8 @@ const LABEL: Record<string, TKey> = {
   qr_login: 'access.qr',
   usb_speed: 'deck.speed',
   speaker: 'deck.speaker',
-  star_off: 'star.never',
+  update_auto: 'upd.auto',
+  star_off: 'star.auto',
   matter: 'mt.title',
   dock_paired_only: 'src.only',
   admin_pass: 'access.pw',
@@ -269,7 +269,8 @@ function SaveModal({ close, cfg }: { close: () => void; cfg: Config }) {
 }
 
 function UpdateCheckBox({ lead }: { lead: ReactNode }) {
-  const { t, fmt, act, ask } = useUi()
+  const { t, fmt } = useUi()
+  const a = useActions()
   const fw = useStore((s) => s.status.firmware ?? '')
   const [st, setSt] = useState<
     | { state: 'idle' | 'checking' | 'none' }
@@ -319,26 +320,7 @@ function UpdateCheckBox({ lead }: { lead: ReactNode }) {
             lvl: 'pair',
             title: t('upd.new', { v: st.u.latest }),
             text: t('upd.new_h'),
-            acts: [
-              {
-                label: t('btn.install'),
-                icon: Download,
-                pri: true,
-                run: () =>
-                  void ask({ title: t('upd.cf', { v: st.u.latest }), body: t('upd.cf_b'), ok: t('btn.install') }).then(
-                    (ok) => (ok ? act(() => api.otaUrl(st.u.url)) : undefined),
-                  ),
-              },
-              ...(st.u.notes?.startsWith('https://')
-                ? [
-                    {
-                      label: t('upd.notes'),
-                      icon: ExternalLink,
-                      run: () => window.open(st.u.notes, '_blank', 'noopener'),
-                    },
-                  ]
-                : []),
-            ],
+            acts: a.updateActs(st.u),
           }}
         />
       )}
@@ -589,6 +571,23 @@ export function Firmware() {
         )}
         <OtaProgress />
         <UpdateCheckBox key={st.firmware /* a new version drops the old offer */} lead={install} />
+        {cfg?.update_auto !== undefined && (
+          <Switch
+            id="update-auto"
+            on={cfg.update_auto}
+            onChange={(update_auto: boolean) => act(() => putConfig({ update_auto }))}
+            label={t('upd.auto')}
+            hint={t('upd.auto_h')}
+          />
+        )}
+        {cfg?.star_off !== undefined && (
+          <Switch
+            id="star-auto"
+            on={!cfg.star_off}
+            onChange={(on: boolean) => act(() => putConfig({ star_off: !on }))}
+            label={t('star.auto')}
+          />
+        )}
         <Row
           id="slots"
           icon={Layers}

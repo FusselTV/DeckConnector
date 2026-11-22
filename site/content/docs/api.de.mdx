@@ -153,7 +153,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
 | `POST /api/ota/url` | `{"url": "https://..."}`, der Connector lädt die Datei selbst, auch über eine Weiterleitung. Der Fortschritt kommt über den WebSocket | full |
 | `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
-| `GET /api/update/check` | `{"current": "{{version}}", "latest": null, ...}` | full |
+| `GET /api/update/check` | `{"current": "{{version}}", "latest": null, ...}`. `url` nur bei einem neueren Release. `?auto=1` ist die Prüfung bei der Anmeldung: 409, solange `update_auto` aus ist, 503, solange die Uhr nicht gestellt ist, sonst die letzte gute Antwort der vergangenen 24 Stunden oder der letzte Fehler der vergangenen 10 Minuten | full |
 | `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |
 | `POST /api/slots/<n>/boot` | Neustart in Platz N. 409, wenn er nicht starten kann | full |
 | `GET /api/frontend` | Die aktive Weboberfläche: `source` (`partition` oder `builtin`), `api` und bei einer hochgeladenen `version` | control |
@@ -199,7 +199,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Schlüssel | Werte |
@@ -229,6 +229,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `screen_off_s` | Sekunden ohne Eingabe, bis der Bildschirmschoner startet, 10 bis 86400. 0 heißt nie und ist der Standard |
 | `screen_dim` | Was der Bildschirmschoner tut. 0 schaltet alle Decks dunkel und ist der Standard. 10 bis 90 in Zehnerschritten dimmt sie auf so viel Prozent |
 | `star_off`, `star_fw`, `star_until` | Der Stern-Hinweis im Web-UI. `star_off` blendet ihn für immer aus. `star_until` blendet ihn bis zu dieser Unix-Zeit aus. `star_fw` ist die Firmware, auf der ihn zuletzt jemand geschlossen hat. Nach einem Update auf eine neuere erscheint er einmal |
+| `update_auto` | Nach der Anmeldung fragt das Web-UI nach einem neueren Release. `true` ist Standard |
 | `dock_paired_only` | Nur gekoppelte Dock-Rechner kommen rein |
 | `qr_login` | Login-QR-Code auf dem Deck, bis die Einrichtung fertig ist |
 | `ntp_server` | Leer nimmt den von DHCP, sonst `pool.ntp.org` |
@@ -237,7 +238,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `admin_pass` | 6 bis 23 Zeichen. Nur mit Passwort |
 | `setup_done` | Nur mit Passwort. Für eine neue Einrichtung `PUT /api/setup` mit `{"step": 1}` |
 
-`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `star_off`, `star_fw`, `star_until`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
+`brightness`, `volume`, `speaker`, `controller`, `host`, `servers`, `server_pins`, `satellite`, `satellite_auto`, `satellite_pin`, `https_only`, `cors_origins`, `trusted_proxy`, `menu_chord`, `menu_hold_ms`, `lang`, `max_decks`, `screen_off_s`, `screen_dim`, `star_off`, `star_fw`, `star_until`, `update_auto`, `wifi2_ssid`, `wifi2_pass`, `qr_login`, `dock_paired_only` und `setup_done` wirken sofort. Jede andere Änderung startet den Connector neu. Die Antwort hat dann `reach` mit den Adressen, unter denen der Connector danach zu finden ist.
 
 ```json
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
