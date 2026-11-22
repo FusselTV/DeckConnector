@@ -163,3 +163,27 @@ test('the popup stays on every tab, shows one note at a time, and the star stays
   await expect(page.locator('#card-fw')).toBeVisible()
   await expect(note).toHaveCount(0)
 })
+
+test('the star switch hides the star note across a reload and brings it back when due', async ({ demo: page }) => {
+  await page.goto('?lang=en')
+  const note = page.locator('.pop #ntc-star')
+  const sw = page.locator('#star-auto')
+  await page.locator('.pop #ntc-upd').getByRole('button', { name: en['c.close'] }).click()
+  await expect(note).toBeVisible()
+  await openTab(page, en, 'firmware')
+  await expect(sw).toHaveAttribute('aria-checked', 'true')
+  await sw.click()
+  await expect(note).toHaveCount(0)
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"star_off":true')))
+    .toBe(true)
+  await page.reload()
+  await expect(page.locator('#card-fw')).toBeVisible()
+  await expect(sw).toHaveAttribute('aria-checked', 'false')
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __demoBusy: { n: number } }).__demoBusy.n))
+    .toBe(0)
+  await expect(note).toHaveCount(0)
+  await sw.click()
+  await expect(note).toBeVisible()
+})
