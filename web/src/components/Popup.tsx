@@ -1,17 +1,20 @@
-import { Heart, X } from 'lucide-react'
+import { Heart, Star, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { putConfig } from '../app/actions'
 import { useIssues } from '../app/issues'
-import { starClose, starNever, starShow } from '../app/star'
+import { starClose, starShow } from '../app/star'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
 import { REPO } from '../lib/util'
-import { SIcon } from './controls'
-import { Notice } from './Notice'
+import { ActBtn, type PopData } from './Notice'
+
+const SPONSORS = 'https://github.com/sponsors/FusselTV'
+const open = (url: string) => () => window.open(url, '_blank', 'noopener')
 
 /** One floating card on every tab: a newer release first, the star request only when no release waits. */
 export function Popup() {
   const { offer } = useIssues()
+  const star = useStar()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -21,14 +24,41 @@ export function Popup() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  const p = offer ?? star
   return (
     <div className="pop" ref={ref}>
-      {offer ? <Notice n={offer} /> : <StarNote />}
+      {p && <PopCard p={p} />}
     </div>
   )
 }
 
-function StarNote() {
+export function PopCard({ p }: { p: PopData }) {
+  const { t } = useUi()
+  return (
+    <section className="popcard" id={`ntc-${p.id}`} role="status">
+      <div className="pophead">
+        <b>{p.title}</b>
+        <button
+          type="button"
+          className="ibtn ghost sm"
+          aria-label={t('c.close')}
+          title={t('c.close')}
+          onClick={p.close}
+        >
+          <X size={16} aria-hidden />
+        </button>
+      </div>
+      {p.text && <p>{p.text}</p>}
+      <div className="popacts">
+        {p.acts.map((a) => (
+          <ActBtn key={a.label} a={a} sm={false} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function useStar(): PopData | null {
   const { t, act } = useUi()
   const cfg = useStore((s) => s.config)
   const fw = useStore((s) => s.status.firmware)
@@ -40,32 +70,14 @@ function StarNote() {
     if (first) putConfig({ star_fw: fw }).catch(() => {})
   }, [first, fw])
   if (!cfg || !fw || !starShow(cfg, fw, up, now)) return null
-  const link = (href: string, label: string) => (
-    <a className="btn sm" href={href} target="_blank" rel="noreferrer">
-      {label}
-    </a>
-  )
-  return (
-    <div className="notice info star" id="ntc-star" role="status">
-      <SIcon icon={Heart} size={20} />
-      <span className="ntext">{t('star.text')}</span>
-      <div className="nacts">
-        {link(REPO, t('star.gh'))}
-        {link('https://github.com/sponsors/FusselTV', 'GitHub Sponsors')}
-        {link('https://ko-fi.com/fusseltv', 'Ko-fi')}
-        <button type="button" className="btn sm ghost" onClick={() => void act(() => putConfig(starNever(fw)))}>
-          {t('star.never')}
-        </button>
-      </div>
-      <button
-        type="button"
-        className="ibtn ghost sm"
-        aria-label={t('star.close')}
-        title={t('star.close')}
-        onClick={() => void act(() => putConfig(starClose(fw, Math.floor(Date.now() / 1000))))}
-      >
-        <X size={16} aria-hidden />
-      </button>
-    </div>
-  )
+  return {
+    id: 'star',
+    title: t('star.title'),
+    text: t('star.text'),
+    acts: [
+      { label: t('star.gh'), icon: Star, pri: true, run: open(REPO) },
+      { label: t('star.support'), icon: Heart, run: open(SPONSORS) },
+    ],
+    close: () => void act(() => putConfig(starClose(fw, Math.floor(Date.now() / 1000)))),
+  }
 }

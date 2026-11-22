@@ -3,7 +3,6 @@ import {
   Bug,
   Cable,
   Check,
-  Download,
   EthernetPort,
   LayoutGrid,
   Link2,
@@ -19,7 +18,7 @@ import {
 import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api/client'
 import type { UpdateCheck } from '../api/types'
-import type { NoticeData } from '../components/Notice'
+import type { NoticeData, PopData } from '../components/Notice'
 import { useActions } from './actions'
 import { compDock, decksOf, deckName, hostLabel, KIND_ICON } from './derive'
 import {
@@ -40,7 +39,7 @@ import { refreshConfig } from './connection'
 interface Issues {
   list: NoticeData[]
   notes: NoticeData[]
-  offer?: NoticeData
+  offer?: PopData
 }
 const Ctx = createContext<Issues>({ list: [], notes: [] })
 /** Need-attention items for the top of Overview and the banner on other tabs, worst first. */
@@ -246,25 +245,17 @@ function useIssueList(): Issues {
           },
         ],
       })
-    const offer: NoticeData | undefined =
+    const offer: PopData | undefined =
       auto && upd?.url && upd.latest && upd.current === fw && upd.latest !== updHid
         ? {
             id: 'upd',
-            icon: Download,
-            lvl: 'info',
             title: t('upd.new', { v: upd.latest }),
             text: t('upd.new_h'),
-            acts: [
-              ...a.updateActs({ ...upd, latest: upd.latest, url: upd.url }),
-              {
-                label: t('is.hide'),
-                ghost: true,
-                run: () => {
-                  setUpdHid(upd.latest ?? '')
-                  ss.set('dc.updHide', upd.latest)
-                },
-              },
-            ],
+            acts: a.updateActs({ ...upd, latest: upd.latest, url: upd.url }),
+            close: () => {
+              setUpdHid(upd.latest ?? '')
+              ss.set('dc.updHide', upd.latest)
+            },
           }
         : undefined
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }

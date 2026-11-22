@@ -57,7 +57,7 @@ const LABEL: Record<string, TKey> = {
   usb_speed: 'deck.speed',
   speaker: 'deck.speaker',
   update_auto: 'upd.auto',
-  star_off: 'star.never',
+  star_off: 'star.auto',
   matter: 'mt.title',
   dock_paired_only: 'src.only',
   admin_pass: 'access.pw',
@@ -578,6 +578,14 @@ export function Firmware() {
             onChange={(update_auto: boolean) => act(() => putConfig({ update_auto }))}
             label={t('upd.auto')}
             hint={t('upd.auto_h')}
+          />
+        )}
+        {cfg?.star_off !== undefined && (
+          <Switch
+            id="star-auto"
+            on={!cfg.star_off}
+            onChange={(on: boolean) => act(() => putConfig({ star_off: !on }))}
+            label={t('star.auto')}
           />
         )}
         <Row

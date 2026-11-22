@@ -678,7 +678,7 @@ export const en = {
   'upd.auto': 'Look for updates at login',
   'upd.auto_h': 'Asks GitHub at most once a day and after a restart.',
   'upd.new': 'Firmware {v} is available',
-  'upd.new_h': 'Install downloads the signed file and restarts the connector.',
+  'upd.new_h': 'The connector restarts after it.',
   'upd.notes': 'What is new',
   'upd.cf': 'Install firmware {v}?',
   'upd.cf_b':
@@ -895,8 +895,9 @@ export const en = {
   'ev.matter_failed': 'Matter failed to start: {0}',
   'log.store_settings': 'Only the last 40 events stay over a restart.',
   'log.store_ram': 'No event stays over a restart.',
-  'star.text': 'Like DeckConnector? A GitHub star helps others find it. You can also support the project if you want.',
-  'star.gh': 'Star on GitHub',
-  'star.never': "Don't show again",
-  'star.close': 'Close for now',
+  'star.title': 'Like DeckConnector?',
+  'star.text': 'A star on GitHub helps others find it.',
+  'star.gh': 'Star it',
+  'star.support': 'Support',
+  'star.auto': 'Ask for a GitHub star now and then',
 }

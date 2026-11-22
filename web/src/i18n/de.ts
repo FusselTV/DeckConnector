@@ -693,7 +693,7 @@ export const de: Dict = {
   'upd.auto': 'Bei der Anmeldung nach Updates suchen',
   'upd.auto_h': 'Fragt GitHub höchstens einmal am Tag und nach einem Neustart.',
   'upd.new': 'Firmware {v} ist verfügbar',
-  'upd.new_h': 'Installieren lädt die signierte Datei und startet den Connector neu.',
+  'upd.new_h': 'Der Connector startet danach neu.',
   'upd.notes': 'Was ist neu',
   'upd.cf': 'Firmware {v} installieren?',
   'upd.cf_b':
@@ -915,9 +915,9 @@ export const de: Dict = {
   'ev.matter_failed': 'Matter startet nicht: {0}',
   'log.store_settings': 'Nur die letzten 40 Ereignisse bleiben über einen Neustart.',
   'log.store_ram': 'Kein Ereignis bleibt über einen Neustart.',
-  'star.text':
-    'Gefällt dir DeckConnector? Ein Stern auf GitHub hilft anderen, es zu finden. Wenn du magst, kannst du das Projekt auch unterstützen.',
-  'star.gh': 'Stern auf GitHub',
-  'star.never': 'Nicht mehr zeigen',
-  'star.close': 'Vorerst schließen',
+  'star.title': 'Gefällt dir DeckConnector?',
+  'star.text': 'Ein Stern auf GitHub hilft anderen, es zu finden.',
+  'star.gh': 'Stern geben',
+  'star.support': 'Unterstützen',
+  'star.auto': 'Ab und zu um einen GitHub-Stern bitten',
 }
