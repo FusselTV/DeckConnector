@@ -252,13 +252,17 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
         reject = DB_ACK_REJECTED_RECT;
     } else if (k->dev.info.displays[display].max_bytes && len > k->dev.info.displays[display].max_bytes) {
         reject = DB_ACK_TOO_BIG;
-    } else if (source == DB_SOURCE_SAT && source != k->writer) {
+    } else if ((source == DB_SOURCE_SAT || (source >= DB_SOURCE_LINK0 && source < DB_SOURCE_DOCK0)) &&
+               source != k->writer) {
         /* under the lock: a writer change cannot slip in between and replay the picture without it */
         xSemaphoreTake(k->shot_lock, portMAX_DELAY);
         db_screen_put(&k->screens[source], display, rect, data, len);
         xSemaphoreGive(k->shot_lock);
         xSemaphoreGive(k->lock);
         heap_caps_free(r);
+        if (source != DB_SOURCE_SAT) {
+            ack(&tmp, DB_ACK_SHOWN, 0, 0); /* kept: the menu over it is the deck's own */
+        }
         return;
     } else if (source != k->writer) {
         reject = DB_ACK_REJECTED_ROLE;

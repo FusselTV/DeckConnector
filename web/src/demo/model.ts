@@ -201,7 +201,6 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       update_auto: false,
       dock_paired_only: !setup,
       setup_done: !setup,
-      token_set: false,
     },
     firmware: 'v1.0.0',
     slots: [
@@ -653,7 +652,6 @@ export function wsState(s: Demo, now: number) {
 
 export const config = (s: Demo): Config => ({
   ...s.cfg,
-  token_set: s.tokens.length > 0 && s.cfg.token_set,
   matter: s.matter.on,
 })
 
@@ -714,7 +712,7 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
     ...old,
     ...Object.fromEntries(
       Object.entries(p).filter(
-        ([k]) => !['wifi_pass', 'wifi2_pass', 'admin_pass', 'token', 'lan', 'wlan', 'matter'].includes(k),
+        ([k]) => !['wifi_pass', 'wifi2_pass', 'admin_pass', 'lan', 'wlan', 'matter'].includes(k),
       ),
     ),
     lan: { ...old.lan, ...p.lan },
@@ -722,7 +720,6 @@ export function putConfig(s: Demo, now: number, p: ConfigPatch): Reply {
   }
   if (p.wifi_pass !== undefined) next.wifi_pass_set = !!p.wifi_pass || !next.wifi_ssid
   if (p.wifi2_pass !== undefined) next.wifi2_pass_set = !!p.wifi2_pass
-  if (p.token !== undefined) next.token_set = !!p.token
   if (p.satellite !== undefined && p.satellite !== old.satellite) {
     next.satellite_auto = !!p.satellite
     s.since.satellite = now

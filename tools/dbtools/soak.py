@@ -29,8 +29,6 @@ from dbtools.load import HOST, Client, basic_auth
 from dbtools.safety import settings_to_restore
 from dbtools.server import Server
 
-KEYS = [(13 + 219 * (i % 4), 12 + 160 * (i // 4), 120, 120) for i in range(8)]
-
 
 def jpeg(color, size=(120, 120)) -> bytes:
     import io
@@ -76,7 +74,8 @@ async def round_trip(host: str, auth: str, c: Client, bridge, n: int) -> None:
         with contextlib.suppress(OSError):
             socket.create_connection((host, port), timeout=3).close()
     for i in range(40):  # a server drawing
-        await bridge.send_image(KEYS[i % 8], jpeg(((n * 37 + i * 11) % 255, i * 6, 120)), timeout=10)
+        t = bridge.target(0, "key", i % 8)
+        await bridge.draw(0, t, jpeg(((n * 37 + i * 11) % 255, i * 6, 120), (t["w"], t["h"])), t["id"])
     lazy.close()
 
 
@@ -112,18 +111,21 @@ async def main_async(a) -> None:
         undo.callback(lambda: c.send("POST", "/api/dock", {"pairing": 0}))  # c: the client of the last round
         undo.callback(lambda: c.send("PUT", "/api/config", restore))
         await server.start()
-        c.send("PUT", "/api/config", {"controller": "server", "host": server.url, "servers": [server.url]})
+        c.send("PUT", "/api/config", {"servers": []})  # a new URL drops a token this server does not know
+        c.send("PUT", "/api/config", {"controller": "server", "servers": [server.url]})
         c.send("POST", "/api/dock", {"pairing": int(a.minutes * 60) + 60})  # its dock churn comes from a new host
         bridge = await server.wait_bridge(60)
+        await bridge.role(True)
         start = time.time()
         n = 0
         while time.time() - start < a.minutes * 60:
             n += 1
             if bridge.ws.state.name != "OPEN":
                 bridge = await server.wait_bridge(60)
+                await bridge.role(True)
             try:
                 await round_trip(a.host, auth, c, bridge, n)
-            except (OSError, TimeoutError, ConnectionClosed) as e:
+            except (OSError, TimeoutError, ConnectionClosed, KeyError) as e:  # KeyError: the deck is not back yet
                 step = traceback.extract_tb(e.__traceback__)[-1]
                 where = next(
                     (f.line for f in reversed(traceback.extract_tb(e.__traceback__)) if "soak.py" in f.filename),

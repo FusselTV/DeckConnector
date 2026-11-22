@@ -38,7 +38,7 @@ const queries = {
       '/docs/security#api-keys',
       '/docs/api#login',
       '/docs/home-assistant#api-key',
-      '/docs/own-server#connection',
+      '/docs/own-server#pairing',
     ],
     'hidden network': ['/docs/network#wi-fi'],
     port: ['/docs/network#ports'],

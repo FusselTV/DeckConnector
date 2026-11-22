@@ -6,7 +6,7 @@ Python tools and tests, run with `uv run` from this folder. Bench values come fr
 
 | Path | What it is |
 |---|---|
-| `dbtools/server.py`, `protocol.py` | a small server for the own-server protocol |
+| `dbtools/server.py`, `protocol.py` | a small surface host for protocol v2 |
 | `dbtools/dbfw.py`, `fw.py`, `flashimage.py` | signed update files, the bench update loop, the files for the web flasher |
 | `dbtools/safety.py`, `benchlock.py` | the input gate every press goes through, one bench user at a time |
 | `dbtools/satfake.py` | a fake Companion Satellite server |

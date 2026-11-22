@@ -114,12 +114,20 @@ static void test_describes_stream_deck_plus(void)
     TEST_ASSERT_NULL(db_device_find_target(i, 0, (db_rect_t){0, 0, 100, 100}));
     TEST_ASSERT_NULL(db_device_find_target(i, 1, (db_rect_t){0, 0, 800, 480}));
 
-    char json[2048];
-    TEST_ASSERT_NOT_EQUAL(0, db_proto_device_json(i, json, sizeof(json)));
-    TEST_ASSERT_NOT_NULL(
-        strstr(json, "\"kind\":\"key\",\"index\":5,\"x\":232,\"y\":172,\"w\":120,\"h\":120"));
-    TEST_ASSERT_NOT_NULL(
-        strstr(json, "\"kind\":\"strip\",\"x\":0,\"y\":380,\"w\":800,\"h\":100,\"partial\":true"));
+    uint8_t d;
+    TEST_ASSERT_EQUAL_PTR(k5, db_proto_target(i, 5, &d));
+    TEST_ASSERT_EQUAL_INT(DB_TARGET_STRIP, db_proto_target(i, 8, &d)->kind);
+    TEST_ASSERT_EQUAL_INT(DB_TARGET_FULL, db_proto_target(i, 9, &d)->kind);
+    TEST_ASSERT_NULL(db_proto_target(i, 10, &d));
+    uint8_t cbor[2048];
+    db_cbor_t c;
+    db_cbor_begin(&c, cbor, sizeof(cbor));
+    db_proto_deck(&c, NULL, 2, i);
+    size_t n = db_cbor_end(&c);
+    TEST_ASSERT_NOT_EQUAL(0, n);
+    char model[32];
+    TEST_ASSERT_TRUE(db_cbor_text(cbor, n, "model", model, sizeof(model)));
+    TEST_ASSERT_EQUAL_STRING("streamdeck-plus", model);
 }
 
 /* The deck's 0x08 answer inside 03 1c: rows and columns first, its gap bytes zero. */

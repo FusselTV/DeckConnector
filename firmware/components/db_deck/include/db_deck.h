@@ -88,8 +88,8 @@ int db_deck_first(void);
 
 /*
  * Queue one image. Takes ownership of `data` (heap_caps_malloc). The result always arrives through the ack
- * handler of `source`, also for rejected images. An image of DB_SOURCE_SAT while it is not the writer only
- * goes into its kept picture.
+ * handler of `source`, also for rejected images. An image of DB_SOURCE_SAT or a server while it is not the
+ * writer only goes into its kept picture; a server's is acknowledged as shown at once.
  */
 void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rect, uint32_t seq,
                     uint8_t *data, size_t len, uint64_t t_recv);

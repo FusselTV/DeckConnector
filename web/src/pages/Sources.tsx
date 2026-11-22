@@ -32,7 +32,7 @@ import { CopyField } from '../components/InputAction'
 import { Notice } from '../components/Notice'
 import { mmss } from '../lib/format'
 import { companionError, fallback, findCompanion, worst } from '../lib/companion'
-import { normPin, pinError, wsUrlError } from '../lib/validate'
+import { MAX_SERVERS, normPin, pinError, wsUrlError } from '../lib/validate'
 import { MatterCard } from './Matter'
 
 type SrcType = 'comp' | 'app' | 'srv'
@@ -332,7 +332,7 @@ function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () 
   const [url, setUrl] = useState(src?.kind === 'server' ? src.host : '')
   const [pin, setPin] = useState(old >= 0 ? (pins[old] ?? '') : '')
   const [err, setErr] = useState<string | null>(null)
-  const full = servers.filter(Boolean).length >= 4 && old < 0
+  const full = servers.filter(Boolean).length >= MAX_SERVERS && old < 0
   const save = async () => {
     const dup = servers.some((x, j) => j !== old && x === url)
     const e = wsUrlError(url) ?? (dup ? 'src.dup' : url.startsWith('wss://') ? pinError(pin) : null)
@@ -368,7 +368,7 @@ function ServerForm({ cfg, src, close }: { cfg: Config; src?: Source; close: () 
             <input
               {...describedBy('m-url', err)}
               className="in mono"
-              placeholder="ws://host:port/deckconnector"
+              placeholder="wss://host:port/surface"
               value={url}
               onChange={(e) => (setUrl(e.target.value.trim()), setErr(null))}
               spellCheck={false}

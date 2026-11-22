@@ -28,6 +28,9 @@ typedef struct {
     uint8_t *frame;       /* send buffer, guarded by `tx` */
     void *tls;            /* NULL for ws:// */
     const char *fail; /* after a failed ws_connect that got past TCP: TLS, the certificate or the upgrade */
+    bool any_cert;    /* wss:// without a pin takes any certificate, not only one a public CA signed */
+    uint8_t cert[32]; /* SHA-256 of the server's certificate after a wss:// connect with a pin or any_cert */
+    uint32_t peer;    /* the server's IPv4 address, network order */
 } ws_t;
 
 /* 0 or -ENOMEM. */
@@ -56,5 +59,5 @@ int ws_read_header(ws_t *ws, uint8_t *op, bool *fin, uint64_t *len);
 int ws_read(ws_t *ws, void *buf, size_t len);
 int ws_skip(ws_t *ws, uint64_t len);
 
-/* Send one frame. Payloads above 4 KB are not needed by this protocol and are refused. */
+/* Send one frame. Payloads above 8 KB are not needed by these protocols and are refused. */
 int ws_send(ws_t *ws, uint8_t op, const void *data, size_t len);

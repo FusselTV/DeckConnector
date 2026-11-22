@@ -4,9 +4,7 @@ import asyncio
 import statistics
 import time
 
-from conftest import camera, jpeg
-
-FULL = (0, 0, 800, 480)
+from conftest import camera, paint
 
 
 async def test_camera_delay(bridges):
@@ -19,7 +17,7 @@ async def test_camera_delay(bridges):
     delays = []
     for i in range(4):
         color, channel = ((220, 20, 20), 0) if i % 2 else ((20, 20, 220), 2)
-        await active.send_image(FULL, jpeg(color))  # the ack comes once the image left over USB
+        await paint(active, color)  # SHOWN comes once the image left over USB
         drawn = time.monotonic()
         seen = await asyncio.to_thread(cam.first_after, drawn, channel)
         assert seen, f"the camera never showed {color}"

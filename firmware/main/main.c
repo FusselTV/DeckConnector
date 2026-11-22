@@ -165,7 +165,7 @@ static void write_source(db_json_t *j, const char *kind, const char *host, uint3
 static void write_sources(db_json_t *j, bool live)
 {
     db_json_arr_open(j, "sources");
-    for (int i = 0; i < DB_MAX_SERVERS; i++) {
+    for (int i = 0; i < DB_SURFACE_LINKS; i++) {
         if (db_link_url(i)[0]) {
             db_health_t h = db_link_health(i);
             write_source(j, "server", db_link_url(i), 0, db_link_connected(i), db_link_deck(),
@@ -267,7 +267,7 @@ static void write_boot(db_json_t *j)
     db_json_obj_close(j);
 }
 
-/* Shared body of the server `status` message, /api/status and the web socket state. Without `live` it leaves
+/* Shared body of /api/status and the web socket state. Without `live` it leaves
  * out what changes all the time (uptime, signal, counters), so a change in it is worth telling. */
 static void write_status(db_json_t *j, bool live)
 {
@@ -340,11 +340,6 @@ static size_t tagged_status(char *buf, size_t cap, const char *t, bool live)
     return db_json_end(&j);
 }
 
-static size_t link_status(char *buf, size_t cap)
-{
-    return tagged_status(buf, cap, "status", true);
-}
-
 /* lwIP numbers its sockets from LWIP_SOCKET_OFFSET; a closed one answers EBADF. */
 static int open_sockets(void)
 {
@@ -412,7 +407,6 @@ static void ota_broadcast(const char *target, const char *state, int pct, const 
     }
     db_json_obj_close(&j);
     if (db_json_end(&j)) {
-        db_link_broadcast(buf);
         db_web_broadcast(buf);
     }
 }
@@ -422,13 +416,6 @@ static void on_ota_progress(const char *target, const char *state, int pct, cons
     ota_broadcast(target, state, pct, error);
     bool over = strcmp(state, "error") == 0 || (strcmp(state, "done") == 0 && !db_ota_restarts());
     db_ui_set_update(over ? -1 : pct, target[0] == 'c');
-}
-
-static void on_ota_requested(const char *target, const char *url)
-{
-    if (db_ota_start_url(url) != ESP_OK) { /* the update that runs keeps the deck */
-        ota_broadcast(target, "error", -1, "busy");
-    }
 }
 
 static char applied_sat[sizeof(db_config()->satellite) + sizeof(db_config()->satellite_pin)];
@@ -495,7 +482,7 @@ static void on_net(void)
     db_net_status(&n);
     unsigned up = (n.lan_up && !n.lan_dead) | n.wlan_up << 1;
     if (up & ~was) {
-        for (int i = 0; i < DB_MAX_SERVERS; i++) {
+        for (int i = 0; i < DB_SURFACE_LINKS; i++) {
             db_link_retry(i);
         }
         db_satellite_retry();
@@ -587,10 +574,7 @@ void app_main(void) /* NOLINT(misc-use-internal-linkage): ESP-IDF calls it */
     db_ui_set_c6_version(db_ota_c6_version());
     db_ota_set_progress_cb(on_ota_progress);
 
-    db_link_hooks_t link = {.status_json = link_status,
-                            .c6_version = db_ota_c6_version,
-                            .ota_requested = on_ota_requested,
-                            .active_changed = db_ui_set_active_link};
+    db_link_hooks_t link = {.active_changed = db_ui_set_active_link, .pair_code = db_ui_show_pair};
     started("servers", db_link_start(&link));
     started("dock", db_dock_start(db_ui_hosts_changed));
     started("Satellite", db_satellite_start(on_satellite));

@@ -41,6 +41,7 @@ import type { TKey } from '../i18n'
 import { docsPage, roam, ss, useLatest } from '../lib/util'
 import {
   ipErrors,
+  MAX_SERVERS,
   nameError,
   normPin,
   passwordError,
@@ -289,7 +290,7 @@ export function Wizard() {
     const servers = [...cfg.servers]
     const pins = [...cfg.server_pins]
     const i = servers.findIndex((x) => !x || x === url)
-    if (i < 0) return setUErr(t('src.srv_full'))
+    if (i < 0 || i >= MAX_SERVERS) return setUErr(t('src.srv_full'))
     servers[i] = url
     pins[i] = url.startsWith('wss://') ? normPin(uPin) : ''
     await act(() => putConfig({ servers, server_pins: pins, controller: 'server', host: url }))
@@ -733,7 +734,7 @@ export function Wizard() {
                 <input
                   {...describedBy('w-srv', uErr, true)}
                   className="in mono"
-                  placeholder="ws://host:port/deckconnector"
+                  placeholder="wss://host:port/surface"
                   value={url}
                   onChange={(e) => (setUrl(e.target.value), setUErr(null))}
                   spellCheck={false}

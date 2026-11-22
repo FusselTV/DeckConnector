@@ -73,7 +73,6 @@ static struct {
     bool update_wlan;
     char c6[16];
     uint32_t seq;
-    bool covered;
     volatile int brightness; /* applied but not saved yet, -1 when saved */
     esp_timer_handle_t save_timer;
     bool save_due;
@@ -110,13 +109,12 @@ static int dock_choice(db_controller_t kind, const db_dock_host_t *hosts, size_t
     return pick;
 }
 
-/* Companion over its Satellite API draws unless the config names a dock host of it that is there. The servers
- * draw on the first slot only. */
+/* Companion over its Satellite API draws unless the config names a dock host of it that is there. The active
+ * server draws on every deck. */
 static db_source_t choice(int deck, db_controller_t kind)
 {
     if (kind == DB_CTRL_SERVER) {
-        return s.active_link >= 0 && deck == db_link_deck() ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link)
-                                                            : DB_SOURCE_UI;
+        return s.active_link >= 0 ? (db_source_t)(DB_SOURCE_LINK0 + s.active_link) : DB_SOURCE_UI;
     }
     db_dock_host_t hosts[DB_DOCK_HOSTS];
     size_t n = db_dock_hosts(deck, hosts, DB_DOCK_HOSTS);
@@ -191,7 +189,7 @@ static void model_sources(int deck, ui_model_t *md)
         snprintf(src->id, sizeof(src->id), "%s", hosts[i].ip);
         host_label(ipaddr_addr(hosts[i].ip), hosts[i].ip, src->label, sizeof(src->label));
     }
-    for (int i = 0; deck == db_link_deck() && i < DB_MAX_SERVERS && md->source_count < UI_SOURCES; i++) {
+    for (int i = 0; i < DB_SURFACE_LINKS && md->source_count < UI_SOURCES; i++) {
         if (db_link_connected(i)) {
             ui_source_t *src =
                 add_source(deck, md, UI_CTRL_SERVER, UI_VIA_SERVER, (db_source_t)(DB_SOURCE_LINK0 + i));
@@ -284,6 +282,11 @@ static int64_t pass_until, pass_asked, reset_until, reset_asked; /* under login_
 static char ca_fp[20];                                           /* under login_mux */
 #define MATTER_US 60000000
 static int64_t matter_until, matter_asked; /* under login_mux */
+#define PAIR_US (2 * 60 * 1000000LL)
+static struct { /* surface hosts that are not paired, per link; under login_mux */
+    char code[7];
+    int64_t until;
+} pair[DB_SURFACE_LINKS];
 static char matter_code[16];
 static ui_qr_t matter_qr; /* under qr_lock */
 static struct {           /* the login request on the deck, under login_mux */
@@ -321,7 +324,11 @@ static int64_t until(const int64_t *t)
 
 static bool overlay(int64_t now)
 {
-    return now < until(&matter_until) || now < until(&pass_until) || now < until(&reset_until) ||
+    bool pairing = false;
+    for (int i = 0; i < DB_SURFACE_LINKS; i++) {
+        pairing |= now < until(&pair[i].until);
+    }
+    return pairing || now < until(&matter_until) || now < until(&pass_until) || now < until(&reset_until) ||
            now < until(&ask.until) || now < until(&adopt.until);
 }
 
@@ -486,6 +493,12 @@ static void model(int deck, ui_model_t *md)
         snprintf(md->matter_code, sizeof(md->matter_code), "%s", matter_code);
     }
     md->reset_ask = md->now_us < until(&reset_until);
+    portENTER_CRITICAL(&login_mux);
+    for (int i = 0; i < DB_SURFACE_LINKS && !md->pair_code[0]; i++) {
+        strcpy(md->pair_code, pair[i].code);
+        md->pair_cover = md->now_us < pair[i].until;
+    }
+    portEXIT_CRITICAL(&login_mux);
     uint32_t ask_ip = 0;
     portENTER_CRITICAL(&login_mux);
     if (md->now_us < ask.until) {
@@ -609,7 +622,8 @@ static void pick_writer(int deck)
     db_deck_set_writer(deck, wanted, esp_timer_get_time() < s.handover_until);
     light_lock(false);
     if (wanted != was && wanted >= DB_SOURCE_LINK0 && wanted < DB_SOURCE_DOCK0) {
-        db_link_brightness_again(); /* a server chosen while another drew: its own brightness, not the last */
+        db_link_brightness_again(
+            deck); /* a server chosen while another drew: its own brightness, not the last */
     }
 }
 
@@ -619,12 +633,6 @@ static void pick_writers(void)
     for (int d = 0; d < DB_MAX_DECKS; d++) {
         pick_writer(d);
     }
-    /* The menu or an update drew over the active server's picture; tell it to draw again once they end. */
-    bool covering = (ui_menu_open(&decks[db_link_deck()].menu) || s.update_pct >= 0) && s.active_link >= 0;
-    if (s.covered && !covering && s.active_link >= 0) {
-        db_link_resend_role();
-    }
-    s.covered = covering;
 }
 
 static void changed(void)
@@ -1373,6 +1381,15 @@ int db_ui_show_matter(const char *qr, const char *code)
         changed();
     }
     return made ? n : 0;
+}
+
+void db_ui_show_pair(int link, const char *code)
+{
+    portENTER_CRITICAL(&login_mux);
+    strlcpy(pair[link].code, code ? code : "", sizeof(pair[link].code));
+    pair[link].until = code ? esp_timer_get_time() + PAIR_US : 0;
+    portEXIT_CRITICAL(&login_mux);
+    changed();
 }
 
 int db_ui_show_password(void)

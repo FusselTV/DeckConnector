@@ -1,7 +1,8 @@
-"""Benchmarks and the interactive input demo, as a deckbridge server on port 8765.
+"""Benchmarks and the interactive input demo, as a surface host on port 8765. Pairs the bridge (--host), makes it
+draw for this host and sets its settings back at the end.
 
-bench react                 latency for one key, a strip quarter, the strip and the full screen
-bench video --fps 30        full screen video; --flow sends only when the last frame was acknowledged
+bench react                 latency for one key, the strip and the full screen
+bench video --fps 30        full screen video as STREAM; --flow sends only when the last frame was SHOWN
 bench demo                  draws every input; key 8 switches between full, partial and minimal updates
 """
 
@@ -15,8 +16,11 @@ import time
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .protocol import AckResult, InputKind
-from .server import Server, now_us
+from . import protocol as p
+from .load import Client, basic_auth, drawing_for
+from .protocol import InputKind
+from .server import Server
+from .site import HOST
 
 BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 REGULAR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -34,26 +38,22 @@ def pct(values, p):
 
 
 async def react(bridge, args):
-    offset = await bridge.clock_offset()
     font = ImageFont.truetype(BOLD, 48)
-    for name, rect in (
-        ("key", (13, 12, 120, 120)),
-        ("quarter", (200, 380, 200, 100)),
-        ("strip", (0, 380, 800, 100)),
-        ("full", (0, 0, 800, 480)),
-    ):
-        times = []
+    for kind in ("key", "strip", "full"):
+        t = bridge.target(0, kind)
+        times, glass = [], []
         for i in range(args.n):
-            img = Image.new("RGB", rect[2:], (30, 40, 60))
-            ImageDraw.Draw(img).text((rect[2] // 2, rect[3] // 2), f"{i}%", font=font, fill="white", anchor="mm")
+            img = Image.new("RGB", (t["w"], t["h"]), (30, 40, 60))
+            ImageDraw.Draw(img).text((t["w"] // 2, t["h"] // 2), f"{i}%", font=font, fill="white", anchor="mm")
             data = jpeg(img, args.q)
-            sent = now_us()
-            ack = await bridge.send_image(rect, data)
-            times.append((ack.t_done - offset - sent) / 1000)
+            sent = time.perf_counter()
+            shown = await bridge.draw(0, t, data, t["id"])
+            times.append((time.perf_counter() - sent) * 1000)
+            glass.append(shown.us / 1000)
             await asyncio.sleep(0.03)
         print(
-            f"{name:8s} {len(data) / 1024:5.1f} KB  send to USB done: median {statistics.median(times):.2f} ms, "
-            f"p95 {pct(times, 0.95):.2f}, max {max(times):.2f}"
+            f"{kind:8s} {len(data) / 1024:5.1f} KB  PUT and FRAME to SHOWN: median {statistics.median(times):.2f} ms, "
+            f"p95 {pct(times, 0.95):.2f}, max {max(times):.2f}; SHOWN.us median {statistics.median(glass):.2f} ms"
         )
 
 
@@ -82,8 +82,8 @@ def frames(fps: float):
 
 
 async def video(bridge, args):
-    offset = await bridge.clock_offset()
-    pending, acks, skipped, sizes = None, [], 0, []
+    full = bridge.target(0, "full")["id"]
+    pending, shown, skipped, sizes = None, [], 0, []
     start = time.monotonic()
     nxt = start
     for frame in frames(args.fps):
@@ -94,26 +94,26 @@ async def video(bridge, args):
         else:
             data = jpeg(frame, args.q)
             sizes.append(len(data))
-            sent = now_us()
-            pending = await bridge.post_image((0, 0, 800, 480), data)
-            pending.add_done_callback(lambda f, sent=sent: acks.append((sent, f.result())))
+            sent = time.perf_counter()
+            pending = await bridge.stream(0, full, data)
+            pending.add_done_callback(lambda f, sent=sent: shown.append((sent, time.perf_counter(), f.result())))
         nxt += 1 / args.fps
         await asyncio.sleep(max(0, nxt - time.monotonic()))
     await asyncio.sleep(1.5)
-    shown = [(s, a) for s, a in acks if a.result == AckResult.SHOWN]
-    lat = [(a.t_done - offset - s) / 1000 for s, a in shown]
-    span = (shown[-1][1].t_done - shown[0][1].t_done) / 1e6 if len(shown) > 1 else 1
+    drawn = [(s, t) for s, t, r in shown if r.us]
+    lat = [(t - s) * 1000 for s, t in drawn]
+    span = drawn[-1][1] - drawn[0][1] if len(drawn) > 1 else 1
     print(
         f"video {'flow' if args.flow else 'blast'} {args.fps} fps q{args.q}: sent {len(sizes)}, "
         f"{statistics.mean(sizes) / 1024:.1f} KB each, skipped by server {skipped}, "
-        f"superseded {sum(a.result == AckResult.SUPERSEDED for _, a in acks)}, "
-        f"on the device {(len(shown) - 1) / span:.1f} fps, latency median {statistics.median(lat):.1f} ms, "
+        f"replaced by a newer one {len(shown) - len(drawn)}, "
+        f"on the device {(len(drawn) - 1) / span:.1f} fps, send to SHOWN median {statistics.median(lat):.1f} ms, "
         f"p95 {pct(lat, 0.95):.1f} ms"
     )
 
 
 class Demo:
-    """Shows every input on the device and how long it took, measured on the bridge clock."""
+    """Shows every input on the device and how long it took from its INPUT arriving here to SHOWN."""
 
     MODES = ("Voll", "Teil", "Mini")
     KEYS_X = (13, 232, 451, 670)
@@ -149,20 +149,8 @@ class Demo:
             return "Latenz: noch keine Messung"
         last = self.lat[-30:]
         return (
-            f"Eingabe bis USB fertig {self.lat[-1]:.1f} ms (Median {statistics.median(last):.1f}, max {max(last):.1f})"
+            f"Eingabe bis angezeigt {self.lat[-1]:.1f} ms (Median {statistics.median(last):.1f}, max {max(last):.1f})"
         )
-
-    def quarter_img(self, i):
-        _, dim = self.colors()
-        img = Image.new("RGB", (200, 100), dim)
-        d = ImageDraw.Draw(img)
-        d.text((100, 28), f"R{i + 1}: {self.enc[i]}", font=self.mid, fill="white", anchor="mm")
-        d.text((100, 60), f"{self.lat[-1]:.1f} ms" if self.lat else "-", font=self.small, fill="white", anchor="mm")
-        d.rectangle(
-            (10, 80, 10 + int(180 * (self.enc[i] % 100) / 100), 94),
-            fill=(255, 200, 0) if self.enc_down[i] else (0, 150, 230),
-        )
-        return img
 
     def full_img(self):
         bg, dim = self.colors()
@@ -208,20 +196,28 @@ class Demo:
         return keys, encs
 
     def regions(self, keys, encs):
+        """(target, image) pairs. The strip has no quarters of its own: mode 2 redraws it only when it changed."""
+        b = self.bridge
         if self.mode == 0 or 7 in keys:
-            return [((0, 0, 800, 480), self.full_img())]
-        out = [((self.KEYS_X[k % 4], self.KEYS_Y[k // 4], 120, 120), self.key_img(k)) for k in sorted(keys)]
-        if self.mode == 1:
-            return [*out, ((0, 380, 800, 100), self.full_img().crop((0, 380, 800, 480)))]
-        return out + [((i * 200, 380, 200, 100), self.quarter_img(i)) for i in sorted(encs)]
+            return [(b.target(0, "full"), self.full_img())]
+        out = [(b.target(0, "key", k), self.key_img(k)) for k in sorted(keys)]
+        if self.mode == 1 or encs:
+            out.append((b.target(0, "strip"), self.full_img().crop((0, 380, 800, 480))))
+        return out
+
+    async def draw(self, regs) -> asyncio.Future[p.Shown]:
+        for t, img in regs:
+            await self.bridge.put(t["id"], jpeg(img, self.q), t["w"], t["h"])
+        return await self.bridge.frame(0, [(t["id"], t["id"]) for t, _ in regs])
 
     async def run(self, secs):
         b = self.bridge
-        await b.send_image((0, 0, 800, 480), jpeg(self.full_img(), self.q))
+        await self.draw(self.regions(set(), set()))
         end = time.monotonic() + secs
         while time.monotonic() < end:
             try:
                 first = await asyncio.wait_for(b.inputs.get(), 1)
+                got = time.perf_counter()
             except TimeoutError:
                 continue
             events = [first]
@@ -233,11 +229,10 @@ class Demo:
                 keys |= k
                 encs |= e
             regs = self.regions(keys, encs)
-            futures = [await b.post_image(r, jpeg(img, self.q)) for r, img in regs]
-            ack = await asyncio.wait_for(futures[-1], 5)
-            if ack.result == AckResult.SHOWN:
-                self.lat.append((ack.t_done - events[-1].t) / 1000)
-                print(f"{self.MODES[self.mode]} {len(regs)} areas: input to USB done {self.lat[-1]:.2f} ms", flush=True)
+            shown = await asyncio.wait_for(await self.draw(regs), 5)
+            if shown.us:
+                self.lat.append((time.perf_counter() - got) * 1000)
+                print(f"{self.MODES[self.mode]} {len(regs)} areas: input to SHOWN {self.lat[-1]:.2f} ms", flush=True)
 
 
 async def main():
@@ -248,17 +243,19 @@ async def main():
     ap.add_argument("--fps", type=float, default=30)
     ap.add_argument("--secs", type=float, default=10)
     ap.add_argument("--flow", action="store_true")
+    ap.add_argument("--host", default=HOST)
     args = ap.parse_args()
     server = await Server(8765).start()
-    bridge = await server.wait_bridge(60)
-    await asyncio.sleep(0.3)
-    if args.cmd == "react":
-        await react(bridge, args)
-    elif args.cmd == "video":
-        await video(bridge, args)
-    else:
-        await Demo(bridge, args.q).run(args.secs)
-    await server.stop()
+    try:
+        async with drawing_for(Client(args.host, basic_auth()), server) as bridge:
+            if args.cmd == "react":
+                await react(bridge, args)
+            elif args.cmd == "video":
+                await video(bridge, args)
+            else:
+                await Demo(bridge, args.q).run(args.secs)
+    finally:
+        await server.stop()
 
 
 if __name__ == "__main__":

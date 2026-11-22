@@ -17,7 +17,7 @@
 #include "net/if.h"
 #include "psa/crypto.h"
 
-#define SEND_MAX     4096
+#define SEND_MAX     8192
 #define RESPONSE_MAX 1024
 #define WS_GUID      "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -27,7 +27,8 @@ typedef struct {
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
     int sock;
-    const uint8_t *pin;
+    const uint8_t *pin; /* NULL: any certificate, its SHA-256 goes to `cert` */
+    uint8_t *cert;
     bool pin_ok;
 } tls_t;
 
@@ -159,11 +160,10 @@ static int check_pin(void *ctx, mbedtls_x509_crt *crt, int depth, uint32_t *flag
 {
     tls_t *t = ctx;
     if (depth == 0) {
-        uint8_t h[32];
         size_t n = 0;
         t->pin_ok =
-            psa_hash_compute(PSA_ALG_SHA_256, crt->raw.p, crt->raw.len, h, sizeof(h), &n) == PSA_SUCCESS &&
-            memcmp(h, t->pin, sizeof(h)) == 0;
+            psa_hash_compute(PSA_ALG_SHA_256, crt->raw.p, crt->raw.len, t->cert, 32, &n) == PSA_SUCCESS &&
+            (!t->pin || memcmp(t->cert, t->pin, 32) == 0);
     }
     *flags = 0;
     return 0;
@@ -187,11 +187,13 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
     }
     t->sock = sock;
     t->pin = pin;
+    t->cert = ws->cert;
+    bool any = !pin && ws->any_cert;
     mbedtls_ssl_init(&t->ssl);
     mbedtls_ssl_config_init(&t->conf);
     int err = mbedtls_ssl_config_defaults(&t->conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM,
                                           MBEDTLS_SSL_PRESET_DEFAULT);
-    if (!err && pin) {
+    if (!err && (pin || any)) {
         /* OPTIONAL: REQUIRED insists on a CA chain; the pin is checked once the handshake is done */
         mbedtls_ssl_conf_authmode(&t->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
         mbedtls_ssl_conf_verify(&t->conf, check_pin, t);
@@ -211,7 +213,7 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
         }
         break;
     }
-    if (!err && pin && !t->pin_ok) {
+    if (!err && (pin || any) && !t->pin_ok) {
         err = MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
     }
     if (err) {
@@ -391,6 +393,10 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     /* Short read timeout from now on, so the reader can send pings and notice silent peers. */
     struct timeval tv = {.tv_sec = 1};
     setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    struct sockaddr_in peer = {0};
+    socklen_t pl = sizeof(peer);
+    getpeername(s, (struct sockaddr *)&peer, &pl);
+    ws->peer = peer.sin_addr.s_addr;
     xSemaphoreTake(ws->tx, portMAX_DELAY);
     ws->sock = s;
     xSemaphoreGive(ws->tx);

@@ -33,6 +33,7 @@ def put(body: dict) -> tuple[int, str]:
         ({"wifi2_ssid": "x" * 33}, "wifi2_ssid"),
         ({"servers": ["wss://h /x"]}, "servers"),
         ({"servers": ["http://h:1/x"]}, "servers"),
+        ({"servers": ["ws://a:1/s", "ws://b:1/s", "ws://c:1/s"]}, "at most 2"),
         ({"satellite": "h /x"}, "satellite"),
         ({"lan": {"dhcp": False, "ip": "10.0.0.5", "mask": "0.0.0.0"}}, "mask"),
         ({"lan": {"dhcp": False, "ip": "10.0.0.5", "mask": "255.0.255.0"}}, "mask"),

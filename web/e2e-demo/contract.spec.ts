@@ -176,7 +176,7 @@ test('every field of db_config_t is in the JSON', () => {
   const h = readFileSync(new URL('components/db_config/include/db_config.h', fw), 'utf8')
   const struct = h.slice(h.indexOf('/* Saved as one NVS blob'), h.indexOf('} db_config_t;'))
   const fields = [...struct.matchAll(/^\s+(?:const )?[a-z_0-9]+\s+([a-z_0-9]+)\s*[[;]/gm)].map((m) => m[1])
-  const notSettings = ['version', 'input_lock']
+  const notSettings = ['version', 'input_lock', 'unused_token', 'server_tokens'] // pairings stay out of a backup
   const src = readFileSync(new URL('components/db_config/db_config.c', fw), 'utf8')
   expect(fields.length).toBeGreaterThan(30)
   expect(fields.filter((f) => !notSettings.includes(f) && !src.includes(`"${JSON_KEY[f] ?? f}"`))).toEqual([])
@@ -192,7 +192,9 @@ test('the firmware reads back every key it writes', () => {
 // A field missing from api.c's list restarts the bridge on every change of it; the demo and the restore page say so.
 test('the demo and the restore page know which settings apply without a restart', () => {
   const src = readFileSync(new URL('components/db_web/api.c', fw), 'utf8')
-  const fields = [...src.matchAll(/live\.(\w+) = old\.\1;|memcpy\(live\.(\w+), old\.\2,/g)].map((m) => m[1] || m[2])
+  const fields = [...src.matchAll(/live\.(\w+) = old\.\1;|memcpy\(live\.(\w+), old\.\2,/g)]
+    .map((m) => m[1] || m[2])
+    .filter((f) => f !== 'server_tokens') // not a setting: a new URL drops it
   const live = new Set([...fields.map((f) => JSON_KEY[f] ?? f), 'matter']) // api.c turns Matter on live, off restarts
   expect(live.size).toBeGreaterThan(20)
   expect(Object.keys(JSON_KEY).filter((f) => live.has(JSON_KEY[f]) !== fields.includes(f))).toEqual([])

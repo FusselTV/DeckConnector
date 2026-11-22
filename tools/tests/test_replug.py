@@ -5,9 +5,7 @@ import contextlib
 import json
 import time
 
-from conftest import api, jpeg, newest, status, strip_color
-
-FULL = (0, 0, 800, 480)
+from conftest import api, newest, paint, status, strip_color
 
 
 async def wait_device(present: bool, secs: float) -> float:
@@ -21,8 +19,7 @@ async def wait_device(present: bool, secs: float) -> float:
 
 async def test_unplug_and_plug_in_again(servers, bridges):
     active, _ = bridges
-    ack = await active.send_image(FULL, jpeg((220, 20, 20)))
-    assert ack.result.name == "SHOWN"
+    assert (await paint(active, (220, 20, 20))).us > 0
     await asyncio.sleep(0.5)
     seen = await asyncio.to_thread(strip_color)
     assert max(range(3), key=lambda i: seen[i]) == 0
@@ -38,7 +35,7 @@ async def test_unplug_and_plug_in_again(servers, bridges):
         await asyncio.sleep(0.2)
     seen = await asyncio.to_thread(strip_color)
     assert max(range(3), key=lambda i: seen[i]) == 0, f"camera saw {seen} after the deck came back"
-    assert active.device, "the server was told about the deck again"
+    assert not active.removed.empty() and 0 in active.decks, "the server was told the deck went and came back"
     # the same deck keeps its picture: drawn again by the bridge, or sent again by the server
     after = json.loads((await asyncio.to_thread(api, "GET", "/api/screen"))[1])["images"]
     assert [(i["x"], i["y"], i["w"], i["h"]) for i in after] == [(i["x"], i["y"], i["w"], i["h"]) for i in before]
@@ -54,12 +51,13 @@ async def test_every_usb_address_keeps_the_deck_working(servers, bridges):
         await wait_device(True, 20)
         if active.ws.state.name != "OPEN":
             active = await newest(servers[0])
+            await active.role(True)
         for i in range(4):
             try:
-                ack = await active.send_image((13 + 219 * i, 12, 120, 120), jpeg((n * 15, 200, 60), (120, 120)))
+                shown = await paint(active, (n * 15, 200, 60), "key", i)
             except TimeoutError:
                 raise AssertionError(f"replug {n + 1}: the deck took no picture") from None
-            assert ack.result.name == "SHOWN", f"replug {n + 1}: {ack.result.name}"
+            assert shown.us > 0, f"replug {n + 1}: {active.errors[-1:]}"
     assert (await asyncio.to_thread(status))["counters"]["usb_errors"] == errors, "an unplug is not a USB error"
 
 
@@ -83,11 +81,11 @@ async def test_a_hung_deck_is_reconnected_by_the_bridge(servers, bridges):
     while (await asyncio.to_thread(status))["device"] is not None:  # images keep failing until the bridge acts
         assert time.time() - start < 10, "the hung deck was never reconnected"
         with contextlib.suppress(TimeoutError):
-            await active.send_image(FULL, jpeg((20, 20, 220)))
+            await paint(active, (20, 20, 220))
     await wait_device(True, 20)
     if active.ws.state.name != "OPEN":
         active = await newest(servers[0])
-    ack = await active.send_image(FULL, jpeg((20, 220, 20)))
-    assert ack.result.name == "SHOWN"
+        await active.role(True)
+    assert (await paint(active, (20, 220, 20))).us > 0, active.errors
     after = (await asyncio.to_thread(status))["counters"]
     assert after["usb_recoveries"] == before["usb_recoveries"] + 1

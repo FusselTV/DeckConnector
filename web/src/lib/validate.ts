@@ -59,6 +59,8 @@ export function ipErrors(v: IpForm): IpErrors {
 export const pinError = (v: string): Key | null =>
   !v.trim() || /^[0-9a-f]{64}$/i.test(v.replace(/[:\s]/g, '')) ? null : 'src.pin_bad'
 export const normPin = (v: string) => v.replace(/[:\s]/g, '').toLowerCase()
+/** Surface hosts the firmware connects to at once. */
+export const MAX_SERVERS = 2
 
 const bytes = (v: string) => new TextEncoder().encode(v).length
 

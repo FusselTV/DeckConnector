@@ -11,6 +11,7 @@ firmware/build.
 import argparse
 import asyncio
 import base64
+import contextlib
 import http.client
 import json
 import signal
@@ -20,10 +21,13 @@ import sys
 import threading
 import time
 from collections import Counter
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 from websockets.sync.client import connect
 
+from dbtools.safety import real_input_target, require_input_gate, settings_to_restore
+from dbtools.server import Bridge, Server
 from dbtools.site import HOST
 
 ENDPOINTS = ["/api/status", "/api/config", "/api/screen", "/api/screen.jpg", "/api/metrics", "/api/slots", "/"]
@@ -213,49 +217,54 @@ def ws_connect(host: str, auth: str, n: int) -> dict:
     return quantiles(ms)
 
 
+@contextlib.asynccontextmanager
+async def drawing_for(c: Client, server: Server) -> AsyncIterator[Bridge]:
+    """The bridge paired with `server` and drawing for it. Sets the controller to server and back."""
+    cfg = json.loads(c.get("/api/config")[2])
+    try:
+        # a token from an earlier run is unknown to this server: a new URL drops it, and the bridge pairs again
+        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": []})
+        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": [server.url], "controller": "server"})
+        bridge = await server.wait_bridge(60)
+        await bridge.role(True)
+        yield bridge
+    finally:
+        await asyncio.to_thread(c.get, "/api/status")
+        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": cfg["servers"]} | settings_to_restore(cfg))
+
+
 async def drawing(host: str, auth: str, n: int) -> dict:
-    """Image and input round trips through a server that draws. Sets the controller to server and back."""
+    """Image and input round trips through a server that draws."""
     from PIL import Image
 
     from .bench import jpeg
-    from .server import Server, now_us
 
     c = Client(host, auth)
-
-    from .safety import require_input_gate, settings_to_restore
-
     require_input_gate(json.loads(c.get("/api/status")[2]))
-    cfg = json.loads(c.get("/api/config")[2])
     server = await Server(8765, "load", ping=False).start()
-    await asyncio.to_thread(c.get, "/api/status")
-    await asyncio.to_thread(c.send, "PUT", "/api/config", {"controller": "server", "host": server.url})
     try:
-        bridge = await server.wait_bridge(60)
-        for _ in range(100):
-            if bridge.active:
-                break
-            await asyncio.sleep(0.05)
-        offset = await bridge.clock_offset()
-        key = []
-        for i in range(n):
-            sent = now_us()
-            ack = await bridge.send_image((13, 12, 120, 120), jpeg(Image.new("RGB", (120, 120), (i * 5, 40, 60)), 80))
-            key.append((ack.t_done - offset - sent) / 1000)
-            await asyncio.sleep(0.03)
-        press = []
-        for _ in range(n):
-            await asyncio.to_thread(c.get, "/api/status")  # a live connection, outside the timed part
-            t = time.perf_counter()
-            await asyncio.to_thread(c.send, "POST", "/api/input", {"key": 3, "action": "down"})
-            await asyncio.wait_for(bridge.inputs.get(), 5)
-            press.append((time.perf_counter() - t) * 1000)
-            await asyncio.to_thread(c.send, "POST", "/api/input", {"key": 3, "action": "up"})
-            await asyncio.wait_for(bridge.inputs.get(), 5)
+        async with drawing_for(c, server) as bridge:
+            t = bridge.target(0)
+            key = []
+            for i in range(n):
+                img = jpeg(Image.new("RGB", (t["w"], t["h"]), (i * 5, 40, 60)), 80)
+                sent = time.perf_counter()
+                await bridge.draw(0, t, img, t["id"])
+                key.append((time.perf_counter() - sent) * 1000)
+                await asyncio.sleep(0.03)
+            me = real_input_target(json.loads((await asyncio.to_thread(c.get, "/api/status"))[2]))
+            press = []
+            for _ in range(n):
+                await asyncio.to_thread(c.get, "/api/status")  # a live connection, outside the timed part
+                t0 = time.perf_counter()
+                await asyncio.to_thread(c.send, "POST", "/api/input", {"key": 3, "action": "down", "real": me})
+                await asyncio.wait_for(bridge.inputs.get(), 5)
+                press.append((time.perf_counter() - t0) * 1000)
+                await asyncio.to_thread(c.send, "POST", "/api/input", {"key": 3, "action": "up", "real": me})
+                await asyncio.wait_for(bridge.inputs.get(), 5)
     finally:
-        await asyncio.to_thread(c.get, "/api/status")
-        await asyncio.to_thread(c.send, "PUT", "/api/config", settings_to_restore(cfg))
         await server.stop()
-    print(f"key image to USB done {summary(key, 0)}\ninput POST to server event {summary(press, 0)}")
+    print(f"key image PUT and FRAME to SHOWN {summary(key, 0)}\ninput POST to server event {summary(press, 0)}")
     return {"key_image": quantiles(key), "input_event": quantiles(press)}
 
 

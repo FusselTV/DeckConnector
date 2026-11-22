@@ -8,11 +8,11 @@ import time
 from collections.abc import Callable
 
 import pytest
-from conftest import api, jpeg, put_config, status, strip_color
+from conftest import api, paint, put_config, status, strip_color
 
+from dbtools import protocol as p
 from dbtools.protocol import InputKind
-
-FULL = (0, 0, 800, 480)
+from dbtools.safety import real_input_target
 
 
 def screen(on: bool) -> None:
@@ -151,8 +151,9 @@ def test_an_open_menu_keeps_the_decks_lit(off_after_10s):
 async def test_the_deck_goes_black_and_the_wake_press_stays_on_the_deck(bridges):
     active, _ = bridges
     white, red = (240, 240, 240), (230, 20, 20)
-    assert (await active.send_image(FULL, jpeg(white))).result.name == "SHOWN"
-    await active.send_json({"t": "brightness", "pct": 100})
+    assert (await paint(active, white)).us > 0
+    await active.send(p.brightness(100))
+    me = real_input_target(await asyncio.to_thread(status))
     await asyncio.sleep(0.5)
     bright = sum(await asyncio.to_thread(strip_color))
     await asyncio.to_thread(put_config, {"screen_off_s": 10})
@@ -161,14 +162,14 @@ async def test_the_deck_goes_black_and_the_wake_press_stays_on_the_deck(bridges)
         await asyncio.to_thread(wait_dark, 13)
         dark = sum(await asyncio.to_thread(strip_color))
         assert dark < bright / 3, f"camera saw {dark} dark against {bright} lit"
-        await active.send_json({"t": "brightness", "pct": 60})
-        assert (await active.send_image(FULL, jpeg(red))).result.name == "SHOWN"  # drawn while dark
+        await active.send(p.brightness(60))
+        assert (await paint(active, red)).us > 0  # drawn while dark
         await asyncio.sleep(0.5)
         assert sum(await asyncio.to_thread(strip_color)) < bright / 3, "a brightness while dark lit the deck"
         while not active.inputs.empty():
             active.inputs.get_nowait()
 
-        await asyncio.to_thread(press, 3)
+        await asyncio.to_thread(press, 3, real=me)
         with contextlib.suppress(TimeoutError):
             got = await asyncio.wait_for(active.inputs.get(), 1.5)
             pytest.fail(f"the wake press reached the server: {got}")
@@ -177,7 +178,7 @@ async def test_the_deck_goes_black_and_the_wake_press_stays_on_the_deck(bridges)
         seen = await asyncio.to_thread(strip_color)
         assert max(range(3), key=lambda i: seen[i]) == 0 and sum(seen) > dark * 2, f"camera saw {seen} after waking"
 
-        await asyncio.to_thread(press, 3)
+        await asyncio.to_thread(press, 3, real=me)
         down = await asyncio.wait_for(active.inputs.get(), 3)
         up = await asyncio.wait_for(active.inputs.get(), 3)
         assert (down.kind, down.index, up.kind, up.index) == (InputKind.KEY_DOWN, 3, InputKind.KEY_UP, 3)

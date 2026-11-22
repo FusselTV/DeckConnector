@@ -59,6 +59,9 @@ bool db_ui_menu_open(void);
 int db_ui_qr(const char *text, uint8_t bits[DB_UI_QR_BYTES]);
 /* The Matter pairing code for 60 s. The number of decks it shows on. */
 int db_ui_show_matter(const char *qr, const char *code);
+/* A surface host on `link` waits for the admin to type `code` (NULL: no longer). It covers every deck for
+ * 2 min, then shows while no host draws. */
+void db_ui_show_pair(int link, const char *code);
 /* The deck shows the web login for 30 s. The number of decks it shows on, 0 when none is connected. */
 int db_ui_show_password(void);
 /* The same page shows the device CA's short fingerprint for 30 s instead, when someone downloads the CA. */

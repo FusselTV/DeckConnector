@@ -1,16 +1,20 @@
-"""Input simulated over the web API reaches the server like a real press."""
+"""Input simulated over the web API, bound to the test server that draws, reaches it like a real press."""
 
 import asyncio
 import contextlib
 import json
 
 import pytest
-from conftest import api
+from conftest import api, status
 
 from dbtools.protocol import InputKind
+from dbtools.safety import real_input_target
 
 
-async def post(body: dict) -> tuple[int, dict]:
+async def post(body: dict, bound: bool = True) -> tuple[int, dict]:
+    """`bound`: to the host that draws, or the press stays on the bridge."""
+    if bound:
+        body = body | {"real": real_input_target(await asyncio.to_thread(status))}
     code, reply = await asyncio.to_thread(api, "POST", "/api/input", json.dumps(body).encode())
     return code, json.loads(reply)
 
@@ -19,18 +23,8 @@ async def next_input(bridge):
     return await asyncio.wait_for(bridge.inputs.get(), 3)
 
 
-async def active_bridge(server):
-    """Earlier failover tests reconnect the bridge, so take the connection that is active now."""
-    for _ in range(100):
-        live = [b for b in server.bridges.values() if b.active]
-        if live:
-            return live[0]
-        await asyncio.sleep(0.1)
-    raise TimeoutError("no active bridge on server 1")
-
-
-async def test_key_encoder_and_touch_reach_the_server(servers):
-    active = await active_bridge(servers[0])
+async def test_key_encoder_and_touch_reach_the_server(bridges):
+    active, standby = bridges
     while not active.inputs.empty():
         active.inputs.get_nowait()
     assert (await post({"key": 3}))[0] == 200
@@ -61,6 +55,7 @@ async def test_key_encoder_and_touch_reach_the_server(servers):
     assert (await post({"touch": "swipe", "x": 700, "y": 420, "x2": 100, "y2": 430}))[0] == 200
     swipe = await next_input(active)
     assert (swipe.kind, swipe.x, swipe.y, swipe.x2, swipe.y2) == (InputKind.TOUCH_SWIPE, 700, 420, 100, 430)
+    assert swipe.deck == 0 and standby.inputs.empty(), "only the host that draws gets input"
 
 
 @pytest.mark.parametrize(
@@ -74,5 +69,5 @@ async def test_key_encoder_and_touch_reach_the_server(servers):
     ],
 )
 async def test_bad_input_is_refused(servers, body, error):
-    code, reply = await post(body)
+    code, reply = await post(body, bound=False)
     assert code == 400 and error in reply["error"]

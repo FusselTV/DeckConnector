@@ -5,10 +5,10 @@
  * window.jpg or window-<x>-<y>-<w>-<h>.jpg (Elgato) or id-<hex>.jpg (Mirabox), as sent: turned as the deck
  * wants it, and <dir>/<n>/brightness as the deck got it last (Mirabox: the LIG byte). <dir>/ctl is a FIFO
  * that takes one line per action, as a person at the deck: <n> key <i> <1|0> [count]  Elgato key (count keys
- * from i in one report), sensors after the image keys <n> enc <i> <1|0>          Elgato encoder press <n> turn
- * <i> <ticks>       Elgato
- * encoder turn <n> touch <1|2|3> x y [x2 y2]   Elgato tap, long press, flick, window coordinates <n> rc <row>
- * <col> <1|0|-1|+1>  Mirabox press, release; -1 and +1 turn (or swipe) there <n> unplug | plug
+ * from i in one report), sensors after the image keys <n> enc <i> <1|0>          Elgato encoder press <n>
+ * turn <i> <ticks>       Elgato encoder turn <n> touch <1|2|3> x y [x2 y2]   Elgato tap, long press, flick,
+ * window coordinates <n> rc <row> <col> <1|0|-1|+1>  Mirabox press, release; -1 and +1 turn (or swipe) there
+ * <n> unplug | plug
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -32,6 +32,7 @@ typedef struct {
     bool elgato;
     bool plugged;
     bool open;
+    volatile bool stalled; /* POST /api/deck/stall: writes hang until it is unplugged */
     int brightness;
 } sim_dev_t;
 
@@ -110,6 +111,9 @@ static void note_brightness(sim_dev_t *d)
 static db_err_t sim_write(const db_hid_io_t *io, const uint8_t *report, size_t len)
 {
     sim_dev_t *d = (sim_dev_t *)io;
+    while (d->stalled && d->plugged) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
     xSemaphoreTake(lock, portMAX_DELAY);
     db_err_t err = d->plugged ? emu_io(d)->write(emu_io(d), report, len) : DB_ERR_IO;
     note_brightness(d);
@@ -158,6 +162,7 @@ static void plug(int n, bool in)
             mirabox_emu_start(n, d->vid, d->pid);
         }
         d->plugged = true;
+        d->stalled = false;
         d->brightness = -2; /* written again on the first change */
         xSemaphoreGive(lock);
         cb.attached((uint8_t)(n + 1));
@@ -369,7 +374,8 @@ uint32_t usb_port_recoveries(void)
 
 esp_err_t usb_port_stall(int dev)
 {
-    return ESP_ERR_NOT_SUPPORTED;
+    devs[dev].stalled = true;
+    return ESP_OK;
 }
 
 esp_err_t usb_port_replug(uint8_t address, uint32_t off_ms)

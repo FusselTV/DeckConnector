@@ -402,18 +402,18 @@ def pytest_pyfunc_call(pyfuncitem):
 
 @pytest.fixture(scope="session")
 async def servers():
-    """Two servers on this machine; the bridge is set to use them, first one preferred."""
+    """Two servers on this machine, both paired with the bridge; the first one draws."""
     global _loop
     _loop = asyncio.get_running_loop()
     # No server pings: the tests check that the bridge notices dead links by itself.
     first, second = Server(PORTS[0], "e2e-1", ping=False), Server(PORTS[1], "e2e-2", ping=False)
     await first.start()
     await second.start()
-    wanted = [first.url, second.url]
     cfg = get_config()
-    if [u for u in cfg["servers"] if u] != wanted:
-        put_config({"servers": wanted})  # applies without a restart
-    put_config({"controller": "server", "host": ""})
+    put_config({"servers": []})  # a token from an earlier run is unknown to these servers; a new URL drops it
+    put_config({"servers": [first.url, second.url], "controller": "server"})
+    await (await first.wait_bridge(60)).role(True)
+    await second.wait_bridge(60)
     yield first, second
     await first.stop()
     await second.stop()
@@ -422,15 +422,22 @@ async def servers():
 
 async def newest(server):
     """The link that connected last: tests that make the bridge connect again leave older ones behind."""
-    return list(server.bridges.values())[-1] if server.bridges else await server.wait_bridge(60)
+    bridge = list(server.bridges.values())[-1] if server.bridges else None
+    if bridge and not bridge.pair_code and not bridge.closed.is_set():
+        return bridge
+    return await server.wait_bridge(60)
 
 
 @pytest.fixture
 async def bridges(servers):
+    """The newest link to each server; the first one draws, the second waits on standby."""
     first, second = servers
     a, b = await newest(first), await newest(second)
-    for _ in range(100):
-        if a.device:
-            break
-        await asyncio.sleep(0.05)
+    await a.role(True)
     return a, b
+
+
+async def paint(bridge, color, kind: str = "full", n: int = 0):
+    """A solid colour on the n-th target of that kind on deck 0, as PUT and FRAME. Returns its SHOWN."""
+    t = bridge.target(0, kind, n)
+    return await bridge.draw(0, t, jpeg(color, (t["w"], t["h"])), t["id"])
