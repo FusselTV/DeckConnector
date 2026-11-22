@@ -394,7 +394,7 @@ static size_t web_state(char *buf, size_t cap)
     return tagged_status(buf, cap, "state", false);
 }
 
-static void on_ota_progress(const char *target, const char *state, int pct, const char *error)
+static void ota_broadcast(const char *target, const char *state, int pct, const char *error)
 {
     char buf[128];
     db_json_t j;
@@ -415,14 +415,19 @@ static void on_ota_progress(const char *target, const char *state, int pct, cons
         db_link_broadcast(buf);
         db_web_broadcast(buf);
     }
-    bool running = strcmp(state, "error") != 0;
-    db_ui_set_update(running ? pct : -1, target[0] == 'c');
+}
+
+static void on_ota_progress(const char *target, const char *state, int pct, const char *error)
+{
+    ota_broadcast(target, state, pct, error);
+    bool over = strcmp(state, "error") == 0 || (strcmp(state, "done") == 0 && !db_ota_restarts());
+    db_ui_set_update(over ? -1 : pct, target[0] == 'c');
 }
 
 static void on_ota_requested(const char *target, const char *url)
 {
-    if (db_ota_start_url(url) != ESP_OK) {
-        on_ota_progress(target, "error", -1, "busy");
+    if (db_ota_start_url(url) != ESP_OK) { /* the update that runs keeps the deck */
+        ota_broadcast(target, "error", -1, "busy");
     }
 }
 
