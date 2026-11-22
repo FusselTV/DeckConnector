@@ -5,7 +5,7 @@ look at the result and commit it.
 
 | Command | Writes |
 |---|---|
-| `tools/media/ha.sh` | `.github/assets/readme.gif`, `site/public/docs/ha-*.webp` and `ha-live-*.gif` |
+| `tools/media/ha.sh` | `.github/assets/readme.gif`, `site/public/docs/ha-*.webp` |
 | `tools/media/deck.sh` | `site/public/docs/deck-*.webp` |
 
 `ha.sh` needs `npm ci` in `web/`, ffmpeg, Docker and uv. It starts Home Assistant with the integration
@@ -24,5 +24,5 @@ the GIF.
 set `DC_SIM_ELF` to an existing one. To change a deck picture, edit `site/scripts/deck-shots.c`. It draws the screens
 with the firmware's own code.
 
-To change a GIF, edit the `SCENES` list at the top of `web-gif.mjs` or `ha-gif.mjs`.
-`ha-shots.mjs` takes the pictures, and `webp.py` turns them into the files and writes contact sheets to the work folder.
+To change a GIF, edit the `SCENES` list at the top of `web-gif.mjs`.
+`ha-shots.mjs` takes the pictures, and `webp.py` turns them into the files.

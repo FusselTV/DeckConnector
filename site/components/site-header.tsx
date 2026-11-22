@@ -88,8 +88,8 @@ export function SiteHeader({ lang }: { lang: Lang }) {
     return () => removeEventListener('scroll', onScroll)
   }, [])
   const links: [string, string, ReactNode][] = [
-    [s.docs, `${p}/docs/`, <BookOpen key="d" />],
     [s.demo, `${p}/demo/`, <MonitorPlay key="m" />],
+    [s.docs, `${p}/docs/`, <BookOpen key="d" />],
   ]
   const current = (href: string) => (path.startsWith(href) ? 'page' : undefined)
   return (

@@ -97,6 +97,7 @@ jobs:
           name: site
           path: site/out/
           if-no-files-found: error
+          include-hidden-files: true # .well-known/security.txt
 
   lighthouse:
     needs: build

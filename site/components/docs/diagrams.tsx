@@ -548,60 +548,6 @@ export function Ports({ lang }: { lang?: Lang }) {
   )
 }
 
-export function DeckMap({ lang }: { lang?: Lang }) {
-  const t = pick(
-    lang,
-    {
-      title: 'Names of the controls on a Stream Deck +',
-      desc: 'Keys 1 to 4 in the top row and 5 to 8 below, counted from the left. Below the keys the touch strip with touch zones 1 to 4, one above each dial. Dials 1 to 4 at the bottom.',
-      key: 'Key',
-      zone: 'Zone',
-      dial: 'Dial',
-    },
-    {
-      title: 'Namen der Bedienelemente auf einem Stream Deck +',
-      desc: 'Tasten 1 bis 4 in der oberen Reihe und 5 bis 8 darunter, von links gezählt. Unter den Tasten die Touchleiste mit den Touchfeldern 1 bis 4, je eines über einem Drehregler. Drehregler 1 bis 4 unten.',
-      key: 'Taste',
-      zone: 'Feld',
-      dial: 'Regler',
-    },
-  )
-  const four = [1, 2, 3, 4]
-  return (
-    <Figure title={t.title} desc={t.desc}>
-      <div aria-hidden className="mx-auto grid max-w-md gap-2 rounded-2xl border border-line-2 bg-panel-2 p-3">
-        <div className="grid grid-cols-4 gap-2">
-          {[...four, 5, 6, 7, 8].map((n) => (
-            <span
-              key={n}
-              className="grid aspect-square place-items-center rounded-lg border border-line bg-panel font-mono text-xs text-fg-2"
-            >
-              {t.key} {n}
-            </span>
-          ))}
-        </div>
-        <div className="grid grid-cols-4 overflow-hidden rounded-lg border border-amber/60">
-          {four.map((n) => (
-            <span key={n} className="border-line py-2 text-center font-mono text-xs text-amber-fg [&+&]:border-s">
-              {t.zone} {n}
-            </span>
-          ))}
-        </div>
-        <div className="grid grid-cols-4 gap-2 pt-1">
-          {four.map((n) => (
-            <span
-              key={n}
-              className="mx-auto grid size-14 place-items-center rounded-full border-2 border-line bg-panel text-center font-mono text-[11px] leading-tight text-fg-2"
-            >
-              {t.dial} {n}
-            </span>
-          ))}
-        </div>
-      </div>
-    </Figure>
-  )
-}
-
 export function CompanionModes({ lang }: { lang?: Lang }) {
   const t = pick(
     lang,

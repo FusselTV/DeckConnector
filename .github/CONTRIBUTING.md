@@ -98,7 +98,7 @@ A pull request runs only the jobs its files can affect. `ci-ok` is the check tha
 | Workflow | Runs on changes in | Jobs |
 |---|---|---|
 | ci | `firmware`, `web`, `tools`, `.github` | firmware build and clang-tidy, host tests, lint, web UI, demo, the board-free suites, size check |
-| home-assistant | `custom_components`, `blueprints`, `tools/ha`, `hacs.json`, `firmware`, `web` | hassfest, HACS, tests, Home Assistant in Docker |
+| home-assistant | `custom_components`, `tools/ha`, `hacs.json`, `firmware`, `web` | hassfest, HACS, tests, Home Assistant in Docker |
 | site | `site`, `web`, the deck screens | build, Lighthouse |
 
 ## Update files
