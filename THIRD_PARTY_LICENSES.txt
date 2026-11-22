@@ -13,15 +13,13 @@ each one once.
 Firmware
 --------
 
-Built with ESP-IDF 6.0.2 and the Espressif toolchain esp-15.2.0.
+Built with ESP-IDF 6.1.1 and the Espressif toolchain esp-15.2.0.
 
 Apache License 2.0 (text A)
-  ESP-IDF 6.0.2, Copyright Espressif Systems (Shanghai) CO LTD
+  ESP-IDF 6.1.1, Copyright Espressif Systems (Shanghai) CO LTD
     https://github.com/espressif/esp-idf
     The drivers, HAL, system, network, HTTP and HTTPS server, HTTP client,
     NVS, OTA, core dump, heap and C++ support parts that the firmware links.
-  ESP-IDF USB HAL (firmware/vendor/esp_hal_usb), Copyright Espressif Systems
-    (Shanghai) CO LTD. Modified for DeckConnector.
   espressif/usb 1.6.0 (firmware/vendor/usb), Copyright Espressif Systems
     (Shanghai) CO LTD. Modified for DeckConnector.
     https://github.com/espressif/esp-usb
@@ -102,9 +100,9 @@ DejaVu fonts license (text F)
 
 Mozilla Public License 2.0 (text G)
   CA root certificates of ESP-IDF's certificate bundle (the common subset),
-  from Mozilla's root store via curl's cacert.pem of 2 December 2025.
+  from Mozilla's root store via curl's cacert.pem of 11 February 2026.
   Source form: https://curl.se/docs/caextract.html and
-  components/mbedtls/esp_crt_bundle/cacrt_all.pem in ESP-IDF 6.0.2.
+  components/mbedtls/esp_crt_bundle/cacrt_all.pem in ESP-IDF 6.1.1.
 
 picolibc 1.8.10, the C library of the toolchain (text H)
   Several BSD-style licenses. Text H is picolibc's own list of notices.
