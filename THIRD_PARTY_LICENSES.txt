@@ -1,10 +1,10 @@
-DeckConnector third-party licenses
+Deck Connector third-party licenses
 ==================================
 
-DeckConnector is free software under the GNU Affero General Public License v3.0
+Deck Connector is free software under the GNU Affero General Public License v3.0
 (the file LICENSE). Source code: https://github.com/FusselTV/DeckConnector
 
-This file lists the third-party code in the DeckConnector firmware for the
+This file lists the third-party code in the Deck Connector firmware for the
 ESP32-P4 (the .bin files of the web flasher and the .dbfw update files) and in
 the web page that the device serves. The full license texts follow at the end,
 each one once.
@@ -21,10 +21,10 @@ Apache License 2.0 (text A)
     The drivers, HAL, system, network, HTTP and HTTPS server, HTTP client,
     NVS, OTA, core dump, heap and C++ support parts that the firmware links.
   espressif/usb 1.6.0 (firmware/vendor/usb), Copyright Espressif Systems
-    (Shanghai) CO LTD. Modified for DeckConnector.
+    (Shanghai) CO LTD. Modified for Deck Connector.
     https://github.com/espressif/esp-usb
   espressif/mdns 1.15.1 (firmware/vendor/mdns), Copyright Espressif Systems
-    (Shanghai) CO LTD. Modified for DeckConnector.
+    (Shanghai) CO LTD. Modified for Deck Connector.
     https://github.com/espressif/esp-protocols
   espressif/esp_hosted 3.0.10, Copyright Espressif Systems (Shanghai) CO LTD
     https://github.com/espressif/esp-hosted-mcu
@@ -32,10 +32,10 @@ Apache License 2.0 (text A)
     https://github.com/espressif/esp-adf/tree/master/components/esp_codec_dev
   Mbed TLS 4.1.1 and TF-PSA-Crypto 1.1.1, Copyright The Mbed TLS Contributors
     https://github.com/Mbed-TLS/mbedtls
-    Offered under Apache-2.0 OR GPL-2.0-or-later. DeckConnector uses it under
+    Offered under Apache-2.0 OR GPL-2.0-or-later. Deck Connector uses it under
     Apache-2.0.
   espressif/esp_matter 1.6.1, Copyright Espressif Systems (Shanghai) CO LTD.
-    Modified for DeckConnector (its manifest and two source files).
+    Modified for Deck Connector (its manifest and two source files).
     https://github.com/espressif/esp-matter
   connectedhomeip, the Matter SDK inside esp_matter 1.6.1, Copyright Project
     CHIP Authors, with nlassert and nlio, Copyright Nest Labs, Inc.

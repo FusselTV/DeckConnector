@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: a second release of a gone Hub is ignored (esp-usb#605).
+ * Modified for Deck Connector: a second release of a gone Hub is ignored (esp-usb#605).
  */
 #include <string.h>
 #include <stdint.h>

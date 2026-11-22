@@ -39,5 +39,5 @@ target_compile_options(${lib} PRIVATE -Wno-error=stringop-truncation)
 target_compile_definitions(${lib} PRIVATE CHIP_CONFIG_SUBSCRIPTION_TIMEOUT_RESUMPTION_MIN_RETRY_INTERVAL_SECS=5
                                           CHIP_CONFIG_SUBSCRIPTION_TIMEOUT_RESUMPTION_WAIT_TIME_MULTIPLIER_SECS=5
                                           CHIP_CONFIG_SUBSCRIPTION_TIMEOUT_RESUMPTION_MAX_RETRY_INTERVAL_SECS=300)
-target_compile_definitions(${lib} PRIVATE CHIP_DEVICE_CONFIG_DEVICE_VENDOR_NAME="DeckConnector"
-                                          CHIP_DEVICE_CONFIG_DEVICE_PRODUCT_NAME="DeckConnector")
+target_compile_definitions(${lib} PRIVATE CHIP_DEVICE_CONFIG_DEVICE_VENDOR_NAME="Deck Connector"
+                                          CHIP_DEVICE_CONFIG_DEVICE_PRODUCT_NAME="Deck Connector")

@@ -1,7 +1,7 @@
 import type { Dict } from './types'
 
 export const de: Dict = {
-  'app.name': 'DeckConnector',
+  'app.name': 'Deck Connector',
   'grp.run': 'Betrieb',
   'grp.device': 'Gerät',
   'grp.care': 'Wartung',
@@ -355,7 +355,7 @@ export const de: Dict = {
     'Passwort, Einstellungen, Netzwerk und Quellen werden zurückgesetzt. Du bestätigst am Deck. Danach startet die Einrichtung, das neue Passwort steht auf dem Deck.',
   'login.reset_go': 'Am Deck bestätigen',
   'login.reset_wait': 'Bestätige am Deck. Noch {s} s.',
-  'login.reset_wait_h': 'Tippe dort zweimal auf „Zurücksetzen“. Der DeckConnector startet danach neu.',
+  'login.reset_wait_h': 'Tippe dort zweimal auf „Zurücksetzen“. Der Deck Connector startet danach neu.',
   'login.btn': 'Anmelden',
   'login.wrong': 'Falsches Passwort.',
   'login.locked': 'Zu viele Versuche. Noch {n} s gesperrt.',
@@ -454,7 +454,7 @@ export const de: Dict = {
   'wifi.lost':
     'Die Seite hat den Connector beim Test verloren. Hat er sich verbunden, ist er jetzt unter der Adresse im neuen Netz erreichbar.',
   'wifi.pass_len': 'Ein WLAN-Passwort hat 8 bis 63 Zeichen oder 64 Hex-Ziffern.',
-  'fw.bad_header': 'Die Datei hat keinen gültigen DeckConnector-Kopf.',
+  'fw.bad_header': 'Die Datei hat keinen gültigen Deck-Connector-Kopf.',
   'fw.ver_unknown': 'Die Version steht erst nach dem Prüfen fest.',
   'fw.url_h': 'http:// oder https://. Der Connector prüft die Signatur der Datei selbst.',
   'fw.write': 'Schreiben',
@@ -673,7 +673,7 @@ export const de: Dict = {
   'wiz.no_src': 'Noch keine Quelle verbunden',
   'wiz.no_src_h': 'Das Deck zeigt sein eigenes Menü. Eine Quelle verbindest du später unter „{tab}“.',
   'wiz.https_hint': 'Unter „Zugang“ kannst du HTTPS einschalten.',
-  'wiz.ha_hint': 'Nutzt du Home Assistant? Mit der DeckConnector-Integration findet es diesen Connector von selbst.',
+  'wiz.ha_hint': 'Nutzt du Home Assistant? Mit der Deck-Connector-Integration findet es diesen Connector von selbst.',
   'wiz.ha_link': 'So richtest du es ein',
   'wifi.ch': 'Kanal {c}',
   'wifi.aps_one': '{n} Zugangspunkt',
@@ -721,7 +721,7 @@ export const de: Dict = {
   'meter.slow_n': 'Deck {n} langsam',
   'login.cookie':
     'Der Browser hat die Anmeldung nicht behalten. Erlaube Cookies für diese Adresse und melde dich noch einmal an.',
-  'login.reset': 'Der DeckConnector wurde zurückgesetzt. Melde dich mit dem Passwort vom Deck an.',
+  'login.reset': 'Der Deck Connector wurde zurückgesetzt. Melde dich mit dem Passwort vom Deck an.',
   'login.claimed':
     'Ein anderer Browser hat die Einrichtung fortgesetzt. Melde dich mit dem Passwort an, das er gesetzt hat. Hat er keins gesetzt, nimm das Passwort vom Deck.',
   'login.expired': 'Sitzung abgelaufen. Deine Eingaben bleiben erhalten.',
@@ -747,7 +747,7 @@ export const de: Dict = {
   'wifi.pass_need': 'Dieses WLAN ist verschlüsselt. Gib sein Passwort ein.',
   'wiz.linked': 'Companion unter {a} antwortet und übernimmt das Deck in ein paar Sekunden.',
   'wiz.restart_h': 'Der Connector startet einmal neu, damit Name oder Passwort gelten. Danach geht es hier weiter.',
-  'fw.not_backup': 'Diese Datei ist keine DeckConnector-Sicherung.',
+  'fw.not_backup': 'Diese Datei ist keine Deck-Connector-Sicherung.',
   'fw.r_bri': '0 bis 100.',
   'fw.r_text': 'Muss Text sein.',
   'access.qr_done':
@@ -759,7 +759,7 @@ export const de: Dict = {
   'access.cors_l': 'Erlaubte Webseiten',
   'err.ota_too_short': 'Die Datei ist zu kurz für eine Firmware-Datei.',
   'err.ota_not_dbfw': 'Das ist keine .dbfw-Firmware-Datei.',
-  'err.ota_not_signed': 'Die Datei ist nicht für diesen DeckConnector signiert.',
+  'err.ota_not_signed': 'Die Datei ist nicht für diesen Deck Connector signiert.',
   'err.ota_wrong_target': 'Die Datei ist für ein anderes Gerät oder einen anderen Teil.',
   'err.ota_too_old': 'Diese Firmware ist älter, als die Sicherheitsstufe erlaubt.',
   'err.url_http_only': 'Die Adresse muss mit http:// oder https:// beginnen.',
@@ -915,7 +915,7 @@ export const de: Dict = {
   'ev.matter_failed': 'Matter startet nicht: {0}',
   'log.store_settings': 'Nur die letzten 40 Ereignisse bleiben über einen Neustart.',
   'log.store_ram': 'Kein Ereignis bleibt über einen Neustart.',
-  'star.title': 'Gefällt dir DeckConnector?',
+  'star.title': 'Gefällt dir Deck Connector?',
   'star.text': 'Ein Stern auf GitHub hilft anderen, es zu finden.',
   'star.gh': 'Stern geben',
   'star.support': 'Unterstützen',

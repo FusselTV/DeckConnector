@@ -62,7 +62,7 @@ const char *db_web_error_code(const char *msg)
     static const char *const codes[][2] = {
         {"ota_too_short", "file too short"},
         {"ota_not_dbfw", "not a .dbfw file"},
-        {"ota_not_signed", "not signed for this DeckConnector"},
+        {"ota_not_signed", "not signed for this Deck Connector"},
         {"ota_wrong_target", "unknown target"},
         {"ota_wrong_target", "not a bootloader for this chip"},
         {"ota_too_old", "below the security level"},

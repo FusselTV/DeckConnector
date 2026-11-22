@@ -56,10 +56,10 @@ export function Topology({ lang }: { lang?: Lang }) {
   const t = pick(
     lang,
     {
-      title: 'How DeckConnector connects',
+      title: 'How Deck Connector connects',
       desc: 'The Stream Deck plugs into the connector over USB. The connector joins your network over Wi-Fi, Ethernet or both. Companion, the Elgato app, your own server and a browser reach the deck through the network. Home Assistant and Matter apps get the key presses but draw nothing.',
       deck: 'Your deck, unchanged',
-      board: 'DeckConnector',
+      board: 'Deck Connector',
       boardSub: 'ESP32-P4, USB-C or PoE power',
       net: 'Wi-Fi and Ethernet',
       netSub: 'both at once',
@@ -79,10 +79,10 @@ export function Topology({ lang }: { lang?: Lang }) {
       webSub: 'web UI and API',
     },
     {
-      title: 'So verbindet sich DeckConnector',
+      title: 'So verbindet sich Deck Connector',
       desc: 'Das Stream Deck steckt per USB am Connector. Der Connector ist per WLAN, LAN oder beidem im Netzwerk. Companion, die Elgato-App, ein eigener Server und ein Browser erreichen das Deck über das Netzwerk. Home Assistant und Matter-Apps bekommen die Tastendrücke, zeichnen aber nichts.',
       deck: 'Dein Deck, unverändert',
-      board: 'DeckConnector',
+      board: 'Deck Connector',
       boardSub: 'ESP32-P4, Strom per USB-C oder PoE',
       net: 'WLAN und LAN',
       netSub: 'beides zugleich',
@@ -574,7 +574,7 @@ export function CompanionModes({ lang }: { lang?: Lang }) {
         <span className="text-fg">{name}</span> · {sub}
       </p>
       <div className="grid items-center gap-2 @lg:grid-cols-[1fr_auto_1fr]">
-        <Node slim icon={<Cpu />} title="DeckConnector" tone="amber" />
+        <Node slim icon={<Cpu />} title="Deck Connector" tone="amber" />
         <div
           aria-hidden
           className="flex items-center justify-center gap-2 font-mono text-xs text-fg-3 @lg:flex-col @lg:gap-0"

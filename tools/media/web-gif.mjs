@@ -89,6 +89,8 @@ await ctx.addInitScript(() => {
     clearTimeout(t)
     t = setTimeout(() => window.__screen(), 30)
   }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] })
+  // the popup would cover the controls
+  sessionStorage.setItem('dc.popDone', 'true')
   const set = Storage.prototype.setItem
   Storage.prototype.setItem = function (k, v) {
     if (k === 'dc.demo') window.__put(v)

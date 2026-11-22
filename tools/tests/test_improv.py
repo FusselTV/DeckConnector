@@ -80,7 +80,7 @@ def test_state_info_and_network(sim):
     assert (im.STATE, bytes([4])) in got  # the simulated LAN is up
     assert [im.strings(d[2:]) for k, d in got if k == im.RESULT] == [["http://127.0.0.1"]]
     info = sim.result(im.INFO)
-    assert info[0] == "DeckConnector" and info[2] == "ESP32-P4" and info[3].startswith("deckconnector-")
+    assert info[0] == "Deck Connector" and info[2] == "ESP32-P4" and info[3].startswith("deckconnector-")
     assert sim.result(im.NETWORK) == ["5", "http://127.0.0.1"]  # online, Ethernet
     assert sim.result(im.NAME) == [info[3]]
     assert sim.result(im.HOSTNAME) == [info[3]]
@@ -104,7 +104,7 @@ def test_unknown_and_broken_packets(sim):
     broken = bytearray(im.rpc(im.INFO))
     broken[-2] ^= 1  # checksum
     assert any(k == im.ERROR and d[0] == 1 for k, d in sim.ask(bytes(broken), cmd=im.INFO))
-    assert sim.result(im.INFO)[0] == "DeckConnector"  # and a good one still works
+    assert sim.result(im.INFO)[0] == "Deck Connector"  # and a good one still works
 
 
 def test_setup_follows_the_web_rules(sim):
@@ -137,7 +137,7 @@ def test_settings_close_after_setup_and_the_window(tmp_path):
         assert s.error(im.WIFI, "Zuhause", "password1") == 4
         assert s.error(im.SETUP, "new-password", "", "") == 4
         assert s.error(im.SCAN) == 4
-        assert s.result(im.INFO)[0] == "DeckConnector"  # reading stays open
+        assert s.result(im.INFO)[0] == "Deck Connector"  # reading stays open
         assert s.config("simulator")["name"].startswith("deckconnector-")
     finally:
         s.p.kill()

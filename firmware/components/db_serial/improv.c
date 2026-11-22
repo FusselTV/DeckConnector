@@ -337,7 +337,7 @@ static void handle(const db_improv_packet_t *p)
         send_state(CMD_STATE);
         break;
     case CMD_INFO: {
-        const char *s[] = {"DeckConnector", esp_app_get_description()->version, "ESP32-P4",
+        const char *s[] = {"Deck Connector", esp_app_get_description()->version, "ESP32-P4",
                            db_config()->name};
         result(CMD_INFO, s, 4);
         break;

@@ -21,8 +21,8 @@ export default defineConfig(({ mode }) => {
         html
           .replace('/src/main.tsx', '/src/demo/main.ts')
           .replace(
-            '<title>DeckConnector</title>',
-            '<title>DeckConnector demo</title><meta name="robots" content="noindex">',
+            '<title>Deck Connector</title>',
+            '<title>Deck Connector demo</title><meta name="robots" content="noindex">',
           ),
     },
   }

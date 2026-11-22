@@ -16,7 +16,7 @@ const t = {
     docs: 'Docs',
     flash: 'Set it up',
     demo: 'Demo',
-    home: 'DeckConnector home',
+    home: 'Deck Connector home',
     search: 'Search',
     language: 'Language',
     light: 'Light mode',
@@ -30,7 +30,7 @@ const t = {
     docs: 'Anleitung',
     flash: 'Einrichten',
     demo: 'Demo',
-    home: 'Startseite von DeckConnector',
+    home: 'Startseite von Deck Connector',
     search: 'Suchen',
     language: 'Sprache',
     light: 'Helles Design',
@@ -102,8 +102,11 @@ export function SiteHeader({ lang }: { lang: Lang }) {
           className="me-auto flex h-11 min-w-11 items-center gap-2 rounded-lg transition-opacity hover:opacity-80 md:me-4"
         >
           <Logo />
-          <span data-wordmark className="text-[15px] font-semibold tracking-tight max-[380px]:sr-only">
-            DeckConnector
+          <span
+            data-wordmark
+            className="whitespace-nowrap text-[15px] font-semibold tracking-tight max-[389px]:sr-only"
+          >
+            Deck Connector
           </span>
         </a>
         <nav aria-label={s.nav} className="flex items-center gap-1 max-md:hidden">

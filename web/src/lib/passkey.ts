@@ -14,11 +14,11 @@ const b64u = (b: ArrayBuffer) =>
 
 export async function addPasskey(name: string) {
   const { challenge } = await api.passkeyChallenge(false)
-  const user = `DeckConnector ${getState().status.name ?? location.hostname}`
+  const user = `Deck Connector ${getState().status.name ?? location.hostname}`
   const c = (await navigator.credentials.create({
     publicKey: {
       challenge: bytes(challenge),
-      rp: { id: location.hostname, name: 'DeckConnector' },
+      rp: { id: location.hostname, name: 'Deck Connector' },
       // one id per passkey: the same id again would replace an older passkey on that device
       user: { id: crypto.getRandomValues(new Uint8Array(16)), name: user, displayName: user },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }],

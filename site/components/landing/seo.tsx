@@ -26,7 +26,7 @@ export function LandingLd({ lang }: { lang: Lang }) {
         '@graph': [
           {
             '@type': 'SoftwareApplication',
-            name: 'DeckConnector',
+            name: 'Deck Connector',
             description: t.meta.description,
             url: url(lang, '/'),
             applicationCategory: 'UtilitiesApplication',
@@ -41,7 +41,7 @@ export function LandingLd({ lang }: { lang: Lang }) {
             screenshot: `${site}/${lang === 'de' ? 'og-de' : 'og'}.jpg`,
             sameAs: repo,
           },
-          { '@type': 'WebSite', name: 'DeckConnector', url: `${site}/`, inLanguage: ['en', 'de'] },
+          { '@type': 'WebSite', name: 'Deck Connector', url: `${site}/`, inLanguage: ['en', 'de'] },
           faqLd(t.faq.items),
         ],
       }}

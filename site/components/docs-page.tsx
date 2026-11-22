@@ -32,7 +32,7 @@ export function DocPage({ lang, slug }: { lang: Lang; slug?: string[] }) {
           '@context': 'https://schema.org',
           '@type': 'BreadcrumbList',
           itemListElement: [
-            { '@type': 'ListItem', position: 1, name: 'DeckConnector', item: `${site}${prefix(lang)}/` },
+            { '@type': 'ListItem', position: 1, name: 'Deck Connector', item: `${site}${prefix(lang)}/` },
             {
               '@type': 'ListItem',
               position: 2,

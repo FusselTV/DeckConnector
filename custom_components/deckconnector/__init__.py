@@ -92,8 +92,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: DeckConnectorConfigEntry
                 identifiers={(DOMAIN, coordinator.board_id)},
                 connections={(dr.CONNECTION_NETWORK_MAC, dr.format_mac(coordinator.board_id))},
                 name=data["name"],
-                manufacturer="DeckConnector",
-                model="DeckConnector",
+                manufacturer="Deck Connector",
+                model="Deck Connector",
                 sw_version=firmware,
                 configuration_url=f"http://{entry.data[CONF_HOST]}",
             )

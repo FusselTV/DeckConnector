@@ -17,7 +17,7 @@ const t = {
   },
 } as const
 
-export const notFoundTitle = (lang: Lang) => `${t[lang].title} | DeckConnector`
+export const notFoundTitle = (lang: Lang) => `${t[lang].title} | Deck Connector`
 
 export function NotFound({ lang }: { lang: Lang }) {
   const s = t[lang]

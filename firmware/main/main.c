@@ -576,7 +576,7 @@ void app_main(void) /* NOLINT(misc-use-internal-linkage): ESP-IDF calls it */
     init_nvs();
     db_log_keep_start();
     started("settings", db_config_load());
-    ESP_LOGI(TAG, "DeckConnector %s, controller %s", esp_app_get_description()->version,
+    ESP_LOGI(TAG, "Deck Connector %s, controller %s", esp_app_get_description()->version,
              db_controller_name(db_config()->controller));
 
     started("deck screen", db_ui_start());

@@ -384,7 +384,7 @@ export const DeckFront = memo(function DeckFront(p: DeckFrontProps) {
           {M.tray && <div className="ftray" style={{ ...mm(M.tray), borderRadius: `calc(${M.tray.r}*var(--mm))` }} />}
           <div className="fmark" style={{ top: `calc(${M.mark.y}*var(--mm))` }}>
             <DeckMark />
-            <span>DeckConnector</span>
+            <span>Deck Connector</span>
           </div>
           {Array.from({ length: nk }, (_, i) => {
             const c = i % M.cols

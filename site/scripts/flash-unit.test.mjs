@@ -36,7 +36,7 @@ test('packets among log lines, fed one byte at a time', () => {
     enc('W (500) wifi: half a li'),
     im.frame(im.ERROR, hex('03')),
     enc('ne\nIMPRO not a frame\n'),
-    result(im.INFO, 'DeckConnector', 'v1', 'ESP32-P4', 'deck-1'),
+    result(im.INFO, 'Deck Connector', 'v1', 'ESP32-P4', 'deck-1'),
   )
   const got = []
   for (const b of stream) got.push(...r.feed(Uint8Array.of(b)))
@@ -44,7 +44,7 @@ test('packets among log lines, fed one byte at a time', () => {
     got.map((p) => p.type),
     [im.STATE, im.ERROR, im.RESULT],
   )
-  assert.deepEqual(im.strings(got[2].data.subarray(2)), ['DeckConnector', 'v1', 'ESP32-P4', 'deck-1'])
+  assert.deepEqual(im.strings(got[2].data.subarray(2)), ['Deck Connector', 'v1', 'ESP32-P4', 'deck-1'])
   assert.ok(lines.includes('I (400) web: web login: admin / ******'), lines.join('|'))
   assert.ok(!lines.join('\n').includes('Secret123'))
   assert.ok(lines.includes('W (500) wifi: half a li') && lines.includes('ne'), lines.join('|'))
@@ -60,7 +60,7 @@ test('a bad checksum is dropped, the next frame still parses', () => {
 
 test('a frame cut short does not swallow the next one', () => {
   const real = im.frame(im.STATE, hex('02'))
-  const long = result(im.INFO, 'DeckConnector', 'v0.2.0', 'ESP32-P4', 'deck-a')
+  const long = result(im.INFO, 'Deck Connector', 'v0.2.0', 'ESP32-P4', 'deck-a')
   for (const head of [real.subarray(0, 9), long.subarray(0, 9), enc('IMPROV')])
     assert.deepEqual(new im.Reader().feed(cat(head, real)), [{ type: im.STATE, data: hex('02') }], String(head))
 })
@@ -93,7 +93,7 @@ test('state, info, network and scan', async () => {
   const { client } = rig((cmd) => {
     if (cmd === im.CURRENT_STATE)
       return cat(im.frame(im.STATE, hex('04')), enc('log\n'), result(im.CURRENT_STATE, 'http://10.0.0.5'))
-    if (cmd === im.INFO) return result(im.INFO, 'DeckConnector', 'v0.2.0', 'ESP32-P4', 'deck-a')
+    if (cmd === im.INFO) return result(im.INFO, 'Deck Connector', 'v0.2.0', 'ESP32-P4', 'deck-a')
     if (cmd === im.NETWORK) return result(im.NETWORK, '7', 'http://10.0.0.5', 'http://10.0.0.9')
     if (cmd === im.SCAN)
       return cat(
@@ -121,10 +121,10 @@ test('errors reject with their code, a fresh command still works', async () => {
   const { client } = rig((cmd) =>
     cmd === im.WIFI
       ? cat(im.frame(im.STATE, hex('03')), im.frame(im.ERROR, hex('03')), im.frame(im.STATE, hex('02')))
-      : result(im.INFO, 'DeckConnector'),
+      : result(im.INFO, 'Deck Connector'),
   )
   await assert.rejects(client.wifi('Home', 'wrongpass'), (e) => e instanceof im.ImprovError && e.code === 3)
-  assert.equal((await client.info()).product, 'DeckConnector')
+  assert.equal((await client.info()).product, 'Deck Connector')
 })
 
 test('setup answers', async () => {

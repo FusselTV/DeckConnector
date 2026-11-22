@@ -24,7 +24,7 @@ function Value({ c, win, better }: { c: Cell; win: boolean; better: string }) {
   )
 }
 
-/** Dock first, like the compare animation: the reference on the left, DeckConnector on the right. groups: [title, row count] in row order. */
+/** Dock first, like the compare animation: the reference on the left, Deck Connector on the right. groups: [title, row count] in row order. */
 export function Table({
   cols,
   rows,

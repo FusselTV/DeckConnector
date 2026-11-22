@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Everything that differs between boards. Pick the board in menuconfig (DeckConnector board). */
+/* Everything that differs between boards. Pick the board in menuconfig (Deck Connector board). */
 typedef struct {
     const char *name;
     struct {

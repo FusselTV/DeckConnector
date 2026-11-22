@@ -44,7 +44,7 @@
       "not_accepted": "Das Deck hat die Anfrage nicht angenommen. Gib stattdessen das Web-Passwort ein.",
       "https_only": "Der Connector erlaubt nur HTTPS. Schalte „Nur HTTPS“ auf seiner Weboberfläche aus und versuche es noch einmal.",
       "too_many_keys": "Der Connector hat schon 8 API-Schlüssel. Lösche einen unter Zugang › API-Zugriff auf seiner Weboberfläche und versuche es noch einmal.",
-      "not_deckconnector": "Unter dieser Adresse antwortet etwas, aber kein DeckConnector."
+      "not_deckconnector": "Unter dieser Adresse antwortet etwas, aber kein Deck Connector."
     },
     "abort": {
       "already_configured": "Dieser Connector ist schon eingerichtet.",

@@ -1,4 +1,4 @@
-# DeckConnector website
+# Deck Connector website
 
 Static Next.js export (landing, docs, flasher, demo) in `out/`, for Cloudflare Pages.
 
@@ -17,7 +17,7 @@ npm run check   # typecheck, lint, static build into out/
 
 ## Files for AI assistants
 
-- `/llms.txt`: what DeckConnector is, key facts, the comparison and links to every docs page. Built from `lib/llm.ts`, `components/compare/data.ts` and the docs sidebar.
+- `/llms.txt`: what Deck Connector is, key facts, the comparison and links to every docs page. Built from `lib/llm.ts`, `components/compare/data.ts` and the docs sidebar.
 - `/llms-full.txt`: the same intro plus every English docs page as Markdown.
 - `/md/docs/<page>.md` and `/md/de/docs/<page>.md`: each docs page as Markdown.
 - `node --test scripts/llms.test.mjs` after a build checks these files for leftover MDX, broken fences and dead links.

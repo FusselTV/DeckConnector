@@ -10,11 +10,11 @@ const en = {
   meta: {
     title: 'Elgato Network Dock alternative with Wi-Fi',
     description:
-      'DeckConnector and the Elgato Network Dock side by side: Wi-Fi, PoE, price, Bitfocus Companion, Elgato app, several computers. Tested on the bench.',
+      'Deck Connector and the Elgato Network Dock side by side: Wi-Fi, PoE, price, Bitfocus Companion, Elgato app, several computers. Tested on the bench.',
   },
   crumbs: ['Home', 'Compare'],
-  h1: 'DeckConnector vs Elgato Network Dock',
-  lead: ['The ', ['dock', 'Elgato Network Dock'], ' needs a network cable. DeckConnector also runs on Wi-Fi.'] as Rich,
+  h1: 'Deck Connector vs Elgato Network Dock',
+  lead: ['The ', ['dock', 'Elgato Network Dock'], ' needs a network cable. Deck Connector also runs on Wi-Fi.'] as Rich,
   summary: [
     { k: 'Wi-Fi', icon: 'wifi', v: ['n', 'y'] },
     { k: 'Network cable', icon: 'lan', v: ['y', 'y'] },
@@ -24,7 +24,7 @@ const en = {
     { k: 'Official support', icon: 'support', v: ['y', 'n'] },
   ] as VsRow[],
   all: 'Show all 20 points',
-  cols: ['DeckConnector', 'Elgato Network Dock'],
+  cols: ['Deck Connector', 'Elgato Network Dock'],
   better: 'better',
   groups: [
     ['Network and power', 4],
@@ -86,7 +86,7 @@ const en = {
     title: 'Where the dock is better',
     items: [
       ['Plug and play', 'No flashing. Unbox, plug in, done.'],
-      ['Case and mounts', 'A finished box with a bracket. DeckConnector is a bare board for now.'],
+      ['Case and mounts', 'A finished box with a bracket. Deck Connector is a bare board for now.'],
       ['More decks tested', 'Elgato supports most current decks. We have tested the Stream Deck + only.'],
       [
         'Official support',
@@ -99,10 +99,10 @@ const en = {
     items: [
       [
         'Does the Elgato Network Dock have Wi-Fi?',
-        'No. The Network Dock connects over an Ethernet cable only, powered by PoE or USB-C. DeckConnector works over Wi-Fi and Ethernet.',
+        'No. The Network Dock connects over an Ethernet cable only, powered by PoE or USB-C. Deck Connector works over Wi-Fi and Ethernet.',
       ],
       [
-        'Does DeckConnector work with the Elgato app?',
+        'Does Deck Connector work with the Elgato app?',
         'Yes. The app finds the board as a Network Dock by itself. We test with the Stream Deck app 7.6 on Windows.',
       ],
       ['Do I need PoE?', 'No. Power the board over USB-C and use Wi-Fi. PoE works too if your switch has it.'],
@@ -112,7 +112,7 @@ const en = {
         ['All models', '/docs/hardware/#decks'],
       ],
       [
-        'Is DeckConnector official?',
+        'Is Deck Connector official?',
         'No. It is a community project, not affiliated with Elgato, Corsair or Bitfocus. An update of the Elgato app or Companion could break it until we fix it.',
       ],
       [
@@ -134,11 +134,11 @@ const de: typeof en = {
   meta: {
     title: 'Alternative zum Elgato Network Dock, mit WLAN',
     description:
-      'DeckConnector und Elgato Network Dock im Vergleich: WLAN, PoE, Preis, Bitfocus Companion, Elgato-App, mehrere Rechner. Auf dem Prüfstand getestet.',
+      'Deck Connector und Elgato Network Dock im Vergleich: WLAN, PoE, Preis, Bitfocus Companion, Elgato-App, mehrere Rechner. Auf dem Prüfstand getestet.',
   },
   crumbs: ['Startseite', 'Vergleich'],
-  h1: 'DeckConnector und Elgato Network Dock im Vergleich',
-  lead: ['Das ', ['dock', 'Elgato Network Dock'], ' braucht ein Netzwerkkabel. DeckConnector läuft auch im WLAN.'],
+  h1: 'Deck Connector und Elgato Network Dock im Vergleich',
+  lead: ['Das ', ['dock', 'Elgato Network Dock'], ' braucht ein Netzwerkkabel. Deck Connector läuft auch im WLAN.'],
   summary: [
     { k: 'WLAN', icon: 'wifi', v: ['n', 'y'] },
     { k: 'Netzwerkkabel', icon: 'lan', v: ['y', 'y'] },
@@ -148,7 +148,7 @@ const de: typeof en = {
     { k: 'Offizieller Support', icon: 'support', v: ['y', 'n'] },
   ],
   all: 'Alle 20 Punkte zeigen',
-  cols: ['DeckConnector', 'Elgato Network Dock'],
+  cols: ['Deck Connector', 'Elgato Network Dock'],
   better: 'besser',
   groups: [
     ['Netzwerk und Strom', 4],
@@ -231,7 +231,7 @@ const de: typeof en = {
     title: 'Wo das Dock besser ist',
     items: [
       ['Einstecken und fertig', 'Kein Flashen. Auspacken, anstecken, läuft.'],
-      ['Gehäuse und Halterung', 'Eine fertige Box mit Halterung. DeckConnector ist vorerst eine nackte Platine.'],
+      ['Gehäuse und Halterung', 'Eine fertige Box mit Halterung. Deck Connector ist vorerst eine nackte Platine.'],
       [
         'Mehr getestete Decks',
         'Elgato unterstützt die meisten aktuellen Decks. Wir haben nur das Stream Deck + getestet.',
@@ -247,10 +247,10 @@ const de: typeof en = {
     items: [
       [
         'Hat das Elgato Network Dock WLAN?',
-        'Nein. Das Network Dock hängt nur am Netzwerkkabel, mit Strom per PoE oder USB-C. DeckConnector läuft per WLAN und LAN.',
+        'Nein. Das Network Dock hängt nur am Netzwerkkabel, mit Strom per PoE oder USB-C. Deck Connector läuft per WLAN und LAN.',
       ],
       [
-        'Läuft DeckConnector mit der Elgato Stream-Deck-App?',
+        'Läuft Deck Connector mit der Elgato Stream-Deck-App?',
         'Ja. Die App findet die Platine von selbst als Network Dock. Wir testen mit der Stream-Deck-App 7.6 unter Windows.',
       ],
       [
@@ -263,7 +263,7 @@ const de: typeof en = {
         ['Alle Modelle', '/de/docs/hardware/#decks'],
       ],
       [
-        'Ist DeckConnector offiziell?',
+        'Ist Deck Connector offiziell?',
         'Nein. Es ist ein Community-Projekt, kein Produkt von Elgato, Corsair oder Bitfocus. Ein Update der Elgato-App oder von Companion kann es stören, bis wir es anpassen.',
       ],
       [

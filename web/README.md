@@ -1,6 +1,6 @@
-# DeckConnector web page
+# Deck Connector web page
 
-The web page the DeckConnector serves: status, live deck, sources, network, access, firmware and diagnostics. It
+The web page the Deck Connector serves: status, live deck, sources, network, access, firmware and diagnostics. It
 builds into one file, `dist/index.html`, with all scripts, styles and icons inside.
 
 ## Develop

@@ -1,6 +1,6 @@
 {
   "domain": "deckconnector",
-  "name": "DeckConnector",
+  "name": "Deck Connector",
   "after_dependencies": ["media_source"],
   "categories": ["buttons_remotes"],
   "codeowners": ["@FusselTV"],

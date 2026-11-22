@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: the port is shared with Matter (see "deckbridge:" below).
+ * Modified for Deck Connector: the port is shared with Matter (see "deckbridge:" below).
  */
 
 /*

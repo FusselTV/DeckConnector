@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: see "deckbridge:" below.
+ * Modified for Deck Connector: see "deckbridge:" below.
  */
 
 #include <stdint.h>

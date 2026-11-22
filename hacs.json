@@ -1,5 +1,5 @@
 {
-  "name": "DeckConnector",
+  "name": "Deck Connector",
   "homeassistant": "2026.10.0",
   "zip_release": true,
   "filename": "deckconnector.zip"

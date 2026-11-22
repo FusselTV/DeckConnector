@@ -296,8 +296,8 @@ static void home_status(page_t *p)
     } else if (md->controller == UI_CTRL_APP) {
         status_message(p, ICON_ALERT, C_WARN, program,
                        L("Warte auf die Elgato App", "Waiting for the Elgato App"),
-                       L("Die Elgato App findet den DeckConnector im Netz selbst",
-                         "The Elgato App finds the DeckConnector on the network by itself"),
+                       L("Die Elgato App findet den Deck Connector im Netz selbst",
+                         "The Elgato App finds the Deck Connector on the network by itself"),
                        program, L("wartet", "waiting"));
     } else {
         snprintf(sub, sizeof(sub), "%s",
@@ -1039,8 +1039,8 @@ void ui_update_screen(const ui_model_t *md, const ui_layout_t *l, ui_screen_t *s
     snprintf(v, sizeof(v), "Update %s: %d %%", what, md->update_pct);
     if (l->strip) {
         segment(&sc->seg[0], 4, ICON_UPDATE, C_EDIT, "Update", v,
-                en ? "Keep the power on. The DeckConnector restarts afterwards."
-                   : "Nicht vom Strom trennen, der DeckConnector startet danach neu");
+                en ? "Keep the power on. The Deck Connector restarts afterwards."
+                   : "Nicht vom Strom trennen, der Deck Connector startet danach neu");
     }
     char pct[12];
     snprintf(pct, sizeof(pct), "%d %%", md->update_pct);

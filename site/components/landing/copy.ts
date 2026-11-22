@@ -6,13 +6,13 @@ export type Rich = (string | [Out, string])[]
 export type FaqItem = [q: string, a: string, link?: [text: string, href: string]]
 export const plain = (r: Rich) => r.map((x) => (typeof x === 'string' ? x : x[1])).join('')
 
-/** A comparison row: label, then [Network Dock, DeckConnector], each yes or no. */
+/** A comparison row: label, then [Network Dock, Deck Connector], each yes or no. */
 type Mark = 'y' | 'n'
 export type VsRow = { k: string; icon: 'wifi' | 'hosts' | 'case' | 'lan' | 'apps' | 'support'; v: [Mark, Mark] }
 
 const en = {
   meta: {
-    title: 'Stream Deck on Wi-Fi and Ethernet, DeckConnector',
+    title: 'Stream Deck on Wi-Fi and Ethernet, Deck Connector',
     description:
       'Free firmware puts your Elgato Stream Deck on Wi-Fi or Ethernet. For Bitfocus Companion and the Elgato app, Home Assistant optional. An Elgato Network Dock alternative.',
   },
@@ -21,7 +21,7 @@ const en = {
   flash: 'Set it up',
   demo: 'Live demo',
   heroAlt:
-    'A Stream Deck + on a DeckConnector board that is on Wi-Fi with only a power plug. Companion sends the key pictures, a key press goes back, Companion answers.',
+    'A Stream Deck + on a Deck Connector board that is on Wi-Fi with only a power plug. Companion sends the key pictures, a key press goes back, Companion answers.',
   net: {
     title: 'Wi-Fi or Ethernet. Or both.',
     text: 'With a cable plugged in too, Wi-Fi takes over when it fails.',
@@ -34,8 +34,8 @@ const en = {
   },
   vs: {
     title: 'Instead of a Network Dock',
-    alt: 'The Elgato Network Dock needs a network cable. DeckConnector works over Wi-Fi with a power plug and picks the computer on the deck.',
-    cols: ['Network Dock', 'DeckConnector'],
+    alt: 'The Elgato Network Dock needs a network cable. Deck Connector works over Wi-Fi with a power plug and picks the computer on the deck.',
+    cols: ['Network Dock', 'Deck Connector'],
     priceLabel: 'Price',
     price: ['$79.99', '$25 to $35'],
     priceNote: ['', 'firmware free'],
@@ -68,7 +68,7 @@ const en = {
     title: 'Questions',
     items: [
       [
-        'What is DeckConnector?',
+        'What is Deck Connector?',
         'Free, open source firmware for the Waveshare ESP32-P4-WIFI6-POE-ETH board. The board drives an Elgato Stream Deck over USB and puts it on Wi-Fi or Ethernet, like an Elgato Network Dock with Wi-Fi.',
       ],
       ['Do I need PoE?', 'No. A USB-C power supply and Wi-Fi are enough. PoE is an option.'],
@@ -91,7 +91,7 @@ const en = {
 
 const de: typeof en = {
   meta: {
-    title: 'Stream Deck im WLAN und LAN, DeckConnector',
+    title: 'Stream Deck im WLAN und LAN, Deck Connector',
     description:
       'Freie Firmware bringt dein Elgato Stream Deck ins WLAN oder LAN. Für Bitfocus Companion und die Elgato-App, Home Assistant optional. Alternative zum Elgato Network Dock.',
   },
@@ -100,7 +100,7 @@ const de: typeof en = {
   flash: 'Jetzt einrichten',
   demo: 'Live-Demo',
   heroAlt:
-    'Ein Stream Deck + an einer DeckConnector-Platine, die nur mit einem Netzteil im WLAN ist. Companion schickt die Tastenbilder, ein Tastendruck geht zurück, Companion antwortet.',
+    'Ein Stream Deck + an einer Deck-Connector-Platine, die nur mit einem Netzteil im WLAN ist. Companion schickt die Tastenbilder, ein Tastendruck geht zurück, Companion antwortet.',
   net: {
     title: 'WLAN oder LAN. Oder beides.',
     text: 'Steckt zusätzlich ein Kabel, springt WLAN ein, wenn es ausfällt.',
@@ -113,8 +113,8 @@ const de: typeof en = {
   },
   vs: {
     title: 'Statt eines Network Docks',
-    alt: 'Das Elgato Network Dock braucht ein Netzwerkkabel. DeckConnector läuft mit einem Netzteil im WLAN und wählt den Rechner direkt am Deck.',
-    cols: ['Network Dock', 'DeckConnector'],
+    alt: 'Das Elgato Network Dock braucht ein Netzwerkkabel. Deck Connector läuft mit einem Netzteil im WLAN und wählt den Rechner direkt am Deck.',
+    cols: ['Network Dock', 'Deck Connector'],
     priceLabel: 'Preis',
     price: ['89,99 Euro', '25 bis 35 Euro'],
     priceNote: ['', 'Firmware frei'],
@@ -147,7 +147,7 @@ const de: typeof en = {
     title: 'Häufige Fragen',
     items: [
       [
-        'Was ist DeckConnector?',
+        'Was ist Deck Connector?',
         'Eine freie Open-Source-Firmware für die Platine Waveshare ESP32-P4-WIFI6-POE-ETH. Die Platine steuert ein Elgato Stream Deck per USB und bringt es ins WLAN oder LAN, wie ein Elgato Network Dock mit WLAN.',
       ],
       ['Brauche ich PoE?', 'Nein. Ein USB-C-Netzteil und WLAN reichen. PoE geht auch.'],

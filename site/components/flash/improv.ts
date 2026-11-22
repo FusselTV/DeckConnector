@@ -1,4 +1,4 @@
-// Improv Wi-Fi Serial v1 with the DeckConnector vendor command 0x80. Plain TS without imports, so node runs the
+// Improv Wi-Fi Serial v1 with the Deck Connector vendor command 0x80. Plain TS without imports, so node runs the
 // unit tests on it directly.
 
 export const STATE = 1
