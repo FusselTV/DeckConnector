@@ -15,11 +15,12 @@ Dein Programm rendert die Bilder. Der Connector hält sie in einem Cache, zeigt 
 
 ## Kopplung
 
-1. Ein Host ohne Token bekommt `HELLO` mit `pair_code`, 6 Ziffern. Die Decks zeigen denselben Code, 2 min lang über allem, danach auf dem Startbildschirm.
-2. Du gibst den Code im Host ein. Der Host vergleicht ihn und schickt `PAIRED` mit einem Token.
-3. Der Connector speichert das Token und bei `wss://` den SHA-256 des Zertifikats. Er verbindet sich neu mit `Authorization: Bearer <token>` und nimmt ab dann nur noch dieses Zertifikat.
+1. Ein Host ohne Token bekommt `HELLO` mit `pairing: true`. Die Decks zeigen einen 6-stelligen Code, 2 min lang über allem, danach auf dem Startbildschirm. Der Code geht nie über das Netz.
+2. Du gibst den Code im Host ein. Der Host schickt `PAIRED` mit einem Token und diesem Code.
+3. Passt der Code, speichert der Connector das Token und bei `wss://` den SHA-256 des Zertifikats. Er verbindet sich neu mit `Authorization: Bearer <token>` und nimmt ab dann nur noch dieses Zertifikat.
+4. Ein falscher Code bekommt `ERROR` `pair_code`, und der Connector trennt die Verbindung. Nach 5 falschen Codes zeigen die Decks einen neuen.
 
-Eine neue URL unter **Quellen** löscht das Token. Bis `PAIRED` bekommt jede andere Nachricht `ERROR` `unpaired`.
+Kennt ein Host das Token nicht mehr, schließt er mit Code 4001 oder beantwortet den Upgrade mit 401. Der Connector löscht dann das Token und koppelt neu, und nur ein Host mit demselben Zertifikat kommt herein. Eine neue URL unter **Quellen** löscht Token und Pin. Bis `PAIRED` bekommt jede andere Nachricht `ERROR` `unpaired`.
 
 ## Aktiv und Standby
 
@@ -44,7 +45,7 @@ Jede Nachricht beginnt mit 4 Bytes: `u8 type`, `u8 deck` (0 bis 3, `0xFF` für d
 | `0x07` | BRIGHTNESS | `u8` 0 bis 100. Deck `0xFF` stellt jedes Deck |
 | `0x08` | TIME | `u64` Unix-Zeit in ms |
 | `0x09` | REBOOT | nichts |
-| `0x0A` | PAIRED | CBOR `{token}`, druckbares ASCII, bis 47 Zeichen |
+| `0x0A` | PAIRED | CBOR `{token, code}`. `token` ist druckbares ASCII, bis 47 Zeichen |
 
 `PUT`, `EVICT`, `FRAME`, `STREAM`, `FALLBACK`, `BRIGHTNESS`, `TIME` und `REBOOT` wirken nur vom aktiven Host. Der Cache gehört dem ganzen Connector, deshalb gehen `PUT` und `EVICT` mit Deck `0xFF`.
 
@@ -65,7 +66,7 @@ Jede Nachricht beginnt mit 4 Bytes: `u8 type`, `u8 deck` (0 bis 3, `0xFF` für d
 
 ```json
 {"proto": 2, "firmware": "{{version}}", "board": {"id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3"},
- "pair_code": "123456", "cache": {"bytes": 8388608, "slots": 1024}, "cache_epoch": 3141592653,
+ "pairing": true, "cache": {"bytes": 8388608, "slots": 1024}, "cache_epoch": 3141592653,
  "decks": [{"deck": 0, "serial": "A00SA0000AA0A0", "model": "streamdeck-plus", "name": "Stream Deck +",
    "displays": [{"id": 0, "w": 800, "h": 480, "formats": ["jpeg"], "rotate": 0, "flip": false, "max_bytes": 1048576}],
    "targets": [{"id": 0, "kind": "key", "display": 0, "x": 13, "y": 12, "w": 120, "h": 120},
@@ -74,7 +75,7 @@ Jede Nachricht beginnt mit 4 Bytes: `u8 type`, `u8 deck` (0 bis 3, `0xFF` für d
    "keys": 8, "encoders": 4, "touch": [{"x": 0, "y": 380, "w": 800, "h": 100}]}]}
 ```
 
-- `pair_code` gibt es nur vor der Kopplung.
+- `pairing` gibt es nur vor der Kopplung.
 - Ein Tasten-Target hat die Nummer der Taste als `id`. Leisten kommen nach den Tasten, dann das ganze Display (`full`).
 - Schick das Bild jedes Targets genau in seiner Größe und schon gedreht. Erst um `rotate` Grad im Uhrzeigersinn drehen, dann links-rechts spiegeln, wenn `flip` wahr ist.
 - `formats` ist `jpeg`, beim Mini und beim Module 6 `bmp`. `max_bytes` ist das größte Bild, das das Display nimmt.
@@ -127,6 +128,8 @@ Nach `HELLO` kommt ein `CREDIT` pro Display und ein `STATE` pro Deck. `STATE` ko
 | `code` | Bedeutung |
 |---|---|
 | `unpaired` | Bis zur Kopplung nur `PAIRED` schicken |
+| `pair_code` | Nicht der Code, den die Decks zeigen. Der Connector trennt |
+| `pair_failed` | Der Connector konnte die Kopplung nicht speichern und trennt |
 | `standby` | Dieser Host ist nicht aktiv |
 | `no_deck` | Kein Deck mit dieser Nummer |
 | `bad_target` | Kein Target mit dieser Nummer |

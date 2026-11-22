@@ -13,7 +13,7 @@ async def test_hello_and_decks(bridges):
     active, standby = bridges
     assert active.hello["proto"] == 2
     assert active.hello["firmware"] == status()["firmware"]
-    assert "pair_code" not in active.hello and "pair_code" not in standby.hello, "both are paired"
+    assert not active.pairing and not standby.pairing, "both are paired"
     deck = active.decks[0]
     assert deck["name"] == "Stream Deck +" and deck["keys"] == 8 and deck["encoders"] == 4
     kinds = [t["kind"] for t in deck["targets"]]

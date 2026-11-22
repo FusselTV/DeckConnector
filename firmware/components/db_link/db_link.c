@@ -23,6 +23,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mdns.h"
+#include "sdkconfig.h"
 #include "ws.h"
 
 #define LINKS            DB_SURFACE_LINKS
@@ -52,7 +53,6 @@ _Static_assert(FLIGHT <= 256, "the flight index is the low byte of a sequence nu
 static const char *TAG = "link";
 
 typedef struct {
-    int8_t link;
     uint16_t len;
     uint8_t *heap; /* NULL: the message is in `data` */
     uint8_t data[TX_INLINE];
@@ -88,8 +88,13 @@ typedef struct {
     int64_t last_ping_ms;
     db_health_t health;
     TaskHandle_t task;
+    QueueHandle_t tx;
     bool paired;
-    char pair_code[7];
+    char pair_code[7]; /* shown on the decks only; kept over reconnects until paired */
+    uint8_t pair_wrong;
+    bool heard;         /* the host sent a message on this connection */
+    char close_why[40]; /* the reason in the host's close frame */
+    uint16_t close_code;
     volatile bool wants_active; /* sent ROLE 1 on this connection */
     uint32_t claimed;           /* when, in s.claims */
     bool fallback_up;           /* its FALLBACK shows since it dropped as the active host */
@@ -118,7 +123,6 @@ static struct {
     db_link_hooks_t hooks;
     volatile int active;
     volatile bool enabled;
-    QueueHandle_t tx;
     uint32_t inputs_dropped;
     SemaphoreHandle_t role_lock;
     uint32_t claims;
@@ -145,32 +149,37 @@ static int64_t now_ms(void)
     return esp_timer_get_time() / 1000;
 }
 
-/* Messages from the deck's tasks go through one sender task, so they never wait on the network. */
+/* Messages from the deck's tasks go through a sender task per link, so they never wait on the network and a
+ * stalled host holds up only its own. False when one of them did not fit. */
 static bool send_msg(int link, const void *data, size_t len, TickType_t wait)
 {
-    tx_t m = {.link = (int8_t)link, .len = (uint16_t)len};
-    if (len > TX_INLINE && !(m.heap = malloc(len))) {
-        return false;
+    bool ok = true;
+    for (int i = 0; i < LINKS; i++) {
+        if (link != ALL_LINKS && link != i) {
+            continue;
+        }
+        tx_t m = {.len = (uint16_t)len};
+        if (len > TX_INLINE && !(m.heap = malloc(len))) {
+            ok = false;
+            continue;
+        }
+        memcpy(m.heap ? m.heap : m.data, data, len);
+        if (xQueueSend(links[i].tx, &m, wait) != pdTRUE) {
+            free(m.heap);
+            ok = false;
+        }
     }
-    memcpy(m.heap ? m.heap : m.data, data, len);
-    if (xQueueSend(s.tx, &m, wait) != pdTRUE) {
-        free(m.heap);
-        return false;
-    }
-    return true;
+    return ok;
 }
 
 static void tx_task(void *arg)
 {
+    link_t *l = arg;
     tx_t m;
     for (;;) {
-        xQueueReceive(s.tx, &m, portMAX_DELAY);
-        for (int i = 0; i < LINKS; i++) {
-            link_t *l = &links[i];
-            if ((m.link == ALL_LINKS || m.link == i) && l->connected &&
-                ws_send(&l->ws, WS_OP_BINARY, m.heap ? m.heap : m.data, m.len) != 0) {
-                l->reconnect = "send failed";
-            }
+        xQueueReceive(l->tx, &m, portMAX_DELAY);
+        if (l->connected && ws_send(&l->ws, WS_OP_BINARY, m.heap ? m.heap : m.data, m.len) != 0) {
+            l->reconnect = "send failed";
         }
         free(m.heap);
     }
@@ -197,7 +206,7 @@ static void send_shown(int link, uint8_t deck, bool stream, uint32_t id, uint32_
     uint8_t out[DB_SHOWN_LEN];
     db_proto_shown(out, deck, stream, id, us);
     if (!send_msg(link, out, sizeof(out), pdMS_TO_TICKS(20))) { /* the host would wait for it forever */
-        ESP_LOGW(TAG, "host %d: SHOWN %u lost, send queue full", link, (unsigned)id);
+        links[link].reconnect = "SHOWN lost, send queue full";  /* a new session counts from zero */
     }
 }
 
@@ -224,7 +233,7 @@ static void send_credit(link_t *l, int deck, const db_device_info_t *info)
     }
 }
 
-static void send_state(int link, int deck)
+static bool send_state(int link, int deck)
 {
     uint8_t buf[48];
     db_proto_hdr(buf, DB_MSG_STATE, (uint8_t)deck);
@@ -234,7 +243,7 @@ static void send_state(int link, int deck)
     db_cbor_bool(&c, "display_on", s.state[deck].on == 1);
     db_cbor_uint(&c, "brightness", (uint64_t)s.state[deck].brightness);
     db_cbor_close(&c);
-    send_msg(link, buf, DB_PROTO_HDR + db_cbor_end(&c), pdMS_TO_TICKS(100));
+    return send_msg(link, buf, DB_PROTO_HDR + db_cbor_end(&c), pdMS_TO_TICKS(100));
 }
 
 /* HELLO goes out by the link's own task before anything else may: the link is not marked connected yet. */
@@ -257,7 +266,7 @@ static int send_hello(link_t *l)
     db_cbor_str(&c, "name", db_config()->name);
     db_cbor_close(&c);
     if (!l->paired) {
-        db_cbor_str(&c, "pair_code", l->pair_code);
+        db_cbor_bool(&c, "pairing", true);
     }
     db_cbor_map(&c, "cache");
     db_cbor_uint(&c, "bytes", CACHE_BYTES);
@@ -322,13 +331,14 @@ static int flight_open(link_t *l, uint8_t deck, bool stream, uint32_t id, uint8_
         xSemaphoreGive(l->flight_lock);
         return -1;
     }
-    l->flight[free_at] = (flight_t){.used = true,
-                                    .stream = stream,
-                                    .deck = deck,
-                                    .left = n,
-                                    .gen = l->gen = (l->gen & 0xffffff) + 1, /* never 0, the seq of none */
-                                    .id = id,
-                                    .t_recv = (uint64_t)esp_timer_get_time()};
+    l->flight[free_at] =
+        (flight_t){.used = true,
+                   .stream = stream,
+                   .deck = deck,
+                   .left = n,
+                   .gen = l->gen = l->gen % 0xffffff + 1, /* 1 to 2^24 - 1: 0 is the seq of none */
+                   .id = id,
+                   .t_recv = (uint64_t)esp_timer_get_time()};
     xSemaphoreGive(l->flight_lock);
     return free_at;
 }
@@ -516,9 +526,11 @@ static db_source_t source_of(const link_t *l)
     return (db_source_t)(DB_SOURCE_LINK0 + l->index);
 }
 
-/* Each (target, slot) of `shots` to deck `deck`, under cache.lock; `at` is the flight, -1 for none. */
-static void draw(link_t *l, uint8_t deck, const shot_t *shots, int n, int at)
+/* Each (target, slot) of `shots` to deck `deck`, under cache.lock; `at` is the flight, -1 for none. Returns
+ * how many went to the deck. */
+static int draw(link_t *l, uint8_t deck, const shot_t *shots, int n, int at)
 {
+    int sent = 0;
     uint32_t seq = at >= 0 ? flight_seq(l, at) : 0;
     uint64_t now = (uint64_t)esp_timer_get_time();
     for (int i = 0; i < n; i++) {
@@ -532,12 +544,18 @@ static void draw(link_t *l, uint8_t deck, const shot_t *shots, int n, int at)
                                                                                         : NULL;
         uint8_t *data = why ? NULL : heap_caps_malloc(sl->len, MALLOC_CAP_SPIRAM);
         if (!data) {
+            if (at < 0) {
+                ESP_LOGW(TAG, "host %d: fallback on deck %d: %s", l->index, deck + 1,
+                         why ? why : "no memory");
+            }
             settle(l, seq, DB_ACK_BUSY, 0, why); /* seq 0 is no flight */
             continue;
         }
         memcpy(data, cache.arena + sl->off, sl->len);
         db_deck_submit(deck, source_of(l), display, t->rect, seq, data, sl->len, now);
+        sent++;
     }
+    return sent;
 }
 
 /* The deck in a message header, copied into l->info. */
@@ -657,8 +675,12 @@ static int on_put(link_t *l, uint8_t deck, uint64_t len)
         return ws_skip(&l->ws, len);
     }
     xSemaphoreTake(cache.lock, portMAX_DELAY);
-    cache_drop(slot);
-    uint8_t *dst = cache_alloc(slot, (uint32_t)len);
+    uint32_t old = cache.slots[slot].used ? cache.slots[slot].len : 0;
+    uint8_t *dst = NULL;
+    if (len <= CACHE_BYTES - (cache.used - old)) { /* else the old picture stays */
+        cache_drop(slot);
+        dst = cache_alloc(slot, (uint32_t)len);
+    }
     if (!dst) {
         xSemaphoreGive(cache.lock);
         send_error(l->index, deck, "cache_full", "PUT does not fit the cache budget");
@@ -732,6 +754,18 @@ static int on_fallback(link_t *l, uint8_t deck, uint64_t len)
     }
     shot_t shots[SHOTS_MAX];
     err = read_shots(l, shots, n);
+    uint8_t display;
+    for (uint16_t i = 0; !err && i < n; i++) {
+        if (!deck_ok(l, deck) || !db_proto_target(&l->info, shots[i].target, &display) ||
+            shots[i].slot >= CACHE_SLOTS) {
+            send_error(l->index, deck,
+                       !deck_ok(l, deck)              ? "no_deck"
+                       : shots[i].slot >= CACHE_SLOTS ? "bad_slot"
+                                                      : "bad_target",
+                       "FALLBACK ignored");
+            return 0;
+        }
+    }
     if (!err) {
         xSemaphoreTake(cache.lock, portMAX_DELAY);
         memcpy(l->fallback[deck], shots, n * sizeof(shots[0]));
@@ -746,8 +780,8 @@ static void show_fallback(link_t *l)
 {
     xSemaphoreTake(cache.lock, portMAX_DELAY);
     for (uint8_t d = 0; d < DB_MAX_DECKS; d++) {
-        if (l->fallback_n[d] && db_deck_info(d, &l->info)) {
-            draw(l, d, l->fallback[d], l->fallback_n[d], -1);
+        if (l->fallback_n[d] && db_deck_info(d, &l->info) &&
+            draw(l, d, l->fallback[d], l->fallback_n[d], -1)) {
             l->fallback_up = true;
         }
     }
@@ -765,6 +799,47 @@ static void set_brightness(link_t *l, uint8_t deck, uint8_t pct)
             }
         }
     }
+}
+
+static void new_pair_code(link_t *l)
+{
+    snprintf(l->pair_code, sizeof(l->pair_code), "%06u", (unsigned)(esp_random() % 1000000));
+    l->pair_wrong = 0;
+#if CONFIG_IDF_TARGET_LINUX /* the simulators' tests read it here; a board shows it on the deck only */
+    ESP_LOGI(TAG, "host %d pairing code %s", l->index, l->pair_code);
+#endif
+}
+
+/* The ERROR goes out before the connection closes, so not through the queue. */
+static void refuse_pairing(link_t *l, const char *code, const char *message)
+{
+    uint8_t buf[160];
+    db_proto_hdr(buf, DB_MSG_ERROR, DB_PROTO_BOARD);
+    db_cbor_t c;
+    db_cbor_begin(&c, buf + DB_PROTO_HDR, sizeof(buf) - DB_PROTO_HDR);
+    db_cbor_map(&c, NULL);
+    db_cbor_str(&c, "code", code);
+    db_cbor_str(&c, "message", message);
+    db_cbor_close(&c);
+    ws_send(&l->ws, WS_OP_BINARY, buf, DB_PROTO_HDR + db_cbor_end(&c));
+    l->reconnect = message;
+}
+
+/* The host no longer knows our token (close 4001, or 401 on the upgrade): pair again. The pin stays, so only
+ * the same host can. */
+static void forget_token(link_t *l)
+{
+    db_config_t *c = malloc(sizeof(*c));
+    if (!c) {
+        return; /* tried again on the next refusal */
+    }
+    db_config_edit_begin();
+    db_config_copy(c);
+    c->server_tokens[l->index][0] = '\0';
+    esp_err_t err = db_config_save(c);
+    db_config_edit_end();
+    free(c);
+    ESP_LOGW(TAG, "host %d refused the token, pairing again%s", l->index, err == ESP_OK ? "" : ": not saved");
 }
 
 /* A token goes into a header line: printable ASCII only. */
@@ -792,17 +867,29 @@ static int on_paired(link_t *l, uint64_t len)
         return err;
     }
     char token[64];
+    char code[8];
     if (!db_cbor_text(buf, (size_t)len, "token", token, sizeof(token)) || !token_ok(token)) {
-        send_error(l->index, DB_PROTO_BOARD, "bad_message", "PAIRED needs a token of printable ASCII");
+        send_error(l->index, DB_PROTO_BOARD, "bad_message",
+                   "PAIRED needs a token of up to 47 printable ASCII characters");
+        return 0;
+    }
+    if (!db_cbor_text(buf, (size_t)len, "code", code, sizeof(code)) || strcmp(code, l->pair_code) != 0) {
+        if (++l->pair_wrong >= 5) { /* guessing gets no further than five tries per code */
+            new_pair_code(l);
+            s.hooks.pair_code(l->index, l->pair_code);
+        }
+        refuse_pairing(l, "pair_code", "not the code the deck shows");
         return 0;
     }
     db_config_t *c = malloc(sizeof(*c));
     if (!c) {
-        return -ENOMEM;
+        refuse_pairing(l, "pair_failed", "no memory to save the pairing");
+        return 0;
     }
     db_config_edit_begin();
     db_config_copy(c);
     char *url = db_config_server(c, l->index);
+    err = -EINVAL; /* the URL in the config changed meanwhile */
     if (!url[0] || strcmp(url, l->url) == 0) {
         strlcpy(url, l->url, sizeof(c->servers_first[0]));
         strlcpy(c->server_tokens[l->index], token, sizeof(c->server_tokens[0]));
@@ -815,7 +902,13 @@ static int on_paired(link_t *l, uint64_t len)
     }
     db_config_edit_end();
     free(c);
-    ESP_LOGI(TAG, "host %d paired%s", l->index, err ? ", but not saved" : "");
+    if (err) {
+        ESP_LOGW(TAG, "host %d: pairing not saved: %s", l->index, strerror(-err));
+        refuse_pairing(l, "pair_failed", "the pairing could not be saved");
+        return 0;
+    }
+    ESP_LOGI(TAG, "host %d paired", l->index);
+    l->pair_code[0] = '\0';
     l->reconnect = "paired";
     return 0;
 }
@@ -834,6 +927,7 @@ static int read_u8(link_t *l, uint8_t deck, uint64_t len, uint8_t *v, const char
 static int on_message(link_t *l, uint64_t len)
 {
     uint8_t h[DB_PROTO_HDR];
+    l->heard = true;
     if (len < sizeof(h)) {
         return ws_skip(&l->ws, len);
     }
@@ -929,10 +1023,16 @@ static int read_frame(link_t *l)
         err = ws_read(&l->ws, payload, (size_t)len);
         return err ? err : ws_send(&l->ws, WS_OP_PONG, payload, (size_t)len);
     }
-    case WS_OP_CLOSE:
-        ws_skip(&l->ws, len);
+    case WS_OP_CLOSE: {
+        uint8_t payload[125] = {0};
+        err = len <= sizeof(payload) ? ws_read(&l->ws, payload, (size_t)len) : ws_skip(&l->ws, len);
+        if (!err && len >= 2 && len <= sizeof(payload)) { /* a code, then the reason */
+            l->close_code = (uint16_t)(payload[0] << 8 | payload[1]);
+            snprintf(l->close_why, sizeof(l->close_why), "%.*s", (int)len - 2, (const char *)payload + 2);
+        }
         ws_send(&l->ws, WS_OP_CLOSE, NULL, 0);
         return -ECONNRESET;
+    }
     default: /* text and pongs */
         return ws_skip(&l->ws, len);
     }
@@ -1013,7 +1113,9 @@ static void link_task(void *arg)
         int err = ws_connect(&l->ws, url, "deckassistant.v2", l->paired ? headers : NULL,
                              bound ? ifname : NULL, CONNECT_TIMEOUT, pinned ? pin : NULL);
         if (!err) {
-            snprintf(l->pair_code, sizeof(l->pair_code), "%06u", (unsigned)(esp_random() % 1000000));
+            if (!l->pair_code[0]) {
+                new_pair_code(l);
+            }
             l->wants_active = false;
             l->input_seq = 0;
             flight_reset(l);
@@ -1021,6 +1123,9 @@ static void link_task(void *arg)
             if (err) {
                 ws_close(&l->ws);
             }
+        }
+        if (err == -EACCES && l->paired) {
+            forget_token(l);
         }
         if (err) {
             db_health_fail(&l->health, l->ws.fail ? l->ws.fail : strerror(-err));
@@ -1043,7 +1148,6 @@ static void link_task(void *arg)
             }
             continue;
         }
-        wait_ms = RETRY_MS;
         failed[0] = '\0';
         logged_err[0] = logged_err[1] = 0;
         char idx[12];
@@ -1057,19 +1161,33 @@ static void link_task(void *arg)
         if (!l->paired) {
             s.hooks.pair_code(l->index, l->pair_code);
         }
+        l->heard = false;
+        l->close_why[0] = '\0';
+        l->close_code = 0;
         /* silent over LAN: a LAN that keeps its link but drops everything would cost a connect timeout */
         via_wlan = session(l) && !l->over_wlan;
+        wait_ms = l->heard ? RETRY_MS : wait_ms;
         l->connected = false;
         if (!l->paired) {
             s.hooks.pair_code(l->index, NULL);
         }
-        db_health_fail(&l->health, "connection lost");
+        db_health_fail(&l->health, l->close_why[0] ? l->close_why : "connection lost");
         ws_close(&l->ws);
         flight_reset(l);
         if (s.active == l->index) {
             show_fallback(l);
         }
         recompute_active();
+        if (l->close_code == 4001 && l->paired) {
+            forget_token(l);
+        }
+        if (!l->heard) { /* turned away at once, a refused token perhaps: no reconnecting five times a second
+                          */
+            ESP_LOGW(TAG, "host %d closed without a message: %s", l->index,
+                     l->close_why[0] ? l->close_why : "-");
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait_ms));
+            wait_ms = wait_ms * 2 < RETRY_MAX_MS ? wait_ms * 2 : RETRY_MAX_MS;
+        }
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
@@ -1099,6 +1217,7 @@ static void on_device(int deck, const db_device_info_t *info)
     }
     uint8_t *buf = heap_caps_malloc(HELLO_MAX, MALLOC_CAP_SPIRAM);
     if (!buf) {
+        ESP_LOGE(TAG, "no memory for DECK_ADDED of deck %d", deck + 1);
         return;
     }
     db_proto_hdr(buf, DB_MSG_DECK_ADDED, (uint8_t)deck);
@@ -1123,12 +1242,17 @@ static void watch_state(void)
             continue;
         }
         int b = db_deck_shown(d);
-        int8_t on = !db_deck_screen_is_off() && b != 0;
+        int8_t on = (int8_t)(!db_deck_screen_is_off() && b != 0);
         b = b < 0 ? 0 : b;
-        if (on != s.state[d].on || b != s.state[d].brightness) {
+        int8_t was_on = s.state[d].on;
+        int was = s.state[d].brightness;
+        if (on != was_on || b != was) {
             s.state[d].on = on;
             s.state[d].brightness = b;
-            send_state(ALL_LINKS, d);
+            if (!send_state(ALL_LINKS, d)) { /* again on the next tick */
+                s.state[d].on = was_on;
+                s.state[d].brightness = was;
+            }
         }
     }
 }
@@ -1205,14 +1329,13 @@ static void supervisor_task(void *arg)
 esp_err_t db_link_start(const db_link_hooks_t *hooks)
 {
     s.hooks = *hooks;
-    s.tx = xQueueCreate(TX_QUEUE, sizeof(tx_t));
     s.role_lock = xSemaphoreCreateMutex();
     cache.lock = xSemaphoreCreateMutex();
     /* reserved at the start, before fragmentation could take an update's 4 MB block */
     cache.arena = heap_caps_malloc(CACHE_BYTES, MALLOC_CAP_SPIRAM);
     cache.slots = heap_caps_calloc(CACHE_SLOTS, sizeof(slot_t), MALLOC_CAP_SPIRAM);
     cache.epoch = esp_random(); /* a host must not take a restarted bridge's empty cache for its own */
-    if (!s.tx || !s.role_lock || !cache.lock || !cache.arena || !cache.slots) {
+    if (!s.role_lock || !cache.lock || !cache.arena || !cache.slots) {
         return ESP_ERR_NO_MEM;
     }
     for (int d = 0; d < DB_MAX_DECKS; d++) {
@@ -1225,20 +1348,23 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
         link_t *l = &links[i];
         l->index = i;
         l->flight_lock = xSemaphoreCreateMutex();
-        if (!l->flight_lock || ws_init(&l->ws)) {
+        l->tx = xQueueCreate(TX_QUEUE, sizeof(tx_t));
+        if (!l->flight_lock || !l->tx || ws_init(&l->ws)) {
             return ESP_ERR_NO_MEM;
         }
         strlcpy(l->url, db_config_server_of(db_config(), i), sizeof(l->url));
         db_deck_set_ack_handler(source_of(l), on_ack, (void *)(intptr_t)i);
         char name[12];
         snprintf(name, sizeof(name), "link%d", i);
-        if (xTaskCreatePinnedToCore(link_task, name, 8192, l, 6, &l->task, 0) != pdPASS) {
+        char tx_name[12];
+        snprintf(tx_name, sizeof(tx_name), "link%d_tx", i);
+        if (xTaskCreatePinnedToCore(link_task, name, 8192, l, 6, &l->task, 0) != pdPASS ||
+            xTaskCreatePinnedToCore(tx_task, tx_name, 3072, l, 7, NULL, 0) != pdPASS) {
             return ESP_ERR_NO_MEM;
         }
     }
     db_link_reload(); /* takes note of the pins, before any link is up */
-    bool ok = xTaskCreatePinnedToCore(tx_task, "link_tx", 4096, NULL, 7, NULL, 0) == pdPASS &&
-              xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0) == pdPASS;
+    bool ok = xTaskCreatePinnedToCore(supervisor_task, "link_sup", 4096, NULL, 3, NULL, 0) == pdPASS;
     return ok ? ESP_OK : ESP_ERR_NO_MEM;
 }
 

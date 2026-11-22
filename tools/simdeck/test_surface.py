@@ -4,6 +4,7 @@ picture, two hosts and the input."""
 import asyncio
 import io
 import json
+import re
 import time
 
 import pytest
@@ -27,9 +28,15 @@ def near(img: Image.Image, color: tuple[int, int, int]) -> bool:
     return all(abs(a - b) < 60 for a, b in zip(got, color, strict=True))
 
 
+def deck_code(sim, link: int = 0) -> str:
+    """The code the decks show for that link; the simulator logs it, a board does not."""
+    return re.findall(rf"host {link} pairing code (\d{{6}})", sim.log())[-1]
+
+
 async def paired_bridge(start, srv: Server, *models: str) -> tuple[object, Bridge]:
     """A simulator whose first link points at `srv`, paired, active, its decks known."""
     sim = start(*models)
+    srv.pair_code = lambda: deck_code(sim)
     if models != ("pedal",):
         await asyncio.to_thread(dismiss_prompt, sim)
     url = f"ws://127.0.0.1:{srv.port}/surface"
@@ -52,24 +59,55 @@ async def test_pairing_keeps_the_token_and_connects_with_it(start):
             sim.config, servers=[f"ws://127.0.0.1:{PORT}/surface"], controller="server", setup_done=True
         )
         first = await srv.wait_bridge(15, paired=False)
-        code = first.pair_code
-        assert code and len(code) == 6 and code.isdigit(), first.hello
+        assert first.pairing and "pair_code" not in first.hello, first.hello
+        code = deck_code(sim)
         assert await asyncio.to_thread(sim.wait, lambda: drawn_since(sim, 0, before), 5), "no pairing page"
         await asyncio.to_thread(shot, sim, 0, "plus-pairing")
         await first.role(True)
         await asyncio.sleep(0.3)
         assert [e["code"] for e in first.errors] == ["unpaired"]
-        token = await srv.pair(first)
+        token = await srv.pair(first, code)
         again = await srv.wait_bridge(10)
-        assert again is not first and "pair_code" not in again.hello
+        assert again is not first and not again.pairing
         assert again.ws.request.headers["Authorization"] == f"Bearer {token}"
         cfg = await asyncio.to_thread(sim.api, "GET", "/api/config")
         assert b"surface" in cfg[1]
         assert token.encode() not in cfg[1], "the token leaks into the config"
-        srv.tokens.clear()  # the host forgot the bridge: it is turned away and pairs again only after a new URL
+        srv.tokens.clear()  # the host forgot the bridge: 4001 makes it drop the token and pair again
         await again.ws.close()
-        await asyncio.sleep(3)
-        assert srv.refused >= 1
+        third = await srv.wait_bridge(15, paired=False)
+        assert srv.refused == 1 and third.pairing
+        await srv.pair(third, deck_code(sim))
+        assert not (await srv.wait_bridge(10)).pairing
+    finally:
+        await srv.stop()
+
+
+async def test_a_wrong_code_is_refused_and_five_of_them_change_the_code(start):
+    srv = await Server(PORT, auto_pair=False).start()
+    try:
+        sim = start("mk2")
+        await asyncio.to_thread(dismiss_prompt, sim)
+        await asyncio.to_thread(
+            sim.config, servers=[f"ws://127.0.0.1:{PORT}/surface"], controller="server", setup_done=True
+        )
+        code = None
+        for attempt in range(5):
+            bridge = await srv.wait_bridge(15, paired=False)
+            code = code or deck_code(sim)
+            assert deck_code(sim) == code, "the code changed before five wrong ones"
+            wrong = f"{(int(code) + 1 + attempt) % 1_000_000:06d}"
+            await srv.pair(bridge, wrong)
+            await asyncio.wait_for(bridge.closed.wait(), 5)
+            assert [e["code"] for e in bridge.errors] == ["pair_code"], bridge.errors
+        bridge = await srv.wait_bridge(15, paired=False)
+        assert deck_code(sim) != code, "five wrong codes left the old one"
+        cfg = json.loads((await asyncio.to_thread(sim.api, "GET", "/api/config"))[1])
+        assert srv.refused == 0 and cfg["server_pins"][0] == ""
+        await srv.pair(bridge, code)  # the old code is gone too
+        await asyncio.wait_for(bridge.closed.wait(), 5)
+        await srv.pair(await srv.wait_bridge(15, paired=False), deck_code(sim))
+        assert not (await srv.wait_bridge(15)).pairing
     finally:
         await srv.stop()
 
@@ -80,9 +118,10 @@ async def test_pairing_over_tls_pins_the_certificate(start):
         sim = start("mk2")
         await asyncio.to_thread(dismiss_prompt, sim)
         url = f"wss://127.0.0.1:{PORT}/surface"
+        srv.pair_code = lambda: deck_code(sim)
         await asyncio.to_thread(sim.config, servers=[url], controller="server", setup_done=True)
         bridge = await srv.wait_bridge(20)
-        assert "pair_code" not in bridge.hello
+        assert not bridge.pairing
         cfg = json.loads((await asyncio.to_thread(sim.api, "GET", "/api/config"))[1])
         assert cfg["server_pins"][0] == srv.fingerprint
         await srv.stop()
@@ -209,6 +248,7 @@ async def test_a_second_host_takes_over_with_an_empty_cache(start):
     b = await Server(PORT + 1, "b").start()
     try:
         sim, first = await paired_bridge(start, a, "mk2")
+        b.pair_code = lambda: deck_code(sim, 1)
         await asyncio.to_thread(
             sim.config, servers=[f"ws://127.0.0.1:{PORT}/surface", f"ws://127.0.0.1:{PORT + 1}/surface"]
         )
@@ -392,6 +432,7 @@ async def test_a_standby_host_gets_no_input(start):
     b = await Server(PORT + 1, "b").start()
     try:
         sim, first = await paired_bridge(start, a, "mk2")
+        b.pair_code = lambda: deck_code(sim, 1)
         await asyncio.to_thread(
             sim.config, servers=[f"ws://127.0.0.1:{PORT}/surface", f"ws://127.0.0.1:{PORT + 1}/surface"]
         )

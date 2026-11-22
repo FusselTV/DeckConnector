@@ -28,7 +28,7 @@ from dbtools.benchlock import bench_lock
 from dbtools.load import HOST as DEVICE
 from dbtools.load import password
 from dbtools.safety import NOBODY, UnsafeBridge, real_input_target, require_input_gate, settings_to_restore
-from dbtools.server import Server
+from dbtools.server import Server, with_url, without_url
 from dbtools.site import CAMERA, need
 
 
@@ -410,20 +410,21 @@ async def servers():
     await first.start()
     await second.start()
     cfg = get_config()
-    put_config({"servers": []})  # a token from an earlier run is unknown to these servers; a new URL drops it
-    put_config({"servers": [first.url, second.url], "controller": "server"})
+    servers = with_url(with_url(cfg["servers"], first.url), second.url)
+    put_config({"servers": without_url(without_url(cfg["servers"], first.url), second.url)})  # drops old tokens
+    put_config({"servers": servers, "controller": "server"})
     await (await first.wait_bridge(60)).role(True)
     await second.wait_bridge(60)
     yield first, second
     await first.stop()
     await second.stop()
-    put_config({k: cfg[k] for k in ("servers", "server_pins")} | settings_to_restore(cfg))
+    put_config({"servers": without_url(without_url(servers, first.url), second.url)} | settings_to_restore(cfg))
 
 
 async def newest(server):
     """The link that connected last: tests that make the bridge connect again leave older ones behind."""
     bridge = list(server.bridges.values())[-1] if server.bridges else None
-    if bridge and not bridge.pair_code and not bridge.closed.is_set():
+    if bridge and not bridge.pairing and not bridge.closed.is_set():
         return bridge
     return await server.wait_bridge(60)
 

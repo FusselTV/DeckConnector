@@ -27,7 +27,7 @@ from pathlib import Path
 from websockets.sync.client import connect
 
 from dbtools.safety import real_input_target, require_input_gate, settings_to_restore
-from dbtools.server import Bridge, Server
+from dbtools.server import Bridge, Server, with_url, without_url
 from dbtools.site import HOST
 
 ENDPOINTS = ["/api/status", "/api/config", "/api/screen", "/api/screen.jpg", "/api/metrics", "/api/slots", "/"]
@@ -221,16 +221,19 @@ def ws_connect(host: str, auth: str, n: int) -> dict:
 async def drawing_for(c: Client, server: Server) -> AsyncIterator[Bridge]:
     """The bridge paired with `server` and drawing for it. Sets the controller to server and back."""
     cfg = json.loads(c.get("/api/config")[2])
+    servers = with_url(cfg["servers"], server.url)
     try:
-        # a token from an earlier run is unknown to this server: a new URL drops it, and the bridge pairs again
-        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": []})
-        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": [server.url], "controller": "server"})
+        # a token from an earlier run is unknown to this server: dropping the URL first drops it
+        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": without_url(cfg["servers"], server.url)})
+        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": servers, "controller": "server"})
         bridge = await server.wait_bridge(60)
         await bridge.role(True)
         yield bridge
     finally:
         await asyncio.to_thread(c.get, "/api/status")
-        await asyncio.to_thread(c.send, "PUT", "/api/config", {"servers": cfg["servers"]} | settings_to_restore(cfg))
+        await asyncio.to_thread(
+            c.send, "PUT", "/api/config", {"servers": without_url(servers, server.url)} | settings_to_restore(cfg)
+        )
 
 
 async def drawing(host: str, auth: str, n: int) -> dict:

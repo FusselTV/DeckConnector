@@ -40,7 +40,7 @@ from dbtools.benchlock import bench_lock
 from dbtools.load import password
 from dbtools.safety import PRODUCTION, host_addr, real_input_target, require_input_gate
 from dbtools.satfake import FakeSatellite
-from dbtools.server import Server, local_ip
+from dbtools.server import Server, local_ip, with_url, without_url
 from dbtools.site import BENCH_DIR, CAMERA, CAMERA_REGIONS, HOST, SERIAL, UNIFI, need
 
 COMPANION = "http://127.0.0.1:8000"
@@ -516,9 +516,10 @@ def server_source(r: Run):
     loop = Loop()
     srv = loop.run(Server(8765, "deckmeter", ping=True).start())
     cfg = json.loads(r.bridge.call("GET", "/api/config")[1])
+    servers = with_url(cfg["servers"], srv.url)
     try:
-        r.bridge.put({"servers": []})  # a new URL drops a token this server does not know: the bridge pairs again
-        r.bridge.put({"servers": [srv.url], "controller": "server"})
+        r.bridge.put({"servers": without_url(cfg["servers"], srv.url)})  # drops a token this server does not know
+        r.bridge.put({"servers": servers, "controller": "server"})
         bridge = loop.run(srv.wait_bridge(30))
         loop.run(bridge.role(True))
         yield loop, bridge
@@ -526,7 +527,7 @@ def server_source(r: Run):
         with contextlib.ExitStack() as undo:  # each step also when the one before failed, newest first
             undo.callback(lambda: loop.run(srv.stop()))
             undo.callback(r.restore)
-            r.bridge.put({"servers": cfg["servers"]})
+            r.bridge.put({"servers": without_url(servers, srv.url)})
 
 
 async def post(bridge, kind: str, n: int, image: bytes):

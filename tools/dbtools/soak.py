@@ -27,7 +27,7 @@ from websockets.exceptions import ConnectionClosed
 
 from dbtools.load import HOST, Client, basic_auth
 from dbtools.safety import settings_to_restore
-from dbtools.server import Server
+from dbtools.server import Server, with_url, without_url
 
 
 def jpeg(color, size=(120, 120)) -> bytes:
@@ -107,12 +107,13 @@ async def main_async(a) -> None:
     failures: list[str] = []
     async with contextlib.AsyncExitStack() as undo:  # runs every step back, also when one of them fails
         undo.push_async_callback(server.stop)
-        restore = {**settings_to_restore(cfg), "servers": cfg["servers"]}
+        servers = with_url(cfg["servers"], server.url)
+        restore = {**settings_to_restore(cfg), "servers": without_url(servers, server.url)}
         undo.callback(lambda: c.send("POST", "/api/dock", {"pairing": 0}))  # c: the client of the last round
         undo.callback(lambda: c.send("PUT", "/api/config", restore))
         await server.start()
-        c.send("PUT", "/api/config", {"servers": []})  # a new URL drops a token this server does not know
-        c.send("PUT", "/api/config", {"controller": "server", "servers": [server.url]})
+        c.send("PUT", "/api/config", {"servers": without_url(cfg["servers"], server.url)})  # drops an old token
+        c.send("PUT", "/api/config", {"controller": "server", "servers": servers})
         c.send("POST", "/api/dock", {"pairing": int(a.minutes * 60) + 60})  # its dock churn comes from a new host
         bridge = await server.wait_bridge(60)
         await bridge.role(True)

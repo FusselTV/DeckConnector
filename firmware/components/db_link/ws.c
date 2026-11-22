@@ -125,7 +125,12 @@ int ws_tcp_open(const char *host, unsigned port, const char *ifname, int timeout
     if (ifname) {
         struct ifreq ifr = {0};
         strlcpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-        setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr));
+        if (setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, &ifr, sizeof(ifr)) != 0) { /* else the default route */
+            int err = -errno;
+            freeaddrinfo(res);
+            close(s);
+            return err;
+        }
     }
     int err = connect_within(s, res->ai_addr, res->ai_addrlen, timeout_ms);
     freeaddrinfo(res);
@@ -359,6 +364,10 @@ static int handshake(ws_t *ws, int s, const char *host, unsigned port, const cha
         }
     }
     resp[got] = '\0';
+    if (strncmp(resp, "HTTP/1.1 401", 12) == 0) {
+        ws->fail = "token refused";
+        return -EACCES;
+    }
     if (strncmp(resp, "HTTP/1.1 101", 12) != 0 || !accept_matches(key, resp)) {
         ws->fail = "not a WebSocket";
         return -ECONNREFUSED;

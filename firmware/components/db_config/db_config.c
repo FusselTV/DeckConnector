@@ -554,6 +554,7 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
     for (int k = 0; k < DB_MAX_SERVERS; k++) {
         if (strcmp(was[k], db_config_server(cfg, k)) != 0) {
             cfg->server_tokens[k][0] = '\0'; /* paired with the old host */
+            cfg->server_pins[k][0] = '\0';
         }
     }
     return true;

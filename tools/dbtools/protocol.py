@@ -112,11 +112,12 @@ def time_ms(unix_ms: int) -> bytes:
     return msg(TIME, BOARD, struct.pack("<Q", unix_ms))
 
 
-def paired(token: str) -> bytes:
-    return msg(PAIRED, BOARD, cbor2.dumps({"token": token}))
+def paired(token: str, code: str) -> bytes:
+    return msg(PAIRED, BOARD, cbor2.dumps({"token": token, "code": code}))
 
 
-def parse(data: bytes) -> Input | Shown | Credit | Message:
+def parse(data: bytes) -> Input | Shown | Credit | Message | None:
+    """None for a type this host does not know."""
     kind, deck, _ = _HDR.unpack_from(data)
     body = data[_HDR.size :]
     if kind == INPUT:
@@ -131,4 +132,6 @@ def parse(data: bytes) -> Input | Shown | Credit | Message:
         return Message(kind, deck, cbor2.loads(body))
     if kind == DECK_REMOVED and not body:
         return Message(kind, deck, {})
-    raise ValueError(f"unknown message type {kind:#x}")
+    if kind == DECK_REMOVED:
+        raise ValueError("DECK_REMOVED with a body")
+    return None

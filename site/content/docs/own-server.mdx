@@ -15,11 +15,12 @@ Your program renders the pictures. The connector keeps them in a cache, shows th
 
 ## Pairing
 
-1. A host without a token gets `HELLO` with `pair_code`, 6 digits. The decks show the same code, over everything for 2 min, then on the home screen.
-2. The person types the code into the host. The host compares it and sends `PAIRED` with a token.
-3. The connector saves the token, and for `wss://` the SHA-256 of the host's certificate. It connects again with `Authorization: Bearer <token>` and takes only that certificate from then on.
+1. A host without a token gets `HELLO` with `pairing: true`. The decks show a 6-digit code, over everything for 2 min, then on the home screen. The code never goes over the network.
+2. The person types the code into the host. The host sends `PAIRED` with a token and that code.
+3. When the code matches, the connector saves the token, and for `wss://` the SHA-256 of the host's certificate. It connects again with `Authorization: Bearer <token>` and takes only that certificate from then on.
+4. A wrong code gets `ERROR` `pair_code`, and the connector closes the connection. After 5 wrong codes the decks show a new one.
 
-A new URL in **Sources** drops the token. Until `PAIRED`, every other message gets `ERROR` `unpaired`.
+A host that no longer knows the token closes with code 4001, or answers the upgrade with 401. The connector then drops the token and pairs again, and only a host with the same certificate gets in. A new URL in **Sources** drops token and pin. Until `PAIRED`, every other message gets `ERROR` `unpaired`.
 
 ## Active and standby
 
@@ -44,7 +45,7 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
 | `0x07` | BRIGHTNESS | `u8` 0 to 100. Deck `0xFF` sets every deck |
 | `0x08` | TIME | `u64` Unix time in ms |
 | `0x09` | REBOOT | nothing |
-| `0x0A` | PAIRED | CBOR `{token}`, printable ASCII, up to 47 characters |
+| `0x0A` | PAIRED | CBOR `{token, code}`. `token` is printable ASCII, up to 47 characters |
 
 `PUT`, `EVICT`, `FRAME`, `STREAM`, `FALLBACK`, `BRIGHTNESS`, `TIME` and `REBOOT` work only from the active host. The cache belongs to the whole connector, so `PUT` and `EVICT` go with deck `0xFF`.
 
@@ -65,7 +66,7 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
 
 ```json
 {"proto": 2, "firmware": "{{version}}", "board": {"id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3"},
- "pair_code": "123456", "cache": {"bytes": 8388608, "slots": 1024}, "cache_epoch": 3141592653,
+ "pairing": true, "cache": {"bytes": 8388608, "slots": 1024}, "cache_epoch": 3141592653,
  "decks": [{"deck": 0, "serial": "A00SA0000AA0A0", "model": "streamdeck-plus", "name": "Stream Deck +",
    "displays": [{"id": 0, "w": 800, "h": 480, "formats": ["jpeg"], "rotate": 0, "flip": false, "max_bytes": 1048576}],
    "targets": [{"id": 0, "kind": "key", "display": 0, "x": 13, "y": 12, "w": 120, "h": 120},
@@ -74,7 +75,7 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
    "keys": 8, "encoders": 4, "touch": [{"x": 0, "y": 380, "w": 800, "h": 100}]}]}
 ```
 
-- `pair_code` is there only before pairing.
+- `pairing` is there only before pairing.
 - A key target has the key's number as `id`. Strips come after the keys, then the whole display (`full`).
 - Send each target's picture in exactly its size, already turned. First turn it by `rotate` degrees clockwise, then mirror it left to right when `flip` is true.
 - `formats` is `jpeg`, or `bmp` on the Mini and the Module 6. `max_bytes` is the largest image the display takes.
@@ -127,6 +128,8 @@ After `HELLO` come one `CREDIT` per display and one `STATE` per deck. `STATE` co
 | `code` | Meaning |
 |---|---|
 | `unpaired` | Send nothing but `PAIRED` until the pairing is done |
+| `pair_code` | Not the code the decks show. The connection closes |
+| `pair_failed` | The connector could not save the pairing. The connection closes |
 | `standby` | This host is not active |
 | `no_deck` | No deck with this number |
 | `bad_target` | No target with this number |

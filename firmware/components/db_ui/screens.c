@@ -736,8 +736,8 @@ static void matter_page(page_t *p)
 static void pair_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, fit(p, L("Kopplung", "Pairing"), L("Code", "Code")),
-         md->pair_code, fit(p, L("im Programm", "in the program"), ""));
+    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, fit(p, L("Kopplung", "Pairing"), "Code"), md->pair_code,
+         fit(p, L("im Programm", "in the program"), ""));
     if (p->l->strip) {
         segment(&p->sc->seg[0], 4, ICON_WEB, C_ACTIVE, L("Kopplungscode", "Pairing code"), md->pair_code,
                 L("Im Programm eingeben, das das Deck steuern soll",

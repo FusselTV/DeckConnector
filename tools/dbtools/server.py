@@ -3,10 +3,14 @@
 import asyncio
 import contextlib
 import itertools
+import os
 import secrets
 import socket
 import ssl
+import struct
+import sys
 import time
+from collections.abc import Callable
 
 import websockets
 from websockets.asyncio.server import Server as WsServer
@@ -24,6 +28,27 @@ def local_ip(towards: str = "192.0.2.1") -> str:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.connect((towards, 9))
         return s.getsockname()[0]
+
+
+def without_url(servers: list[str], url: str) -> list[str]:
+    """The bridge's `servers` without `url`. Every other place keeps its URL and with it its pairing."""
+    return ["" if u == url else u for u in servers]
+
+
+def with_url(servers: list[str], url: str) -> list[str]:
+    """`url` in a free one of the two places the bridge uses, after `without_url` dropped an old pairing of it."""
+    out = without_url(servers, url)
+    if "" not in out[:2]:
+        raise RuntimeError(f"both server places are taken ({out[:2]}): free one, their pairings stay untouched")
+    out[out.index("")] = url
+    return out
+
+
+def _ask_code() -> str:
+    code = os.environ.get("DECKBRIDGE_PAIR_CODE")
+    if code or not sys.stdin.isatty():
+        return code or ""
+    return input("Pairing code on the deck: ").strip()
 
 
 class Bridge:
@@ -47,8 +72,9 @@ class Bridge:
         return self.hello.get("board", {}).get("id", "?")
 
     @property
-    def pair_code(self) -> str | None:
-        return self.hello.get("pair_code")
+    def pairing(self) -> bool:
+        """Not paired yet: the deck shows a code."""
+        return bool(self.hello.get("pairing"))
 
     def target(self, deck: int, kind: str = "key", n: int = 0) -> dict:
         """The n-th target of that kind on the deck."""
@@ -89,7 +115,9 @@ class Bridge:
         await self.put(slot, image, target["w"], target["h"], fmt)
         return await self.show(deck, [(target["id"], slot)])
 
-    def _handle(self, msg: p.Input | p.Shown | p.Credit | p.Message) -> None:
+    def _handle(self, msg: p.Input | p.Shown | p.Credit | p.Message | None) -> None:
+        if msg is None:
+            return
         if isinstance(msg, p.Input):
             self.inputs.put_nowait(msg)
         elif isinstance(msg, p.Shown):
@@ -115,7 +143,10 @@ class Bridge:
         try:
             async for data in self.ws:
                 if isinstance(data, bytes):
-                    self._handle(p.parse(data))
+                    try:
+                        self._handle(p.parse(data))
+                    except (ValueError, KeyError, struct.error) as e:  # a broken message, the next may be fine
+                        self.errors.append({"code": "host_parse", "message": f"{e}: {data[:32].hex()}", "deck": -1})
         except websockets.ConnectionClosed:
             pass
         finally:
@@ -168,16 +199,19 @@ class Server:
         name: str = "dbtools",
         ping: bool = True,
         tls: bool = False,
-        auto_pair: bool = True,
+        pair_code: Callable[[], str] | None = None,
         tokens: set[str] | None = None,
+        auto_pair: bool = True,
     ):
-        """`tls`: wss:// with a certificate made for this run, its SHA-256 in `fingerprint`. `auto_pair` confirms
-        every pairing code at once, as an admin would. `tokens`: the ones it handed out, to share with another
+        """`tls`: wss:// with a certificate made for this run, its SHA-256 in `fingerprint`. `pair_code` reads the
+        code on the deck, as an admin would; by default from DECKBRIDGE_PAIR_CODE or asked on the terminal. None
+        of it when `auto_pair` is false. `tokens`: the ones it handed out, to share with another
         run on the same port."""
         self.port = port
         self.name = name
         self.ping = ping
         self.auto_pair = auto_pair
+        self.pair_code = pair_code or _ask_code
         self.tokens: set[str] = set() if tokens is None else tokens
         self.bridges: dict[str, Bridge] = {}
         self.connected: asyncio.Queue[Bridge] = asyncio.Queue()
@@ -192,11 +226,11 @@ class Server:
     def url(self) -> str:
         return f"{'wss' if self.ssl else 'ws'}://{local_ip()}:{self.port}/surface"
 
-    async def pair(self, bridge: Bridge) -> str:
+    async def pair(self, bridge: Bridge, code: str) -> str:
         """Confirm the bridge's code: it gets a token, keeps it and connects again with it."""
         token = secrets.token_urlsafe(24)
         self.tokens.add(token)
-        await bridge.send(p.paired(token))
+        await bridge.send(p.paired(token, code))
         return token
 
     async def _handler(self, ws: ServerConnection) -> None:
@@ -211,12 +245,13 @@ class Server:
             if bridge.hello or bridge.closed.is_set():
                 break
             await asyncio.sleep(0.01)
-        if not bridge.hello:
-            await ws.close(4002, "no hello")
+        cache = bridge.hello.get("cache", {})
+        if bridge.hello.get("proto") != 2 or not cache.get("slots") or cache.get("bytes", 0) < 64 * 1024:
+            await ws.close(4002, "no usable hello")
             await task
             return
-        if bridge.pair_code and self.auto_pair:
-            await self.pair(bridge)
+        if bridge.pairing and self.auto_pair:
+            await self.pair(bridge, await asyncio.to_thread(self.pair_code))
         self.bridges[bridge.id] = bridge
         await self.connected.put(bridge)
         await task
@@ -247,5 +282,5 @@ class Server:
         end = asyncio.get_running_loop().time() + timeout
         while True:
             bridge = await asyncio.wait_for(self.connected.get(), end - asyncio.get_running_loop().time())
-            if not paired or not bridge.pair_code:
+            if not paired or not bridge.pairing:
                 return bridge
