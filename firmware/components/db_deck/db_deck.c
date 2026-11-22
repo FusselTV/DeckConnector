@@ -1211,7 +1211,7 @@ esp_err_t db_deck_raw_set_feature(int deck, db_source_t source, const uint8_t *b
     return to_esp(err);
 }
 
-size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
+static size_t list_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max, bool copy)
 {
     deck_t *k = &decks[deck];
     xSemaphoreTake(k->shot_lock, portMAX_DELAY);
@@ -1220,10 +1220,23 @@ size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
     size_t n = 0;
     for (int i = 0; i < sc->count && n < max; i++, n++) {
         out[n] = sc->shots[i];
-        out[n].data = NULL;
+        out[n].data = copy ? heap_caps_malloc(out[n].len, MALLOC_CAP_SPIRAM) : NULL;
+        if (out[n].data) {
+            memcpy(out[n].data, sc->shots[i].data, out[n].len);
+        }
     }
     xSemaphoreGive(k->shot_lock);
     return n;
+}
+
+size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
+{
+    return list_shots(deck, writer, out, max, false);
+}
+
+size_t db_deck_shots_copy(int deck, db_source_t *writer, db_shot_t *out, size_t max)
+{
+    return list_shots(deck, writer, out, max, true);
 }
 
 static esp_err_t copy_shot(deck_t *k, uint32_t id, uint8_t **data, size_t *len, db_rect_t *rect)

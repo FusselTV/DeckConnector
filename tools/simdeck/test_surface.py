@@ -355,6 +355,37 @@ async def test_a_stream_replaces_an_older_one_and_is_shown(start):
         await srv.stop()
 
 
+async def test_the_snapshot_keeps_a_key_that_animates(start):
+    """A key replaced while /api/screen.jpg is drawn shows its newest image, never black."""
+    srv = await Server(PORT).start()
+    try:
+        sim, bridge = await paired_bridge(start, srv, "xl")
+        keys = [t for t in bridge.decks[0]["targets"] if t["kind"] == "key"]
+        key = keys[0]
+        for slot, color in enumerate([(220, 20, 20), (20, 200, 20), (20, 20, 220)], 1):
+            await bridge.put(slot, solid(key["w"], key["h"], color), key["w"], key["h"])
+        assert (await bridge.show(0, [(t["id"], 1) for t in keys])).us > 0
+        stop = False
+
+        async def animate():
+            slot = 2
+            while not stop:
+                await bridge.show(0, [(key["id"], slot)])
+                slot = 5 - slot
+
+        task = asyncio.create_task(animate())
+        await asyncio.sleep(0.3)
+        black = 0
+        for _ in range(40):
+            img = Image.open(io.BytesIO((await asyncio.to_thread(sim.api, "GET", "/api/screen.jpg"))[1]))
+            black += near(img.crop((key["x"], key["y"], key["x"] + key["w"], key["y"] + key["h"])), (0, 0, 0))
+        stop = True
+        await task
+        assert black == 0, f"the animated key was black in {black} of 40 pictures"
+    finally:
+        await srv.stop()
+
+
 async def test_brightness_and_state(start):
     srv = await Server(PORT).start()
     try:

@@ -1594,7 +1594,7 @@ void db_ui_set_c6_version(const char *version)
 }
 
 /* *complete is false when an image that is still shown could not be drawn, e.g. out of memory. */
-static esp_err_t render_snapshot(int deck, const db_device_info_t *dev, const db_shot_t *shots, size_t n,
+static esp_err_t render_snapshot(const db_device_info_t *dev, const db_shot_t *shots, size_t n,
                                  uint8_t **jpeg, size_t *len, bool *complete)
 {
     *complete = true;
@@ -1605,16 +1605,9 @@ static esp_err_t render_snapshot(int deck, const db_device_info_t *dev, const db
     }
     memset(px, 0, (size_t)d->width * d->height * 3);
     for (size_t i = 0; i < n; i++) {
-        uint8_t *data = NULL;
-        size_t dlen = 0;
-        esp_err_t err = db_deck_shot_copy(deck, shots[i].id, &data, &dlen);
-        if (err == ESP_ERR_NOT_FOUND) {
-            continue; /* replaced meanwhile; the newer one is in the list too */
-        }
-        if (err == ESP_OK) {
-            err = jpeg_port_decode_for(d, data, dlen, px, d->width, d->height, shots[i].rect);
-        }
-        heap_caps_free(data);
+        esp_err_t err = shots[i].data ? jpeg_port_decode_for(d, shots[i].data, shots[i].len, px, d->width,
+                                                             d->height, shots[i].rect)
+                                      : ESP_ERR_NO_MEM;
         if (err != ESP_OK) {
             ESP_LOGW(TAG, "snapshot: image %lu not drawn: %s", (unsigned long)shots[i].id,
                      esp_err_to_name(err));
@@ -1650,9 +1643,14 @@ esp_err_t db_ui_snapshot(int deck, uint8_t **jpeg, size_t *len)
         if (!cached || key != cached_key) {
             heap_caps_free(cached);
             cached = NULL;
+            n = db_deck_shots_copy(deck, &writer, shots, DB_SCREEN_MAX);
+            key = db_deck_shots_key(writer, shots, n) ^ (uint32_t)deck;
             bool complete;
-            err = render_snapshot(deck, &dev, shots, n, &cached, &cached_len, &complete);
+            err = render_snapshot(&dev, shots, n, &cached, &cached_len, &complete);
             cached_key = complete ? key : key + 1; /* a picture with a hole is sent once, then drawn again */
+            for (size_t i = 0; i < n; i++) {
+                heap_caps_free(shots[i].data);
+            }
         }
     }
     if (err == ESP_OK) {

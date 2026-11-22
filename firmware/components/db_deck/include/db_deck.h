@@ -130,6 +130,9 @@ void db_deck_stats(db_deck_stats_t *out);
 /* What the deck shows: the images of the current writer, oldest first, without their data. Drawn in order
  * they make the picture. */
 size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max);
+/* The same with a copy of each image in PSRAM, taken at once so none is replaced in between; data is NULL
+ * when out of memory. Free each with heap_caps_free. */
+size_t db_deck_shots_copy(int deck, db_source_t *writer, db_shot_t *out, size_t max);
 /* Changes whenever the picture of db_deck_shots changes. */
 static inline uint32_t db_deck_shots_key(db_source_t writer, const db_shot_t *shots, size_t n)
 {
