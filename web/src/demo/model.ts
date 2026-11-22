@@ -451,7 +451,7 @@ export function boot(s: Demo, now: number, reason = s.bootReason) {
   event(s, now, ['crash', 'watchdog', 'brownout'].includes(reason) ? 'crashed' : 'started', reason)
   if (s.cfg.wifi_ssid) event(s, now, 'wlan_joined', s.cfg.wifi_ssid, '02:00:00:00:01:01', '6')
   const lines = [
-    `I (21) boot: DeckConnector ${s.firmware}, ESP32-P4 rev v3.1`,
+    `I (21) boot: Deck Connector ${s.firmware}, ESP32-P4 rev v3.1`,
     'I (412) deck: Stream Deck + EL00K1A00001 at high speed',
     'I (2688) net: LAN link up 100 Mbit/s full duplex',
     s.cfg.wifi_ssid ? `I (5724) net: WLAN ${s.cfg.wifi_ssid} ${WLAN_IP}, -47 dBm` : 'I (5724) net: no WLAN set',

@@ -57,7 +57,7 @@ export function SiteFooter({ lang }: { lang: Lang }) {
         <p className="max-w-sm leading-relaxed">
           <span className="mb-2 flex items-center gap-2 font-semibold text-fd-foreground">
             <Logo />
-            DeckConnector
+            Deck Connector
           </span>
           {s.line}
           <span className="mt-3 flex gap-4">

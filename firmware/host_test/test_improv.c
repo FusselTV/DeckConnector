@@ -25,7 +25,7 @@ static const uint8_t STATE_RPC[] = {'I', 'M', 'P', 'R', 'O', 'V', 1, 3, 2, 2, 0,
 static void test_a_packet_between_log_lines_is_found(void)
 {
     uint8_t line[128];
-    const char *log = "I (812) main: DeckConnector\nIMPRIMP";
+    const char *log = "I (812) main: Deck Connector\nIMPRIMP";
     size_t n = strlen(log);
     memcpy(line, log, n);
     memcpy(line + n, STATE_RPC, sizeof(STATE_RPC));
@@ -57,9 +57,9 @@ static void test_a_bad_checksum_or_version_is_no_packet(void)
 static void test_a_frame_parses_back(void)
 {
     uint8_t data[255];
-    const char *strs[] = {"DeckConnector", "1.2.3", "ESP32-P4", "deckconnector-a1b2c3"};
+    const char *strs[] = {"Deck Connector", "1.2.3", "ESP32-P4", "deckconnector-a1b2c3"};
     size_t n = db_improv_result(data, 3, strs, 4);
-    TEST_ASSERT_EQUAL(2 + 4 + 13 + 5 + 8 + 20, n);
+    TEST_ASSERT_EQUAL(2 + 4 + 14 + 5 + 8 + 20, n);
     uint8_t frame[DB_IMPROV_FRAME_MAX];
     size_t f = db_improv_frame(frame, DB_IMPROV_RESULT, data, (uint8_t)n);
     TEST_ASSERT_EQUAL(12 + n, f);

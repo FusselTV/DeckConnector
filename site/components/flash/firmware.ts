@@ -81,7 +81,7 @@ export async function loadBuild(src: Source, mode: Mode): Promise<Image[]> {
 export const totalSize = (b: Build | undefined) => b?.parts.reduce((a, p) => a + p.size, 0) ?? 0
 
 const P4: Omit<Manifest, 'builds' | 'version'> = {
-  name: 'DeckConnector',
+  name: 'Deck Connector',
   chip_id: 18,
   chip_revision: { min: 301, max: 399 },
   chip: 'esp32p4',

@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: the usb_host_lib_set_root_port_power() return values.
+ * Modified for Deck Connector: the usb_host_lib_set_root_port_power() return values.
  */
 
 #pragma once

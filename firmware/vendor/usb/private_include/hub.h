@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: the hub_root_stop() return values.
+ * Modified for Deck Connector: the hub_root_stop() return values.
  */
 
 #pragma once

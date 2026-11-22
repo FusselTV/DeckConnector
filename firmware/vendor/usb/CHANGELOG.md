@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [1.6.0] - 2026-10-05
 
-The five "Fixed" entries about external Hubs and the root port are DeckConnector changes, not in esp-usb 1.6.0.
+The five "Fixed" entries about external Hubs and the root port are Deck Connector changes, not in esp-usb 1.6.0.
 
 ### Added
 

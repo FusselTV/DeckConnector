@@ -208,7 +208,7 @@ export function Privacy({ lang }: { lang: Lang }) {
         Einstellungen deines Browsers löschen.
       </p>
 
-      <h2>Die Software DeckConnector</h2>
+      <h2>Die Software Deck Connector</h2>
       <p>
         Die Firmware und die Home-Assistant-Integration schicken mir keine Daten. Mit welchen Servern ein Connector
         spricht, steht in der <a href="/de/docs/network/#internet">Anleitung</a>.
@@ -340,7 +340,7 @@ export function Privacy({ lang }: { lang: Lang }) {
         storing it is needed for a function you asked for. You can delete it in your browser&apos;s settings.
       </p>
 
-      <h2>The DeckConnector software</h2>
+      <h2>The Deck Connector software</h2>
       <p>
         The firmware and the Home Assistant integration send me no data. The <a href="/docs/network/#internet">docs</a>{' '}
         list the servers a connector talks to.

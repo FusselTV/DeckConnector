@@ -2,7 +2,7 @@ import type { Lang } from './figure'
 
 type Row = [label: string, dc: number, dock: number]
 
-const names = ['DeckConnector', 'Elgato Network Dock']
+const names = ['Deck Connector', 'Elgato Network Dock']
 
 const fmt = (v: number, unit: string, lang?: Lang) => `${lang === 'de' ? String(v).replace('.', ',') : v} ${unit}`
 

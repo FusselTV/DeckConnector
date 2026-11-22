@@ -5,16 +5,16 @@ import { DemoFrame } from './DemoFrame'
 export const demoText = {
   en: {
     title: 'Live demo with a virtual Stream Deck',
-    h1: 'DeckConnector web UI demo',
+    h1: 'Deck Connector web UI demo',
     description:
-      'Click through the real DeckConnector web UI with a virtual Stream Deck. Everything runs in your browser.',
+      'Click through the real Deck Connector web UI with a virtual Stream Deck. Everything runs in your browser.',
     missing: 'The demo is not part of this build. Run npm run build:demo in web/, then build the site again.',
   },
   de: {
     title: 'Live-Demo mit virtuellem Stream Deck',
-    h1: 'Demo der DeckConnector-Weboberfläche',
+    h1: 'Demo der Deck-Connector-Weboberfläche',
     description:
-      'Klick dich durch die echte Weboberfläche von DeckConnector, mit einem virtuellen Stream Deck. Alles läuft im Browser.',
+      'Klick dich durch die echte Weboberfläche von Deck Connector, mit einem virtuellen Stream Deck. Alles läuft im Browser.',
     missing: 'Die Demo fehlt in diesem Build. Führe npm run build:demo in web/ aus und baue die Seite danach neu.',
   },
 }

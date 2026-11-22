@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: ENUM_INIT_VALUE_DEV_ADDR.
+ * Modified for Deck Connector: ENUM_INIT_VALUE_DEV_ADDR.
  */
 
 #include <string.h>

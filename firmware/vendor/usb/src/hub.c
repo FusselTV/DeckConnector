@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: root port recovery without a device node (esp-usb#605).
+ * Modified for Deck Connector: root port recovery without a device node (esp-usb#605).
  */
 
 #include "sdkconfig.h"

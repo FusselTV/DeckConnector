@@ -1,4 +1,4 @@
-menu "DeckConnector board"
+menu "Deck Connector board"
     choice DB_BOARD
         prompt "Board"
         default DB_BOARD_WAVESHARE_P4_POE_ETH

@@ -1,8 +1,8 @@
 <p align="center">
-  <a href="https://deckconnector.com"><img src="site/public/favicon.svg" width="96" height="96" alt="DeckConnector logo"></a>
+  <a href="https://deckconnector.com"><img src="site/public/favicon.svg" width="96" height="96" alt="Deck Connector logo"></a>
 </p>
 
-<h1 align="center">DeckConnector</h1>
+<h1 align="center">Deck Connector</h1>
 
 <p align="center">
   Your Stream Deck on the network.<br>
@@ -25,7 +25,7 @@
 - Several programs connect at once. You pick the one that draws.
 - Several decks on one connector.
 - Ethernet with PoE, and Wi-Fi with a backup network.
-- Home Assistant gets every key press and the deck picture. It sets the brightness and the volume, and picks the program that draws. <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=FusselTV&repository=DeckConnector&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" height="24" alt="Open DeckConnector in HACS" align="top"></a>
+- Home Assistant gets every key press and the deck picture. It sets the brightness and the volume, and picks the program that draws. <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=FusselTV&repository=DeckConnector&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" height="24" alt="Open Deck Connector in HACS" align="top"></a>
 - Matter, tested with Home Assistant and Apple Home.
 - The web UI shows the live deck, and you can press its keys.
 - Log in with a passkey, or confirm the login on the deck.
@@ -42,4 +42,4 @@ Everything else is in the [docs](https://deckconnector.com/docs). To build it yo
 
 [AGPL-3.0](LICENSE). Warranty, trademarks and an added permission are in [NOTICE.md](NOTICE.md).
 
-Support DeckConnector on [GitHub Sponsors](https://github.com/sponsors/FusselTV) or [Ko-fi](https://ko-fi.com/fusseltv).
+Support Deck Connector on [GitHub Sponsors](https://github.com/sponsors/FusselTV) or [Ko-fi](https://ko-fi.com/fusseltv).

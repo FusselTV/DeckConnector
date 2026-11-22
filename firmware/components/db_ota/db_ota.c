@@ -185,7 +185,7 @@ const char *db_ota_inspect(const uint8_t *h)
     memcpy(&level, h + 6, 2);
     return memcmp(h, "DBFW", 4) != 0 || h[4] != 1         ? "not a .dbfw file"
            : h[5] < TARGET_P4 || h[5] > TARGET_TABLE      ? "unknown target"
-           : !signature_ok(h)                             ? "not signed for this DeckConnector"
+           : !signature_ok(h)                             ? "not signed for this Deck Connector"
            : h[5] != TARGET_WEB && level < SECURITY_LEVEL ? "below the security level, refused"
                                                           : NULL;
 }

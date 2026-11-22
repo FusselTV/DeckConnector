@@ -201,7 +201,7 @@ function firstPicture(t: Text) {
     strip: (
       <>
         <text x={36} y={42} fontFamily={MONO} fontSize={26} fontWeight={700} fill={INK} opacity={0.65}>
-          DeckConnector
+          Deck Connector
         </text>
         <text x={36} y={86} fontFamily={MONO} fontSize={40} fontWeight={800} fill={AMBER}>
           http://{NAME}.local

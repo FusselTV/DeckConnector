@@ -21,7 +21,7 @@ static const db_board_t board = {
 #elif CONFIG_DB_BOARD_SIM
 static const db_board_t board = {.name = "sim", .eth = {.present = true}, .speaker = {.present = true}};
 #else
-#error "No board selected, see menuconfig -> DeckConnector board"
+#error "No board selected, see menuconfig -> Deck Connector board"
 #endif
 
 const db_board_t *db_board(void)

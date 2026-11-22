@@ -150,7 +150,7 @@ const file = (body: Body) => {
 function prevLog(s: Demo) {
   if (s.prev) return s.prev.join('\n') + '\n'
   return [
-    `00:00:00.021 I (21) boot: DeckConnector ${s.firmware}, ESP32-P4 rev v3.1`,
+    `00:00:00.021 I (21) boot: Deck Connector ${s.firmware}, ESP32-P4 rev v3.1`,
     '00:00:00.412 I (412) deck: Stream Deck + EL00K1A00001 at high speed',
     '00:00:06.692 I (6692) net: LAN 192.168.1.214/24 via DHCP',
     '03:14:27.180 I web: POST /api/reboot',

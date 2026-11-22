@@ -4,7 +4,8 @@ import { pageMeta } from '~/lib/meta'
 
 export const metadata = pageMeta('en', '/flash/', {
   title: 'Install the firmware in your browser',
-  description: 'Install the DeckConnector firmware on an ESP32-P4 board from Chrome or Edge, then join Wi-Fi over USB.',
+  description:
+    'Install the Deck Connector firmware on an ESP32-P4 board from Chrome or Edge, then join Wi-Fi over USB.',
 })
 
 export default function Page() {

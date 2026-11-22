@@ -1,5 +1,5 @@
 const en = {
-  title: 'Install DeckConnector',
+  title: 'Install Deck Connector',
   lead: 'Flash over USB, nothing to install.',
   steps: ['Browser', 'Connect', 'Install', 'Set up', 'Ready'],
   step: 'Step {n} of {all}',
@@ -49,10 +49,10 @@ const en = {
   errLost: 'The board was unplugged.',
   errOther: 'Connecting failed.',
   wrongChipT: 'This is not the right board',
-  wrongChip: 'This board has an {chip}. DeckConnector runs only on the ESP32-P4.',
+  wrongChip: 'This board has an {chip}. Deck Connector runs only on the ESP32-P4.',
   wrongRevT: 'This chip revision is not supported',
   wrongRev:
-    'This ESP32-P4 is revision v{rev}. DeckConnector needs v{min} to v{max}. The board would not start with it, so nothing was written.',
+    'This ESP32-P4 is revision v{rev}. Deck Connector needs v{min} to v{max}. The board would not start with it, so nothing was written.',
   otherBoard: 'Use another board',
   found: '{chip}, revision v{rev}',
   mac: 'MAC {mac}',
@@ -60,7 +60,7 @@ const en = {
   installT: 'Choose how to install',
   update: 'Update',
   updateText: 'Writes the new firmware. Wi-Fi, password, paired computers and all other settings stay.',
-  updateNo: 'Not possible on this board. It has no DeckConnector yet. Use a full install.',
+  updateNo: 'Not possible on this board. It has no Deck Connector yet. Use a full install.',
   updateLocal: 'The local files have no update parts.',
   fresh: 'Full install',
   freshText: 'Erases the whole board and writes everything new. For a new board, or one that ran other firmware.',
@@ -81,9 +81,9 @@ const en = {
   erased: 'Erased',
   failed: 'Failed',
   eraseHint: 'Takes up to 2 minutes. The board does not report progress while it erases.',
-  partFactory: 'DeckConnector',
+  partFactory: 'Deck Connector',
   partOta: 'Boot settings',
-  partApp: 'DeckConnector',
+  partApp: 'Deck Connector',
   wait: 'Waiting',
   writing: 'Writing',
   verifying: 'Checking',
@@ -103,7 +103,7 @@ const en = {
   noBoot: 'The connector does not answer.',
   noBootDo: 'Press RST on the board once and try again. If it still does not answer, look at the log below.',
   retry: 'Try again',
-  installed: 'DeckConnector {v} is installed',
+  installed: 'Deck Connector {v} is installed',
   online: 'Online',
   offline: 'Not online yet',
   setupLead: 'Join a Wi-Fi network now, over this cable. The web UI asks for everything else.',
@@ -137,7 +137,8 @@ const en = {
   errLostSerial: 'The connection to the board is lost. Plug the cable in again and connect.',
 
   readyT: 'Your connector is ready',
-  readyText: 'DeckConnector runs on your network. Open the web UI to connect your deck to Companion or the Elgato app.',
+  readyText:
+    'Deck Connector runs on your network. Open the web UI to connect your deck to Companion or the Elgato app.',
   readyOffline: 'The connector is not online yet. Connect again and set up Wi-Fi, or plug in a network cable.',
   readyLater: 'The firmware is installed. Finish the setup in the web UI. The deck shows a QR code that opens it.',
   open: 'Open web UI',
@@ -162,7 +163,7 @@ const en = {
 export type Copy = typeof en
 
 const de: Copy = {
-  title: 'DeckConnector installieren',
+  title: 'Deck Connector installieren',
   lead: 'Über USB flashen, nichts zu installieren.',
   steps: ['Browser', 'Verbinden', 'Installieren', 'Einrichten', 'Fertig'],
   step: 'Schritt {n} von {all}',
@@ -217,10 +218,10 @@ const de: Copy = {
   errLost: 'Die Platine wurde abgezogen.',
   errOther: 'Die Verbindung hat nicht geklappt.',
   wrongChipT: 'Das ist nicht die richtige Platine',
-  wrongChip: 'Auf dieser Platine sitzt ein {chip}. DeckConnector läuft nur auf dem ESP32-P4.',
+  wrongChip: 'Auf dieser Platine sitzt ein {chip}. Deck Connector läuft nur auf dem ESP32-P4.',
   wrongRevT: 'Diese Chip-Revision wird nicht unterstützt',
   wrongRev:
-    'Dieser ESP32-P4 hat Revision v{rev}. DeckConnector braucht v{min} bis v{max}. Damit würde die Platine nicht starten, deshalb wurde nichts geschrieben.',
+    'Dieser ESP32-P4 hat Revision v{rev}. Deck Connector braucht v{min} bis v{max}. Damit würde die Platine nicht starten, deshalb wurde nichts geschrieben.',
   otherBoard: 'Andere Platine verwenden',
   found: '{chip}, Revision v{rev}',
   mac: 'MAC {mac}',
@@ -228,7 +229,7 @@ const de: Copy = {
   installT: 'Wie soll installiert werden?',
   update: 'Update',
   updateText: 'Schreibt die neue Firmware. WLAN, Passwort, gekoppelte Computer und alle anderen Einstellungen bleiben.',
-  updateNo: 'Auf dieser Platine nicht möglich. Sie hat noch keinen DeckConnector. Nimm die Neuinstallation.',
+  updateNo: 'Auf dieser Platine nicht möglich. Sie hat noch keinen Deck Connector. Nimm die Neuinstallation.',
   updateLocal: 'Die lokalen Dateien enthalten keine Update-Teile.',
   fresh: 'Neuinstallation',
   freshText: 'Löscht die ganze Platine und schreibt alles neu. Für eine neue Platine oder eine mit anderer Firmware.',
@@ -249,9 +250,9 @@ const de: Copy = {
   erased: 'Gelöscht',
   failed: 'Fehlgeschlagen',
   eraseHint: 'Dauert bis zu 2 Minuten. Solange die Platine löscht, meldet sie keinen Fortschritt.',
-  partFactory: 'DeckConnector',
+  partFactory: 'Deck Connector',
   partOta: 'Starteinstellungen',
-  partApp: 'DeckConnector',
+  partApp: 'Deck Connector',
   wait: 'Wartet',
   writing: 'Schreibe',
   verifying: 'Prüfe',
@@ -272,7 +273,7 @@ const de: Copy = {
   noBootDo:
     'Drück einmal RST auf der Platine und versuch es noch einmal. Antwortet sie weiter nicht, hilft ein Blick ins Protokoll unten.',
   retry: 'Noch einmal',
-  installed: 'DeckConnector {v} ist installiert',
+  installed: 'Deck Connector {v} ist installiert',
   online: 'Online',
   offline: 'Noch nicht online',
   setupLead: 'Das WLAN stellst du jetzt über dieses Kabel ein. Alles andere fragt die Weboberfläche.',
@@ -307,7 +308,7 @@ const de: Copy = {
 
   readyT: 'Dein Connector ist bereit',
   readyText:
-    'DeckConnector läuft in deinem Netz. Öffne die Weboberfläche und verbinde dein Deck mit Companion oder der Elgato-App.',
+    'Deck Connector läuft in deinem Netz. Öffne die Weboberfläche und verbinde dein Deck mit Companion oder der Elgato-App.',
   readyOffline:
     'Der Connector ist noch nicht online. Verbinde neu und richte WLAN ein oder steck ein Netzwerkkabel ein.',
   readyLater:

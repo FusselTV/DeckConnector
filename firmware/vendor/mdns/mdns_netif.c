@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modified for DeckConnector: no IPv6, Matter answers there (see "deckbridge:" below).
+ * Modified for Deck Connector: no IPv6, Matter answers there (see "deckbridge:" below).
  */
 
 #include <string.h>

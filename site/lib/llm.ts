@@ -53,7 +53,7 @@ function mdx(body: string) {
           return [
             `**${attr(a, 'title') ?? ''}**`,
             '',
-            '| | DeckConnector | Elgato Network Dock |',
+            '| | Deck Connector | Elgato Network Dock |',
             '|---|---|---|',
             ...rows.map(([, l, x, y]) => `| ${l} | ${n(x ?? '')} | ${n(y ?? '')} |`),
           ].join('\n')
@@ -101,9 +101,9 @@ function sections(tree: Root, lang: Lang) {
 
 const c = compare.en
 
-const about = `# DeckConnector
+const about = `# Deck Connector
 
-> DeckConnector is free, open source firmware (AGPL-3.0) for the Waveshare ESP32-P4-WIFI6-POE-ETH board. The board connects to an Elgato Stream Deck over USB and puts the deck on your network over Wi-Fi or Ethernet. Bitfocus Companion, the Elgato app and your own software then use the deck as if it were plugged into the computer. It is an alternative to the Elgato Network Dock, and adds Wi-Fi.
+> Deck Connector is free, open source firmware (AGPL-3.0) for the Waveshare ESP32-P4-WIFI6-POE-ETH board. The board connects to an Elgato Stream Deck over USB and puts the deck on your network over Wi-Fi or Ethernet. Bitfocus Companion, the Elgato app and your own software then use the deck as if it were plugged into the computer. It is an alternative to the Elgato Network Dock, and adds Wi-Fi.
 
 ## Key facts
 
@@ -122,7 +122,7 @@ const about = `# DeckConnector
 - Speed: the same as the Elgato Network Dock or faster, measured on a bench with a Stream Deck +.
 - Not affiliated with Elgato, Corsair or Bitfocus. Elgato and Stream Deck are trademarks of Corsair Memory, Inc. Community project, no official support.
 - Source code: ${repo}
-- Official sources: this site (${site}) and the GitHub repository. Firmware comes only from its releases (${repo}/releases) and the web flasher on this site. Other sites offering DeckConnector downloads are not from this project.
+- Official sources: this site (${site}) and the GitHub repository. Firmware comes only from its releases (${repo}/releases) and the web flasher on this site. Other sites offering Deck Connector downloads are not from this project.
 
 ## How to install
 
@@ -132,13 +132,13 @@ const about = `# DeckConnector
 4. Open that address in a browser. The setup wizard asks for name, password, network and the program that controls the deck.
 5. Connect a program. Companion: in the web UI under Sources, enter the Companion address (Satellite), or add the board in Companion as a Network Dock. Elgato app: it finds the board as a Network Dock by itself.
 
-## DeckConnector vs Elgato Network Dock
+## Deck Connector vs Elgato Network Dock
 
-| | DeckConnector | Elgato Network Dock |
+| | Deck Connector | Elgato Network Dock |
 |---|---|---|
 ${c.rows.map((r) => `| ${r.k} | ${r.a[1]} | ${r.b[1]} |`).join('\n')}
 
-Dock facts from the Elgato product page (${links('en').dock}), November 2026. Speed and power-cut results from the DeckConnector bench with a Stream Deck +.
+Dock facts from the Elgato product page (${links('en').dock}), November 2026. Speed and power-cut results from the Deck Connector bench with a Stream Deck +.
 
 Where the dock is better:
 ${c.dockWins.items.map(([t, d]) => `- ${t}: ${d}`).join('\n')}

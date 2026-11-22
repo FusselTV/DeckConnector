@@ -62,7 +62,7 @@ def build(src: Path, out: Path) -> dict:
         update.append(part(files[off], off, files[off].read_bytes()))
 
     manifest = {
-        "name": "DeckConnector",
+        "name": "Deck Connector",
         **info,
         "chip": extra["chip"],
         # the bootloader's header already carries these; esptool-js keeps them with flashMode "keep"

@@ -66,7 +66,7 @@ export function mime(m: {
   const who = m.name ? `${m.name} <${m.replyTo}>` : m.replyTo
   const body = b64(`${m.message}\n\n--\n${who}\n`.replace(/\r?\n/g, '\r\n')).replace(/.{76}/g, '$&\r\n')
   return [
-    `From: DeckConnector <${m.from}>`,
+    `From: Deck Connector <${m.from}>`,
     `To: <${m.to}>`,
     `Reply-To: <${m.replyTo}>`,
     `Subject: ${words(`Kontakt: ${m.name || m.replyTo}`)}`,

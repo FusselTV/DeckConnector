@@ -5,9 +5,9 @@ import { site } from '~/site.config'
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),
-  title: { default: 'DeckConnector, dein Stream Deck im Netzwerk', template: '%s | DeckConnector' },
+  title: { default: 'Deck Connector, dein Stream Deck im Netzwerk', template: '%s | Deck Connector' },
   description:
-    'DeckConnector ist freie Firmware für eine ESP32-P4-Platine, die ein Elgato Stream Deck per WLAN oder LAN ins Netzwerk bringt, für Bitfocus Companion und die Elgato-App.',
+    'Deck Connector ist freie Firmware für eine ESP32-P4-Platine, die ein Elgato Stream Deck per WLAN oder LAN ins Netzwerk bringt, für Bitfocus Companion und die Elgato-App.',
   icons: '/favicon.svg',
 }
 

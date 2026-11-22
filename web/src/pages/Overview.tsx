@@ -464,7 +464,7 @@ const LiveDeck = memo(function LiveDeck() {
         toast(
           t('ov.stuck', {
             n: ('key' in b ? b.key : 0) + 1,
-            host: host ? hostName(host) : (st.name ?? 'DeckConnector'),
+            host: host ? hostName(host) : (st.name ?? 'Deck Connector'),
           }),
           {
             bad: true,

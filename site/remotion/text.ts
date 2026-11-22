@@ -3,7 +3,7 @@ export type Lang = 'en' | 'de'
 export type LangProps = { lang: Lang; narrow?: boolean; light?: boolean }
 
 const en = {
-  board: 'DeckConnector',
+  board: 'Deck Connector',
   companion: 'Companion',
   wifi: 'Wi-Fi',
   lan: 'LAN',
@@ -55,7 +55,7 @@ const en = {
 }
 
 const de: typeof en = {
-  board: 'DeckConnector',
+  board: 'Deck Connector',
   companion: 'Companion',
   wifi: 'WLAN',
   lan: 'LAN',

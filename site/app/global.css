@@ -313,7 +313,7 @@ html[data-header-hidden]:has(body > header:focus-within) {
 }
 
 /* The docs add a sidebar button to the phone header; the wordmark makes room for it. */
-@media (max-width: 400px) {
+@media (max-width: 440px) {
   header:has(#docs-menu) [data-wordmark] {
     position: absolute;
     width: 1px;
