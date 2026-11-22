@@ -1,5 +1,5 @@
 #!/bin/sh
-# Records the README GIF and the Home Assistant pictures and GIFs for the docs. Needs Docker, uv, ffmpeg and npm ci in web/.
+# Records the README GIF and the Home Assistant pictures for the docs. Needs Docker, uv, ffmpeg and npm ci in web/.
 set -eu
 cd "$(dirname "$0")/../.."
 # a busy host stretches the recording and the web UI and Home Assistant drift apart
@@ -18,12 +18,6 @@ node tools/media/grab.mjs "http://127.0.0.1:$PORT/" "$WORK/board"
 uv run -q --project tools/ha python tools/media/ha-up.py "$WORK"
 node tools/media/ha-shots.mjs "$WORK/ha"
 uv run -q --with pillow python tools/media/webp.py "$WORK/ha"
-for lang in en de; do
-  out=$(node tools/media/ha-gif.mjs "$lang" "$WORK/gif-$lang")
-  crop=$(printf '%s\n' "$out" | sed -n 's/^crop //p')
-  [ -n "$crop" ]
-  tools/media/gif.sh "$WORK/gif-$lang/list.txt" "$crop" 860 "site/public/docs/ha-live-$lang.gif"
-done
 out=$(node tools/media/web-gif.mjs "http://127.0.0.1:$PORT/" "$WORK/web")
 printf '%s\n' "$out"
 crop=$(printf '%s\n' "$out" | sed -n 's/^crop //p')

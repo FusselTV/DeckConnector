@@ -153,7 +153,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `POST /api/ota` | Eine signierte `.dbfw`-Datei als Body. Kommt in den nächsten Platz und startet neu. `?slot=N` schreibt in Platz N, `?boot=0` behält die laufende Firmware | full |
 | `POST /api/ota/url` | `{"url": "https://..."}`, der Connector lädt die Datei selbst, auch über eine Weiterleitung. Der Fortschritt kommt über den WebSocket | full |
 | `POST /api/ota/inspect` | Die ersten 144 Bytes einer Datei. Antwortet `target`, `version`, `length`, `sha256` und `ok` mit `error` | full |
-| `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}`. `url` nur bei einem neueren Release. `?auto=1` ist die Prüfung bei der Anmeldung: 409, solange `update_auto` aus ist, 503, solange die Uhr nicht gestellt ist, sonst die letzte gute Antwort der vergangenen 24 Stunden oder der letzte Fehler der vergangenen 10 Minuten | full |
+| `GET /api/update/check` | `{"current": "{{version}}", "latest": null, ...}`. `url` nur bei einem neueren Release. `?auto=1` ist die Prüfung bei der Anmeldung: 409, solange `update_auto` aus ist, 503, solange die Uhr nicht gestellt ist, sonst die letzte gute Antwort der vergangenen 24 Stunden oder der letzte Fehler der vergangenen 10 Minuten | full |
 | `GET /api/slots` | Die vier Plätze mit `state`, `version`, `running`, `next`, `bootable` und `why_not` | full |
 | `POST /api/slots/<n>/boot` | Neustart in Platz N. 409, wenn er nicht starten kann | full |
 | `GET /api/frontend` | Die aktive Weboberfläche: `source` (`partition` oder `builtin`), `api` und bei einer hochgeladenen `version` | control |
@@ -199,7 +199,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
  "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "v1.0.0", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
 ```
 
 | Schlüssel | Werte |
@@ -249,7 +249,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 ## Status
 
 ```json
-{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "v1.0.0",
+{"via_ap": false, "id": "a0b1c2a1b2c3", "name": "deckconnector-a1b2c3", "firmware": "{{version}}",
  "wlan_firmware": "3.0.10", "uptime_s": 23, "boot": {"reason": "restart", "at": 1794012139},
  "setup": {"active": false, "step": 0, "rerun": false}, "controller": "companion", "writer": "satellite",
  "menu_open": false, "screen_off": false, "brightness": 80,

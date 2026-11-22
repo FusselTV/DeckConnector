@@ -9,7 +9,6 @@ export function out(lang: Lang) {
     deck: `${elgato}/p/stream-deck-plus`,
     app: `${elgato}/s/stream-deck-app`,
     dock: `${elgato}/p/network-dock-stream-deck`,
-    ha: 'https://www.home-assistant.io/',
     board: waveshare,
     p4: 'https://www.espressif.com/en/products/socs/esp32-p4',
     satellite: 'https://github.com/bitfocus/companion-satellite',

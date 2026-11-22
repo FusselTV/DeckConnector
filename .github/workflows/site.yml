@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     if: github.event_name != 'release' || !github.event.release.prerelease
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read # also reads the release assets of this repo
@@ -97,10 +97,11 @@ jobs:
           name: site
           path: site/out/
           if-no-files-found: error
+          include-hidden-files: true # .well-known/security.txt
 
   lighthouse:
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read # the checkout needs it in a private repository
@@ -152,7 +153,7 @@ jobs:
     needs: build
     # no secrets for pull requests from forks
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     environment: cloudflare-pages
     permissions: {}
@@ -192,7 +193,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: 4.161.0
+          wranglerVersion: 4.162.0
           command: pages deploy out --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'deckconnector' }} --branch=${{ steps.branch.outputs.name }}
 
   # The contact form's backend (site/contact-worker), from main only: a PR preview has no form backend.
@@ -200,7 +201,7 @@ jobs:
     needs: build # the Worker's tests run there
     # Not on a release: its ref is the tag, which can be older than main.
     if: github.ref == 'refs/heads/main' && github.event_name != 'release'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     environment: cloudflare-pages
     permissions:
@@ -229,7 +230,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: 4.161.0
+          wranglerVersion: 4.162.0
           workingDirectory: site/contact-worker
           command: deploy
           secrets: |
@@ -244,7 +245,7 @@ jobs:
     if: >-
       !cancelled() && github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       pull-requests: write
