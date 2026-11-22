@@ -93,8 +93,8 @@ export function SiteHeader({ lang }: { lang: Lang }) {
   ]
   const current = (href: string) => (path.startsWith(href) ? 'page' : undefined)
   return (
-    <header className="sticky top-0 z-40 h-14 border-b bg-fd-background/95 backdrop-blur-md">
-      <div className="mx-auto flex h-full max-w-(--fd-layout-width) items-center gap-1 px-4 sm:px-6">
+    <header className="sticky top-0 z-40 h-14 max-md:h-24 border-b bg-fd-background/95 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-(--fd-layout-width) items-center gap-1 px-4 sm:px-6">
         <a
           href={`${p}/`}
           aria-label={s.home}
@@ -152,6 +152,20 @@ export function SiteHeader({ lang }: { lang: Lang }) {
           {s.flash}
         </a>
       </div>
+      <nav aria-label={s.nav} data-subnav className="flex h-10 items-stretch justify-center gap-8 border-t md:hidden">
+        {links.map(([text, href, svg]) => (
+          <a
+            key={href}
+            href={href}
+            aria-current={current(href)}
+            data-nav
+            className="relative flex items-center gap-2 px-2 text-sm font-medium text-fd-muted-foreground aria-[current=page]:text-fd-foreground [&_svg]:size-4"
+          >
+            {svg}
+            {text}
+          </a>
+        ))}
+      </nav>
     </header>
   )
 }
