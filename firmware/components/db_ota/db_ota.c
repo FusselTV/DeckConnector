@@ -31,6 +31,7 @@
 #define HEADER_LEN    144
 #define SIGNED_LEN    76
 #define C6_CHUNK      1400
+#define BOUNCE        4096
 #define TARGET_P4     1
 #define TARGET_C6     2
 #define TARGET_WEB    3
@@ -305,6 +306,24 @@ static void progress(int pct)
     }
 }
 
+/* Into `part` from its start, or else through the open update. esp_flash_write takes a buffer outside
+ * internal RAM 32 bytes at a time: 2.6 MB from PSRAM took 12 s, through this buffer 6 s. */
+static esp_err_t flash_write(const esp_partition_t *part, const uint8_t *p, size_t n)
+{
+    uint8_t *bounce = heap_caps_malloc(BOUNCE, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!bounce) {
+        return part ? esp_partition_write(part, 0, p, n) : esp_ota_write(s.p4, p, n);
+    }
+    esp_err_t err = ESP_OK;
+    for (size_t at = 0; err == ESP_OK && at < n; at += BOUNCE) {
+        size_t k = n - at < BOUNCE ? n - at : BOUNCE;
+        memcpy(bounce, p + at, k);
+        err = part ? esp_partition_write(part, at, bounce, k) : esp_ota_write(s.p4, bounce, k);
+    }
+    heap_caps_free(bounce);
+    return err;
+}
+
 static esp_err_t write_payload(const uint8_t *p, size_t n)
 {
     if (s.written + n > s.payload_len) {
@@ -315,7 +334,7 @@ static esp_err_t write_payload(const uint8_t *p, size_t n)
     if (s.payload) {
         memcpy(s.payload + s.written, p, n);
     } else {
-        err = esp_ota_write(s.p4, p, n);
+        err = flash_write(NULL, p, n);
     }
     s.written += (uint32_t)n;
     progress((int)((uint64_t)s.written * 100 / s.payload_len));
@@ -415,7 +434,7 @@ static esp_err_t commit_boot(void)
         err = esp_ota_set_final_partition(s.p4, final, true);
     }
     if (err == ESP_OK) {
-        err = esp_ota_write(s.p4, s.payload, s.payload_len);
+        err = flash_write(NULL, s.payload, s.payload_len);
     }
     uint8_t *staged = heap_caps_malloc(final->size, MALLOC_CAP_SPIRAM);
     uint8_t *placed = heap_caps_malloc(s.payload_len, MALLOC_CAP_SPIRAM);
@@ -822,7 +841,7 @@ esp_err_t db_ota_web_store(uint8_t *img, size_t len, uint16_t api)
     if (err == ESP_OK) {
         err = esp_partition_erase_range(part, 0, (len + 4095) & ~4095u);
     }
-    if (err == ESP_OK && esp_partition_write(part, 0, img, len) != ESP_OK) {
+    if (err == ESP_OK && flash_write(part, img, len) != ESP_OK) {
         esp_partition_erase_range(part, 0, 4096); /* no half page at the next start: the built-in one */
         err = ESP_FAIL;
     }
