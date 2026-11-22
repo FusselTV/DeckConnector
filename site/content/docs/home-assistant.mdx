@@ -1,22 +1,11 @@
 ---
 title: Home Assistant
-description: The DeckConnector integration for Home Assistant. Key presses as triggers, brightness, screen off, source, deck picture and updates.
+description: The DeckConnector integration for Home Assistant. Brightness, screen off, source, deck picture, speaker and updates.
 ---
 
-The optional DeckConnector integration brings the connector and every deck on it into [Home Assistant](https://www.home-assistant.io/). Each press, release, dial turn and touch arrives at once and can start an automation. You set the brightness, turn the screens off, pick the source and see what each deck shows.
-
-<img loading="lazy" src="/docs/ha-live-en.gif" alt="A dashboard in Home Assistant: two key presses show up in the deck picture and as events, then the brightness goes down" width={860} height={297} />
+The optional DeckConnector integration brings the connector and every deck on it into [Home Assistant](https://www.home-assistant.io/). You set the brightness, turn the screens off, pick the source, see what each deck shows and update the firmware.
 
 <Shot src="ha-board" alt="The connector in Home Assistant: brightness, find, screen, speaker, controller, restart, screen off after, screen saver brightness, backup Wi-Fi, Ethernet and temperature" width={644} height={864} />
-
-<table>
-<tbody>
-  <tr>
-    <td width="50%" valign="top"><Shot src="ha-deck" alt="A deck in Home Assistant: screen picture, source and controls event" width={392} height={343} /></td>
-    <td width="50%" valign="top"><Shot src="ha-dashboard" alt="A dashboard with the deck picture, brightness, screen, source and controls" width={532} height={622} /></td>
-  </tr>
-</tbody>
-</table>
 
 ## Install
 
@@ -30,8 +19,6 @@ Without HACS, open **Settings › Marketplace**, choose **Add from link** and pa
 ```text
 https://github.com/FusselTV/DeckConnector
 ```
-
-<Shot src="ha-flow" alt="Pick how Home Assistant gets access: confirm on the deck or enter the web password" width={580} height={264} />
 
 Home Assistant then makes its own [API key](/docs/security#api-keys) on the connector. **Reconfigure** on the integration changes the connector's address and keeps the key.
 
@@ -52,38 +39,11 @@ The **Speaker** plays text to speech and audio files from the media browser. Hom
 
 The connector pushes every change at once. Signal and temperature update once a minute.
 
-## Automations
+## Key presses
 
-In the automation editor, pick **Device**, then the deck, then a trigger such as **Key 3 pressed**, **Dial 1 turned right**, **Touch zone 2 tapped** or **Touch strip swiped left**.
+Keys, dials and the touch strip belong in [Companion](/docs/companion) or the [Elgato app](/docs/elgato-app). They draw the keys and run the action.
 
-<DeckMap />
-
-Every deck also has one **Controls** event entity for YAML and templates. Its `event_type` says what happened, for example `key_3_press`. A dial turn carries `ticks`, a touch carries `x` and `y`. A tap or long touch also carries its `zone`.
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: event.stream_deck_controls
-    not_from: unavailable
-    not_to: [unavailable, unknown]
-conditions:
-  - condition: state
-    entity_id: event.stream_deck_controls
-    attribute: event_type
-    state: key_3_press
-actions:
-  - action: light.toggle
-    target:
-      entity_id: light.desk
-```
-
-Home Assistant does not draw the keys. The active [source](/docs/hosts) does. Without one, the deck shows its home screen, where some keys switch sources or open the menu. Every press still reaches Home Assistant, and a key that a source also uses runs both actions.
-
-### Blueprint
-
-[Import the blueprint into Home Assistant](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
-
-**Dial dims a light.** Turn a dial right for brighter, left for darker. Press it to switch the light on or off.
+Home Assistant still gets every press, dial turn and touch. Each deck has a **Controls** event entity, and the automation editor offers them as device triggers. The event's `event_type` says what happened, for example `key_3_press`. A key that a source also uses runs both actions.
 
 ## Apple Home
 

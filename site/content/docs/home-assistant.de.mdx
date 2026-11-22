@@ -1,22 +1,11 @@
 ---
 title: Home Assistant
-description: Die DeckConnector-Integration für Home Assistant. Tastendrücke als Auslöser, Helligkeit, Bildschirm aus, Quelle, Deck-Bild und Updates.
+description: Die DeckConnector-Integration für Home Assistant. Helligkeit, Bildschirm aus, Quelle, Deck-Bild, Lautsprecher und Updates.
 ---
 
-Die optionale DeckConnector-Integration holt den Connector und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Jeder Druck, jedes Loslassen, jede Drehung und jede Berührung kommt sofort an und kann eine Automation starten. Du stellst die Helligkeit ein, schaltest die Bildschirme aus, wählst die Quelle und siehst, was jedes Deck zeigt.
-
-<img loading="lazy" src="/docs/ha-live-de.gif" alt="Ein Dashboard in Home Assistant: zwei Tastendrücke erscheinen im Bild des Decks und als Ereignis, dann geht die Helligkeit runter" width={860} height={297} />
+Die optionale DeckConnector-Integration holt den Connector und jedes Deck daran in [Home Assistant](https://www.home-assistant.io/). Du stellst die Helligkeit ein, schaltest die Bildschirme aus, wählst die Quelle, siehst, was jedes Deck zeigt, und aktualisierst die Firmware.
 
 <Shot src="ha-board-de" alt="Der Connector in Home Assistant: Bildschirm, Finden, Helligkeit, Lautsprecher, Bildschirm aus nach, Bildschirmschoner-Helligkeit, Neustart, Steuerung, Ersatz-WLAN, Ethernet und Temperatur" width={644} height={864} />
-
-<table>
-<tbody>
-  <tr>
-    <td width="50%" valign="top"><Shot src="ha-deck-de" alt="Ein Deck in Home Assistant: Bild, Quelle und Ereignis Bedienung" width={392} height={343} /></td>
-    <td width="50%" valign="top"><Shot src="ha-dashboard-de" alt="Ein Dashboard mit dem Bild des Decks, Helligkeit, Bildschirm, Quelle und Bedienung" width={532} height={622} /></td>
-  </tr>
-</tbody>
-</table>
 
 ## Installieren
 
@@ -30,8 +19,6 @@ Ohne HACS öffnest du **Einstellungen › Marketplace**, wählst **Über Link hi
 ```text
 https://github.com/FusselTV/DeckConnector
 ```
-
-<Shot src="ha-flow-de" alt="Wählen, wie Home Assistant Zugriff bekommt: am Deck bestätigen oder Web-Passwort eingeben" width={580} height={264} />
 
 Home Assistant legt danach seinen eigenen [API-Schlüssel](/de/docs/security#api-schlüssel) auf dem Connector an. **Neu konfigurieren** an der Integration ändert die Adresse des Connectors und behält den Schlüssel.
 
@@ -52,38 +39,11 @@ Der **Lautsprecher** spielt Sprachausgabe und Audiodateien aus dem Medienbrowser
 
 Der Connector schickt jede Änderung sofort. Signal und Temperatur kommen einmal pro Minute.
 
-## Automationen
+## Tastendrücke
 
-Wähl im Automationseditor **Gerät**, dann das Deck, dann einen Auslöser wie **Taste 3 gedrückt**, **Drehregler 1 nach rechts gedreht**, **Touchfeld 2 angetippt** oder **Touchleiste nach links gewischt**.
+Tasten, Drehregler und Touchleiste gehören in [Companion](/de/docs/companion) oder die [Elgato-App](/de/docs/elgato-app). Die zeichnen die Tasten und führen die Aktion aus.
 
-<DeckMap lang="de" />
-
-Jedes Deck hat außerdem eine Ereignis-Entität **Bedienung** für YAML und Templates. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Drehung bringt `ticks` mit, eine Berührung `x` und `y`. Tippen und langes Berühren bringen auch das Feld als `zone` mit.
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: event.stream_deck_bedienung
-    not_from: unavailable
-    not_to: [unavailable, unknown]
-conditions:
-  - condition: state
-    entity_id: event.stream_deck_bedienung
-    attribute: event_type
-    state: key_3_press
-actions:
-  - action: light.toggle
-    target:
-      entity_id: light.desk
-```
-
-Home Assistant zeichnet die Tasten nicht. Das macht die aktive [Quelle](/de/docs/hosts). Ohne Quelle zeigt das Deck seinen Startbildschirm, auf dem einige Tasten Quellen wechseln oder das Menü öffnen. Jeder Tastendruck kommt trotzdem bei Home Assistant an, und eine Taste, die auch eine Quelle nutzt, löst beide Aktionen aus.
-
-### Blueprint
-
-[Blueprint in Home Assistant importieren](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FFusselTV%2FDeckConnector%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fdeckconnector%2Fdial_light.yaml)
-
-**Drehregler dimmt ein Licht.** Nach rechts heller, nach links dunkler. Ein Druck auf den Drehregler schaltet das Licht ein oder aus.
+Home Assistant bekommt trotzdem jeden Druck, jede Drehung und jede Berührung. Jedes Deck hat eine Ereignis-Entität **Bedienung**, und der Automationseditor bietet sie als Geräte-Auslöser an. Ihr `event_type` sagt, was passiert ist, zum Beispiel `key_3_press`. Eine Taste, die auch eine Quelle nutzt, löst beide Aktionen aus.
 
 ## Apple Home
 
