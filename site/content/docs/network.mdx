@@ -45,7 +45,7 @@ The connector's name in the network is `<name>.local`, for example `deckconnecto
 The connector talks to the internet only in these cases. Each one shows the IP address of your network to that server.
 
 - **Time.** `pool.ntp.org`, only when your router names no time server and you set none under **Network**.
-- **Update check.** GitHub, when you click **Check for updates** under **Firmware**, and while the [Home Assistant](/docs/home-assistant) firmware entity is on. While **Look for updates at login** is on, also when someone opens the web UI. That is at most once a day, plus once after each restart.
+- **Update check.** GitHub, when you click **Check for updates** under **Firmware**, and while the [Home Assistant](/docs/home-assistant) firmware entity is on. While **Look for updates at login** is on, also when someone opens the web UI. The login check asks at most once a day. After a restart it asks again. After a failed check it waits 10 minutes.
 - **Update by URL.** The address you give, and GitHub for a release.
 - **Your servers.** The Companion, Satellite and own servers you set.
 - **Matter.** Nothing from the connector. The Home app, Google Home or Alexa you pair it with can send the deck's names and presses to Apple, Google or Amazon.

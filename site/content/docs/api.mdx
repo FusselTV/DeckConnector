@@ -153,7 +153,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `POST /api/ota` | A signed `.dbfw` file as the body. Goes into the next slot and restarts. `?slot=N` writes into slot N, `?boot=0` keeps the running firmware | full |
 | `POST /api/ota/url` | `{"url": "https://..."}`, the connector loads the file itself, also behind a redirect. Progress comes over the WebSocket | full |
 | `POST /api/ota/inspect` | The first 144 bytes of a file. Answers `target`, `version`, `length`, `sha256`, and `ok` with `error` | full |
-| `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}`. `url` only for a newer release. `?auto=1` is the check at login: 409 while `update_auto` is off, 503 before the clock is set, else the answer of the last 24 hours | full |
+| `GET /api/update/check` | `{"current": "v1.0.0", "latest": null, ...}`. `url` only for a newer release. `?auto=1` is the check at login: 409 while `update_auto` is off, 503 before the clock is set, else the last good answer of the past 24 hours or the last failure of the past 10 minutes | full |
 | `GET /api/slots` | The four slots with `state`, `version`, `running`, `next`, `bootable` and `why_not` | full |
 | `POST /api/slots/<n>/boot` | Restart into slot N. 409 when it cannot start | full |
 | `GET /api/frontend` | The web page in use: `source` (`partition` or `builtin`), `api`, and `version` for an uploaded one | control |
@@ -229,7 +229,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `screen_off_s` | Seconds without input until the screen saver starts, 10 to 86400. 0 means never and is the default |
 | `screen_dim` | What the screen saver does. 0 turns every deck dark and is the default. 10 to 90 in steps of 10 dims them to that percent |
 | `star_off`, `star_fw`, `star_until` | The web UI's star note. `star_off` hides it for good. `star_until` hides it until this Unix time. `star_fw` is the firmware someone last closed it on. After an update to a newer one it shows once |
-| `update_auto` | After login the web UI asks for a newer release. The connector asks GitHub for it at most once a day. `true` by default |
+| `update_auto` | After login the web UI asks for a newer release. `true` by default |
 | `dock_paired_only` | Only paired dock hosts get in |
 | `qr_login` | Login QR code on the deck until setup is done |
 | `ntp_server` | Empty uses the one from DHCP, then `pool.ntp.org` |

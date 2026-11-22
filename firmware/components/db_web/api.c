@@ -1266,14 +1266,14 @@ static struct { /* the last answer, under check_mux */
     char reply[512];
 } cache;
 
-#define DAY_US (24 * 3600 * 1000000LL)
+#define DAY_US  (24 * 3600 * 1000000LL)
+#define FAIL_US (10 * 60 * 1000000LL)
 
 /* GET /api/update/check: the newest release in the repository's release feed, a prerelease only while one
  * runs. `url` (the release's .dbfw by the name the release workflow gives it, for POST /api/ota/url) only
  * when it is newer than the running firmware. `?feed=` takes another GitHub feed, for tests. Not
- * under the web lock: GitHub can take seconds. Good answers are kept for a minute. `?auto=1` is the web UI's
- * check at login: 409 while update_auto is off, 503 before the clock is set, else any answer from the last
- * 24 hours, good or not, so the board asks GitHub at most once a day for it. */
+ * under the web lock: GitHub can take seconds. Good answers are kept, a minute for a click and a day for
+ * `?auto=1`, the web UI's check at login: 409 while update_auto is off, 503 before the clock is set. */
 esp_err_t get_update_check(httpd_req_t *req)
 {
     char feed[160] = RELEASES, flag[4];
@@ -1293,8 +1293,8 @@ esp_err_t get_update_check(httpd_req_t *req)
     char reply[sizeof(cache.reply)];
     int64_t now = esp_timer_get_time();
     portENTER_CRITICAL(&check_mux);
-    bool hit = cache.at && strcmp(feed, cache.feed) == 0 &&
-               (automatic ? now - cache.at < DAY_US : cache.good && now - cache.at < 60 * 1000000LL);
+    int64_t keep = cache.good ? (automatic ? DAY_US : 60 * 1000000LL) : (automatic ? FAIL_US : 0);
+    bool hit = cache.at && strcmp(feed, cache.feed) == 0 && now - cache.at < keep;
     if (hit) {
         strcpy(reply, cache.reply);
     }
@@ -1330,9 +1330,10 @@ esp_err_t get_update_check(httpd_req_t *req)
     if (!db_json_end(&j)) {
         return send_error(req, "500 Internal Server Error", "reply too long");
     }
+    /* the login check keeps a failure only 10 minutes: one right after boot must not hide releases a day */
     portENTER_CRITICAL(&check_mux);
     cache.at = now;
-    cache.good = !why; /* a manual check asks again at once after a failure */
+    cache.good = !why;
     strcpy(cache.feed, feed);
     strcpy(cache.reply, reply);
     portEXIT_CRITICAL(&check_mux);
