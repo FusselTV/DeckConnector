@@ -2973,6 +2973,36 @@
   .notice.star .ibtn {
     grid-area: 1/4;
   }
+  .pop {
+    position: fixed;
+    z-index: 45;
+    right: 24px;
+    bottom: 24px;
+    width: min(440px, calc(100vw - 48px));
+  }
+  .pop:empty,
+  :root:has(.savebar) .pop {
+    display: none;
+  }
+  .pop .notice {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    border-left-width: 1px;
+    border-color: var(--edge);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  }
+  .pop .notice .nacts {
+    grid-column: 2/-1;
+  }
+  .pop .notice.star .ibtn {
+    grid-area: 1/3;
+  }
+  :root:has(.pop:not(:empty)) .content {
+    padding-bottom: calc(var(--pop-h, 0px) + 48px);
+  }
+  :root:has(.pop:not(:empty)) .toasts {
+    bottom: calc(var(--pop-h, 0px) + 36px);
+  }
   .notice .nprog {
     gap: 8px;
     flex-wrap: nowrap;
@@ -3151,6 +3181,15 @@
     }
     .savebar {
       bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    }
+    .pop {
+      left: max(12px, env(safe-area-inset-left, 0px));
+      right: max(12px, env(safe-area-inset-right, 0px));
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+    }
+    :root:has(.pop:not(:empty)) .content {
+      padding-bottom: calc(var(--pop-h, 0px) + 96px + env(safe-area-inset-bottom, 0px));
     }
     .shell {
       grid-template-columns: minmax(0, 1fr);

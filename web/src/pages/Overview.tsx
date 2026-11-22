@@ -5,7 +5,6 @@ import {
   Clock,
   EthernetPort,
   Hand,
-  Heart,
   LayoutGrid,
   Lock,
   MousePointer2,
@@ -28,7 +27,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { api, ApiError, pressReal, READONLY } from '../api/client'
 import type { InputBody, InputEvent, Rect, Screen, Source } from '../api/types'
-import { pendingAtom, putConfig, useActions } from '../app/actions'
+import { pendingAtom, useActions } from '../app/actions'
 import { retryNow } from '../app/connection'
 import {
   decksOf,
@@ -43,7 +42,6 @@ import {
   type Deck,
 } from '../app/derive'
 import { useIssues } from '../app/issues'
-import { starClose, starNever, starShow } from '../app/star'
 import { armAtom, ARM_MS, deckSelAtom, logFocusAtom, nudgeAtom, tabAtom, toast, type Tab } from '../app/state'
 import { getState, subscribe, useStore } from '../app/store'
 import { useUi } from '../app/ui'
@@ -53,7 +51,7 @@ import { Notice, type NoticeData } from '../components/Notice'
 import { DeckFront } from '../deck/DeckFront'
 import { MODELS } from '../deck/models'
 import type { T } from '../i18n'
-import { cx, ls, REPO, useLatest } from '../lib/util'
+import { cx, ls, useLatest } from '../lib/util'
 import { chordSentence } from '../deck/chord'
 
 function Hero() {
@@ -799,48 +797,6 @@ function Controls() {
   )
 }
 
-function StarNote() {
-  const { t, act } = useUi()
-  const cfg = useStore((s) => s.config)
-  const fw = useStore((s) => s.status.firmware)
-  const up = useStore((s) => s.status.uptime_s)
-  const [now] = useState(() => Math.floor(Date.now() / 1000))
-  const first = !!fw && cfg?.star_fw === ''
-  useEffect(() => {
-    // no toast for a failed silent save: the next visit tries again
-    if (first) putConfig({ star_fw: fw }).catch(() => {})
-  }, [first, fw])
-  if (!cfg || !fw || !starShow(cfg, fw, up, now)) return null
-  const link = (href: string, label: string) => (
-    <a className="btn sm" href={href} target="_blank" rel="noreferrer">
-      {label}
-    </a>
-  )
-  return (
-    <div className="notice info star" id="ntc-star" role="status">
-      <SIcon icon={Heart} size={20} />
-      <span className="ntext">{t('star.text')}</span>
-      <div className="nacts">
-        {link(REPO, t('star.gh'))}
-        {link('https://github.com/sponsors/FusselTV', 'GitHub Sponsors')}
-        {link('https://ko-fi.com/fusseltv', 'Ko-fi')}
-        <button type="button" className="btn sm ghost" onClick={() => void act(() => putConfig(starNever(fw)))}>
-          {t('star.never')}
-        </button>
-      </div>
-      <button
-        type="button"
-        className="ibtn ghost sm"
-        aria-label={t('star.close')}
-        title={t('star.close')}
-        onClick={() => void act(() => putConfig(starClose(fw, Math.floor(Date.now() / 1000))))}
-      >
-        <X size={16} aria-hidden />
-      </button>
-    </div>
-  )
-}
-
 export function Overview() {
   const { t } = useUi()
   const multi = useStore((s) => decksOf(s.status).length > 1)
@@ -870,7 +826,6 @@ export function Overview() {
           <Controls />
         </div>
       </div>
-      <StarNote />
     </>
   )
 }

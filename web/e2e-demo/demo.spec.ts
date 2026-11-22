@@ -145,13 +145,21 @@ test('a newer release is offered after login until hidden, and not at all with t
   await expect(note).toHaveCount(0)
 })
 
-test('the star note shows after the update and stays closed after a reload', async ({ demo: page }) => {
+test('the popup stays on every tab, shows one note at a time, and the star stays closed after a reload', async ({
+  demo: page,
+}) => {
   await page.goto('?lang=en')
-  const note = page.locator('#ntc-star')
+  const upd = page.locator('.pop #ntc-upd')
+  const note = page.locator('.pop #ntc-star')
+  await expect(upd).toBeVisible()
+  await expect(note, 'the star waits while a release is offered').toHaveCount(0)
+  await openTab(page, en, 'firmware')
+  await expect(upd, 'a popup, not a card of one tab').toBeVisible()
+  await upd.getByRole('button', { name: en['is.hide'] }).click()
   await expect(note).toBeVisible()
   await note.getByRole('button', { name: en['star.close'] }).click()
   await expect(note).toHaveCount(0)
   await page.reload()
-  await expect(page.locator('#card-ctl')).toBeVisible()
+  await expect(page.locator('#card-fw')).toBeVisible()
   await expect(note).toHaveCount(0)
 })
