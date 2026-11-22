@@ -543,6 +543,26 @@ static bool handle(char *line)
     return true;
 }
 
+/* A source that never pauses keeps recv() from ever blocking, and this task is pinned to core 0, so it
+ * starved IDLE0 into the task watchdog. A 1 ms rest per picture did not help, so it rests until IDLE0 ran
+ * again; TCP holds the source back meanwhile. */
+static void let_idle0_run(void)
+{
+#if !CONFIG_IDF_TARGET_LINUX
+    static uint64_t seen;
+    static int64_t since;
+    uint64_t idle = ulTaskGetIdleRunTimeCounterForCore(0);
+    if (idle != seen) {
+        seen = idle;
+        since = now_ms();
+    } else if (now_ms() - since > 250) {
+        while (ulTaskGetIdleRunTimeCounterForCore(0) == seen) {
+            vTaskDelay(1);
+        }
+    }
+#endif
+}
+
 static volatile uint32_t moves; /* saves of the address or pin, see db_satellite_moved */
 
 static void session(uint32_t moved_at)
@@ -600,6 +620,7 @@ static void session(uint32_t moved_at)
             }
             s.fill += (size_t)n - start;
             memmove(s.line, s.line + start, s.fill);
+            let_idle0_run();
         } else if (now - last_rx > SILENT_MS) {
             char secs[12];
             snprintf(secs, sizeof(secs), "%d", SILENT_MS / 1000);
