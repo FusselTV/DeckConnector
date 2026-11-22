@@ -197,7 +197,8 @@ export function fresh(now: number, o: { setup?: boolean; login?: boolean } = {})
       star_off: false,
       star_fw: setup ? '' : 'v0.9.0',
       star_until: 0,
-      update_auto: true,
+      // demo visitors are not greeted with an update
+      update_auto: false,
       dock_paired_only: !setup,
       setup_done: !setup,
       token_set: false,

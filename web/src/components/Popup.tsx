@@ -5,16 +5,17 @@ import { useIssues } from '../app/issues'
 import { starClose, starShow } from '../app/star'
 import { useStore } from '../app/store'
 import { useUi } from '../app/ui'
-import { REPO } from '../lib/util'
+import { REPO, ss } from '../lib/util'
 import { ActBtn, type PopData } from './Notice'
 
 const SPONSORS = 'https://github.com/sponsors/FusselTV'
 const open = (url: string) => () => window.open(url, '_blank', 'noopener')
 
-/** One floating card on every tab: a newer release first, the star request only when no release waits. */
+/** One floating card on every tab: a newer release first, then the star request. After one is closed the rest wait for the next visit. */
 export function Popup() {
-  const { offer } = useIssues()
+  const { offer, checking } = useIssues()
   const star = useStar()
+  const [done, setDone] = useState(() => ss.get('dc.popDone', false))
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -24,10 +25,16 @@ export function Popup() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const p = offer ?? star
+  // the star waits for the login check, so a release it finds comes first
+  const p = done ? null : (offer ?? (checking ? null : star))
+  const close = () => {
+    p?.close()
+    ss.set('dc.popDone', true)
+    setDone(true)
+  }
   return (
     <div className="pop" ref={ref}>
-      {p && <PopCard p={p} />}
+      {p && <PopCard p={{ ...p, close }} />}
     </div>
   )
 }

@@ -40,6 +40,7 @@ interface Issues {
   list: NoticeData[]
   notes: NoticeData[]
   offer?: PopData
+  checking?: boolean
 }
 const Ctx = createContext<Issues>({ list: [], notes: [] })
 /** Need-attention items for the top of Overview and the banner on other tabs, worst first. */
@@ -66,11 +67,17 @@ function useIssueList(): Issues {
   const auto = useStore((s) => s.config?.update_auto)
   const fw = st.firmware
   const [upd, setUpd] = useState<UpdateCheck | null>(null)
+  const [checked, setChecked] = useState(false)
   const [updHid, setUpdHid] = useState(() => ss.get('dc.updHide', ''))
   useEffect(() => {
     // no toast: a failed check at login stays silent
-    if (auto && fw) api.updateCheck(true).then(setUpd, () => {})
+    if (auto && fw)
+      api
+        .updateCheck(true)
+        .then(setUpd, () => {})
+        .finally(() => setChecked(true))
   }, [auto, fw])
+  const checking = !!auto && !!fw && !checked
   return useMemo(() => {
     const showLog = (kinds: string[], codes: string[]) => {
       logFocusAtom.set({ kinds, codes })
@@ -260,7 +267,7 @@ function useIssueList(): Issues {
         : undefined
     const rank = { bad: 0, warn: 1, pair: 2, ok: 3, info: 4 }
     list.sort((x, y) => rank[x.lvl] - rank[y.lvl])
-    return { list, notes, offer }
+    return { list, notes, offer, checking }
   }, [
     st,
     bootAt,
@@ -274,6 +281,7 @@ function useIssueList(): Issues {
     auto,
     fw,
     upd,
+    checking,
     updHid,
     t,
     fmt,
