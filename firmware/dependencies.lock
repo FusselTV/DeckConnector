@@ -157,12 +157,12 @@ dependencies:
       type: local
     version: 1.15.1
   espressif/qrcode:
-    component_hash: 3b493771bc5d6ad30cbf87c25bf784aada8a08c941504355b55d6b75518ed7bc
+    component_hash: 31e70991ce22f28d73a4386417fc9c0993f61e1aab1832474fd9e3db8da9dcbd
     dependencies: []
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 0.1.0~2
+    version: 0.2.0
   espressif/usb:
     dependencies:
     - name: idf
@@ -195,7 +195,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 6.0.2
+    version: 6.1.1
 direct_dependencies:
 - espressif/cjson
 - espressif/esp_codec_dev
@@ -205,6 +205,6 @@ direct_dependencies:
 - espressif/mdns
 - espressif/qrcode
 - espressif/usb
-manifest_hash: b4bf3b5a235e9fe465ff8106bb93aa2121dfa0661690caa7b311f1f3a3371b8a
+manifest_hash: 4cd1195e99a84fb628f79994f9b5743a05072c38aa7cc83504a73895ef8566e0
 target: esp32p4
 version: 3.0.0

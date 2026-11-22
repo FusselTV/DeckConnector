@@ -13,7 +13,7 @@ on:
 permissions: {}
 
 env:
-  IDF_IMAGE: espressif/idf:v6.0.2@sha256:0d8c9773d48a327233f9c1d7c654ff0bcf133ae24503ea2e97a57cfe02b8cb67
+  IDF_IMAGE: espressif/idf:v6.1.1@sha256:2b4f966c37eaedc19542b0637a5f850b2eff9478d8e858192aa0073d92c2dc91
 
 concurrency:
   group: ha-${{ github.ref }}

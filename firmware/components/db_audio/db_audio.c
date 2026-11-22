@@ -99,7 +99,7 @@ static void amp(bool on)
 }
 
 /* Find with the board's microphone listening: the codec's ADC sends the mic left and its own DAC right. */
-static esp_err_t listen(const int16_t *pcm, size_t n, int volume, bool amp_on, db_audio_check_t *c, int k)
+static esp_err_t record(const int16_t *pcm, size_t n, int volume, bool amp_on, db_audio_check_t *c, int k)
 {
     size_t frames = n + RATE / 5;
     int16_t *lr = heap_caps_calloc(frames * 2, sizeof(int16_t), MALLOC_CAP_SPIRAM);
@@ -138,9 +138,9 @@ static esp_err_t listen(const int16_t *pcm, size_t n, int volume, bool amp_on, d
 static esp_err_t check(int16_t *pcm, int volume, db_audio_check_t *c)
 {
     size_t n = db_tones_render(DB_SOUND_FIND, volume, RATE, pcm, LONGEST);
-    esp_err_t err = listen(pcm, n, volume, true, c, 0);
-    err = err ? err : listen(pcm, n, 0, true, c, 1);
-    err = err ? err : listen(pcm, n, volume, false, c, 2);
+    esp_err_t err = record(pcm, n, volume, true, c, 0);
+    err = err ? err : record(pcm, n, 0, true, c, 1);
+    err = err ? err : record(pcm, n, volume, false, c, 2);
     c->heard = !err && db_tones_heard(c->mic[0], c->other, c->mic[1], c->mic[2]);
     return err;
 }

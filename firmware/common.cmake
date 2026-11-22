@@ -15,6 +15,4 @@ set(ENV{IDF_COMPONENT_CHECK_NEW_VERSION} 0)
 # ccache when it is installed. A plain variable, because idf.py always sets the cache entry, to off by default.
 set(CCACHE_ENABLE 1)
 
-# IDF 6.0.2's USB HAL with esp-idf 63b4685, ESP32-P4 files only: one USB transfer error no longer restarts the bridge.
-list(APPEND EXTRA_COMPONENT_DIRS ${CMAKE_CURRENT_LIST_DIR}/vendor/esp_hal_usb)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

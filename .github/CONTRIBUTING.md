@@ -9,7 +9,7 @@ AI tools are welcome. Say in the pull request that you used one and name the mod
 
 ## Build
 
-Needs ESP-IDF 6.0.2, Node.js and [uv](https://docs.astral.sh/uv/).
+Needs ESP-IDF 6.1.1, Node.js and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/FusselTV/DeckConnector.git

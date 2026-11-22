@@ -7,7 +7,7 @@
   "packageRules": [
     { "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"], "groupName": "all non-major" },
     {
-      "description": "firmware/vendor/esp_hal_usb is a patched copy of this version's USB HAL. Update both and test on a board.",
+      "description": "The firmware needs a board test after an ESP-IDF update.",
       "matchPackageNames": ["espressif/idf"],
       "dependencyDashboardApproval": true,
       "groupName": "firmware components"
@@ -17,6 +17,11 @@
       "matchDatasources": ["custom.espressif"],
       "dependencyDashboardApproval": true,
       "groupName": "firmware components"
+    },
+    {
+      "description": "esp_hosted 3.1 takes about 30 KB more internal RAM with the 3.0 firmware on the board's ESP32-C6.",
+      "matchPackageNames": ["espressif/esp_hosted"],
+      "allowedVersions": "<3.1.0"
     },
     {
       "description": "The firmware builds these from a local copy (override_path), not from the registry.",
