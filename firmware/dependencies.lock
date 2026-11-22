@@ -60,36 +60,8 @@ dependencies:
       type: service
     version: 2.7.0
   espressif/esp_hosted:
-    component_hash: 22b08509494d4465f0e2f91ee16973d76fe90d5a930fa3910b7a43615db001bf
+    component_hash: c88052665d8df3c7185cb5e34327d77674599006bbbbe4bfdb43c44f9a2a73a3
     dependencies:
-    - name: cherry-embedded/cherryusb
-      registry_url: https://components.espressif.com
-      require: private
-      rules:
-      - if: target in [esp32p4]
-      - if: $CONFIG{ESP_HOSTED_HOST_USB_CHERRYUSB_MANIFEST} == 1
-      version: '>=1.6.0'
-    - name: espressif/esp_tinyusb
-      registry_url: https://components.espressif.com
-      require: private
-      rules:
-      - if: target in [esp32s2, esp32s3, esp32s31]
-      - if: $CONFIG{ESP_HOSTED_CP_TINYUSB_MANIFEST} == 1
-      version: '*'
-    - name: espressif/iot_usbh_rndis
-      registry_url: https://components.espressif.com
-      require: private
-      rules:
-      - if: target in [esp32p4]
-      - if: $CONFIG{ESP_HOSTED_HOST_USB_RNDIS_MANIFEST} == 1
-      version: ^0.5.2
-    - name: espressif/usb_host_cdc_acm
-      registry_url: https://components.espressif.com
-      require: private
-      rules:
-      - if: target in [esp32p4]
-      - if: $CONFIG{ESP_HOSTED_HOST_USB_CDC_ACM_MANIFEST} == 1
-      version: '*'
     - name: idf
       require: private
       version: '>=5.5'
@@ -98,10 +70,9 @@ dependencies:
       type: service
     targets:
     - esp32
+    - esp32c2
     - esp32s2
     - esp32s3
-    - esp32s31
-    - esp32c2
     - esp32c3
     - esp32c5
     - esp32c6
@@ -110,7 +81,7 @@ dependencies:
     - esp32h4
     - esp32h21
     - esp32p4
-    version: 3.1.0
+    version: 3.0.10
   espressif/esp_matter:
     dependencies:
     - name: espressif/cjson
@@ -234,6 +205,6 @@ direct_dependencies:
 - espressif/mdns
 - espressif/qrcode
 - espressif/usb
-manifest_hash: 749a8acb0191789592e4d993fa5497fb1403e4b991818e664cd5689043648709
+manifest_hash: 4cd1195e99a84fb628f79994f9b5743a05072c38aa7cc83504a73895ef8566e0
 target: esp32p4
 version: 3.0.0
