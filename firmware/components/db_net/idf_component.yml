@@ -1,4 +1,4 @@
 dependencies:
   espressif/mdns: "^1.15.0"
-  espressif/esp_hosted: "~3.0.10" # matches the WLAN chip firmware; a newer host side needs a C6 update
+  espressif/esp_hosted: "~3.1.0" # matches the WLAN chip firmware; a newer host side needs a C6 update
   espressif/esp_wifi_remote: ">=1.3.1"
