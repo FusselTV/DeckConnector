@@ -59,6 +59,27 @@ def test_the_check_names_the_running_firmware():
     assert u["current"].startswith("v") and "url" not in u, u
 
 
+@pytest.mark.sim
+def test_the_login_check_is_refused_while_the_setting_is_off():
+    assert json.loads(api("GET", "/api/config")[1])["update_auto"] is True, "on by default"
+    try:
+        assert api("PUT", "/api/config", json.dumps({"update_auto": False}).encode())[0] == 200
+        code, body = api("GET", "/api/update/check?auto=1")
+        assert code == 409 and b"update_auto" in body, body
+        assert api("GET", "/api/update/check")[0] == 200, "the button still asks"
+    finally:
+        api("PUT", "/api/config", json.dumps({"update_auto": True}).encode())
+    assert api("GET", "/api/update/check?auto=1")[0] == 200
+
+
+def test_the_login_check_asks_github_once_a_day():
+    feed = "&feed=" + urllib.parse.quote("https://github.com/espressif/esptool/releases.atom", safe="")
+    first = api("GET", "/api/update/check?auto=1" + feed)[1]
+    t = time.monotonic()
+    again = api("GET", "/api/update/check?auto=1" + feed)[1]
+    assert time.monotonic() - t < 0.5 and again == first, "the second answer comes from the board, not GitHub"
+
+
 def test_github_is_asked_over_https():
     """A private repository answers 404; a public one lists releases. Either way the TLS connection worked."""
     u = check()

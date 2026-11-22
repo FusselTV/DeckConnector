@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { en, de, expect, openTab, TABS, test, type Dict } from './helpers.ts'
+import { calls, en, de, expect, openTab, TABS, test, type Dict } from './helpers.ts'
 
 const keySrc = (page: Page, dict: Dict, n: number) =>
   page
@@ -102,7 +102,7 @@ test('an update installs with progress and restarts into the new version', async
   await page.locator('#ntc-upd-new').getByRole('button', { name: en['btn.install'] }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: en['btn.install'] }).click()
   await expect(page.getByText(en['ota.download']).first()).toBeVisible()
-  await expect(page.getByText('v1.0.1').first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByText('v1.0.1').filter({ visible: true }).first()).toBeVisible({ timeout: 30_000 })
   await expect
     .poll(
       () => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"firmware":"v1.0.1"')).catch(() => false),
@@ -115,13 +115,51 @@ test('an update installs with progress and restarts into the new version', async
   await expect(page.locator('#fw-file')).toHaveCount(1)
 })
 
-test('the star note shows after the update and stays closed after a reload', async ({ demo: page }) => {
+test('a newer release is offered after login until hidden, and not at all with the setting off', async ({
+  demo: page,
+}) => {
   await page.goto('?lang=en')
-  const note = page.locator('#ntc-star')
-  await expect(note).toBeVisible()
-  await note.getByRole('button', { name: en['star.close'] }).click()
+  const note = page.locator('#ntc-upd')
+  await expect(note).toContainText('v1.0.1')
+  await note.getByRole('button', { name: en['c.close'] }).click()
   await expect(note).toHaveCount(0)
   await page.reload()
   await expect(page.locator('#card-ctl')).toBeVisible()
+  await expect(note, 'hidden for this session').toHaveCount(0)
+  await page.evaluate(() => sessionStorage.setItem('dc.updHide', JSON.stringify('v1.0.0')))
+  await page.reload()
+  await expect(note, 'hiding one release does not hide the next').toBeVisible()
+  await openTab(page, en, 'firmware')
+  await page.locator('#update-auto').click()
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem('dc.demo')?.includes('"update_auto":false')))
+    .toBe(true)
+  await page.reload()
+  await expect(page.locator('#card-fw')).toBeVisible()
+  await expect(page.locator('#update-auto')).toHaveAttribute('aria-checked', 'false')
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __demoBusy: { n: number } }).__demoBusy.n))
+    .toBe(0)
+  expect((await calls(page)).filter((c) => c.url.includes('update/check'))).toEqual([])
+  await openTab(page, en, 'overview')
+  await expect(note).toHaveCount(0)
+})
+
+test('the popup stays on every tab, shows one note at a time, and the star stays closed after a reload', async ({
+  demo: page,
+}) => {
+  await page.goto('?lang=en')
+  const upd = page.locator('.pop #ntc-upd')
+  const note = page.locator('.pop #ntc-star')
+  await expect(upd).toBeVisible()
+  await expect(note, 'the star waits while a release is offered').toHaveCount(0)
+  await openTab(page, en, 'firmware')
+  await expect(upd, 'a popup, not a card of one tab').toBeVisible()
+  await upd.getByRole('button', { name: en['c.close'] }).click()
+  await expect(note).toBeVisible()
+  await note.getByRole('button', { name: en['c.close'] }).click()
+  await expect(note).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('#card-fw')).toBeVisible()
   await expect(note).toHaveCount(0)
 })

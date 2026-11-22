@@ -179,7 +179,7 @@ export const api = {
     request<{ ok: boolean; error?: string; code?: string; version?: string; surfaces?: number }>('/api/sources/probe', {
       body: { addr, pin },
     }),
-  updateCheck: () => request<UpdateCheck>('/api/update/check'),
+  updateCheck: (auto = false) => request<UpdateCheck>('/api/update/check' + (auto ? '?auto=1' : '')),
   tlsCheck: (cert: string, key: string) => request<TlsInfo>('/api/tls', { method: 'PUT', body: { cert, key } }),
   putTls: (cert: string, key: string) =>
     request<TlsInfo>('/api/tls', { method: 'PUT', body: { cert, key, apply: true } }),

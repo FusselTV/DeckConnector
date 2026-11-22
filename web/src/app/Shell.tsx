@@ -38,6 +38,7 @@ import { LoginBar } from '../pages/Login'
 import { useActions } from './actions'
 import { clearOta, retryNow } from './connection'
 import { IssuesProvider, useIssues } from './issues'
+import { Popup } from '../components/Popup'
 import { clockAtom, langAtom, tabAtom, TABS, themeAtom, type Tab } from './state'
 import { useStore } from './store'
 import { codeText, useTheme, useUi } from './ui'
@@ -563,6 +564,7 @@ export function Shell() {
             <SaveBar />
           </main>
         </div>
+        <Popup />
         <TabBar onMore={() => setMore(true)} />
       </div>
       <RestartOverlay />

@@ -74,6 +74,7 @@ typedef struct {
     bool star_off;          /* the web UI's star note: never again */
     char star_fw[32];    /* the firmware the note was last closed on; the page shows it after a newer one */
     uint32_t star_until; /* closed until this Unix time, by the browser's clock */
+    bool update_auto;    /* the web UI asks for a newer release at login; the board asks GitHub once a day */
 } db_config_t;
 
 /* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
