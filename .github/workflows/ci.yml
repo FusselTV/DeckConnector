@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   changes:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       pull-requests: read # paths-filter lists the files of a pull request
@@ -43,7 +43,7 @@ jobs:
   host-tests:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.host == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -57,7 +57,7 @@ jobs:
   lint:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.lint == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -80,7 +80,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.firmware == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -112,7 +112,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' || needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.firmware == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -148,7 +148,7 @@ jobs:
   sim-tests:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.sim == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -225,7 +225,7 @@ jobs:
   firmware:
     needs: changes
     if: github.event_name != 'pull_request' || needs.changes.outputs.firmware == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     permissions:
       contents: read
@@ -283,7 +283,7 @@ jobs:
   sizes:
     needs: [web, firmware]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       actions: read # the artifacts of main
@@ -328,7 +328,7 @@ jobs:
   ci-ok:
     needs: [changes, host-tests, lint, web, demo, sim-tests, firmware, sizes]
     if: always()
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 2
     permissions: {}
     steps:
