@@ -596,6 +596,12 @@ static bool take_pins(const cJSON *root, db_config_t *cfg, char *err, size_t err
             return false;
         }
     }
+    for (int k = 0; k < DB_MAX_SERVERS; k++) {
+        if (!db_config_server(cfg, k)[0]) { /* a pin kept here would be applied to the next host found */
+            cfg->server_pins[k][0] = '\0';
+            cfg->server_tokens[k][0] = '\0';
+        }
+    }
     if (sat && !take_pin(sat, cfg->satellite_pin)) {
         snprintf(err, err_cap, "satellite_pin: SHA-256 fingerprint expected");
         return false;

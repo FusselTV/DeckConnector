@@ -387,6 +387,12 @@ static void close_key(ui_tile_t *t, const char *icon, const char *label, const c
     t->color = C_EDIT;
 }
 
+static void pair_card(page_t *p, int key)
+{
+    card(put(p, key, K_NONE), ICON_WEB, fit(p, L("Kopplung", "Pairing"), "Code"), p->md->pair_code,
+         fit(p, L("im Programm", "in the program"), ""));
+}
+
 /* The settings. The hosts stay on the home screen: here they would only be in the way. */
 static void main_menu(page_t *p)
 {
@@ -397,6 +403,9 @@ static void main_menu(page_t *p)
            fit(p, L("Sprache", "Language"), ""));
     if (cramped(p)) {
         brightness_step(p, at(p, 0, 1)); /* no row for brightness keys */
+    }
+    if (md->pair_code[0]) { /* while a host draws, the code is only here */
+        pair_card(p, at(p, 0, 1));
     }
     ui_tile_t *lan = put(p, at(p, 1, 0), K_LAN);
     lan_card(p, lan);
@@ -736,8 +745,7 @@ static void matter_page(page_t *p)
 static void pair_page(page_t *p)
 {
     const ui_model_t *md = p->md;
-    card(put(p, at(p, 0, 0), K_NONE), ICON_WEB, fit(p, L("Kopplung", "Pairing"), "Code"), md->pair_code,
-         fit(p, L("im Programm", "in the program"), ""));
+    pair_card(p, at(p, 0, 0));
     if (p->l->strip) {
         segment(&p->sc->seg[0], 4, ICON_WEB, C_ACTIVE, L("Kopplungscode", "Pairing code"), md->pair_code,
                 L("Im Programm eingeben, das das Deck steuern soll",

@@ -8,19 +8,19 @@ Dein Programm rendert die Bilder. Der Connector hält sie in einem Cache, zeigt 
 ## Verbindung
 
 - Der Connector ist der Client. Er öffnet bis zu 2 Hosts mit dem WebSocket-Subprotokoll `deckassistant.v2`.
-- Die URLs kommen aus **Quellen**. Ein leerer Platz nimmt einen Host, der `_deckassistant._tcp` per mDNS anmeldet, als `wss://<adresse>:<port>/surface`.
+- Die URLs kommen aus **Quellen**. Solange keine URL eingetragen ist, nimmt er Hosts, die `_deckassistant._tcp` per mDNS anmelden, als `wss://<adresse>:<port>/surface`.
 - `ws://` ohne TLS geht nur, wenn du es selbst einträgst. Nimm es für Tests.
 - Jede Nachricht ist ein binärer Frame. Text-Frames ignoriert der Connector.
 - Der Connector pingt alle 2 s. Ein Host, der 6 s schweigt, gilt als verloren.
 
 ## Kopplung
 
-1. Ein Host ohne Token bekommt `HELLO` mit `pairing: true`. Die Decks zeigen einen 6-stelligen Code, 2 min lang über allem, danach auf dem Startbildschirm. Der Code geht nie über das Netz.
+1. Ein Host ohne Token bekommt `HELLO` mit `pairing: true`. Die Decks zeigen einen 6-stelligen Code, 2 min lang über allem, danach auf dem Startbildschirm. Solange ein anderer Host zeichnet, steht der Code nur im Menü. Der Code geht nie über das Netz.
 2. Du gibst den Code im Host ein. Der Host schickt `PAIRED` mit einem Token und diesem Code.
 3. Passt der Code, speichert der Connector das Token und bei `wss://` den SHA-256 des Zertifikats. Er verbindet sich neu mit `Authorization: Bearer <token>` und nimmt ab dann nur noch dieses Zertifikat.
 4. Ein falscher Code bekommt `ERROR` `pair_code`, und der Connector trennt die Verbindung. Nach 5 falschen Codes zeigen die Decks einen neuen.
 
-Kennt ein Host das Token nicht mehr, schließt er mit Code 4001 oder beantwortet den Upgrade mit 401. Der Connector löscht dann das Token und koppelt neu, und nur ein Host mit demselben Zertifikat kommt herein. Eine neue URL unter **Quellen** löscht Token und Pin. Bis `PAIRED` bekommt jede andere Nachricht `ERROR` `unpaired`.
+Kennt ein Host das Token nicht mehr, schließt er mit Code 4001 oder beantwortet den Upgrade mit 401. Der Connector löscht dann das Token und koppelt neu, und nur ein Host mit demselben Zertifikat kommt herein. Eine neue oder gelöschte URL unter **Quellen** löscht Token und Pin. Bis `PAIRED` bekommt jede andere Nachricht `ERROR` `unpaired`.
 
 ## Aktiv und Standby
 

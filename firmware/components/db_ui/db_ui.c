@@ -322,14 +322,30 @@ static int64_t until(const int64_t *t)
     return v;
 }
 
+static bool host_draws(void)
+{
+    for (int d = 0; d < DB_MAX_DECKS; d++) {
+        if (decks[d].present && db_ui_chosen_source(d) != DB_SOURCE_UI) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* A host that is not paired never takes the deck from one that draws: its code is in the menu then. */
+static bool pair_covers(int64_t now)
+{
+    bool pending = false;
+    for (int i = 0; i < DB_SURFACE_LINKS; i++) {
+        pending |= now < until(&pair[i].until);
+    }
+    return pending && !host_draws();
+}
+
 static bool overlay(int64_t now)
 {
-    bool pairing = false;
-    for (int i = 0; i < DB_SURFACE_LINKS; i++) {
-        pairing |= now < until(&pair[i].until);
-    }
-    return pairing || now < until(&matter_until) || now < until(&pass_until) || now < until(&reset_until) ||
-           now < until(&ask.until) || now < until(&adopt.until);
+    return pair_covers(now) || now < until(&matter_until) || now < until(&pass_until) ||
+           now < until(&reset_until) || now < until(&ask.until) || now < until(&adopt.until);
 }
 
 /* A code made before setup was done must not outlive it: the model that clears it is only built while the
@@ -493,10 +509,10 @@ static void model(int deck, ui_model_t *md)
         snprintf(md->matter_code, sizeof(md->matter_code), "%s", matter_code);
     }
     md->reset_ask = md->now_us < until(&reset_until);
+    md->pair_cover = pair_covers(md->now_us);
     portENTER_CRITICAL(&login_mux);
     for (int i = 0; i < DB_SURFACE_LINKS && !md->pair_code[0]; i++) {
         strcpy(md->pair_code, pair[i].code);
-        md->pair_cover = md->now_us < pair[i].until;
     }
     portEXIT_CRITICAL(&login_mux);
     uint32_t ask_ip = 0;

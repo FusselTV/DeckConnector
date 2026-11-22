@@ -1257,12 +1257,24 @@ static void watch_state(void)
     }
 }
 
-/* Links without a URL in the config take hosts that announce _deckassistant._tcp. */
+/* While no host is set in the config, links take hosts that announce _deckassistant._tcp. Once one is, found
+ * hosts are dropped: an unpaired one would only ask to pair beside it. */
 static void discover(void)
 {
+    bool set = false;
     bool room = false;
     for (int i = 0; i < LINKS; i++) {
-        room |= !db_config_server_of(db_config(), i)[0] && !links[i].connected;
+        set |= db_config_server_of(db_config(), i)[0] != '\0';
+        room |= !links[i].connected;
+    }
+    for (int i = 0; set && i < LINKS; i++) {
+        if (!db_config_server_of(db_config(), i)[0] && links[i].url[0]) {
+            links[i].url[0] = '\0';
+            links[i].reconnect = "a host is set, dropping the one found";
+        }
+    }
+    if (set) {
+        return;
     }
     mdns_result_t *results = NULL;
     if (!room || mdns_query_ptr("_deckassistant", "_tcp", 2000, 4, &results) != ESP_OK) {
@@ -1393,7 +1405,7 @@ void db_link_reload(void)
             strlcpy(links[i].url, want, sizeof(links[i].url));
             links[i].reconnect = "address changed";
             db_link_retry(i);
-        } else if (!want[0] && links[i].connected) {
+        } else if (!want[0]) { /* also while it is not connected: it would go on trying the old address */
             links[i].url[0] = '\0';
             links[i].reconnect = "address removed";
         }

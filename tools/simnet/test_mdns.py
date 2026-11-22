@@ -1,10 +1,15 @@
 """What the board announces over mDNS, from the simulators running its responder (firmware/vendor/mdns)."""
 
+import asyncio
+import re
+import socket
 import time
 
 import pytest
 from conftest import Seen, browse
-from zeroconf import ServiceBrowser, Zeroconf
+from zeroconf import ServiceBrowser, ServiceInfo, Zeroconf
+
+from dbtools.server import Server
 
 API = "_deckconnector-api._tcp.local."
 ELG = "_elg._tcp.local."
@@ -80,3 +85,24 @@ def test_a_deck_brings_its_dock_and_device(simdeck, zc):
         assert deck.wait(lambda: not seen.names), f"no goodbye for {seen.names}"
     finally:
         browser.cancel()
+
+
+async def test_a_host_found_over_mdns_is_not_taken_while_a_server_is_set(simdeck, zc):
+    a = await Server(18996).start()
+    b = await Server(18997, tls=True, auto_pair=False).start()
+    try:
+        deck = simdeck("mk2")
+        a.pair_code = lambda: re.findall(r"host 0 pairing code (\d{6})", deck.log())[-1]
+        await asyncio.to_thread(
+            deck.config, servers=["ws://127.0.0.1:18996/surface"], controller="server", setup_done=True
+        )
+        await a.wait_bridge(20)
+        kind = "_deckassistant._tcp.local."
+        addr = socket.inet_aton("10.77.0.2")
+        zc.register_service(ServiceInfo(kind, f"b.{kind}", port=b.port, addresses=[addr], server="b.local."))
+        await asyncio.sleep(12)  # discovery looks every 5 s while no host draws
+        assert b.connected.empty(), "a found host connected beside the one set"
+        assert all("10.77.0.2" not in s["host"] for s in deck.status()["sources"])
+    finally:
+        await a.stop()
+        await b.stop()

@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from conftest import DISPLAY, MODELS, dismiss_prompt, shot
+from conftest import DISPLAY, MODELS, chord, dismiss_prompt, shot
 
 EXPECT = {  # model name, keys, encoders, touch strip
     "original": ("Stream Deck", 15, 0, False),
@@ -43,15 +43,6 @@ def test_the_deck_comes_up_and_shows_the_ui(start, model):
     dismiss_prompt(sim)
     time.sleep(1)
     assert lit(shot(sim, 0, f"{model}-home")) > 500
-
-
-def chord(sim, down: bool) -> None:
-    c = sim.screen(0)[1]["menu_chord"]
-    for i in (c["first"], c["last"]):
-        if c["on"] == "encoders":
-            sim.act(f"0 enc {i} {int(down)}")
-        else:
-            sim.key(0, i, down)
 
 
 @pytest.mark.parametrize("model", DISPLAY)

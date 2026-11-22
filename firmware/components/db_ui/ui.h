@@ -153,7 +153,7 @@ typedef struct {
     char matter_code[16];
     ui_qr_t matter_qr;
     char pair_code[7]; /* a surface host that is not paired yet; empty: none */
-    bool pair_cover;   /* its code covers whoever draws, for a while after it connected */
+    bool pair_cover;   /* its code covers the deck for a while after it connected, unless a host draws */
 } ui_model_t;
 
 typedef enum {

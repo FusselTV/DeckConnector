@@ -8,7 +8,7 @@ import re
 import time
 
 import pytest
-from conftest import DISPLAY, dismiss_prompt, drawn_since, pictures, shot
+from conftest import DISPLAY, chord, dismiss_prompt, drawn_since, pictures, shot
 from PIL import Image
 
 from dbtools import protocol as p
@@ -475,3 +475,61 @@ async def test_a_standby_host_gets_no_input(start):
     finally:
         await a.stop()
         await b.stop()
+
+
+async def test_an_unpaired_host_does_not_take_the_deck_from_one_that_draws(start):
+    a = await Server(PORT, "a").start()
+    b = await Server(PORT + 1, "b", auto_pair=False).start()
+    try:
+        sim, first = await paired_bridge(start, a, "plus")
+        key = first.target(0)
+        await first.put(1, solid(key["w"], key["h"], (220, 20, 20)), key["w"], key["h"])
+        assert (await first.show(0, [(key["id"], 1)])).us > 0
+        await asyncio.to_thread(
+            sim.config, servers=[f"ws://127.0.0.1:{PORT}/surface", f"ws://127.0.0.1:{PORT + 1}/surface"]
+        )
+        second = await b.wait_bridge(20, paired=False)
+        assert second.pairing
+        await asyncio.sleep(1)
+        assert (await asyncio.to_thread(sim.status))["decks"][0]["writer"] == "server1"
+        assert (await first.show(0, [(key["id"], 1)])).us > 0, first.errors
+        assert near(sim.screen(0)[0].crop((13, 12, 133, 132)), (220, 20, 20)), "the code covers the host"
+        await asyncio.to_thread(chord, sim, True)
+        await asyncio.sleep(2.4)
+        await asyncio.to_thread(chord, sim, False)
+        assert await asyncio.to_thread(sim.wait, lambda: sim.status()["menu_open"], 3)
+        await asyncio.sleep(0.5)
+        await asyncio.to_thread(shot, sim, 0, "plus-menu-pairing")  # the code is on a key of the menu
+    finally:
+        await a.stop()
+        await b.stop()
+
+
+@pytest.mark.parametrize("echo_pins", [False, True])
+async def test_clearing_the_servers_clears_pin_and_token(start, echo_pins):
+    """`echo_pins`: the PUT carries the pins it read before, as a whole config sent back does."""
+    srv = await Server(PORT, tls=True).start()
+    try:
+        sim = start("mk2")
+        await asyncio.to_thread(dismiss_prompt, sim)
+        srv.pair_code = lambda: deck_code(sim)
+        url = f"wss://127.0.0.1:{PORT}/surface"
+        await asyncio.to_thread(sim.config, servers=[url], controller="server", setup_done=True)
+        await srv.wait_bridge(20)
+        cfg = json.loads((await asyncio.to_thread(sim.api, "GET", "/api/config"))[1])
+        assert cfg["server_pins"][0] == srv.fingerprint
+        await srv.stop()  # not connected: the link must not go on with the old address either
+        assert await asyncio.to_thread(sim.wait, lambda: not sim.status()["sources"][0]["connected"], 15)
+        extra = {"server_pins": cfg["server_pins"]} if echo_pins else {}
+        await asyncio.to_thread(sim.config, servers=["", "", "", ""], **extra)
+        cfg = json.loads((await asyncio.to_thread(sim.api, "GET", "/api/config"))[1])
+        assert cfg["server_pins"] == ["", "", "", ""], cfg["server_pins"]
+        assert await asyncio.to_thread(
+            sim.wait, lambda: not any(s["kind"] == "server" for s in sim.status()["sources"]), 5
+        ), sim.status()["sources"]
+        srv = await Server(PORT, tls=True, auto_pair=False).start()  # another host at the same address
+        await asyncio.to_thread(sim.config, servers=[url])
+        again = await srv.wait_bridge(20, paired=False)
+        assert again.pairing and "Authorization" not in again.ws.request.headers
+    finally:
+        await srv.stop()

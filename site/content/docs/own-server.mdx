@@ -8,19 +8,19 @@ Your program renders the pictures. The connector keeps them in a cache, shows th
 ## Connection
 
 - The connector is the client. It opens up to 2 hosts with the WebSocket subprotocol `deckassistant.v2`.
-- It takes the URLs from **Sources**. An empty place takes a host that announces `_deckassistant._tcp` over mDNS, as `wss://<address>:<port>/surface`.
+- It takes the URLs from **Sources**. While no URL is set, it takes hosts that announce `_deckassistant._tcp` over mDNS, as `wss://<address>:<port>/surface`.
 - `ws://` without TLS works only when you enter it yourself. Use it for tests.
 - Every message is one binary frame. The connector ignores text frames.
 - The connector pings every 2 s. A host silent for 6 s counts as lost.
 
 ## Pairing
 
-1. A host without a token gets `HELLO` with `pairing: true`. The decks show a 6-digit code, over everything for 2 min, then on the home screen. The code never goes over the network.
+1. A host without a token gets `HELLO` with `pairing: true`. The decks show a 6-digit code, over everything for 2 min, then on the home screen. While another host draws, the code is only in the menu. The code never goes over the network.
 2. The person types the code into the host. The host sends `PAIRED` with a token and that code.
 3. When the code matches, the connector saves the token, and for `wss://` the SHA-256 of the host's certificate. It connects again with `Authorization: Bearer <token>` and takes only that certificate from then on.
 4. A wrong code gets `ERROR` `pair_code`, and the connector closes the connection. After 5 wrong codes the decks show a new one.
 
-A host that no longer knows the token closes with code 4001, or answers the upgrade with 401. The connector then drops the token and pairs again, and only a host with the same certificate gets in. A new URL in **Sources** drops token and pin. Until `PAIRED`, every other message gets `ERROR` `unpaired`.
+A host that no longer knows the token closes with code 4001, or answers the upgrade with 401. The connector then drops the token and pairs again, and only a host with the same certificate gets in. A new or deleted URL in **Sources** drops token and pin. Until `PAIRED`, every other message gets `ERROR` `unpaired`.
 
 ## Active and standby
 
