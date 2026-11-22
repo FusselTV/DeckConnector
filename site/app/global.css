@@ -196,13 +196,6 @@ body {
 html[data-header-hidden]:has(body > header:focus-within) {
   --fd-banner-height: 3.5rem;
 }
-/* phones get a second header row with the docs and demo links */
-@media (max-width: 767px) {
-  :root,
-  html[data-header-hidden]:has(body > header:focus-within) {
-    --fd-banner-height: 6rem;
-  }
-}
 @media (max-width: 767px) {
   [data-toc-popover] a {
     display: flex;
@@ -299,9 +292,6 @@ html[data-header-hidden]:has(body > header:focus-within) {
 }
 [data-nav][aria-current='page']::after {
   background: var(--amber);
-}
-[data-subnav] [data-nav]::after {
-  bottom: 0;
 }
 
 /* On phones the header leaves while reading down and comes back on any scroll up. */

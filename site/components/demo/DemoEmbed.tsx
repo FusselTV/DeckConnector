@@ -25,7 +25,7 @@ const built = existsSync('public/demo/app/index.html')
 export function DemoEmbed({ lang }: { lang: Lang }) {
   const t = demoText[lang]
   return (
-    <main id="main" className="flex h-[calc(100dvh-var(--fd-banner-height))] flex-col">
+    <main id="main" className="flex h-[calc(100dvh-3.5rem)] flex-col">
       <h1 className="sr-only">{t.h1}</h1>
       {built ? (
         <DemoFrame lang={lang} title={t.h1} />
