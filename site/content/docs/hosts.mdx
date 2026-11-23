@@ -3,7 +3,7 @@ title: Sources
 description: Several programs connected at once, and how to pick the one that draws.
 ---
 
-A source is a program that draws on the deck: Companion, the Elgato app or your own server. Up to 4 servers and 4 Network Dock sources connect at once, in any mix.
+A source is a program that draws on the deck: Companion, the Elgato app or your own server. Up to 2 servers and 4 Network Dock sources connect at once, in any mix.
 
 One source is **active**. It draws and gets the input. The others stay connected. Companion and the Elgato app keep drawing into their own picture in the background, so a switch shows it at once. A server draws again after the switch.
 
@@ -20,7 +20,7 @@ When no source draws, the deck shows its home screen and says what is missing, f
 ## When a source goes away
 
 - The first connected source of the same program draws. For Companion, Satellite comes first.
-- Servers take over in list order. At once when the connection closes, within 6 s when the server goes silent.
+- A server that drew and set a [fallback picture](/docs/own-server#fallback) leaves it on the deck until a server draws again. Between two servers, the servers decide which one draws.
 - With no source of that program, the deck shows its home screen.
 
 ## Over the API
@@ -31,7 +31,7 @@ Two settings pick the source. `controller` is the program, `host` names the entr
 |---|---|---|
 | `companion` | Companion, Satellite or dock | `satellite`, or the computer's IP |
 | `app` | The Elgato app | The computer's IP |
-| `server` | Your own servers | The server URL |
+| `server` | Your own servers | Empty |
 
 An empty `host` means the first connected source of that program. The change works at once.
 

@@ -3,7 +3,7 @@ title: Quellen
 description: Mehrere Programme gleichzeitig verbunden, und wie du das zeichnende wählst.
 ---
 
-Eine Quelle ist ein Programm, das aufs Deck zeichnet: Companion, die Elgato-App oder dein eigener Server. Bis zu 4 Server und 4 Network-Dock-Quellen sind gleichzeitig verbunden, in jeder Mischung.
+Eine Quelle ist ein Programm, das aufs Deck zeichnet: Companion, die Elgato-App oder dein eigener Server. Bis zu 2 Server und 4 Network-Dock-Quellen sind gleichzeitig verbunden, in jeder Mischung.
 
 Eine Quelle ist **aktiv**. Sie zeichnet und bekommt die Eingaben. Die anderen bleiben verbunden. Companion und die Elgato-App zeichnen im Hintergrund weiter in ihr eigenes Bild, nach einem Wechsel zeigt das Deck es sofort. Ein Server zeichnet nach dem Wechsel neu.
 
@@ -20,7 +20,7 @@ Zeichnet keine Quelle, zeigt das Deck seinen Startbildschirm und sagt, was fehlt
 ## Wenn eine Quelle wegfällt
 
 - Die erste verbundene Quelle desselben Programms zeichnet. Bei Companion kommt Satellite zuerst.
-- Server übernehmen in der Reihenfolge der Liste. Sofort, wenn die Verbindung schließt, innerhalb von 6 s, wenn der Server verstummt.
+- Ein Server, der gezeichnet und ein [Ausfall-Bild](/de/docs/own-server#ausfall-bild) gesetzt hat, lässt es auf dem Deck, bis wieder ein Server zeichnet. Zwischen zwei Servern entscheiden die Server, wer zeichnet.
 - Ist keine Quelle dieses Programms da, zeigt das Deck seinen Startbildschirm.
 
 ## Über die API
@@ -31,7 +31,7 @@ Zwei Einstellungen wählen die Quelle. `controller` ist das Programm, `host` nen
 |---|---|---|
 | `companion` | Companion, Satellite oder Dock | `satellite` oder die IP des Rechners |
 | `app` | Die Elgato-App | Die IP des Rechners |
-| `server` | Deine eigenen Server | Die Server-URL |
+| `server` | Deine eigenen Server | Leer |
 
 Ist `host` leer, zeichnet die erste verbundene Quelle dieses Programms. Die Änderung wirkt sofort.
 

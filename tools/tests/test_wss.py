@@ -1,4 +1,4 @@
-"""wss:// links: the bridge talks TLS only to a server it can trust, here one with a pinned certificate."""
+"""wss:// links: pairing pins the server's certificate, and the bridge talks TLS only to a server with that one."""
 
 import asyncio
 import json
@@ -26,21 +26,20 @@ async def stays_away(server: Server, url: str, secs: float = 8) -> bool:
     return True
 
 
-async def test_wss_needs_the_pinned_certificate():
+async def test_wss_pairs_and_then_needs_the_pinned_certificate():
     server = await Server(8771, "wss", ping=False, tls=True).start()
     before = json.loads((await asyncio.to_thread(api, "GET", "/api/config"))[1])
     servers, pins = before["servers"], before["server_pins"]
-    slot = servers.index("") if "" in servers else len(servers) - 1
+    slot = servers.index("") if "" in servers[:2] else 1  # the bridge links to two servers at most
 
     def at_slot(values: list, value: str) -> list:
         return [*values[:slot], value, *values[slot + 1 :]]
 
     try:
-        colons = ":".join(server.fingerprint[i : i + 2] for i in range(0, 64, 2)).upper()  # as openssl prints it
-        await put({"servers": at_slot(servers, server.url), "server_pins": at_slot(pins, colons)})
+        await put({"servers": at_slot(servers, server.url), "server_pins": at_slot(pins, "")})
+        await server.wait_bridge(20)  # the code is confirmed at once, the bridge comes back with its token
         cfg = json.loads((await asyncio.to_thread(api, "GET", "/api/config"))[1])
         assert cfg["server_pins"][slot] == server.fingerprint
-        await server.wait_bridge(20)
 
         await put({"server_pins": at_slot(pins, "00" * 32)})  # another certificate: the bridge goes and stays away
         for _ in range(20):
@@ -49,7 +48,7 @@ async def test_wss_needs_the_pinned_certificate():
             await asyncio.sleep(0.5)
         assert await stays_away(server, server.url)
 
-        await put({"server_pins": at_slot(pins, "")})  # no pin: no public CA signed it, so no TLS either
+        await put({"server_pins": at_slot(pins, "")})  # paired without a pin: no public CA signed it, so no TLS
         assert await stays_away(server, server.url)
     finally:
         await put({"servers": servers, "server_pins": pins})

@@ -3,12 +3,7 @@
 import asyncio
 import json
 
-from conftest import api, jpeg, status
-
-from dbtools.protocol import AckResult
-
-FULL = (0, 0, 800, 480)
-KEY0 = (13, 12, 120, 120)
+from conftest import api, jpeg, paint, status
 
 
 # HTTP runs in a thread: the test servers share this event loop and must keep answering the bridge.
@@ -25,46 +20,41 @@ async def set_controller(name: str) -> None:
     assert code == 200 and json.loads(reply)["restart"] is False
 
 
-async def wait_role(bridge, active: bool) -> None:
-    for _ in range(50):
-        if bridge.active == active:
-            return
-        await asyncio.sleep(0.1)
-    assert bridge.active == active
-
-
 async def test_screen_shows_what_the_server_drew(bridges):
     active, _ = bridges
-    full, key = jpeg((10, 120, 200)), jpeg((250, 200, 0), (120, 120))
-    assert (await active.send_image(KEY0, key)).result == AckResult.SHOWN
+    full, key = active.target(0, "full"), active.target(0)
+    full_img, key_img = jpeg((10, 120, 200)), jpeg((250, 200, 0), (key["w"], key["h"]))
+    await active.put(1, full_img, full["w"], full["h"])
+    await active.put(2, key_img, key["w"], key["h"])
+    assert (await active.show(0, [(key["id"], 2)])).us > 0
     covered = (await screen())["images"][-1]["url"]
-    assert (await active.send_image(FULL, full)).result == AckResult.SHOWN
-    assert (await active.send_image(KEY0, key)).result == AckResult.SHOWN
+    assert (await active.show(0, [(full["id"], 1)])).us > 0
+    assert (await active.show(0, [(key["id"], 2)])).us > 0
     sc = await screen()
     assert sc["writer"] == "server1" and (sc["width"], sc["height"]) == (800, 480)
     rects = [(i["x"], i["y"], i["w"], i["h"]) for i in sc["images"]]
-    assert rects == [FULL, KEY0], "the full image covers all older ones, the key lies on top"
-    assert (await http("GET", sc["images"][0]["url"]))[1] == full
-    assert (await http("GET", sc["images"][1]["url"]))[1] == key
+    rect = lambda t: (t["x"], t["y"], t["w"], t["h"])  # noqa: E731
+    assert rects == [rect(full), rect(key)], "the full image covers all older ones, the key lies on top"
+    assert (await http("GET", sc["images"][0]["url"]))[1] == full_img
+    assert (await http("GET", sc["images"][1]["url"]))[1] == key_img
     assert (await http("GET", covered))[0] == 404
 
 
 async def test_switching_keeps_servers_connected(bridges):
     active, standby = bridges
-    sent = jpeg((200, 30, 120))
-    assert (await active.send_image(FULL, sent)).result == AckResult.SHOWN
+    assert (await paint(active, (200, 30, 120))).us > 0
     before = (await screen())["images"]
     try:
         await set_controller("companion")
-        await wait_role(active, False)
-        assert not standby.active
         assert (await asyncio.to_thread(status))["controller"] == "companion"
         writer = (await screen())["writer"]
         assert writer in ("ui", "satellite") or writer.startswith("dock"), writer
-        assert (await active.send_image(FULL, jpeg("red"))).result == AckResult.REJECTED_ROLE
+        for bridge in (active, standby):
+            assert (await paint(bridge, "red")).us == 0 and bridge.errors[-1]["code"] == "standby"
+        assert not active.closed.is_set() and not standby.closed.is_set()
     finally:
         await set_controller("server")
-    await wait_role(active, True)
+    await wait_writer("server1")  # the host that asked last draws again without asking anew
     sc = await screen()
     assert sc["writer"] == "server1"
     assert sc["images"] == before, "the kept picture is back without the server sending it again"
@@ -98,25 +88,19 @@ async def put_config(body: dict) -> None:
     assert (await http("PUT", "/api/config", json.dumps(body).encode()))[0] == 200
 
 
-async def test_picking_one_of_two_servers(servers, bridges):
-    first, second = (list(s.bridges.values())[-1] for s in servers)
+async def test_the_host_that_asks_last_draws(servers, bridges):
+    first, second = bridges
     try:
-        await put_config({"controller": "server", "host": servers[1].url})
-        await wait_role(second, True)
-        await wait_role(first, False)
+        await second.role(True)
         await wait_writer("server2")
-        chosen = [x for x in (await asyncio.to_thread(status))["sources"] if x["chosen"]]
-        assert [x["host"] for x in chosen] == [servers[1].url]
-
-        # while a host draws, the deck has no host keys (the home screen has them when nobody draws)
-        await put_config({"host": servers[0].url})
-        await wait_role(first, True)
-        await wait_role(second, False)
-        await wait_writer("server1")
-        assert json.loads((await http("GET", "/api/config"))[1])["host"] == servers[0].url
+        drawing = [x for x in (await asyncio.to_thread(status))["sources"] if x["drawing"]]
+        assert [x["host"] for x in drawing] == [servers[1].url]
+        assert (await paint(first, "red")).us == 0 and first.errors[-1]["code"] == "standby"
+        assert (await paint(second, "green")).us > 0
     finally:
-        await put_config({"controller": "server", "host": ""})
-    await wait_role(first, True)
+        await first.role(True)
+    await wait_writer("server1")
+    assert (await paint(second, "red")).us == 0 and second.errors[-1]["code"] == "standby"
 
 
 async def test_the_menu_chord_and_hold_time_are_settings(bridges):

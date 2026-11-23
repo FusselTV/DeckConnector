@@ -114,7 +114,7 @@ const about = `# Deck Connector
 - Elgato app: finds the board as a Network Dock by itself (app 7.6 on Windows tested).
 - Your own software: open WebSocket protocol and a JSON HTTP API.
 - Optional: a Home Assistant integration from HACS, and Matter for Apple Home, Google Home and other Matter apps. The deck works without them.
-- Several computers at once: Companion over Satellite, Network Dock hosts (Companion, Elgato app) and your own servers share one list. Up to 4 servers and 4 dock hosts stay connected at once. One draws. Two taps on the deck switch between them.
+- Several computers at once: Companion over Satellite, Network Dock hosts (Companion, Elgato app) and your own servers share one list. Up to 2 servers and 4 dock hosts stay connected at once. One draws. Two taps on the deck switch between them.
 - Languages: the web UI and the screens on the deck are in English and German.
 - Decks: most Elgato Stream Decks, and with Companion also Mirabox and Ajazz Stream Docks. Only the Stream Deck + is tested on real hardware. The others pass tests on emulated decks and should work. Every model: ${site}/docs/hardware/#decks
 - Install: open ${site}/flash/ in Chrome or Edge, connect the board's USB-C port, flash (about a minute), then join Wi-Fi over USB. No tools to install.

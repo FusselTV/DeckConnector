@@ -91,7 +91,7 @@ The `open` routes that do something need `X-DeckConnector: 1`.
 | `OPTIONS /api/...` | The CORS preflight for the origins in `cors_origins` | open |
 | `GET /api/ws` | The live [WebSocket](#websocket) | control |
 | `GET /api/status` | State of the connector, see [Status](#status) | control |
-| `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set`, `wifi2_pass_set` and `token_set` | full |
+| `GET /api/config` | Settings, see [Settings](#settings). Secrets only show as `wifi_pass_set` and `wifi2_pass_set` | full |
 | `PUT /api/config` | Change settings. Send only the keys you change. The reply has `restart` and `config` | full |
 | `POST /api/config` | Companion's **Setup** under Surfaces › Discover: `{"host": "...", "port": 16622}` as `application/json`. During setup the connector connects at once, later the deck asks for 60 s | open |
 | `GET /api/backup` | The settings for a restore. `?secrets=1` adds the passwords | admin |
@@ -196,10 +196,10 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "", "wifi2_ssid": "", "wifi2_pass_set": false,
- "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
+ "servers": ["wss://192.168.1.20:8765/surface", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "matter": false}
 ```
 
 | Key | Values |
@@ -213,11 +213,10 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` has 8 to 63 characters, 64 hex digits, or is empty for an open network |
 | `wifi_bssid` | Lock to one access point, empty for any |
 | `wifi2_ssid`, `wifi2_pass` | The backup Wi-Fi, same values as `wifi_ssid` and `wifi_pass`. Empty turns it off |
-| `servers` | Up to 4 `ws://` or `wss://` URLs. Empty finds servers over mDNS |
-| `server_pins` | SHA-256 per server, same position as in `servers` |
+| `servers` | Up to 2 `wss://` or `ws://` URLs of [own servers](/docs/own-server). An empty place takes a server found over mDNS. A new URL drops that server's pairing |
+| `server_pins` | SHA-256 per server, same position as in `servers`. Pairing sets it |
 | `satellite` | Companion's address: `host`, `host:port` or a `ws://` or `wss://` URL. Empty turns it off |
 | `satellite_pin` | SHA-256 for a `wss://` Companion |
-| `token` | Sent as `Authorization: Bearer` to the servers in `servers`, never to one found over mDNS. Up to 47 characters, empty for none. `GET` shows only `token_set` |
 | `satellite_auto` | Move Companion from the dock to Satellite by itself |
 | `https_only` | Turn plain HTTP off |
 | `cors_origins` | Comma separated origins that may call the API with a key |
@@ -244,7 +243,7 @@ See [Matter](/docs/matter). While `matter.running` is false, `GET /api/matter`, 
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-A refused value gets 400 with the reason, and the connector saves nothing. The reply of `GET /api/config` is a backup without passwords or the token. A `PUT` of it restores the settings. `GET /api/backup?secrets=1` adds `admin_pass`, `wifi_pass`, `wifi2_pass` and `token`. No backup holds API keys, passkeys, paired dock hosts, an uploaded HTTPS certificate or Matter's paired apps. Create, pair or upload them again.
+A refused value gets 400 with the reason, and the connector saves nothing. The reply of `GET /api/config` is a backup without passwords. A `PUT` of it restores the settings. `GET /api/backup?secrets=1` adds `admin_pass`, `wifi_pass` and `wifi2_pass`. No backup holds API keys, passkeys, paired dock hosts and servers, an uploaded HTTPS certificate or Matter's paired apps. Create, pair or upload them again.
 
 ## Status
 
@@ -320,7 +319,7 @@ The status also has `api`, `simulated_input`, `boot_ms`, `memory`, `https_finger
 `{"pin": 3}` types one digit of Companion's PIN on a locked deck, also on a deck that cannot show the number pad. It needs `"real"` and answers 409 when the deck is not locked.
 
 <Callout type="warn" title="Real presses">
-Companion, the Elgato app and the Satellite connection get an API press only with `"real"`, because their keys switch real things. Without it, the press reaches only the connector's own screens and your own servers. `"real": true` is for a person at a web page. A script names the host instead, `"real": "192.168.1.10"`, and the press goes out only while that host draws.
+Companion, the Elgato app, the Satellite connection and own servers get an API press only with `"real"`, because their keys switch real things. Without it, the press reaches only the connector's own screens. `"real": true` is for a person at a web page. A script names the host instead, `"real": "192.168.1.10"`, and the press goes out only while that host draws.
 </Callout>
 
 Restart, reset, the LAN settings, the setup Wi-Fi and the keys that let a host in work only on the deck itself.

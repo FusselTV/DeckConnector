@@ -88,8 +88,8 @@ int db_deck_first(void);
 
 /*
  * Queue one image. Takes ownership of `data` (heap_caps_malloc). The result always arrives through the ack
- * handler of `source`, also for rejected images. An image of DB_SOURCE_SAT while it is not the writer only
- * goes into its kept picture.
+ * handler of `source`, also for rejected images. An image of DB_SOURCE_SAT or a server while it is not the
+ * writer only goes into its kept picture; a server's is acknowledged as shown at once.
  */
 void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rect, uint32_t seq,
                     uint8_t *data, size_t len, uint64_t t_recv);
@@ -130,6 +130,9 @@ void db_deck_stats(db_deck_stats_t *out);
 /* What the deck shows: the images of the current writer, oldest first, without their data. Drawn in order
  * they make the picture. */
 size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max);
+/* The same with a copy of each image in PSRAM, taken at once so none is replaced in between; data is NULL
+ * when out of memory. Free each with heap_caps_free. */
+size_t db_deck_shots_copy(int deck, db_source_t *writer, db_shot_t *out, size_t max);
 /* Changes whenever the picture of db_deck_shots changes. */
 static inline uint32_t db_deck_shots_key(db_source_t writer, const db_shot_t *shots, size_t n)
 {

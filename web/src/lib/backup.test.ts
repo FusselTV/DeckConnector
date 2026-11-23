@@ -36,7 +36,6 @@ const cfg: Config = {
   ntp_server: 'pool.ntp.org',
   dock_paired_only: false,
   setup_done: true,
-  token_set: false,
 }
 
 describe('planRestore', () => {
@@ -79,12 +78,12 @@ describe('planRestore', () => {
     expect(planRestore(cfg, { name: 'my-app', version: '1.0.0', dependencies: {} }).errors).toEqual(not)
   })
   it('takes the secrets of a full backup back and shows only whether they are set', () => {
-    const p = planRestore(cfg, { ...cfg, admin_pass: 'hunter22', wifi_pass: 'wlan-secret', token: '' })
-    expect(p.patch).toMatchObject({ admin_pass: 'hunter22', wifi_pass: 'wlan-secret', token: '' })
+    const p = planRestore(cfg, { ...cfg, admin_pass: 'hunter22', wifi_pass: 'wlan-secret', wifi2_pass: '' })
+    expect(p.patch).toMatchObject({ admin_pass: 'hunter22', wifi_pass: 'wlan-secret', wifi2_pass: '' })
     expect(p.rows).toEqual([
       { key: 'admin_pass', now: true, file: true, secret: true },
       { key: 'wifi_pass', now: false, file: true, secret: true },
-      { key: 'token', now: false, file: false, secret: true },
+      { key: 'wifi2_pass', now: false, file: false, secret: true },
     ])
     expect(JSON.stringify(p.rows)).not.toMatch(/hunter22|wlan-secret/)
     expect(p.restart).toBe(true)
@@ -103,7 +102,7 @@ describe('planRestore', () => {
   })
   // The demo sends every key the firmware's GET /api/config sends (e2e-demo/contract.spec.ts checks that).
   it('restores every setting the firmware sends', () => {
-    const readOnly = ['wifi_pass_set', 'wifi2_pass_set', 'token_set', 'setup_done', 'star_fw', 'star_until']
+    const readOnly = ['wifi_pass_set', 'wifi2_pass_set', 'setup_done', 'star_fw', 'star_until']
     const keys = Object.keys(config(fresh(0))).filter((k) => !readOnly.includes(k))
     expect(keys.filter((k) => !WRITABLE.has(k as keyof Config))).toEqual([])
   })

@@ -1,8 +1,8 @@
 /*
  * Malformed wire input into the byte parsers hosts and Companion reach: Satellite lines, PNG and BMP
- * pictures, Cora and server frame headers, DNS answers and dock image reports through each Elgato driver.
- * Mutated seeds with a fixed seed; ASan and UBSan do the checking. FUZZ_ROUNDS=n runs longer; with -DFUZZING
- * -fsanitize=fuzzer it is a libFuzzer target.
+ * pictures, Cora frame headers, a server's CBOR, DNS answers and dock image reports through each Elgato
+ * driver. Mutated seeds with a fixed seed; ASan and UBSan do the checking. FUZZ_ROUNDS=n runs longer; with
+ * -DFUZZING -fsanitize=fuzzer it is a libFuzzer target.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,10 +80,8 @@ static void frames(const uint8_t *d, size_t n)
         uint8_t out[DB_CORA_REPORT_LEN];
         db_cora_dock_report(d[DB_CORA_HDR_LEN], &dock, out);
     }
-    db_image_hdr_t img;
-    uint64_t t;
-    db_proto_parse_image_hdr(d, n, &img);
-    db_proto_parse_time(d, n, &t);
+    char token[64];
+    db_cbor_text(d, n, "token", token, sizeof(token));
     char name[DB_DNS_NAME_LEN];
     if (n > 2) {
         db_dns_ptr_name(d + 2, n - 2, db_get_u16(d), name);
@@ -195,7 +193,8 @@ int main(void)
     db_bmp_write((const uint8_t[12]){1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, 2, 2, seeds[k] + 3);
     lens[k] = 3 + db_bmp_size(2, 2), k++;
     SEED(3, 0x43, 0x93, 0x8a, 0x41, 0x80, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 2, 3, 0x1c);
-    SEED(3, 1, 0, 0, 0, 0, 0, 72, 0, 72, 0, 0, 0, 0, 1, 2, 3);
+    SEED(3, 0xa3, 0x61, 'x', 0x82, 1, 0xbf, 0xff, 0x61, 'y', 0x41, 0, 0x65, 't', 'o', 'k', 'e', 'n', 0x63,
+         'a', 'b', 'c');
     SEED(3, 0x34, 0x12, 0x12, 0x34, 0x81, 0x80, 0, 1, 0, 1, 0, 0, 0, 0, 1, '4', 0, 0, 12, 0, 1, 0xc0, 12, 0,
          12, 0, 1, 0, 0, 0, 60, 0, 5, 3, 'p', 'c', '1', 0);
     for (uint8_t m = 0; m < deck_model_count; m++) { /* an image in two pieces: part 0, then the last one */

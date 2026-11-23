@@ -73,6 +73,6 @@ async def test_welcome_steps(page):
         await page.click("#wnext")
         await page.wait_for_selector("#wizard[open]", state="detached")
         cfg = json.loads((await asyncio.to_thread(api, "GET", "/api/config"))[1])
-        assert cfg["setup_done"] and cfg["controller"] == "server" and cfg["host"].endswith(":8766/deckbridge")
+        assert cfg["setup_done"] and cfg["controller"] == "server" and cfg["host"].endswith(":8766/surface")
     finally:
         await asyncio.to_thread(api, "PUT", "/api/config", json.dumps({"setup_done": True, "host": ""}).encode())

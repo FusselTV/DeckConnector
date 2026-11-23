@@ -387,6 +387,12 @@ static void close_key(ui_tile_t *t, const char *icon, const char *label, const c
     t->color = C_EDIT;
 }
 
+static void pair_card(page_t *p, int key)
+{
+    card(put(p, key, K_NONE), ICON_WEB, fit(p, L("Kopplung", "Pairing"), "Code"), p->md->pair_code,
+         fit(p, L("im Programm", "in the program"), ""));
+}
+
 /* The settings. The hosts stay on the home screen: here they would only be in the way. */
 static void main_menu(page_t *p)
 {
@@ -397,6 +403,9 @@ static void main_menu(page_t *p)
            fit(p, L("Sprache", "Language"), ""));
     if (cramped(p)) {
         brightness_step(p, at(p, 0, 1)); /* no row for brightness keys */
+    }
+    if (md->pair_code[0]) { /* while a host draws, the code is only here */
+        pair_card(p, at(p, 0, 1));
     }
     ui_tile_t *lan = put(p, at(p, 1, 0), K_LAN);
     lan_card(p, lan);
@@ -732,6 +741,18 @@ static void matter_page(page_t *p)
     }
 }
 
+/* A surface host that is not paired: the admin types this code into it. */
+static void pair_page(page_t *p)
+{
+    const ui_model_t *md = p->md;
+    pair_card(p, at(p, 0, 0));
+    if (p->l->strip) {
+        segment(&p->sc->seg[0], 4, ICON_WEB, C_ACTIVE, L("Kopplungscode", "Pairing code"), md->pair_code,
+                L("Im Programm eingeben, das das Deck steuern soll",
+                  "Enter it in the program that is to control the deck"));
+    }
+}
+
 /* POST /api/password/reset: two taps on the deck itself reset every setting. */
 static void reset_page(page_t *p)
 {
@@ -987,20 +1008,25 @@ static void build(const ui_menu_t *m, const ui_model_t *md, const ui_layout_t *l
     case PAGE_LOCK:
         lock_page(&p);
         break;
+    case PAGE_PAIR:
+        pair_page(&p);
+        break;
     default:
         home(&p);
         break;
     }
 }
 
-/* The page that shows: a connection request comes first, then a reset question, a login request, a Companion
- * asking for the deck, the password, the running setup WLAN, a found Companion, then the welcome steps until
- * setup is done. */
+/* The page that shows: a connection request comes first, then a pairing code, a reset question, a login
+ * request, a Companion asking for the deck, the password, the running setup WLAN, a found Companion, then the
+ * welcome steps until setup is done. */
 static ui_menu_t shown_menu(const ui_menu_t *m, const ui_model_t *md)
 {
     ui_menu_t shown = *m;
     if (md->request[0]) {
         shown.page = PAGE_REQUEST;
+    } else if (md->pair_code[0] && (md->pair_cover || m->page == PAGE_HOME)) {
+        shown.page = PAGE_PAIR;
     } else if (md->reset_ask) {
         shown.page = PAGE_RESET;
     } else if (md->login_ip[0]) {

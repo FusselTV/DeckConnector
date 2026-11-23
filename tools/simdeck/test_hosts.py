@@ -1,9 +1,7 @@
-"""The hosts that draw, per model: the own server, Companion over Satellite (a fake one here, never a real one) and
-the Network Dock emulation with the library inside Companion."""
+"""The hosts that draw, per model: Companion over Satellite (a fake one here, never a real one) and the Network Dock
+emulation with the library inside Companion. The surface protocol is in test_surface.py."""
 
-import asyncio
 import base64
-import io
 import json
 import socket
 import socketserver
@@ -14,78 +12,12 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import DISPLAY, ELGATO, MODELS, dismiss_prompt, drawn_since, pictures, shot
-from PIL import Image
+from conftest import ELGATO, MODELS, dismiss_prompt, drawn_since, pictures, shot
 
-from dbtools import protocol as p
 from dbtools.safety import real_input_target
-from dbtools.server import Server, local_ip
+from dbtools.server import local_ip
 
 CHECK = Path(__file__).resolve().parents[1] / "companion-check/check.mjs"
-
-
-def red(w: int, h: int, fmt: str = "jpeg") -> bytes:
-    """In the format the device message names; a plain colour needs no turning."""
-    buf = io.BytesIO()
-    Image.new("RGB", (w, h), (220, 20, 20)).save(buf, fmt.upper())
-    return buf.getvalue()
-
-
-def reddish(img: Image.Image) -> bool:
-    r, g, b = img.resize((1, 1)).getpixel((0, 0))
-    return r > 150 and g < 80 and b < 80
-
-
-@pytest.mark.parametrize("model", DISPLAY)
-async def test_the_own_server_gets_the_layout_draws_every_key_and_gets_presses(start, model):
-    srv = await Server(port=18990).start()
-    try:
-        sim = start(model)
-        await asyncio.to_thread(dismiss_prompt, sim)
-        url = f"ws://127.0.0.1:{srv.port}/deckbridge"
-        await asyncio.to_thread(sim.config, servers=[url], controller="server", setup_done=True)
-        bridge = await srv.wait_bridge(15)
-        for _ in range(50):
-            if bridge.device and bridge.active:
-                break
-            await asyncio.sleep(0.1)
-        deck = (await asyncio.to_thread(sim.status))["decks"][0]
-        dev = bridge.device
-        assert (dev["model"], dev["keys"], dev["encoders"]) == (deck["model"], deck["keys"], deck["encoders"])
-        keys = [t for t in dev["displays"][0]["targets"] if t["kind"] == "key"]
-        assert keys
-        assert sorted(t["index"] for t in keys) == list(range(len(keys)))
-        before = pictures(sim, 0)
-        for t in keys:
-            img = red(t["w"], t["h"], dev["displays"][0]["format"])
-            ack = await bridge.send_image((t["x"], t["y"], t["w"], t["h"]), img)
-            assert ack.result == p.AckResult.SHOWN, (t, ack)
-        new = lambda: drawn_since(sim, 0, before)  # noqa: E731
-        want = 1 if model in ("plus", "plus-xl") else len(keys)  # the + draws its keys into one LCD image
-        assert sim.wait(lambda: len(new()) >= want and all(reddish(Image.open(f)) for f in new()))
-        if want > 1:
-            assert len(new()) == want, sorted(f.name for f in new())
-        shot(sim, 0, f"{model}-server")
-        await asyncio.to_thread(sim.tap, 0, 1)
-        got = [await asyncio.wait_for(bridge.inputs.get(), 5) for _ in range(2)]
-        assert [(i.kind, i.index) for i in got] == [(p.InputKind.KEY_DOWN, 1), (p.InputKind.KEY_UP, 1)]
-    finally:
-        await srv.stop()
-
-
-async def test_deeply_nested_json_from_a_server_leaves_the_bridge_up(start):
-    srv = await Server(port=18991).start()
-    try:
-        sim = start("mk2")
-        await asyncio.to_thread(dismiss_prompt, sim)
-        url = f"ws://127.0.0.1:{srv.port}/deckbridge"
-        await asyncio.to_thread(sim.config, servers=[url], controller="server", setup_done=True)
-        bridge = await srv.wait_bridge(15)
-        await bridge.ws.send("[" * 2000)
-        await asyncio.sleep(1)
-        assert (await asyncio.to_thread(sim.status))["decks"]
-    finally:
-        await srv.stop()
 
 
 class Fake(socketserver.StreamRequestHandler):

@@ -1,118 +1,147 @@
 ---
 title: Own server
-description: Draw the deck from your own program over WebSocket. Protocol version 1.
+description: Draw on the decks from your own program with the surface protocol of Deck Assistant. Protocol version 2.
 ---
 
-Your server renders the images. The connector shows them and sends back every press, turn and touch. Start from `tools/dbtools/server.py` in the repository, a small Python server.
+Your program renders the pictures. The connector keeps them in a cache, shows them and sends back every press, turn and touch. Start from `tools/dbtools/server.py` in the repository, a small Python host.
 
 ## Connection
 
-- The connector is the client. It opens up to four URLs from **Sources** with the subprotocol `deckconnector.v1`.
-- With an empty list, it finds servers that announce `_deckconnector._tcp` over mDNS and opens `ws://<address>:<port>/deckbridge`.
-- `wss://` needs a certificate from a public CA for that host, or the SHA-256 pin set for that server.
-- To check who connects, set `token` in the [settings](/docs/api#settings). The connector sends it as `Authorization: Bearer` to the servers you entered.
-- The server named in `host` is **active** when it is connected. Otherwise it is the first connected server in the list. The others are **standby**. Only the active one draws and gets input.
-- When it is lost, the next one becomes active, gets a `role` message, and must draw every area again. Until then the deck shows what that server drew last, which may be old.
-- The active server also gets `role` after the menu or an update drew over its picture.
-- While Companion or the Elgato app is the active source, every server is standby. See [Sources](/docs/hosts).
-- The connector pings every 2 s. A server silent for 6 s counts as lost.
+- The connector is the client. It opens up to 2 hosts with the WebSocket subprotocol `deckassistant.v2`.
+- It takes the URLs from **Sources**. While no URL is set, it takes hosts that announce `_deckassistant._tcp` over mDNS, as `wss://<address>:<port>/surface`.
+- `ws://` without TLS works only when you enter it yourself. Use it for tests.
+- Every message is one binary frame. The connector ignores text frames.
+- The connector pings every 2 s. A host silent for 6 s counts as lost.
 
-Text frames carry JSON. Binary frames carry images, acknowledgements, input and time sync. All binary integers are little endian.
+## Pairing
 
-## Coordinates
+1. A host without a token gets `HELLO` with `pairing: true`. The decks show a 6-digit code, over everything for 2 min, then on the home screen. While another host draws, the code is only in the menu. The code never goes over the network.
+2. The person types the code into the host. The host sends `PAIRED` with a token and that code.
+3. When the code matches, the connector saves the token, and for `wss://` the SHA-256 of the host's certificate. It connects again with `Authorization: Bearer <token>` and takes only that certificate from then on.
+4. A wrong code gets `ERROR` `pair_code`, and the connector closes the connection. After 5 wrong codes the decks show a new one.
 
-Each display has one pixel coordinate system, origin at the top left of the whole glass. Keys and strips are rectangles in it. Send any rectangle from the display's `targets`, and the connector picks the USB command. Apply the listed rotation and flip before you encode the image. `format` is `jpeg`, or `bmp` on the Mini and the Module 6. `max_bytes`, when present, is the largest image the display takes.
+A host that no longer knows the token closes with code 4001, or answers the upgrade with 401. The connector then drops the token and pairs again, and only a host with the same certificate gets in. A new or deleted URL in **Sources** drops token and pin. Until `PAIRED`, every other message gets `ERROR` `unpaired`.
 
-## From the connector
+## Active and standby
+
+A paired host asks for the decks with `ROLE` 1. The host that asked last is **active**. It draws on every deck and gets the input. The other one is on **standby** and gets `ERROR` `standby` when it draws. `ROLE` 0 gives the decks back.
+
+While Companion or the Elgato app is the chosen source, no host is active. See [Sources](/docs/hosts).
+
+## Messages
+
+Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the whole connector), `u16 flags` (0). Numbers are little endian. CBOR means a map with text keys. Both sides ignore keys they do not know.
+
+### Host to connector
+
+| Type | Name | After the header |
+|---|---|---|
+| `0x01` | ROLE | `u8`: 0 standby, 1 active |
+| `0x02` | PUT | `u16 slot, u8 format, u16 w, u16 h`, then the image. Format 0 JPEG, 1 BMP |
+| `0x03` | EVICT | `u16 n`, then `n` × `u16 slot`. `n = 0xFFFF` empties the cache |
+| `0x04` | FRAME | `u32 frame_id, u16 n`, then `n` × (`u8 target, u16 slot`). `n` up to 64 |
+| `0x05` | STREAM | `u8 target, u32 seq, u8 format`, then the image |
+| `0x06` | FALLBACK | `u16 n`, then `n` × (`u8 target, u16 slot`). `n` up to 64 |
+| `0x07` | BRIGHTNESS | `u8` 0 to 100. Deck `0xFF` sets every deck |
+| `0x08` | TIME | `u64` Unix time in ms |
+| `0x09` | REBOOT | nothing |
+| `0x0A` | PAIRED | CBOR `{token, code}`. `token` is printable ASCII, up to 47 characters |
+
+`PUT`, `EVICT`, `FRAME`, `STREAM`, `FALLBACK`, `BRIGHTNESS`, `TIME` and `REBOOT` work only from the active host. The cache belongs to the whole connector, so `PUT` and `EVICT` go with deck `0xFF`.
+
+### Connector to host
+
+| Type | Name | After the header |
+|---|---|---|
+| `0x80` | HELLO | CBOR, see below |
+| `0x81` | SHOWN | `u8 kind` (0 FRAME, 1 STREAM), `u32 frame_id` or `seq`, `u32` µs until on the glass |
+| `0x82` | CREDIT | `u8 display, u32 bytes, u8 frames` |
+| `0x83` | INPUT | `u32 seq, u64 usb_time_us, u8 kind, u8 index, i16 value, u16 x, u16 y, u16 x2, u16 y2` |
+| `0x84` | DECK_ADDED | CBOR, one entry of `decks` |
+| `0x85` | DECK_REMOVED | nothing |
+| `0x86` | STATE | CBOR `{display_on, brightness}` |
+| `0x87` | ERROR | CBOR `{code, message}` |
+
+## HELLO
 
 ```json
-{"t": "hello", "proto": 1, "id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3", "fw": "{{version}}",
- "c6": "3.0.10", "board": "waveshare-p4-poe-eth", "active": true}
+{"proto": 2, "firmware": "{{version}}", "board": {"id": "80f1b2a1b2c3", "name": "deckconnector-a1b2c3"},
+ "pairing": true, "cache": {"bytes": 8388608, "slots": 1024}, "cache_epoch": 3141592653,
+ "decks": [{"deck": 0, "serial": "A00SA0000AA0A0", "model": "streamdeck-plus", "name": "Stream Deck +",
+   "displays": [{"id": 0, "w": 800, "h": 480, "formats": ["jpeg"], "rotate": 0, "flip": false, "max_bytes": 1048576}],
+   "targets": [{"id": 0, "kind": "key", "display": 0, "x": 13, "y": 12, "w": 120, "h": 120},
+               {"id": 8, "kind": "strip", "display": 0, "x": 0, "y": 380, "w": 800, "h": 100},
+               {"id": 9, "kind": "full", "display": 0, "x": 0, "y": 0, "w": 800, "h": 480}],
+   "keys": 8, "encoders": 4, "touch": [{"x": 0, "y": 380, "w": 800, "h": 100}]}]}
 ```
 
-```json
-{"t": "device", "present": true, "vendor": "Elgato", "model": "Stream Deck +", "vid": 4057, "pid": 132,
- "serial": "A00SA0000AA0A0", "fw": "1.01.008", "tested": true, "keys": 8, "encoders": 4,
- "displays": [{"id": 0, "w": 800, "h": 480, "format": "jpeg", "rotate": 0, "flip_x": false, "flip_y": false,
-   "targets": [{"kind": "full", "x": 0, "y": 0, "w": 800, "h": 480},
-               {"kind": "key", "index": 0, "x": 13, "y": 12, "w": 120, "h": 120},
-               {"kind": "strip", "x": 0, "y": 380, "w": 800, "h": 100, "partial": true}]}],
- "touch": [{"display": 0, "x": 0, "y": 380, "w": 800, "h": 100}]}
-```
+- `pairing` is there only before pairing.
+- A key target has the key's number as `id`. Strips come after the keys, then the whole display (`full`).
+- Send each target's picture in exactly its size, already turned. First turn it by `rotate` degrees clockwise, then mirror it left to right when `flip` is true.
+- `formats` is `jpeg`, or `bmp` on the Mini and the Module 6. `max_bytes` is the largest image the display takes.
+- `keys` also counts keys without a picture, like the two touch keys of the Neo.
+- Rectangles and touch positions are in the display's pixels, origin at the top left of the whole glass.
 
-A `strip` target with `partial: true` takes any rectangle inside it. Other targets take only their exact rectangle. `{"t": "device", "present": false}` means the deck was unplugged.
+After `HELLO` come one `CREDIT` per display and one `STATE` per deck. `STATE` comes again when the screen saver turns a deck off or on, or its brightness changes.
 
-```json
-{"t": "role", "active": true}
-{"t": "status", "name": "deckconnector-a1b2c3", "firmware": "{{version}}", "controller": "server", "writer": "server1"}
-{"t": "ota", "target": "p4", "state": "download", "pct": 40}
-{"t": "ota", "target": "p4", "state": "error", "error": "signature"}
-```
+## Cache
 
-`status` has the fields of [`GET /api/status`](/docs/api#status) without `memory`, `boot_ms`, `temp_c` and `via_ap`. OTA `state` is `download`, `verify`, `done` or `error`. After `done` the connector restarts.
-
-## To the connector
-
-```json
-{"t": "brightness", "pct": 70}
-{"t": "ota", "target": "p4", "url": "http://server:8000/deckconnector-{{version}}.dbfw"}
-{"t": "reboot"}
-```
-
-The connector takes these only from the active server. `ota` needs `target`, but the signed file decides which chip it is for. See [Updates](/docs/updates).
-
-## Binary frames
-
-The first byte is the type.
-
-### Server to connector
-
-| Type | Name | After the type byte |
-|---|---|---|
-| `0x01` | IMAGE | `u8 display, u16 x, u16 y, u16 w, u16 h, u32 seq`, then the JPEG |
-| `0x02` | TIME | `u8[7] reserved, u64 server_time_us` |
-
-### Connector to server
-
-| Type | Name | After the type byte |
-|---|---|---|
-| `0x81` | ACK | `u8 result, u8 display, u8 reserved, u32 seq, u64 t_recv, u64 t_start, u64 t_done` |
-| `0x82` | TIME | `u8[7] reserved, u64 server_time_us, u64 bridge_time_us` |
-| `0x83` | INPUT | `u8 kind, u8 index, u8 display, i16 value, u16 x, u16 y, u16 x2, u16 y2, u8[10] reserved, u64 t` |
-
-Times are microseconds on the connector's clock. `t_recv` is when the image was complete. `t_start` and `t_done` frame the USB transfer. INPUT `t` is when the USB report arrived.
-
-### ACK result
-
-| Value | Name | Meaning |
-|---|---|---|
-| 0 | `SHOWN` | Sent to the deck |
-| 1 | `SUPERSEDED` | A newer image covered it before it was sent |
-| 2 | `REJECTED_RECT` | The rectangle is not a target of this display |
-| 3 | `REJECTED_ROLE` | This server is not active, or the menu, the Elgato app or Companion has the deck |
-| 4 | `NO_DEVICE` | No deck, or the USB transfer failed |
-| 5 | `BUSY` | The connector is out of image memory |
-| 6 | `TOO_BIG` | The image is larger than the display's `max_bytes` |
-
-### INPUT kind
-
-| Value | Kind | Fields |
-|---|---|---|
-| 1 | `KEY_DOWN` | `index` |
-| 2 | `KEY_UP` | `index` |
-| 3 | `ENCODER_DOWN` | `index` |
-| 4 | `ENCODER_UP` | `index` |
-| 5 | `ENCODER_TURN` | `index`, `value` in ticks, positive is clockwise |
-| 6 | `TOUCH_TAP` | `display`, `x`, `y` |
-| 7 | `TOUCH_LONG` | `display`, `x`, `y` |
-| 8 | `TOUCH_SWIPE` | `display`, from `x`, `y` to `x2`, `y2` |
-
-Touch positions are in display coordinates.
+- The connector keeps 8 MiB in up to 1024 slots, numbered 0 to 1023, for all decks. The host picks the slots and evicts. A `PUT` into a used slot replaces it. A slot shows on any deck.
+- A `PUT` that does not fit gets `ERROR` `cache_full`.
+- `FRAME` shows all its slots at once. On the Plus and the Plus XL the keys reach the glass in one picture. Other decks get one USB transfer per key.
+- When another host becomes active, the connector empties the cache and changes `cache_epoch`. After a restart it is a new number. A host that comes back and finds the `cache_epoch` it knows still has its slots.
 
 ## Flow control
 
-Send the next image for an area only after the ACK for the last one there. That keeps the delay low on slow links like Wi-Fi. Treat an area as free again after 2 s without an ACK, because one can get lost.
+- Every `FRAME` and `STREAM` gets exactly one `SHOWN`. When nothing reached the glass, the time is 0 and an `ERROR` comes first.
+- `CREDIT` comes per display after `HELLO`, `DECK_ADDED` and `ROLE` 1, and again when the free cache moved by 512 KiB. `bytes` is the free space in the cache. Keep your `PUT`s within it. `frames` is how many `FRAME` and `STREAM` this deck takes before their `SHOWN`. More gets `ERROR` `busy`.
+- A newer picture for the same target replaces a waiting one. That `SHOWN` then has 0 and no `ERROR`.
+- While the connector's menu covers the decks, `SHOWN` comes at once with 0. The pictures show when the menu closes.
 
-`seq` is yours and comes back in the ACK. A newer image that covers a waiting one replaces it, and the older one gets `SUPERSEDED`.
+## Video
 
-<Next links={[['API', '/docs/api/']]} />
+`STREAM` sends one picture without the cache. Send the whole display (`full`) on the Plus and the Plus XL, and single keys on the other decks. Send a key only when it changed. Drop old frames yourself and stay within `CREDIT`.
+
+## Fallback
+
+`FALLBACK` names the pictures for a deck when the active host's connection drops. Put them in slots early. The connector shows them itself until a host draws again. Without `FALLBACK` the deck shows its home screen.
+
+## Input
+
+| Kind | Name | Fields |
+|---|---|---|
+| 0 | Key down | `index` |
+| 1 | Key up | `index` |
+| 2 | Encoder turn | `index`, `value` in ticks, positive is clockwise |
+| 3 | Encoder down | `index` |
+| 4 | Encoder up | `index` |
+| 5 | Touch tap | `x`, `y` |
+| 6 | Touch long | `x`, `y` |
+| 7 | Touch swipe | from `x`, `y` to `x2`, `y2` |
+
+- `usb_time_us` is when the USB report arrived, in µs on the connector's own clock. It is the same clock for every deck and only goes forward. `TIME` does not change it.
+- `seq` counts up per connection. A gap means lost input.
+- Drop `INPUT` whose `usb_time_us` is more than 1 s older than the newest you have seen, and never queue actions. A late lock is worse than a lost press.
+
+## Errors
+
+| `code` | Meaning |
+|---|---|
+| `unpaired` | Send nothing but `PAIRED` until the pairing is done |
+| `pair_code` | Not the code the decks show. The connection closes |
+| `pair_failed` | The connector could not save the pairing. The connection closes |
+| `standby` | This host is not active |
+| `no_deck` | No deck with this number |
+| `bad_target` | No target with this number |
+| `empty_slot` | Nothing in this slot |
+| `bad_size` | The slot's `w` and `h` differ from the target |
+| `bad_format` | The display does not take this format |
+| `bad_slot` | Slot 1024 or higher |
+| `cache_full` | The `PUT` does not fit the cache |
+| `busy` | More than `CREDIT` allows, or the connector is out of memory |
+| `too_big` | Larger than the display's `max_bytes` |
+| `not_drawing` | The connector's own screen took the deck meanwhile |
+| `bad_message` | Wrong length, or more than 64 pairs |
+| `unknown_type` | Unknown message type |
+
+<Next links={[['Sources', '/docs/hosts/'], ['API', '/docs/api/']]} />

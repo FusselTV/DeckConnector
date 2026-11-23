@@ -8,7 +8,7 @@ import time
 import urllib.request
 
 import pytest
-from conftest import HOST, PASSWORD, api, events
+from conftest import HOST, PASSWORD, api, events, newest
 from websockets.sync.client import connect
 
 
@@ -57,7 +57,7 @@ def test_the_timeline_starts_with_the_boot():
 
 async def test_a_server_that_connects_and_goes_is_on_the_timeline(servers):
     first, _ = servers
-    bridge = list(first.bridges.values())[-1] if first.bridges else await first.wait_bridge(60)
+    bridge = await newest(first)
     since = json.loads(api("GET", "/api/status")[1])["uptime_s"]
     await bridge.ws.close()  # the bridge connects again by itself
     for _ in range(60):

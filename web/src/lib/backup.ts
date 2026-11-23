@@ -3,7 +3,7 @@ import type { Key } from '../i18n/types'
 import { ipErrors, NAME_RE } from './validate'
 
 // GET /api/config leaves these out, so a full backup's values cannot be compared and always go back.
-const SECRETS = ['admin_pass', 'wifi_pass', 'wifi2_pass', 'token'] as const
+const SECRETS = ['admin_pass', 'wifi_pass', 'wifi2_pass'] as const
 const isSecret = (k: string) => (SECRETS as readonly string[]).includes(k)
 
 type Flat = Record<string, unknown>
@@ -14,7 +14,7 @@ const flat = (o: object, p = ''): Flat =>
     ),
   )
 
-// Keys a backup may carry. Read-only fields (wifi_pass_set, token_set) never go back to the device, nor star_fw and
+// Keys a backup may carry. Read-only fields (wifi_pass_set) never go back to the device, nor star_fw and
 // star_until: they move on by themselves, and an old snooze would come back.
 export const WRITABLE = new Set<keyof ConfigPatch>([
   'name',
@@ -88,7 +88,7 @@ export function planRestore(cfg: Config, file: unknown): RestorePlan {
   if (patch.volume !== undefined && !(patch.volume >= 0 && patch.volume <= 100))
     errors.push({ key: 'volume', err: 'fw.r_bri' })
   for (const k of SECRETS) if (k in patch && typeof patch[k] !== 'string') errors.push({ key: k, err: 'fw.r_text' })
-  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, wifi2_pass: cfg.wifi2_pass_set, token: cfg.token_set }
+  const isSet = { admin_pass: true, wifi_pass: cfg.wifi_pass_set, wifi2_pass: cfg.wifi2_pass_set }
   const fc = flat(cfg)
   const fo = flat(patch)
   const rows = Object.keys(fo)

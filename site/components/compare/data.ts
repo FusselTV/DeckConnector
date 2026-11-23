@@ -42,7 +42,7 @@ const en = {
     { k: 'Your own software', a: ['y', 'Yes, open protocol and API'], b: ['n', 'No'], win: 'a' },
     {
       k: 'Several computers at once',
-      a: ['y', '4 dock hosts and 4 servers connected at once'],
+      a: ['y', '4 dock hosts and 2 servers connected at once'],
       b: ['p', 'Not documented'],
       win: 'a',
       top: true,
@@ -172,7 +172,7 @@ const de: typeof en = {
     { k: 'Eigene Software', a: ['y', 'Ja, offenes Protokoll und API'], b: ['n', 'Nein'], win: 'a' },
     {
       k: 'Mehrere Rechner gleichzeitig',
-      a: ['y', '4 Dock-Hosts und 4 Server gleichzeitig verbunden'],
+      a: ['y', '4 Dock-Hosts und 2 Server gleichzeitig verbunden'],
       b: ['p', 'Nicht dokumentiert'],
       win: 'a',
       top: true,

@@ -5,11 +5,8 @@ import json
 import random
 import time
 
-from conftest import api, jpeg
+from conftest import api, paint
 
-from dbtools.protocol import AckResult
-
-KEY0 = (13, 12, 120, 120)
 PROXY_PORT = 8775
 
 
@@ -57,22 +54,22 @@ async def test_a_bad_network_to_a_server(servers, bridges):
     via_proxy = first.url.replace(f":{first.port}/", f":{PROXY_PORT}/")
     while not first.connected.empty():
         first.connected.get_nowait()
-    await put_servers([via_proxy, second.url])
+    await put_servers([via_proxy, second.url])  # a new URL: the bridge pairs again, through the proxy
     try:
         bridge = await first.wait_bridge(20)
+        await bridge.role(True)
 
         # jitter of up to 150 ms on every chunk: every image still arrives, the link stays
         proxy.jitter = 0.15
         for i in range(20):
-            ack = await bridge.send_image(KEY0, jpeg((i * 12, 80, 200 - i * 9), (120, 120)), timeout=10)
-            assert ack.result in (AckResult.SHOWN, AckResult.SUPERSEDED)
+            assert (await paint(bridge, (i * 12, 80, 200 - i * 9), "key")).us > 0, bridge.errors
         proxy.jitter = 0.0
 
         # a pause of 3 s, shorter than the bridge's silence limit: the link survives it
         proxy.paused = True
         await asyncio.sleep(3)
         proxy.paused = False
-        assert (await bridge.send_image(KEY0, jpeg((0, 200, 0), (120, 120)))).result == AckResult.SHOWN
+        assert (await paint(bridge, (0, 200, 0), "key")).us > 0
         assert first.connected.empty(), "no new connection after a short pause"
 
         # the path dies without a close: the bridge notices by itself and connects again
@@ -84,7 +81,8 @@ async def test_a_bad_network_to_a_server(servers, bridges):
         took = time.monotonic() - t0
         print(f"connected again {took:.1f} s after the path died")
         assert back is not bridge and took < 15
-        assert (await back.send_image(KEY0, jpeg((200, 0, 0), (120, 120)))).result == AckResult.SHOWN
+        await back.role(True)  # a new connection starts on standby
+        assert (await paint(back, (200, 0, 0), "key")).us > 0
     finally:
         await put_servers([first.url, second.url])
         proxy.server.close()

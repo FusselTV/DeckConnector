@@ -40,7 +40,7 @@ from dbtools.benchlock import bench_lock
 from dbtools.load import password
 from dbtools.safety import PRODUCTION, host_addr, real_input_target, require_input_gate
 from dbtools.satfake import FakeSatellite
-from dbtools.server import Server, local_ip
+from dbtools.server import Server, local_ip, with_url, without_url
 from dbtools.site import BENCH_DIR, CAMERA, CAMERA_REGIONS, HOST, SERIAL, UNIFI, need
 
 COMPANION = "http://127.0.0.1:8000"
@@ -511,41 +511,48 @@ def jpeg(c: int, size=(800, 480)) -> bytes:
 
 @contextlib.contextmanager
 def server_source(r: Run):
-    """The bridge draws for a dbtools.server on this machine (controller server), with acks after USB."""
+    """The bridge draws for a dbtools.server on this machine (controller server), with SHOWN after USB."""
     r.need_bridge("the server path")
     loop = Loop()
     srv = loop.run(Server(8765, "deckmeter", ping=True).start())
     cfg = json.loads(r.bridge.call("GET", "/api/config")[1])
+    servers = with_url(cfg["servers"], srv.url)
     try:
-        if srv.url not in cfg["servers"]:
-            r.bridge.put({"servers": [srv.url, "", "", ""]})
-        r.bridge.put({"controller": "server", "host": ""})
+        r.bridge.put({"servers": without_url(cfg["servers"], srv.url)})  # drops a token this server does not know
+        r.bridge.put({"servers": servers, "controller": "server"})
         bridge = loop.run(srv.wait_bridge(30))
-        end = time.time() + 15
-        while not bridge.active and time.time() < end:
-            time.sleep(0.1)
+        loop.run(bridge.role(True))
         yield loop, bridge
     finally:
         with contextlib.ExitStack() as undo:  # each step also when the one before failed, newest first
             undo.callback(lambda: loop.run(srv.stop()))
             undo.callback(r.restore)
-            if srv.url not in cfg["servers"]:
-                r.bridge.put({"servers": cfg["servers"]})
+            r.bridge.put({"servers": without_url(servers, srv.url)})
+
+
+async def post(bridge, kind: str, n: int, image: bytes):
+    """PUT and FRAME without waiting: the future resolves with its SHOWN."""
+    t = bridge.target(0, kind, n)
+    await bridge.put(t["id"], image, t["w"], t["h"])
+    return await bridge.frame(0, [(t["id"], t["id"])])
+
+
+async def show(bridge, kind: str, n: int, image: bytes):
+    return await asyncio.wait_for(await post(bridge, kind, n, image), 5)
 
 
 def m_camdelay(r: Run) -> dict:
-    """The camera's own delay: a picture on key 8 whose ack says it left over USB, until the camera shows it. A key,
-    not the full screen: the deck shows a small picture sooner, as Companion's updates are."""
-    rect = (670, 172, 120, 120)
+    """The camera's own delay: a picture on key 8 whose SHOWN says it left over USB, until the camera shows it. A
+    key, not the full screen: the deck shows a small picture sooner, as Companion's updates are."""
     pics = {c: jpeg(c, (120, 120)) for c in (0, 1, 2)}
     with server_source(r) as (loop, bridge):
-        loop.run(bridge.send_image((0, 0, 800, 480), jpeg(0)))
+        loop.run(show(bridge, "full", 0, jpeg(0)))
         time.sleep(1)
-        cents = learn_classes(r, lambda s: loop.run(bridge.send_image(rect, pics[s["c"]])), ["k7"])
+        cents = learn_classes(r, lambda s: loop.run(show(bridge, "key", 7, pics[s["c"]])), ["k7"])
         delays = []
         for i in range(r.a.runs):
             c = (i + 1) % 3
-            loop.run(bridge.send_image(rect, pics[c]))
+            loop.run(show(bridge, "key", 7, pics[c]))
             acked = time.time()
             seen = r.cam.first(lambda f, c=c: nearest(f["k7"], cents) == c, acked, 5)
             delays.append(ms(seen, acked))
@@ -554,7 +561,7 @@ def m_camdelay(r: Run) -> dict:
         "delay_ms": stats(delays),
         "samples_ms": delays,
         "centroids": {c: [round(x) for x in v] for c, v in cents.items()},
-        "how": "server protocol JPEG on key 8, ack after the USB transfer, until the camera shows it",
+        "how": "server protocol JPEG on key 8, SHOWN after the USB transfer, until the camera shows it",
     }
 
 
@@ -624,21 +631,21 @@ def m_image(r: Run) -> dict:
     if a.source == "server":
         with server_source(r) as (loop, bridge):
             if a.kind == "key":
-                rect, pics = (670, 172, 120, 120), {c: jpeg(c, (120, 120)) for c in (0, 1, 2)}
+                target, pics = ("key", 7), {c: jpeg(c, (120, 120)) for c in (0, 1, 2)}
             else:
-                rect, pics = (0, 0, 800, 480), {c: jpeg(c) for c in (0, 1, 2)}
-            cents = learn_classes(r, lambda s: loop.run(bridge.send_image(rect, pics[s["c"]])), regions)
+                target, pics = ("full", 0), {c: jpeg(c) for c in (0, 1, 2)}
+            cents = learn_classes(r, lambda s: loop.run(show(bridge, *target, pics[s["c"]])), regions)
             acks: dict[int, float] = {}
             futs = []
 
             def draw(s):
-                fut = loop.run(bridge.post_image(rect, pics[s["c"]]))
+                fut = loop.run(post(bridge, *target, pics[s["c"]]))
                 fut.add_done_callback(lambda _f, s=s: acks.__setitem__(id(s), (time.time() - s["t"]) * 1000))
                 futs.append(fut)
 
             sends = burst(rates, a.secs, draw)
             res = analyse(r, sends, regions, cents, acks)
-            return {"source": "server protocol (acks after USB)", "kind": a.kind, "rates": res}
+            return {"source": "server protocol (SHOWN after USB)", "kind": a.kind, "rates": res}
     raise SystemExit(f"unknown source {a.source}")
 
 

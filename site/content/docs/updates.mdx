@@ -16,7 +16,6 @@ The connector takes signed `.dbfw` files. Each file holds one part, and the conn
 
 - In the web UI under **Firmware** ([demo](/demo/#firmware)), pick a file or give an `http://` or `https://` URL.
 - After login the web UI offers a newer release. **Look for updates at login** under **Firmware** turns that off.
-- From your [own server](/docs/own-server), send `{"t": "ota", "target": "p4", "url": "http://..."}`.
 - Over the [API](/docs/api#firmware), `POST /api/ota` with the file, or `POST /api/ota/url`.
 
 ## Checks and rollback

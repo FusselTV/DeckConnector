@@ -208,7 +208,6 @@ export interface Config {
   update_auto?: boolean
   dock_paired_only: boolean
   setup_done: boolean
-  token_set: boolean
   /** Missing on older firmware. */
   matter?: boolean
 }
@@ -218,7 +217,6 @@ interface ConfigSecrets {
   wifi_pass?: string
   wifi2_pass?: string
   admin_pass?: string
-  token?: string
 }
 export type ConfigPatch = Partial<Omit<Config, 'lan' | 'wlan'>> &
   ConfigSecrets & {

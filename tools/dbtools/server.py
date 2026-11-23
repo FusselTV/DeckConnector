@@ -1,18 +1,21 @@
-"""A small deckbridge server: accepts bridges, sends images and collects input."""
+"""A small surface host (protocol v2): pairs bridges, fills their cache, draws and collects input."""
 
 import asyncio
 import contextlib
-import json
+import itertools
+import os
+import secrets
 import socket
 import ssl
+import struct
+import sys
 import time
+from collections.abc import Callable
 
 import websockets
 from websockets.asyncio.server import Server as WsServer
 from websockets.asyncio.server import ServerConnection, serve
 from websockets.typing import Subprotocol
-from zeroconf import IPVersion
-from zeroconf.asyncio import AsyncServiceInfo, AsyncZeroconf
 
 from . import protocol as p
 
@@ -27,96 +30,123 @@ def local_ip(towards: str = "192.0.2.1") -> str:
         return s.getsockname()[0]
 
 
+def without_url(servers: list[str], url: str) -> list[str]:
+    """The bridge's `servers` without `url`. Every other place keeps its URL and with it its pairing."""
+    return ["" if u == url else u for u in servers]
+
+
+def with_url(servers: list[str], url: str) -> list[str]:
+    """`url` in a free one of the two places the bridge uses, after `without_url` dropped an old pairing of it."""
+    out = without_url(servers, url)
+    if "" not in out[:2]:
+        raise RuntimeError(f"both server places are taken ({out[:2]}): free one, their pairings stay untouched")
+    out[out.index("")] = url
+    return out
+
+
+def _ask_code() -> str:
+    code = os.environ.get("DECKBRIDGE_PAIR_CODE")
+    if code or not sys.stdin.isatty():
+        return code or ""
+    return input("Pairing code on the deck: ").strip()
+
+
 class Bridge:
     """One connected bridge."""
 
     def __init__(self, ws: ServerConnection):
         self.ws = ws
         self.hello: dict = {}
-        self.device: dict = {}
-        self.status: dict = {}
-        self.ota: list[dict] = []
-        self.active = False
+        self.decks: dict[int, dict] = {}
+        self.credits: dict[tuple[int, int], p.Credit] = {}
+        self.states: dict[int, dict] = {}
+        self.errors: list[dict] = []
         self.inputs: asyncio.Queue[p.Input] = asyncio.Queue()
-        self.role_changed = asyncio.Event()
-        self._seq = 0
-        self._waiting: dict[int, asyncio.Future] = {}
-        self._time: asyncio.Future | None = None
+        self.removed: asyncio.Queue[int] = asyncio.Queue()
         self.closed = asyncio.Event()
+        self._ids = itertools.count(1)
+        self._waiting: dict[tuple[bool, int], asyncio.Future[p.Shown]] = {}
 
     @property
     def id(self) -> str:
-        return self.hello.get("id", "?")
+        return self.hello.get("board", {}).get("id", "?")
 
-    def next_seq(self) -> int:
-        self._seq = (self._seq + 1) & 0xFFFFFFFF
-        return self._seq
+    @property
+    def pairing(self) -> bool:
+        """Not paired yet: the deck shows a code."""
+        return bool(self.hello.get("pairing"))
 
-    async def post_image(self, rect: tuple[int, int, int, int], jpeg: bytes, display: int = 0) -> asyncio.Future:
-        """Send without waiting. The future resolves with the Ack."""
-        seq = self.next_seq()
+    def target(self, deck: int, kind: str = "key", n: int = 0) -> dict:
+        """The n-th target of that kind on the deck."""
+        return [t for t in self.decks[deck]["targets"] if t["kind"] == kind][n]
+
+    async def send(self, data: bytes) -> None:
+        await self.ws.send(data)
+
+    async def role(self, active: bool = True) -> None:
+        await self.send(p.role(active))
+
+    async def put(self, slot: int, image: bytes, w: int, h: int, fmt: int = p.JPEG) -> None:
+        await self.send(p.put(slot, image, w, h, fmt))
+
+    def _expect(self, stream: bool, ident: int) -> asyncio.Future[p.Shown]:
         fut = asyncio.get_running_loop().create_future()
-        self._waiting[seq] = fut
-        await self.ws.send(p.image(display, *rect, seq, jpeg))
+        self._waiting[stream, ident] = fut
         return fut
 
-    async def send_image(
-        self, rect: tuple[int, int, int, int], jpeg: bytes, display: int = 0, timeout: float = 5
-    ) -> p.Ack:
-        fut = await self.post_image(rect, jpeg, display)
-        return await asyncio.wait_for(fut, timeout)
+    async def frame(self, deck: int, shots: list[tuple[int, int]]) -> asyncio.Future[p.Shown]:
+        """Send without waiting; the future resolves with its SHOWN."""
+        ident = next(self._ids)
+        fut = self._expect(False, ident)
+        await self.send(p.frame(deck, ident, shots))
+        return fut
 
-    async def clock_offset(self, rounds: int = 20) -> int:
-        """Bridge clock minus server clock in microseconds, from the round trip with the smallest delay."""
-        best: tuple[int, int] | None = None
-        for _ in range(rounds):
-            self._time = asyncio.get_running_loop().create_future()
-            sent = now_us()
-            await self.ws.send(p.time_request(sent))
-            _, bridge = await asyncio.wait_for(self._time, 2)
-            back = now_us()
-            if best is None or back - sent < best[0]:
-                best = (back - sent, bridge - (sent + back) // 2)
-            await asyncio.sleep(0.005)
-        assert best is not None
-        return best[1]
+    async def show(self, deck: int, shots: list[tuple[int, int]], timeout: float = 5) -> p.Shown:
+        return await asyncio.wait_for(await self.frame(deck, shots), timeout)
 
-    async def send_json(self, msg: dict) -> None:
-        await self.ws.send(json.dumps(msg))
+    async def stream(self, deck: int, target: int, image: bytes, fmt: int = p.JPEG) -> asyncio.Future[p.Shown]:
+        seq = next(self._ids)
+        fut = self._expect(True, seq)
+        await self.send(p.stream(deck, target, seq, image, fmt))
+        return fut
 
-    def _handle_text(self, msg: dict) -> None:
-        kind = msg.get("t")
-        if kind == "hello":
-            self.hello = msg
-            self.active = msg.get("active", False)
-        elif kind == "device":
-            self.device = msg
-        elif kind == "role":
-            self.active = msg["active"]
-            self.role_changed.set()
-        elif kind == "status":
-            self.status = msg
-        elif kind == "ota":
-            self.ota.append(msg)
+    async def draw(self, deck: int, target: dict, image: bytes, slot: int, fmt: int = p.JPEG) -> p.Shown:
+        """One picture on one target: PUT, then FRAME."""
+        await self.put(slot, image, target["w"], target["h"], fmt)
+        return await self.show(deck, [(target["id"], slot)])
 
-    def _handle_binary(self, data: bytes) -> None:
-        msg = p.parse(data)
-        if isinstance(msg, p.Ack):
-            fut = self._waiting.pop(msg.seq, None)
+    def _handle(self, msg: p.Input | p.Shown | p.Credit | p.Message | None) -> None:
+        if msg is None:
+            return
+        if isinstance(msg, p.Input):
+            self.inputs.put_nowait(msg)
+        elif isinstance(msg, p.Shown):
+            fut = self._waiting.pop((msg.stream, msg.id), None)
             if fut and not fut.done():
                 fut.set_result(msg)
-        elif isinstance(msg, p.Input):
-            self.inputs.put_nowait(msg)
-        elif self._time and not self._time.done():
-            self._time.set_result(msg)
+        elif isinstance(msg, p.Credit):
+            self.credits[msg.deck, msg.display] = msg
+        elif msg.type == p.HELLO:
+            self.hello = msg.body
+            self.decks = {d["deck"]: d for d in msg.body["decks"]}
+        elif msg.type == p.DECK_ADDED:
+            self.decks[msg.deck] = msg.body
+        elif msg.type == p.DECK_REMOVED:
+            self.decks.pop(msg.deck, None)
+            self.removed.put_nowait(msg.deck)
+        elif msg.type == p.STATE:
+            self.states[msg.deck] = msg.body
+        elif msg.type == p.ERROR:
+            self.errors.append(msg.body | {"deck": msg.deck})
 
     async def run(self) -> None:
         try:
             async for data in self.ws:
-                if isinstance(data, str):
-                    self._handle_text(json.loads(data))
-                else:
-                    self._handle_binary(data)
+                if isinstance(data, bytes):
+                    try:
+                        self._handle(p.parse(data))
+                    except (ValueError, KeyError, struct.error) as e:  # a broken message, the next may be fine
+                        self.errors.append({"code": "host_parse", "message": f"{e}: {data[:32].hex()}", "deck": -1})
         except websockets.ConnectionClosed:
             pass
         finally:
@@ -167,21 +197,26 @@ class Server:
         self,
         port: int = 8765,
         name: str = "dbtools",
-        announce: bool = False,
-        token: str = "",
         ping: bool = True,
         tls: bool = False,
+        pair_code: Callable[[], str] | None = None,
+        tokens: set[str] | None = None,
+        auto_pair: bool = True,
     ):
-        """`tls`: wss:// with a certificate made for this run; `fingerprint` is its SHA-256 for the bridge."""
+        """`tls`: wss:// with a certificate made for this run, its SHA-256 in `fingerprint`. `pair_code` reads the
+        code on the deck, as an admin would; by default from DECKBRIDGE_PAIR_CODE or asked on the terminal. None
+        of it when `auto_pair` is false. `tokens`: the ones it handed out, to share with another
+        run on the same port."""
         self.port = port
         self.name = name
-        self.announce = announce
-        self.token = token
         self.ping = ping
+        self.auto_pair = auto_pair
+        self.pair_code = pair_code or _ask_code
+        self.tokens: set[str] = set() if tokens is None else tokens
         self.bridges: dict[str, Bridge] = {}
         self.connected: asyncio.Queue[Bridge] = asyncio.Queue()
+        self.refused = 0
         self._server: WsServer | None = None
-        self._zc: AsyncZeroconf | None = None
         self.ssl: ssl.SSLContext | None = None
         self.fingerprint = ""
         if tls:
@@ -189,23 +224,34 @@ class Server:
 
     @property
     def url(self) -> str:
-        return f"{'wss' if self.ssl else 'ws'}://{local_ip()}:{self.port}/deckbridge"
+        return f"{'wss' if self.ssl else 'ws'}://{local_ip()}:{self.port}/surface"
+
+    async def pair(self, bridge: Bridge, code: str) -> str:
+        """Confirm the bridge's code: it gets a token, keeps it and connects again with it."""
+        token = secrets.token_urlsafe(24)
+        self.tokens.add(token)
+        await bridge.send(p.paired(token, code))
+        return token
 
     async def _handler(self, ws: ServerConnection) -> None:
-        if self.token and ws.request and ws.request.headers.get("Authorization") != f"Bearer {self.token}":
-            await ws.close(4001, "bad token")
+        auth = ws.request.headers.get("Authorization", "") if ws.request else ""
+        if auth and auth.removeprefix("Bearer ") not in self.tokens:
+            self.refused += 1
+            await ws.close(4001, "unknown token")
             return
         bridge = Bridge(ws)
         task = asyncio.create_task(bridge.run())
-        # hello always comes first; a bridge is filed under its id, so one without a hello is not kept
-        for _ in range(1000):
+        for _ in range(500):  # HELLO comes first; a bridge is filed under its board id
             if bridge.hello or bridge.closed.is_set():
                 break
             await asyncio.sleep(0.01)
-        if not bridge.hello:
-            await ws.close(4002, "no hello")
+        cache = bridge.hello.get("cache", {})
+        if bridge.hello.get("proto") != 2 or not cache.get("slots") or cache.get("bytes", 0) < 64 * 1024:
+            await ws.close(4002, "no usable hello")
             await task
             return
+        if bridge.pairing and self.auto_pair:
+            await self.pair(bridge, await asyncio.to_thread(self.pair_code))
         self.bridges[bridge.id] = bridge
         await self.connected.put(bridge)
         await task
@@ -217,32 +263,24 @@ class Server:
             self._handler,
             "0.0.0.0",
             self.port,
-            subprotocols=[Subprotocol("deckconnector.v1")],
+            subprotocols=[Subprotocol("deckassistant.v2")],
             max_size=2**22,
-            ping_interval=5 if self.ping else None,
-            ping_timeout=15,
+            ping_interval=2 if self.ping else None,
+            ping_timeout=6,
             ssl=self.ssl,
         )
-        if self.announce:
-            self._zc = AsyncZeroconf(ip_version=IPVersion.V4Only)
-            info = AsyncServiceInfo(
-                "_deckconnector._tcp.local.",
-                f"{self.name}._deckconnector._tcp.local.",
-                addresses=[socket.inet_aton(local_ip())],
-                port=self.port,
-                properties={"path": "/deckbridge"},
-            )
-            await self._zc.async_register_service(info)
         return self
 
     async def stop(self) -> None:
-        if self._zc:
-            await self._zc.async_unregister_all_services()
-            await self._zc.async_close()
         if self._server:
             self._server.close()
             with contextlib.suppress(Exception):
                 await asyncio.wait_for(self._server.wait_closed(), 3)
 
-    async def wait_bridge(self, timeout: float = 30) -> Bridge:
-        return await asyncio.wait_for(self.connected.get(), timeout)
+    async def wait_bridge(self, timeout: float = 30, paired: bool = True) -> Bridge:
+        """The next bridge to connect; with `paired`, the next one that came with a token."""
+        end = asyncio.get_running_loop().time() + timeout
+        while True:
+            bridge = await asyncio.wait_for(self.connected.get(), end - asyncio.get_running_loop().time())
+            if not paired or not bridge.pairing:
+                return bridge

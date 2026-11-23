@@ -74,3 +74,12 @@ def pictures(sim: SimDeck, n: int) -> dict[Path, tuple[int, int]]:
 
 def drawn_since(sim: SimDeck, n: int, before: dict[Path, tuple[int, int]]) -> list[Path]:
     return [f for f, v in pictures(sim, n).items() if before.get(f) != v]
+
+
+def chord(sim, down: bool) -> None:
+    c = sim.screen(0)[1]["menu_chord"]
+    for i in (c["first"], c["last"]):
+        if c["on"] == "encoders":
+            sim.act(f"0 enc {i} {int(down)}")
+        else:
+            sim.key(0, i, down)

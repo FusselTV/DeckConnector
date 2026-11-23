@@ -35,7 +35,7 @@ typedef struct {
     char wifi_ssid[33];
     char wifi_pass[65];
     char servers_first[2][96]; /* use db_config_server(); the blob layout of older firmware */
-    char token[48];            /* sent to servers as Bearer token, optional */
+    char unused_token[48];     /* keeps the layout of blobs saved by older firmware */
     char admin_pass[24];       /* web UI password, generated on first start */
     bool setup_done;           /* the welcome steps on the deck or in the web UI were finished */
     char servers_more[DB_MAX_SERVERS - 2][96];
@@ -75,9 +75,13 @@ typedef struct {
     char star_fw[32];    /* the firmware the note was last closed on; the page shows it after a newer one */
     uint32_t star_until; /* closed until this Unix time, by the browser's clock */
     bool update_auto;    /* the web UI asks for a newer release at login; the board asks GitHub once a day */
+    char server_tokens[DB_MAX_SERVERS][48]; /* from pairing, sent as Bearer token; a new URL drops it */
 } db_config_t;
 
-/* Server URL `i` (ws://host:port/deckbridge), empty when unused. With none set, servers are found by mDNS. */
+/* Surface hosts the bridge connects to at once: the protocol's limit. */
+#define DB_SURFACE_LINKS 2
+
+/* Server URL `i` (wss://host:port/surface), empty when unused; an empty one takes a host found by mDNS. */
 char *db_config_server(db_config_t *cfg, int i);
 const char *db_config_server_of(const db_config_t *cfg, int i);
 /* A host name or address without spaces, quotes or slashes; empty is fine. */

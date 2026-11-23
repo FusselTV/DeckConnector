@@ -252,13 +252,17 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
         reject = DB_ACK_REJECTED_RECT;
     } else if (k->dev.info.displays[display].max_bytes && len > k->dev.info.displays[display].max_bytes) {
         reject = DB_ACK_TOO_BIG;
-    } else if (source == DB_SOURCE_SAT && source != k->writer) {
+    } else if ((source == DB_SOURCE_SAT || (source >= DB_SOURCE_LINK0 && source < DB_SOURCE_DOCK0)) &&
+               source != k->writer) {
         /* under the lock: a writer change cannot slip in between and replay the picture without it */
         xSemaphoreTake(k->shot_lock, portMAX_DELAY);
         db_screen_put(&k->screens[source], display, rect, data, len);
         xSemaphoreGive(k->shot_lock);
         xSemaphoreGive(k->lock);
         heap_caps_free(r);
+        if (source != DB_SOURCE_SAT) {
+            ack(&tmp, DB_ACK_SHOWN, 0, 0); /* kept: the menu over it is the deck's own */
+        }
         return;
     } else if (source != k->writer) {
         reject = DB_ACK_REJECTED_ROLE;
@@ -1207,7 +1211,7 @@ esp_err_t db_deck_raw_set_feature(int deck, db_source_t source, const uint8_t *b
     return to_esp(err);
 }
 
-size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
+static size_t list_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max, bool copy)
 {
     deck_t *k = &decks[deck];
     xSemaphoreTake(k->shot_lock, portMAX_DELAY);
@@ -1216,10 +1220,23 @@ size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
     size_t n = 0;
     for (int i = 0; i < sc->count && n < max; i++, n++) {
         out[n] = sc->shots[i];
-        out[n].data = NULL;
+        out[n].data = copy ? heap_caps_malloc(out[n].len, MALLOC_CAP_SPIRAM) : NULL;
+        if (out[n].data) {
+            memcpy(out[n].data, sc->shots[i].data, out[n].len);
+        }
     }
     xSemaphoreGive(k->shot_lock);
     return n;
+}
+
+size_t db_deck_shots(int deck, db_source_t *writer, db_shot_t *out, size_t max)
+{
+    return list_shots(deck, writer, out, max, false);
+}
+
+size_t db_deck_shots_copy(int deck, db_source_t *writer, db_shot_t *out, size_t max)
+{
+    return list_shots(deck, writer, out, max, true);
 }
 
 static esp_err_t copy_shot(deck_t *k, uint32_t id, uint8_t **data, size_t *len, db_rect_t *rect)

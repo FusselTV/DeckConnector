@@ -19,8 +19,9 @@
 #include "freertos/semphr.h"
 #include "nvs.h"
 
-/* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star, 8: update_auto */
-#define CONFIG_VERSION 8
+/* 2: setup_done, 3: four servers and host, 4: volume, 5: screen_dim, 6: speaker, 7: star, 8: update_auto,
+ * 9: server_tokens */
+#define CONFIG_VERSION 9
 #define NVS_NS         "deckbridge"
 #define NVS_KEY        "config"
 
@@ -176,6 +177,9 @@ esp_err_t db_config_load(void)
             }
             if (current.version < 8) {
                 current.update_auto = true;
+            }
+            if (current.version < 9) {
+                memset(current.server_tokens, 0, sizeof(current.server_tokens));
             }
             current.version = CONFIG_VERSION;
             if (current.controller >= DB_CTRL_COUNT) { /* written by newer firmware before a rollback */
@@ -396,12 +400,10 @@ size_t db_config_to_json(const db_config_t *cfg, bool with_secrets, char *buf, s
     db_json_str(&j, "star_fw", cfg->star_fw);
     db_json_int(&j, "star_until", (int)cfg->star_until);
     db_json_bool(&j, "update_auto", cfg->update_auto);
-    db_json_bool(&j, "token_set", cfg->token[0] != '\0');
     if (with_secrets) { /* exactly the keys PUT /api/config takes back */
         db_json_str(&j, "admin_pass", cfg->admin_pass);
         db_json_str(&j, "wifi_pass", cfg->wifi_pass);
         db_json_str(&j, "wifi2_pass", cfg->wifi2_pass);
-        db_json_str(&j, "token", cfg->token);
     }
     db_json_obj_close(&j);
     return db_json_end(&j);
@@ -527,7 +529,9 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
         snprintf(err, err_cap, "servers: list of at most %d URLs expected", DB_MAX_SERVERS);
         return false;
     }
+    char was[DB_MAX_SERVERS][sizeof(cfg->servers_first[0])];
     for (int k = 0; k < DB_MAX_SERVERS; k++) {
+        strcpy(was[k], db_config_server(cfg, k));
         db_config_server(cfg, k)[0] = '\0';
     }
     int i = 0;
@@ -541,7 +545,17 @@ static bool take_servers(const cJSON *root, db_config_t *cfg, char *err, size_t 
             snprintf(err, err_cap, "servers: ws:// or wss:// URL expected");
             return false;
         }
+        if (i >= DB_SURFACE_LINKS && v->valuestring[0]) {
+            snprintf(err, err_cap, "servers: at most %d URLs", DB_SURFACE_LINKS);
+            return false;
+        }
         strcpy(db_config_server(cfg, i++), v->valuestring);
+    }
+    for (int k = 0; k < DB_MAX_SERVERS; k++) {
+        if (strcmp(was[k], db_config_server(cfg, k)) != 0) {
+            cfg->server_tokens[k][0] = '\0'; /* paired with the old host */
+            cfg->server_pins[k][0] = '\0';
+        }
     }
     return true;
 }
@@ -580,6 +594,12 @@ static bool take_pins(const cJSON *root, db_config_t *cfg, char *err, size_t err
         if (v && !take_pin(v, cfg->server_pins[i])) {
             snprintf(err, err_cap, "server_pins: SHA-256 fingerprint expected");
             return false;
+        }
+    }
+    for (int k = 0; k < DB_MAX_SERVERS; k++) {
+        if (!db_config_server(cfg, k)[0]) { /* a pin kept here would be applied to the next host found */
+            cfg->server_pins[k][0] = '\0';
+            cfg->server_tokens[k][0] = '\0';
         }
     }
     if (sat && !take_pin(sat, cfg->satellite_pin)) {
@@ -726,7 +746,6 @@ esp_err_t db_config_from_json(db_config_t *cfg, const char *json, char *err, siz
               take_str(root, "wifi_pass", cfg->wifi_pass, sizeof(cfg->wifi_pass), err, err_cap) &&
               take_str(root, "wifi2_ssid", cfg->wifi2_ssid, sizeof(cfg->wifi2_ssid), err, err_cap) &&
               take_str(root, "wifi2_pass", cfg->wifi2_pass, sizeof(cfg->wifi2_pass), err, err_cap) &&
-              take_str(root, "token", cfg->token, sizeof(cfg->token), err, err_cap) &&
               take_str(root, "host", cfg->host, sizeof(cfg->host), err, err_cap) &&
               take_str(root, "satellite", cfg->satellite, sizeof(cfg->satellite), err, err_cap) &&
               take_str(root, "cors_origins", cfg->cors_origins, sizeof(cfg->cors_origins), err, err_cap) &&

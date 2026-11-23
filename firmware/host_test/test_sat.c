@@ -212,17 +212,17 @@ static void test_xl_side_buttons_have_no_picture(void)
 }
 
 /* Every Elgato layout and device description as before Companion's surface prefix moved into the driver:
- * FNV-1a of the manifest and the device JSON. */
+ * FNV-1a of the manifest and the HELLO deck entry. */
 static void test_elgato_decks_are_described_as_before(void)
 {
     static const struct {
         uint16_t pid;
         uint32_t fnv;
     } decks[] = {
-        {0x0063, 0x2081d3e7}, {0x0090, 0x7d78151a}, {0x00b3, 0x3f52d4e2}, {0x00b8, 0x82ae91e3},
-        {0x0084, 0xdae4efb7}, {0x00c6, 0xce4fa05b}, {0x0080, 0xc8eb4f9d}, {0x006d, 0xfb21902a},
-        {0x00a5, 0x131de650}, {0x006c, 0xe91fcb97}, {0x009a, 0x14eefb1b}, {0x008f, 0xe38a8370},
-        {0x00ba, 0x18ff6d22}, {0x00b9, 0x8dee7904}, {0x00e4, 0x88e3828c}, {0x0086, 0xd3619394},
+        {0x0063, 0x77588ba2}, {0x0090, 0x77588ba2}, {0x00b3, 0x77588ba2}, {0x00b8, 0x8d71c5d7},
+        {0x0084, 0x236e9bb1}, {0x00c6, 0x0f16191a}, {0x0080, 0x02d5c400}, {0x006d, 0x3299b532},
+        {0x00a5, 0x02d5c400}, {0x006c, 0xe40ff71a}, {0x009a, 0x540f17bf}, {0x008f, 0xe40ff71a},
+        {0x00ba, 0x031705e3}, {0x00b9, 0x18802030}, {0x00e4, 0x18802030}, {0x0086, 0xae283cbc},
     };
     for (size_t d = 0; d < sizeof(decks) / sizeof(decks[0]); d++) {
         db_device_info_t dev = open_deck(decks[d].pid);
@@ -232,10 +232,13 @@ static void test_elgato_decks_are_described_as_before(void)
         size_t n = db_sat_controls(&dev, c, DB_SAT_MAX_CONTROLS);
         static char buf[8192];
         size_t len = db_sat_manifest(c, n, buf, sizeof(buf));
-        db_proto_device_json(&dev, buf + len, sizeof(buf) - len);
+        db_cbor_t cb;
+        db_cbor_begin(&cb, (uint8_t *)buf + len, sizeof(buf) - len);
+        db_proto_deck(&cb, NULL, 0, &dev);
+        len += db_cbor_end(&cb);
         uint32_t h = 2166136261u;
-        for (const char *p = buf; *p; p++) {
-            h = (h ^ (uint8_t)*p) * 16777619u;
+        for (size_t i = 0; i < len; i++) {
+            h = (h ^ (uint8_t)buf[i]) * 16777619u;
         }
         TEST_ASSERT_EQUAL_HEX32(decks[d].fnv, h);
     }

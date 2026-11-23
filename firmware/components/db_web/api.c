@@ -117,6 +117,7 @@ static int config_edit(const char *body, char *reply, size_t cap)
     memcpy(live.host, old.host, sizeof(old.host));
     memcpy(live.satellite, old.satellite, sizeof(old.satellite));
     memcpy(live.server_pins, old.server_pins, sizeof(old.server_pins));
+    memcpy(live.server_tokens, old.server_tokens, sizeof(old.server_tokens));
     memcpy(live.satellite_pin, old.satellite_pin, sizeof(old.satellite_pin));
     live.dock_paired_only = old.dock_paired_only;
     live.qr_login_off = old.qr_login_off;
@@ -472,7 +473,7 @@ esp_err_t get_events(httpd_req_t *req)
                       events_json); /* under the handler lock: ev_query stays put */
 }
 
-/* GET /api/backup?secrets=1: the settings with the admin password, the WLAN passwords and the server token,
+/* GET /api/backup?secrets=1: the settings with the admin password and the WLAN passwords,
  * for a restore through PUT /api/config. Without it the same as GET /api/config. Out on purpose: API tokens
  * (only their hashes are kept), passkeys, paired hosts, an uploaded TLS pair, the device CA (a copy could
  * vouch for this board's names) and Matter's fabrics (the node identity: a copy on a second board would

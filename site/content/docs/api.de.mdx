@@ -91,7 +91,7 @@ Die `open`-Routen, die etwas tun, brauchen `X-DeckConnector: 1`.
 | `OPTIONS /api/...` | Der CORS-Preflight für die Origins in `cors_origins` | open |
 | `GET /api/ws` | Der Live-[WebSocket](#websocket) | control |
 | `GET /api/status` | Zustand des Connectors, siehe [Status](#status) | control |
-| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set`, `wifi2_pass_set` und `token_set` | full |
+| `GET /api/config` | Einstellungen, siehe [Einstellungen](#einstellungen). Geheimes nur als `wifi_pass_set` und `wifi2_pass_set` | full |
 | `PUT /api/config` | Einstellungen ändern. Schick nur die Schlüssel, die sich ändern. Die Antwort hat `restart` und `config` | full |
 | `POST /api/config` | **Setup** aus Companions Surfaces › Discover: `{"host": "...", "port": 16622}` als `application/json`. Während der Einrichtung verbindet sich der Connector sofort, danach fragt das Deck 60 s lang | open |
 | `GET /api/backup` | Die Einstellungen zum Wiederherstellen. `?secrets=1` fügt die Passwörter hinzu | admin |
@@ -196,10 +196,10 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
  "lan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wlan": {"dhcp": true, "ip": "", "mask": "", "gateway": "", "dns": ""},
  "wifi_ssid": "studio", "wifi_pass_set": true, "wifi_bssid": "", "wifi2_ssid": "", "wifi2_pass_set": false,
- "servers": ["ws://192.168.1.20:8765/deckconnector", "", "", ""],
+ "servers": ["wss://192.168.1.20:8765/surface", "", "", ""],
  "server_pins": ["", "", "", ""], "satellite": "192.168.1.10", "satellite_auto": true, "satellite_pin": "",
  "https_only": false, "cors_origins": "", "menu_chord": "auto", "menu_hold_ms": 2000, "lang": "de", "usb_speed": "auto",
- "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "token_set": false, "matter": false}
+ "max_decks": 2, "screen_off_s": 0, "screen_dim": 0, "star_off": false, "star_fw": "{{version}}", "star_until": 0, "update_auto": true, "dock_paired_only": false, "qr_login": true, "ntp_server": "", "trusted_proxy": "", "setup_done": true, "matter": false}
 ```
 
 | Schlüssel | Werte |
@@ -213,11 +213,10 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 | `wifi_ssid`, `wifi_pass` | `wifi_pass` hat 8 bis 63 Zeichen, 64 Hex-Ziffern oder ist leer für ein offenes Netz |
 | `wifi_bssid` | An einen Zugangspunkt binden, leer für jeden |
 | `wifi2_ssid`, `wifi2_pass` | Das Ersatz-WLAN, Werte wie bei `wifi_ssid` und `wifi_pass`. Leer schaltet es ab |
-| `servers` | Bis zu 4 `ws://`- oder `wss://`-URLs. Leer sucht Server per mDNS |
-| `server_pins` | SHA-256 je Server, an derselben Stelle wie in `servers` |
+| `servers` | Bis zu 2 `wss://`- oder `ws://`-URLs [eigener Server](/de/docs/own-server). Ein leerer Platz nimmt einen per mDNS gefundenen Server. Eine neue URL löscht die Kopplung dieses Servers |
+| `server_pins` | SHA-256 je Server, an derselben Stelle wie in `servers`. Die Kopplung setzt ihn |
 | `satellite` | Die Adresse von Companion als `host`, `host:port` oder `ws://`- bzw. `wss://`-URL. Leer schaltet es ab |
 | `satellite_pin` | SHA-256 für ein Companion hinter `wss://` |
-| `token` | Geht als `Authorization: Bearer` an die Server in `servers`, nie an einen per mDNS gefundenen. Bis zu 47 Zeichen, leer für keinen. `GET` zeigt nur `token_set` |
 | `satellite_auto` | Companion von selbst vom Dock auf Satellite umstellen |
 | `https_only` | Plain HTTP abschalten |
 | `cors_origins` | Origins mit Komma getrennt, die die API mit einem Schlüssel aufrufen dürfen |
@@ -244,7 +243,7 @@ Siehe [Matter](/de/docs/matter). Solange `matter.running` false ist, antworten `
 {"ok": true, "restart": true, "reach": ["http://192.168.1.50", "http://deckconnector-a1b2c3.local"]}
 ```
 
-Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter und Token. Ein `PUT` davon stellt die Einstellungen wieder her. `GET /api/backup?secrets=1` fügt `admin_pass`, `wifi_pass`, `wifi2_pass` und `token` hinzu. Keine Sicherung enthält API-Schlüssel, Passkeys, gekoppelte Dock-Rechner, die Dateien für [eigenes HTTPS](/de/docs/security#https) oder die mit Matter gekoppelten Apps. Lege sie neu an, kopple sie neu oder lade sie neu hoch.
+Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts. Die Antwort von `GET /api/config` ist eine Sicherung ohne Passwörter. Ein `PUT` davon stellt die Einstellungen wieder her. `GET /api/backup?secrets=1` fügt `admin_pass`, `wifi_pass` und `wifi2_pass` hinzu. Keine Sicherung enthält API-Schlüssel, Passkeys, gekoppelte Dock-Rechner und Server, die Dateien für [eigenes HTTPS](/de/docs/security#https) oder die mit Matter gekoppelten Apps. Lege sie neu an, kopple sie neu oder lade sie neu hoch.
 
 ## Status
 
@@ -320,7 +319,7 @@ Der Status hat außerdem `api`, `simulated_input`, `boot_ms`, `memory`, `https_f
 `{"pin": 3}` tippt eine Ziffer von Companions PIN auf einem gesperrten Deck, auch auf einem Deck, das kein Zahlenfeld zeigen kann. Das braucht `"real"` und gibt 409, wenn das Deck nicht gesperrt ist.
 
 <Callout type="warn" title="Echte Eingaben">
-Companion, die Elgato-App und die Satellite-Verbindung bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme des Connectors und deine eigenen Server. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
+Companion, die Elgato-App, die Satellite-Verbindung und eigene Server bekommen eine API-Eingabe nur mit `"real"`, denn ihre Tasten schalten echte Dinge. Ohne `"real"` erreicht die Eingabe nur die eigenen Bildschirme des Connectors. `"real": true` ist für einen Menschen an einer Webseite. Ein Skript nennt stattdessen den Rechner, `"real": "192.168.1.10"`, und die Eingabe geht nur raus, solange dieser Rechner zeichnet.
 </Callout>
 
 Neustart, Werkszustand, die LAN-Einstellungen, das Setup-WLAN und die Tasten, die einen Rechner reinlassen, gehen nur am Deck selbst.

@@ -5,15 +5,13 @@ import io
 import json
 
 import pytest
-from conftest import HOST, PASSWORD, REACT_PAGE, api, jpeg
+from conftest import HOST, PASSWORD, REACT_PAGE, api, paint
 from PIL import Image, ImageChops, ImageStat
 
 pytestmark = pytest.mark.skipif(REACT_PAGE, reason="tests the old page; web/e2e tests the React one")
 
 async_api = pytest.importorskip("playwright.async_api")
 
-FULL = (0, 0, 800, 480)
-KEY0 = (13, 12, 120, 120)
 LOADED = (
     "(() => { const i = [...document.querySelectorAll('#pics img')];"
     " return i.length && i.every((x) => x.complete && x.naturalWidth); })()"
@@ -21,8 +19,8 @@ LOADED = (
 
 
 async def draw(bridge, background, key):
-    await bridge.send_image(FULL, jpeg(background))
-    await bridge.send_image(KEY0, jpeg(key, (120, 120)))
+    await paint(bridge, background)
+    await paint(bridge, key, "key")
 
 
 async def difference(page) -> float:
@@ -77,9 +75,10 @@ async def restart(server):
     while not server.connected.empty():
         server.connected.get_nowait()
     await asyncio.to_thread(api, "POST", "/api/reboot")
-    await server.wait_bridge(90)
+    bridge = await server.wait_bridge(90)
     await asyncio.sleep(3)  # both links connect, the bridge's own screens come first
-    return list(server.bridges.values())[-1]
+    await bridge.role(True)
+    return bridge
 
 
 async def first_id() -> int:
