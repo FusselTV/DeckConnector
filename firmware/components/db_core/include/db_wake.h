@@ -29,9 +29,10 @@ typedef struct {
 } db_wake_t;
 
 void db_wake_init(db_wake_t *w, int64_t now);
-/* True: no listener may get `ev`. `black`: this deck shows 0 by the box's own setting. *woke: it ended the
- * dim or the dark. */
-bool db_wake_input(db_wake_t *w, int deck, bool black, const db_input_t *ev, int64_t now, bool *woke);
+/* True: no listener may get `ev`. `black`: this deck shows 0 by the box's own setting. `owned`: its host owns
+ * the screen, so nothing on it is swallowed. *woke: it ended the dim or the dark. */
+bool db_wake_input(db_wake_t *w, int deck, bool black, bool owned, const db_input_t *ev, int64_t now,
+                   bool *woke);
 void db_wake_forget(db_wake_t *w, int deck);
 /* Starts the idle time again. False when the cap did not change. */
 bool db_wake_set(db_wake_t *w, int cap, int64_t now);

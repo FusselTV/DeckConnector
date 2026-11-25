@@ -19,14 +19,22 @@ static bool in(int deck, db_input_kind_t kind, int index)
 {
     bool woke;
     db_input_t ev = {.kind = kind, .index = (uint8_t)index};
-    return !db_wake_input(&w, deck, false, &ev, now, &woke);
+    return !db_wake_input(&w, deck, false, false, &ev, now, &woke);
+}
+
+/* The same on a deck drawn by a host that owns the screen. */
+static bool in_owned(int deck, db_input_kind_t kind, int index)
+{
+    bool woke;
+    db_input_t ev = {.kind = kind, .index = (uint8_t)index};
+    return !db_wake_input(&w, deck, false, true, &ev, now, &woke);
 }
 
 /* The same on a deck whose own brightness on the box is 0. */
 static bool in_black(int deck, db_input_kind_t kind, int index, bool *woke)
 {
     db_input_t ev = {.kind = kind, .index = (uint8_t)index};
-    return !db_wake_input(&w, deck, true, &ev, now, woke);
+    return !db_wake_input(&w, deck, true, false, &ev, now, woke);
 }
 
 static void go_dark(void)
@@ -172,7 +180,8 @@ static void test_dimmed_after_the_idle_time_and_a_press_works_and_lights(void)
     TEST_ASSERT_FALSE(db_wake_due(&w, 10, 30, false, now + 20000000, &cap)); /* stays dimmed */
     bool woke;
     db_input_t ev = {.kind = DB_INPUT_KEY_DOWN, .index = 4};
-    TEST_ASSERT_FALSE(db_wake_input(&w, 0, false, &ev, now, &woke)); /* it can be read: the press works */
+    /* it can be read: the press works */
+    TEST_ASSERT_FALSE(db_wake_input(&w, 0, false, false, &ev, now, &woke));
     TEST_ASSERT_TRUE(woke);
     TEST_ASSERT_EQUAL(-1, w.cap);
     TEST_ASSERT_TRUE(in(0, DB_INPUT_KEY_UP, 4));
@@ -195,6 +204,33 @@ static void test_the_switch_turned_off_wins_over_a_dim(void)
     TEST_ASSERT_FALSE(db_wake_due(&w, 10, 30, false, now + 60000000, &cap));
     TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 0));
     TEST_ASSERT_EQUAL(-1, w.cap);
+}
+
+static void test_a_host_that_owns_the_screen_gets_the_waking_gesture(void)
+{
+    go_dark();
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_DOWN, 3));
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_ENCODER_TURN, 1));
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_UP, 3));
+    TEST_ASSERT_EQUAL(-1, w.cap); /* the other decks wake with it */
+}
+
+static void test_a_gesture_hidden_before_the_host_owned_the_screen_hides_nothing_after(void)
+{
+    go_dark();
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 3));
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_DOWN, 4));
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_UP, 3));
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_UP, 4));
+}
+
+static void test_the_box_swallows_again_once_the_host_is_gone(void)
+{
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_DOWN, 3));
+    TEST_ASSERT_TRUE(in_owned(0, DB_INPUT_KEY_UP, 3));
+    go_dark();
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_DOWN, 3));
+    TEST_ASSERT_FALSE(in(0, DB_INPUT_KEY_UP, 3));
 }
 
 static void test_shown_brightness(void)
@@ -226,6 +262,9 @@ int main(void)
     RUN_TEST(test_dimmed_after_the_idle_time_and_a_press_works_and_lights);
     RUN_TEST(test_a_deck_at_brightness_0_swallows_its_waking_gesture);
     RUN_TEST(test_the_switch_turned_off_wins_over_a_dim);
+    RUN_TEST(test_a_host_that_owns_the_screen_gets_the_waking_gesture);
+    RUN_TEST(test_a_gesture_hidden_before_the_host_owned_the_screen_hides_nothing_after);
+    RUN_TEST(test_the_box_swallows_again_once_the_host_is_gone);
     RUN_TEST(test_shown_brightness);
     return UNITY_END();
 }

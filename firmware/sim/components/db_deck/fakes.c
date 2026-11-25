@@ -175,7 +175,7 @@ esp_err_t db_deck_simulate(int deck, const db_input_t *in, bool real, uint32_t o
     bool woke;
     pthread_mutex_lock(&wake_lock);
     bool zero = lit[deck] == 0; /* the UI always draws here */
-    bool swallowed = db_wake_input(&wake, deck, zero, in, esp_timer_get_time(), &woke);
+    bool swallowed = db_wake_input(&wake, deck, zero, false, in, esp_timer_get_time(), &woke);
     if (zero) {
         lit[deck] = wake_pct;
     }
@@ -215,6 +215,11 @@ esp_err_t db_deck_set_brightness(int deck, uint8_t pct)
 {
     lit[deck] = pct;
     return ESP_OK;
+}
+
+bool db_deck_owned(int deck)
+{
+    return false;
 }
 
 int db_deck_brightness(int deck)

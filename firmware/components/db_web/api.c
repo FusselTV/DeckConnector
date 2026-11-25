@@ -147,7 +147,9 @@ static int config_edit(const char *body, char *reply, size_t cap)
         db_deck_screen_off(false);
     }
     for (int d = 0; cfg.brightness != old.brightness && d < DB_MAX_DECKS; d++) {
-        db_deck_set_brightness(d, cfg.brightness);
+        if (!db_deck_owned(d)) {
+            db_deck_set_brightness(d, cfg.brightness);
+        }
     }
     if (!restart) {
         snprintf(reply, cap, "{\"ok\":true,\"restart\":false}");
@@ -691,7 +693,8 @@ esp_err_t delete_menu(httpd_req_t *req)
     return send_json(req, "{\"ok\":true}");
 }
 
-/* {"on": false} turns every deck dark now, {"on": true} lights them; neither swallows a press. */
+/* {"on": false} turns every deck dark now, {"on": true} lights them. The press that wakes a dark deck reaches
+ * no host (db_wake.h); a deck whose host owns the screen stays as its host set it. */
 esp_err_t post_screen(httpd_req_t *req)
 {
     char body[32];

@@ -492,6 +492,17 @@ static int pick_active(void)
     return next < 0 && a >= 0 && s.enabled && links[a].fallback_up ? a : next;
 }
 
+static bool is_active(const link_t *l)
+{
+    return s.active == l->index && l->connected && l->wants_active;
+}
+
+static db_source_t source_of(const link_t *l)
+{
+    return (db_source_t)(DB_SOURCE_LINK0 + l->index);
+}
+
+/* The active host owns the screen while it is connected; its FALLBACK does not. */
 static void recompute_active(void)
 {
     xSemaphoreTake(s.role_lock,
@@ -513,17 +524,10 @@ static void recompute_active(void)
         s.active = next;
         s.hooks.active_changed(next);
     }
+    for (int i = 0; i < LINKS; i++) {
+        db_deck_host_owns(source_of(&links[i]), is_active(&links[i]));
+    }
     xSemaphoreGive(s.role_lock);
-}
-
-static bool is_active(const link_t *l)
-{
-    return s.active == l->index && l->connected && l->wants_active;
-}
-
-static db_source_t source_of(const link_t *l)
-{
-    return (db_source_t)(DB_SOURCE_LINK0 + l->index);
 }
 
 /* Each (target, slot) of `shots` to deck `deck`, under cache.lock; `at` is the flight, -1 for none. Returns
@@ -1242,7 +1246,7 @@ static void watch_state(void)
             continue;
         }
         int b = db_deck_shown(d);
-        int8_t on = (int8_t)(!db_deck_screen_is_off() && b != 0);
+        int8_t on = (int8_t)(b != 0);
         b = b < 0 ? 0 : b;
         int8_t was_on = s.state[d].on;
         int was = s.state[d].brightness;

@@ -95,6 +95,10 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
                     uint8_t *data, size_t len, uint64_t t_recv);
 
 esp_err_t db_deck_set_brightness(int deck, uint8_t pct);
+/* A host that owns the screen (a live Deck Assistant) sleeps and wakes its decks itself: on the decks it
+ * draws the screen saver, the switch and the box's brightness change nothing, and every input reaches it. */
+void db_deck_host_owns(db_source_t source, bool on);
+bool db_deck_owned(int deck);
 /* The brightness the deck has when lit, from whoever set it last; -1 before anyone did. */
 int db_deck_brightness(int deck);
 /* What it shows now, under the screen saver. */
@@ -103,7 +107,8 @@ int db_deck_shown(int deck);
 /* Screen saver, for all decks at once: off is brightness 0 and dimmed at most `dim` percent while images are
  * still drawn; a brightness set meanwhile is applied on waking. The first input on an off deck wakes them and
  * reaches no listener, nor does the rest of that gesture (see db_wake.h); on a dimmed one it works. An input
- * on a deck whose own brightness is 0 lights it to the `brightness` setting (DB_WAKE_PCT when that is 0). */
+ * on a deck whose own brightness is 0 lights it to the `brightness` setting (DB_WAKE_PCT when that is 0).
+ * Neither applies to a deck whose host owns the screen. */
 void db_deck_screen_off(bool off);
 bool db_deck_screen_is_off(void);
 /* A few times a second: dimmed to `dim` (0: off) after `off_s` seconds without input (0: never); lit while

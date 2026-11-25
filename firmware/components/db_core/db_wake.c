@@ -12,16 +12,20 @@ void db_wake_init(db_wake_t *w, int64_t now)
     }
 }
 
-bool db_wake_input(db_wake_t *w, int deck, bool black, const db_input_t *ev, int64_t now, bool *woke)
+bool db_wake_input(db_wake_t *w, int deck, bool black, bool owned, const db_input_t *ev, int64_t now,
+                   bool *woke)
 {
     *woke = w->cap >= 0;
-    black |= w->cap == 0;
+    black = (black || w->cap == 0) && !owned;
     w->cap = -1;
     w->last_us = now;
     if (deck < 0 || deck >= DB_MAX_DECKS || ev->index >= 64) {
         return black;
     }
     db_wake_deck_t *d = &w->deck[deck];
+    if (owned) { /* a gesture hidden before the host took over must not hide its later presses */
+        *d = (db_wake_deck_t){.keys = d->keys, .encoders = d->encoders, .turning = -1};
+    }
     bool busy = black || d->hidden_keys || d->hidden_encoders;
     uint64_t key = 1ULL << ev->index;
     uint8_t enc = (uint8_t)(ev->index < 8 ? 1U << ev->index : 0);
