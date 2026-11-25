@@ -84,6 +84,8 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
 
 After `HELLO` come one `CREDIT` per display and one `STATE` per deck. `STATE` comes again when the screen saver turns a deck off or on, or its brightness changes.
 
+While the active host is connected, the connector's screen saver, screen switch and brightness setting leave its decks alone, and every input reaches the host, also the one on a dark deck.
+
 ## Cache
 
 - The connector keeps 8 MiB in up to 1024 slots, numbered 0 to 1023, for all decks. The host picks the slots and evicts. A `PUT` into a used slot replaces it. A slot shows on any deck.
