@@ -1,8 +1,7 @@
 """screen_off_s: the decks dim or go dark after that long without input. A press on a dark deck only wakes it; on a
-dimmed one it works."""
+dimmed one it works. A deck an active server draws is left to that server."""
 
 import asyncio
-import contextlib
 import json
 import time
 from collections.abc import Callable
@@ -29,6 +28,11 @@ def wait_dark(within: float) -> float:
         assert time.monotonic() - start < within, "the decks did not go dark"
         time.sleep(0.2)
     return time.monotonic() - start
+
+
+def box_owns_the_screen() -> None:
+    if status()["decks"][0]["writer"].startswith("server"):
+        pytest.skip("a server draws and owns the screen (test_a_server_keeps_its_deck_lit_and_gets_every_press)")
 
 
 @pytest.fixture
@@ -59,6 +63,7 @@ def input_since() -> Callable[[], list]:
 
 @pytest.mark.sim
 def test_dimmed_after_the_idle_time_and_a_press_works():
+    box_owns_the_screen()
     put_config({"screen_off_s": 10, "screen_dim": 30, "brightness": 80})
     screen(True)
     try:
@@ -78,6 +83,7 @@ def test_dimmed_after_the_idle_time_and_a_press_works():
 
 @pytest.mark.sim
 def test_one_press_turns_the_switched_off_screen_on():
+    box_owns_the_screen()
     put_config({"brightness": 70})
     screen(False)
     try:
@@ -113,6 +119,7 @@ def test_one_press_lights_a_deck_at_brightness_0():
 
 @pytest.mark.sim
 def test_dark_after_the_idle_time_and_the_wake_press_is_swallowed(off_after_10s):
+    box_owns_the_screen()
     assert wait_dark(13) > 9
     st = status()
     assert all(d["brightness"] == 0 for d in st["decks"]), st["decks"]
@@ -148,10 +155,9 @@ def test_an_open_menu_keeps_the_decks_lit(off_after_10s):
         api("DELETE", "/api/menu")
 
 
-async def test_the_deck_goes_black_and_the_wake_press_stays_on_the_deck(bridges):
+async def test_a_server_keeps_its_deck_lit_and_gets_every_press(bridges):
     active, _ = bridges
-    white, red = (240, 240, 240), (230, 20, 20)
-    assert (await paint(active, white)).us > 0
+    assert (await paint(active, (240, 240, 240))).us > 0
     await active.send(p.brightness(100))
     me = real_input_target(await asyncio.to_thread(status))
     await asyncio.sleep(0.5)
@@ -160,23 +166,12 @@ async def test_the_deck_goes_black_and_the_wake_press_stays_on_the_deck(bridges)
     try:
         await asyncio.to_thread(screen, True)
         await asyncio.to_thread(wait_dark, 13)
-        dark = sum(await asyncio.to_thread(strip_color))
-        assert dark < bright / 3, f"camera saw {dark} dark against {bright} lit"
-        await active.send(p.brightness(60))
-        assert (await paint(active, red)).us > 0  # drawn while dark
-        await asyncio.sleep(0.5)
-        assert sum(await asyncio.to_thread(strip_color)) < bright / 3, "a brightness while dark lit the deck"
+        st = await asyncio.to_thread(status)
+        assert st["decks"][0]["brightness"] == 100, st["decks"]
+        lit = sum(await asyncio.to_thread(strip_color))
+        assert lit > bright * 2 / 3, f"camera saw {lit} against {bright} before the box went dark"
         while not active.inputs.empty():
             active.inputs.get_nowait()
-
-        await asyncio.to_thread(press, 3, real=me)
-        with contextlib.suppress(TimeoutError):
-            got = await asyncio.wait_for(active.inputs.get(), 1.5)
-            pytest.fail(f"the wake press reached the server: {got}")
-        st = await asyncio.to_thread(status)
-        assert not st["screen_off"] and st["decks"][0]["brightness"] == 60
-        seen = await asyncio.to_thread(strip_color)
-        assert max(range(3), key=lambda i: seen[i]) == 0 and sum(seen) > dark * 2, f"camera saw {seen} after waking"
 
         await asyncio.to_thread(press, 3, real=me)
         down = await asyncio.wait_for(active.inputs.get(), 3)

@@ -1,10 +1,15 @@
 """One press brings a black deck back, whatever made it black, on the firmware's own stack."""
 
+import asyncio
 import subprocess
 import time
 
 from conftest import dismiss_prompt
 from test_hosts import CHECK, companion  # noqa: F401  (a fixture)
+from test_surface import PORT, paired_bridge, solid
+
+from dbtools import protocol as p
+from dbtools.server import Server
 
 
 def brightness(sim, n: int = 0) -> str:
@@ -59,6 +64,49 @@ def test_the_screen_switched_off_and_a_host_at_0_one_press_lifts_both_and_is_swa
     time.sleep(0.5)
     assert not any(x.startswith("KEY-PRESS") for x in companion.lines), "the press woke the switched-off deck and acted"
     assert not sim.status()["screen_off"]
+
+
+async def test_a_live_server_owns_the_screen(start):
+    srv = await Server(PORT).start()
+    try:
+        sim, bridge = await paired_bridge(start, srv, "plus")
+        await bridge.send(p.brightness(0))
+        assert await asyncio.to_thread(sim.wait, lambda: brightness(sim) == "0", 5), brightness(sim)
+        await asyncio.to_thread(sim.tap, 0, 4)
+        got = [await asyncio.wait_for(bridge.inputs.get(), 3) for _ in range(2)]
+        assert [(i.kind, i.index) for i in got] == [(p.InputKind.KEY_DOWN, 4), (p.InputKind.KEY_UP, 4)]
+        await asyncio.sleep(0.5)
+        assert brightness(sim) == "0", "the box lit a deck its server turned off"
+
+        await bridge.send(p.brightness(60))
+        assert await asyncio.to_thread(sim.wait, lambda: brightness(sim) == "60", 5), brightness(sim)
+        assert (await asyncio.to_thread(sim.api, "POST", "/api/screen", {"on": False}))[0] == 200
+        await asyncio.to_thread(sim.config, brightness=20)
+        await asyncio.sleep(0.5)
+        assert brightness(sim) == "60", "the screen switch or the box brightness reached the server's deck"
+        await asyncio.to_thread(sim.tap, 0, 2)
+        got = [await asyncio.wait_for(bridge.inputs.get(), 3) for _ in range(2)]
+        assert [(i.kind, i.index) for i in got] == [(p.InputKind.KEY_DOWN, 2), (p.InputKind.KEY_UP, 2)]
+    finally:
+        await srv.stop()
+
+
+async def test_once_the_server_is_gone_a_press_lights_its_black_deck(start):
+    srv = await Server(PORT, ping=False).start()
+    try:
+        sim, bridge = await paired_bridge(start, srv, "plus")
+        keys = [t["id"] for t in bridge.decks[0]["targets"] if t["kind"] == "key"]
+        await bridge.put(1, solid(120, 120, (128, 128, 128)), 120, 120)
+        await bridge.send(p.fallback(0, [(k, 1) for k in keys]))
+        await bridge.send(p.brightness(0))
+        assert await asyncio.to_thread(sim.wait, lambda: brightness(sim) == "0", 5), brightness(sim)
+        await srv.stop()
+        assert await asyncio.to_thread(sim.wait, lambda: not sim.status()["sources"][0]["connected"], 10)
+        assert sim.status()["decks"][0]["writer"] == "server1", "no fallback picture"
+        await asyncio.to_thread(sim.tap, 0, 4)
+        assert await asyncio.to_thread(sim.wait, lambda: brightness(sim) == "80", 3), f"it stayed at {brightness(sim)}"
+    finally:
+        await srv.stop()
 
 
 def test_the_pin_pad_is_never_black(start, companion):  # noqa: F811
