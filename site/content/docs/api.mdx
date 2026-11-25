@@ -275,7 +275,7 @@ A refused value gets 400 with the reason, and the connector saves nothing. The r
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` or `other` |
 | `setup` | `step` of the web wizard, `active` until setup is done |
 | `menu_open` | The menu, the password, the reset question or a login request covers the deck |
-| `screen_off` | Every deck is dark, from the screen saver or `POST /api/screen`. The first input wakes them and reaches no host. `decks[].brightness` is 0 then. A dimmed deck is not off |
+| `screen_off` | Every deck is dark, from the screen saver or `POST /api/screen`. The first input wakes them and reaches no host. `decks[].brightness` is 0 then. A dimmed deck is not off. A deck an active server draws is left as the server set it |
 | `brightness` | The brightness setting. `decks[].brightness` is what each deck shows |
 | `network.lan.dead` | The cable is in, but the gateway does not answer |
 | `network.wlan.backup` | The connector is on the backup Wi-Fi, `ssid` names it |

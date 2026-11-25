@@ -275,7 +275,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `boot.reason` | `power`, `pin`, `restart`, `crash`, `watchdog`, `brownout` oder `other` |
 | `setup` | `step` der Einrichtung im Browser, `active`, bis die Einrichtung fertig ist |
 | `menu_open` | Menü, Passwort, Rücksetzfrage oder Login-Anfrage liegen über dem Deck |
-| `screen_off` | Alle Decks sind dunkel, durch den Bildschirmschoner oder `POST /api/screen`. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0. Ein gedimmtes Deck ist nicht aus |
+| `screen_off` | Alle Decks sind dunkel, durch den Bildschirmschoner oder `POST /api/screen`. Die erste Eingabe weckt sie und erreicht kein Programm. `decks[].brightness` ist dann 0. Ein gedimmtes Deck ist nicht aus. Ein Deck, das ein aktiver Server zeichnet, bleibt, wie der Server es gesetzt hat |
 | `brightness` | Die eingestellte Helligkeit. `decks[].brightness` ist, was jedes Deck zeigt |
 | `network.lan.dead` | Das Kabel steckt, aber das Gateway antwortet nicht |
 | `network.wlan.backup` | Der Connector ist im Ersatz-WLAN, `ssid` nennt es |
