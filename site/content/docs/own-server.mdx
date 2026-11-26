@@ -59,7 +59,7 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
 | `0x83` | INPUT | `u32 seq, u64 usb_time_us, u8 kind, u8 index, i16 value, u16 x, u16 y, u16 x2, u16 y2` |
 | `0x84` | DECK_ADDED | CBOR, one entry of `decks` |
 | `0x85` | DECK_REMOVED | nothing |
-| `0x86` | STATE | CBOR `{display_on, brightness}` |
+| `0x86` | STATE | CBOR `{display_on, brightness, drawing}` |
 | `0x87` | ERROR | CBOR `{code, message, id}`. `id` is the `FRAME` id or `STREAM` seq whose `SHOWN` follows, and only there |
 
 ## HELLO
@@ -82,7 +82,7 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
 - `keys` also counts keys without a picture, like the two touch keys of the Neo.
 - Rectangles and touch positions are in the display's pixels, origin at the top left of the whole glass.
 
-After `HELLO` come one `CREDIT` per display and one `STATE` per deck. `STATE` comes again when the screen saver turns a deck off or on, or its brightness changes.
+After `HELLO` come one `CREDIT` per display and one `STATE` per deck. `STATE` comes again when the screen saver turns a deck off or on, or its brightness changes, and when `drawing` changes. `drawing` is false while no host, Companion or Elgato app draws and the deck shows its own screen. A host on standby may ask with `ROLE` 1 then.
 
 While the active host is connected, the connector's screen saver, screen switch and brightness setting leave its decks alone, and every input reaches the host, also the one on a dark deck.
 
