@@ -317,6 +317,30 @@ async def test_a_second_host_takes_over_with_an_empty_cache(start):
         await b.stop()
 
 
+@pytest.mark.parametrize("leave", ["role", "close"])
+async def test_the_host_taken_over_is_active_again_when_the_other_leaves(start, leave):
+    a = await Server(PORT, "a").start()
+    b = await Server(PORT + 1, "b").start()
+    try:
+        sim, first = await paired_bridge(start, a, "mk2")
+        b.pair_code = lambda: deck_code(sim, 1)
+        await asyncio.to_thread(
+            sim.config, servers=[f"ws://127.0.0.1:{PORT}/surface", f"ws://127.0.0.1:{PORT + 1}/surface"]
+        )
+        second = await b.wait_bridge(20)
+        await second.role(True)
+        assert await asyncio.to_thread(sim.wait, lambda: sim.status()["decks"][0]["writer"] == "server2", 5)
+        hello = first.hello
+        await (second.role(False) if leave == "role" else second.ws.close())
+        assert await asyncio.to_thread(sim.wait, lambda: sim.status()["decks"][0]["writer"] == "server1", 5)
+        assert await asyncio.to_thread(sim.wait, lambda: first.hello is not hello, 5), "no new HELLO"
+        key = first.target(0)
+        assert (await first.draw(0, key, solid(key["w"], key["h"], (220, 20, 20)), 1)).us > 0, first.errors
+    finally:
+        await a.stop()
+        await b.stop()
+
+
 async def test_the_fallback_shows_when_the_host_drops_and_the_cache_outlives_a_restart(start):
     srv = await Server(PORT, ping=False).start()
     tokens = srv.tokens
