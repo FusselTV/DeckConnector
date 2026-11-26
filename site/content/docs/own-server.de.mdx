@@ -24,7 +24,7 @@ Kennt ein Host das Token nicht mehr, schließt er mit Code 4001 oder beantwortet
 
 ## Aktiv und Standby
 
-Ein gekoppelter Host fordert die Decks mit `ROLE` 1 an. Der Host, der zuletzt gefragt hat, ist **aktiv**. Er zeichnet auf jedem Deck und bekommt die Eingaben. Der andere steht auf **Standby** und bekommt `ERROR` `standby`, wenn er zeichnet. `ROLE` 0 gibt die Decks zurück.
+Ein gekoppelter Host fordert die Decks mit `ROLE` 1 an. Der Host, der zuletzt gefragt hat, ist **aktiv**. Er zeichnet auf jedem Deck und bekommt die Eingaben. Der andere steht auf **Standby** und bekommt `ERROR` `standby`, wenn er zeichnet. `ROLE` 0 gibt die Decks zurück. Gibt der aktive Host sie zurück oder geht er weg, ist der Host auf Standby, der vorher gefragt hat, wieder aktiv.
 
 Solange Companion oder die Elgato-App die gewählte Quelle ist, ist kein Host aktiv. Siehe [Quellen](/de/docs/hosts). Ein Host, der ohne eigenes `ROLE` wieder aktiv wird, bekommt auf derselben Verbindung ein neues `HELLO`. Seine Bilder sind dann vielleicht nicht mehr auf den Decks, also zeichne alle neu.
 

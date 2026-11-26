@@ -24,7 +24,7 @@ A host that no longer knows the token closes with code 4001, or answers the upgr
 
 ## Active and standby
 
-A paired host asks for the decks with `ROLE` 1. The host that asked last is **active**. It draws on every deck and gets the input. The other one is on **standby** and gets `ERROR` `standby` when it draws. `ROLE` 0 gives the decks back.
+A paired host asks for the decks with `ROLE` 1. The host that asked last is **active**. It draws on every deck and gets the input. The other one is on **standby** and gets `ERROR` `standby` when it draws. `ROLE` 0 gives the decks back. When the active host gives them back or goes away, the host on standby that asked before is active again.
 
 While Companion or the Elgato app is the chosen source, no host is active. See [Sources](/docs/hosts). A host that becomes active again without its own `ROLE` gets a new `HELLO` on the same connection. Its pictures may be gone from the decks, so draw them all again.
 
