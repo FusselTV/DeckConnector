@@ -261,7 +261,8 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
  "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
               "connected": true, "chosen": true, "drawing": true}],
  "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "usb_recoveries": 0,
-              "usb_speed": "high", "inputs": 0, "inputs_dropped": 0}}
+              "usb_speed": "high", "inputs": 0, "inputs_dropped": 0,
+              "refusals": {"standby": 0, "empty_slot": 0, "busy": 0}}}
 ```
 
 | Feld | Bedeutung |
@@ -281,7 +282,7 @@ Ein abgelehnter Wert gibt 400 mit dem Grund, und der Connector speichert nichts.
 | `network.wlan.backup` | Der Connector ist im Ersatz-WLAN, `ssid` nennt es |
 | `matter` | `on`, `running`, `controllers` (gekoppelte Apps) und `pairing` (offen für eine neue App) |
 | `pairing` | Dock-Kopplung, siehe [Kopplung](#kopplung) |
-| `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben |
+| `counters` | Bilder, ersetzte Bilder, USB-Fehler, Deck-Neuverbindungen, Eingaben und verlorene Eingaben, und in `refusals` jeder an einen Server geschickte `ERROR`, pro `code` |
 | `decks[].writer` | Wer auf diesem Deck zeichnet, Werte wie bei `writer` |
 | `decks[].hub` | Das Deck hängt an einem USB-Hub |
 | `speaker` | Ein Lautsprecher ist angeschlossen. Die Platine hat einen Lautsprecher-Ausgang und `speaker` ist in den Einstellungen an, siehe [Hardware](/de/docs/hardware#platine) |

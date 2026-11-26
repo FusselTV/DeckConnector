@@ -26,7 +26,7 @@ Kennt ein Host das Token nicht mehr, schließt er mit Code 4001 oder beantwortet
 
 Ein gekoppelter Host fordert die Decks mit `ROLE` 1 an. Der Host, der zuletzt gefragt hat, ist **aktiv**. Er zeichnet auf jedem Deck und bekommt die Eingaben. Der andere steht auf **Standby** und bekommt `ERROR` `standby`, wenn er zeichnet. `ROLE` 0 gibt die Decks zurück.
 
-Solange Companion oder die Elgato-App die gewählte Quelle ist, ist kein Host aktiv. Siehe [Quellen](/de/docs/hosts).
+Solange Companion oder die Elgato-App die gewählte Quelle ist, ist kein Host aktiv. Siehe [Quellen](/de/docs/hosts). Ein Host, der ohne eigenes `ROLE` wieder aktiv wird, bekommt auf derselben Verbindung ein neues `HELLO`. Seine Bilder sind dann vielleicht nicht mehr auf den Decks, also zeichne alle neu.
 
 ## Nachrichten
 
@@ -60,7 +60,7 @@ Jede Nachricht beginnt mit 4 Bytes: `u8 type`, `u8 deck` (0 bis 3, `0xFF` für d
 | `0x84` | DECK_ADDED | CBOR, ein Eintrag aus `decks` |
 | `0x85` | DECK_REMOVED | nichts |
 | `0x86` | STATE | CBOR `{display_on, brightness}` |
-| `0x87` | ERROR | CBOR `{code, message}` |
+| `0x87` | ERROR | CBOR `{code, message, id}`. `id` ist die `FRAME`-ID oder `STREAM`-seq, deren `SHOWN` folgt, und nur dort |
 
 ## HELLO
 
@@ -89,7 +89,7 @@ Solange der aktive Host verbunden ist, lassen Bildschirmschoner, Bildschirm-Scha
 ## Cache
 
 - Der Connector hält 8 MiB in bis zu 1024 Slots, nummeriert von 0 bis 1023, für alle Decks. Der Host vergibt die Slots und räumt aus. Ein `PUT` in einen belegten Slot ersetzt ihn. Ein Slot lässt sich auf jedem Deck zeigen.
-- Ein `PUT`, das nicht passt, bekommt `ERROR` `cache_full`.
+- Ein `PUT`, das nicht passt, bekommt `ERROR` `cache_full`. Ein abgelehntes `PUT` lässt seinen Slot leer.
 - `FRAME` zeigt alle seine Slots auf einmal. Beim Plus und Plus XL kommen die Tasten als ein Bild aufs Glas. Andere Decks bekommen einen USB-Transfer pro Taste.
 - Wird ein anderer Host aktiv, leert sich der Cache und `cache_epoch` ändert sich. Nach einem Neustart ist es eine neue Zahl. Ein Host, der zurückkommt und die `cache_epoch` wiederfindet, die er kennt, hat seine Slots noch.
 

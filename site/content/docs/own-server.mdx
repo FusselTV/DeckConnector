@@ -26,7 +26,7 @@ A host that no longer knows the token closes with code 4001, or answers the upgr
 
 A paired host asks for the decks with `ROLE` 1. The host that asked last is **active**. It draws on every deck and gets the input. The other one is on **standby** and gets `ERROR` `standby` when it draws. `ROLE` 0 gives the decks back.
 
-While Companion or the Elgato app is the chosen source, no host is active. See [Sources](/docs/hosts).
+While Companion or the Elgato app is the chosen source, no host is active. See [Sources](/docs/hosts). A host that becomes active again without its own `ROLE` gets a new `HELLO` on the same connection. Its pictures may be gone from the decks, so draw them all again.
 
 ## Messages
 
@@ -60,7 +60,7 @@ Each message starts with 4 bytes: `u8 type`, `u8 deck` (0 to 3, `0xFF` for the w
 | `0x84` | DECK_ADDED | CBOR, one entry of `decks` |
 | `0x85` | DECK_REMOVED | nothing |
 | `0x86` | STATE | CBOR `{display_on, brightness}` |
-| `0x87` | ERROR | CBOR `{code, message}` |
+| `0x87` | ERROR | CBOR `{code, message, id}`. `id` is the `FRAME` id or `STREAM` seq whose `SHOWN` follows, and only there |
 
 ## HELLO
 
@@ -89,7 +89,7 @@ While the active host is connected, the connector's screen saver, screen switch 
 ## Cache
 
 - The connector keeps 8 MiB in up to 1024 slots, numbered 0 to 1023, for all decks. The host picks the slots and evicts. A `PUT` into a used slot replaces it. A slot shows on any deck.
-- A `PUT` that does not fit gets `ERROR` `cache_full`.
+- A `PUT` that does not fit gets `ERROR` `cache_full`. A refused `PUT` leaves its slot empty.
 - `FRAME` shows all its slots at once. On the Plus and the Plus XL the keys reach the glass in one picture. Other decks get one USB transfer per key.
 - When another host becomes active, the connector empties the cache and changes `cache_epoch`. After a restart it is a new number. A host that comes back and finds the `cache_epoch` it knows still has its slots.
 

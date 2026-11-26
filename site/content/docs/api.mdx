@@ -261,7 +261,8 @@ A refused value gets 400 with the reason, and the connector saves nothing. The r
  "sources": [{"kind": "companion", "host": "192.168.1.10", "via": "satellite", "name": "studio",
               "connected": true, "chosen": true, "drawing": true}],
  "counters": {"images": 7, "superseded": 0, "rejected": 0, "usb_errors": 0, "usb_recoveries": 0,
-              "usb_speed": "high", "inputs": 0, "inputs_dropped": 0}}
+              "usb_speed": "high", "inputs": 0, "inputs_dropped": 0,
+              "refusals": {"standby": 0, "empty_slot": 0, "busy": 0}}}
 ```
 
 | Field | Meaning |
@@ -281,7 +282,7 @@ A refused value gets 400 with the reason, and the connector saves nothing. The r
 | `network.wlan.backup` | The connector is on the backup Wi-Fi, `ssid` names it |
 | `matter` | `on`, `running`, `controllers` (paired apps) and `pairing` (open for a new app) |
 | `pairing` | Dock pairing, see [Pairing](#pairing) |
-| `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs |
+| `counters` | Images, replaced images, USB errors, deck reconnects, inputs and lost inputs, and in `refusals` every `ERROR` sent to a server, per `code` |
 | `decks[].writer` | Who draws on that deck, values as `writer` |
 | `decks[].hub` | The deck is behind a USB hub |
 | `speaker` | A speaker is connected. The board has a speaker output and `speaker` is on in the settings, see [Hardware](/docs/hardware#board) |
