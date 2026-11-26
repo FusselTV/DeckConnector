@@ -131,6 +131,7 @@ static struct {
     struct {               /* what STATE told last, per deck */
         int8_t on;         /* -1: nothing yet */
         int brightness;
+        bool drawing; /* a host or another source draws, not the deck's own screen */
     } state[DB_MAX_DECKS];
 } s = {.active = -1};
 
@@ -257,13 +258,14 @@ static void send_credit(link_t *l, int deck, const db_device_info_t *info)
 
 static bool send_state(int link, int deck)
 {
-    uint8_t buf[48];
+    uint8_t buf[64];
     db_proto_hdr(buf, DB_MSG_STATE, (uint8_t)deck);
     db_cbor_t c;
     db_cbor_begin(&c, buf + DB_PROTO_HDR, sizeof(buf) - DB_PROTO_HDR);
     db_cbor_map(&c, NULL);
     db_cbor_bool(&c, "display_on", s.state[deck].on == 1);
     db_cbor_uint(&c, "brightness", (uint64_t)s.state[deck].brightness);
+    db_cbor_bool(&c, "drawing", s.state[deck].drawing);
     db_cbor_close(&c);
     return send_msg(link, buf, DB_PROTO_HDR + db_cbor_end(&c), pdMS_TO_TICKS(100));
 }
@@ -1275,7 +1277,7 @@ static void on_device(int deck, const db_device_info_t *info)
     heap_caps_free(buf);
 }
 
-/* Display on or off and the brightness it shows, to every host when it changes. */
+/* Display on or off, the brightness it shows and whether anyone draws, to every host when it changes. */
 static void watch_state(void)
 {
     for (int d = 0; d < DB_MAX_DECKS; d++) {
@@ -1285,14 +1287,19 @@ static void watch_state(void)
         int b = db_deck_shown(d);
         int8_t on = (int8_t)(b != 0);
         b = b < 0 ? 0 : b;
+        /* the menu over an active host is the deck's own screen too, and that host still holds the deck */
+        bool drawing = s.active >= 0 || db_deck_writer(d) != DB_SOURCE_UI;
         int8_t was_on = s.state[d].on;
         int was = s.state[d].brightness;
-        if (on != was_on || b != was) {
+        bool was_drawing = s.state[d].drawing;
+        if (on != was_on || b != was || drawing != was_drawing) {
             s.state[d].on = on;
             s.state[d].brightness = b;
+            s.state[d].drawing = drawing;
             if (!send_state(ALL_LINKS, d)) { /* again on the next tick */
                 s.state[d].on = was_on;
                 s.state[d].brightness = was;
+                s.state[d].drawing = was_drawing;
             }
         }
     }
