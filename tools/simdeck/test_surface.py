@@ -213,6 +213,50 @@ async def test_a_wrong_slot_size_or_format_is_refused_with_one_shown(start):
         await srv.stop()
 
 
+async def test_a_refused_put_empties_its_slot_and_each_error_names_its_frame(start):
+    srv = await Server(PORT).start()
+    try:
+        sim, bridge = await paired_bridge(start, srv, "mk2")
+        key = bridge.target(0)
+        await bridge.put(1, solid(key["w"], key["h"], (220, 20, 20)), key["w"], key["h"])
+        assert (await bridge.show(0, [(key["id"], 1)])).us > 0
+        await bridge.put(1, solid(key["w"], key["h"], (20, 20, 220)), key["w"], key["h"], fmt=9)
+        shown = await bridge.show(0, [(key["id"], 1)])
+        assert shown.us == 0, bridge.errors
+        assert [(e["code"], e.get("id")) for e in bridge.errors] == [("bad_message", None), ("empty_slot", shown.id)]
+        refusals = (await asyncio.to_thread(sim.status))["counters"]["refusals"]
+        assert (refusals["bad_message"], refusals["empty_slot"]) == (1, 1), refusals
+    finally:
+        await srv.stop()
+
+
+async def test_back_from_companion_the_host_gets_a_new_hello_on_the_same_connection(start):
+    srv = await Server(PORT).start()
+    try:
+        sim, bridge = await paired_bridge(start, srv, "mk2")
+        key = bridge.target(0)
+        await bridge.put(1, solid(key["w"], key["h"], (220, 20, 20)), key["w"], key["h"])
+        assert (await bridge.show(0, [(key["id"], 1)])).us > 0
+        first = bridge.hello
+        await asyncio.to_thread(sim.config, controller="companion")
+        assert await asyncio.to_thread(sim.wait, lambda: sim.status()["decks"][0]["writer"] != "server1", 5)
+        shown = await bridge.show(0, [(key["id"], 1)])
+        assert shown.us == 0 and bridge.errors[-1] == {
+            "code": "standby",
+            "message": "FRAME not shown",
+            "id": shown.id,
+            "deck": 0,
+        }, bridge.errors
+        assert (await asyncio.to_thread(sim.status))["counters"]["refusals"]["standby"] == 1
+        assert bridge.hello is first
+        await asyncio.to_thread(sim.config, controller="server")
+        assert await asyncio.to_thread(sim.wait, lambda: bridge.hello is not first, 5), "no new HELLO"
+        assert not bridge.closed.is_set()
+        assert (await bridge.show(0, [(key["id"], 1)])).us > 0, bridge.errors
+    finally:
+        await srv.stop()
+
+
 async def test_evict_and_a_full_cache(start):
     srv = await Server(PORT).start()
     try:
