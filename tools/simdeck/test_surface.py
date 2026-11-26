@@ -468,8 +468,21 @@ async def test_brightness_and_state(start):
             if bridge.states.get(1, {}).get("brightness") == 55:
                 break
             await asyncio.sleep(0.2)
-        assert bridge.states[0] == {"display_on": True, "brightness": 30}, bridge.states
-        assert bridge.states[1] == {"display_on": True, "brightness": 55}, bridge.states
+        assert bridge.states[0] == {"display_on": True, "brightness": 30, "drawing": True}, bridge.states
+        assert bridge.states[1] == {"display_on": True, "brightness": 55, "drawing": True}, bridge.states
+    finally:
+        await srv.stop()
+
+
+async def test_state_tells_a_host_on_standby_when_nobody_draws(start):
+    srv = await Server(PORT).start()
+    try:
+        sim, bridge = await paired_bridge(start, srv, "mk2")
+        assert await asyncio.to_thread(sim.wait, lambda: bridge.states.get(0, {}).get("drawing") is True, 5)
+        await bridge.role(False)
+        assert await asyncio.to_thread(sim.wait, lambda: bridge.states[0]["drawing"] is False, 5), bridge.states
+        await bridge.role(True)
+        assert await asyncio.to_thread(sim.wait, lambda: bridge.states[0]["drawing"] is True, 5), bridge.states
     finally:
         await srv.stop()
 
