@@ -96,6 +96,7 @@ typedef struct {
     char close_why[40]; /* the reason in the host's close frame */
     uint16_t close_code;
     volatile bool wants_active; /* sent ROLE 1 on this connection */
+    volatile bool hello_again;  /* became active without its own ROLE: its host's cache may be stale */
     uint32_t claimed;           /* when, in s.claims */
     bool fallback_up;           /* its FALLBACK shows since it dropped as the active host */
     uint32_t credit_bytes;      /* the free cache bytes the last CREDIT told */
@@ -185,8 +186,20 @@ static void tx_task(void *arg)
     }
 }
 
-static void send_error(int link, uint8_t deck, const char *code, const char *message)
+static const char *const REFUSALS[] = {"standby",  "busy",        "no_deck",  "bad_target",   "empty_slot",
+                                       "bad_size", "bad_format",  "too_big",  "not_drawing",  "cache_full",
+                                       "bad_slot", "bad_message", "unpaired", "unknown_type", "other"};
+static uint32_t refusals[sizeof(REFUSALS) / sizeof(REFUSALS[0])];
+
+/* `id` is the FRAME id or STREAM seq whose SHOWN follows, -1 for none. */
+static void send_refusal(int link, uint8_t deck, const char *code, const char *message, int64_t id)
 {
+    size_t i = 0;
+    while (i + 1 < sizeof(REFUSALS) / sizeof(REFUSALS[0]) && strcmp(REFUSALS[i], code) != 0) {
+        i++;
+    }
+    __atomic_add_fetch(&refusals[i], 1, __ATOMIC_RELAXED);
+    ESP_LOGW(TAG, "host %d deck %d: %s, %s", link, deck, code, message);
     uint8_t buf[200];
     db_proto_hdr(buf, DB_MSG_ERROR, deck);
     db_cbor_t c;
@@ -194,11 +207,20 @@ static void send_error(int link, uint8_t deck, const char *code, const char *mes
     db_cbor_map(&c, NULL);
     db_cbor_str(&c, "code", code);
     db_cbor_str(&c, "message", message);
+    if (id >= 0) {
+        db_cbor_uint(&c, "id", (uint64_t)id);
+    }
     db_cbor_close(&c);
     size_t n = db_cbor_end(&c);
-    if (n) {
-        send_msg(link, buf, DB_PROTO_HDR + n, 0);
+    /* A lost ERROR would make the host take the frame as shown; a new session counts from zero. */
+    if (n && !send_msg(link, buf, DB_PROTO_HDR + n, pdMS_TO_TICKS(20))) {
+        links[link].reconnect = "ERROR lost, send queue full";
     }
+}
+
+static void send_error(int link, uint8_t deck, const char *code, const char *message)
+{
+    send_refusal(link, deck, code, message, -1);
 }
 
 static void send_shown(int link, uint8_t deck, bool stream, uint32_t id, uint32_t us)
@@ -246,8 +268,9 @@ static bool send_state(int link, int deck)
     return send_msg(link, buf, DB_PROTO_HDR + db_cbor_end(&c), pdMS_TO_TICKS(100));
 }
 
-/* HELLO goes out by the link's own task before anything else may: the link is not marked connected yet. */
-static int send_hello(link_t *l)
+/* HELLO goes out by the link's own task. The first one before anything else may, as the link is not marked
+ * connected yet; a later one through the queue, after what is waiting there. */
+static int send_hello(link_t *l, bool queued)
 {
     uint8_t *buf = heap_caps_malloc(HELLO_MAX, MALLOC_CAP_SPIRAM);
     if (!buf) {
@@ -282,7 +305,9 @@ static int send_hello(link_t *l)
     db_cbor_close(&c);
     db_cbor_close(&c);
     size_t n = db_cbor_end(&c);
-    int err = n ? ws_send(&l->ws, WS_OP_BINARY, buf, DB_PROTO_HDR + n) : -EMSGSIZE;
+    int err = !n       ? -EMSGSIZE
+              : queued ? (send_msg(l->index, buf, DB_PROTO_HDR + n, pdMS_TO_TICKS(100)) ? 0 : -ENOBUFS)
+                       : ws_send(&l->ws, WS_OP_BINARY, buf, DB_PROTO_HDR + n);
     heap_caps_free(buf);
     return err;
 }
@@ -391,8 +416,8 @@ static void settle(link_t *l, uint32_t seq, db_ack_result_t r, uint64_t t_done, 
         return;
     }
     if (done.error) {
-        send_error(l->index, done.deck, done.error,
-                   done.stream ? "a STREAM was not shown" : "a FRAME was not shown");
+        send_refusal(l->index, done.deck, done.error,
+                     done.stream ? "a STREAM was not shown" : "a FRAME was not shown", done.id);
     }
     uint64_t us = done.shown && done.t_done > done.t_recv ? done.t_done - done.t_recv : 0;
     send_shown(l->index, done.deck, done.stream, done.id, us > UINT32_MAX ? UINT32_MAX : (uint32_t)us);
@@ -517,6 +542,7 @@ static void recompute_active(void)
         }
         if (next >= 0) {
             cache_take(links[next].url);
+            links[next].hello_again = true; /* its own ROLE clears it */
         }
         for (int d = 0; d < DB_MAX_DECKS; d++) {
             s.pct[d] = -1; /* the new one sends its own */
@@ -600,7 +626,7 @@ static int on_frame(link_t *l, uint8_t deck, uint64_t len)
     int at = err || why || n == 0 ? -1 : flight_open(l, deck, false, id, (uint8_t)n);
     if (err || why || at < 0) {
         if (!err && n) {
-            send_error(l->index, deck, why ? why : "busy", "FRAME not shown");
+            send_refusal(l->index, deck, why ? why : "busy", "FRAME not shown", id);
         }
         if (!err) {
             send_shown(l->index, deck, false, id, 0);
@@ -645,7 +671,7 @@ static int on_stream(link_t *l, uint8_t deck, uint64_t len)
         if (at >= 0) {
             settle(l, flight_seq(l, at), DB_ACK_BUSY, 0, NULL);
         } else {
-            send_error(l->index, deck, why ? why : "busy", "STREAM not shown");
+            send_refusal(l->index, deck, why ? why : "busy", "STREAM not shown", seq);
             send_shown(l->index, deck, true, seq, 0);
         }
         return ws_skip(&l->ws, len);
@@ -674,20 +700,21 @@ static int on_put(link_t *l, uint8_t deck, uint64_t len)
     }
     uint16_t slot = db_get_u16(h);
     len -= sizeof(h);
-    if (slot >= CACHE_SLOTS || h[2] > DB_IMG_PNG || len == 0 || len > DB_PROTO_IMAGE_MAX) {
-        send_error(l->index, deck, slot >= CACHE_SLOTS ? "bad_slot" : "bad_message", "PUT not stored");
+    bool bad = h[2] > DB_IMG_PNG || len == 0 || len > DB_PROTO_IMAGE_MAX;
+    if (slot >= CACHE_SLOTS) {
+        send_error(l->index, deck, "bad_slot", "PUT not stored");
         return ws_skip(&l->ws, len);
     }
+    /* A refused PUT leaves the slot empty: a FRAME that names it gets empty_slot instead of the old picture.
+     */
     xSemaphoreTake(cache.lock, portMAX_DELAY);
-    uint32_t old = cache.slots[slot].used ? cache.slots[slot].len : 0;
-    uint8_t *dst = NULL;
-    if (len <= CACHE_BYTES - (cache.used - old)) { /* else the old picture stays */
-        cache_drop(slot);
-        dst = cache_alloc(slot, (uint32_t)len);
-    }
+    cache_drop(slot);
+    uint8_t *dst = bad ? NULL : cache_alloc(slot, (uint32_t)len);
     if (!dst) {
         xSemaphoreGive(cache.lock);
-        send_error(l->index, deck, "cache_full", "PUT does not fit the cache budget");
+        send_error(l->index, deck, bad ? "bad_message" : "cache_full",
+                   bad ? "PUT not stored" : "PUT does not fit the cache budget");
+        credit_again(l);
         return ws_skip(&l->ws, len);
     }
     slot_t *sl = &cache.slots[slot];
@@ -968,6 +995,7 @@ static int on_message(link_t *l, uint64_t len)
             l->fallback_up = false;
             l->claimed = v == 1 ? ++s.claims : l->claimed;
             recompute_active();
+            l->hello_again = false;
             if (is_active(l)) {
                 send_decks(l, false); /* the cache may have been emptied for it */
             }
@@ -1054,6 +1082,15 @@ static bool session(link_t *l)
             l->reconnect = NULL;
             return false;
         }
+        if (l->hello_again) { /* it refused with standby meanwhile; a new HELLO starts the host over */
+            l->hello_again = false;
+            ESP_LOGI(TAG, "host %d is active again, HELLO", l->index);
+            if (send_hello(l, true) == 0) {
+                send_decks(l, true);
+            } else {
+                l->reconnect = "HELLO not sent";
+            }
+        }
         if (err == -EAGAIN || err == 0) {
             if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
                 ESP_LOGW(TAG, "host %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
@@ -1123,7 +1160,8 @@ static void link_task(void *arg)
             l->wants_active = false;
             l->input_seq = 0;
             flight_reset(l);
-            err = send_hello(l);
+            l->hello_again = false;
+            err = send_hello(l, false);
             if (err) {
                 ws_close(&l->ws);
             }
@@ -1433,6 +1471,15 @@ void db_link_brightness_again(int deck)
     if (s.active >= 0 && s.pct[deck] >= 0) {
         db_deck_set_brightness(deck, (uint8_t)s.pct[deck]);
     }
+}
+
+const char *db_link_refusals(int i, uint32_t *n)
+{
+    if (i < 0 || i >= (int)(sizeof(REFUSALS) / sizeof(REFUSALS[0]))) {
+        return NULL;
+    }
+    *n = __atomic_load_n(&refusals[i], __ATOMIC_RELAXED);
+    return REFUSALS[i];
 }
 
 uint32_t db_link_inputs_dropped(void)

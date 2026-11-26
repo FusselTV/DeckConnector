@@ -57,6 +57,8 @@ void db_link_reload(void);
 
 /* The first attached deck, slot 0 while none is: where the status lists the hosts. */
 int db_link_deck(void);
+/* The ERRORs sent to hosts: the code of entry `i` and in `n` how often; NULL past the last. */
+const char *db_link_refusals(int i, uint32_t *n);
 /* Inputs for the active host dropped from a full send queue. */
 uint32_t db_link_inputs_dropped(void);
 bool db_link_connected(int index);

@@ -326,6 +326,13 @@ static void write_status(db_json_t *j, bool live)
     db_json_str(j, "usb_speed", db_deck_full_speed() ? "full" : "high");
     db_json_int(j, "inputs", st.inputs);
     db_json_int(j, "inputs_dropped", st.inputs_dropped + db_link_inputs_dropped());
+    db_json_obj_open(j, "refusals");
+    uint32_t n;
+    const char *code;
+    for (int i = 0; (code = db_link_refusals(i, &n)); i++) {
+        db_json_int(j, code, n);
+    }
+    db_json_obj_close(j);
     db_json_obj_close(j);
 }
 
