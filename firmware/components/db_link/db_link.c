@@ -537,8 +537,7 @@ static void recompute_active(void)
     if (next != was) {
         ESP_LOGI(TAG, "active host %d -> %d", was, next);
         if (was >= 0 && next >= 0) {
-            links[was].wants_active = false; /* taken over: it asks again to come back */
-            links[was].fallback_up = false;
+            links[was].fallback_up = false; /* it keeps wants_active: back when next lets go */
         }
         if (next >= 0) {
             cache_take(links[next].url);
