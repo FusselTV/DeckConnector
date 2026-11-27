@@ -472,13 +472,30 @@ static bool same_origin(httpd_req_t *req)
     return o && strcmp(o + 3, host) == 0;
 }
 
-static void command(httpd_handle_t server, int fd, const char *text)
+/* NTP-style: t2 when the message arrived, t3 just before the reply goes out, both on the board's esp_timer. */
+static void clock_reply(httpd_handle_t server, int fd, double t1, int64_t t2)
+{
+    char out[128];
+    xSemaphoreTake(e.lock, portMAX_DELAY);
+    snprintf(out, sizeof(out), "{\"t\":\"clock\",\"t1\":%.0f,\"t2\":%lld,\"t3\":%lld}", t1, (long long)t2,
+             (long long)esp_timer_get_time());
+    send_to(server, fd, out);
+    xSemaphoreGive(e.lock);
+}
+
+static void command(httpd_handle_t server, int fd, const char *text, int64_t arrived)
 {
     cJSON *root = cJSON_Parse(text);
     const cJSON *t = cJSON_GetObjectItemCaseSensitive(root, "t");
+    const cJSON *t1 = cJSON_GetObjectItemCaseSensitive(root, "t1");
+    if (cJSON_IsString(t) && strcmp(t->valuestring, "clock") == 0 && cJSON_IsNumber(t1)) {
+        clock_reply(server, fd, t1->valuedouble, arrived);
+        cJSON_Delete(root);
+        return;
+    }
     const cJSON *id_item = cJSON_GetObjectItemCaseSensitive(root, "id");
     int id = cJSON_IsNumber(id_item) ? id_item->valueint : 0; /* read before the item is deleted below */
-    char reply[320] = "{\"ok\":false,\"error\":\"t: set, input or log expected\"}";
+    char reply[320] = "{\"ok\":false,\"error\":\"t: set, input, log or clock expected\"}";
     int code = 400;
     if (cJSON_IsString(t) && strcmp(t->valuestring, "log") == 0) {
         code = 403;
@@ -596,6 +613,7 @@ esp_err_t events_open(httpd_req_t *req)
 
 esp_err_t events_handler(httpd_req_t *req)
 {
+    int64_t arrived = esp_timer_get_time();
     httpd_ws_frame_t f = {0};
     if (httpd_ws_recv_frame(req, &f, 0) != ESP_OK || f.len > FRAME_MAX) {
         return ESP_FAIL;
@@ -613,7 +631,7 @@ esp_err_t events_handler(httpd_req_t *req)
         return ESP_OK;
     }
     text[f.len] = '\0';
-    command(req->handle, httpd_req_to_sockfd(req), text);
+    command(req->handle, httpd_req_to_sockfd(req), text, arrived);
     return ESP_OK;
 }
 

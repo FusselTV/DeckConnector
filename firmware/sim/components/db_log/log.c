@@ -46,6 +46,22 @@ esp_err_t get_profile(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"routes\":[]}");
 }
 
+/* no chip to profile */
+esp_err_t get_trace(httpd_req_t *req)
+{
+    return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "no trace in the simulator");
+}
+
+esp_err_t post_trace(httpd_req_t *req)
+{
+    return get_trace(req);
+}
+
+esp_err_t post_bench(httpd_req_t *req)
+{
+    return get_trace(req);
+}
+
 void db_log_start(void)
 {
 }

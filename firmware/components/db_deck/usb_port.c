@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "db_trace.h"
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -77,6 +78,7 @@ static void count_error(usb_transfer_status_t status)
 static void out_done(usb_transfer_t *t)
 {
     dev_t *d = t->context;
+    DB_TRACE(DB_TP_B7_END, d - s.devs, 0, t->actual_num_bytes);
     if (t->status == USB_TRANSFER_STATUS_COMPLETED) {
         __atomic_store_n(&d->fail_since, 0, __ATOMIC_RELAXED);
     }
@@ -90,7 +92,9 @@ static void in_done(usb_transfer_t *t)
 {
     dev_t *d = t->context;
     if (t->status == USB_TRANSFER_STATUS_COMPLETED && t->actual_num_bytes > 0) {
-        s.cb.input((int)(d - s.devs), t->data_buffer, t->actual_num_bytes, (uint64_t)esp_timer_get_time());
+        uint64_t now = (uint64_t)esp_timer_get_time();
+        DB_TRACE(DB_TP_U1, d - s.devs, now, t->actual_num_bytes);
+        s.cb.input((int)(d - s.devs), t->data_buffer, t->actual_num_bytes, now);
     }
     count_error(t->status);
     /* CANCELED while open (a flush) is queued again below */
@@ -186,6 +190,7 @@ static db_err_t io_write(const db_hid_io_t *io, const uint8_t *report, size_t le
     d->wrote = true;
     memcpy(t->data_buffer, report, len);
     t->num_bytes = (int)len;
+    DB_TRACE(DB_TP_B7, d - s.devs, 0, len);
     if (usb_host_transfer_submit(t) != ESP_OK) {
         xSemaphoreGive(d->out_free);
         return write_failed(d, DB_ERR_IO);
@@ -540,6 +545,8 @@ static esp_err_t find_endpoints(dev_t *d, const usb_config_desc_t *cd)
                 }
                 d->ep_in = ep->bEndpointAddress;
                 d->in->num_bytes = in_len;
+                ESP_LOGI(TAG, "input endpoint %02x: %d bytes, bInterval %u", ep->bEndpointAddress,
+                         USB_EP_DESC_GET_MPS(ep), ep->bInterval);
             } else {
                 d->ep_out = ep->bEndpointAddress;
             }

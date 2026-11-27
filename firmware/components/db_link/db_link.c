@@ -12,6 +12,7 @@
 #include "db_net.h"
 #include "db_ota.h"
 #include "db_proto.h"
+#include "db_trace.h"
 #include "esp_app_desc.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
@@ -180,9 +181,17 @@ static void tx_task(void *arg)
     tx_t m;
     for (;;) {
         xQueueReceive(l->tx, &m, portMAX_DELAY);
-        if (l->connected && ws_send(&l->ws, WS_OP_BINARY, m.heap ? m.heap : m.data, m.len) != 0) {
+        const uint8_t *msg = m.heap ? m.heap : m.data;
+        /* INPUT carries its seq at 4, SHOWN its FRAME id or STREAM seq at 5 */
+        uint32_t id = m.len >= DB_INPUT_LEN && msg[0] == DB_MSG_INPUT ? db_get_u32(msg + 4)
+                      : m.len >= DB_SHOWN_LEN && msg[0] == DB_MSG_SHOWN ? db_get_u32(msg + 5)
+                                                                        : 0;
+        DB_TRACE(DB_TP_L2, l->index, id, msg[0]);
+        if (l->connected && ws_send(&l->ws, WS_OP_BINARY, msg, m.len) != 0) {
             l->reconnect = "send failed";
         }
+        DB_TRACE(DB_TP_L2_END, l->index, id, msg[0]);
+        DB_COUNT(DB_TC_TX_MSGS);
         free(m.heap);
     }
 }
@@ -227,6 +236,7 @@ static void send_error(int link, uint8_t deck, const char *code, const char *mes
 static void send_shown(int link, uint8_t deck, bool stream, uint32_t id, uint32_t us)
 {
     uint8_t out[DB_SHOWN_LEN];
+    DB_TRACE(DB_TP_B8, link, id, stream);
     db_proto_shown(out, deck, stream, id, us);
     if (!send_msg(link, out, sizeof(out), pdMS_TO_TICKS(20))) { /* the host would wait for it forever */
         links[link].reconnect = "SHOWN lost, send queue full";  /* a new session counts from zero */
@@ -366,6 +376,7 @@ static int flight_open(link_t *l, uint8_t deck, bool stream, uint32_t id, uint8_
                    .gen = l->gen = l->gen % 0xffffff + 1, /* 1 to 2^24 - 1: 0 is the seq of none */
                    .id = id,
                    .t_recv = (uint64_t)esp_timer_get_time()};
+    DB_TRACE(DB_TP_B3, l->index, id, (l->gen & 0xff) << 8 | free_at);
     xSemaphoreGive(l->flight_lock);
     return free_at;
 }
@@ -582,7 +593,9 @@ static int draw(link_t *l, uint8_t deck, const shot_t *shots, int n, int at)
             settle(l, seq, DB_ACK_BUSY, 0, why); /* seq 0 is no flight */
             continue;
         }
+        DB_TRACE(DB_TP_B4, l->index, seq, sl->len / 16);
         memcpy(data, cache.arena + sl->off, sl->len);
+        DB_TRACE(DB_TP_B4_END, l->index, seq, sl->len / 16);
         db_deck_submit(deck, source_of(l), display, t->rect, seq, data, sl->len, now);
         sent++;
     }
@@ -639,6 +652,7 @@ static int on_frame(link_t *l, uint8_t deck, uint64_t len)
     if (err) {
         return err;
     }
+    DB_TRACE(DB_TP_B2, l->index, id, DB_MSG_FRAME);
     xSemaphoreTake(cache.lock, portMAX_DELAY);
     draw(l, deck, shots, n, at);
     xSemaphoreGive(cache.lock);
@@ -682,6 +696,7 @@ static int on_stream(link_t *l, uint8_t deck, uint64_t len)
         heap_caps_free(data);
         return err;
     }
+    DB_TRACE(DB_TP_B2, l->index, seq, DB_MSG_STREAM);
     db_deck_submit(deck, source_of(l), display, t->rect, flight_seq(l, at), data, (size_t)len,
                    (uint64_t)esp_timer_get_time());
     return 0;
@@ -726,6 +741,7 @@ static int on_put(link_t *l, uint8_t deck, uint64_t len)
     if (err) {
         cache_drop(slot);
     }
+    DB_TRACE(DB_TP_B2, l->index, slot, DB_MSG_PUT);
     xSemaphoreGive(cache.lock);
     credit_again(l);
     return err;
@@ -1042,6 +1058,8 @@ static int read_frame(link_t *l)
         return err;
     }
     l->last_rx_ms = now_ms();
+    DB_TRACE(DB_TP_B1, l->index, op, len < 0xffff ? len : 0xffff);
+    DB_COUNT(DB_TC_LINK_FRAMES);
     if (!fin || op == WS_OP_CONT) {
         return ws_skip(&l->ws, len);
     }
@@ -1093,6 +1111,9 @@ static bool session(link_t *l)
             }
         }
         if (err == -EAGAIN || err == 0) {
+            if (err) {
+                DB_COUNT(DB_TC_LINK_IDLE);
+            }
             if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
                 ESP_LOGW(TAG, "host %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
                 return true;
@@ -1243,10 +1264,12 @@ static void on_input(int deck, const db_input_t *ev)
         return;
     }
     uint8_t out[DB_INPUT_LEN];
-    db_proto_input(out, (uint8_t)deck, links[a].input_seq++, ev->t_us, ev);
+    uint32_t seq = links[a].input_seq++;
+    db_proto_input(out, (uint8_t)deck, seq, ev->t_us, ev);
     if (!send_msg(a, out, sizeof(out), pdMS_TO_TICKS(20))) {
         s.inputs_dropped++;
     }
+    DB_TRACE(DB_TP_L1, a, seq, uxQueueMessagesWaiting(links[a].tx));
 }
 
 static void on_device(int deck, const db_device_info_t *info)

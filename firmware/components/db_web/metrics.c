@@ -1,7 +1,10 @@
 #include <math.h>
 #include <stdlib.h>
 
+#include "cJSON.h"
 #include "db_json.h"
+#include "db_net.h"
+#include "db_trace.h"
 #include "db_web.h"
 #include "driver/temperature_sensor.h"
 #include "esp_heap_caps.h"
@@ -9,8 +12,11 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_timer.h"
+#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "jpeg_port.h"
+#include "miniz.h"
 #include "nvs.h"
 #include "web.h"
 
@@ -227,4 +233,283 @@ void metrics_start(void)
     if (esp_timer_create(&every, &timer) == ESP_OK) {
         esp_timer_start_periodic(timer, METRIC_EVERY_US);
     }
+}
+
+/* Profiling counters, once a second into the trace ring while it records. */
+static void trace_sample(void)
+{
+    static const uint32_t caps[2] = {MALLOC_CAP_INTERNAL, MALLOC_CAP_SPIRAM};
+    for (int k = 0; k < 2; k++) {
+        DB_TRACE(DB_TP_COUNTER, DB_TC_HEAP_FREE + 3 * k, heap_caps_get_free_size(caps[k]), 0);
+        DB_TRACE(DB_TP_COUNTER, DB_TC_HEAP_MIN + 3 * k, heap_caps_get_minimum_free_size(caps[k]), 0);
+        DB_TRACE(DB_TP_COUNTER, DB_TC_HEAP_LARGEST + 3 * k, heap_caps_get_largest_free_block(caps[k]), 0);
+    }
+    db_net_status_t n;
+    db_net_status(&n); /* its RSSI is at most 2 s old: each fresh one is a call to the WLAN chip */
+    DB_TRACE(DB_TP_COUNTER, DB_TC_RSSI, n.wlan_up ? n.rssi + 128 : 0, 0);
+    for (int c = DB_TC_LINK_FRAMES; c < DB_TC_COUNT; c++) {
+        DB_TRACE(DB_TP_COUNTER, c, __atomic_load_n(&db_trace_counts[c], __ATOMIC_RELAXED), 0);
+    }
+}
+
+static void trace_task(void *arg)
+{
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (db_trace_ring) {
+            trace_sample();
+        }
+    }
+}
+
+static const char *wifi_ps(void)
+{
+    wifi_ps_type_t ps;
+    if (esp_wifi_get_ps(&ps) != ESP_OK) { /* asks the WLAN chip itself */
+        return "unknown";
+    }
+    return ps == WIFI_PS_NONE ? "none" : ps == WIFI_PS_MIN_MODEM ? "min_modem" : "max_modem";
+}
+
+static esp_err_t trace_state(httpd_req_t *req)
+{
+    char out[160];
+    snprintf(out, sizeof(out), "{\"on\":%s,\"written\":%lu,\"capacity\":%u,\"now_us\":%lld,\"wifi_ps\":\"%s\"}",
+             db_trace_ring ? "true" : "false", (unsigned long)db_trace_written(), DB_TRACE_EVENTS,
+             (long long)esp_timer_get_time(), wifi_ps());
+    return send_json(req, out);
+}
+
+/* {"on": true} starts a new recording, {"on": false} stops it; RAM only, so every boot starts with it off. */
+esp_err_t post_trace(httpd_req_t *req)
+{
+    char body[64];
+    if (read_body(req, body, sizeof(body)) < 0) {
+        return send_error(req, "413 Payload Too Large", "body too large");
+    }
+    cJSON *root = cJSON_Parse(body);
+    const cJSON *on = cJSON_GetObjectItemCaseSensitive(root, "on");
+    bool valid = cJSON_IsBool(on);
+    bool want = cJSON_IsTrue(on);
+    cJSON_Delete(root);
+    if (!valid) {
+        return send_error(req, "400 Bad Request", "on: true or false expected");
+    }
+    static TaskHandle_t sampler;
+    if (want && !sampler && xTaskCreatePinnedToCore(trace_task, "trace", 3072, NULL, 2, &sampler, 1) != pdPASS) {
+        return send_error(req, "500 Internal Server Error", "no memory");
+    }
+    if (want && !db_trace_on()) {
+        return send_error(req, "500 Internal Server Error", "no memory for the ring");
+    }
+    if (!want) {
+        db_trace_off();
+    }
+    return trace_state(req);
+}
+
+/* The state as JSON, or with ?events the kept events, oldest first, as 16-byte records (db_trace_ev_t). */
+esp_err_t get_trace(httpd_req_t *req)
+{
+    char q[16];
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) != ESP_OK || strcmp(q, "events") != 0) {
+        return trace_state(req);
+    }
+    enum { CHUNK = 256 };
+    db_trace_ev_t *buf = malloc(CHUNK * sizeof(*buf));
+    if (!buf) {
+        return send_error(req, "500 Internal Server Error", "no memory");
+    }
+    char written[12];
+    snprintf(written, sizeof(written), "%lu", (unsigned long)db_trace_written());
+    httpd_resp_set_type(req, "application/octet-stream");
+    httpd_resp_set_hdr(req, "X-Trace-Written", written);
+    esp_err_t err = ESP_OK;
+    size_t n;
+    for (uint32_t from = 0; err == ESP_OK && (n = db_trace_copy(from, buf, CHUNK)) > 0; from += n) {
+        err = httpd_resp_send_chunk(req, (const char *)buf, (ssize_t)(n * sizeof(*buf)));
+    }
+    free(buf);
+    return err == ESP_OK ? httpd_resp_send_chunk(req, NULL, 0) : err;
+}
+
+static int64_t bench_us(void)
+{
+    return esp_timer_get_time();
+}
+
+/* MB/s of `reps` copies of `len` bytes from `src` to `dst`. */
+static double copy_rate(uint8_t *dst, const uint8_t *src, size_t len, int reps)
+{
+    int64_t t = bench_us();
+    for (int i = 0; i < reps; i++) {
+        memcpy(dst, src, len);
+    }
+    int64_t us = bench_us() - t;
+    vTaskDelay(1); /* the idle task feeds the watchdog */
+    return us ? (double)len * reps / us : 0;
+}
+
+static void bench_copies(db_json_t *j)
+{
+    enum { BIG = 1024 * 1024, SMALL = 64 * 1024, INNER = 16 * 1024 };
+    uint8_t *a = heap_caps_malloc(BIG, MALLOC_CAP_SPIRAM);
+    uint8_t *b = heap_caps_malloc(BIG, MALLOC_CAP_SPIRAM);
+    uint8_t *in = heap_caps_malloc(INNER, MALLOC_CAP_INTERNAL);
+    db_json_obj_open(j, "memcpy_mb_s");
+    if (a && b && in) {
+        memset(a, 0x5a, BIG);
+        db_json_int(j, "psram_psram_1m", (int64_t)copy_rate(b, a, BIG, 8));
+        db_json_int(j, "psram_psram_64k", (int64_t)copy_rate(b, a, SMALL, 64));
+        db_json_int(j, "psram_internal_16k", (int64_t)copy_rate(in, a, INNER, 128));
+        db_json_int(j, "internal_psram_16k", (int64_t)copy_rate(b, in, INNER, 128));
+    }
+    db_json_obj_close(j);
+    heap_caps_free(a);
+    heap_caps_free(b);
+    heap_caps_free(in);
+}
+
+static void bench_jpeg(db_json_t *j)
+{
+    static const uint16_t sizes[][2] = {{72, 72}, {120, 120}, {800, 100}, {800, 480}};
+    enum { REPS = 10 };
+    db_json_arr_open(j, "jpeg");
+    for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
+        uint16_t w = sizes[i][0];
+        uint16_t h = sizes[i][1];
+        uint8_t *rgb = jpeg_port_alloc_rgb(w, h);
+        uint8_t *back = jpeg_port_alloc_rgb(w, h);
+        uint8_t *jpg = NULL;
+        size_t len = 0;
+        if (!rgb || !back) {
+            heap_caps_free(rgb);
+            heap_caps_free(back);
+            continue;
+        }
+        for (size_t p = 0; p < (size_t)w * h * 3; p++) { /* gradients with some detail, like a key picture */
+            rgb[p] = (uint8_t)((p / 3 % w) * 255 / w ^ (p / 3 / w) * 7);
+        }
+        int64_t enc = 0;
+        int64_t dec = 0;
+        esp_err_t err = ESP_OK;
+        for (int r = 0; r < REPS && err == ESP_OK; r++) {
+            heap_caps_free(jpg);
+            jpg = NULL;
+            int64_t t = bench_us();
+            err = jpeg_port_encode(rgb, w, h, 90, &jpg, &len);
+            enc += bench_us() - t;
+            t = bench_us();
+            err = err == ESP_OK ? jpeg_port_decode_into(jpg, len, back, w, h, 0, 0) : err;
+            dec += bench_us() - t;
+        }
+        vTaskDelay(1);
+        db_json_obj_open(j, NULL);
+        db_json_int(j, "w", w);
+        db_json_int(j, "h", h);
+        if (err == ESP_OK) {
+            db_json_int(j, "bytes", (int64_t)len);
+            db_json_int(j, "encode_us", enc / REPS);
+            db_json_int(j, "decode_us", dec / REPS);
+        } else {
+            db_json_str(j, "error", esp_err_to_name(err));
+        }
+        db_json_obj_close(j);
+        heap_caps_free(jpg);
+        heap_caps_free(rgb);
+        heap_caps_free(back);
+    }
+    db_json_arr_close(j);
+}
+
+/* The ROM's miniz, which the Satellite PNGs go through. */
+static void bench_inflate(db_json_t *j)
+{
+    enum { RAW = 256 * 1024, REPS = 4 };
+    uint8_t *raw = heap_caps_malloc(RAW, MALLOC_CAP_SPIRAM);
+    uint8_t *back = heap_caps_malloc(RAW, MALLOC_CAP_SPIRAM);
+    uint8_t *z = heap_caps_malloc(RAW, MALLOC_CAP_SPIRAM);
+    tinfl_decompressor *d = malloc(sizeof(*d));
+    /* the ROM's miniz is built without malloc: its *_mem_to_heap helpers only return NULL */
+    tdefl_compressor *c = heap_caps_malloc(sizeof(*c), MALLOC_CAP_SPIRAM);
+    size_t zlen = 0;
+    if (raw && back && z && d && c) {
+        for (size_t p = 0; p < RAW; p++) { /* rows of a picture with flat areas: PNG-like */
+            raw[p] = (uint8_t)((p % 800) / 50 * 16 + (p / 800 % 3));
+        }
+        size_t in_len = RAW;
+        zlen = RAW;
+        bool done = tdefl_init(c, NULL, NULL, TDEFL_WRITE_ZLIB_HEADER | 128) == TDEFL_STATUS_OKAY &&
+                    tdefl_compress(c, raw, &in_len, z, &zlen, TDEFL_FINISH) == TDEFL_STATUS_DONE;
+        zlen = done ? zlen : 0;
+    }
+    heap_caps_free(c);
+    db_json_obj_open(j, "inflate");
+    if (zlen) {
+        int64_t us = 0;
+        bool ok = true;
+        for (int r = 0; r < REPS; r++) {
+            size_t in_len = zlen;
+            size_t out_len = RAW;
+            tinfl_init(d);
+            int64_t t = bench_us();
+            tinfl_status st = tinfl_decompress(d, z, &in_len, back, back, &out_len,
+                                               TINFL_FLAG_PARSE_ZLIB_HEADER | TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+            us += bench_us() - t;
+            ok &= st == TINFL_STATUS_DONE && out_len == RAW;
+            vTaskDelay(1);
+        }
+        db_json_int(j, "raw_bytes", RAW);
+        db_json_int(j, "zlib_bytes", (int64_t)zlen);
+        db_json_int(j, "mb_s", ok && us ? (int64_t)((double)RAW * REPS / us) : 0);
+        db_json_bool(j, "ok", ok && memcmp(raw, back, RAW) == 0);
+    }
+    db_json_obj_close(j);
+    heap_caps_free(z);
+    heap_caps_free(raw);
+    heap_caps_free(back);
+    free(d);
+}
+
+static size_t bench_json(char *buf, size_t cap)
+{
+    enum { N = 20000 };
+    db_json_t j;
+    db_json_begin(&j, buf, cap);
+    db_json_obj_open(&j, NULL);
+    int64_t t = bench_us();
+    for (int i = 0; i < N; i++) {
+        DB_TRACE(DB_TP_BENCH, 0, i, 0);
+    }
+    db_json_int(&j, "trace_off_ns", (bench_us() - t) * 1000 / N);
+    if (db_trace_on()) {
+        t = bench_us();
+        for (int i = 0; i < N; i++) {
+            DB_TRACE(DB_TP_BENCH, 0, i, 0);
+        }
+        db_json_int(&j, "trace_on_ns", (bench_us() - t) * 1000 / N);
+        db_trace_off();
+    }
+    volatile int64_t sink = 0;
+    t = bench_us();
+    for (int i = 0; i < N; i++) {
+        sink += esp_timer_get_time();
+    }
+    db_json_int(&j, "esp_timer_ns", (bench_us() - t) * 1000 / N);
+    vTaskDelay(1);
+    bench_copies(&j);
+    bench_jpeg(&j);
+    bench_inflate(&j);
+    db_json_obj_close(&j);
+    return db_json_end(&j);
+}
+
+/* Microbenchmarks. The trace point test records into the ring itself: refused while a trace records, and the
+ * last recording is gone after it. */
+esp_err_t post_bench(httpd_req_t *req)
+{
+    if (db_trace_ring) {
+        return send_error(req, "409 Conflict", "a trace is recording: stop it first");
+    }
+    return send_built(req, 2048, bench_json);
 }

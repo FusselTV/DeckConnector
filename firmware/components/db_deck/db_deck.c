@@ -7,6 +7,7 @@
 #include "db_driver.h"
 #include "db_regions.h"
 #include "db_screen.h"
+#include "db_trace.h"
 #include "db_wake.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
@@ -247,6 +248,7 @@ void db_deck_submit(int deck, db_source_t source, uint8_t display, db_rect_t rec
     deck_t *k = &decks[deck];
     db_region_t tmp = {
         .source = (uint8_t)source, .display = display, .rect = rect, .seq = seq, .t_recv = t_recv};
+    DB_TRACE(DB_TP_B5, deck, seq, len / 16);
     db_region_t *r = heap_caps_malloc(sizeof(*r), MALLOC_CAP_INTERNAL);
     db_ack_result_t reject = DB_ACK_SHOWN;
     xSemaphoreTake(k->lock, portMAX_DELAY);
@@ -298,6 +300,7 @@ static void writer_task(void *arg)
     for (;;) {
         const db_driver_t *drv = k->dev.driver;
         ulTaskNotifyTake(pdTRUE, drv && drv->tick ? pdMS_TO_TICKS(drv->tick_ms) : portMAX_DELAY);
+        DB_COUNT(DB_TC_WRITER_WAKES);
         for (;;) {
             drv = k->dev.driver;
             if (drv && drv->tick) {
@@ -306,6 +309,7 @@ static void writer_task(void *arg)
                 drv = k->dev.driver; /* another deck may have come meanwhile */
                 if (k->present && drv->tick && now - ticked >= drv->tick_ms * 1000LL) {
                     ticked = now;
+                    DB_COUNT(DB_TC_WRITER_TICKS);
                     drv->tick(&k->dev);
                 }
                 xSemaphoreGive(k->io_lock);
@@ -335,9 +339,11 @@ static void writer_task(void *arg)
             }
             xSemaphoreTake(k->io_lock, portMAX_DELAY);
             uint64_t t0 = (uint64_t)esp_timer_get_time();
+            DB_TRACE(DB_TP_B6, deck, r->seq, r->len / 16);
             db_err_t err =
                 t ? k->dev.driver->write_image(&k->dev, t, r->rect, r->data, r->len) : DB_ERR_STATE;
             uint64_t t1 = (uint64_t)esp_timer_get_time();
+            DB_TRACE(DB_TP_B6_END, deck, r->seq, err != DB_OK);
             xSemaphoreGive(k->io_lock);
             __atomic_add_fetch(&s.stats.images, 1, __ATOMIC_RELAXED);
             ack(r, err == DB_OK ? DB_ACK_SHOWN : DB_ACK_NO_DEVICE, t0, t1);
@@ -717,6 +723,7 @@ static void handle_input(int deck, const ev_t *ev, const uint8_t *raw)
     input_only_ip = ev->only_ip;
     static db_input_t out[EVENTS_PER_RPT]; /* off the stack: only the event task gets here */
     size_t n = k->dev.driver->parse_input(&k->dev, ev->report, ev->len, ev->t_us, out, EVENTS_PER_RPT);
+    DB_TRACE(DB_TP_E2, deck, ev->t_us, n);
     static bool swallowed[EVENTS_PER_RPT];
     static int keeper[EVENTS_PER_RPT];
     bool any = false;
@@ -782,6 +789,11 @@ static void event_task(void *arg)
         }
         if (!got) {
             continue;
+        }
+        DB_COUNT(DB_TC_EVENT_WAKES);
+        if (ev.kind == EV_INPUT || ev.kind == EV_SIMULATE) {
+            DB_TRACE(DB_TP_E1, ev.kind == EV_INPUT ? s.port_deck[ev.port] : ev.deck, ev.t_us,
+                     uxQueueMessagesWaiting(s.events));
         }
         switch (ev.kind) {
         case EV_ATTACHED:

@@ -35,7 +35,7 @@ typedef struct {
     uint32_t max_us;
     uint64_t total_us;
 } route_t;
-#define WEB_ROUTES_MAX 78
+#define WEB_ROUTES_MAX 81
 extern httpd_uri_t web_uris[WEB_ROUTES_MAX];
 extern route_t web_routes[WEB_ROUTES_MAX];
 extern size_t web_route_count;
@@ -60,6 +60,9 @@ esp_err_t send_built(httpd_req_t *req, size_t cap, size_t (*build)(char *buf, si
 void metrics_start(void);
 esp_err_t get_metrics(httpd_req_t *req);
 esp_err_t get_profile(httpd_req_t *req);
+esp_err_t get_trace(httpd_req_t *req);
+esp_err_t post_trace(httpd_req_t *req);
+esp_err_t post_bench(httpd_req_t *req);
 /* Restart in a second, so the reply still goes out. */
 void restart_soon(void);
 /* The HTTPS certificate and key as PEM: an uploaded pair, or the own one from the device CA, which is made on
