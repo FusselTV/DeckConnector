@@ -65,6 +65,7 @@ class Bridge:
         self.removed: asyncio.Queue[int] = asyncio.Queue()
         self.closed = asyncio.Event()
         self._ids = itertools.count(1)
+        self.last_frame = 0
         self._waiting: dict[tuple[bool, int], asyncio.Future[p.Shown]] = {}
 
     @property
@@ -96,7 +97,7 @@ class Bridge:
 
     async def frame(self, deck: int, shots: list[tuple[int, int]]) -> asyncio.Future[p.Shown]:
         """Send without waiting; the future resolves with its SHOWN."""
-        ident = next(self._ids)
+        ident = self.last_frame = next(self._ids)
         fut = self._expect(False, ident)
         await self.send(p.frame(deck, ident, shots))
         return fut
