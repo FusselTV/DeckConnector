@@ -1537,3 +1537,9 @@ const char *db_link_url(int index)
 {
     return index >= 0 && index < LINKS ? links[index].url : "";
 }
+
+const char *db_link_pair_code(int index)
+{
+    bool waiting = index >= 0 && index < LINKS && links[index].connected && !links[index].paired;
+    return waiting ? links[index].pair_code : "";
+}

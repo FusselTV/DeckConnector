@@ -67,3 +67,5 @@ db_health_t db_link_health(int index);
 void db_link_retry(int index);
 /* "" for an index without a link. */
 const char *db_link_url(int index);
+/* The code the decks show for a connected host that is not paired yet, else "". */
+const char *db_link_pair_code(int index);

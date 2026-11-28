@@ -3,6 +3,7 @@
 
 #include "cJSON.h"
 #include "db_json.h"
+#include "db_link.h"
 #include "db_net.h"
 #include "db_trace.h"
 #include "db_web.h"
@@ -271,12 +272,16 @@ static const char *wifi_ps(void)
     return ps == WIFI_PS_NONE ? "none" : ps == WIFI_PS_MIN_MODEM ? "min_modem" : "max_modem";
 }
 
+/* Pairing codes only while a recording runs: bench runs pair without reading the deck. */
 static esp_err_t trace_state(httpd_req_t *req)
 {
-    char out[160];
-    snprintf(out, sizeof(out), "{\"on\":%s,\"written\":%lu,\"capacity\":%u,\"now_us\":%lld,\"wifi_ps\":\"%s\"}",
+    char out[200];
+    snprintf(out, sizeof(out),
+             "{\"on\":%s,\"written\":%lu,\"capacity\":%u,\"now_us\":%lld,\"wifi_ps\":\"%s\","
+             "\"pair_codes\":[\"%s\",\"%s\"]}",
              db_trace_ring ? "true" : "false", (unsigned long)db_trace_written(), DB_TRACE_EVENTS,
-             (long long)esp_timer_get_time(), wifi_ps());
+             (long long)esp_timer_get_time(), wifi_ps(), db_trace_ring ? db_link_pair_code(0) : "",
+             db_trace_ring ? db_link_pair_code(1) : "");
     return send_json(req, out);
 }
 
