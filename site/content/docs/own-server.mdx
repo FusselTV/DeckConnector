@@ -11,7 +11,8 @@ Your program renders the pictures. The connector keeps them in a cache, shows th
 - It takes the URLs from **Sources**. While no URL is set, it takes hosts that announce `_deckassistant._tcp` over mDNS, as `wss://<address>:<port>/surface`.
 - `ws://` without TLS works only when you enter it yourself. Use it for tests.
 - Every message is one binary frame. The connector ignores text frames.
-- The connector pings every 2 s. A host silent for 6 s counts as lost.
+- The connector pings every 2 s. A host silent for 15 s counts as lost. Over LAN it checks after 6 s whether the host still takes a TCP connection, and if not, it is lost at once.
+- It offers the last TLS session again, so a reconnect skips the key exchange when the host still knows it.
 
 ## Pairing
 

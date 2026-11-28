@@ -39,7 +39,8 @@
 #define RETRY_MAX_MS     30000
 #define CONNECT_TIMEOUT  3000
 #define PING_AFTER_MS    2000
-#define SILENT_LIMIT_MS  6000
+#define SILENT_PROBE_MS  6000  /* over LAN: a TCP connect tells a dead path from a stalled host */
+#define SILENT_LIMIT_MS  15000 /* a Wi-Fi stall of 10 s keeps the session */
 #define ALL_LINKS        (-1)
 #define CACHE_BYTES      (8 * 1024 * 1024)
 #define CACHE_SLOTS      1024
@@ -1094,6 +1095,7 @@ static int read_frame(link_t *l)
 static bool session(link_t *l)
 {
     l->last_rx_ms = l->last_ping_ms = now_ms();
+    int64_t probed_rx = -1; /* last_rx_ms when the LAN was last probed */
     for (;;) {
         int err = read_frame(l);
         int64_t now = now_ms();
@@ -1118,6 +1120,17 @@ static bool session(link_t *l)
             if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
                 ESP_LOGW(TAG, "host %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
                 return true;
+            }
+            char lan[6];
+            if (!l->over_wlan && probed_rx != l->last_rx_ms && now - l->last_rx_ms > SILENT_PROBE_MS &&
+                db_net_ifname(false, lan)) {
+                probed_rx = l->last_rx_ms;
+                char url[sizeof(l->url)];
+                strlcpy(url, l->url, sizeof(url)); /* discover() may rewrite l->url meanwhile */
+                if (ws_probe(url, lan, PROBE_TIMEOUT) != 0) {
+                    ESP_LOGW(TAG, "host %d silent and not reachable over LAN", l->index);
+                    return true;
+                }
             }
             if (now - l->last_ping_ms > PING_AFTER_MS) {
                 l->last_ping_ms = now;
@@ -1256,7 +1269,6 @@ static void link_task(void *arg)
             ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(wait_ms));
             wait_ms = wait_ms * 2 < RETRY_MAX_MS ? wait_ms * 2 : RETRY_MAX_MS;
         }
-        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 

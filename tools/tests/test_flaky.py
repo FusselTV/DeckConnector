@@ -72,7 +72,8 @@ async def test_a_bad_network_to_a_server(servers, bridges):
         assert (await paint(bridge, (0, 200, 0), "key")).us > 0
         assert first.connected.empty(), "no new connection after a short pause"
 
-        # the path dies without a close: the bridge notices by itself and connects again
+        # the path dies without a close: the bridge notices by itself and connects again. The host still takes new
+        # connections, so it waits out the full 15 s silence limit, as for a stall.
         t0 = time.monotonic()
         proxy.cut = True
         await asyncio.sleep(1)
@@ -80,7 +81,7 @@ async def test_a_bad_network_to_a_server(servers, bridges):
         back = await first.wait_bridge(30)
         took = time.monotonic() - t0
         print(f"connected again {took:.1f} s after the path died")
-        assert back is not bridge and took < 15
+        assert back is not bridge and took < 20
         await back.role(True)  # a new connection starts on standby
         assert (await paint(back, (200, 0, 0), "key")).us > 0
     finally:
