@@ -237,7 +237,8 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
         }
         break;
     }
-    if (!err && ws->session && (pin || any) && !t->saw_cert) { /* resumed: no certificate came */
+    ws->resumed = !err && ws->session && (pin || any) && !t->saw_cert;
+    if (ws->resumed) { /* no certificate came */
         memcpy(ws->cert, ws->session_cert, sizeof(ws->cert));
         t->pin_ok = !pin || memcmp(ws->cert, pin, sizeof(ws->cert)) == 0;
     }
@@ -429,7 +430,7 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     }
     err = tls ? tls_start(ws, s, host, pin, timeout_ms) : 0;
     if (!err && tls && ws->trace != 0xff) {
-        DB_TRACE(DB_TP_C2, ws->trace, 0, 0);
+        DB_TRACE(DB_TP_C2, ws->trace, 0, ws->resumed);
     }
     err = err ? err : handshake(ws, s, host, port, path, subprotocol, extra_headers);
     if (!err && ws->trace != 0xff) {

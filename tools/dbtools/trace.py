@@ -254,7 +254,7 @@ def chrome(events: list, clock: dict, host: list | None = None, links: dict | No
         elif p in phase and "last" in conn.get(d, {}):
             c = conn[d]
             if p != "C4" or aux == 0:
-                slice_(phase[p], "connect", c["last"], t, link=d)
+                slice_("TLS resumed" if p == "C2" and aux else phase[p], "connect", c["last"], t, link=d)
                 c["last"] = t
             if p == "C4":
                 name = "connected" if aux == 0 else f"connect failed (errno {aux})"

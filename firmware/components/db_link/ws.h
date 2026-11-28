@@ -36,6 +36,7 @@ typedef struct {
      * certificate, so the session keeps its `cert`. */
     void *session;
     uint8_t session_cert[32];
+    bool resumed; /* the last handshake resumed `session`, for the trace ring */
 } ws_t;
 
 /* 0 or -ENOMEM. */

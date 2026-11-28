@@ -64,16 +64,30 @@ def test_a_reconnect_shows_its_phases_and_the_wait():
             (9000, "C2", 0),
             (9300, "C3", 0),
             (9500, "C4", 0),
+            (9800, "C5", 0),
+            (10000, "C0", 0),
+            (10100, "C1", 0),
+            (10400, "C2", 1),
+            (10500, "C3", 0),
+            (10600, "C4", 0),
         ]
     )
     out = chrome(decode(raw), {"a": 0.0, "b": 0.0})
-    got = {e["name"]: (e["ts"], e["dur"]) for e in out["traceEvents"] if e.get("ph") == "X"}
-    assert got == {
-        "away (backoff)": (1000, 2000),
-        "connect failed (errno 111)": (3000, 500),
-        "TCP connect": (7000, 400),
-        "TLS": (7400, 1600),
-        "WebSocket upgrade": (9000, 300),
-        "HELLO": (9300, 200),
-        "connected": (7000, 2500),
-    }
+    got = [(e["name"], e["ts"], e["dur"]) for e in out["traceEvents"] if e.get("ph") == "X"]
+    assert sorted(got) == sorted(
+        [
+            ("away (backoff)", 1000, 2000),
+            ("connect failed (errno 111)", 3000, 500),
+            ("TCP connect", 7000, 400),
+            ("TLS", 7400, 1600),
+            ("WebSocket upgrade", 9000, 300),
+            ("HELLO", 9300, 200),
+            ("connected", 7000, 2500),
+            ("away (backoff)", 9800, 200),
+            ("TCP connect", 10000, 100),
+            ("TLS resumed", 10100, 300),
+            ("WebSocket upgrade", 10400, 100),
+            ("HELLO", 10500, 100),
+            ("connected", 10000, 600),
+        ]
+    )
