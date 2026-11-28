@@ -36,6 +36,7 @@
 #define TICK_MS          500
 #define DISCOVER_EVERY   10 /* ticks; 12 times as long while a host draws */
 #define RETRY_MS         2000
+#define RETRY_FIRST_MS   100 /* then twice as long each time: a host that restarts is back in moments */
 #define RETRY_MAX_MS     30000
 #define CONNECT_TIMEOUT  3000
 #define PING_AFTER_MS    2000
@@ -1119,7 +1120,7 @@ static bool session(link_t *l)
             }
             if (now - l->last_rx_ms > SILENT_LIMIT_MS) {
                 ESP_LOGW(TAG, "host %d silent for %d s", l->index, SILENT_LIMIT_MS / 1000);
-                return true;
+                return probed_rx != l->last_rx_ms; /* a LAN that took the probe stays */
             }
             char lan[6];
             if (!l->over_wlan && probed_rx != l->last_rx_ms && now - l->last_rx_ms > SILENT_PROBE_MS &&
@@ -1219,7 +1220,7 @@ static void link_task(void *arg)
             via_wlan = path_ok ? false : !wlan;
             if (strcmp(failed, url) != 0) {
                 strlcpy(failed, url, sizeof(failed));
-                wait_ms = RETRY_MS;
+                wait_ms = RETRY_FIRST_MS;
             }
             bool tried_both = wlan || path_ok;
             ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tried_both ? wait_ms : 200)); /* or a retry now */
