@@ -1,5 +1,7 @@
 #include "ws.h"
 
+#include "db_trace.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +37,7 @@ typedef struct {
 int ws_init(ws_t *ws)
 {
     ws->sock = -1;
+    ws->trace = 0xff;
     ws->tls = NULL;
     ws->tx = xSemaphoreCreateMutex();
     ws->frame = malloc(SEND_MAX + 8);
@@ -391,8 +394,17 @@ int ws_connect(ws_t *ws, const char *url, const char *subprotocol, const char *e
     if (s < 0) {
         return s;
     }
+    if (ws->trace != 0xff) {
+        DB_TRACE(DB_TP_C1, ws->trace, 0, 0);
+    }
     err = tls ? tls_start(ws, s, host, pin, timeout_ms) : 0;
+    if (!err && tls && ws->trace != 0xff) {
+        DB_TRACE(DB_TP_C2, ws->trace, 0, 0);
+    }
     err = err ? err : handshake(ws, s, host, port, path, subprotocol, extra_headers);
+    if (!err && ws->trace != 0xff) {
+        DB_TRACE(DB_TP_C3, ws->trace, 0, 0);
+    }
     if (err) {
         tls_free(ws->tls);
         ws->tls = NULL;

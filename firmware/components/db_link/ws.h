@@ -31,6 +31,7 @@ typedef struct {
     bool any_cert;    /* wss:// without a pin takes any certificate, not only one a public CA signed */
     uint8_t cert[32]; /* SHA-256 of the server's certificate after a wss:// connect with a pin or any_cert */
     uint32_t peer;    /* the server's IPv4 address, network order */
+    uint8_t trace;    /* the link number in the trace ring's connect points, 0xff for none */
 } ws_t;
 
 /* 0 or -ENOMEM. */

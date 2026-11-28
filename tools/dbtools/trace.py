@@ -52,6 +52,12 @@ POINTS = [
     "B8",
     "COUNTER",
     "BENCH",
+    "C0",
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "C5",
 ]
 COUNTERS = [
     "heap_free",
@@ -151,7 +157,7 @@ def chrome(events: list, clock: dict, host: list | None = None, links: dict | No
     maps INPUT seq to the FRAME id the host answered it with, so press and picture are one flow."""
     a, b = clock["a"], clock["b"]
     links = links or {}
-    tids = {"usb_client": 1, "deck_events": 2, "link": 3, "link_tx": 4, "deck_writer": 5, "counters": 6}
+    tids = {"usb_client": 1, "deck_events": 2, "link": 3, "link_tx": 4, "deck_writer": 5, "counters": 6, "connect": 7}
     out: list[dict] = [{"ph": "M", "pid": BOARD_PID, "name": "process_name", "args": {"name": "DeckConnector board"}}]
     out += [
         {"ph": "M", "pid": BOARD_PID, "tid": t, "name": "thread_name", "args": {"name": n}} for n, t in tids.items()
@@ -191,6 +197,8 @@ def chrome(events: list, clock: dict, host: list | None = None, links: dict | No
     l2: dict[int, tuple[int, int]] = {}
     counts: dict[str, tuple[int, int]] = {}
     high = {"deck_events": 0, "link_tx": 0}
+    conn: dict[int, dict] = {}  # per link: start and last connect point, end of the last session
+    phase = {"C1": "TCP connect", "C2": "TLS", "C3": "WebSocket upgrade", "C4": "HELLO"}
     for t, p, d, aux, ident in events:
         if p == "U1":
             u1[ident] = t
@@ -238,6 +246,22 @@ def chrome(events: list, clock: dict, host: list | None = None, links: dict | No
                     "args": {"stream": aux},
                 }
             )
+        elif p == "C0":
+            c = conn.setdefault(d, {})
+            if "down" in c:
+                slice_("away (backoff)", "connect", c.pop("down"), t, link=d)
+            c.update(start=t, last=t, wlan=aux)
+        elif p in phase and "last" in conn.get(d, {}):
+            c = conn[d]
+            if p != "C4" or aux == 0:
+                slice_(phase[p], "connect", c["last"], t, link=d)
+                c["last"] = t
+            if p == "C4":
+                name = "connected" if aux == 0 else f"connect failed (errno {aux})"
+                slice_(name, "connect", c.pop("start"), t, link=d, wlan=c["wlan"])
+                del c["last"]
+        elif p == "C5":
+            conn.setdefault(d, {})["down"] = t
         elif p == "COUNTER":
             name = COUNTERS[d] if d < len(COUNTERS) else f"c{d}"
             value: float = ident - 128 if name == "rssi" else ident

@@ -49,3 +49,31 @@ def test_press_and_its_frame_are_one_flow():
     assert [e["ph"] for e in steps] == ["s", "t", "t", "t", "f"]
     write = next(e for e in out["traceEvents"] if e.get("name") == "USB write image")
     assert (write["ts"], write["dur"], write["args"]["frame"]) == (10_005_300.0, 2700.0, 9)
+
+
+def test_a_reconnect_shows_its_phases_and_the_wait():
+    p = {name: i for i, name in enumerate(POINTS) if name}
+    raw = b"".join(
+        EVENT.pack(t, p[point], 1, aux, 0)
+        for t, point, aux in [
+            (1000, "C5", 0),
+            (3000, "C0", 0),
+            (3500, "C4", 111),
+            (7000, "C0", 0),
+            (7400, "C1", 0),
+            (9000, "C2", 0),
+            (9300, "C3", 0),
+            (9500, "C4", 0),
+        ]
+    )
+    out = chrome(decode(raw), {"a": 0.0, "b": 0.0})
+    got = {e["name"]: (e["ts"], e["dur"]) for e in out["traceEvents"] if e.get("ph") == "X"}
+    assert got == {
+        "away (backoff)": (1000, 2000),
+        "connect failed (errno 111)": (3000, 500),
+        "TCP connect": (7000, 400),
+        "TLS": (7400, 1600),
+        "WebSocket upgrade": (9000, 300),
+        "HELLO": (9300, 200),
+        "connected": (7000, 2500),
+    }

@@ -29,6 +29,12 @@ typedef enum {
     DB_TP_B8,       /* link: SHOWN queued. id: FRAME id or STREAM seq, aux: 1 for a stream */
     DB_TP_COUNTER,  /* the 1 Hz sampler. deck: a db_tc_t, id: the value */
     DB_TP_BENCH,    /* /api/bench measuring the cost of a point */
+    DB_TP_C0,       /* link: connect starts. deck: link, aux: 1 over WLAN */
+    DB_TP_C1,       /* link: TCP connected */
+    DB_TP_C2,       /* link: TLS done */
+    DB_TP_C3,       /* link: WebSocket upgraded */
+    DB_TP_C4,       /* link: HELLO sent, or the try failed. aux: 0, or the errno */
+    DB_TP_C5,       /* link: connection ended */
     DB_TP_COUNT,
 } db_tp_t;
 

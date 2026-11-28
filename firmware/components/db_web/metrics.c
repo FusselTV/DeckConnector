@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "cJSON.h"
 #include "db_json.h"
@@ -275,13 +276,13 @@ static const char *wifi_ps(void)
 /* Pairing codes only while a recording runs: bench runs pair without reading the deck. */
 static esp_err_t trace_state(httpd_req_t *req)
 {
-    char out[200];
+    char out[240];
     snprintf(out, sizeof(out),
              "{\"on\":%s,\"written\":%lu,\"capacity\":%u,\"now_us\":%lld,\"wifi_ps\":\"%s\","
-             "\"pair_codes\":[\"%s\",\"%s\"]}",
+             "\"nodelay\":[%d,%d],\"pair_codes\":[\"%s\",\"%s\"]}",
              db_trace_ring ? "true" : "false", (unsigned long)db_trace_written(), DB_TRACE_EVENTS,
-             (long long)esp_timer_get_time(), wifi_ps(), db_trace_ring ? db_link_pair_code(0) : "",
-             db_trace_ring ? db_link_pair_code(1) : "");
+             (long long)esp_timer_get_time(), wifi_ps(), db_link_nodelay(0), db_link_nodelay(1),
+             db_trace_ring ? db_link_pair_code(0) : "", db_trace_ring ? db_link_pair_code(1) : "");
     return send_json(req, out);
 }
 
@@ -294,11 +295,17 @@ esp_err_t post_trace(httpd_req_t *req)
     }
     cJSON *root = cJSON_Parse(body);
     const cJSON *on = cJSON_GetObjectItemCaseSensitive(root, "on");
+    const char *ps = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "wifi_ps"));
     bool valid = cJSON_IsBool(on);
     bool want = cJSON_IsTrue(on);
+    /* For an A/B of Wi-Fi power save; until the next boot, which turns it off again (db_net). */
+    int set = !ps ? -1 : !strcmp(ps, "none") ? WIFI_PS_NONE : !strcmp(ps, "min_modem") ? WIFI_PS_MIN_MODEM : -1;
     cJSON_Delete(root);
+    if (ps && (set < 0 || esp_wifi_set_ps((wifi_ps_type_t)set) != ESP_OK)) {
+        return send_error(req, "400 Bad Request", "wifi_ps: none or min_modem, with WLAN up");
+    }
     if (!valid) {
-        return send_error(req, "400 Bad Request", "on: true or false expected");
+        return ps ? trace_state(req) : send_error(req, "400 Bad Request", "on: true or false expected");
     }
     static TaskHandle_t sampler;
     if (want && !sampler && xTaskCreatePinnedToCore(trace_task, "trace", 3072, NULL, 2, &sampler, 1) != pdPASS) {

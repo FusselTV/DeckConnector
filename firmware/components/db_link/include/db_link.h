@@ -69,3 +69,5 @@ void db_link_retry(int index);
 const char *db_link_url(int index);
 /* The code the decks show for a connected host that is not paired yet, else "". */
 const char *db_link_pair_code(int index);
+/* TCP_NODELAY of the link's socket as the stack reports it: 1, 0, or -1 while not connected. */
+int db_link_nodelay(int index);

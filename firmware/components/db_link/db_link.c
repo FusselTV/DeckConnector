@@ -14,6 +14,7 @@
 #include "db_proto.h"
 #include "db_trace.h"
 #include "esp_app_desc.h"
+#include "lwip/sockets.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -1173,6 +1174,7 @@ static void link_task(void *arg)
         bool pinned = set && db_config_pin(c->server_pins[l->index], pin);
         l->paired = headers[0];
         l->ws.any_cert = !l->paired; /* the admin vouches for this one with the code, and it is pinned then */
+        DB_TRACE(DB_TP_C0, l->index, 0, bound && wlan);
         int err = ws_connect(&l->ws, url, "deckassistant.v2", l->paired ? headers : NULL,
                              bound ? ifname : NULL, CONNECT_TIMEOUT, pinned ? pin : NULL);
         if (!err) {
@@ -1188,6 +1190,7 @@ static void link_task(void *arg)
                 ws_close(&l->ws);
             }
         }
+        DB_TRACE(DB_TP_C4, l->index, 0, -err);
         if (err == -EACCES && l->paired) {
             forget_token(l);
         }
@@ -1230,6 +1233,7 @@ static void link_task(void *arg)
         l->close_code = 0;
         /* silent over LAN: a LAN that keeps its link but drops everything would cost a connect timeout */
         via_wlan = session(l) && !l->over_wlan;
+        DB_TRACE(DB_TP_C5, l->index, 0, 0);
         wait_ms = l->heard ? RETRY_MS : wait_ms;
         l->connected = false;
         if (!l->paired) {
@@ -1435,6 +1439,7 @@ esp_err_t db_link_start(const db_link_hooks_t *hooks)
         if (!l->flight_lock || !l->tx || ws_init(&l->ws)) {
             return ESP_ERR_NO_MEM;
         }
+        l->ws.trace = i;
         strlcpy(l->url, db_config_server_of(db_config(), i), sizeof(l->url));
         db_deck_set_ack_handler(source_of(l), on_ack, (void *)(intptr_t)i);
         char name[12];
@@ -1536,6 +1541,14 @@ void db_link_retry(int index)
 const char *db_link_url(int index)
 {
     return index >= 0 && index < LINKS ? links[index].url : "";
+}
+
+int db_link_nodelay(int index)
+{
+    int s = index >= 0 && index < LINKS ? links[index].ws.sock : -1;
+    int on = 0;
+    socklen_t n = sizeof(on);
+    return s >= 0 && getsockopt(s, IPPROTO_TCP, TCP_NODELAY, &on, &n) == 0 ? on != 0 : -1;
 }
 
 const char *db_link_pair_code(int index)
