@@ -30,12 +30,14 @@ typedef struct {
     const uint8_t *pin; /* NULL: any certificate, its SHA-256 goes to `cert` */
     uint8_t *cert;
     bool pin_ok;
+    bool saw_cert;
 } tls_t;
 
 int ws_init(ws_t *ws)
 {
     ws->sock = -1;
     ws->tls = NULL;
+    ws->session = NULL;
     ws->tx = xSemaphoreCreateMutex();
     ws->frame = malloc(SEND_MAX + 8);
     if (!ws->tx || !ws->frame) {
@@ -43,6 +45,15 @@ int ws_init(ws_t *ws)
         return -ENOMEM;
     }
     return 0;
+}
+
+static void session_drop(ws_t *ws)
+{
+    if (ws->session) {
+        mbedtls_ssl_session_free(ws->session);
+        free(ws->session);
+        ws->session = NULL;
+    }
 }
 
 void ws_deinit(ws_t *ws)
@@ -53,6 +64,7 @@ void ws_deinit(ws_t *ws)
     }
     free(ws->frame);
     ws->frame = NULL;
+    session_drop(ws);
 }
 
 static int parse_url(const char *url, char *host, size_t host_cap, unsigned *port, const char **path,
@@ -165,6 +177,7 @@ static int check_pin(void *ctx, mbedtls_x509_crt *crt, int depth, uint32_t *flag
 {
     tls_t *t = ctx;
     if (depth == 0) {
+        t->saw_cert = true;
         size_t n = 0;
         t->pin_ok =
             psa_hash_compute(PSA_ALG_SHA_256, crt->raw.p, crt->raw.len, t->cert, 32, &n) == PSA_SUCCESS &&
@@ -208,6 +221,9 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
     }
     err = err ? err : mbedtls_ssl_setup(&t->ssl, &t->conf);
     err = err ? err : mbedtls_ssl_set_hostname(&t->ssl, host);
+    if (!err && ws->session) {
+        mbedtls_ssl_set_session(&t->ssl, ws->session); /* a server that lost it does a full handshake */
+    }
     mbedtls_ssl_set_bio(&t->ssl, t, bio_send, bio_recv, NULL);
     int64_t end = esp_timer_get_time() + (int64_t)timeout_ms * 1000;
     while (!err && (err = mbedtls_ssl_handshake(&t->ssl)) != 0) {
@@ -218,6 +234,10 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
         }
         break;
     }
+    if (!err && ws->session && (pin || any) && !t->saw_cert) { /* resumed: no certificate came */
+        memcpy(ws->cert, ws->session_cert, sizeof(ws->cert));
+        t->pin_ok = !pin || memcmp(ws->cert, pin, sizeof(ws->cert)) == 0;
+    }
     if (!err && (pin || any) && !t->pin_ok) {
         err = MBEDTLS_ERR_X509_CERT_VERIFY_FAILED;
     }
@@ -226,9 +246,19 @@ static int tls_start(ws_t *ws, int sock, const char *host, const uint8_t *pin, i
                  err == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ? ", certificate not trusted" : "");
         ws->fail = err == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED ? "certificate not trusted" : "TLS failed";
         tls_free(t);
+        session_drop(ws);
         return -ECONNREFUSED;
     }
     ws->tls = t;
+    session_drop(ws);
+    if ((ws->session = calloc(1, sizeof(mbedtls_ssl_session)))) {
+        mbedtls_ssl_session_init(ws->session);
+        if (mbedtls_ssl_get_session(&t->ssl, ws->session) == 0) {
+            memcpy(ws->session_cert, ws->cert, sizeof(ws->cert));
+        } else {
+            session_drop(ws);
+        }
+    }
     return 0;
 }
 
@@ -444,7 +474,7 @@ void ws_close(ws_t *ws)
 }
 
 /* A frame that stalls halfway gives up after STALL_LIMIT_US, whatever SO_RCVTIMEO the caller set. */
-#define STALL_LIMIT_US (6 * 1000 * 1000)
+#define STALL_LIMIT_US (15 * 1000 * 1000)
 
 static int read_exact(ws_t *ws, uint8_t *buf, size_t len, bool allow_idle)
 {

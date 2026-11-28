@@ -31,6 +31,10 @@ typedef struct {
     bool any_cert;    /* wss:// without a pin takes any certificate, not only one a public CA signed */
     uint8_t cert[32]; /* SHA-256 of the server's certificate after a wss:// connect with a pin or any_cert */
     uint32_t peer;    /* the server's IPv4 address, network order */
+    /* The last TLS session, offered again: resuming it skips the key exchange. A resumed handshake shows no
+     * certificate, so the session keeps its `cert`. */
+    void *session;
+    uint8_t session_cert[32];
 } ws_t;
 
 /* 0 or -ENOMEM. */
